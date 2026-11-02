@@ -478,6 +478,9 @@ async fn the_model_resource_is_one_record() {
       "usedBy": [],
       "healthy": false,
       "lastAnsweredAt": Value::Null,
+      "contextTokens": 100000,
+      "answerTokens": 4000,
+      "thinking": false,
     }])
   );
 

@@ -72,6 +72,18 @@ side of a remote agent, the rotation, and what a dropped node does.
   a sync of its own as a unit; a sync stops the node's link, which that process stands again on the
   new code.
 
+## Which nodes take jobs
+
+- **A node takes jobs where a job can reach it and no other service holds it:** the node service names an
+  SSH login to it, since every git question of a job's lifecycle runs there over SSH, and the services it
+  reserves the node for, where it reserves it, include the jobs. A node reached through a hub has no SSH
+  route and takes none; one reserved for another service alone takes none.
+- **The judgement is agency's, read off the node service's list as it stands:** `GET /nodes` answers each
+  node with `takesJobs` and the sentence saying why not (`docs/api.md`, 「nodes」), so a screen offers only the
+  nodes that take jobs, and a repository's placement or node checkout naming another is refused.
+- **Taking jobs is not being ready:** a node that takes jobs launches nothing while its workplace is not ready
+  or its link is down (「The workplace on a node」, 「When a node drops」).
+
 ## The link
 
 - **One link per ready workplace:** a connect program of the crate workspace, under a unit of its own,

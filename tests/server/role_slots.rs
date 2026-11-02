@@ -258,3 +258,147 @@ async fn a_request_key_answers_its_standing_request_and_is_spent_once_the_reques
     "a new key opens a new request"
   );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bound_lease_is_given_back_only_once_its_child_was_seen_standing_and_then_is_not() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let held = ask(&ground, "worker", "bound").await;
+
+  assert!(admitted(&ground, &held).await);
+  dispatch::bind(
+    &ground.db,
+    &dispatch::request(&ground.db, &held.token).await.unwrap().unwrap(),
+    "unit-one",
+  )
+  .await
+  .unwrap();
+
+  let nothing = std::collections::HashSet::new();
+  let standing: std::collections::HashSet<String> = ["unit-one".to_owned()].into();
+
+  // A child never seen standing is not read as ended, however long it takes to come up.
+  let leases = dispatch::bound_leases(&ground.db).await.unwrap();
+
+  assert_eq!(leases, vec![(held.token.clone(), "unit-one".to_owned(), false)]);
+  assert_eq!(dispatch::release_ended(&ground.db, &leases, &nothing).await.unwrap(), 0);
+  assert_eq!(dispatch::request(&ground.db, &held.token).await.unwrap().unwrap().state, "active");
+
+  // Seen standing, then gone: given back, as the line's on evidence its run ended.
+  let leases = dispatch::bound_leases(&ground.db).await.unwrap();
+
+  assert_eq!(dispatch::release_ended(&ground.db, &leases, &standing).await.unwrap(), 0);
+
+  let leases = dispatch::bound_leases(&ground.db).await.unwrap();
+
+  assert!(leases[0].2, "marked seen");
+  assert_eq!(dispatch::release_ended(&ground.db, &leases, &nothing).await.unwrap(), 1);
+
+  let ended = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+  assert_eq!(
+    (ended.state.as_str(), ended.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_RUN_ENDED))
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lease_bound_to_a_role_session_ends_with_that_session() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let held = ask(&ground, "worker", "session").await;
+
+  assert!(admitted(&ground, &held).await);
+  dispatch::bind_session(&ground.db, &held.token, "worker@run:7").await.unwrap();
+
+  // A later binding naming the run keeps the lease on its session and the name as the run's.
+  let now = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+  let bound = dispatch::bind(&ground.db, &now, "research-7-review").await.unwrap();
+
+  assert_eq!(bound.child_id.as_deref(), Some("worker@run:7"));
+  assert_eq!(bound.session.as_deref(), Some("worker@run:7"));
+  assert_eq!(bound.agent_name.as_deref(), Some("research-7-review"));
+
+  // The pass reads no session-bound lease against units.
+  assert!(dispatch::bound_leases(&ground.db).await.unwrap().is_empty());
+
+  assert_eq!(
+    dispatch::release_sessions(&ground.db, &["worker@run:7".to_owned()], "ended")
+      .await
+      .unwrap(),
+    1
+  );
+
+  let ended = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+  assert_eq!(
+    (ended.state.as_str(), ended.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_RUN_ENDED))
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_owner_s_release_gives_back_everything_it_holds_and_nothing_of_another_owner() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
+    .await;
+
+  let mut first = asked("worker", "first");
+  let mut second = asked("worker", "second");
+
+  first.owner = "restarting".to_owned();
+  second.owner = "restarting".to_owned();
+
+  let first = enqueue(&ground.db, &first, "job", async |_, _| Ok(())).await.unwrap();
+  let second = enqueue(&ground.db, &second, "job", async |_, _| Ok(())).await.unwrap();
+  let other = ask(&ground, "worker", "other").await;
+
+  assert!(admitted(&ground, &first).await);
+  dispatch::bind_session(&ground.db, &first.token, "worker@run:9").await.unwrap();
+
+  let done = dispatch::release_owner(&ground.db, "restarting").await.unwrap();
+
+  assert_eq!((done.released, done.cancelled), (1, 1));
+  assert_eq!(done.sessions, vec!["worker@run:9".to_owned()]);
+
+  for token in [&first.token, &second.token] {
+    let ended = dispatch::request(&ground.db, token).await.unwrap().unwrap();
+
+    assert_eq!(ended.ended_by.as_deref(), Some(dispatch::BY_OWNER));
+  }
+
+  assert_eq!(dispatch::request(&ground.db, &other.token).await.unwrap().unwrap().state, "waiting");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_slot_asked_for_a_model_alone_goes_out_on_the_provider_its_role_s_order_names_it_under() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let role = dispatch::role_of(&ground.db, "worker").await.unwrap();
+  let entry = role.order.first().unwrap().clone();
+
+  assert_eq!(
+    dispatch::provider_for_model(&ground, "worker", &entry.model).await.unwrap(),
+    entry.provider,
+    "the entry naming that model"
+  );
+
+  // A model no entry names goes out on the role's active provider, else its order's first.
+  let provider = dispatch::provider_for_model(&ground, "worker", "no-such-model").await.unwrap();
+
+  assert!(role.order.entries.iter().any(|one| one.provider == provider), "{provider}");
+}

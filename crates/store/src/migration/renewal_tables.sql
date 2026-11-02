@@ -132,6 +132,10 @@ ALTER TABLE "role_slot_requests" DROP COLUMN "tier";
 ALTER TABLE "role_slot_requests" DROP COLUMN "generation";
 ALTER TABLE "role_slot_requests" ADD COLUMN "path" text;
 ALTER TABLE "role_slot_requests" ADD COLUMN "held_for" text;
+-- Whether the line's pass has seen the run a lease is bound to standing, and who gave the request back
+-- (docs/role-slots.md, 「The line」).
+ALTER TABLE "role_slot_requests" ADD COLUMN "child_seen" bigint NOT NULL DEFAULT 0;
+ALTER TABLE "role_slot_requests" ADD COLUMN "ended_by" text;
 CREATE INDEX "role_slot_waiting" ON "role_slot_requests" ("role", "state", "class", "sequence");
 
 ALTER TABLE "role_slot_reservations" DROP COLUMN "work_key";

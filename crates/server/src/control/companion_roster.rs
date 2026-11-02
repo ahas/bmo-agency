@@ -52,13 +52,15 @@ pub(super) fn text(body: &Value, field: &str) -> String {
   body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
 }
 
-/// A companion asked for, every field as the body gave it.
+/// A companion asked for, every field as the body gave it: its order whole, or one provider and model.
 struct Asked {
   name: String,
   label: String,
   provider: String,
   model: String,
   worker: String,
+  order: Option<Value>,
+  quota_share: Option<Value>,
 }
 
 impl Asked {
@@ -69,13 +71,20 @@ impl Asked {
       provider: text(body, "provider"),
       model: text(body, "model"),
       worker: text(body, "worker"),
+      order: body.get("order").cloned(),
+      quota_share: body.get("quotaShare").cloned(),
     }
   }
 }
 
 /// Every field of the ask checked, in the order the dialog shows them; nothing is written until all have
-/// passed. The pin is judged as a companion's turn judges it before it goes out.
-async fn checked(written: &DatabaseTransaction, ground: &Ground, asked: &Asked) -> Result<(), Fault> {
+/// passed. An order named whole is judged as a supervisor's is; one provider and model are judged as a
+/// companion's turn judges its pin before it goes out. The order the row is written with is answered.
+async fn checked(
+  written: &DatabaseTransaction,
+  ground: &Ground,
+  asked: &Asked,
+) -> Result<crate::order::Order, Fault> {
   let words = &CONTROL_WORDS.companion_roster;
 
   if !NAME.is_match(&asked.name) {
@@ -90,7 +99,49 @@ async fn checked(written: &DatabaseTransaction, ground: &Ground, asked: &Asked) 
     return refused("label", words.label.as_str());
   }
 
-  pin_checked(written, ground, &asked.provider, &asked.model, &asked.worker).await
+  let Some(entries) = &asked.order else {
+    pin_checked(written, ground, &asked.provider, &asked.model, &asked.worker).await?;
+
+    return Ok(crate::order::Order {
+      entries: vec![crate::order::Entry {
+        provider: asked.provider.clone(),
+        model: asked.model.clone(),
+        effort: None,
+        thinking: None,
+        answer_tokens: None,
+      }],
+      quota_share: policy::roles::ROLES.quota_share,
+    });
+  };
+  let order = crate::order::judge(
+    super::claude_accounts::Judging::of(ground),
+    &ground.machine(),
+    "chat",
+    entries,
+    asked.quota_share.as_ref(),
+  )
+  .await
+  .or_else(|refusal| refused(&refusal.field, refusal.error))?;
+  let first = order.first();
+  let disagrees = (!asked.provider.is_empty() || !asked.model.is_empty())
+    && first.is_none_or(|first| first.provider != asked.provider || first.model != asked.model);
+
+  if disagrees {
+    return refused("order", "The order's first entry is not the provider and model the add names.");
+  }
+
+  let found = one(
+    written,
+    r#"SELECT "name" FROM "repositories" WHERE "name" = $1"#,
+    vec![asked.worker.clone().into()],
+  )
+  .await?;
+
+  if found.is_none() {
+    return refused("worker", fill_marks(&words.worker, &[("worker", &asked.worker)]));
+  }
+
+  Ok(order)
 }
 
 /// A conversational agent's pin and the worker its items go to, judged as its turn judges the pin before it
@@ -130,21 +181,17 @@ pub(super) fn given(field: &str) -> Option<&str> {
 }
 
 /// A checked companion's row written as the console adds one: the settings a companion added there takes, the
-/// console's mark, its order — the provider and model it names, alone — the repository its items go to and its
-/// brain folder.
-async fn write(written: &DatabaseTransaction, asked: &Asked) -> Result<(), Fault> {
+/// console's mark, its order, warmed on each of its providers, the repository its items go to and its brain
+/// folder.
+async fn write(
+  written: &DatabaseTransaction,
+  asked: &Asked,
+  order: &crate::order::Order,
+) -> Result<(), Fault> {
   let added = Conversation::companion_added();
-  let order = crate::order::Order {
-    entries: vec![crate::order::Entry {
-      provider: asked.provider.clone(),
-      model: asked.model.clone(),
-      effort: None,
-      thinking: None,
-      answer_tokens: None,
-    }],
-    quota_share: policy::roles::ROLES.quota_share,
-  };
-  let warming = serde_json::json!({ asked.provider.clone(): true }).to_string();
+  let warming: serde_json::Map<String, Value> =
+    order.entries.iter().map(|entry| (entry.provider.clone(), Value::Bool(true))).collect();
+  let warming = Value::Object(warming).to_string();
   let now = now_ms();
 
   run(
@@ -192,8 +239,9 @@ impl Route for CompanionAdd {
     let ground = call.shared_ground();
     let written = ground.db.begin().await?;
     let made = async {
-      checked(&written, &ground, &asked).await?;
-      write(&written, &asked).await
+      let order = checked(&written, &ground, &asked).await?;
+
+      write(&written, &asked, &order).await
     }
     .await;
 
@@ -232,8 +280,10 @@ async fn removable<C: ConnectionTrait>(db: &C, agent: &str) -> Result<(), Fault>
 
   if row.try_get::<i64>("", "builtin")? == 1 {
     let label = row.try_get::<Option<String>>("", "label")?.unwrap_or_else(|| agent.to_owned());
+    let seeded = Refused::new(StatusCode::CONFLICT, fill_marks(&words.seeded, &[("label", &label)]))
+      .with_code("seeded");
 
-    return refused("agent", fill_marks(&words.seeded, &[("label", &label)]));
+    return Err(Fault::Failed(seeded));
   }
 
   Ok(())

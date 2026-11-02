@@ -12,10 +12,11 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   - **its name,** the key every reader finds it by, the small alphabet a URL, a unit's name and a lock
     file's take without quoting (`policy/workers.toml`); and **its label**, what a screen shows it as;
   - **its owner,** the login account it belongs to, or none for the administrator's;
-  - **its path,** the base checkout, the directory its jobs work in; and **its node,** where the base
-    checkout stands on a work node rather than here (`docs/work-nodes.md`);
+  - **its path,** the base checkout, the directory its jobs work in, which every add names: agency makes no
+    checkout and no directory for a repository; and **its node,** where the base checkout stands on a work
+    node that takes jobs rather than here (`docs/work-nodes.md`, 「Which nodes take jobs」);
   - **its checkouts:** how many support worktrees stand beside the base, and the checkouts it keeps on the
-    work nodes (`docs/worker-slots.md`);
+    work nodes that take jobs, set as one list (`docs/worker-slots.md`, 「Checkouts on the nodes」);
   - **its prefix documents,** the paths of the documents a run's prefix carries in this repository, in
     order (`docs/worker-bench.md`, 「Prefix documents」);
   - **its preamble,** the owner's text that stands before every job's prompt in this repository
@@ -25,7 +26,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   - **its dev command,** the one line its jobs' dev server is started with (`docs/worker-bench.md`, 「Dev
     server」);
   - **its pinned model,** a provider and one model of it, or none (「A pinned model」 below), with the
-    sampling a run on a pinned registration is sent;
+    sampling a run on a pinned registration is sent: the companions' generation settings by the same names
+    and bounds, less the answer ceiling, each held or left out; one left out is the engine's own default,
+    which agency neither sets nor reads (`docs/own-llm.md`);
   - **its downgrade heal,** on unless the owner turns it off, whether a job that fell to a lower model is
     launched on its own model again (`docs/cache-fallback.md`, 「A repository the owner keeps on its fallen
     model」).
@@ -35,6 +38,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A repository is added, changed and removed on the console's repository tab** or through the repository
   routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), with no restart; a removal is refused while a job holds one of
   its checkouts.
+- **A repository keeps no log of its own.** It is a place, so what ran in it is its jobs' runs, each with its
+  own log; its jobs are listed by repository, newest first, and a screen shows the log of its job going, else
+  of its latest.
 
 ## What a run in a repository is handed
 

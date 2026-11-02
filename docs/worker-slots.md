@@ -277,9 +277,12 @@
 
 ## Checkouts on the nodes
 
-- **A repository may also have one checkout on each work node,** named `<repository>-<node>` with no
-  number, added and removed one by one in its settings and never by the support count
-  (`docs/work-nodes.md`, 「A checkout on a node」).
+- **A repository may also have one checkout on each work node that takes jobs,** named `<repository>@<node>`
+  with no number, set in its settings as the list of its node checkouts and never by the support count
+  (`docs/api.md`, 「repositories, prefix-checks and room-holdings」; `docs/work-nodes.md`, 「Which nodes take
+  jobs」). Its base stands on this machine. Its path is the one the setting names, written from the node's home
+  or absolute, else the base's folder name followed by the node's beside the base; one removed from the list
+  while no job holds it goes from the row, and its checkout on the node stays there.
 - **Its jobs work on their item's branch as every support checkout's do,** made from the remote's main,
   which the runner brings up in that checkout first.
 - **Its landing keeps the rules above:** the node's close or the landing verb holds the repository's landing

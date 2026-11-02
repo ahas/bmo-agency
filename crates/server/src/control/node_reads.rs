@@ -21,7 +21,7 @@ use crate::watches::links::checkout_shadow;
 
 // A node service that could not answer, refused with its words.
 fn unanswered(fault: PeerFault) -> Refused {
-  Refused::new(StatusCode::BAD_GATEWAY, fault.to_string())
+  Refused::new(StatusCode::BAD_GATEWAY, fault.to_string()).with_code("upstream-failed")
 }
 
 fn name_of(call: &Call) -> Result<String, Refused> {
@@ -32,7 +32,27 @@ fn name_of(call: &Call) -> Result<String, Refused> {
     .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "a node's name is required"))
 }
 
-/// The nodes in the node list's order, as the node service reads them.
+/// Why a node takes no job, or none where it takes them (docs/work-nodes.md, 「Which nodes take jobs」).
+fn jobs_refusal(node: &crate::peers::node::NodeRead) -> Option<String> {
+  crate::verbs::work_node::work_refusal(&node.name, node.kind.over_ssh(), node.role.as_deref())
+}
+
+/// Why a repository may not stand on, or keep a checkout on, the node named, or none where it may: the node
+/// service keeps it and it takes jobs.
+pub async fn placing_refusal(
+  ground: &crate::places::Ground,
+  node: &str,
+) -> Result<Option<String>, Refused> {
+  let nodes = ground.peers.node.node_reads().await.map_err(unanswered)?;
+
+  Ok(match nodes.iter().find(|held| held.name == node) {
+    None => Some(format!("The node service keeps no node named {node}.")),
+    Some(held) => jobs_refusal(held),
+  })
+}
+
+/// `GET /nodes`: the nodes in the node list's order, as the node service reads them, each with whether it
+/// takes jobs.
 pub struct ListNodes;
 
 impl Route for ListNodes {
@@ -41,10 +61,29 @@ impl Route for ListNodes {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let nodes = call.ground().peers.node.node_reads().await.map_err(unanswered)?;
+    let items: Vec<serde_json::Value> = nodes
+      .iter()
+      .map(|node| {
+        let refusal = jobs_refusal(node);
 
-    Ok(answer(StatusCode::OK, json!(nodes)))
+        json!({
+          "name": node.name,
+          "label": node.label,
+          "kind": node.kind.word(),
+          "role": node.role,
+          "state": node.state,
+          "checkedAt": node.checked_at,
+          "takesJobs": refusal.is_none(),
+          "jobsRefusal": refusal,
+        })
+      })
+      .collect();
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
 }
+
+crate::moved!(ListNodes);
 
 /// How SSH reaches a node, or nothing held where it has no SSH reach.
 pub struct NodeReach;

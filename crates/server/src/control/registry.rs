@@ -219,7 +219,8 @@ pub async fn registered_model<C: ConnectionTrait>(
 ) -> Result<Option<Value>, Refused> {
   let Some(row) = one(
     db,
-    r#"SELECT "model", "card_service", "role_files" FROM "registered_models" WHERE "name" = $1"#,
+    r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking"
+       FROM "registered_models" WHERE "name" = $1"#,
     vec![name.into()],
   )
   .await?
@@ -251,6 +252,9 @@ pub async fn registered_model<C: ConnectionTrait>(
     "usedBy": referrers(db, name).await?,
     "healthy": healthy,
     "lastAnsweredAt": last_answered_at,
+    "contextTokens": row.try_get::<i64>("", "context_tokens")?,
+    "answerTokens": row.try_get::<i64>("", "answer_tokens")?,
+    "thinking": flag(&row, "thinking")?,
   })))
 }
 

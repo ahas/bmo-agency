@@ -124,3 +124,15 @@ fn a_roles_name_is_kebab_case() {
   assert!(!shape.is_match("Worker"));
   assert!(!shape.is_match("co_worker"));
 }
+
+#[test]
+fn every_seeded_role_carries_a_label_a_screen_shows_where_its_pack_holds_no_word_for_its_code() {
+  for role in &ROLES.roles {
+    assert!(!role.label.trim().is_empty(), "{} carries no label", role.name);
+    assert!(
+      role.label.chars().count() <= ROLES.label_most,
+      "{}'s label is past the policy's length",
+      role.name
+    );
+  }
+}

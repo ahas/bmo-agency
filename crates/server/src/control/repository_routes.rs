@@ -55,15 +55,25 @@ pub async fn view(ground: &Ground, repository: &Repository) -> Result<Value, Ref
       continue;
     }
 
+    let kind = match (&worker.support_of, worker.support_slot) {
+      (None, _) => "base",
+      (Some(_), Some(_)) => "support",
+      (Some(_), None) => "node",
+    };
+
     checkouts.push(json!({
       "name": worker.name,
       "path": worker.cwd,
       "nodeName": worker.node,
+      "kind": kind,
       "job": holder(ground, &worker.name).await?,
     }));
   }
 
-  let sampling = agent_sampling::view(db, &repository.name).await.map(|view| view["values"].clone()).ok();
+  let sampling_view = agent_sampling::view(db, &repository.name).await.ok();
+  let sampling = sampling_view.as_ref().map(|view| view["values"].clone());
+  let sampling_settings =
+    sampling_view.as_ref().map(|view| view["settings"].clone()).unwrap_or_else(|| json!([]));
 
   Ok(json!({
     "name": repository.name,
@@ -80,8 +90,156 @@ pub async fn view(ground: &Ground, repository: &Repository) -> Result<Value, Ref
     "pin": repository.pin.as_ref().map(|pin| json!({ "provider": pin.provider, "model": pin.model })),
     "downgradeHeal": repository.downgrade_heal,
     "sampling": sampling,
+    "samplingSettings": sampling_settings,
     "checkouts": checkouts,
   }))
+}
+
+/// One checkout on a work node a change names: the node, and the path where it names one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NodeCheckout {
+  node: String,
+  path: Option<String>,
+}
+
+// The checkouts on the nodes a body names, the list whole, or none where it names none.
+fn node_checkouts_of(body: &Value) -> Result<Option<Vec<NodeCheckout>>, Refused> {
+  let field = "nodeCheckouts";
+  let Some(listed) = body.get(field) else { return Ok(None) };
+  let shape = || bad(field, "Node checkouts are a list, each a nodeName and a path or null.");
+  let mut read: Vec<NodeCheckout> = vec![];
+
+  for one in listed.as_array().ok_or_else(shape)? {
+    let node = one
+      .get("nodeName")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|node| !node.is_empty());
+    let path = match one.get("path") {
+      None | Some(Value::Null) => None,
+      Some(Value::String(path)) if path.trim().is_empty() => None,
+      Some(Value::String(path)) if path.starts_with('/') || path.starts_with("~/") => {
+        Some(path.trim().to_owned())
+      }
+      Some(_) => {
+        return Err(bad(field, "A node checkout's path is written from the node's home or absolute."));
+      }
+    };
+    let node = node.ok_or_else(shape)?.to_owned();
+
+    if read.iter().any(|held| held.node == node) {
+      return Err(bad(field, format!("A repository keeps one checkout on {node}.")));
+    }
+
+    read.push(NodeCheckout { node, path });
+  }
+
+  Ok(Some(read))
+}
+
+// The node's home as its setup read it, where it has read it.
+async fn node_home(ground: &Ground, node: &str) -> Option<String> {
+  crate::verbs::work_node::workplace(&ground.db, node)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|place| place.home)
+}
+
+/// A repository's checkouts on the nodes set to the list a change names (docs/worker-slots.md, 「Checkouts on
+/// the nodes」): every node it adds judged to take jobs and the base standing on this machine, every one it
+/// leaves out held by no job, all judged before anything is written.
+async fn set_node_checkouts(
+  ground: &Ground,
+  repository: &Repository,
+  base_node: Option<&str>,
+  asked: &[NodeCheckout],
+) -> Result<(), Refused> {
+  let field = "nodeCheckouts";
+  let held = all(
+    &ground.db,
+    r#"SELECT "node", "path" FROM "repository_node_checkouts" WHERE "repository" = $1"#,
+    vec![repository.name.clone().into()],
+  )
+  .await?;
+  let held: Vec<(String, String)> = held
+    .iter()
+    .map(|row| Ok((row.try_get("", "node")?, row.try_get("", "path")?)))
+    .collect::<Result<_, sea_orm::DbErr>>()?;
+
+  if !asked.is_empty()
+    && let Some(node) = base_node
+  {
+    return Err(bad(
+      field,
+      format!("{} stands on {node}, so it keeps no checkout on a node.", repository.name),
+    ));
+  }
+
+  let mut written = vec![];
+
+  for one in asked {
+    let kept = held.iter().find(|(node, _)| *node == one.node);
+
+    if kept.is_none()
+      && let Some(why) = super::node_reads::placing_refusal(ground, &one.node).await?
+    {
+      return Err(bad(field, why));
+    }
+
+    let path = match (&one.path, kept) {
+      (Some(path), _) => path.clone(),
+      (None, Some((_, path))) => path.clone(),
+      (None, None) => {
+        crate::verbs::agents::node_checkout_path(&repository.path, &one.node, &crate::verbs::home())
+      }
+    };
+    let home = node_home(ground, &one.node).await;
+
+    written.push((one.node.clone(), crate::watches::links::node_path(&path, home.as_deref())));
+  }
+
+  let removed: Vec<&String> = held
+    .iter()
+    .map(|(node, _)| node)
+    .filter(|node| !asked.iter().any(|one| one.node == **node))
+    .collect();
+
+  for node in &removed {
+    let name = workers::node_checkout_name(&repository.name, node);
+
+    if holder(ground, &name).await?.is_some() {
+      return Err(
+        Refused::new(
+          StatusCode::CONFLICT,
+          format!("A job holds {name}, a checkout of {}.", repository.name),
+        )
+        .with_code("conflict"),
+      );
+    }
+  }
+
+  for node in removed {
+    run(
+      &ground.db,
+      r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = $1 AND "node" = $2"#,
+      vec![repository.name.clone().into(), node.clone().into()],
+    )
+    .await?;
+  }
+
+  for (node, path) in written {
+    run(
+      &ground.db,
+      r#"INSERT INTO "repository_node_checkouts" ("repository", "node", "path", "created_at")
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT ("repository", "node") DO UPDATE SET "path" = EXCLUDED."path""#,
+      vec![repository.name.clone().into(), node.into(), path.into(), now_ms().into()],
+    )
+    .await?;
+  }
+
+  Ok(())
 }
 
 /// `GET /repositories`: every repository.
@@ -296,11 +454,33 @@ impl Route for RepositoryChange {
     let name = call.param("repositoryName").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let held = repositories::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
-    let fields = Fields::of(call.ground(), &body).await?;
+    let mut fields = Fields::of(call.ground(), &body).await?;
+    let node_checkouts = node_checkouts_of(&body)?;
     let pin = fields
       .pin
       .clone()
       .unwrap_or_else(|| held.pin.clone().map(|pin| (pin.provider, pin.model)));
+
+    // A node other than the one it stands on places it there: a node that takes jobs, the path written as the
+    // node reads it (docs/api.md, 「repositories, prefix-checks and room-holdings」).
+    if let Some(Some(node)) = fields.node.clone()
+      && held.node.as_deref() != Some(node.as_str())
+    {
+      if let Some(why) = super::node_reads::placing_refusal(call.ground(), &node).await? {
+        return Err(bad("nodeName", why));
+      }
+
+      let path = fields.path.clone().unwrap_or(held.path.clone());
+      let home = node_home(call.ground(), &node).await;
+
+      fields.path = Some(crate::watches::links::node_path(&path, home.as_deref()));
+    }
+
+    if let Some(asked) = &node_checkouts {
+      let base_node = fields.node.clone().unwrap_or(held.node.clone());
+
+      set_node_checkouts(call.ground(), &held, base_node.as_deref(), asked).await?;
+    }
 
     if let Some(sampling) = body.get("sampling") {
       let key = agent_sampling::key(&name);

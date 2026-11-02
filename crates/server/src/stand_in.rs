@@ -18,19 +18,19 @@ use crate::{Refusal, now_ms};
 /// The provider the walk stands in for.
 pub const CLAUDE: &str = "claude-code";
 
-/// Whether a supervisor answers while the rest closes Claude Code's road: where the walk of its own order
-/// meets a provider other than Claude Code that can answer now.
-pub async fn answers(ground: &Ground, _machine: &Machine, agent: &str) -> bool {
+/// The stand-in that answers a supervisor while the rest closes Claude Code's road, where one does: the first
+/// provider of its own order other than Claude Code that can answer now, with the model its order names there.
+pub async fn answers(ground: &Ground, _machine: &Machine, agent: &str) -> Option<crate::road::Road> {
   let Ok(Some(supervisor)) = crate::supervisors::named(&ground.db, agent).await else {
-    return false;
+    return None;
   };
   let ask = crate::road::Ask::of(crate::road::Row::Supervisor(agent), "chat", &supervisor.order);
 
   match crate::road::resolve(ground, &ask).await {
-    Ok(resolution) => resolution.open().any(|road| road.provider != CLAUDE),
+    Ok(resolution) => resolution.open().find(|road| road.provider != CLAUDE).cloned(),
     Err(why) => {
       eprintln!("stand-in {agent}: its road could not be resolved: {why}");
-      false
+      None
     }
   }
 }

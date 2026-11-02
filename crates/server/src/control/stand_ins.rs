@@ -25,9 +25,16 @@ impl Route for StandInRoute {
       return Err(Refused::new(StatusCode::BAD_REQUEST, "agent is required"));
     };
     let ground = call.ground();
-    let answers = answers(ground, &ground.machine(), &agent).await;
+    let stand_in = answers(ground, &ground.machine(), &agent).await;
 
-    Ok(answer(StatusCode::OK, json!({ "answers": answers })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "answers": stand_in.is_some(),
+        "provider": stand_in.as_ref().map(|road| road.provider.clone()),
+        "model": stand_in.as_ref().map(|road| road.model.clone()),
+      }),
+    ))
   }
 }
 

@@ -34,6 +34,7 @@ mod control {
   mod claude_accounts;
   mod companion_reset;
   mod companions;
+  mod console_reads;
   mod consumer_calls;
   mod conversation_routes;
   mod endpoint_accounts;

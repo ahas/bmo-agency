@@ -870,7 +870,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether a stand-in answers the agent named while the rest closes Claude Code's road. */
+        /** Whether a stand-in answers the agent named while the rest closes Claude Code's road, and on which provider and model. */
         get: operations["getStandIn"];
         put?: never;
         post?: never;
@@ -925,7 +925,7 @@ export interface paths {
         /** Companion agents, by room. */
         get: operations["listCompanions"];
         put?: never;
-        /** Add a companion agent. */
+        /** Add a companion agent, with its order whole or one provider and model. */
         post: operations["createCompanions"];
         delete?: never;
         options?: never;
@@ -943,7 +943,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a companion from the deployment. */
+        /** Remove a companion from the deployment; one the deployment seeds is refused as seeded. */
         delete: operations["deleteCompanion"];
         options?: never;
         head?: never;
@@ -1114,7 +1114,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Jobs newest first: by state or running, by item, room, worker or holder. */
+        /** Jobs newest first: by state or running, by item, room, repository, checkout, role or holder. */
         get: operations["listJobs"];
         put?: never;
         /** Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room. */
@@ -1337,6 +1337,40 @@ export interface paths {
         patch: operations["changeSupervisor"];
         trace?: never;
     };
+    "/supervisors/{supervisorName}/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rooms a supervisor's turns went into, each with its last run there, the latest first. */
+        get: operations["listSupervisorRooms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}/reset-point": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A supervisor's reset point alone. */
+        get: operations["getSupervisorResetPoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -1428,6 +1462,23 @@ export interface paths {
         patch: operations["changeRepository"];
         trace?: never;
     };
+    "/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The nodes the node service keeps, each with whether it takes jobs. */
+        get: operations["listNodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/slots": {
         parameters: {
             query?: never;
@@ -1457,7 +1508,8 @@ export interface paths {
         put?: never;
         /** Ask for a slot of a role; its provider and model are the role's order's. */
         post: operations["createSlotRequest"];
-        delete?: never;
+        /** An owner's release: every request, reservation and bound role session the owner holds given back. */
+        delete: operations["releaseOwnerSlots"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2344,7 +2396,7 @@ export interface components {
             items: components["schemas"]["Provider"][];
             more: boolean;
         };
-        /** @description Provider: */
+        /** @description Provider: one provider agency carries, with its switch, what it declares and what it has left. */
         Provider: {
             name: string;
             /**
@@ -2358,8 +2410,44 @@ export interface components {
              */
             label: string;
             enabled: boolean;
+            /** @description Whether its models are the registry's registrations alone. */
             registered: boolean;
-            coworker: boolean;
+            /** @description Whether its models are served by agency's model gateway. */
+            gateway: boolean;
+            /** @description The launch lines its program carries. */
+            lines: string[];
+            quota: components["schemas"]["ProviderQuota"];
+            /** @description Why it cannot answer now, the English sentence, or null where it can. */
+            reason: string | null;
+            /** @description The kebab-case code of why it cannot answer now, or null where it can. */
+            reasonCode: string | null;
+            /**
+             * Format: double
+             * @description The compaction threshold a row whose order begins on it is given where its add names none.
+             */
+            foldRatioDefault: number;
+        };
+        /** @description ProviderQuota: what a provider has left as an order reads it at the default share. */
+        ProviderQuota: {
+            /** @description Whether it stands above the share. */
+            has: boolean;
+            /**
+             * Format: double
+             * @description A fraction from 0 to 1, or null where the provider reports none.
+             */
+            left: number | null;
+            /** @description The name of the window that counted, or null. */
+            window: string | null;
+            /**
+             * Format: double
+             * @description What its balance reader last read, for a provider that keeps a balance, or null.
+             */
+            balance: number | null;
+            /**
+             * Format: int64
+             * @description When the counting window resets, in epoch seconds, or null.
+             */
+            resetsAt: number | null;
         };
         /** @description The body that throws a provider's switch. */
         ProviderChange: {
@@ -2370,10 +2458,10 @@ export interface components {
             items: components["schemas"]["Model"][];
             more: boolean;
         };
-        /** @description Model: */
+        /** @description Model: one registration of the registry's provider and its health. */
         Model: {
             key: string;
-            /** @description The registration's own name, which is the model a supervisor's fixed pin holds. */
+            /** @description The registration's own name, which an order's entry and a repository's pin name. */
             name: string;
             provider: string;
             model: string;
@@ -2388,13 +2476,32 @@ export interface components {
              * @default false
              */
             roleFiles: boolean;
-            tier: string | null;
+            /**
+             * @description Every supervisor, role and repository whose order or pin names it.
+             * @default []
+             */
+            usedBy: string[];
             healthy: boolean | null;
             /**
              * Format: int64
              * @description When the engine behind it last answered a health probe, in unix seconds, where it ever has.
              */
             lastAnsweredAt: number | null;
+            /**
+             * Format: int64
+             * @description Its window; null for a model that is no registration.
+             */
+            contextTokens: number | null;
+            /**
+             * Format: int64
+             * @description Its answer ceiling; null for a model that is no registration.
+             */
+            answerTokens: number | null;
+            /**
+             * @description Its thinking default: what a run on it does where its order's entry leaves thinking to the provider;
+             *     null for a model that is no registration.
+             */
+            thinking: boolean | null;
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
@@ -2884,9 +2991,19 @@ export interface components {
             kind?: string | null;
             account?: string | null;
         };
-        /** @description StandIn: whether a stand-in answers the agent named now. */
+        /** @description StandIn: whether a stand-in answers the agent named now, and on which provider and model. */
         StandIn: {
             answers: boolean;
+            /**
+             * @description The first provider of its order other than Claude Code that can answer now, or null.
+             * @default null
+             */
+            provider: string | null;
+            /**
+             * @description The model its order names on that provider, or null.
+             * @default null
+             */
+            model: string | null;
         };
         /** @description Usage: */
         Usage: {
@@ -2926,13 +3043,45 @@ export interface components {
             workerName: string | null;
             roomIds: unknown[];
         };
-        /** @description The body that adds a companion. */
+        /** @description The body that adds a companion: its order whole with its share, or one provider and model. */
         CompanionAsk: {
             name: string;
             label: string;
+            /** @description The repository its items go to. */
+            worker: string;
+            provider?: string | null;
+            model?: string | null;
+            /**
+             * @description Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
+             *     theirs.
+             */
+            order?: components["schemas"]["OrderEntry"][] | null;
+            /**
+             * Format: double
+             * @description a fraction from 0 to 1
+             */
+            quotaShare?: number | null;
+        };
+        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
+        OrderEntry: {
             provider: string;
             model: string;
-            worker: string;
+            /**
+             * @description a level of the effort scale; null for the provider's own
+             * @default null
+             */
+            effort: string | null;
+            /**
+             * @description `on`, `off`, or null for the provider's own
+             * @default null
+             */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @description on the registry's provider, the answer ceiling; null for the registration's own
+             * @default null
+             */
+            answerTokens: number | null;
         };
         /** @description The body that changes a companion. */
         CompanionChange: {
@@ -3242,27 +3391,6 @@ export interface components {
              */
             resetPoint: number | null;
         };
-        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
-        OrderEntry: {
-            provider: string;
-            model: string;
-            /**
-             * @description a level of the effort scale; null for the provider's own
-             * @default null
-             */
-            effort: string | null;
-            /**
-             * @description `on`, `off`, or null for the provider's own
-             * @default null
-             */
-            thinking: string | null;
-            /**
-             * Format: int64
-             * @description on the registry's provider, the answer ceiling; null for the registration's own
-             * @default null
-             */
-            answerTokens: number | null;
-        };
         /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
         SupervisorRegistered: {
             supervisor: components["schemas"]["Supervisor"];
@@ -3285,6 +3413,43 @@ export interface components {
             ownerAccount?: number | null;
             /** Format: double */
             foldRatio?: number | null;
+        };
+        /** @description SupervisorRoomList: the rooms a supervisor's turns went into, the latest first. */
+        SupervisorRoomList: {
+            items: components["schemas"]["SupervisorRoom"][];
+            more: boolean;
+        };
+        /** @description SupervisorRoom: one room a supervisor's turns went into, with its latest run there. */
+        SupervisorRoom: {
+            /** Format: int64 */
+            roomId: number;
+            /**
+             * Format: int64
+             * @description How many of its runs the ledger holds there.
+             */
+            runs: number;
+            /** Format: int64 */
+            lastRunId: number;
+            lastRunUnit: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            lastStartedAt: number;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            lastFinishedAt: number | null;
+        };
+        /** @description SupervisorResetPoint: a supervisor's reset point alone. */
+        SupervisorResetPoint: {
+            supervisor: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds, or null where it was never reset
+             */
+            resetPoint: number | null;
         };
         /** @description SupervisorChange: the fields a change of a supervisor names. */
         SupervisorChange: {
@@ -3413,8 +3578,21 @@ export interface components {
             lastAnsweredAt: number | null;
             /** Format: int64 */
             runs: number;
-            context: unknown;
+            context: components["schemas"]["RoleSessionContext"];
             valid: boolean;
+        };
+        /** @description RoleSessionContext: what a session's last answered turn carried. */
+        RoleSessionContext: {
+            /**
+             * Format: int64
+             * @description The tokens it carried, or null where none was read.
+             */
+            tokens: number | null;
+            /**
+             * Format: double
+             * @description The share of the window they filled, from 0 to 1, or null.
+             */
+            share: number | null;
         };
         /** @description RepositoryList: every repository. */
         RepositoryList: {
@@ -3438,14 +3616,57 @@ export interface components {
             devCommand: string | null;
             pin: components["schemas"]["RepositoryPin"] | null;
             downgradeHeal: boolean;
-            sampling: unknown;
-            /** @description each its name, path, node and the job holding it, where one does */
-            checkouts: unknown[];
+            /** @description each setting it holds by name: a number or a switch; a setting left out is the engine's own default */
+            sampling: {
+                [key: string]: unknown;
+            } | null;
+            /** @description every setting its sampling may hold, with its bounds */
+            samplingSettings: components["schemas"]["SamplingSetting"][];
+            checkouts: components["schemas"]["RepositoryCheckout"][];
         };
         /** @description RepositoryPin: a repository's pinned provider and model. */
         RepositoryPin: {
             provider: string;
             model: string;
+        };
+        /** @description SamplingSetting: one setting a sampling may hold, with its bounds; a switch has none. */
+        SamplingSetting: {
+            name: string;
+            /** @description Whether it takes on or off rather than a number. */
+            switch?: boolean | null;
+            /** @description Whether the chat template reads it. */
+            template?: boolean | null;
+            /** Format: double */
+            min?: number | null;
+            /**
+             * Format: double
+             * @description the most it takes, or null where it is held below the registration's window
+             */
+            max?: number | null;
+            /** @description Whether the least value itself is refused. */
+            aboveMin?: boolean | null;
+            /** @description Whether only whole numbers are taken. */
+            whole?: boolean | null;
+        };
+        /** @description RepositoryCheckout: one checkout of a repository. */
+        RepositoryCheckout: {
+            name: string;
+            path: string;
+            /** @description The work node it stands on, or null for this machine. */
+            nodeName: string | null;
+            /** @description `base`, `support` or `node` */
+            kind: string;
+            /** @description The job holding it, or null where it is free. */
+            job: components["schemas"]["CheckoutJob"] | null;
+        };
+        /** @description CheckoutJob: the job holding a checkout. */
+        CheckoutJob: {
+            /** Format: int64 */
+            jobId: number | null;
+            /** Format: int64 */
+            itemId: number | null;
+            /** @description the role the job runs as */
+            role: string | null;
         };
         /** @description RepositoryAsk: the body that adds a repository, or the fields a change names. */
         RepositoryAsk: {
@@ -3463,11 +3684,84 @@ export interface components {
             devCommand?: string | null;
             pin?: components["schemas"]["RepositoryPin"] | null;
             downgradeHeal?: boolean | null;
-            sampling?: unknown;
+            /** @description each setting by name, a number, a switch, or null to leave it to the engine */
+            sampling?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description the checkouts on the work nodes, the list whole; a change only */
+            nodeCheckouts?: components["schemas"]["NodeCheckoutAsk"][] | null;
+            /** @description ready the repository's bench; a change only */
+            bench?: boolean | null;
         };
-        /** @description Slots: every role's slots, each with its cap, its runs let in, reserved and waiting, and what holds each. */
+        /** @description NodeCheckoutAsk: one checkout on a work node a repository's change names. */
+        NodeCheckoutAsk: {
+            nodeName: string;
+            /** @description written from the node's home or absolute; null for the default beside the base's folder */
+            path?: string | null;
+        };
+        /** @description WorkNodeList: the nodes the node service keeps, in its list's order. */
+        WorkNodeList: {
+            items: components["schemas"]["WorkNode"][];
+            more: boolean;
+        };
+        /** @description WorkNode: one node the node service keeps, with whether it takes jobs. */
+        WorkNode: {
+            name: string;
+            label: string;
+            /** @description `ssh`, or `jake` for a node reached through a hub */
+            kind: string;
+            /** @description the services the node service reserves it for, or null */
+            role: string | null;
+            state: string;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            checkedAt: number | null;
+            takesJobs: boolean;
+            /** @description why it takes no jobs, or null where it takes them */
+            jobsRefusal: string | null;
+        };
+        /** @description Slots: every role's slots. */
         Slots: {
-            items: unknown[];
+            items: components["schemas"]["RoleSlots"][];
+        };
+        /** @description RoleSlots: one role's slots: its cap, its runs let in, reserved and waiting, and each run let in. */
+        RoleSlots: {
+            role: string;
+            /** Format: int64 */
+            maxConcurrent: number;
+            /** Format: int64 */
+            active: number;
+            /** Format: int64 */
+            reserved: number;
+            /** Format: int64 */
+            waiting: number;
+            runs: components["schemas"]["SlotRun"][];
+        };
+        /** @description SlotRun: one run let in on a role's slot. */
+        SlotRun: {
+            token: string;
+            role: string;
+            path: string | null;
+            provider: string;
+            model: string;
+            source: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            since: number | null;
+            /** @description the run its binding named, or the child it is bound to; null until bound */
+            runName: string | null;
+            /** @description the role session it is bound to, or null */
+            session: string | null;
+            /**
+             * Format: int64
+             * @description the job whose run it is, where its source is `job`
+             */
+            jobId: number | null;
+            title: string | null;
         };
         /** @description SlotRequestPage: the open slot requests. */
         SlotRequestPage: {
@@ -3515,6 +3809,11 @@ export interface components {
             agentName: string | null;
             /** @description why it waits where its provider has no quota, or null */
             heldFor: string | null;
+            /**
+             * @description who gave it back — `holder`, `owner` or `run-ended` — or null while it stands
+             * @default null
+             */
+            endedBy: string | null;
         };
         /** @description SlotRequestAsk: the body that asks a slot of a role. */
         SlotRequestAsk: {
@@ -3533,6 +3832,51 @@ export interface components {
             title?: string | null;
             askedBy?: string | null;
         };
+        /** @description OwnerRelease: what an owner's release gave back. */
+        OwnerRelease: {
+            /**
+             * Format: int64
+             * @description its requests that waited or stood reserved, cancelled
+             */
+            cancelled: number;
+            /**
+             * Format: int64
+             * @description its requests that were let in, released
+             */
+            released: number;
+            /**
+             * Format: int64
+             * @description its reservations, released
+             */
+            reservations: number;
+            /** @description the role sessions its leases were bound to, ended */
+            sessionsEnded: string[];
+        };
+        /**
+         * @description SlotRequestMoved: what a move of a slot request answers: an admission, the request bound, or the request
+         *     given back.
+         */
+        SlotRequestMoved: components["schemas"]["SlotAdmission"] | components["schemas"]["SlotRequest"] | components["schemas"]["SlotFinished"];
+        /** @description SlotAdmission: what an admission asked of a slot request answers. */
+        SlotAdmission: {
+            /** @description the request, active, where it is let in; null otherwise */
+            request: components["schemas"]["SlotRequest"] | null;
+            /** @description the card demand a slot on a registration the arbiter stands asks, or null */
+            demand: unknown;
+            /** @description `waiting`, `reserved`, `active`, `released` or `cancelled`: the request now */
+            state: string;
+            /** @description who gave it back — `holder`, `owner` or `run-ended` — or null while it stands */
+            endedBy: string | null;
+            /** @description the words it was given back with, or null while it stands */
+            outcome: string | null;
+        };
+        /** @description SlotFinished: what giving a slot request back answers. */
+        SlotFinished: {
+            /** @description whether it was still held */
+            held: boolean;
+            stoodDown: boolean;
+            note: string | null;
+        };
         /** @description SlotRequestMove: a slot request asked for its admission, bound to its run, or given back. */
         SlotRequestMove: {
             /** @description `bound` or `finished`; none asks for admission */
@@ -3549,9 +3893,34 @@ export interface components {
         /** @description ProviderModels: the models an order's entry may name on a provider. */
         ProviderModels: {
             provider: string;
-            models: unknown[];
-            /** Format: double */
+            models: components["schemas"]["ProviderModel"][];
+            /**
+             * Format: double
+             * @description the moment of a stale read in epoch seconds, or null
+             */
             staleReadAt: number | null;
+        };
+        /** @description ProviderModel: one model an order's entry may name on a provider. */
+        ProviderModel: {
+            id: string;
+            /** @description the levels it takes; null in the list stands for the provider's own default */
+            efforts: (string | null)[];
+            /** @description whether it costs nothing, where the catalogue prices it */
+            free: boolean | null;
+            /** @description whether it is served rather than superseded, where the catalogue tells them apart */
+            inService: boolean | null;
+            /**
+             * Format: int64
+             * @description its window, for a gateway road's member or a registration
+             */
+            contextTokens: number | null;
+            /**
+             * Format: int64
+             * @description its answer ceiling, for a gateway road's member or a registration
+             */
+            answerTokens: number | null;
+            /** @description its thinking default, for a gateway road's member or a registration */
+            thinking: boolean | null;
         };
         /** @description FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for. */
         FileItem: {
@@ -5833,6 +6202,7 @@ export interface operations {
                     "application/json": components["schemas"]["Companion"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };
@@ -5854,8 +6224,9 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+            409: components["responses"]["Seeded"];
         };
     };
     changeCompanion: {
@@ -6195,6 +6566,8 @@ export interface operations {
                 itemId?: number;
                 roomId?: number;
                 repositoryName?: string;
+                workerName?: string;
+                roleName?: string;
                 holderName?: string;
                 state?: string;
                 after?: number;
@@ -6762,6 +7135,54 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listSupervisorRooms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorRoomList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSupervisorResetPoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorResetPoint"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listRoles: {
         parameters: {
             query?: never;
@@ -7036,6 +7457,28 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listNodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkNodeList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            502: components["responses"]["UpstreamFailed"];
+        };
+    };
     listSlots: {
         parameters: {
             query?: never;
@@ -7109,6 +7552,31 @@ export interface operations {
             422: components["responses"]["UnknownRole"];
         };
     };
+    releaseOwnerSlots: {
+        parameters: {
+            query: {
+                owner: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerRelease"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
     getSlotRequest: {
         parameters: {
             query?: never;
@@ -7153,7 +7621,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SlotRequestMoved"];
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];

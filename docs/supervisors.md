@@ -140,6 +140,21 @@ supervisor owns apart from the others is `docs/agent-ownership.md`.
 - **An unknown role is an error:** an ask naming a role the store does not hold is refused with the name
   and starts nothing.
 
+## The rooms it has spoken in
+
+- **Which rooms a supervisor answers is the receiver's,** which keeps every room's answerers; agency holds no
+  list of them (「Who a send goes out as」).
+- **Where it has spoken is agency's:** every turn it runs is a run of the ledger naming its room
+  (`docs/run-records.md`, 「The run ledger」), so agency answers each room its turns went into with its latest
+  run there, the run a screen opens the supervisor's log at for that room (`docs/api.md`, 「supervisors」).
+
+## Its reset point
+
+- **One point per supervisor, kept in agency's store,** the moment its last reset cut its turns off at
+  (`docs/companions.md`, 「What the reset cuts off」). The reset writes it and publishes each move; the full read
+  and the read of the point alone both answer it from the store, and a consumer that reads it on every turn it
+  sends reads the point alone.
+
 ## What a session's state names
 
 - **The supervisor it is for,** so a consumer whose own settings are kept per supervisor — the receiver's
@@ -152,7 +167,10 @@ supervisor owns apart from the others is `docs/agent-ownership.md`.
   order, scope, shape and repository, judged before anything is written. A supervisor added is given its
   own brain as it is registered; one the brain cannot make stands all the same, the failure logged.
 - **The console's companion dialog** adds one with a room of the console's own that it answers alone
-  (`docs/companions.md`, 「Where a companion and its rooms come from」).
+  (`docs/companions.md`, 「Where a companion and its rooms come from」): the console asks the receiver, which
+  writes the room and its answerers and asks agency's companion add for the supervisor's row. That add takes
+  the whole provider order at creation, so where the receiver hands it the order the console's add is one ask;
+  where it hands one provider and model, the order is that one entry until it is changed.
 - **`DELETE /supervisors/{name}`** ends one, with everything it kept of its own; its brain is data and
   stays unless the caller asks it let go. A seeded supervisor and the default answerer are not removed,
   since the deployment stands them again.

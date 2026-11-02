@@ -61,7 +61,9 @@ seeds. The other crates and the server reach the store only through it.
     or none and its limit's name or none (`docs/usage-windows.md`); and `usage_balances`, one row a
     slot's balance — its `mode` and `account` naming it, its `amount`, its `currency` and when it was
     seen (`docs/usage-windows.md`, 「Balances」);
-  - the role slots: `role_slot_requests`, one row a slot request with its lease; `role_slot_reservations`;
+  - the role slots: `role_slot_requests`, one row a slot request with its lease — what it is bound to, the
+    role session among it, whether the line has seen its bound run standing, and who gave it back —;
+    `role_slot_reservations`;
     `role_slot_native`, `role_slot_native_reservations` and `role_slot_native_stops`, the native calls'
     bindings; and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's

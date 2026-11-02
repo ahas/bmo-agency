@@ -116,6 +116,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors` | Every supervisor, each with the login account that owns it. |
 | POST | `/supervisors` | Register a supervisor; it is given its brain. |
 | GET | `/supervisors/{supervisorName}` | One supervisor: its row, order, warming, threshold, gates, sampling, voice, and what it stands on now. |
+| GET | `/supervisors/{supervisorName}/rooms` | The rooms a supervisor's turns went into, each with its last run there. |
+| GET | `/supervisors/{supervisorName}/reset-point` | A supervisor's reset point alone. |
 | PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
@@ -133,8 +135,20 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   default answerer, which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
   its last reset cut its turns off at (`docs/companions.md`, 「What the reset cuts off」), or null where it
   was never reset. The reset also publishes each move of the point as it makes it (「Events」), so a consumer
-  that missed one reads the point again here. Whether a stand-in answers a supervisor now is `GET /stand-in`
-  (「accounts, rest and usage」).
+  that missed one reads the point again here or at `GET /supervisors/{supervisorName}/reset-point`. Whether a
+  stand-in answers a supervisor now is `GET /stand-in` (「accounts, rest and usage」).
+- **`GET /supervisors/{supervisorName}/reset-point`** answers `supervisor` and `resetPoint` alone, the same point
+  the full read answers, for a consumer that reads it on every turn it sends; 404 `not-found` for no supervisor of
+  the name. The point's one source is agency's store, which the reset writes; the event and both reads are views
+  of it, and a consumer keeps no point of its own.
+- **`GET /supervisors/{supervisorName}/rooms`** answers `items`, every room the supervisor's turns went into, as
+  the run ledger records them (`docs/run-records.md`, 「The run ledger」), the latest first: `roomId`; `runs`, how
+  many of its runs the ledger holds there; and `lastRunId`, `lastRunUnit`, `lastStartedAt` and
+  `lastFinishedAt` in epoch milliseconds, its latest run there, which a screen opens its log by. Which rooms a
+  supervisor answers is the room's owner's — the receiver keeps every room's answerers (`docs/supervisors.md`,
+  「Who a send goes out as」) — so this read names where it has spoken, never where it may; a room it answers and
+  never spoke in is not listed, and a room forgotten takes its runs with it. 404 `not-found` for no supervisor of
+  the name.
 - **An order** is a list, each member a provider agency carries, once each: `provider`, `model`, `effort` (a
   level of the reasoning policy or null), `thinking` (`on`, `off` or null for the provider's own) and, on the
   registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
@@ -145,7 +159,14 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   repository the store holds; `ownerAccount`, none where the caller gives none; and `foldRatio`, the first
   provider's declared default where none is given. The row is written as a companion added on the console
   is: the `room` scope, the `pieces` shape, not the default answerer, the brain folder `agents/<name>`, and no
-  prompt folder.
+  prompt folder. The order is written whole at creation, its `quotaShare` beside it.
+- **A supervisor added on the console is added through the receiver,** which owns the room it answers: the
+  console asks the receiver's companion add, the receiver writes the console's room, its answerers and the
+  record, and asks agency's `POST /companions` (「companions and companion-resets」) for the agent's half. That
+  add takes the whole order and its share where the receiver hands them, so one ask writes the row with its
+  order; where it hands only `provider` and `model`, the order is that one entry, and the whole order is a
+  `PATCH /supervisors/{supervisorName}` after it. `POST /supervisors` registers a supervisor with no room of the
+  console's, for a caller that owns no room.
 - **An order is refused** 400 `bad-request` with `field` beside `error`, naming the member: an empty order, a
   provider agency does not carry or named twice, a provider whose program does not carry the chat line, a
   model the provider does not hold — a catalogue that reads and does not name it, a member its road does not
@@ -519,6 +540,7 @@ out and the paths the call changed.
 | GET | `/slots` | Every role's slots: the runs let in, reserved and waiting. |
 | GET | `/slot-requests` | Open slot requests, by role, by owner or waiting. |
 | POST | `/slot-requests` | Ask for a slot of a role; its provider and model are the role's order's. |
+| DELETE | `/slot-requests` | An owner's release: every request, reservation and bound role session the owner holds given back. |
 | GET | `/slot-requests/{token}` | One slot request. |
 | PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
 | GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role and start. |
@@ -532,9 +554,11 @@ out and the paths the call changed.
 
 A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
 caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
-(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model`, a road the run goes out on
-in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
-provider — and `placeKey`, the key only one active request holds at once.
+(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, a road the run goes
+out on in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
+provider; or `model` alone, whose provider is the first entry of the role's order naming that model, else the
+role's active provider, else the order's first; a `provider` named alone is refused 400. It may name
+`placeKey`, the key only one active request holds at once.
 
 A request key names one request for good (`docs/role-slots.md`, 「Request keys」). Asked again with the same key
 while that request stands — `waiting`, `reserved` or `active` — the ask answers 201 with that request and
@@ -543,14 +567,22 @@ changes nothing of it; asked again once the request was given back, `released` o
 
 A slot request answers its `state` — `waiting` in its role's line, `reserved` under a reservation, `active`
 once let in, and `released` or `cancelled` once given back — and the `role`, `path`, `provider`, `model` and
-`effort` it is let in on, `effort` null where the order names none, and `heldFor`, why it waits where its
-provider has no quota, or null. A request is asked for admission by a `PATCH` naming no `bound` or
-`finished` state, which answers `{ "request": <request or null> }`: the request, `active`, where it is let in
-now or was already, and null where its turn has not come, a reservation lets it in rather than its token, or
-it was given back; a request still `waiting` is asked again. A request's admissions are its owner asking: the
+`effort` it is let in on, `effort` null where the order names none; `heldFor`, why it waits where its
+provider has no quota, or null; `endedBy`, who gave it back — `holder`, `owner` or `run-ended` — or null while
+it stands; and `session`, the role session it is bound to or continues, or null. A request is asked for
+admission by a `PATCH` naming no `bound` or `finished` state, which answers `request`, `state`, `endedBy` and
+`outcome`: `request` is the request, `active`, where it is let in now or was already, and null otherwise;
+`state` is the request's state now, so `waiting` and `reserved` say its turn has not come or a reservation lets
+it in rather than its token, and `released` or `cancelled` say it was given back, by `endedBy` and with
+`outcome`, the words it was given back with; a caller asks again only while it is `waiting`. A request's
+admissions are its owner asking: the
 line keeps the order requests were asked in, and a slot goes to the first waiting request whose owner is
 asking now and whose provider has quota (`docs/role-slots.md`, 「The line」). A `PATCH` with `{ "state":
-"bound", "childId": … }` binds an active request to the run it launched and answers the request. A request is
+"bound", "childId": … }` binds an active request to the run it launched and answers the request: a unit's, a
+pane's or an execution's name, or the id of a role session agency holds, to which the lease is then bound
+(`docs/role-slots.md`, 「The line」). A role's start naming an active slot that is bound to nothing yet binds it
+to the session it opens; a later binding naming another child leaves it bound to that session and keeps the
+child as the run's name. A request is
 given back with `{ "state": "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state":
 "finished", "cancel": true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note":
 <text or null> }`.
@@ -568,9 +600,18 @@ A slot request may carry `title`, one line naming the work it is asked for, and 
 that asked for it, each kept as given; a `PATCH` binding it may name the run its child is. Each is null where
 none was named.
 
-`GET /slots` answers, for every role, its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and each
-active run's role, path, provider, model, source and since when, so a screen shows what holds each role's
-slots.
+`GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
+`runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch
+milliseconds; `runName`, the run its binding named, or the child it is bound to, null until bound; `session`,
+the role session it is bound to, or null; `jobId`, the job whose run it is where its source is `job`, else
+null; and `title`. A screen opens a tile's log by its `runName`, or by its job's where `jobId` is named.
+
+`DELETE /slot-requests` takes `owner` in its query and gives back everything that owner holds
+(`docs/role-slots.md`, 「An owner's release」): each of its requests that waits or stands reserved, cancelled; each
+that is let in, released; each reservation it holds, released; and each role session one of its leases is bound
+to, ended. Every one is given back as `owner`. It answers 200 with `cancelled`, `released` and `reservations`,
+the counts given back, and `sessionsEnded`, the ids of the sessions it ended; 400 where no owner is named. An
+owner holding nothing answers zero counts.
 
 `GET /delegations` answers `items`, the slot requests asked under the source `delegate` (`docs/tools.md`, 「The
 delegate」), narrowed to one asking supervisor by `askedBy`: the ones still waiting or running in the order
@@ -616,24 +657,34 @@ and `resetsAt` in epoch seconds where the counting window names one. `gateway` s
 agency's model gateway — the registry's registrations and the member roads of Codex, OpenRouter and
 DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
 answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
-`reasonCode`, its kebab-case code, both null on a provider that can answer.
+`reasonCode`, its kebab-case code, both null on a provider that can answer. Each provider answers
+`foldRatioDefault` as well: the compaction threshold a supervisor or a role whose order begins on it is given
+where its add names none — the provider's own declaration, 0.85 where it declares none (`docs/supervisors.md`,
+「What a provider declares for a conversation」) — so a screen marks the threshold equal to it as the default.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer. A provider that is off is passed over by every order (`docs/provider-order.md`, 「The
 owner's switch on a provider」).
 
-`GET /provider-models/{providerName}` answers the models an order's entry may name on that provider
-(`docs/provider-order.md`, 「Models a provider holds」): Claude Code's from the CLI's catalogue, each with the
-efforts its entry names and whether it is served or superseded, the catalogue's fetch and stale moments, and
-whether the read is the last one kept; a gateway road's members, each with its window, answer ceiling and
-thinking default; the registry's offered registrations. A catalogue that cannot be read answers the
-provider's refusal, never an empty list.
+`GET /provider-models/{providerName}` answers `provider`, `models` and `staleReadAt`, the moment of a stale
+read in epoch seconds or null, with the models an order's entry may name on that provider
+(`docs/provider-order.md`, 「Models a provider holds」). Each model is `id`; `efforts`, the levels it takes, null
+in the list standing for the provider's own default; `free`, whether it costs nothing where the catalogue
+prices it, else null; `inService`, whether it is served rather than superseded where the catalogue tells them
+apart, else null; and `contextTokens`, `answerTokens` and `thinking`, its window, its answer ceiling and its
+thinking default, named for a gateway road's member and the registry's registration and null for a model of
+the Claude CLI's catalogue, which states none of them. Claude Code's are the CLI's catalogue; a gateway
+road's are its members; the registry's are its offered registrations. A catalogue that cannot be read answers
+the provider's refusal, never an empty list.
 
 A registered model is one registration of the registry's provider: the list, the create, the read, the change
 and the take-away all read or write the registrations, so the list holds exactly what can be changed and
 removed. A model's key names its provider and the model apart — `provider::model`, or the provider as a query
 and the model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is
-what an order's entry and a repository's pin name on the registry's provider. A create starts a registration
+what an order's entry and a repository's pin name on the registry's provider; and the registration's own run
+settings, `contextTokens`, its window, `answerTokens`, its answer ceiling, and `thinking`, its thinking
+default — what a run on it does where its order's entry leaves thinking to the provider (`docs/own-llm.md`,
+「Registered models」), so a screen marks the entry's thinking equal to it as the default. A create starts a registration
 under its own name as its label, at the registry's smallest window and answer and with no address, and is
 refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
 engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
@@ -747,12 +798,13 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
-| GET | `/stand-in` | Whether a stand-in answers the agent named in `agent` while Claude Code's road is closed. |
+| GET | `/stand-in` | Whether a stand-in answers the agent named in `agent` while Claude Code's road is closed, and on which provider. |
 | GET | `/usage` | Usage by model, agent, user, room or round over a span, with session contexts. |
 
 The stand-in is asked for an agent, and says whether a stand-in would answer that agent now, which a
 consumer gating a room's turn on the rest reads before it lets that turn wait for Claude Code
-(`docs/cache-fallback.md`).
+(`docs/cache-fallback.md`): `answers`, and `provider` and `model`, the first provider of the supervisor's order
+other than Claude Code that can answer now and the model its order names there, both null where none can.
 
 An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
@@ -807,6 +859,12 @@ companion is answered with name neither.
 A companion is answered with its provider order, in the shape a supervisor's is (「supervisors」), and the
 `provider` and `model` it answers on now. A change takes `order`, judged as a supervisor's is.
 
+`POST /companions` takes `name`, `label`, `worker`, the repository its items go to, and its order: `order` and
+`quotaShare`, judged as a supervisor's are, or `provider` and `model`, an order of that one entry at the default
+share. A body naming both is refused 400 `order` where the order's first entry is not that provider and model.
+`DELETE /companions/{companionName}` answers 204; 400 `agent` for an agent that is no companion added on the
+console, and 409 `seeded` for one the deployment seeds, as `DELETE /supervisors/{supervisorName}` refuses it.
+
 ### repositories, prefix-checks and room-holdings
 
 | Method | Path | Does |
@@ -824,11 +882,22 @@ A companion is answered with its provider order, in the shape a supervisor's is 
 | DELETE | `/room-holdings/{roomId}` | Let a room's data go; `dryRun` says what would go. |
 
 - **Every repository is a row** (`docs/repositories.md`, 「What a repository row holds」): `name`, `label`,
-  `ownerAccount`, `path`, `nodeName`, `supportCount` and its node checkouts (`docs/worker-slots.md`),
-  `prefixDocuments`, `preamble`, `rules`, `devCommand`, `pin` — `{provider, model}` or null — and `sampling`,
-  the sampling a run on a pinned registration is sent.
-- **A repository answers its checkouts,** each its path, whether a job holds it and which (`jobId`, `itemId`,
-  the `role` the job runs as), so a screen reads which of its checkouts are free.
+  `ownerAccount`, `path`, `nodeName`, `supportCount`, `prefixDocuments`, `preamble`, `rules`, `devCommand`,
+  `pin` — `{provider, model}` or null — `downgradeHeal`, and `sampling`, the sampling a run on a pinned
+  registration is sent: each setting it holds by name, a number or a switch.
+- **A repository answers its sampling's settings,** `samplingSettings`, every setting its sampling may hold,
+  each `name` and either `switch`, true for an on-or-off setting, or its bounds — `min`, `max`, `aboveMin`, true
+  where the least value itself is refused, and `whole`, true where only whole numbers are taken. A setting
+  left out of `sampling` is the engine's own default, which agency neither sets nor reads, so no default value
+  is answered: a screen shows a setting the repository leaves out as the default.
+- **A repository answers its checkouts,** `checkouts`, each `name`, `path`, `nodeName`, the node it stands on or
+  null, `kind` — `base`, `support` or `node` — and `job`, the job holding it, `{jobId, itemId, role}`, or null, so
+  a screen reads which of its checkouts are free.
+- **A repository keeps no log of its own.** What ran in it is its jobs': `GET /jobs?repositoryName=…` lists
+  them newest first, and a job's run is read by the job's own log; a screen shows the log of the job going in
+  the repository, else of its latest.
+- **An add names its path,** the base checkout's directory, and is refused 400 `path` without one: agency makes
+  no checkout and no directory for a repository.
 - **`prefixDocuments`** is the paths of the documents a run's prefix carries at the repository's path, in order
   (`docs/worker-bench.md`, 「Prefix documents」); the add and the change take the list whole, an empty list
   clearing it, and refuse an empty path or one that climbs with `..`.
@@ -836,10 +905,31 @@ A companion is answered with its provider order, in the shape a supervisor's is 
   judged as an order's entry is (「supervisors」); null clears it. A changed pin reaches the repository's next
   job; a job already going finishes where it went out.
 - **A change that names a node other than the one the repository stands on places it there,** and one that
-  names none brings it back: the node must be one the node service keeps and that takes jobs, and the path is
-  written as the node reads it. The checkout this machine reads the repository through follows the placement.
+  names none brings it back: the node must be one the node service keeps and that takes jobs (「nodes」), refused
+  400 `nodeName` otherwise, and the path is written as the node reads it. The checkout this machine reads the
+  repository through follows the placement.
+- **A change may name `nodeCheckouts`,** the repository's checkouts on the work nodes, the list whole, each
+  `nodeName` and `path`, a path written from the node's home or absolute, or null for the default beside the
+  base's folder (`docs/worker-slots.md`, 「Checkouts on the nodes」). A node the list adds must be one that takes
+  jobs, and the repository's base must stand on this machine; one it leaves out is removed, refused 409
+  `conflict` while a job holds it, and its checkout on the node stays on the node. An empty list removes every
+  one; a body naming none leaves them as they stand.
 - **A removal** answers 204, and is refused 409 while a job holds one of its checkouts; 404 for a repository
   the store does not hold.
+
+### nodes
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/nodes` | The nodes the node service keeps, each with whether it takes jobs. |
+
+- **The nodes are the node service's,** read afresh and handed on in the node list's order: each `name`,
+  `label`, `kind` — `ssh`, or `jake` for a node reached through a hub — `role`, the services the node service
+  reserves it for or null, `state` and `checkedAt` in epoch seconds or null.
+- **Whether a node takes jobs is agency's,** `takesJobs`, with `jobsRefusal`, the English sentence saying why
+  not, or null where it takes them (`docs/work-nodes.md`, 「Which nodes take jobs」). A repository's placement and
+  its node checkouts name only a node that takes jobs (「repositories, prefix-checks and room-holdings」).
+- **A node service that cannot answer** is 502 `upstream-failed`.
 
 ### assignments and jobs
 

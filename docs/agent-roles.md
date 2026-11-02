@@ -22,8 +22,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 ## What a role row holds
 
 - **Kept in agency's store,** the `roles` table (`docs/store.md`), one row a role:
-  - **its name,** its key, kebab-case as the policy's pattern says, and **its label**, an English word a
-    screen translates through its own language pack;
+  - **its name,** its key, kebab-case as the policy's pattern says, and **its label**, the English words a
+    screen shows the role by (「A role's label」 below);
   - **its prompt,** written in English, which every run of the role opens with after the platform's harness
     opening; a role carrying none gives none;
   - **its description,** one paragraph saying what the role is for and when to call it, which is what a
@@ -59,6 +59,15 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   lists what its sessions are shown.
 - **A screen is handed each role and bundle with its kebab-case code beside the label** (`docs/api.md`,
   「roles」), and words the code; the label is the English the log keeps.
+
+## A role's label
+
+- **A role's label is its row's,** never empty: every seeded role is given the label the policy declares
+  for it, and an add or a change refuses an empty one. It is what a screen shows of the role and the English
+  a log keeps.
+- **A screen may word a role in its own language by the role's code,** its kebab-case name, the key its
+  language pack carries; where the pack holds no word for the code, the screen shows the row's label. A role
+  the owner adds is shown by its label until a pack carries its code.
 
 ## The roles the policy seeds
 

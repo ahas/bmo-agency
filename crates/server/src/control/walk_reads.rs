@@ -37,6 +37,7 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
     "quota": quota,
     "reason": missing.as_ref().map(|missing| missing.text.clone()),
     "reasonCode": missing.as_ref().map(|missing| missing.code.clone()),
+    "foldRatioDefault": declared.fold_ratio.unwrap_or(crate::order::DEFAULT_FOLD_RATIO),
   }))
 }
 
@@ -118,15 +119,21 @@ impl Route for ProviderModels {
     let offered = harness::offered(Judging::of(call.ground()), call.machine(), provider)
       .await
       .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
+    let sizes = model_sizes(call.ground(), provider, &name).await?;
     let models: Vec<Value> = offered
       .models
       .iter()
       .map(|model| {
+        let size = sizes.get(&model.id);
+
         json!({
           "id": model.id,
           "efforts": model.efforts,
           "free": model.free,
           "inService": model.in_service,
+          "contextTokens": size.map(|size| size.0),
+          "answerTokens": size.map(|size| size.1),
+          "thinking": size.map(|size| size.2),
         })
       })
       .collect();
@@ -139,6 +146,36 @@ impl Route for ProviderModels {
 }
 
 crate::moved!(ProviderModels);
+
+/// Each model's window, answer ceiling and thinking default, where its provider states them: the registry's
+/// registrations, and a gateway road's members; none for a provider whose catalogue states none.
+async fn model_sizes(
+  ground: &Ground,
+  provider: &dyn harness_providers::Provider,
+  name: &str,
+) -> Result<std::collections::HashMap<String, (i64, i64, bool)>, Refused> {
+  if provider.unregistered().is_some() {
+    return Ok(
+      registry::registrations(&ground.db)
+        .await?
+        .into_iter()
+        .map(|held| (held.name, (held.context_tokens, held.answer_tokens, held.thinking)))
+        .collect(),
+    );
+  }
+
+  if !provider.models_on_gateway() {
+    return Ok(std::collections::HashMap::new());
+  }
+
+  Ok(
+    harness_providers::member::road_members(&ground.machine(), name)
+      .unwrap_or_default()
+      .into_iter()
+      .map(|held| (held.member.name, (held.context_tokens, held.answer_tokens, held.thinking)))
+      .collect(),
+  )
+}
 
 /// A pin's value, as a worker's pin is written.
 #[derive(Deserialize)]
@@ -212,10 +249,17 @@ impl Route for ModelHealth {
       StatusCode::OK,
       json!({
         "key": key,
+        "name": model,
         "provider": asked.name(),
         "model": model,
-        "tier": Value::Null,
+        "cardService": Value::Null,
+        "roleFiles": false,
+        "usedBy": [],
         "healthy": false,
+        "lastAnsweredAt": Value::Null,
+        "contextTokens": Value::Null,
+        "answerTokens": Value::Null,
+        "thinking": Value::Null,
       }),
     ))
   }

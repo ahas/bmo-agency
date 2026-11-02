@@ -138,6 +138,73 @@ impl Route for SupervisorRead {
 
 crate::moved!(SupervisorRead);
 
+/// `GET /supervisors/{supervisorName}/reset-point`: a supervisor's reset point alone, read from the store the
+/// reset writes it to.
+pub struct SupervisorResetPoint;
+
+impl Route for SupervisorResetPoint {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/supervisors/{supervisorName}/reset-point";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("supervisorName").unwrap_or_default().to_owned();
+
+    if supervisors::named(call.store(), &name).await?.is_none() {
+      return Err(not_found(&name));
+    }
+
+    let point = crate::companion::overtaken::point(call.store(), &name).await;
+
+    Ok(answer(StatusCode::OK, json!({ "supervisor": name, "resetPoint": point })))
+  }
+}
+
+crate::moved!(SupervisorResetPoint);
+
+/// `GET /supervisors/{supervisorName}/rooms`: every room the supervisor's turns went into, as the run ledger
+/// records them, each with its latest run there, the latest first.
+pub struct SupervisorRooms;
+
+impl Route for SupervisorRooms {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/supervisors/{supervisorName}/rooms";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("supervisorName").unwrap_or_default().to_owned();
+
+    if supervisors::named(call.store(), &name).await?.is_none() {
+      return Err(not_found(&name));
+    }
+
+    let rows = store::all(
+      call.store(),
+      r#"SELECT "r"."chat_id", "counted"."runs", "r"."id", "r"."unit", "r"."started_at", "r"."finished_at"
+         FROM (SELECT "chat_id", COUNT(*) AS "runs", MAX("id") AS "last" FROM "runs"
+               WHERE "agent" = $1 AND "chat_id" IS NOT NULL GROUP BY "chat_id") AS "counted"
+         JOIN "runs" AS "r" ON "r"."id" = "counted"."last"
+         ORDER BY "r"."started_at" DESC, "r"."id" DESC"#,
+      vec![name.into()],
+    )
+    .await?;
+    let mut items = vec![];
+
+    for row in &rows {
+      items.push(json!({
+        "roomId": row.try_get::<i64>("", "chat_id")?,
+        "runs": row.try_get::<i64>("", "runs")?,
+        "lastRunId": row.try_get::<i64>("", "id")?,
+        "lastRunUnit": row.try_get::<String>("", "unit")?,
+        "lastStartedAt": row.try_get::<i64>("", "started_at")?,
+        "lastFinishedAt": row.try_get::<Option<i64>>("", "finished_at")?,
+      }));
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
+  }
+}
+
+crate::moved!(SupervisorRooms);
+
 // An order a body names, judged against the chat line.
 async fn order_of(ground: &Ground, body: &Value) -> Result<Option<Order>, Refused> {
   let Some(entries) = body.get("order") else { return Ok(None) };

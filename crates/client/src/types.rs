@@ -556,7 +556,23 @@ pub struct Place {
   pub last_write: Option<Value>,
 }
 
-/// Provider:
+/// ProviderQuota: what a provider has left as an order reads it at the default share.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderQuota {
+  /// Whether it stands above the share.
+  pub has: bool,
+  /// A fraction from 0 to 1, or null where the provider reports none.
+  pub left: Option<f64>,
+  /// The name of the window that counted, or null.
+  pub window: Option<String>,
+  /// What its balance reader last read, for a provider that keeps a balance, or null.
+  pub balance: Option<f64>,
+  /// When the counting window resets, in epoch seconds, or null.
+  pub resets_at: Option<i64>,
+}
+
+/// Provider: one provider agency carries, with its switch, what it declares and what it has left.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
@@ -568,16 +584,27 @@ pub struct Provider {
   #[serde(default)]
   pub label: String,
   pub enabled: bool,
+  /// Whether its models are the registry's registrations alone.
   pub registered: bool,
-  pub coworker: bool,
+  /// Whether its models are served by agency's model gateway.
+  pub gateway: bool,
+  /// The launch lines its program carries.
+  pub lines: Vec<String>,
+  pub quota: ProviderQuota,
+  /// Why it cannot answer now, the English sentence, or null where it can.
+  pub reason: Option<String>,
+  /// The kebab-case code of why it cannot answer now, or null where it can.
+  pub reason_code: Option<String>,
+  /// The compaction threshold a row whose order begins on it is given where its add names none.
+  pub fold_ratio_default: f64,
 }
 
-/// Model:
+/// Model: one registration of the registry's provider and its health.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
   pub key: String,
-  /// The registration's own name, which is the model a supervisor's fixed pin holds.
+  /// The registration's own name, which an order's entry and a repository's pin name.
   pub name: String,
   pub provider: String,
   pub model: String,
@@ -588,10 +615,19 @@ pub struct Model {
   /// Whether the card service's instances keep role files.
   #[serde(default)]
   pub role_files: bool,
-  pub tier: Option<String>,
+  /// Every supervisor, role and repository whose order or pin names it.
+  #[serde(default)]
+  pub used_by: Vec<String>,
   pub healthy: Option<bool>,
   /// When the engine behind it last answered a health probe, in unix seconds, where it ever has.
   pub last_answered_at: Option<i64>,
+  /// Its window; null for a model that is no registration.
+  pub context_tokens: Option<i64>,
+  /// Its answer ceiling; null for a model that is no registration.
+  pub answer_tokens: Option<i64>,
+  /// Its thinking default: what a run on it does where its order's entry leaves thinking to the provider;
+  /// null for a model that is no registration.
+  pub thinking: Option<bool>,
 }
 
 /// ModelCatalogueEntry:
@@ -990,11 +1026,17 @@ pub struct Rest {
   pub account_id: Option<String>,
 }
 
-/// StandIn: whether a stand-in answers the agent named now.
+/// StandIn: whether a stand-in answers the agent named now, and on which provider and model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StandIn {
   pub answers: bool,
+  /// The first provider of its order other than Claude Code that can answer now, or null.
+  #[serde(default)]
+  pub provider: Option<String>,
+  /// The model its order names on that provider, or null.
+  #[serde(default)]
+  pub model: Option<String>,
 }
 
 /// Usage:
@@ -2422,15 +2464,25 @@ pub struct SettingsAsk {
   pub stopped: Option<bool>,
 }
 
-/// The body that adds a companion.
+/// The body that adds a companion: its order whole with its share, or one provider and model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionAsk {
   pub name: String,
   pub label: String,
-  pub provider: String,
-  pub model: String,
+  /// The repository its items go to.
   pub worker: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+  /// Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
+  /// theirs.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub order: Option<Vec<OrderEntry>>,
+  /// a fraction from 0 to 1
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub quota_share: Option<f64>,
 }
 
 /// The body that changes a companion.
@@ -2666,6 +2718,38 @@ pub struct Supervisor {
   pub reset_point: Option<i64>,
 }
 
+/// SupervisorRoom: one room a supervisor's turns went into, with its latest run there.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorRoom {
+  pub room_id: i64,
+  /// How many of its runs the ledger holds there.
+  pub runs: i64,
+  pub last_run_id: i64,
+  pub last_run_unit: String,
+  /// epoch milliseconds
+  pub last_started_at: i64,
+  /// epoch milliseconds
+  pub last_finished_at: Option<i64>,
+}
+
+/// SupervisorRoomList: the rooms a supervisor's turns went into, the latest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorRoomList {
+  pub items: Vec<SupervisorRoom>,
+  pub more: bool,
+}
+
+/// SupervisorResetPoint: a supervisor's reset point alone.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorResetPoint {
+  pub supervisor: String,
+  /// epoch milliseconds, or null where it was never reset
+  pub reset_point: Option<i64>,
+}
+
 /// SupervisorList: every supervisor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2846,8 +2930,18 @@ pub struct RoleSession {
   /// epoch milliseconds
   pub last_answered_at: Option<i64>,
   pub runs: i64,
-  pub context: Value,
+  pub context: RoleSessionContext,
   pub valid: bool,
+}
+
+/// RoleSessionContext: what a session's last answered turn carried.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSessionContext {
+  /// The tokens it carried, or null where none was read.
+  pub tokens: Option<i64>,
+  /// The share of the window they filled, from 0 to 1, or null.
+  pub share: Option<f64>,
 }
 
 /// RoleSessionPage: the sessions a role's runs opened, newest first.
@@ -2876,6 +2970,90 @@ pub struct RepositoryPin {
   pub model: String,
 }
 
+/// CheckoutJob: the job holding a checkout.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckoutJob {
+  pub job_id: Option<i64>,
+  pub item_id: Option<i64>,
+  /// the role the job runs as
+  pub role: Option<String>,
+}
+
+/// RepositoryCheckout: one checkout of a repository.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryCheckout {
+  pub name: String,
+  pub path: String,
+  /// The work node it stands on, or null for this machine.
+  pub node_name: Option<String>,
+  /// `base`, `support` or `node`
+  pub kind: String,
+  /// The job holding it, or null where it is free.
+  pub job: Option<CheckoutJob>,
+}
+
+/// SamplingSetting: one setting a sampling may hold, with its bounds; a switch has none.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SamplingSetting {
+  pub name: String,
+  /// Whether it takes on or off rather than a number.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub switch: Option<bool>,
+  /// Whether the chat template reads it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub template: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub min: Option<f64>,
+  /// the most it takes, or null where it is held below the registration's window
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub max: Option<f64>,
+  /// Whether the least value itself is refused.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub above_min: Option<bool>,
+  /// Whether only whole numbers are taken.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub whole: Option<bool>,
+}
+
+/// NodeCheckoutAsk: one checkout on a work node a repository's change names.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeCheckoutAsk {
+  pub node_name: String,
+  /// written from the node's home or absolute; null for the default beside the base's folder
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub path: Option<String>,
+}
+
+/// WorkNode: one node the node service keeps, with whether it takes jobs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkNode {
+  pub name: String,
+  pub label: String,
+  /// `ssh`, or `jake` for a node reached through a hub
+  pub kind: String,
+  /// the services the node service reserves it for, or null
+  pub role: Option<String>,
+  pub state: String,
+  /// epoch seconds
+  pub checked_at: Option<i64>,
+  pub takes_jobs: bool,
+  /// why it takes no jobs, or null where it takes them
+  pub jobs_refusal: Option<String>,
+}
+
+/// WorkNodeList: the nodes the node service keeps, in its list's order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkNodeList {
+  pub items: Vec<WorkNode>,
+  pub more: bool,
+}
+
 /// Repository: one repository as its row holds it, with its checkouts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2893,9 +3071,11 @@ pub struct Repository {
   pub dev_command: Option<String>,
   pub pin: Option<RepositoryPin>,
   pub downgrade_heal: bool,
-  pub sampling: Option<Value>,
-  /// each its name, path, node and the job holding it, where one does
-  pub checkouts: Vec<Value>,
+  /// each setting it holds by name: a number or a switch; a setting left out is the engine's own default
+  pub sampling: Option<BTreeMap<String, Value>>,
+  /// every setting its sampling may hold, with its bounds
+  pub sampling_settings: Vec<SamplingSetting>,
+  pub checkouts: Vec<RepositoryCheckout>,
 }
 
 /// RepositoryList: every repository.
@@ -2934,8 +3114,15 @@ pub struct RepositoryAsk {
   pub pin: Option<Option<RepositoryPin>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub downgrade_heal: Option<bool>,
+  /// each setting by name, a number, a switch, or null to leave it to the engine
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub sampling: Option<Value>,
+  pub sampling: Option<BTreeMap<String, Value>>,
+  /// the checkouts on the work nodes, the list whole; a change only
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub node_checkouts: Option<Vec<NodeCheckoutAsk>>,
+  /// ready the repository's bench; a change only
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub bench: Option<bool>,
 }
 
 /// SlotRequest: one slot request of a role with its lease.
@@ -2972,6 +3159,66 @@ pub struct SlotRequest {
   pub agent_name: Option<String>,
   /// why it waits where its provider has no quota, or null
   pub held_for: Option<String>,
+  /// who gave it back — `holder`, `owner` or `run-ended` — or null while it stands
+  #[serde(default)]
+  pub ended_by: Option<String>,
+}
+
+/// SlotAdmission: what an admission asked of a slot request answers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotAdmission {
+  /// the request, active, where it is let in; null otherwise
+  pub request: Option<SlotRequest>,
+  /// the card demand a slot on a registration the arbiter stands asks, or null
+  pub demand: Option<Value>,
+  /// `waiting`, `reserved`, `active`, `released` or `cancelled`: the request now
+  pub state: String,
+  /// who gave it back — `holder`, `owner` or `run-ended` — or null while it stands
+  pub ended_by: Option<String>,
+  /// the words it was given back with, or null while it stands
+  pub outcome: Option<String>,
+}
+
+/// SlotFinished: what giving a slot request back answers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotFinished {
+  /// whether it was still held
+  pub held: bool,
+  pub stood_down: bool,
+  pub note: Option<String>,
+}
+
+/// SlotRequestMoved: what a move of a slot request answers: an admission, the request bound, or the request
+/// given back.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum SlotRequestMoved {
+  Admission(SlotAdmission),
+  Bound(SlotRequest),
+  Finished(SlotFinished),
+}
+
+/// OwnerRelease: what an owner's release gave back.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnerRelease {
+  /// its requests that waited or stood reserved, cancelled
+  pub cancelled: i64,
+  /// its requests that were let in, released
+  pub released: i64,
+  /// its reservations, released
+  pub reservations: i64,
+  /// the role sessions its leases were bound to, ended
+  pub sessions_ended: Vec<String>,
+}
+
+/// OwnerReleaseQuery: whose holds an owner's release gives back.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnerReleaseQuery {
+  pub owner: String,
 }
 
 /// SlotRequestAsk: the body that asks a slot of a role.
@@ -3046,11 +3293,63 @@ pub struct SlotRequestsQuery {
   pub waiting: Option<bool>,
 }
 
-/// Slots: every role's slots, each with its cap, its runs let in, reserved and waiting, and what holds each.
+/// SlotRun: one run let in on a role's slot.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRun {
+  pub token: String,
+  pub role: String,
+  pub path: Option<String>,
+  pub provider: String,
+  pub model: String,
+  pub source: String,
+  /// epoch milliseconds
+  pub since: Option<i64>,
+  /// the run its binding named, or the child it is bound to; null until bound
+  pub run_name: Option<String>,
+  /// the role session it is bound to, or null
+  pub session: Option<String>,
+  /// the job whose run it is, where its source is `job`
+  pub job_id: Option<i64>,
+  pub title: Option<String>,
+}
+
+/// RoleSlots: one role's slots: its cap, its runs let in, reserved and waiting, and each run let in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSlots {
+  pub role: String,
+  pub max_concurrent: i64,
+  pub active: i64,
+  pub reserved: i64,
+  pub waiting: i64,
+  pub runs: Vec<SlotRun>,
+}
+
+/// Slots: every role's slots.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Slots {
-  pub items: Vec<Value>,
+  pub items: Vec<RoleSlots>,
+}
+
+/// ProviderModel: one model an order's entry may name on a provider.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModel {
+  pub id: String,
+  /// the levels it takes; null in the list stands for the provider's own default
+  pub efforts: Vec<Option<String>>,
+  /// whether it costs nothing, where the catalogue prices it
+  pub free: Option<bool>,
+  /// whether it is served rather than superseded, where the catalogue tells them apart
+  pub in_service: Option<bool>,
+  /// its window, for a gateway road's member or a registration
+  pub context_tokens: Option<i64>,
+  /// its answer ceiling, for a gateway road's member or a registration
+  pub answer_tokens: Option<i64>,
+  /// its thinking default, for a gateway road's member or a registration
+  pub thinking: Option<bool>,
 }
 
 /// ProviderModels: the models an order's entry may name on a provider.
@@ -3058,6 +3357,7 @@ pub struct Slots {
 #[serde(rename_all = "camelCase")]
 pub struct ProviderModels {
   pub provider: String,
-  pub models: Vec<Value>,
+  pub models: Vec<ProviderModel>,
+  /// the moment of a stale read in epoch seconds, or null
   pub stale_read_at: Option<f64>,
 }

@@ -93,8 +93,13 @@ impl Route for SlotAsk {
       (Some(provider), Some(model)) => {
         Some(dispatch::named_road(call.store(), role, provider, model).await.map_err(refused)?)
       }
+      (None, Some(model)) => {
+        let provider = dispatch::provider_for_model(call.ground(), role, model).await.map_err(refused)?;
+
+        Some(dispatch::named_road(call.store(), role, &provider, model).await.map_err(refused)?)
+      }
       (None, None) => dispatch::fixed_road(call.store(), role, source, asked_by).await.map_err(refused)?,
-      _ => return Err(bad("A slot's road names its provider and its model together")),
+      (Some(_), None) => return Err(bad("A slot's road names its provider together with its model")),
     };
     let asked = Asked {
       request_key: text(&body, "requestKey")?.to_owned(),
@@ -140,6 +145,17 @@ impl Route for SlotMove {
       Some("bound") => {
         let child = text(&body, "childId")?;
         let mut bound = bind(call.store(), &held, child).await.map_err(refused)?;
+
+        // A child naming a role session agency holds binds the lease to that session, which it ends with.
+        let holds_session = match call.sessions() {
+          Some(sessions) => sessions.held_scope(&agent_session::SessionId(child.to_owned())).await.is_ok(),
+          None => false,
+        };
+
+        if holds_session && bound.child_id.as_deref() == Some(child) {
+          dispatch::bound_to_session(call.store(), &token).await.map_err(refused)?;
+          bound.session = Some(child.to_owned());
+        }
 
         // The run the slot's child is, kept where the binding names it.
         if let Some(agent) = optional(&body, "agentName") {
@@ -193,10 +209,21 @@ impl Route for SlotMove {
         };
         let request = match &card {
           Some(card) if !card.granted() => Value::Null,
-          _ => shown(admitted)?,
+          _ => shown(admitted.clone().filter(|seat| seat.state == "active"))?,
         };
+        // What the request is now, so a caller tells one still waiting from one given back by anyone.
+        let now = dispatch::request(call.store(), &token).await.map_err(refused)?.unwrap_or(held);
 
-        Ok(answer(StatusCode::OK, json!({ "request": request, "demand": card })))
+        Ok(answer(
+          StatusCode::OK,
+          json!({
+            "request": request,
+            "demand": card,
+            "state": now.state,
+            "endedBy": now.ended_by,
+            "outcome": if now.state == "released" || now.state == "cancelled" { now.outcome } else { None },
+          }),
+        ))
       }
     }
   }
@@ -294,6 +321,48 @@ impl Route for SlotRequestRead {
 
 crate::moved!(SlotRequestRead);
 
+/// `DELETE /slot-requests`: an owner's release — every request, reservation and bound role session the owner
+/// holds given back as its owner's (docs/role-slots.md, 「An owner's release」).
+pub struct SlotOwnerRelease;
+
+impl Route for SlotOwnerRelease {
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/slot-requests";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let owner = call
+      .query("owner")
+      .map(|owner| owner.trim().to_owned())
+      .filter(|owner| !owner.is_empty())
+      .ok_or_else(|| bad("owner is required"))?;
+    let done = dispatch::release_owner(call.store(), &owner).await.map_err(refused)?;
+    let mut ended = vec![];
+
+    if let Some(sessions) = call.sessions() {
+      use agent_session::Sessions as _;
+
+      for session in &done.sessions {
+        match sessions.end(&agent_session::SessionId(session.clone())).await {
+          Ok(()) => ended.push(session.clone()),
+          Err(fault) => eprintln!("{owner}: its role session {session} was not ended: {}", fault.message),
+        }
+      }
+    }
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "cancelled": done.cancelled,
+        "released": done.released,
+        "reservations": done.reservations,
+        "sessionsEnded": ended,
+      }),
+    ))
+  }
+}
+
+crate::moved!(SlotOwnerRelease);
+
 /// `GET /slot-requests`: the requests still open, in the order they came, narrowed by role, by owner, or to
 /// the ones waiting.
 pub struct SlotOpenRequests;
@@ -340,13 +409,21 @@ impl Route for Slots {
         .iter()
         .filter(|request| request.state == "active")
         .map(|request| {
+          let session =
+            request.session.clone().filter(|session| request.child_id.as_ref() == Some(session));
+
           json!({
+            "token": request.token,
             "role": request.role,
             "path": request.path,
             "provider": request.provider,
             "model": request.model,
             "source": request.source,
             "since": request.leased_at,
+            "runName": request.agent_name.clone().or_else(|| request.child_id.clone()),
+            "session": session,
+            "jobId": dispatch::job_of(request),
+            "title": request.title,
           })
         })
         .collect();

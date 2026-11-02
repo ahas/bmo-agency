@@ -2916,6 +2916,17 @@ impl Sessions for HerdrSessions {
         if in_places(apart) {
           crate::apart_places::end(ground, &crate::apart_places::place_name(session)).await;
         }
+
+        // A lease bound to the session ends with it (docs/role-slots.md, 「The line」).
+        if let Err(why) = crate::order_run::dispatch::release_sessions(
+          &ground.db,
+          std::slice::from_ref(&session.0),
+          "its role session ended",
+        )
+        .await
+        {
+          eprintln!("{session}: the slot lease bound to it was not given back: {why}");
+        }
       }
       Scope::Conversation(_) => {
         let harness = self.conversations().remove(session).and_then(|(_, held)| held.harness);

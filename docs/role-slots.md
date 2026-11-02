@@ -19,6 +19,10 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **A slot's source and owner are the caller's.** A slot is asked under the source label its caller sends —
   `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks, `native` for a
   native call — and under the owner and request key its caller names; the label is kept as sent.
+- **A slot is let in on its role's order unless its ask names a road.** An ask may name a provider and a model
+  together, the road it then goes out on and waits for; or a model alone, whose provider the role's order
+  gives: the first entry of the order naming that model, else the role's active provider as the ask is made,
+  else the order's first. The entry the provider has in the role's order gives the effort and the thinking.
 
 ## The cap
 
@@ -63,13 +67,38 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **A lease** preserves a hard-to-guess token, a stable owner and request key, the role, the path, the
   chosen provider, model and effort, the cap then, and the time. Changing a role's row does not change this
   snapshot for a request already waiting or let in.
-- **Release and cancel** are done only by the holder of the token, and finish once however many times
-  called. They finish at once when success, failure, a launch refusal or a cancel is confirmed, and after a
-  restart reclaim only where the run, job or execution record and the real unit and pane have all ended. An
-  active lease is not taken away for age alone.
-- **A lease bound to its launched run is given back once that run has ended,** whatever said or did not say
-  so: from the server's start and every minute after, a lease bound ten minutes or more ago whose run no
-  systemd unit, herdr pane or open execution holds any longer is finished as ended.
+- **Release and cancel** are done by the holder of the token, and by the owner for everything it holds
+  (「An owner's release」 below), and finish once however many times called. They finish at once when
+  success, failure, a launch refusal or a cancel is confirmed. Each given-back request keeps who gave it
+  back: `holder`, the token's holder; `owner`, its owner's release; or `run-ended`, the line on evidence its
+  run ended.
+- **A lease is bound to what its run stands as:** a systemd unit, a herdr pane or an open execution by its
+  name, or a role session by its id. A role's start that names the slot binds the lease to the session it
+  opens where the lease is bound to nothing yet (`docs/api.md`, 「sessions」), and a binding naming the id of a
+  session agency holds is bound to that session.
+- **A bound lease is given back only on an observed end, never for a span of time:**
+  - a lease bound to a session, once that session ends: ended by its caller or by an owner's release, or
+    gone with the agency process that held it, since a role session is held in memory from its start to its
+    end and a restart ends every one;
+  - a lease bound to a unit, a pane or an execution, once the line's pass has seen that run standing and then
+    sees no systemd unit, herdr pane or open execution holding it. A run not yet seen standing is never read
+    as ended, however long it takes to come up. The pass reads from the server's start and each minute after;
+    it is a reading, not a bound on any lease;
+  - the token holder's release, or the owner's.
+- **An active lease is never taken away for its age:** only these ends give one back, and a native call's the
+  evidence its own process ended (「Native co-worker slots」).
+- **An admission answers what the request is now:** `waiting` while it waits in the line, `active` once let
+  in, and `released` or `cancelled` once given back, with who gave it back and why. A caller asks again only
+  while it waits; a request given back by anyone stays given back.
+
+## An owner's release
+
+- **An owner gives back everything it holds in one ask** (`docs/api.md`, 「slots, reservations and places」):
+  every request it asked that still waits, stands reserved or is let in — a waiting or reserved one
+  cancelled, an active one released — every reservation it holds, and every role session bound to one of its
+  leases, ended. A consumer that restarts asks it first, so it keeps no list of its own holds to give back.
+- **The release is the owner's word, read as given:** agency judges nothing of why, and a request asked under
+  another owner is not touched.
 
 ## Prior and yielding requests
 

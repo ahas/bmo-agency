@@ -159,6 +159,16 @@ async fn serve(args: Args) -> Result<(), String> {
     }
   }
 
+  // A role session is held in memory from its start to its end, so none of the process before stands: every
+  // lease bound to one is given back as ended with it (docs/role-slots.md, 「The line」).
+  match agency_server::order_run::dispatch::release_every_session(&ground.db).await {
+    Ok(0) => {}
+    Ok(released) => {
+      println!("agency: {released} slot leases bound to the role sessions of the process before given back")
+    }
+    Err(why) => eprintln!("agency: the slot leases bound to role sessions: {why}"),
+  }
+
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),

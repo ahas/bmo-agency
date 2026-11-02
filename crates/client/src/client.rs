@@ -1051,4 +1051,26 @@ impl AgencyClient {
   pub async fn list_provider_models(&self, provider_name: &str) -> Answer<ProviderModels> {
     Self::answered(self.request(Method::GET, &["provider-models", provider_name])).await
   }
+
+  /// `DELETE /slot-requests`: An owner's release: every request, reservation and bound role session the owner
+  /// holds given back.
+  pub async fn release_owner_slots(&self, query: &OwnerReleaseQuery) -> Answer<OwnerRelease> {
+    Self::answered(self.request(Method::DELETE, &["slot-requests"]).query(query)).await
+  }
+
+  /// `GET /supervisors/{supervisorName}/rooms`: The rooms a supervisor's turns went into, each with its last run
+  /// there.
+  pub async fn list_supervisor_rooms(&self, supervisor_name: &str) -> Answer<SupervisorRoomList> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "rooms"])).await
+  }
+
+  /// `GET /supervisors/{supervisorName}/reset-point`: A supervisor's reset point alone.
+  pub async fn get_supervisor_reset_point(&self, supervisor_name: &str) -> Answer<SupervisorResetPoint> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "reset-point"])).await
+  }
+
+  /// `GET /nodes`: The nodes the node service keeps, each with whether it takes jobs.
+  pub async fn list_nodes(&self) -> Answer<WorkNodeList> {
+    Self::answered(self.request(Method::GET, &["nodes"])).await
+  }
 }

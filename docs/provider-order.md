@@ -48,7 +48,11 @@ quota is read is `docs/usage-windows.md`.
   Can answer now is the provider's own answer (`docs/cache-fallback.md`, 「Availability: whether a provider
   can answer now」): the owner's switch on it is on, its credential stands on this machine, and, for a
   provider that holds logins, one of them is open.
-- **It goes out on the model, the effort and the thinking its entry names there.**
+- **It goes out on the model, the effort and the thinking its entry names there.** An effort or a thinking
+  the entry leaves to the provider is the provider's own: the effort its program runs at by default, and the
+  thinking default of the gateway member or the registration the model is, which is read beside the model
+  (「Models a provider holds」); a model of the Claude CLI's catalogue states none, and its thinking is the
+  line's own.
 - **That provider is the row's active provider.** Every run of a role goes out on the role's active provider
   at that moment; a role's runs never spread over several providers by count, since no provider carries a
   concurrency limit of its own and the role's cap is the only bound (`docs/role-slots.md`).
@@ -123,8 +127,8 @@ quota is read is `docs/usage-windows.md`.
 - **Codex, OpenRouter and DeepSeek:** a member of the provider's own road on agency's gateway, each with its
   window, answer ceiling and thinking default (`docs/cache-fallback.md`, 「The Codex road is a member of the
   gateway」 and the sections after it).
-- **The registry's provider:** an offered registration, one with an address or naming a card service
-  (`docs/own-llm.md`, 「Registered models」). A registration an order or a repository's pin names is not
+- **The registry's provider:** an offered registration, one with an address or naming a card service, each
+  with its window, answer ceiling and thinking default (`docs/own-llm.md`, 「Registered models」). A registration an order or a repository's pin names is not
   removed, and the refusal names each row that names it.
 - **A catalogue that cannot be read at the moment an order is written** keeps the model rather than refusing
   it, since a catalogue that cannot be read says nothing against the name; one that reads and does not name

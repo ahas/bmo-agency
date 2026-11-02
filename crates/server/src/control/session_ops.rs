@@ -613,6 +613,14 @@ impl Route for SessionStart {
 
     match backend.start(start).await {
       Ok(session) => {
+        // The slot the start names is bound to the session it opened, where it is bound to nothing yet, so
+        // the lease ends with the session (docs/role-slots.md, 「The line」).
+        if let Some(token) = slot_named(&body) {
+          crate::order_run::dispatch::bind_session(call.store(), &token, &session.id.0)
+            .await
+            .map_err(Refused::failed)?;
+        }
+
         let state = backend.read_state(&session.id, None).await.ok();
         Ok(answer(
           StatusCode::CREATED,

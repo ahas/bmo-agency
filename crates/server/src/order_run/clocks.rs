@@ -1,5 +1,7 @@
 //! The role slots' own clocks (docs/role-slots.md, 「The line」): every five seconds a reservation's head slot
-//! raised into room another process gave back, and a native call whose caller ended reclaimed; every minute from the start a lease whose launched child ended given back, and the
+//! raised into room another process gave back, and a native call whose caller ended reclaimed; every minute from
+//! the start the leases bound to a launched child read against what stands, one whose child was seen standing
+//! and stands no longer given back, and the
 //! demand a lease no longer active held on the arbiter's master given back with it; every ten
 //! minutes what a job's end left in herdr swept. Beside them, each reader of the accounts' usage windows
 //! passes on the cadence it declares (docs/usage-windows.md). Each runs for as long as the process stands,
@@ -20,7 +22,8 @@ use crate::queue::running::Running;
 /// How often the line raises its reservations' head slots and reclaims what an ended caller held.
 pub const POOL_PASS: Duration = Duration::from_secs(5);
 
-/// How often the leases bound to a launched child are held to whether that child still stands.
+/// How often the leases bound to a launched child are read against whether that child stands. A reading, never
+/// a bound on any lease: a lease is given back only once its child was seen standing and then is not.
 pub const BOUND_PASS: Duration = Duration::from_secs(60);
 
 /// How often what a job's end left in herdr is swept beside the sweep each job's end asks for.
@@ -42,9 +45,9 @@ pub async fn keep_pool(db: DatabaseConnection) {
   .await;
 }
 
-/// The bound leases' clock, from the process's start: a lease whose launched child has ended — its unit,
-/// its pane and every open execution naming it gone — given back, so a turn whose release never came does
-/// not hold its place for good.
+/// The bound leases' clock, from the process's start: a lease whose launched child was seen standing and has
+/// ended — its unit, its pane and every open execution naming it gone — given back, so a turn whose release
+/// never came does not hold its place for good.
 pub async fn keep_bound(db: DatabaseConnection, running: Running) {
   every("role slot bound leases", Duration::ZERO, BOUND_PASS, move || {
     let db = db.clone();
