@@ -1,6 +1,5 @@
 //! What agency's server seeds a fresh store with as it settles it (docs/store.md, 「Its seeds」): the account
-//! a store holding none is given, the first seed's mapping of every tier, the work keys no profile
-//! declares, and the catalogue's entries.
+//! a store holding none is given and the catalogue's entries; the roles are `roles.toml`'s.
 
 use serde::Deserialize;
 
@@ -11,52 +10,6 @@ use serde::Deserialize;
 pub struct AccountSeed {
   pub id: String,
   pub name: String,
-}
-
-/// What one tier maps to on one provider in the first seed.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Mapping {
-  pub tier: String,
-  pub provider: String,
-  pub model: String,
-  #[serde(default)]
-  pub thinking: Option<bool>,
-  #[serde(default)]
-  pub effort: Option<String>,
-  #[serde(default)]
-  pub answer_tokens: Option<i64>,
-}
-
-/// A work key no profile declares, with the tier it starts on.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Key {
-  pub key: String,
-  pub tier: String,
-}
-
-/// A provider a store is given its mappings of on the first settling that declares it, each tier with
-/// the model and effort its work goes out on there.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Later {
-  pub provider: String,
-  pub mapping: Vec<LaterMapping>,
-}
-
-/// What one tier maps to on a provider declared after the first seed.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LaterMapping {
-  pub tier: String,
-  pub model: String,
-  #[serde(default)]
-  pub thinking: Option<bool>,
-  #[serde(default)]
-  pub effort: Option<String>,
-  #[serde(default)]
-  pub answer_tokens: Option<i64>,
 }
 
 /// One model file of the catalogue, in the catalogue's own fields (docs/model-catalogue.md, 「An entry」).
@@ -92,11 +45,7 @@ pub struct CatalogueEntry {
 #[serde(deny_unknown_fields)]
 pub struct Seeds {
   pub account: AccountSeed,
-  pub mapping: Vec<Mapping>,
-  pub key: Vec<Key>,
   pub catalogue: Vec<CatalogueEntry>,
-  #[serde(default)]
-  pub later: Vec<Later>,
 }
 
 crate::part!(pub SEEDS: Seeds = "seeds.toml");

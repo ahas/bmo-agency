@@ -1,52 +1,42 @@
-# The roles an agent may hold and the function bundles a role may give (docs/agent-roles.md). The roles
-# themselves are the store's rows, which the owner adds and changes on the control port; this file seeds
-# them and keeps what is no role's own.
+# The roles and what is no role's own (docs/agent-roles.md). The roles themselves are the store's rows,
+# which the owner adds and changes on the control port; this file seeds them once and keeps the rest.
 #
+# job: the role a job runs as where its item names none (docs/repositories.md, 「A job」).
+# delegate: the role a delegated task runs as where its ask names none: the supervisor's double
+#   (docs/tools.md, 「The delegate」).
+# renewal: the role agency's own runs hold that stand for no one's work, the usage reader's renewal turn among
+#   them (docs/agents.md, 「A run in a pane of its own」).
+# send: the bundle that opens sending into a room, which every guard of a send reads here.
+# supervisor: the bundles every supervisor's session record holds (docs/supervisors.md, 「The bundles a
+#   supervisor holds」).
+# name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
+# label_most: the most characters a role's label holds.
+# quota_share: the remaining quota at or below which a provider of an order is passed over, where a row sets
+#   none (docs/provider-order.md, 「What an order is」).
+# [icons]: the mark a screen shows beside every supervisor, every role and every repository.
 # [[bundles]]: one function bundle a role may give, a capability of the tool host, with the short name a
 #   screen writes it by. A role gives no bundle this file does not declare.
 # [[roles]]: the roles a store is given once by name, in the order a screen lists them: each one's name, its
-#   label as a screen writes it, the bundles it gives, the most of its agents that run at once, the file
-#   under prompts/roles/ whose text is its prompt, and in `shown` the tool entries, by full name, its agents
-#   are shown by name whatever their line; every other entry a session of the role holds is reached with
-#   `bmo use` unless the line lists it. None is listed for now. `sessions` says whether the role's runs go on in
-#   the session an earlier run left while its cache is warm, `keep`, or each open its own, `fresh`; `keep` where
-#   a role names none (docs/agent-roles.md, 「A role's sessions」).
-# coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
-#   the place it works in, a standing branch checkout, has no agents row to name a role of its own.
-# delegate: the role whose agents carry a task a chat agent hands off through bmo/delegate where the ask names
-#   none (docs/tools.md, 「The delegate」; docs/agent-roles.md, 「The helper role」). Its seat is asked under
-#   it, at the tier its role:<name> assignment gives.
-# renewal, judging: the roles agency's own runs hold that stand for no agent row — the usage reader's renewal
-#   turn and the gate project's judging batch — whose sessions setting they open their session by
-#   (docs/agents.md, 「Runs apart」).
-# send: the bundle that opens sending into a room, which every guard of a send reads here.
-# name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
-# label_most: the most characters a role's label holds.
-# [kinds]: the role a row of each kind holds where its writer names none (docs/agent-roles.md, 「Where a
-#   role comes from」).
+#   label, its line, the bundles it gives, its cap, the file under prompts/roles/ whose text is its prompt or
+#   the co-worker definition under prompts/agents/worker/coworkers/ whose body is its prompt and whose
+#   description is its description, whether its runs keep their sessions, whether a run may call it as a
+#   co-worker, and its provider order, each entry a provider once with the model, the effort and the thinking
+#   it runs on there. Its compaction threshold is its first provider's declared default.
 
-coworker = "worker"
-delegate = "helper"
+job = "worker"
+delegate = "delegator"
 renewal = "upkeep"
-judging = "gate"
 send = "room.send"
+supervisor = ["room.chat", "room.send", "web.read"]
 name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 name_most = 40
 label_most = 60
+quota_share = 0.01
 
-[kinds]
-chat = "chat"
-worker = "worker"
-runner = "searcher"
-gate = "gate"
-
-# [icons]: the mark a screen shows beside every agent of each kind, by the kind; an agent row's own mark is not
-# read, so every agent of one kind looks alike.
 [icons]
-chat = "i-material-symbols-chat-bubble-outline"
-worker = "i-material-symbols-construction"
-runner = "i-material-symbols-search"
-gate = "i-material-symbols-verified-user-outline"
+supervisor = "i-material-symbols-chat-bubble-outline"
+role = "i-material-symbols-construction"
+repository = "i-material-symbols-folder-outline"
 
 [[bundles]]
 name = "room.chat"
@@ -80,62 +70,185 @@ label = "Research branches"
 name = "web.rulebooks"
 label = "Rulebooks"
 
-[[roles]]
-name = "chat"
-label = "Chat"
-max_concurrent = 8
-bundles = ["room.chat", "room.send", "web.read"]
-
+# The job worker: DeepSeek's flash model first (the owner's decision of 2026-11-02).
 [[roles]]
 name = "worker"
 label = "Worker"
+line = "worker"
+max_concurrent = 3
+bundles = ["graph.read", "queue.read", "web.read"]
+order = [
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+  { provider = "claude-code", model = "claude-opus-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-sol", effort = "max" },
+  { provider = "openrouter", model = "google/gemma-4-31b-it:free" },
+]
+
+# The supervisor's double: a delegation naming no role runs as it, on the asking supervisor's own provider and
+# model; its order stands for a run of it no supervisor asked.
+[[roles]]
+name = "delegator"
+label = "Delegator"
+line = "worker"
+prompt = "delegator.md"
+max_concurrent = 2
+bundles = ["graph.read", "queue.read", "web.read"]
+order = [
+  { provider = "claude-code", model = "claude-sonnet-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-terra", effort = "high" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "helper"
+label = "Helper"
+line = "worker"
+prompt = "helper.md"
+max_concurrent = 2
+bundles = ["graph.read", "queue.read", "web.read"]
+order = [
+  { provider = "claude-code", model = "claude-sonnet-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-terra", effort = "high" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+# The video producer: a role whose items make videos with the video-shotcraft studio, which reads its items,
+# the web and sends the finished file into a room (docs/agent-roles.md, 「The video role」).
+[[roles]]
+name = "video"
+label = "Video producer"
+line = "worker"
+prompt = "video.md"
+max_concurrent = 2
+bundles = ["queue.read", "web.read", "room.send"]
+order = [
+  { provider = "claude-code", model = "claude-opus-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-sol", effort = "max" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "builder"
+label = "Builder"
+line = "worker"
+definition = "builder.md"
 max_concurrent = 8
 bundles = ["graph.read", "queue.read", "web.read"]
+order = [
+  { provider = "claude-code", model = "claude-opus-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-sol", effort = "max" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "verifier"
+label = "Verifier"
+line = "worker"
+definition = "verifier.md"
+max_concurrent = 6
+bundles = ["graph.read", "queue.read", "web.read"]
+sessions = "fresh"
+callable = true
+order = [
+  { provider = "claude-code", model = "claude-sonnet-5", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-terra", effort = "high" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "digest"
+label = "Digest"
+line = "worker"
+definition = "digest.md"
+max_concurrent = 6
+bundles = ["graph.read", "queue.read", "web.read"]
+sessions = "fresh"
+callable = true
+order = [
+  { provider = "claude-code", model = "claude-sonnet-5", effort = "low" },
+  { provider = "codex", model = "gpt-5.6-terra", effort = "low" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "scout"
+label = "Scout"
+line = "worker"
+definition = "scout.md"
+max_concurrent = 12
+bundles = ["graph.read", "queue.read", "web.read"]
+sessions = "fresh"
+callable = true
+order = [
+  { provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" },
+  { provider = "codex", model = "gpt-5.6-luna", effort = "low" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "low" },
+]
+
+[[roles]]
+name = "screener"
+label = "Screener"
+line = "worker"
+definition = "screener.md"
+max_concurrent = 12
+bundles = ["graph.read", "queue.read", "web.read"]
+sessions = "fresh"
+callable = true
+order = [
+  { provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" },
+  { provider = "codex", model = "gpt-5.6-luna", effort = "low" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "low" },
+]
 
 [[roles]]
 name = "searcher"
 label = "Searcher"
+line = "search"
 max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.branches", "web.rulebooks"]
 sessions = "fresh"
+order = [
+  { provider = "claude-code", model = "claude-opus-5", effort = "high" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
+[[roles]]
+name = "browser"
+label = "Browser"
+line = "browse"
+max_concurrent = 4
+bundles = ["web.read", "web.sites", "web.branches", "web.rulebooks"]
+sessions = "fresh"
+order = [{ provider = "claude-code", model = "claude-opus-5", effort = "high" }]
 
 [[roles]]
 name = "translator"
 label = "Translator"
+line = "translate"
 prompt = "translator.md"
 max_concurrent = 4
 bundles = []
 sessions = "fresh"
-
-# The video producer: a worker whose items make videos with the video-shotcraft studio, which reads its
-# items, the web and sends the finished file into a room (docs/agent-roles.md, 「The video role」).
-[[roles]]
-name = "video"
-label = "Video producer"
-prompt = "video.md"
-max_concurrent = 2
-bundles = ["queue.read", "web.read", "room.send"]
-
-# The helper: the role the chat agent delegates hard work to, carried by a worker row standing in a checkout
-# of its own (docs/agent-roles.md, 「The helper role」).
-[[roles]]
-name = "helper"
-label = "Helper"
-prompt = "helper.md"
-max_concurrent = 2
-bundles = ["graph.read", "queue.read", "web.read"]
+order = [{ provider = "claude-code", model = "claude-sonnet-5", effort = "high" }]
 
 [[roles]]
-name = "gate"
-label = "Gate"
-max_concurrent = 8
+name = "transliterator"
+label = "Transliterator"
+line = "search"
+max_concurrent = 4
 bundles = []
-sessions = "fresh"
+order = [
+  { provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "low" },
+]
 
-# Upkeep: the role agency's own upkeep runs hold where they stand for no agent row, the usage reader's renewal
-# turn among them (docs/agent-roles.md, 「The roles」).
+# Upkeep: the role agency's own runs hold where they stand for no one's work, the usage reader's renewal turn
+# among them.
 [[roles]]
 name = "upkeep"
 label = "Upkeep"
+line = "worker"
+max_concurrent = 1
 bundles = []
 sessions = "fresh"
+order = [{ provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" }]
