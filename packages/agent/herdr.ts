@@ -51,20 +51,24 @@ const resendPausesMs = [250, 600, 1_200];
 export const herdrLineCapBytes = 1_048_576;
 export const TOO_LARGE = "too_large";
 
-// What a call answers where the connection failed, closed or ran out of time; only these may be a
-// request that never went out.
-const connectionFailures = new Set(["unreachable", "closed", "timeout"]);
+// What a call answers where the connection failed or closed; only these may be a request that never
+// went out.
+const connectionFailures = new Set(["unreachable", "closed"]);
+
+// How long a call goes unanswered before it is written down once as herdr falling silent. The notice
+// paces nothing and ends nothing: the call goes on waiting for its answer or its connection's end.
+const silenceNoticeMs = 5_000;
 
 export interface HerdrCallOptions {
   socket?: string;
-  timeoutMs?: number;
   /** What waits between one sending and the next; the clock's own wait unless a test names another. */
   pause?: (ms: number) => Promise<unknown>;
 }
 
-// One request, one connection. A second request written to the same connection is refused with a
-// broken pipe, so nothing here is pooled or reused; the exception is the subscription below,
-// which is the one connection the server keeps open to write on.
+// One request, one connection, waited on until herdr answers it or the connection is refused, breaks or
+// closes. A second request written to the same connection is refused with a broken pipe, so nothing
+// here is pooled or reused; the exception is the subscription below, which is the one connection the
+// server keeps open to write on.
 //
 // A request that never reached herdr is sent again, a few times over about two seconds
 // (docs/agent-control.md, 「herdr」). herdr drops a connection whose line does not come within a few
@@ -101,7 +105,7 @@ export async function herdrCall<T = unknown>(
   const pause = options.pause ?? Bun.sleep;
 
   for (let resent = 0; ; resent += 1) {
-    const sent = await sendOnce<T>(method, params, id, socket, options.timeoutMs);
+    const sent = await sendOnce<T>(method, params, id, socket);
 
     if (sent.answer.ok || sent.delivered || !connectionFailures.has(sent.answer.error.code) || resent >= resendPausesMs.length || !existsSync(socket)) {
       return sent.answer;
@@ -113,7 +117,7 @@ export async function herdrCall<T = unknown>(
 
 // One connection carrying the request, and whether its line was written whole before the call
 // ended.
-function sendOnce<T>(method: string, params: unknown, id: string, socket: string, timeoutMs: number | undefined): Promise<{ answer: HerdrAnswer<T>; delivered: boolean }> {
+function sendOnce<T>(method: string, params: unknown, id: string, socket: string): Promise<{ answer: HerdrAnswer<T>; delivered: boolean }> {
   return new Promise((resolve) => {
     let held = "";
     let delivered = false;
@@ -141,21 +145,17 @@ function sendOnce<T>(method: string, params: unknown, id: string, socket: string
       }
 
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(notice);
       resolve({ answer: value, delivered });
     };
-    // A herdr that is not there, or one that never answers, is a fact for the caller to act on
-    // rather than an exception to climb out of: the launcher falls back to a unit on it.
-    // Each one is written down for the machine as well, since herdr falling silent is what a machine
-    // short of room shows first — this machine's herdr alone, since a work node's falling silent is its
-    // link's, which says nothing of this machine's room (docs/work-nodes.md).
-    const timer = setTimeout(
-      () => {
-        if (socket === herdrSocketPath()) noteHerdrSilence(method);
-        answer({ ok: false, error: { code: "timeout", message: `herdr did not answer ${method}` } });
-      },
-      timeoutMs ?? 5_000,
-    );
+    // A herdr that is not there is a fact for the caller to act on rather than an exception to climb
+    // out of: the launcher falls back to a unit on it. One slow to answer is written down for the
+    // machine once the notice's span has passed, since herdr falling silent is what a machine short of
+    // room shows first — this machine's herdr alone, since a work node's falling silent is its link's,
+    // which says nothing of this machine's room (docs/work-nodes.md) — and the call goes on waiting.
+    const notice = setTimeout(() => {
+      if (socket === herdrSocketPath()) noteHerdrSilence(method);
+    }, silenceNoticeMs);
 
     Bun.connect({
       unix: socket,

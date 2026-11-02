@@ -72,7 +72,6 @@ type Came = { reply: unknown } | { error: string } | { stopped: string } | { thr
 interface Ask {
   name: string;
   run: HarnessRun;
-  timeoutMs?: number | null;
 }
 
 interface Surface {
@@ -88,7 +87,7 @@ const home = (agent: string): AgentHome => ({ agent, label: agent, head: { comma
 
 async function bunTurn(surface: Surface, agent: string, socket: string, ask: Ask): Promise<Came> {
   try {
-    return await surface.bun({ run: ask.run, home: home(agent), name: ask.name, title: "a talk", timeoutMs: ask.timeoutMs ?? 10_000, socket });
+    return await surface.bun({ run: ask.run, home: home(agent), name: ask.name, title: "a talk", socket });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -101,7 +100,7 @@ async function rustTurn(surface: Surface, agent: string, configHome: string, ask
   const command = residentCommand(await surface.command(ask.run, agentPlace(agent)));
 
   writeFileSync(request, JSON.stringify({
-    agent, provider: surface.provider, name: ask.name, title: "a talk", timeoutMs: ask.timeoutMs ?? 10_000,
+    agent, provider: surface.provider, name: ask.name, title: "a talk",
     run: ask.run, command, ...surface.clocks,
   }));
 

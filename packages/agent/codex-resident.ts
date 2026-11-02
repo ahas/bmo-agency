@@ -13,7 +13,7 @@ import { guardPanePrompt } from "./live-claude-guard";
 import { PaneTransportError } from "./pane-process";
 import { providerSettingsArchive } from "./provider-order";
 import { adoptSession, interruptProgram, programAlive, readRunning, residentCommand, standResident, type ResidentProgram } from "./resident-pane";
-import { herdrPatienceMs, herdrSilent, publishEnvelope, runHeader, screenOf, statusOf, type PaneTurnEnd } from "./worker-pane";
+import { herdrSilent, publishEnvelope, runHeader, screenOf, statusOf, type PaneTurnEnd } from "./worker-pane";
 
 import type { ResidentSurface, ResidentTurnRequest, ResidentTurnResult } from "./harness";
 
@@ -22,9 +22,9 @@ import type { ResidentSurface, ResidentTurnRequest, ResidentTurnResult } from ".
 // as a person would type it, and it is read back out of the thread's rollout until the task it started
 // has completed or been aborted (「The interactive surface a provider declares」).
 
-// How long the program is given to come up and to be ready for a prompt, and how often it is looked at:
-// the clocks every resident turn keeps.
-const readyMs = declaredTurn.ready_seconds * 1_000;
+// How often the program is looked at, the pace every resident turn keeps. Nothing about the turn is
+// bounded by a clock: it waits for the program to come up and for its task to end, however long each
+// takes.
 const pollMs: number = declaredTurn.poll_ms;
 // The folder trust question, which herdr reads as idle (measured): only the screen says it stands.
 const trustQuestion = declaredCodex.resident.trust_question as string;
@@ -112,7 +112,6 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
   // The surface this turn runs on, handed in by that surface's own `turn`.
   surface: ResidentSurface;
   pollMs?: number;
-  readyMs?: number;
   // The two Codex homes, where they are not the machine's own.
   codexHome?: string;
   userHome?: string;
@@ -155,27 +154,44 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
   await archive.executions().saveExecution(execution);
 
   try {
-    const stood = await standResident({ place, home: options.home, program, line: run.line, socket: options.socket, waitMs: options.readyMs ?? readyMs });
+    // A turn stopped while its program comes up ends there, before anything goes in.
+    const stoppedBefore = (): ResidentTurnResult => {
+      ending = "cancelled";
+
+      return { error: "the turn was stopped before it went in" };
+    };
+    const stopping = new Error("stopped before the prompt");
+    const stood = await standResident({
+      place, home: options.home, program, line: run.line, socket: options.socket,
+      check: async () => {
+        if (await cancelled()) throw stopping;
+      },
+    }).catch((error: unknown) => {
+      if (error === stopping) return null;
+      throw error;
+    });
+
+    if (stood === null) return stoppedBefore();
 
     if (!stood.ok) return { error: `codex's program did not stand: ${stood.error.code}: ${stood.error.message}` };
 
     const pane = stood.result.paneId;
-    const readyBy = Date.now() + (options.readyMs ?? readyMs);
 
     execution.paneId = pane;
 
     // Ready once herdr reads its input box — idle, or done after a turn that ended, failed or was
-    // interrupted — and the screen is not the trust question herdr reads the same way.
+    // interrupted — and the screen is not the trust question herdr reads the same way. It is waited for
+    // until then, until it stands on a question, or until its pane is gone.
     for (;;) {
+      if (await cancelled()) return stoppedBefore();
+
       const now = await statusOf(pane, where);
 
       if (now === null) throw new PaneTransportError("codex's pane went away before its turn");
 
       // Herdr answering none of the looks says nothing of the program, and never that a person is
-      // asked something.
+      // asked something: the wait goes on until herdr answers.
       if (now === herdrSilent) {
-        if (Date.now() >= readyBy) throw new PaneTransportError("herdr did not answer about codex's pane before its turn");
-
         await Bun.sleep(every);
         continue;
       }
@@ -190,7 +206,7 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
         return { error: `codex's program is waiting on a person: ${screen}` };
       }
 
-      if (now === "blocked" || Date.now() >= readyBy) {
+      if (now === "blocked") {
         ending = "cancelled";
 
         return { error: `codex's program is waiting on a person: ${await screenOf(pane, where)}` };
@@ -229,9 +245,7 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
     execution.state = "running";
     await archive.executions().saveExecution(execution);
 
-    const deadline = options.timeoutMs === null ? null : promptedAt + options.timeoutMs;
     let reading = surface.readTurn({ lines: [] }, run);
-    let silentSince: number | null = null;
 
     for (;;) {
       if (await cancelled()) {
@@ -241,23 +255,12 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
         return { error: "the turn was stopped" };
       }
 
-      if (deadline !== null && Date.now() >= deadline) {
-        await interruptProgram(place, pane, surface.interrupt, where);
-        ending = "timeout";
-
-        return { error: "the turn ran past its time" };
-      }
-
       const now = await statusOf(pane, where);
 
       if (now === null) throw new PaneTransportError("codex's pane went away during the turn");
 
-      // A herdr that does not answer is waited out while the rollout is read on; only a silence past
-      // the patience ends the turn, as herdr's and not as a pane gone.
-      silentSince = now === herdrSilent ? (silentSince ?? Date.now()) : null;
-
-      if (silentSince !== null && Date.now() - silentSince >= herdrPatienceMs) throw new PaneTransportError("herdr did not answer about codex's pane during the turn");
-
+      // A herdr that does not answer is waited out while the rollout is read on, until it answers; a
+      // silence ends nothing.
       const alive = programAlive(place);
 
       if (alive === null || (started !== null && alive.pid !== started.pid)) throw new PaneTransportError("codex's program went away during the turn");

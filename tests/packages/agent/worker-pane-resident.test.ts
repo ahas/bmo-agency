@@ -52,7 +52,7 @@ const home = (agent: string): AgentHome => ({ agent, label: agent, head: { comma
 const turn = (
   agent: string,
   socket: string,
-  options: { model?: string; resume?: boolean; name?: string; stopGraceMs?: number; quietMs?: number; log?: RunLog; confirm?: PaneTurnConfirm; env?: Record<string, string>; prompt?: string } = {},
+  options: { model?: string; resume?: boolean; name?: string; log?: RunLog; confirm?: PaneTurnConfirm; env?: Record<string, string>; prompt?: string } = {},
 ) =>
   runTurnInPane({
     name: options.name ?? "bmo-job-1",
@@ -65,10 +65,6 @@ const turn = (
     sessionId,
     from: 0,
     pollMs: 5,
-    readyMs: 5_000,
-    accountMs: 500,
-    stopGraceMs: options.stopGraceMs,
-    quietMs: options.quietMs,
     log: options.log,
     confirm: options.confirm,
     socket,
@@ -129,30 +125,31 @@ describe("a standing worker's turns", () => {
     }
   }, 30_000);
 
-  test("told to stop, the turn is asked to end its work first and cut short once the grace is spent", async () => {
+  test("told to stop, the turn is asked to end its work and waited on until it comes to rest, with nothing cut behind the words", async () => {
     const archive = await scratchArchive();
     const herdr = standInHerdr("resident-stop", {
-      // Told its work, it is stopped from outside while it keeps working.
+      // Told its work, it is stopped from outside while it keeps working, and it works on a while
+      // after the stop words before it comes to rest.
       answer: async ({ text }) => {
         if (text.endsWith("the work")) await archive.settings().setSetting(executionCancelKey("bmo-job-stop"), "1");
         return [];
       },
-      after: ["working"],
+      after: (text) => (text.endsWith(stopInstruction) ? [...Array<string>(40).fill("working"), "done"] : ["working"]),
     });
 
     installProviderSettings(archive);
 
     try {
-      const stopped = await turn("stopping-worker", herdr.socket, { name: "bmo-job-stop", stopGraceMs: 50 });
+      const stopped = await turn("stopping-worker", herdr.socket, { name: "bmo-job-stop" });
       const prompts = herdr.asked.filter((one) => one.method === "agent.prompt").map((one) => String(one.params.text));
 
       expect(stopped.outcome).toBe("stopped");
       expect(prompts.at(-1)).toBe(stopInstruction);
-      expect(herdr.asked.filter((one) => one.method === "pane.send_keys").map((one) => one.params.keys)).toEqual([["escape"]]);
+      expect(herdr.asked.some((one) => one.method === "pane.send_keys")).toBe(false);
       expect(herdr.asked.some((one) => one.method === "pane.close")).toBe(false);
       expect(readRun(agentPlace("stopping-worker"))?.endedAt).not.toBeNull();
-      // The row says it was a turn of a resident program, and closes as a stop on the interrupted
-      // marker the program wrote.
+      // The row says it was a turn of a resident program, and closes as a stop once the program came
+      // to rest on its own.
       const row = (await archive.executions().executions()).find((one) => one.parent === "bmo-job-stop");
 
       expect(row).toMatchObject({ state: "cancelled", resident: { place: agentPlace("stopping-worker"), from: 0 } });
@@ -166,7 +163,7 @@ describe("a standing worker's turns", () => {
 
   // A notice queued twice under one task id is kept once and taken off once, so the count still
   // says a word is queued when none is (docs/agent-control.md, 「Words that arrive while a turn is working」).
-  test("a round whose count still expects a word is over once the program rests and its record stops growing", async () => {
+  test("a round whose count still expects a word is over once the program rests on two looks with the turn's end its last line", async () => {
     const archive = await scratchArchive();
     const notice = { type: "queue-operation", operation: "enqueue", content: "<task-notification>\n<task-id>t1</task-id>\n</task-notification>" };
     const herdr = standInHerdr("resident-quiet", {
@@ -186,7 +183,7 @@ describe("a standing worker's turns", () => {
     installProviderSettings(archive);
 
     try {
-      const ended = await turn("quiet-worker", herdr.socket, { name: "bmo-job-quiet", quietMs: 50, log });
+      const ended = await turn("quiet-worker", herdr.socket, { name: "bmo-job-quiet", log });
 
       expect(ended.outcome).toBe("answered");
       expect(ended.outcome === "answered" ? ended.reply.text : "").toBe("done\n\nnoted");
@@ -216,7 +213,7 @@ describe("a standing worker's turns", () => {
       const stopped = await runTurnInPane({
         line: "chat", name: "bmo-chat-stop", title: "a talk", home: home("stopping-chat"), cwd: root,
         command: ["claude", "--model", "claude-opus-5", "--session-id", sessionId], env: { PATH: "/usr/bin:/bin" },
-        prompt: "the work", sessionId, from: 0, pollMs: 5, readyMs: 5_000, accountMs: 500, socket: herdr.socket,
+        prompt: "the work", sessionId, from: 0, pollMs: 5, socket: herdr.socket,
       });
       const prompts = herdr.asked.filter((one) => one.method === "agent.prompt").map((one) => String(one.params.text));
       const pid = readRunning(place)?.pid;
@@ -235,7 +232,7 @@ describe("a standing worker's turns", () => {
 
   // A surface whose interrupt was never measured ends its program instead, and the loop starts it
   // again on the same session in the same pane.
-  test("a surface with no measured interrupt ends its program, and the loop starts it again", async () => {
+  test("a stopped chat round on a surface with no measured interrupt ends its program, and the loop starts it again", async () => {
     const archive = await scratchArchive();
     const herdr = standInHerdr("resident-end-stop", {
       answer: async ({ text }) => {
@@ -250,9 +247,9 @@ describe("a standing worker's turns", () => {
 
     try {
       const first = await runTurnInPane({
-        name: "bmo-job-end", title: "#2 work", home: home("ending-worker"), cwd: root,
+        line: "chat", name: "bmo-job-end", title: "a talk", home: home("ending-worker"), cwd: root,
         command: ["claude", "--model", "claude-opus-5", "--session-id", sessionId], env: { PATH: "/usr/bin:/bin" },
-        prompt: "the work", sessionId, from: 0, pollMs: 5, readyMs: 5_000, accountMs: 500, stopGraceMs: 20, settleMs: 50,
+        prompt: "the work", sessionId, from: 0, pollMs: 5,
         interrupt: { endProgram: true }, socket: herdr.socket,
       });
       // The program the turn went into, as its row recorded it.
@@ -276,14 +273,14 @@ describe("a standing worker's turns", () => {
 
 // A prompt the pane accepted can stand pasted in the input box and never be sent, and a program at
 // rest with words in its box reads exactly like one that has finished, so unless the turn looks, it
-// waits out its whole ready time and comes back silent while the words sit there for the next turn.
+// would read the words sitting there for the next turn as a turn come back silent.
 describe("a prompt that went in", () => {
   const boxedSession = "5b1d5a1c-0000-4000-8000-000000000002";
   const boxedTurn = (agent: string, socket: string) =>
     runTurnInPane({
       name: "bmo-job-boxed", title: "#3 work", home: home(agent), cwd: root,
       command: ["claude", "--model", "claude-opus-5", "--session-id", boxedSession], env: { PATH: "/usr/bin:/bin" },
-      prompt: "the work", sessionId: boxedSession, from: 0, pollMs: 5, readyMs: 5_000, accountMs: 500, settleMs: 50, submitMs: 200, socket,
+      prompt: "the work", sessionId: boxedSession, from: 0, pollMs: 5, submitMs: 200, socket,
     });
 
   test("left unsent in the input box is sent with one enter, and the turn goes on", async () => {
@@ -315,7 +312,7 @@ describe("a prompt that went in", () => {
       runTurnInPane({
         name, title: "#4 work", home: home("coming-up-worker"), cwd: root,
         command: ["claude", "--model", model, "--resume", sessionId], env: { PATH: "/usr/bin:/bin" },
-        prompt: "the work", sessionId, from: 0, pollMs: 5, readyMs: 5_000, accountMs: 500, settleMs: 50, submitMs: 200, socket: herdr.socket,
+        prompt: "the work", sessionId, from: 0, pollMs: 5, submitMs: 200, socket: herdr.socket,
       });
 
     installProviderSettings(archive);
@@ -335,7 +332,7 @@ describe("a prompt that went in", () => {
     }
   }, 30_000);
 
-  test("never sent ends the turn there, says so, and starts the program again with its box empty", async () => {
+  test("never sent has enter pressed again at the submit pace until the turn is stopped, and the box is emptied", async () => {
     const archive = await scratchArchive();
     const herdr = standInHerdr("resident-never", { answer: async () => [answerRecord({ text: "done", input: 5 })], submits: "never" });
     const place = agentPlace("unsent-worker");
@@ -343,16 +340,18 @@ describe("a prompt that went in", () => {
     installProviderSettings(archive);
 
     try {
-      const startedAt = Date.now();
-      const turned = await boxedTurn("unsent-worker", herdr.socket);
+      const turning = boxedTurn("unsent-worker", herdr.socket);
+
+      // No clock ends the wait: enter is pressed again and again until somebody stops the turn.
+      for (let look = 0; look < 400 && herdr.asked.filter((one) => one.method === "pane.send_keys").length < 3; look += 1) await Bun.sleep(10);
+      await archive.settings().setSetting(executionCancelKey("bmo-job-boxed"), "1");
+
+      const turned = await turning;
       const before = (await archive.executions().executions()).find((one) => one.parent === "bmo-job-boxed")?.resident;
 
-      expect(turned.outcome).toBe("unsubmitted");
-      // The payload is the screen the box held and nothing else: it is evidence, and the words a
-      // caller says are the caller's (`docs/agent-control.md`, 「What a failed turn may say」).
-      expect(turned.outcome === "unsubmitted" ? turned.screen : "…").not.toContain("never submitted");
-      // Known where it happened: two short waits, not the whole ready time.
-      expect(Date.now() - startedAt).toBeLessThan(5_000);
+      expect(turned.outcome).toBe("stopped");
+      expect(herdr.asked.filter((one) => one.method === "pane.send_keys").length).toBeGreaterThanOrEqual(3);
+      expect(herdr.asked.filter((one) => one.method === "pane.send_keys").every((one) => JSON.stringify(one.params.keys) === JSON.stringify(["enter"]))).toBe(true);
       expect(herdr.asked.filter((one) => one.method === "agent.prompt")).toHaveLength(1);
 
       for (let look = 0; look < 200 && readRunning(place)?.pid === before?.pid; look += 1) await Bun.sleep(10);
@@ -370,9 +369,9 @@ describe("a prompt that went in", () => {
 // is ended, its loop stands it again on the same session with an empty box, and the turn goes in once
 // more (`docs/agent-control.md`, 「When a program will not come to rest」).
 describe("a program that will not come to rest", () => {
-  // Wedged until it is reset: herdr reads the pane as neither idle nor done for as long as the
-  // program standing is the first one, and at rest once the loop has stood another.
-  const wedgedUntilReset = (agent: string) => (): string => ((readRunning(agentPlace(agent))?.starts ?? 0) > 1 ? "idle" : "starting");
+  // Wedged until it is reset: herdr reads the pane as standing on a question nobody is to answer for
+  // as long as the program standing is the first one, and at rest once the loop has stood another.
+  const wedgedUntilReset = (agent: string) => (): string => ((readRunning(agentPlace(agent))?.starts ?? 0) > 1 ? "idle" : "blocked");
 
   test("is stood again and the turn goes in once more, and the answer comes out", async () => {
     const archive = await scratchArchive();
@@ -399,7 +398,7 @@ describe("a program that will not come to rest", () => {
   test("is given one reset and one retry, never a loop, and the second failure is the turn's end", async () => {
     const archive = await scratchArchive();
     const agent = "stuck-worker";
-    const herdr = standInHerdr("resident-stuck", { answer: async () => [answerRecord({ text: "done", input: 5 })], before: () => "starting" });
+    const herdr = standInHerdr("resident-stuck", { answer: async () => [answerRecord({ text: "done", input: 5 })], before: () => "blocked" });
     const place = agentPlace(agent);
 
     installProviderSettings(archive);

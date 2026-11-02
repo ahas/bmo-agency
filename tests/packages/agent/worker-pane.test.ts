@@ -496,6 +496,8 @@ describe("a turn driven over a socket", () => {
     let worked = false;
     let closed = false;
     let listCalls = 0;
+    // Words typed into the program at rest after its turn closed, which the next look finds taken.
+    let prompted: string | null = null;
     // The status the last agent.list answered with. `gone` is a pane herdr no longer lists at all.
     let standing = "";
     const answer = (method: string, params: Record<string, unknown>): unknown => {
@@ -511,6 +513,11 @@ describe("a turn driven over a socket", () => {
         const at = Math.min(looks, kept.statuses.length - 1);
 
         looks += 1;
+
+        if (prompted !== null) {
+          appendFileSync(transcriptPath(options.cwd, options.sessionId), `\n${[{ type: "user", message: { role: "user", content: prompted } }, { type: "system", subtype: "turn_duration" }].map((one) => JSON.stringify(one)).join("\n")}`);
+          prompted = null;
+        }
 
         // The record appears once the turn is under way, which is what the CLI does.
         if (kept.statuses[at] === "working") {
@@ -565,6 +572,12 @@ describe("a turn driven over a socket", () => {
         sends += 1;
         kept.statuses = typeof options.afterKeys === "function" ? options.afterKeys(sends) : [...options.afterKeys];
         looks = 0;
+      }
+
+      // Words typed into a program at rest after its turn closed are a prompt of their own, which it
+      // takes and closes as a turn by the next look.
+      if (method === "agent.prompt" && closed && (standing === "idle" || standing === "done")) {
+        prompted = String(params.text ?? "");
       }
 
       // A word put into a working turn is queued at once and taken at the next tool result.
@@ -627,7 +640,7 @@ describe("a turn driven over a socket", () => {
           }
         },
       });
-      await expect(runTurnInPane({name: "test-start", title: "test", cwd, command: ["claude"], env: {}, prompt: "must not send", sessionId, from: 0, socket: herdr.path, readyMs: 50, pollMs: 1})).rejects.toThrow();
+      await expect(runTurnInPane({name: "test-start", title: "test", cwd, command: ["claude"], env: {}, prompt: "must not send", sessionId, from: 0, socket: herdr.path, pollMs: 1})).rejects.toThrow();
       expect(herdr.asked.some(call => call.method === "agent.prompt")).toBe(false);
       if (refusal === "missing-archive") expect(herdr.asked).toEqual([]);
       else {
@@ -693,7 +706,7 @@ describe("a turn driven over a socket", () => {
       return { notes, log: { write: (line: { text?: string }) => notes.push(line.text ?? ""), feed: () => {} } as unknown as RunLog };
     };
 
-    // Every look's call is asked twice where it timed out, so four silent calls are two silent looks.
+    // A look whose call herdr fails is a silent look, so four silent calls are four silent looks.
     test("for a look or two does not end the turn, which notes herdr back and answers once it is", async () => {
       installProviderSettings(await scratchArchive());
       const herdr = herdrLike("stalled", {
@@ -714,23 +727,6 @@ describe("a turn driven over a socket", () => {
 
       expect(began).toBeGreaterThanOrEqual(0);
       expect(ended).toBeGreaterThan(began);
-    });
-
-    test("letting one call time out is asked again and noted as no silence", async () => {
-      installProviderSettings(await scratchArchive());
-      const herdr = herdrLike("hiccup", {
-        statuses: ["idle", "working", "working", "idle"],
-        transcript: [assistant({ text: "the answer", out: 11 })],
-        cwd,
-        sessionId,
-        silent: (call) => call === 4,
-      });
-      const { notes, log } = noted();
-      const turn = await turnOn(herdr, { log });
-
-      installProviderSettings(null);
-      expect(turn.outcome).toBe("answered");
-      expect(notes.filter((note) => note.startsWith("herdr "))).toEqual([]);
     });
 
     test("a pane missing from one answered look but listed at the next is not gone", async () => {
@@ -757,19 +753,19 @@ describe("a turn driven over a socket", () => {
       expect(herdr.asked.filter((one) => one.method === "pane.list").length).toBeGreaterThanOrEqual(3);
     });
 
-    test("for the whole of its patience ends the turn as herdr's silence, never as a pane gone", async () => {
+    test("however long it lasts ends nothing: the turn waits it out and answers once herdr does", async () => {
       installProviderSettings(await scratchArchive());
       const herdr = herdrLike("down", {
-        statuses: ["idle", "working"],
-        transcript: [assistant({ text: "half" })],
+        statuses: ["idle", "working", "working", "idle"],
+        transcript: [assistant({ text: "the answer", out: 11 })],
         cwd,
         sessionId,
-        silent: (call) => call >= 4,
+        silent: (call) => call >= 4 && call <= 200,
       });
-      const turn = await turnOn(herdr, { herdrPatienceMs: 40 });
+      const turn = await turnOn(herdr);
 
       installProviderSettings(null);
-      expect(turn.outcome).toBe("unanswered");
+      expect(turn.outcome).toBe("answered");
     });
   });
 
@@ -927,8 +923,9 @@ describe("a turn driven over a socket", () => {
     } finally { installProviderSettings(null); }
   });
 
-  test("a prompt that was taken and never started anything comes back silent rather than waited on", async () => {
-    // Taken is the record gaining the prompt's own line; nothing after it ever starts.
+  test("a prompt that was taken and closed with nothing to say comes back silent", async () => {
+    // Taken is the record gaining the prompt's own line; nothing after it ever starts, and the program
+    // closes the turn.
     const file = transcriptPath(cwd, sessionId);
     const herdr = herdrLike("unstarted", {
       statuses: ["idle"],
@@ -938,7 +935,7 @@ describe("a turn driven over a socket", () => {
       onRequest: async (method) => {
         if (method !== "agent.prompt") return;
         mkdirSync(dirname(file), { recursive: true });
-        writeFileSync(file, `${JSON.stringify({ type: "user", message: { role: "user", content: "the work" } })}\n`);
+        writeFileSync(file, `${[{ type: "user", message: { role: "user", content: "the work" } }, { type: "system", subtype: "turn_duration" }].map((one) => JSON.stringify(one)).join("\n")}\n`);
       },
     });
     const turn = await runTurnInPane({
@@ -950,7 +947,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 60,
       pollMs: 5,
       socket: herdr.path,
     });
@@ -970,7 +966,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 60,
       pollMs: 5,
       socket: herdr.path,
     });
@@ -1000,7 +995,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 2_000,
       pollMs: 5,
       trustsFolder: true,
       socket: herdr.path,
@@ -1025,7 +1019,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 60,
       pollMs: 5,
       socket: herdr.path,
     });
@@ -1051,7 +1044,6 @@ describe("a turn driven over a socket", () => {
     screen: string | ((read: number) => string),
     confirm: Parameters<typeof runTurnInPane>[0]["confirm"],
     afterKeys: string[] | ((sent: number) => string[]) = ["working", "idle"],
-    turnMs = 3_000,
   ) => {
     const herdr = herdrLike(name, {
       statuses: ["idle", "working", "blocked"],
@@ -1070,11 +1062,8 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 2_000,
       pollMs: 5,
       redrawMs: 30,
-      // Bounded, so a turn that never gets its answer in fails here instead of standing.
-      turnMs,
       confirm,
       socket: herdr.path,
     });
@@ -1115,7 +1104,7 @@ describe("a turn driven over a socket", () => {
     expect(herdr.asked.filter((one) => one.method === "agent.prompt")).toHaveLength(1);
   });
 
-  // A turn working past a short bound, with its last line a timestamped tool call.
+  // A turn working past a short clock, with its last line a timestamped tool call.
   const overrunning = (name: string, overtime: Parameters<typeof runTurnInPane>[0]["overtime"]) => {
     const herdr = herdrLike(name, {
       statuses: ["idle", ...Array.from({ length: 40 }, () => "working"), "idle"],
@@ -1135,7 +1124,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the word",
       sessionId,
       from: 0,
-      readyMs: 2_000,
       pollMs: 5,
       turnMs: 30,
       overtime,
@@ -1145,7 +1133,7 @@ describe("a turn driven over a socket", () => {
     return { herdr, turn };
   };
 
-  test("a turn past its bound asks its caller's policy first, and runs on to its answer while the policy holds it", async () => {
+  test("a turn past its clock asks its caller's policy, and runs on to its answer while the policy keeps it", async () => {
     const asked: TurnOverdue[] = [];
     const { turn } = overrunning("held", async (overdue) => {
       asked.push(overdue);
@@ -1158,7 +1146,7 @@ describe("a turn driven over a socket", () => {
     expect(asked[0]).toMatchObject({ boundMs: 30, lastActivityAt: null, lastActivity: "wrote words" });
   });
 
-  test("a turn past its bound is cut when its caller's policy says cut", async () => {
+  test("a turn past its clock is cut when its caller's policy says cut", async () => {
     const asked: TurnOverdue[] = [];
     const { turn } = overrunning("cut", async (overdue) => {
       asked.push(overdue);
@@ -1168,6 +1156,17 @@ describe("a turn driven over a socket", () => {
 
     expect((await turn).outcome).toBe("overran");
     expect(asked).toHaveLength(1);
+  });
+
+  test("a turn past its clock whose policy cannot answer runs on to its answer, asked again after the clock", async () => {
+    let asks = 0;
+    const { turn } = overrunning("unanswerable", async () => {
+      asks += 1;
+      throw new Error("the archive is gone");
+    });
+
+    expect((await turn).outcome).toBe("answered");
+    expect(asks).toBeGreaterThan(0);
   });
 
   test("the record's last line says when it was written and what it called", () => {
@@ -1210,7 +1209,8 @@ describe("a turn driven over a socket", () => {
 
   test("a question that outlasts every answer is left for a person after three", async () => {
     const asked: string[] = [];
-    const { herdr, turn } = midTurn("outlasts", ticking, allowLater(asked), () => ["blocked"], 400);
+    // The question stands on past its third answer, until a person deals with it and the run goes on.
+    const { herdr, turn } = midTurn("outlasts", ticking, allowLater(asked), (sent) => (sent < 3 ? ["blocked"] : [...Array<string>(60).fill("blocked"), "idle"]));
 
     await turn;
     expect(asked).toHaveLength(1);
@@ -1252,7 +1252,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 2_000,
       pollMs: 5,
       confirm: (_, answeredElsewhere) =>
         new Promise((resolve) => {
@@ -1280,7 +1279,6 @@ describe("a turn driven over a socket", () => {
       prompt: "the work",
       sessionId,
       from: 0,
-      readyMs: 60,
       pollMs: 5,
       trustsFolder: true,
       socket: herdr.path,
@@ -1366,7 +1364,7 @@ describe("a person's turn in the resident program", () => {
     try {
       const started = Date.now();
 
-      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, forMs: 5_000, alive, onWait: async () => told++ })).toBe(true);
+      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, alive, onWait: async () => told++ })).toBe(true);
       expect(Date.now() - started).toBeGreaterThanOrEqual(140);
       expect(told).toBe(1);
     } finally {
@@ -1381,28 +1379,28 @@ describe("a person's turn in the resident program", () => {
     recordCall(place, "submit", { prompt: "hello" });
 
     try {
-      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, forMs: 5_000, alive })).toBe(false);
+      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, alive })).toBe(false);
     } finally {
       herdr.stop();
     }
   });
 
-  test("is waited out no longer than its bound, and a turn of the bot's is never waited for", async () => {
-    const herdr = herdrWithStatus(() => "working");
+  test("is waited out however long it works, ends only when it does, and a turn of the bot's is never waited for", async () => {
+    let looks = 0;
+    // Working for many looks with no end recorded — cut short by an Escape — and then at rest.
+    const herdr = herdrWithStatus(() => (++looks < 40 ? "working" : "idle"));
     const place = standing("endless");
 
     recordCall(place, "submit", { prompt: "hello" });
 
     try {
-      const started = Date.now();
-
-      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, forMs: 100, alive })).toBe(true);
-      expect(Date.now() - started).toBeLessThan(2_000);
+      expect(await personTurnDone(place, { socket: herdr.path, everyMs: 10, alive })).toBe(true);
+      expect(looks).toBeGreaterThanOrEqual(40);
 
       const bots = standing("bots");
 
       await Bun.write(join(bots, "run.json"), JSON.stringify({ name: "bmo-job-1", title: "#1", person: false, startedAt: 0, endedAt: null }));
-      expect(await personTurnDone(bots, { socket: herdr.path, everyMs: 10, forMs: 5_000, alive })).toBe(false);
+      expect(await personTurnDone(bots, { socket: herdr.path, everyMs: 10, alive })).toBe(false);
     } finally {
       herdr.stop();
     }

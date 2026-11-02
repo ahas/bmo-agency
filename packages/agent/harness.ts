@@ -271,14 +271,13 @@ export interface ResidentSurface {
 }
 
 // A turn put into an agent's resident program: the run it is, the agent whose pane holds the program,
-// what the run is called and what it is, how long it may take, and the work it belongs to, so a stop
-// of that work reaches it.
+// what the run is called and what it is, and the work it belongs to, so a stop of that work reaches it.
+// No clock goes with it: the turn lasts until it ends or is stopped.
 export interface ResidentTurnRequest {
   run: HarnessRun;
   home: AgentHome;
   name: string;
   title: string;
-  timeoutMs: number | null;
   root?: string;
   parent?: string | null;
   socket?: string;

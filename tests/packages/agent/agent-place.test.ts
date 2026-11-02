@@ -233,16 +233,19 @@ describe("the place a program writes into", () => {
     expect(statusAround(readStatus(place), 2000, 2000, "s").before).toEqual({ session_id: "s", cost: { total_cost_usd: 0 } });
   });
 
-  test("waits a bounded time for the reading that follows a turn's end", async () => {
+  test("waits for the reading that follows a turn's end until it comes or the program is gone", async () => {
     const place = join(root, "wait");
 
     recordCall(place, "status", { session_id: "s", cost: { total_cost_usd: 0.1 } }, 1000);
-    const missing = await statusAfterTurn(place, 1500, 2000, { waitMs: 50, pollMs: 10 });
+    const missing = await statusAfterTurn(place, 1500, 2000, { standing: () => false, pollMs: 10 });
 
     expect(missing.after).toBeNull();
 
+    const waiting = statusAfterTurn(place, 1500, 2000, { standing: () => true, pollMs: 10 });
+
+    await Bun.sleep(50);
     recordCall(place, "status", { session_id: "s", cost: { total_cost_usd: 0.2 } }, 2100);
-    const found = await statusAfterTurn(place, 1500, 2000, { waitMs: 50, pollMs: 10 });
+    const found = await waiting;
 
     expect(found.before).toEqual({ session_id: "s", cost: { total_cost_usd: 0.1 } });
     expect(found.after).toEqual({ session_id: "s", cost: { total_cost_usd: 0.2 } });
@@ -253,7 +256,7 @@ describe("the settings a resident program is started with", () => {
   // Claude Code shows a picker row's label at the top of its screen in place of the model it is sent,
   // so a registration's program reads as the registration's label, node and all.
   test("give a model the endpoint labels a picker row under that label", () => {
-    const model = { name: "local-0-1@charlie", label: "Local 0.1", contextTokens: 1, answerTokens: 1, requestWaitMs: 1, thinking: false, home: root };
+    const model = { name: "local-0-1@charlie", label: "Local 0.1", contextTokens: 1, answerTokens: 1, thinking: false, home: root };
     const labelled = JSON.parse(readFileSync(endpointPlaceSettings(run, join(root, "labelled"), model), "utf8"));
     const plain = JSON.parse(readFileSync(endpointPlaceSettings(run, join(root, "plain"), { ...model, label: undefined }), "utf8"));
 

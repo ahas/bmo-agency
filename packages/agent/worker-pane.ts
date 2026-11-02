@@ -1,5 +1,4 @@
 import { keptThroughLock, throughLock } from "@agency/archive/archive-lock";
-import { positiveFromEnv } from "@agency/support/env-number";
 import { NativeExecutions } from "./native-execution";
 import { beginExecution, executionCancelled, executionRoot, type ExecutionIdentity } from "./execution-identity";
 import { providerSettingsArchive } from "./provider-order";
@@ -58,39 +57,12 @@ import { claudeSpendOf } from "./spend";
 
 import type { ClaudeModelUsage, ModelSpend } from "./spend";
 
-// How long a pane is given to come up with an agent ready to be told something. The prefix is
-// read off disk and the CLI draws itself before it is idle; measured, that is seconds. It also
-// bounds a turn that was taken and never started anything. BMO_PANE_READY_MS shortens it for a test
-// whose stand-in program is made to stay silent, so that bound is reached without the two minutes.
-// It is read on every turn rather than once at import: a test that stands a program made to stay
-// silent sets the variable when it stages the turn, and a value frozen when this module was first
-// loaded would leave that test waiting out the whole two minutes it is asking to skip.
-const readyMs = (): number => positiveFromEnv(process.env.BMO_PANE_READY_MS, declaredTurn.ready_seconds * 1_000);
 // How often the agent is asked what it is doing. A turn runs for minutes or hours, so this is
 // paced for the watching rather than for the answer.
 const pollMs: number = declaredTurn.poll_ms;
-// How long a person's turn working in a resident program is waited out before a turn of the bot's
-// goes on regardless (docs/agent-control.md, 「Runs and sessions in one pane」).
-const personTurnMs: number = declaredTurn.person_turn_minutes * 60_000;
-// How long the record is watched, once the pane is closed, for the CLI's own account of what the
-// run cost. It is written as the process ends; measured, that is well under a second.
-const accountMs: number = declaredTurn.account_ms;
-// How long a pane back at rest is given to write the line that closes its turn. The words of a long
-// answer land after its thinking, once their stream is over, and the pane can read as at rest
-// first; a turn that ends without that line is read as it stands once this has passed.
-const settleMs: number = declaredTurn.settle_ms;
 
-// How long a resident program at rest may leave its record unchanged, while the count of the turns
-// its round owes still expects one, before the round is read as over. A program with words queued
-// takes them within a second of its turn ending, so this is paced well past that.
-const quietMs: number = declaredTurn.quiet_ms;
-
-// How long a resident turn told to stop is given to end its work before it is cut short.
-const stopGraceMs: number = declaredTurn.stop_grace_seconds * 1_000;
-
-// How long a prompt that went in is given to be seen submitted, before `enter` is pressed once and
-// again after it. A submitted prompt shows within a second or two, and one still in the input box
-// after this is not going anywhere on its own.
+// How often `enter` is pressed again while a prompt that went in is not yet seen submitted. A
+// submitted prompt shows within a second or two, so this paces the presses; it never ends the turn.
 const submitMs: number = declaredTurn.submit_ms;
 
 // The program a standing agent's turn goes into: the turn's own command where the program has to be
@@ -120,14 +92,14 @@ export function residentOf(home: AgentHome, turn: { cwd: string; command: readon
 
 // A person's turn working in the place's program, waited out: while the place names a person's turn
 // still open and the pane reads working or waiting on a question, a turn of the bot's neither stands,
-// replaces nor resets the program nor puts words in. Bounded, since a person's turn cut short by an
-// Escape never has its end recorded. `onWait` is told once, as the wait begins. Answers whether there
-// was one to wait for.
+// replaces nor resets the program nor puts words in. A person's turn cut short by an Escape never has
+// its end recorded, and its end is the pane come to rest, so the wait lasts until the record or the
+// pane says the turn is over. `onWait` is told once, as the wait begins. Answers whether there was one
+// to wait for.
 export async function personTurnDone(
   place: string,
-  options: { forMs?: number; everyMs?: number; socket?: string; check?: () => void | Promise<unknown>; onWait?: () => void | Promise<unknown>; alive?: Parameters<typeof programAlive>[1] } = {},
+  options: { everyMs?: number; socket?: string; check?: () => void | Promise<unknown>; onWait?: () => void | Promise<unknown>; alive?: Parameters<typeof programAlive>[1] } = {},
 ): Promise<boolean> {
-  const deadline = Date.now() + (options.forMs ?? personTurnMs);
   let waited = false;
 
   for (;;) {
@@ -140,7 +112,6 @@ export async function personTurnDone(
 
     // A herdr that did not answer has not said the person's turn is over.
     if (status !== "working" && status !== "blocked" && status !== herdrSilent) return waited;
-    if (Date.now() >= deadline) return waited;
 
     await options.check?.();
     if (!waited) await options.onWait?.();
@@ -207,11 +178,11 @@ const trustAnswers: number = declaredTurn.trust_answers;
 // `answered` is the ordinary ending. `blocked` means the CLI is asking a person something and
 // nothing was delivered — the folder-trust confirmation on a directory nobody has accepted yet is
 // the case that arrives at launch — and it is not a failed run. `vanished` is the pane going away
-// under the run: herdr died, or somebody closed it. `overran` is a turn that was given a bound and
-// did not finish inside it, and its pane has been closed. `silent` is a turn that came back to rest
-// with no answer in its record. `errored` is a turn whose last word was the CLI's own error in the
-// place of an answer — a usage limit, an overloaded API, a refused request, a lost login — and what
-// it carries is that error's wording, which is what a limit is recognised by.
+// under the run: herdr died, or somebody closed it. `overran` is a turn whose clock's policy answered
+// cut once its clock had passed, and which was interrupted on that call. `silent` is a turn that came
+// back to rest with no answer in its record. `errored` is a turn whose last word was the CLI's own
+// error in the place of an answer — a usage limit, an overloaded API, a refused request, a lost login —
+// and what it carries is that error's wording, which is what a limit is recognised by.
 export type PaneTurn =
   | { outcome: "answered"; reply: AgentReply; records: number }
   | { outcome: "blocked"; screen: string }
@@ -221,9 +192,6 @@ export type PaneTurn =
   // configuration file the trust was written to.
   | { outcome: "untrusted"; screen: string; folder: string; config: string }
   | { outcome: "vanished"; screen: string }
-  // Herdr answered none of the turn's looks for the whole of its patience. Nothing is known of the pane
-  // or the run, so it is its own ending and never a pane gone.
-  | { outcome: "unanswered"; screen: string }
   | { outcome: "overran"; screen: string }
   | { outcome: "silent"; screen: string }
   // What it carries is that error as the record holds it, which is the run's own words and not a
@@ -425,20 +393,28 @@ export function turnClosedSince(records: TranscriptRecord[], from: number): bool
   return records.slice(from).some((record) => record.type === "system" && record.subtype === "turn_duration");
 }
 
+// Whether the last line of the main conversation in these records is the one the CLI writes once a turn
+// is over: of the conversation's own lines — a person's, the program's and its system lines, never a
+// co-worker's — the newest is that closing line.
+export function closesOnEnd(records: readonly TranscriptRecord[]): boolean {
+  const last = records.findLast((record) => record.isSidechain !== true && (record.type === "user" || record.type === "assistant" || record.type === "system"));
+
+  return last !== undefined && last.type === "system" && last.subtype === "turn_duration";
+}
+
 // The code a push answers with where the turn it was meant for has already ended: a refusal like any
 // other, so its words go back to wait for the next round.
 export const turnEndedCode = "turn_ended";
 
-// Waits, bounded, until the record holds a word pushed at the point it stood: queued by a working
-// turn, or submitted straight as a prompt by a program at rest.
-async function wordWrittenDown(path: string, from: number, timing: { waitMs: number; everyMs: number }): Promise<void> {
-  const by = Date.now() + timing.waitMs;
-
+// Waits until the record holds a word pushed at the point it stood — queued by a working turn, or
+// submitted straight as a prompt by a program at rest — or until `over` says the turn it was pushed into
+// has ended, after which the word belongs to the next turn.
+async function wordWrittenDown(path: string, from: number, timing: { over: () => boolean; everyMs: number }): Promise<void> {
   for (;;) {
     const records = lines(path);
 
     if (promptedSince(records, from) || records.slice(from).some((record) => record.type === "queue-operation" && record.operation === "enqueue")) return;
-    if (Date.now() >= by) return;
+    if (timing.over()) return;
 
     await Bun.sleep(timing.everyMs);
   }
@@ -606,27 +582,23 @@ export async function runTurnInPane(options: {
   // it works. Measured: a word pushed at an agent that is `working` is accepted and acted on
   // inside the turn it is already in, not held over to the next one.
   aside?: (say: (text: string) => Promise<HerdrAnswer<unknown>>) => Promise<void>;
-  // What a pane is given to come up, and how often it is asked. The turn itself is unbounded:
-  // whatever is holding this run owns its lifetime, exactly as it did when the run was a process
-  // on a pipe.
-  readyMs?: number;
+  // How often the pane is asked what it is doing. Nothing about the turn is bounded by a clock: it
+  // waits for the program to come up, to take its prompt and to come to rest however long each takes,
+  // and whatever is holding this run owns its lifetime, exactly as it did when the run was a process on
+  // a pipe.
   pollMs?: number;
   // How long a question just answered may still stand on the screen before the answer is typed again.
   redrawMs?: number;
-  // How long a person's turn working in the resident program is waited out before this turn goes on.
-  personTurnMs?: number;
-  // How long the closed pane's record is watched for the run's account of what it cost.
-  accountMs?: number;
-  settleMs?: number;
-  // How long a prompt that went in is given to be seen submitted, before and after `enter` is pressed.
+  // How often `enter` is pressed again while the prompt that went in is not seen submitted.
   submitMs?: number;
-  // How long the turn itself may take before its caller is asked about it: a bounded run such as
-  // upkeep or a word said to a worker. A job's turn and a chat round have no bound — whatever holds
-  // the job owns its lifetime, and a round runs until it answers — so this is left out for both.
+  // The run's clock: how long before its caller's overtime policy is asked about it, a run such as a
+  // word said to a worker. It is read only with a policy beside it; a run handed none carries no clock,
+  // and a job's turn and a chat round carry none.
   turnMs?: number;
-  // What is asked each time the bound passes, before anything is cut: the caller's policy, which
-  // answers cut or the next moment to look again, while the turn goes on being watched. A turn
-  // given none is cut at its bound (docs/agent-control.md, 「A clock asks before it cuts」).
+  // What is asked each time the clock passes: the caller's policy, which answers cut — the caller's
+  // own call, on which the turn is interrupted — or the next moment to ask again, while the turn goes on
+  // being watched. A policy that fails or says nothing leaves the turn going, asked again after the
+  // clock's own length (docs/agent-control.md, 「A clock asks, it never cuts」).
   overtime?: Overtime;
   // Whether the run trusts the directory it works in. A CLI brought up in a directory nobody has
   // accepted sits on that one question before it will take anything, and a run whose caller says
@@ -643,14 +615,7 @@ export async function runTurnInPane(options: {
   // Which herdr. Named only where it is not the machine's own — a test drives a herdr of its own
   // rather than handing the real one a pane.
   socket?: string;
-  // How long a resident turn told to stop is given to end its work before it is interrupted.
-  stopGraceMs?: number;
-  // How long a resident program at rest may leave its record unchanged before a round whose count
-  // still expects a turn is read as over.
-  quietMs?: number;
-  // How long herdr may answer none of the turn's looks before the turn ends on that silence, and how
-  // a pane found missing is confirmed gone; a test shortens both.
-  herdrPatienceMs?: number;
+  // How a pane found missing is confirmed gone; a test shortens it.
   goneConfirm?: { looks?: number; gapMs?: number };
   // Every line the record gains while the turn runs, as it is read.
   onLine?: (line: string) => void;
@@ -754,13 +719,12 @@ export async function runTurnInPane(options: {
     await trustHere();
     if (resident !== null) {
       await personTurnDone(resident.place, {
-        forMs: options.personTurnMs,
         everyMs: options.pollMs,
         socket: where.socket,
         check: checkLaunch,
         onWait: () => options.log?.write({ kind: "note", text: turnWords.notes.person_turn }),
       });
-      const stood = await standResident({ place: resident.place, home: options.home as AgentHome, program: resident.program, line: options.line ?? "worker", socket: where.socket, waitMs: options.readyMs ?? readyMs() });
+      const stood = await standResident({ place: resident.place, home: options.home as AgentHome, program: resident.program, line: options.line ?? "worker", socket: where.socket, check: checkLaunch });
 
       opened = stood.ok ? { ok: true, result: { workspaceId: "", paneId: stood.result.paneId } } : stood;
     } else {
@@ -838,7 +802,7 @@ export async function runTurnInPane(options: {
     await options.log?.write({ kind: "note", text: fillMarks(turnWords.notes.stand_again, { why }) });
     await interruptProgram(resident.place, pane, { endProgram: true }, where);
 
-    return programStoodAgain(resident.place, was, { forMs: options.readyMs ?? readyMs(), everyMs, stop: cancelled });
+    return programStoodAgain(resident.place, was, { everyMs, stop: cancelled });
   };
 
   try {
@@ -854,7 +818,6 @@ export async function runTurnInPane(options: {
       const ready = await settled(pane, {
         check: checkLaunch,
         until: ["idle", "done"],
-        forMs: options.readyMs ?? readyMs(),
         everyMs,
         socket: where.socket,
         confirm: goneConfirm,
@@ -863,6 +826,8 @@ export async function runTurnInPane(options: {
         drawn: resident === null ? undefined : () => programDrawn(resident.place),
         answer: options.trustsFolder === true ? (screen) => acceptFolderTrust(pane, screen, where, options.log ?? null) : undefined,
         answerAgainMs: options.redrawMs,
+        // A herdr answering none of the looks is waited out; the silence is written down where it begins.
+        onSilent: () => options.log?.write({ kind: "note", text: fillMarks(turnWords.notes.herdr_silent, { cause: String(silenceCause) }) }),
       });
 
       if (ready.status === "gone") {
@@ -871,17 +836,8 @@ export async function runTurnInPane(options: {
         return { outcome: "vanished", screen: await keptScreen(turnWords.screens.vanished, ready.screen) };
       }
 
-      if (ready.status === herdrSilent) {
-        // Herdr answered none of the looks by the end of the ready time: nobody has seen the program,
-        // so it is not reset as a wedge, and the turn ends on the silence.
-        await options.log?.write({ kind: "note", text: turnWords.notes.herdr_silent_ready });
-        ending = "cancelled";
-        return { outcome: "unanswered", screen: "herdr did not answer while the turn waited for its program" };
-      }
-
       if (ready.status !== "idle" && ready.status !== "done") {
-        // A question a person must answer, or no state at all. The two are not the same thing and the
-        // wait ends the same way for both (`docs/agent-control.md`, 「blocked before the prompt is an
+        // A question a person must answer (`docs/agent-control.md`, 「blocked before the prompt is an
         // end in itself」); the screen the pane stood at goes to the log, where it is evidence.
         //
         // A question is left standing for whoever is to answer it, and only a turn that can put one
@@ -957,24 +913,24 @@ export async function runTurnInPane(options: {
 
     // Accepted is not submitted: pasted words can stand in the input box unsent, and a program at rest
     // with words in its box reads exactly like one that has finished (「The measured, fixed order」).
+    // `enter` is pressed again at the submit pace until the words are seen submitted; the box standing
+    // unsent never ends the turn. Stopped meanwhile, the words left in the box would go out in front of
+    // the next turn's prompt, so a resident program is started again on its session with the box empty.
     const taking = { waitMs: options.submitMs ?? submitMs, everyMs };
     let taken = await promptTaken(pane, path, from, where, taking);
+    let pressed = false;
 
-    if (taken === "unsent") {
-      await options.log?.write({ kind: "note", text: turnWords.notes.enter_pressed });
-      await sendKeys(pane, ["enter"], where);
-      taken = await promptTaken(pane, path, from, where, taking);
-
-      if (taken === "unsent") {
-        const screen = await screenOf(pane, where);
-
-        await options.log?.write({ kind: "note", text: turnWords.notes.unsubmitted });
-        // The words left in the box would go out in front of the next turn's prompt, so a resident
-        // program is started again on its session with the box empty.
+    while (taken === "unsent") {
+      if (await cancelled()) {
         if (resident !== null) await interruptProgram(resident.place, pane, { endProgram: true }, where);
         ending = "cancelled";
-        return { outcome: "unsubmitted", screen: await keptScreen(turnWords.screens.unsubmitted, screen) };
+        return { outcome: "stopped", screen: await keptScreen(turnWords.screens.stopped, await screenOf(pane, where)) };
       }
+
+      if (!pressed) await options.log?.write({ kind: "note", text: turnWords.notes.enter_pressed });
+      pressed = true;
+      await sendKeys(pane, ["enter"], where);
+      taken = await promptTaken(pane, path, from, where, taking);
     }
 
     execution.state = "running"; await saveRow();
@@ -982,13 +938,9 @@ export async function runTurnInPane(options: {
     // A look that saw the program at work while the prompt was being seen submitted is a look of this
     // turn's.
     let worked = taken === "working";
-    // Moved on, not lifted, by the caller's overtime policy each time it answers anything but a cut.
-    let deadline = options.turnMs === undefined ? null : Date.now() + options.turnMs;
-    // A prompt that was taken and never started anything. The turn itself is unbounded, but a run
-    // that is still at rest, has never been seen at work and has written nothing is not working on
-    // anything; given as long as a pane is given to come up, it is a turn that came back silent
-    // rather than one to wait on for ever.
-    let unstartedBy = Date.now() + (options.readyMs ?? readyMs());
+    // When the caller's overtime policy is next asked about the turn: its clock first, then the moment
+    // each answer names. A turn handed no policy carries no clock.
+    let askAt = options.turnMs === undefined || options.overtime === undefined ? null : Date.now() + options.turnMs;
     // Where this turn's answer is looked for. It moves when the run is told something more after a
     // refusal, since whatever it had written before that is not the end of the turn.
     let answerFrom = from;
@@ -1013,7 +965,7 @@ export async function runTurnInPane(options: {
         return said;
       }
 
-      await wordWrittenDown(path, at, { waitMs: options.submitMs ?? submitMs, everyMs });
+      await wordWrittenDown(path, at, { over: () => residentReading(lines(path).slice(from), execution).state !== "working", everyMs });
 
       return said;
     };
@@ -1025,9 +977,10 @@ export async function runTurnInPane(options: {
       // collector, which closes the pane in the ending below and hands its caller a stop to report.
       if (await cancelled()) {
         // A resident program is not closed to stop its turn. A job is asked to end the work first —
-        // commit, report, exit — and cut short with the surface's interrupt once the grace is spent
-        // while it still works; a chat round has no work of its own to wind down and is cut short at
-        // once.
+        // commit, report, exit — and is waited on until it comes to rest, however long its ending
+        // takes, with nothing cut behind the words; a chat round has no work of its own to wind down and
+        // is cut short at once with the surface's interrupt, then waited on until the program writes
+        // its interrupted marker or comes to rest.
         const asksFirst = options.line !== "chat";
 
         if (resident !== null && stopAskedAt === null) {
@@ -1039,26 +992,25 @@ export async function runTurnInPane(options: {
             await Bun.sleep(everyMs);
             continue;
           }
+
+          if (await statusOf(pane, where) === "working") {
+            await interruptProgram(resident.place, pane, options.interrupt ?? escapeInterrupt, where);
+          }
         }
 
         if (resident !== null && stopAskedAt !== null) {
-          const standing = await statusOf(pane, where);
+          for (;;) {
+            const standing = await statusOf(pane, where, goneConfirm);
 
-          if (asksFirst && Date.now() - stopAskedAt < (options.stopGraceMs ?? stopGraceMs) && standing === "working") {
+            if (standing === null || standing === "idle" || standing === "done") break;
+            if (!asksFirst && residentReading(lines(path).slice(from), execution).state !== "working") break;
+
+            // A question the winding down puts is put to whoever answers this turn's questions, as
+            // during the turn.
+            if (asksFirst && standing !== herdrSilent) await questions.look(standing);
+
             seen = await readOn(seen);
             await Bun.sleep(everyMs);
-            continue;
-          }
-
-          if (standing === "working") {
-            await interruptProgram(resident.place, pane, options.interrupt ?? escapeInterrupt, where);
-            // The row closes as a stop on the interrupted marker the program writes, looked for a
-            // bounded while.
-            const settleBy = Date.now() + (options.settleMs ?? settleMs);
-
-            while (residentReading(lines(path).slice(from), execution).state === "working" && Date.now() < settleBy) {
-              await Bun.sleep(everyMs);
-            }
           }
         }
 
@@ -1068,26 +1020,28 @@ export async function runTurnInPane(options: {
         return { outcome: "stopped", screen: await keptScreen(turnWords.screens.stopped, await screenOf(pane, where)) };
       }
 
-      if (deadline !== null && Date.now() >= deadline && options.overtime !== undefined && options.turnMs !== undefined) {
+      // Past its clock the turn's caller is asked about it, and only the caller's cut ends it; a policy
+      // that fails or says nothing leaves the turn going, asked again after the clock's own length.
+      if (askAt !== null && Date.now() >= askAt && options.overtime !== undefined && options.turnMs !== undefined) {
         seen = await readOn(seen);
         const last = lastActivityOf(lines(path), from);
-        // A policy that cannot answer leaves the turn where a turn handed none stands: cut at its bound.
-        const answer = await options.overtime({ startedAt: promptedAt, boundMs: options.turnMs, lastActivityAt: last.at, lastActivity: last.what }).catch(async (error: unknown): Promise<OvertimeAnswer> => {
+        const clockMs = options.turnMs;
+        const answer = await options.overtime({ startedAt: promptedAt, boundMs: clockMs, lastActivityAt: last.at, lastActivity: last.what }).catch(async (error: unknown): Promise<OvertimeAnswer> => {
           await options.log?.write({ kind: "note", text: fillMarks(turnWords.notes.overrun_unasked, { why: error instanceof Error ? error.message : String(error) }) });
 
-          return { cut: true };
+          return { cut: false, askAgainAt: Date.now() + clockMs };
         });
 
-        if (!answer.cut) deadline = Math.max(answer.askAgainAt, Date.now() + 1);
-      }
+        if (answer.cut) {
+          await readOn(seen);
 
-      if (deadline !== null && Date.now() >= deadline) {
-        await readOn(seen);
+          if (resident !== null) await interruptProgram(resident.place, pane, options.interrupt ?? escapeInterrupt, where);
 
-        if (resident !== null) await interruptProgram(resident.place, pane, options.interrupt ?? escapeInterrupt, where);
+          ending = "timeout";
+          return { outcome: "overran", screen: await keptScreen(turnWords.screens.overran, await screenOf(pane, where)) };
+        }
 
-        ending = "timeout";
-        return { outcome: "overran", screen: await keptScreen(turnWords.screens.overran, await screenOf(pane, where)) };
+        askAt = Math.max(answer.askAgainAt, Date.now() + 1);
       }
 
       const now = await statusOf(pane, where, goneConfirm);
@@ -1101,8 +1055,9 @@ export async function runTurnInPane(options: {
         return { outcome: "vanished", screen: "the pane went away while the turn was running" };
       }
 
-      // Herdr said nothing either way: the record is read on and herdr asked again, and only a silence
-      // that outlasts the patience ends the turn, as the silence it is.
+      // Herdr said nothing either way: the record is read on and herdr asked again, here and on a work
+      // node whose link is down, until herdr answers; a silence ends nothing (docs/work-nodes.md, 「When a
+      // node drops」).
       if (now === herdrSilent) {
         if (silentSince === null) {
           silentSince = Date.now();
@@ -1110,14 +1065,6 @@ export async function runTurnInPane(options: {
         }
 
         seen = await readOn(seen);
-
-        if (Date.now() - silentSince >= (options.herdrPatienceMs ?? (options.home?.socket === undefined ? herdrPatienceMs : nodePatienceMs))) {
-          await options.log?.write({ kind: "note", text: fillMarks(turnWords.notes.herdr_gave_up, { seconds: String(Math.round((Date.now() - silentSince) / 1_000)) }) });
-
-          ending = "cancelled";
-          return { outcome: "unanswered", screen: "herdr did not answer while the turn was running" };
-        }
-
         await Bun.sleep(everyMs);
         continue;
       }
@@ -1156,7 +1103,6 @@ export async function runTurnInPane(options: {
         if (told.ok) {
           answerFrom = lines(path).length;
           worked = false;
-          unstartedBy = Date.now() + (options.readyMs ?? readyMs());
           await Bun.sleep(everyMs);
           continue;
         }
@@ -1170,7 +1116,11 @@ export async function runTurnInPane(options: {
         break;
       }
 
-      if ((now === "idle" || now === "done") && !worked && Date.now() >= unstartedBy) {
+      // Back at rest, never seen at work and with no answer: a prompt the program took and closed with
+      // nothing to say is over once the record closes a turn after it, and a command of the program's own
+      // once the record has grown past it. Until then it is waited on, since a look can read the program
+      // at rest before it has started on the words.
+      if ((now === "idle" || now === "done") && !worked && (options.prompt.startsWith("/") ? lines(path).length > answerFrom : turnClosedSince(lines(path), answerFrom))) {
         break;
       }
 
@@ -1189,11 +1139,13 @@ export async function runTurnInPane(options: {
     }
 
     // At rest is not over. The record says when a turn is: its closing line comes after the last of
-    // the answer's words, and an answer read before it can be missing all of them.
-    if (answeredSince(lines(path), answerFrom)) {
-      const settleBy = Date.now() + (options.settleMs ?? settleMs);
+    // the answer's words, and an answer read before it can be missing all of them. The turn is waited on
+    // until that line, or the marker of an interruption, is in the record; a command of the program's own
+    // writes no such line.
+    if (!options.prompt.startsWith("/")) {
+      while (!turnClosedSince(lines(path), answerFrom) && residentReading(lines(path).slice(answerFrom), execution).state !== "interrupted" && !await cancelled()) {
+        if (await statusOf(pane, where, goneConfirm) === null) break;
 
-      while (!turnClosedSince(lines(path), answerFrom) && Date.now() < settleBy) {
         seen = await readOn(seen);
         await Bun.sleep(everyMs);
       }
@@ -1204,42 +1156,37 @@ export async function runTurnInPane(options: {
     // and every turn it owes has written its end (「Words that arrive while a turn is working」).
     // A turn that answered nothing owes nothing more, and is read below as the silent turn it is.
     // The count can expect a turn the program will never write — a notice it kept once of two queued —
-    // so a program at rest whose record has stopped growing has nothing still to come, and the wait
-    // ends there and says what the count still expected.
+    // so the round is also over where the program reads at rest on two looks in a row, its record
+    // unchanged between them and its last line of the main conversation the line that closes a turn;
+    // the wait ends there and says what the count still expected.
     if (resident !== null && answeredSince(lines(path), from)) {
-      let grown = lines(path).length;
-      let quietSince = Date.now();
+      let restingAt: number | null = null;
 
-      while (!await cancelled() && (deadline === null || Date.now() < deadline)) {
+      while (!await cancelled()) {
         const round = lines(path).slice(from);
 
         if (residentReading(round, execution).state !== "working") break;
 
         seen = await readOn(seen);
 
-        if (from + round.length !== grown) {
-          grown = from + round.length;
-          quietSince = Date.now();
-        } else if (Date.now() - quietSince >= (options.quietMs ?? quietMs)) {
-          const now = await statusOf(pane, where);
+        const now = await statusOf(pane, where, goneConfirm);
 
-          if (now === "idle" || now === "done") {
-            const { queued, owed } = residentTurnsOwed(round);
-            const ended = round.filter((record) => record.type === "system" && record.subtype === "turn_duration").length;
+        if (now === null) break;
 
-            await options.log?.write({
-              kind: "note",
-              text: fillMarks(turnWords.notes.quiet, {
-                seconds: String(Math.round((Date.now() - quietSince) / 1_000)),
-                queued: String(queued),
-                owed: String(owed),
-                ended: String(ended),
-              }),
-            });
-            break;
-          }
+        const resting = (now === "idle" || now === "done") && closesOnEnd(round);
+
+        if (resting && restingAt === round.length) {
+          const { queued, owed } = residentTurnsOwed(round);
+          const ended = round.filter((record) => record.type === "system" && record.subtype === "turn_duration").length;
+
+          await options.log?.write({
+            kind: "note",
+            text: fillMarks(turnWords.notes.quiet, { queued: String(queued), owed: String(owed), ended: String(ended) }),
+          });
+          break;
         }
 
+        restingAt = resting ? round.length : null;
         await Bun.sleep(everyMs);
       }
     }
@@ -1276,7 +1223,7 @@ export async function runTurnInPane(options: {
       // The turn ended where its Stop hook says, and the reading that follows comes about a second after.
       const stoppedAt = readHooks(resident.place).findLast((hook) => endsTurn(hook.kind) && hook.at >= promptedAt)?.at ?? Date.now();
       const around = await statusAfterTurn(resident.place, promptedAt, stoppedAt, {
-        waitMs: options.accountMs ?? accountMs,
+        standing: () => programAlive(resident.place) !== null,
         pollMs: everyMs,
         sessionId: options.sessionId,
       });
@@ -1306,11 +1253,11 @@ export async function runTurnInPane(options: {
     }
 
     // What the run cost is written by the CLI as its process ends, so the pane is closed first and
-    // the record watched for that line. A run whose account never comes keeps what its own lines
-    // say, with no price.
+    // the record watched for that line until it comes or herdr says the pane is gone, then read once
+    // more. A run whose account never comes keeps what its own lines say, with no price.
     await closePane(pane, where);
 
-    const spend = await accountOf(path, records.length, options.accountMs ?? accountMs);
+    const spend = await accountOf(path, records.length, () => paneStanding(pane, where).then((evidence) => evidence !== "absent"), everyMs);
 
     await closeRow("exited");
     return {
@@ -1512,21 +1459,17 @@ export function spendSince(records: TranscriptRecord[], from: number): ModelSpen
   return Object.keys(moved).length === 0 ? null : claudeSpendOf(moved);
 }
 
-async function accountOf(path: string, from: number, forMs: number): Promise<ModelSpend[] | null> {
-  const deadline = Date.now() + forMs;
-
+// The record's account line written after `from`, waited for while `standing` says the program that
+// writes it may still do so, and read once more after it no longer may.
+async function accountOf(path: string, from: number, standing: () => Promise<boolean>, everyMs: number): Promise<ModelSpend[] | null> {
   for (;;) {
-    const records = lines(path);
+    const written = (): boolean => lines(path).slice(from).some((record) => record.type === "cost-state");
 
-    if (records.slice(from).some((record) => record.type === "cost-state")) {
-      return spendSince(records, from);
-    }
+    if (written()) return spendSince(lines(path), from);
 
-    if (Date.now() >= deadline) {
-      return null;
-    }
+    if (!await standing()) return written() ? spendSince(lines(path), from) : null;
 
-    await Bun.sleep(100);
+    await Bun.sleep(Math.min(everyMs, 100));
   }
 }
 
@@ -1553,27 +1496,26 @@ function replyOf(turn: ReturnType<typeof readTurn>, sessionId: string, spend: Mo
 
 // Whether a program ended for a reset is standing again: its place's record naming a different
 // process from the one just ended. The record is what says so, since a pane whose program is gone
-// can still read as it did a moment before, and a prompt put in then would reach nothing. It is
-// given as long as a pane is given to come up, and a turn cancelled while it waits stops here.
+// can still read as it did a moment before, and a prompt put in then would reach nothing. It is waited
+// for until the place names the new process, and a turn cancelled while it waits stops here.
 async function programStoodAgain(
   place: string,
   was: { pid: number; startedAt: number } | null,
-  within: { forMs: number; everyMs: number; stop: () => Promise<boolean> },
+  within: { everyMs: number; stop: () => Promise<boolean> },
 ): Promise<boolean> {
-  const by = Date.now() + within.forMs;
-
   for (;;) {
     const now = readRunning(place);
 
     if (now !== null && (was === null || now.pid !== was.pid || now.startedAt !== was.startedAt)) return true;
-    if (await within.stop() || Date.now() >= by) return false;
+    if (await within.stop()) return false;
 
     await Bun.sleep(within.everyMs);
   }
 }
 
 // Whether a prompt put into a pane was submitted: the program's record gained a prompt of a person's
-// after the point the turn began, or the pane went to work, within the wait. Any other line is not the
+// after the point the turn began, or the pane went to work, within one submit span; `unsent` says the
+// span passed without either, and is the pace for pressing `enter` again. Any other line is not the
 // prompt — a program resuming its session writes lines of its own as it comes up, and a pane that has
 // only just come up can still read at rest from the program before it. `working` says the pane was seen
 // at work, which the turn's watching counts as its own look. A pane that has gone, or one stopped on a
@@ -1609,16 +1551,8 @@ export const herdrSilent = "herdr-silent";
 const goneLooks: number = declaredTurn.gone_looks;
 const goneGapMs: number = declaredTurn.gone_gap_ms;
 
-// How long a turn waits out a herdr that answers none of its looks before ending on that silence.
-export const herdrPatienceMs: number = declaredTurn.herdr_patience_seconds * 1_000;
-
-// How long a turn on a work node waits for a herdr that does not answer: the node's link may be down
-// while its program keeps working there, and the link comes back within this (docs/work-nodes.md,
-// 「When a node drops」).
-export const nodePatienceMs: number = declaredTurn.node_patience_seconds * 1_000;
-
-// Why herdr last failed to answer a look, as its call said — a timeout, a socket it would not take
-// — so a turn that meets the silence can write down what it was.
+// Why herdr last failed to answer a look, as its call said — a socket it would not take, a connection
+// that closed — so a turn that meets the silence can write down what it was.
 let silenceCause = "";
 
 // One look: what the agent in the pane is doing, null where herdr answered that the pane is not
@@ -1666,13 +1600,9 @@ export async function statusOf(
   return now;
 }
 
-// One of a look's list calls, sent again once where herdr let the first time out: a stall under load
-// runs a few seconds past one call's wait. A refusal or a broken connection is herdr's answer as it
-// stands.
-async function listCall<T>(method: "agent.list" | "pane.list", where: { socket?: string }): Promise<HerdrAnswer<T>> {
-  const first = await herdrCall<T>(method, {}, where);
-
-  return !first.ok && first.error.code === "timeout" ? herdrCall<T>(method, {}, where) : first;
+// One of a look's list calls. A refusal or a broken connection is herdr's answer as it stands.
+function listCall<T>(method: "agent.list" | "pane.list", where: { socket?: string }): Promise<HerdrAnswer<T>> {
+  return herdrCall<T>(method, {}, where);
 }
 
 // Whether herdr lists a pane, or nothing where it did not answer.
@@ -1696,15 +1626,18 @@ function sendKeys(pane: string, keys: string[], where: { socket?: string }): Pro
 // can no longer be read — so it is kept as it goes past.
 //
 // A question it is allowed to answer for itself is answered here, and the wait goes on: the CLI
-// takes a few seconds to come up after the answer, and those seconds are inside the same bound. It
-// is asked on every blocked look until it has answered, because the first look at a question may
-// find it half drawn, and again once an answer has had its time to take and the question still
-// stands, a bounded number of times, because keys typed may not reach the program.
+// takes a few seconds to come up after the answer. It is answered again once an answer has had its
+// redraw to take and the question still stands, a counted number of times, because keys typed may not
+// reach the program. Any other question, and one still standing once its answers are spent, is handed
+// back at once as the blocked program it is.
+//
+// Nothing else ends the wait: a program that has not drawn itself yet, and a herdr that answers none
+// of the looks, are waited out until the program is at rest, its pane is gone, or `check` throws for a
+// turn cancelled meanwhile. `onSilent` is told where a silence begins.
 async function settled(
   pane: string,
   options: {
     until: string[];
-    forMs: number;
     everyMs: number;
     socket?: string;
     answer?: (screen: string) => Promise<boolean>;
@@ -1713,14 +1646,15 @@ async function settled(
     check?: () => void | Promise<unknown>;
     confirm?: { looks?: number; gapMs?: number };
     // Whether the program in the pane is the one the status is about. A status of the program before
-    // it is not ready, however it reads; past the bound the status is handed back as it stands.
+    // it is not ready, however it reads.
     drawn?: () => boolean;
+    onSilent?: () => void | Promise<unknown>;
   },
 ): Promise<{ status: string | "gone"; screen: string }> {
-  const deadline = Date.now() + options.forMs;
   let screen = "";
   let answers = 0;
   let answeredAt: number | null = null;
+  let silent = false;
 
   for (;;) {
     await options.check?.();
@@ -1730,13 +1664,16 @@ async function settled(
       return { status: "gone", screen };
     }
 
-    // Nothing to read off a screen herdr will not answer about; the wait goes on to its bound.
+    // Nothing to read off a screen herdr will not answer about; the wait goes on until it answers.
     if (now === herdrSilent) {
-      if (Date.now() >= deadline) return { status: now, screen };
+      if (!silent) await options.onSilent?.();
+      silent = true;
 
       await Bun.sleep(options.everyMs);
       continue;
     }
+
+    silent = false;
 
     const seen = await screenOf(pane, { socket: options.socket });
 
@@ -1748,15 +1685,15 @@ async function settled(
       return { status: now, screen };
     }
 
-    if (Date.now() >= deadline) {
-      return { status: now, screen };
-    }
+    if (now === "blocked") {
+      const answerDue = answeredAt === null || Date.now() - answeredAt >= (options.answerAgainMs ?? redrawMs);
 
-    const answerDue = answeredAt === null || Date.now() - answeredAt >= (options.answerAgainMs ?? redrawMs);
-
-    if (now === "blocked" && answers < trustAnswers && answerDue && options.answer !== undefined && await options.answer(seen)) {
-      answers += 1;
-      answeredAt = Date.now();
+      if (answers < trustAnswers && answerDue && options.answer !== undefined && await options.answer(seen)) {
+        answers += 1;
+        answeredAt = Date.now();
+      } else if (answerDue) {
+        return { status: now, screen };
+      }
     }
 
     await Bun.sleep(options.everyMs);

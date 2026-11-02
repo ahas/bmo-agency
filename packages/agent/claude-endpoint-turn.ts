@@ -51,7 +51,6 @@ export async function endpointTurn(options: ResidentTurnRequest & { surface: Res
     interrupt: options.surface.interrupt,
     aside: options.aside,
     ...(run.line === "chat" ? { lead: roundLead } : {}),
-    ...(options.timeoutMs === null ? {} : { turnMs: options.timeoutMs }),
     ...(options.socket === undefined ? {} : { socket: options.socket }),
   });
 

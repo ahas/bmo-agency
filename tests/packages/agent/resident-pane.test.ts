@@ -59,23 +59,30 @@ function herdr(name: string) {
   return { path, model, stop: () => server.stop(true) };
 }
 
+// A check that lets the wait go on for a while and then throws, as a turn cancelled meanwhile does.
+function stoppedAfter(ms: number): () => void {
+  const by = Date.now() + ms;
+
+  return () => {
+    if (Date.now() >= by) throw new Error("execution cancelled");
+  };
+}
+
 describe("the launcher before a turn", () => {
-  test("a program that never comes up is reported rather than waited on for ever", async () => {
+  test("a program that has not come up is waited on until the turn is stopped, with no clock ending the wait", async () => {
     const socket = herdr("never");
 
     try {
-      const answer = await standResident({ place: agentPlace("never"), home: home("never"), program: program("X", "true", null), socket: socket.path, waitMs: 50, pollMs: 10 });
+      const answer = standResident({ place: agentPlace("never"), home: home("never"), program: program("X", "true", null), socket: socket.path, pollMs: 10, check: stoppedAfter(200) });
 
-      expect(answer.ok).toBe(false);
-      expect(answer.ok ? "" : answer.error.code).toBe("program_not_up");
+      await expect(answer).rejects.toThrow("execution cancelled");
     } finally {
       socket.stop();
     }
   });
 
-  // What went wrong once: a head stood up on a PATH without the CLI on it could never start its
-  // program, and the turn waited out its wait and a rebuild — two minutes — before saying only that
-  // nothing came up. The head says why through the place, and the turn ends on it at once.
+  // A head stood up on a PATH without the CLI on it can never start its program; it says why through
+  // the place, and the turn ends on it at once.
   test("a program whose executable is not on its PATH ends the wait at once, naming both", async () => {
     const agent = "missing";
     const place = agentPlace(agent);
@@ -84,7 +91,7 @@ describe("the launcher before a turn", () => {
     const reason = "no-such-program-bmo: no such executable on PATH=/usr/bin:/bin";
 
     try {
-      const answer = standResident({ place, home: home(agent), program: missing, socket: socket.path, waitMs: 20_000, pollMs: 20 });
+      const answer = standResident({ place, home: home(agent), program: missing, socket: socket.path, pollMs: 20 });
 
       // The head, finding the program it was handed unstartable, writes why beside it.
       writeFileSync(join(place, "start-failed.json"), JSON.stringify({ identity: "M", at: Date.now(), reason }));
@@ -124,7 +131,7 @@ describe("a place that will not stand", () => {
       await Bun.write(join(place, "program.json"), JSON.stringify(program("H", "unused", null)));
       recordStarted(place, { identity: "H", pid: running.pid, birth, loop: { pid: process.pid, birth: "x" }, starts: 1, startedAt: Date.now(), paneId: "w9:p7", recent: [Date.now()] });
 
-      const stood = await standResident({ place, home: home(agent), program: program("H", "unused", null), socket: socket.path, waitMs: 50, pollMs: 10 });
+      const stood = await standResident({ place, home: home(agent), program: program("H", "unused", null), socket: socket.path, pollMs: 10 });
 
       expect(stood.ok && stood.result.paneId).toBe("w9:p7");
     } finally {
@@ -133,7 +140,7 @@ describe("a place that will not stand", () => {
     }
   });
 
-  test("a program in a start loop has its place rebuilt before the turn, once, and the failure names it", async () => {
+  test("a program in a start loop has its place rebuilt before the turn, once, and a loop after that is not up", async () => {
     const agent = "crash-looping";
     const place = agentPlace(agent);
     const socket = herdr("crash-looping");
@@ -147,25 +154,32 @@ describe("a place that will not stand", () => {
       await Bun.write(join(place, "program.json"), JSON.stringify(program("L", "unused", null)));
       recordStarted(place, { identity: "L", pid: running.pid, birth, loop: { pid: process.pid, birth: "x" }, starts: 40, startedAt: now, paneId: "w9:p3", recent: [1, 2, 3, 4, 5, 6].map((at) => now - at * 10_000) });
 
-      const stood = await standResident({
-        place, home: home(agent), program: program("L", "unused", null), socket: socket.path, waitMs: 50, pollMs: 10,
+      // Nothing runs the stand-in's panes, so the program never comes back: the turn waits on it until
+      // it is stopped.
+      const stood = standResident({
+        place, home: home(agent), program: program("L", "unused", null), socket: socket.path, pollMs: 10,
         end: (pid) => { ended.push(pid); running.kill(); },
         close: async (paneId) => { closed.push(paneId); },
+        check: stoppedAfter(200),
       });
 
+      await expect(stood).rejects.toThrow("execution cancelled");
       expect(ended).toEqual([running.pid]);
       expect(closed).toEqual(["w9:p3"]);
       // The start history is cleared and the count kept, so the next start resumes the session.
       expect(readRunning(place)?.recent).toEqual([]);
       expect(readRunning(place)?.starts).toBe(40);
-      // Nothing runs the stand-in's panes, so the program never comes back, and the failure says the place was rebuilt.
-      expect(stood.ok).toBe(false);
-      expect(stood.ok ? "" : stood.error.message).toContain("of its place being rebuilt");
 
-      // A place is rebuilt at most once a minute: the next turn is refused without tearing it down again.
-      const again = await standResident({ place, home: home(agent), program: program("L", "unused", null), socket: socket.path, waitMs: 20, pollMs: 10, close: async (paneId) => { closed.push(paneId); } });
+      // Looping again within the minute, the place is not rebuilt a second time, and the turn ends on
+      // a program that is not up.
+      const looping = readRunning(place)!;
+      recordStarted(place, { ...looping, recent: [1, 2, 3, 4, 5, 6].map((at) => Date.now() - at * 10_000) });
+
+      const again = await standResident({ place, home: home(agent), program: program("L", "unused", null), socket: socket.path, pollMs: 10, close: async (paneId) => { closed.push(paneId); } });
 
       expect(again.ok).toBe(false);
+      expect(again.ok ? "" : again.error.code).toBe("program_not_up");
+      expect(again.ok ? "" : again.error.message).toContain("keeps dying");
       expect(closed).toEqual(["w9:p3"]);
     } finally {
       running.kill();

@@ -268,8 +268,9 @@ async function rebuildPlace(options: {
 // The launcher's side, before every turn: the program the turn needs, standing. A place already
 // running that program is left as it is. A different program is written and the one standing is
 // ended, which the loop answers by starting the new one in the same pane; a pane that is not there is
-// stood up. Then the turn waits, bounded, for the program to be up. A program in a start loop, or one
-// that does not come up in that wait, has its place rebuilt and is waited on once more.
+// stood up. Then the turn waits for the program to be up, for its start failure to be written, or for
+// `check` to throw for a turn cancelled meanwhile, however long that takes. A program in a start loop
+// has its place rebuilt and is waited on once more; one still in a loop after that is not up.
 export async function standResident(options: {
   place: string;
   home: AgentHome;
@@ -277,8 +278,9 @@ export async function standResident(options: {
   // The line the program runs, whose session token it is handed; none where it is handed no tools.
   line?: string;
   socket?: string;
-  waitMs?: number;
   pollMs?: number;
+  // Asked on every look while the program is waited for; a turn cancelled meanwhile throws out of it.
+  check?: () => void | Promise<unknown>;
   alive?: (identity: ProcessIdentity) => boolean;
   end?: (pid: number) => void;
   close?: (paneId: string) => Promise<unknown>;
@@ -286,7 +288,6 @@ export async function standResident(options: {
   const alive = options.alive ?? placeAlive(options.place);
   const end = options.end ?? placeEnd(options.place);
   const close = options.close ?? ((paneId: string) => closePane(paneId, { socket: options.socket }));
-  const waitMs = options.waitMs ?? 30_000;
   let program = options.program;
 
   // A program about to be written is handed its session token first, and a tool host that does not answer
@@ -315,8 +316,6 @@ export async function standResident(options: {
 
     if (!pane.ok) return pane;
 
-    const deadline = Date.now() + waitMs;
-
     for (;;) {
       const up = programAlive(options.place, alive);
 
@@ -330,13 +329,18 @@ export async function standResident(options: {
         return { ok: false, error: { code: "program_not_started", message: `the resident program of ${options.home.agent} could not be started: ${failed.reason}` } };
       }
 
-      if (Date.now() >= deadline) break;
+      // A program in a start loop is one whose own starts keep coming, never those of the program it was
+      // written in place of.
+      const running = readRunning(options.place);
 
+      if (running?.identity === options.program.identity && startLooping(running)) break;
+
+      await options.check?.();
       await Bun.sleep(options.pollMs ?? 250);
     }
 
     if (rebuilt || !(await rebuild(pane.result.headPaneId))) {
-      return { ok: false, error: { code: "program_not_up", message: `the resident program of ${options.home.agent} did not come up within ${waitMs}ms${rebuilt ? " of its place being rebuilt" : ""}` } };
+      return { ok: false, error: { code: "program_not_up", message: `the resident program of ${options.home.agent} keeps dying as it starts${rebuilt ? " even after its place was rebuilt" : ""}` } };
     }
 
     rebuilt = true;
@@ -346,7 +350,7 @@ export async function standResident(options: {
 // A working turn of the place's program cut short by the surface's own interrupt: keys the program
 // reads as an interruption, which leave its session usable, or — where no interrupt has been
 // measured — the program ended, which its loop answers by starting it again on the same session. An
-// ended program is waited on until its process is gone, bounded: until then the place still names it
+// ended program is waited on until its process is gone: until then the place still names it
 // and reads it alive, and whatever reads the place next would take it for the one standing. Either way
 // the pane stays (「Stopping, falling back and standing up again」).
 export async function interruptProgram(
@@ -369,7 +373,5 @@ export async function interruptProgram(
   (options.end ?? placeEnd(place))(running.pid);
 
   const ended = { pid: running.pid, birth: running.birth } as ProcessIdentity;
-  const by = Date.now() + declaredTurn.end_wait_ms;
-
-  while (alive(ended) && Date.now() < by) await Bun.sleep(declaredTurn.end_poll_ms);
+  while (alive(ended)) await Bun.sleep(declaredTurn.end_poll_ms);
 }

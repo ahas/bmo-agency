@@ -401,7 +401,7 @@ describe("a call over a real socket", () => {
     });
 
     try {
-      const answer = await herdrCall<{ length: number }>("agent.prompt", { target: "w1:p1", text }, { socket: path, timeoutMs: 2_000 });
+      const answer = await herdrCall<{ length: number }>("agent.prompt", { target: "w1:p1", text }, { socket: path });
 
       expect(answer.ok ? answer.result.length : answer.error.code).toBe(text.length);
     } finally {
@@ -411,9 +411,9 @@ describe("a call over a real socket", () => {
   });
 
   test("no herdr there at all is a fact the caller can act on, not a throw", async () => {
-    const answer = await herdrCall("ping", {}, { socket: socketFor("absent"), timeoutMs: 500 });
+    const answer = await herdrCall("ping", {}, { socket: socketFor("absent") });
 
     expect(answer.ok).toBe(false);
-    expect(["unreachable", "closed", "timeout"]).toContain(answer.ok ? "" : answer.error.code);
+    expect(["unreachable", "closed"]).toContain(answer.ok ? "" : answer.error.code);
   });
 });

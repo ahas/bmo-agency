@@ -281,18 +281,18 @@ export function statusAround(records: readonly StatusRecord[], startedAt: number
   };
 }
 
+// The status-line readings around a turn, the one after its end waited for until it comes or the program
+// that would make it is no longer alive (`standing`), whichever is first.
 export async function statusAfterTurn(
   place: string,
   startedAt: number,
   endedAt: number,
-  options: { waitMs?: number; pollMs?: number; sessionId?: string | null } = {},
+  options: { standing: () => boolean; pollMs?: number; sessionId?: string | null },
 ): Promise<StatusAround> {
-  const deadline = Date.now() + (options.waitMs ?? 5_000);
-
   for (;;) {
     const around = statusAround(readStatus(place), startedAt, endedAt, options.sessionId ?? null);
 
-    if (around.after !== null || Date.now() >= deadline) return around;
+    if (around.after !== null || !options.standing()) return around;
 
     await Bun.sleep(options.pollMs ?? 200);
   }

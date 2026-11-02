@@ -1,11 +1,11 @@
-// A run held to a clock is not cut on the clock alone where its caller hands it a policy: each time
-// the bound passes the policy is asked, with what the run can say of itself, and answers cut or the
-// next moment to look again (docs/agent-control.md, 「A clock asks before it cuts」). This is the
-// mechanism; the policy, and whoever it asks, is the caller's.
+// A clock asks, it never cuts: a run carries a clock only where its caller hands it a policy, and each
+// time the clock passes the policy is asked, with what the run can say of itself, and answers cut — the
+// caller's own call — or the next moment to ask again (docs/agent-control.md, 「A clock asks, it never
+// cuts」). This is the mechanism; the policy, and whoever it asks, is the caller's.
 
-// What a run past its bound can say of itself to the policy deciding whether to cut it.
+// What a run past its clock can say of itself to the policy deciding whether to cut it.
 export interface TurnOverdue {
-  // When it started, and the bound it was given.
+  // When it started, and the length of its clock.
   startedAt: number;
   boundMs: number;
   // The run's last sign of work: when it was and what it was, each null where the run cannot say.
@@ -24,12 +24,12 @@ export interface ClockWatch {
 }
 
 // The clock on a run that is one process or one call rather than a pane turn: `cut` is called once
-// the bound has passed and the policy, where there is one, answered cut. A run handed no policy is
-// cut at its bound, and so is one whose policy cannot answer. Its timers never hold the process up.
+// the clock has passed and the policy answered cut. A policy that cannot answer leaves the run going,
+// asked again after the clock's own length. Its timers never hold the process up.
 export function watchClock(options: {
   boundMs: number;
   startedAt?: number;
-  overtime?: Overtime;
+  overtime: Overtime;
   // The run's last sign of work, read each time the policy is asked.
   activity?: () => { at: number | null; what: string | null };
   cut: () => void | Promise<unknown>;
@@ -57,19 +57,13 @@ export function watchClock(options: {
   const look = async (): Promise<void> => {
     if (stopped) return;
 
-    if (options.overtime === undefined) {
-      await cut();
-
-      return;
-    }
-
     const last = options.activity?.() ?? { at: null, what: null };
 
     await options.overtime({ startedAt, boundMs: options.boundMs, lastActivityAt: last.at, lastActivity: last.what })
       .catch(async (error: unknown): Promise<OvertimeAnswer> => {
-        (options.onPolicyFault ?? ((fault: unknown) => console.error(`a clock's policy could not answer, so the run is cut at its bound: ${fault instanceof Error ? fault.message : String(fault)}`)))(error);
+        (options.onPolicyFault ?? ((fault: unknown) => console.error(`a clock's policy could not answer, so the run goes on and is asked about again: ${fault instanceof Error ? fault.message : String(fault)}`)))(error);
 
-        return { cut: true };
+        return { cut: false, askAgainAt: now() + options.boundMs };
       })
       .then(async (answer) => {
         if (answer.cut) await cut();

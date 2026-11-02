@@ -6,7 +6,7 @@ import { watchClock } from "@agency/agent/overtime-clock";
 
 import type { OvertimeAnswer, TurnOverdue } from "@agency/agent/overtime-clock";
 
-// Bounds of a few milliseconds, so the clock passes at once and only the order of what it does is
+// Clocks of a few milliseconds, so the clock passes at once and only the order of what it does is
 // looked at.
 const boundMs = 5;
 
@@ -15,7 +15,7 @@ function cutWithin(clock: { cut: Promise<void> }, ms = 2_000): Promise<boolean> 
   return Promise.race([clock.cut.then(() => true), Bun.sleep(ms).then(() => false)]);
 }
 
-function watched(overtime?: (overdue: TurnOverdue) => Promise<OvertimeAnswer>) {
+function watched(overtime: (overdue: TurnOverdue) => Promise<OvertimeAnswer>) {
   let cut!: () => void;
   const done = new Promise<void>((resolve) => {
     cut = resolve;
@@ -26,10 +26,6 @@ function watched(overtime?: (overdue: TurnOverdue) => Promise<OvertimeAnswer>) {
 }
 
 describe("a clock on a run of its own", () => {
-  test("cuts at its bound where it was handed no policy", async () => {
-    expect(await cutWithin(watched())).toBe(true);
-  });
-
   test("asks its policy with what the run says of itself, runs on while it keeps, and cuts on its cut", async () => {
     const asked: TurnOverdue[] = [];
     const clock = watched(async (overdue) => {
@@ -43,10 +39,16 @@ describe("a clock on a run of its own", () => {
     expect(asked[0]).toMatchObject({ boundMs, lastActivityAt: 1, lastActivity: "tool_use Bash" });
   });
 
-  test("cuts at its bound where the policy cannot answer", async () => {
-    expect(await cutWithin(watched(async () => {
+  test("goes on where the policy cannot answer, and asks again after the clock's own length", async () => {
+    let asks = 0;
+    const clock = watched(async () => {
+      asks += 1;
       throw new Error("the archive is gone");
-    }))).toBe(true);
+    });
+
+    expect(await cutWithin(clock, 100)).toBe(false);
+    expect(asks).toBeGreaterThan(1);
+    clock.watch.stop();
   });
 
   test("cuts nothing once stopped, even with an answer still coming", async () => {
