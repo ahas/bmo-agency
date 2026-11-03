@@ -73,6 +73,9 @@ pub const TWO_AXES: &str = m20261124_000001_renewal::NAME;
 /// (docs/agent-roles.md, 「The roles the policy seeds」).
 pub const ROLE_NAMES: &str = m20261126_000001_role_names::NAME;
 
+/// The settings a migration writes on its own, from what the rows it carries held.
+pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
+
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
 pub const OWN_TABLES: [&str; 51] = [

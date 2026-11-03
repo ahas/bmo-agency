@@ -1063,8 +1063,22 @@ async fn compare(pool: &PgPool, prepared: &Prepared) -> Sample {
     if stands.is_none() {
       continue;
     }
-    let count: Result<i64, _> =
-      sqlx::query_scalar(&format!("SELECT COUNT(*) FROM \"{target}\"")).fetch_one(pool).await;
+    // A setting a migration writes on its own, from what the rows held, is no row of the export's.
+    let own = if *target == "settings" {
+      format!(
+        " WHERE \"key\" NOT IN ({})",
+        crate::migration::SETTINGS_WRITTEN
+          .iter()
+          .map(|key| format!("'{key}'"))
+          .collect::<Vec<_>>()
+          .join(", ")
+      )
+    } else {
+      String::new()
+    };
+    let count: Result<i64, _> = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM \"{target}\"{own}"))
+      .fetch_one(pool)
+      .await;
     match count {
       Ok(held) if held as u64 == entry.count => {}
       Ok(held) => {
