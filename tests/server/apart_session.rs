@@ -4,7 +4,8 @@
 //! ended; its turn placed in the standing branch checkout its folder is, under the co-work task's label, or
 //! in a pane of its own; the folder a branch's place is taken in, as the take answers it; and a session
 //! handing a runner line its instructions whole, with the labels and the capabilities its record keeps, which
-//! goes out on that line in a pane of its own, on any road whose program carries the line.
+//! goes out on that line in a pane of its own, on any road whose program carries the line; a start passes
+//! over a number whose place the process before left standing.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -498,6 +499,29 @@ async fn a_session_on_a_road_carrying_its_own_turns_stands_in_a_place_of_its_own
   );
 
   sessions.end(&placed.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_start_passes_over_a_number_whose_place_still_stands() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let kept = SessionId("search@run:1".into());
+
+  // The process before left this session's place standing, kept for a turn picked up across the restart.
+  agency_server::apart_places::mark(&ground, &agency_server::apart_places::place_name(&kept), &kept)
+    .unwrap();
+
+  let sessions = HerdrSessions::new(Places::new(ground, Arc::default()));
+  let started = sessions.start(start("search", handed("registered", "flash-next"))).await.unwrap();
+
+  assert_eq!(started.id, SessionId("search@run:2".into()), "no new session goes into the kept place");
+
+  sessions.end(&started.id).await.unwrap();
 }
 
 #[tokio::test]

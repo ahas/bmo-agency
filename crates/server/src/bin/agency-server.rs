@@ -126,7 +126,8 @@ async fn serve(args: Args) -> Result<(), String> {
   }
 
   // A thrown-away session does not outlive the process that started it, so the places such sessions on a
-  // road carrying its own turns left are ended.
+  // road carrying its own turns left are ended, but for one carrying a turn just picked up, which ends with
+  // that turn.
   let ended = agency_server::apart_places::sweep(&ground).await;
 
   if ended > 0 {

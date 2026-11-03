@@ -2,7 +2,9 @@
 //! session over」): a job whose turn ended in its program's record after the process that sent it went away
 //! ends with its report rather than stopped, a chat turn's end reaches its caller under its own id with its
 //! run closed, a turn its program is still working on is waited on, and one no record names ends failed; a
-//! job's turn adopted at start stands as seen, its slot kept while it goes and given back as it ends.
+//! job's turn adopted at start stands as seen, its slot kept while it goes and given back as it ends; a job's
+//! turn on a thrown-away session is read from that session's place, which the sweep at start keeps while the
+//! turn goes on and which is ended with the turn, while a job's turn no record names is reaped as before.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -470,4 +472,159 @@ async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_ba
 
   let _ = program.kill();
   let _ = program.wait();
+}
+
+// A job's row a test stands, running since `started_at` under the run `job-<id>` in worker-a's checkout.
+async fn running_job(scratch: &Scratch, id: i64, started_at: i64) {
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "run_name", "room_id", "state", "started_at", "prompt")
+         VALUES ($1, 1, 0, 'harness', 0, 'worker-a', $2, 7, 'running', $3, 'apart')"#,
+      vec![id.into(), format!("job-{id}").into(), started_at.into()],
+    )
+    .await;
+}
+
+async fn job_state(scratch: &Scratch, id: i64) -> (String, Option<String>) {
+  let row =
+    store::one(scratch.db(), r#"SELECT "state", "report" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+      .await
+      .unwrap()
+      .unwrap();
+
+  (row.try_get("", "state").unwrap(), row.try_get("", "report").unwrap())
+}
+
+// A thrown-away session's place as the process before left it, marked as the session's own.
+fn apart_place(ground: &Ground, session: &str) -> (String, Place) {
+  let id = agent_session::SessionId(session.to_owned());
+  let name = agency_server::apart_places::place_name(&id);
+
+  agency_server::apart_places::mark(ground, &name, &id).unwrap();
+
+  (name.clone(), Place::of(&ground.roots.data, &name))
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_turn_on_a_thrown_away_session_is_adopted_from_its_place_and_its_place_ends_with_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let data = ground.roots.data.clone();
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+  let identity = agent_host::identity::ProcessIdentity::of(program.id() as i32).unwrap();
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  running_job(&scratch, 41, now_ms() - 20 * 60 * 1000).await;
+
+  // The process before held the job's slot, bound to its run, and left its turn going in the program of
+  // the session's own place; another session's place it left carries no turn.
+  let held = job_slot(&ground, 41, true).await;
+  let (adopted, place) = apart_place(&ground, "worker-a@run:13");
+  let (idle, _) = apart_place(&ground, "worker-a@run:12");
+
+  std::fs::write(
+    place.path.join("running.json"),
+    json!({ "identity": "one", "pid": identity.pid, "birth": identity.birth, "loop": identity,
+            "starts": 1, "startedAt": now_ms(), "recent": [] })
+    .to_string(),
+  )
+  .unwrap();
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "worker-a@run:13".into(),
+      ..in_flight("job-41", "worker-a", 61, Some(7), None, Some(41))
+    },
+  )
+  .await;
+  started(&place, "j", "job-41");
+
+  assert_eq!(place_name_of(&in_flight_turns(&scratch).await[0]), adopted);
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+
+  // The sweep at start ends the place carrying no turn and keeps the adopted one.
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 1);
+  assert!(!agency_server::apart_places::is_apart_place(&data, &idle), "the idle place is ended");
+  assert!(
+    agency_server::apart_places::is_apart_place(&data, &adopted),
+    "the adopted place is kept"
+  );
+
+  // The pass ending a job left running leaves the adopted one: it stays running with its slot, seen.
+  assert_eq!(reap_stale(&ground).await.unwrap(), 0);
+  assert_eq!(job_state(&scratch, 41).await.0, "running");
+  assert_eq!(
+    dispatch::bound_leases(&ground.db).await.unwrap(),
+    vec![(held.token.clone(), "job-41".to_owned(), true)]
+  );
+  assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  // The turn ends in its place's record: the job ends through its own end path, its slot is given back
+  // and the session's place is ended with it.
+  answered(&place, "j", "The thrown-away session's report.");
+
+  for _ in 0..80 {
+    if !agency_server::apart_places::is_apart_place(&data, &adopted) {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  assert!(
+    !agency_server::apart_places::is_apart_place(&data, &adopted),
+    "the place ends with its turn"
+  );
+  assert_eq!(
+    job_state(&scratch, 41).await,
+    ("ended".to_owned(), Some("The thrown-away session's report.".to_owned()))
+  );
+
+  let given = slot_now(&ground, &held.token).await;
+
+  assert_eq!(
+    (given.state.as_str(), given.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_OWNER)),
+    "{given:?}"
+  );
+  assert!(in_flight_turns(&scratch).await.is_empty());
+
+  let _ = program.kill();
+  let _ = program.wait();
+}
+
+#[tokio::test]
+async fn a_job_s_turn_on_a_thrown_away_session_no_record_names_is_reaped_and_its_place_ended() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let data = ground.roots.data.clone();
+
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  running_job(&scratch, 42, now_ms() - 20 * 60 * 1000).await;
+
+  let (name, _) = apart_place(&ground, "worker-a@run:14");
+
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "worker-a@run:14".into(),
+      ..in_flight("job-42", "worker-a", 62, Some(7), None, Some(42))
+    },
+  )
+  .await;
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+  assert!(in_flight_turns(&scratch).await.is_empty(), "the lost job's turn is left to the reap");
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 1);
+  assert!(!agency_server::apart_places::is_apart_place(&data, &name), "its place is ended");
+  assert_eq!(reap_stale(&ground).await.unwrap(), 1);
+
+  let (state, report) = job_state(&scratch, 42).await;
+
+  assert_eq!(state, "stopped");
+  assert!(report.unwrap_or_default().starts_with(agency_server::control::work::REAPED));
 }

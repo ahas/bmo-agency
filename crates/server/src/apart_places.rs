@@ -2,7 +2,9 @@
 //! (docs/api.md, 「sessions」): one place a session, named after it and marked as its own by a record in it,
 //! so it stands under no agent's row and no sweep of leftovers takes it down while the session stands; ended
 //! with the session, and every one the process before this one left ended as a server starts, since a
-//! thrown-away session does not outlive the process that started it.
+//! thrown-away session does not outlive the process that started it, except one carrying a turn in flight
+//! that the server picks up, a job's among them, which stands until that turn's end is handed back and is
+//! ended then (docs/sessions.md, 「A restart hands the session over」).
 
 use std::path::Path;
 
@@ -94,18 +96,27 @@ pub async fn end(ground: &Ground, name: &str) {
   let _ = std::fs::remove_dir_all(&place.path);
 }
 
-/// Every thrown-away session's place the process before this one left, ended as a server starts: how many.
-/// What each held is written to the log first — the program its record names, whether that process runs,
-/// and what its pane's head was last answered — since taking the place down takes that evidence with it.
+/// Every thrown-away session's place the process before this one left, ended as a server starts, after the
+/// turns it left in flight are picked up: how many. A place carrying a turn the pickup adopted stays, its
+/// session ending with that turn. What each place ended held is written to the log first — the program its
+/// record names, whether that process runs, and what its pane's head was last answered — since taking the
+/// place down takes that evidence with it.
 pub async fn sweep(ground: &Ground) -> usize {
-  let left = apart_places(&ground.roots.data);
+  let carrying = crate::turn_pickup::carrying_places(&ground.db).await;
+  let mut ended = 0;
 
-  for name in &left {
-    let found = crate::door::liveness::place_found(&Place::of(&ground.roots.data, name));
+  for name in apart_places(&ground.roots.data) {
+    let found = crate::door::liveness::place_found(&Place::of(&ground.roots.data, &name));
+
+    if carrying.contains(&name) {
+      println!("agency: thrown-away place {name} carries a turn picked up, kept until it ends: {found}");
+      continue;
+    }
 
     println!("agency: thrown-away place {name} as the last process left it: {found}");
-    end(ground, name).await;
+    end(ground, &name).await;
+    ended += 1;
   }
 
-  left.len()
+  ended
 }

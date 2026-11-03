@@ -46,8 +46,10 @@ statements below about either are kept for a rollback to the road a deployment l
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
     agent, the room, the chat turn's run in the ledger and the job;
   - a server that starts reads each turn the process before it left there against the record of the
-    agent's pane program, `loop.jsonl` in its place, by the run's name, before it reads anything else that
-    process left;
+    pane program that carries it, `loop.jsonl` in its place, by the run's name, before it reads anything
+    else that process left: the agent's place, or, for a turn of a role's thrown-away session — a job's
+    among them — the place of that session's own, which stands while the turn goes on and is ended once
+    its end is handed back (`docs/api.md`, 「sessions」);
   - a turn whose end the record holds is handed back through the path a live turn's end takes: what of
     its record the run log lacks is filed there with its end, its execution row and the place's run are
     closed, a chat turn's road, spend and ledger run are written, its end is published as `turn.ended`

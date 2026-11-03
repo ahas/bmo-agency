@@ -2358,7 +2358,16 @@ impl Sessions for HerdrSessions {
           apart.cwd = Trees::of(self.ground()).agents.join(line).to_string_lossy().into_owned();
         }
 
-        let id = apart_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
+        // A number whose place still stands, kept for a turn the process before left in flight, is passed
+        // over, so no new session goes into it.
+        let data = &self.ground().roots.data;
+        let id = loop {
+          let id = apart_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
+
+          if !crate::apart_places::is_apart_place(data, &crate::apart_places::place_name(&id)) {
+            break id;
+          }
+        };
 
         self.apart().insert(id.clone(), (request.agent.clone(), apart.clone()));
         (id, Scope::Apart(apart))

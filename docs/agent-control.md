@@ -2083,8 +2083,10 @@ reads it.
   the process on the row is still alive, herdr's last reading and when the record last grew — and writes
   the same to its log, before anything that process left is picked up or taken down. Each thrown-away
   session's place it takes down is written to the log first as well: the program the place records,
-  whether that process is alive, and what the pane's head was last answered. A later reading says what
-  the turn was waiting on when its server went.
+  whether that process is alive, and what the pane's head was last answered. A place whose session carries
+  a turn in flight that the server picks up, a job's among them, is not taken down: it stands while that turn goes on and
+  is ended once the turn's end is handed back (`docs/sessions.md`, 「A restart hands the session over」). A
+  later reading says what the turn was waiting on when its server went.
 
 ### Pushing words into a running turn works
 

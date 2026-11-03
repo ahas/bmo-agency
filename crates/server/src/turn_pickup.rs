@@ -2,14 +2,16 @@
 //! session over」): every turn sent is kept in the settings under its run while it goes, with what its end
 //! needs to reach its caller — the session and the turn's id, the agent, the room, its run in the ledger and
 //! its job. A server that starts reads each one left by the process before it against the record of the
-//! agent's pane program: a turn whose end the record holds is handed back through the path a live turn's end
-//! takes, a turn the program is still working on, or has not taken yet, is attached to and waited on with
-//! the agent's program held, and a turn no record names is ended as lost.
+//! pane program that carries it, in the agent's place or in the place of the thrown-away session it went
+//! on: a turn whose end the record holds is handed back through the path a live turn's end takes, a turn the
+//! program is still working on, or has not taken yet, is attached to and waited on with the program held,
+//! its thrown-away session's place kept until its end is handed back and ended then, and a turn no record
+//! names is ended as lost.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_session::TurnEnd;
+use agent_session::{SessionId, TurnEnd};
 use policy::resident_turn::RESIDENT_TURN;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
 use serde::{Deserialize, Serialize};
@@ -112,7 +114,26 @@ pub enum Standing {
   Lost,
 }
 
-/// Where a kept turn stands, read from its agent's place.
+/// The name of the place whose program carries a kept turn: the thrown-away session's own place where the
+/// turn went on one, a job's turn among them (docs/api.md, 「sessions」), the agent's otherwise.
+pub fn place_name_of(turn: &InFlight) -> String {
+  let session = SessionId(turn.session.clone());
+
+  if crate::herdr_backend::is_apart(&session) {
+    crate::apart_places::place_name(&session)
+  } else {
+    turn.agent.clone()
+  }
+}
+
+/// The names of the places the turns kept in flight are carried in, which the sweep of thrown-away
+/// sessions' places at start keeps: the turns the pickup adopted, each place ended once its turn's end is
+/// handed back.
+pub async fn carrying_places(db: &sea_orm::DatabaseConnection) -> Vec<String> {
+  in_flight(db).await.unwrap_or_default().iter().map(place_name_of).collect()
+}
+
+/// Where a kept turn stands, read from the place its program carries it in.
 pub fn standing(place: &Place, turn: &InFlight) -> Standing {
   let records = record_of(&place.path).1;
   let Some(span) = span_named(&records, &turn.run) else {
@@ -161,15 +182,17 @@ const LOST: &str = "agency restarted while the turn went, and no record its prog
 // Why a turn whose program went away while it was attached to ended.
 const GONE: &str = "the pane program went away while the turn was picked up after agency restarted";
 
-/// Every turn the process before this one left in flight, read at start: handed back where it ended, attached
-/// to where it goes on, the lease bound to its run then standing as seen, ended as lost where nothing names
-/// it. A job's lost turn is left to the pass that ends a job left running.
+/// Every turn the process before this one left in flight, read at start from the place its program carries
+/// it in: handed back where it ended, attached to where it goes on, the lease bound to its run then standing
+/// as seen and its open execution rows kept as this process's own, ended as lost where nothing names it. A
+/// job's lost turn is left to the pass that ends a job left running.
 pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   let turns = in_flight(&ground.db).await?;
   let count = turns.len();
 
   for turn in turns {
-    let place = Place::of(&ground.roots.data, &turn.agent);
+    let name = place_name_of(&turn);
+    let place = Place::of(&ground.roots.data, &name);
 
     match standing(&place, &turn) {
       Standing::Ended(came) => hand_back(ground, &place, &turn, came).await,
@@ -182,9 +205,12 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
           eprintln!("{}: the lease bound to the adopted turn was not marked seen: {why}", turn.run);
         }
 
+        // Its rows are this process's from now, before any pass of the executions reads their collector.
+        own_rows(ground, &turn.run).await;
+
         let ground = ground.clone();
 
-        tokio::spawn(async move { attach(&ground, place, turn).await });
+        tokio::spawn(async move { attach(&ground, &name, place, turn).await });
       }
     }
   }
@@ -192,24 +218,35 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   Ok(count)
 }
 
-// A turn the program goes on with, waited on with the agent's program held, so no turn of this process
+// A turn the program goes on with, waited on with its place's program held, so no turn of this process
 // goes into it meanwhile, and handed back once the record says it ended; a program gone is a turn gone. A
 // cancellation of its run cuts it short with its surface's interrupt, as the door carrying a live turn
-// does, and the record's end of it is handed back as any other.
-async fn attach(ground: &Ground, place: Place, turn: InFlight) {
-  let _held = hold(agent_lock_path(&ground.roots.data, &turn.agent)).await;
+// does, and the record's end of it is handed back as any other. A thrown-away session's place it was
+// carried in is ended once the end is handed back, its session ending with its turn.
+async fn attach(ground: &Ground, name: &str, place: Place, turn: InFlight) {
+  {
+    let _held = hold(agent_lock_path(&ground.roots.data, name)).await;
+
+    waited(ground, &place, &turn).await;
+  }
+
+  if crate::apart_places::is_apart_place(&ground.roots.data, name) {
+    crate::apart_places::end(ground, name).await;
+  }
+}
+
+// An adopted turn waited on until its end is handed back.
+async fn waited(ground: &Ground, place: &Place, turn: &InFlight) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
   let mut cut = false;
 
-  for row in open_rows(ground, &turn.run).await {
-    publish_envelope(&ground.roots.data, row.id(), None);
-  }
+  own_rows(ground, &turn.run).await;
 
   loop {
-    match standing(&place, &turn) {
-      Standing::Ended(came) => return hand_back(ground, &place, &turn, came).await,
-      Standing::Lost => return hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned())).await,
+    match standing(place, turn) {
+      Standing::Ended(came) => return hand_back(ground, place, turn, came).await,
+      Standing::Lost => return hand_back(ground, place, turn, Came::Failed(LOST.to_owned())).await,
       Standing::Going => {}
     }
 
@@ -223,7 +260,7 @@ async fn attach(ground: &Ground, place: Place, turn: InFlight) {
     unseen = if place.program_alive().is_some() { 0 } else { unseen + 1 };
 
     if unseen >= RESIDENT_TURN.gone_looks {
-      return hand_back(ground, &place, &turn, Came::Failed(GONE.to_owned())).await;
+      return hand_back(ground, place, turn, Came::Failed(GONE.to_owned())).await;
     }
 
     tokio::time::sleep(every).await;
