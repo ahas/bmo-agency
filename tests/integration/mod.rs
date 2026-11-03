@@ -4,7 +4,7 @@
 //! modules share the process; a test that sets what stands for the whole of it runs alone in a process of
 //! its own (`common::alone`).
 
-mod common;
+pub(crate) mod common;
 
 mod agent_status_verb;
 mod claude_logins;

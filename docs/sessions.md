@@ -44,7 +44,11 @@ statements below about either are kept for a rollback to the road a deployment l
   is picked up again, not lost:
   - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
-    agent, the room, the chat turn's run in the ledger and the job;
+    agent, the room, the chat turn's run in the ledger and the job. Every turn agency carries is sent
+    through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
+    gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a delegation's,
+    a supervisor's double's and a research run's among them. A turn stops being kept only once its end
+    has reached its caller, or the pickup or the pass below has handed its end back;
   - a server that starts reads each turn the process before it left there, before it reads anything else
     that process left, in the place of the pane program that carries it — the agent's place, or, for a
     turn of a role's thrown-away session (a job's or a supervisor's double's among them), the place of
@@ -266,10 +270,13 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## A turn whose program dies
 
-- **A turn whose program is gone is closed by the queue's pass.** Every kept turn is read against the
-  execution rows its run put in; where a row's recorded pid and birth are gone and the run has no end,
-  the pass closes the run with the moment and a reason naming the room, run, pid and that it died
-  silent, and hands its end back as a finished turn does. The room's one turn is freed, so the next
+- **A turn whose program is gone is closed by the queue's pass.** Every kept turn is read in the place
+  whose program carries it — the agent's, or the place of the thrown-away session it went on — and only
+  where that place's run is the turn's own; a place whose run is another's, an earlier turn of the agent's
+  own place among them, says nothing of it. A turn whose run there has ended is no longer kept. Otherwise
+  it is read against the execution rows its run put in; where a row's recorded pid and birth are gone and
+  the run has no end, the pass closes the run with the moment and a reason naming the room, run, pid and
+  that it died silent, and hands its end back as a finished turn does. The room's one turn is freed, so the next
   instruction opens at once and the words the dead turn did not answer come to that next turn.
 - **No replacement session is started where a pane is kept:** the pane is left as it stands, and the
   next turn opens the session it needs.

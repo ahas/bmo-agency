@@ -509,13 +509,19 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
 
 /// A turn whose program died with its run still open: closed with the moment and the reason, as the
 /// program's own end would close it, so the room's turn is free and the words it did not answer wait for
-/// the next turn. A pane that is still standing but whose turn's collector is gone is left alone.
+/// the next turn. A pane that is still standing but whose turn's collector is gone is left alone. Each turn
+/// is read in the place its program carries it in, and only where that place's run is the turn's: the run
+/// of another turn, an earlier one in the agent's own place among them, says nothing of this one.
 pub async fn reap_dead(ground: &Ground) -> usize {
   let mut closed = 0;
 
   for turn in in_flight(&ground.db).await.unwrap_or_default() {
-    let place = Place::of(&ground.roots.data, &turn.agent);
-    let Some(run) = crate::door::place_run::read_run(&place.path) else { continue };
+    let place = Place::of(&ground.roots.data, &place_name_of(&turn));
+    let Some(run) = crate::door::place_run::read_run(&place.path)
+      .filter(|run| run.name.as_deref() == Some(turn.run.as_str()))
+    else {
+      continue;
+    };
 
     if run.ended_at.is_some() {
       forget(&ground.db, &turn.run).await;

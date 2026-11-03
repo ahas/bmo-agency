@@ -6,7 +6,9 @@
 //! turn on a thrown-away session is read from that session's place, which the sweep at start keeps while the
 //! turn goes on and which is ended with the turn, while a job's turn no record names is reaped as before; a
 //! turn on a Claude Code pane, which keeps no record of agency's, is read from the place's run, the hooks'
-//! calls and the session's transcript, a job's and a supervisor's double's alike.
+//! calls and the session's transcript, a job's and a supervisor's double's alike; and a job's turn sent on
+//! a thrown-away session is kept in flight while it goes, whatever run the worker's own place holds, so the
+//! start after its process went away adopts the job from the row its launch wrote.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -880,4 +882,201 @@ async fn a_supervisor_s_double_s_turn_on_a_claude_code_pane_is_adopted_and_its_e
 
   let _ = program.kill();
   let _ = program.wait();
+}
+
+// A job's turn's work parts as the job line names them, under the job's run name.
+fn job_work(cwd: &str, run: &str) -> agent_session::WorkParts {
+  agent_session::WorkParts {
+    provider: "claude-code".into(),
+    model: "claude-sonnet-5".into(),
+    mapping: agent_session::Mapping {
+      model: "claude-sonnet-5".into(),
+      effort: None,
+      tier: None,
+      answer_tokens: None,
+    },
+    resume: agent_session::Resume::Fresh,
+    cwd: cwd.into(),
+    name: run.into(),
+    title: "a job".into(),
+    chat: 0,
+    unit: None,
+    user: None,
+    work_key: "worker".into(),
+    hears_words: false,
+    variables: Default::default(),
+  }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts_the_row_its_launch_wrote()
+{
+  use agency_server::herdr_backend::HerdrSessions;
+  use agency_server::places::Places;
+  use agent_session::{Apart, JobMark, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+
+  use crate::integration::common;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let line = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&line, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker", "/checkouts/worker", &[]).await;
+
+  let config = home.path().join("config");
+
+  std::fs::create_dir_all(config.join("herdr")).unwrap();
+
+  let herdr = common::herdr::HerdrModel::stand(config.join("herdr").join("herdr.sock"));
+  let at = |path: &std::path::Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("XDG_CONFIG_HOME".to_owned(), at(&config)),
+      ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
+  let places = Places::new(
+    Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr.socket.clone()))),
+    Arc::default(),
+  );
+  let ground = places.ground.clone();
+  let sessions = Arc::new(HerdrSessions::new(places));
+
+  // The worker's own place holds the run of an earlier job, long ended, which says nothing of a turn on a
+  // thrown-away session.
+  agency_server::door::place_run::begin_run(
+    &Place::of(&ground.roots.data, "worker").path,
+    "job-70",
+    "an earlier job",
+    now_ms() - 3_600_000,
+    Default::default(),
+  )
+  .unwrap();
+  agency_server::door::place_run::end_run(
+    &Place::of(&ground.roots.data, "worker").path,
+    now_ms() - 3_000_000,
+  )
+  .unwrap();
+
+  // A job's turn as the job line sends it, on a thrown-away session of its role, on the provider named.
+  let turn_of = async |job: i64, provider: &str| {
+    let started = sessions
+      .start(Start {
+        agent: "worker".into(),
+        scope: Scope::Apart(Apart {
+          provider: provider.into(),
+          model: "claude-sonnet-5".into(),
+          cwd: at(home.path()),
+          role: Some("worker".into()),
+          ..Apart::default()
+        }),
+      })
+      .await
+      .unwrap();
+    let mut work = job_work(&at(home.path()), &format!("job-{job}"));
+
+    work.provider = provider.into();
+
+    let turn = Turn {
+      session: started.id.clone(),
+      prompt: "work".into(),
+      context: TurnContext {
+        job: Some(JobMark { job, item: Some(1) }),
+        work: Some(work),
+        ..TurnContext::default()
+      },
+    };
+
+    (started.id, turn)
+  };
+
+  // A job's turn that ends: kept while it went, as its start's event says, and no longer kept once ended.
+  let mut begun = ground.events.subscribe::<agency_server::herdr_backend::TurnStarted>();
+  let (ended_session, turn) = turn_of(79, "codex").await;
+  let ended = tokio::time::timeout(std::time::Duration::from_secs(20), sessions.send_turn(turn)).await;
+
+  assert!(ended.is_ok(), "the turn on a road that answers nothing ends");
+  sessions.end(&ended_session).await.unwrap();
+  assert_eq!(begun.ready().map(|started| started.run).as_deref(), Some("job-79"), "it went out");
+  assert!(!kept_now(&scratch, "job-79").await, "a turn that ended is no longer kept");
+
+  // A job's turn that goes on: its row stands under its run with the job, the session and no room, and the
+  // queue's pass leaves it there although the worker's own place holds another run.
+  running_job(&scratch, 78, now_ms() - 20 * 60 * 1000).await;
+
+  let held = job_slot(&ground, 78, true).await;
+  let (session, turn) = turn_of(78, "claude-code").await;
+  let sending = sessions.clone();
+  let going = tokio::spawn(async move { sending.send_turn(turn).await });
+
+  for _ in 0..200 {
+    if sessions.turn_run(&session).is_some() || going.is_finished() {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+  }
+
+  assert!(!going.is_finished(), "the job's turn goes on");
+
+  let kept = in_flight_turns(&scratch).await;
+  let row = kept.iter().find(|turn| turn.run == "job-78").expect("the job's turn is kept in flight");
+
+  assert_eq!((row.job, row.chat_id, row.session.as_str()), (Some(78), None, session.0.as_str()));
+  assert_eq!(row.agent, "worker");
+  assert_eq!(reap_dead(&ground).await, 0);
+  assert!(kept_now(&scratch, "job-78").await, "the queue's pass leaves a running job's turn kept");
+
+  // The process carrying it goes away under it, leaving the row its launch wrote; the next start adopts the
+  // job from that row, its session's place standing as a Claude Code pane's with the turn going.
+  going.abort();
+  let _ = going.await;
+
+  let left = in_flight_turns(&scratch).await;
+  let row = left
+    .iter()
+    .find(|turn| turn.run == "job-78")
+    .expect("the launch's row outlives its process");
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+  let name = place_name_of(row);
+
+  agency_server::apart_places::mark(&ground, &name, &SessionId(row.session.clone())).unwrap();
+
+  let place = Place::of(&ground.roots.data, &name);
+  let (transcript, payload) = claude_code_turn(&place, "job-78", now_ms() - 60_000, program.id());
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 0, "the adopted place is kept");
+  assert!(agency_server::apart_places::is_apart_place(&ground.roots.data, &name));
+  assert_eq!(reap_stale(&ground).await.unwrap(), 0);
+  assert_eq!(job_state(&scratch, 78).await.0, "running", "the job goes on across the start");
+  assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  claude_code_answers(&place, &transcript, &payload, "The relaunched job's report.");
+
+  for _ in 0..80 {
+    if job_state(&scratch, 78).await.0 != "running" {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  assert_eq!(
+    job_state(&scratch, 78).await,
+    ("ended".to_owned(), Some("The relaunched job's report.".to_owned()))
+  );
+  assert!(!kept_now(&scratch, "job-78").await);
+
+  let _ = program.kill();
+  let _ = program.wait();
+}
+
+async fn kept_now(scratch: &Scratch, run: &str) -> bool {
+  agency_server::turn_pickup::kept(scratch.db(), run).await
 }
