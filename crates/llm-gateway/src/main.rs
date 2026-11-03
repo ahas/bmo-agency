@@ -188,6 +188,11 @@ async fn main() -> ExitCode {
       .filter(|ms| *ms > 0)
       .unwrap_or(5_000),
   );
+  // How long a streamed answer may stay silent: the policy's span, unless a check names a shorter one.
+  let stall = named("LLM_GATEWAY_STALL_MS")
+    .and_then(|ms| ms.parse().ok())
+    .filter(|ms| *ms > 0)
+    .map_or(Duration::from_secs(policy::gateway::GATEWAY.stall_seconds), Duration::from_millis);
 
   // Its own key is the only door every request passes, so without it the gateway does not stand at all.
   // It is read once here: the key the front checks and the one each child is handed.
@@ -214,7 +219,7 @@ async fn main() -> ExitCode {
   // The door asks the master for the cards of the requests on an engine standing nowhere; a demand a
   // launcher that ended left under its reference is given back first.
   let door = master.clone().map(Door::new);
-  let front = Front::new(gateway_key, door, {
+  let front = Front::new(gateway_key, door, stall, {
     let path = status_path.clone();
     move |status| write_status(&path, status)
   });
@@ -226,6 +231,7 @@ async fn main() -> ExitCode {
     }
   };
   let port = listener.local_addr().map_or(port, |at| at.port());
+  println!("llm-gateway: a streamed answer silent for {}ms is cut", stall.as_millis());
   println!("llm-gateway: serving on http://127.0.0.1:{port}");
   write_status(&status_path, &front.status());
 

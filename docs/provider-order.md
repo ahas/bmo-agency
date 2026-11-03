@@ -93,11 +93,13 @@ quota is read is `docs/usage-windows.md`.
   failed request says so itself — Claude Code through its `StopFailure` hook, with the error's kind — and
   the turn ends `errored` on it at once (`docs/agent-control.md`, 「Telling that a turn's program is
   gone」). The failure reading reads it as the provider's where the provider could not answer: a server
-  error (a 5xx status, the kinds `server_error` and `overloaded`), the connection to the provider or the
-  model gateway refused, too many requests or a spent window (a 429, `rate_limit`), and a refused
-  credential or balance (a 401 or 402, `authentication_failed`, `billing_error`). The model gateway refusing
-  connections while it restarts with a deploy is such a failure like any other: the run moves, and the
-  provider takes the next run once it answers again.
+  error (a 5xx status, the kinds `server_error` and `overloaded`, under which Claude Code reports a
+  connection lost — the model gateway's cut of a streamed answer whose bytes have stopped among them,
+  `docs/own-llm.md`, 「The gateway」), the connection to the provider or the model gateway refused, too
+  many requests or a spent window (a 429, `rate_limit`), and a refused credential or balance (a 401 or 402,
+  `authentication_failed`, `billing_error`). The model gateway refusing connections while it restarts with
+  a deploy is such a failure like any other: the run moves, and the provider takes the next run once it
+  answers again.
 - **A request the provider refused for its shape is the work's own** and moves nothing: a 400, 413 or 422,
   the kinds `invalid_request` and `max_output_tokens`. The run ends failed with that error.
 - **A job moved this way is the same job:** launched again on the next provider, with the same item and

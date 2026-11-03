@@ -1,0 +1,4 @@
+# The model gateway's front (docs/own-llm.md, 「The gateway」, 「A streamed answer whose bytes stop is cut」):
+# how long a streamed answer may send no byte, from its headers on, before the front cuts it as broken. It
+# outlasts a reasoning model's silent prefix at a long prompt, since the engines stream their reasoning.
+stall_seconds = 180

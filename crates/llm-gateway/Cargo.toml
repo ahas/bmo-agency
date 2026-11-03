@@ -20,6 +20,7 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 libc.workspace = true
+policy = { path = "../policy" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

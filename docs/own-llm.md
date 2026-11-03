@@ -455,11 +455,14 @@ never the model's name.
 - **The launcher is the front:** it listens on the gateway's loopback port itself and streams every
   request through to the child it serves from, and every answer back, as they stand. Of a request on the
   chat completions path or the Messages route it reads the model the body names, and nothing else; of an
-  answer it reads nothing. It counts the requests in hand through each child.
+  answer it reads only whether it is streamed, by its content type `text/event-stream`. It counts the
+  requests in hand through each child.
   - The hop-by-hop headers are not handed on either way, a request asks for its answer unencoded, and an
     answer's content-encoding is not handed back.
   - Before any table stands it answers `503`, and where the child cannot be reached `502`, each with a
     line saying so.
+  - A streamed answer whose bytes have stopped for the stall span is cut (「A streamed answer whose bytes
+    stop is cut」 below).
   - A caller that leaves closes the front's connection to the child and its place among the requests in
     hand; LiteLLM still holds the node until the node has answered.
 - **A request on an engine standing nowhere asks for its card,** as a translation's request does (「An
@@ -502,7 +505,8 @@ never the model's name.
   registration's model, and sends `enable_thinking` off in `chat_template_kwargs` where a request names
   nothing. No entry holds a wait (「No request is given up on a clock」 below).
 - **No request is given up on a clock.** A request is waited for until its backend answers or its
-  connection is refused or broken.
+  connection is refused or broken, and a streamed answer that has sent no byte for the stall span counts
+  as broken (the one exception, below).
   - A node sends nothing, not even its response headers, until it has read the whole prompt, so a long
     prompt is most of an hour of silence.
   - LiteLLM has no value that means no wait — an entry naming none falls to the proxy-wide default, and
@@ -511,6 +515,27 @@ never the model's name.
     the table sets none, and no entry names one.
   - The gateway does not pass on a caller that leaves: a request whose caller has gone goes on holding
     the backend, a node's card among them, until the backend has answered it.
+- **A streamed answer whose bytes stop is cut.** The owner decided that a stream whose bytes have
+  stopped counts as broken, and this is the one judgement of time the platform makes on a request. It
+  judges whether the peer is alive, not how long the work may take: a stream that has stopped sending will
+  never answer, and a backend that answered `200` and then sent nothing, its connection kept alive, would
+  otherwise hold the turn with no event to end on.
+  - What is watched: an answer the child streams, told by its content type `text/event-stream`, from its
+    headers on — the wait for its first byte and every gap between two bytes. The wait for the headers is
+    not watched, since a node sends none until it has read the whole prompt. A non-streamed answer has no
+    bytes to watch and ends with its body, and a request waiting at the door for its card is not a stream
+    and keeps no clock.
+  - The stall span: `stall_seconds` in the gateway's policy part, `policy/gateway.toml`, 180 seconds. It
+    outlasts a reasoning model's silent prefix at a long prompt: the deployment's engines stream their
+    reasoning tokens and DeepSeek streams its `reasoning_content`, so a stream silent that long has
+    stalled. A check that stands a launcher of its own may name a shorter span in the launcher's
+    environment, `LLM_GATEWAY_STALL_MS`, in milliseconds.
+  - What is done: the front ends the caller's answer with an error in the middle of its body, which the
+    caller reads as a broken connection — Claude Code retries it, and once its retries are spent reports
+    it as a server error, a failure of the provider (`docs/provider-order.md`, 「Falling over and coming
+    back」) — and closes its connection to the child, which ends LiteLLM's stream of that answer and its
+    request to the backend. It writes one line naming the model, the child by its table and port, and how
+    long the stream was silent.
 - **What holds for every entry:**
   - An OpenAI-compatible backend is asked at its chat completions path; left to itself the gateway asks
     the Responses API, which an engine's front may answer with a 404.
@@ -1047,3 +1072,7 @@ never the model's name.
   tools (Claude Code on a registered model) is waited for until it answers or its connection is refused or
   broken, or its caller interrupts it: agency keeps no wait, no table of them and no default to fall back
   to.
+- **The one exception is a stream whose bytes have stopped.** The gateway cuts a streamed answer that has
+  sent no byte for its stall span, as the owner decided, since a stream that has stopped sending will
+  never answer: a judgement that the peer is alive, not a bound on the work (「The gateway」, 「A streamed
+  answer whose bytes stop is cut」).

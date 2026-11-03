@@ -11,6 +11,7 @@ mod control_words;
 mod deployment;
 mod door_words;
 mod gate_places;
+mod gateway;
 mod handoff;
 mod job_notices;
 mod keepalive;

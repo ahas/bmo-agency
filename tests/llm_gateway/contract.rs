@@ -27,9 +27,11 @@ const GATEWAY_KEY: &str = "gateway-key-0123456789";
 
 // LiteLLM, standing in: started as the gateway starts it, it writes down its table, port, arguments
 // and environment; answers its liveliness path; answers a chat request naming a model its table holds
-// no entry for 400, as LiteLLM does; echoes every other request; holds `/held` open until the test lets
-// it go; ends at `/die`; and writes down its stop. A `fail-start` file beside it makes it end before it
-// answers.
+// no entry for 400, as LiteLLM does; streams a chat request carrying `x-standin-stream` back as events,
+// `x-standin-count` of them `x-standin-gap` milliseconds apart, ending the stream where it names `whole` and
+// holding it open with nothing more where it names `stall`, and writes down its caller going; echoes every
+// other request; holds `/held` open until the test lets it go; ends at `/die`; and writes down its stop. A
+// `fail-start` file beside it makes it end before it answers.
 const STANDIN: &str = r#"
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -79,12 +81,82 @@ Bun.serve({
         );
       }
     }
+    const stream = request.headers.get("x-standin-stream");
+    if (stream) {
+      const gap = Number(request.headers.get("x-standin-gap") ?? 0);
+      const count = Number(request.headers.get("x-standin-count") ?? 0);
+      let ended = false;
+      const gone = () => {
+        if (!ended) {
+          ended = true;
+          log({ event: "cancelled", stream });
+        }
+      };
+      request.signal.addEventListener("abort", gone);
+      return new Response(new ReadableStream({
+        async start(controller) {
+          for (let at = 0; at < count; at++) {
+            if (at > 0) await Bun.sleep(gap);
+            controller.enqueue(new TextEncoder().encode(`data: ${at}\n\n`));
+          }
+          if (stream === "whole") {
+            ended = true;
+            controller.close();
+          }
+        },
+        cancel: gone,
+      }), { headers: { "content-type": "text/event-stream; charset=utf-8", "x-standin": table } });
+    }
     return Response.json(
       { table, method: request.method, path: url.pathname, search: url.search, headers: Object.fromEntries(request.headers), body },
       { status: Number(request.headers.get("x-standin-status") ?? 200), headers: { "x-standin": table, "content-encoding": "identity" } },
     );
   },
 });
+"#;
+
+// A child, standing in, whose every chat request is answered `200` with a stream's headers and then
+// nothing, its connection held open; it answers its liveliness path, and writes down its caller going.
+const SILENT: &str = r#"
+import json, os, select, sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+args = sys.argv[1:]
+port = int(args[args.index("--port") + 1])
+log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "children.log")
+
+def log(entry):
+    with open(log_path, "a") as log_file:
+        log_file.write(json.dumps(entry) + "\n")
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *_):
+        pass
+
+    def do_GET(self):
+        body = b"I'm alive!"
+        self.send_response(200)
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("content-length", 0)))
+        self.send_response(200)
+        self.send_header("content-type", "text/event-stream")
+        self.send_header("transfer-encoding", "chunked")
+        self.end_headers()
+        self.wfile.flush()
+        while True:
+            readable, _, _ = select.select([self.connection], [], [], 60)
+            if readable and not self.connection.recv(1):
+                log({"event": "cancelled", "stream": "silent"})
+                return
+
+log({"event": "started"})
+ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
 "#;
 
 // A registration served by two nodes.
@@ -125,6 +197,8 @@ struct World {
   port: u16,
   /// The arbiter's master the gateway is pointed at, where the test stands one.
   master: Option<String>,
+  /// The stall span the gateway is told in place of its policy's, in milliseconds, where the test names one.
+  stall_ms: Option<u64>,
 }
 
 impl World {
@@ -150,6 +224,7 @@ impl World {
       gateway: None,
       port: 0,
       master: None,
+      stall_ms: None,
     };
     world.write(registry).await;
     world
@@ -158,6 +233,22 @@ impl World {
   /// The world with LiteLLM itself in place of the stand-in, found as the gateway's unit finds it.
   fn on_litellm(self) -> World {
     std::fs::remove_file(self.root().join("bin/litellm")).unwrap();
+    self
+  }
+
+  /// The world with a child that answers every chat request with a stream's headers and nothing after
+  /// them, which Bun cannot stand in for: it holds a stream's headers back until its first byte.
+  fn with_silent_child(self) -> World {
+    std::fs::write(self.root().join("bin/silent.py"), SILENT).unwrap();
+    let wrapper =
+      format!("#!/bin/sh\nexec python3 -I {} \"$@\"\n", self.root().join("bin/silent.py").display());
+    private(&self.root().join("bin/litellm"), &wrapper, 0o755);
+    self
+  }
+
+  /// The world with a gateway that cuts a streamed answer silent for `ms` milliseconds.
+  fn stalling_after(mut self, ms: u64) -> World {
+    self.stall_ms = Some(ms);
     self
   }
 
@@ -192,6 +283,10 @@ impl World {
     command.env_remove("AGENCY_ARBITER_URL").env_remove("AGENCY_ARBITER_TOKEN_FILE");
     if let Some(master) = &self.master {
       command.env("AGENCY_ARBITER_URL", master);
+    }
+    command.env_remove("LLM_GATEWAY_STALL_MS");
+    if let Some(ms) = self.stall_ms {
+      command.env("LLM_GATEWAY_STALL_MS", ms.to_string());
     }
     command
       .args(["--port", &self.port.to_string()])
@@ -962,4 +1057,213 @@ async fn the_demands_a_launcher_left_under_the_doors_reference_are_given_back_as
   until("the door's left demand to be given back", || master.lock().unwrap().given_back == [7]).await;
   tokio::time::sleep(Duration::from_millis(300)).await;
   assert_eq!(master.lock().unwrap().given_back, [7], "a demand of another holder was given back");
+}
+
+// The span a stall test's gateway is given.
+const STALL_MS: u64 = 600;
+
+// A streamed chat request to the stand-in: `count` events `gap` milliseconds apart, the stream ended or held.
+async fn stream_of(world: &World, stream: &str, count: u32, gap: u64) -> hyper::Response<Incoming> {
+  let (count, gap) = (count.to_string(), gap.to_string());
+  world
+    .open(
+      "POST",
+      "/v1/chat/completions",
+      &[
+        ("content-type", "application/json"),
+        ("x-standin-stream", stream),
+        ("x-standin-count", &count),
+        ("x-standin-gap", &gap),
+      ],
+      r#"{"model":"pair-0-1","stream":true}"#,
+    )
+    .await
+}
+
+// The lines the gateway wrote of a stream it cut.
+fn cut_lines(world: &World) -> Vec<String> {
+  world
+    .said()
+    .lines()
+    .filter(|line| line.contains("was cut"))
+    .map(str::to_owned)
+    .collect()
+}
+
+#[tokio::test]
+async fn the_stall_span_is_read_from_the_policy() {
+  let world = World::new(PAIR).await.start().await;
+  let span = policy::gateway::GATEWAY.stall_seconds * 1000;
+  assert!(
+    world
+      .said()
+      .contains(&format!("llm-gateway: a streamed answer silent for {span}ms is cut")),
+    "{}",
+    world.said()
+  );
+}
+
+#[tokio::test]
+async fn a_stream_that_keeps_sending_is_relayed_whole_however_long_it_takes() {
+  let world = World::new(PAIR).await.stalling_after(STALL_MS).start().await;
+  world.serving(None).await;
+
+  // Six events half a span apart: the stream outlasts the span many times and is never silent for it.
+  let started = Instant::now();
+  let (status, headers, body) = read_whole(stream_of(&world, "whole", 6, STALL_MS / 2).await).await;
+  assert_eq!(status, 200);
+  assert!(started.elapsed() > Duration::from_millis(STALL_MS * 2));
+  assert!(headers["content-type"].to_str().unwrap().starts_with("text/event-stream"));
+  assert_eq!(body, (0..6).map(|at| format!("data: {at}\n\n")).collect::<String>());
+  assert!(cut_lines(&world).is_empty(), "{}", world.said());
+}
+
+#[tokio::test]
+async fn a_stream_silent_for_the_span_is_cut_and_its_child_let_go() {
+  let world = World::new(PAIR).await.stalling_after(STALL_MS).start().await;
+  let table = world.serving(None).await;
+
+  let answer = stream_of(&world, "stall", 1, 0).await;
+  assert_eq!(answer.status(), 200);
+  let mut body = answer.into_body();
+  let first = body.frame().await.unwrap().unwrap().into_data().unwrap();
+  assert_eq!(first, "data: 0\n\n".as_bytes());
+
+  // The caller's stream ends with an error, as a broken connection does.
+  let cut = tokio::time::timeout(Duration::from_secs(10), async {
+    loop {
+      match body.frame().await {
+        Some(Ok(_)) => continue,
+        Some(Err(_)) => return true,
+        None => return false,
+      }
+    }
+  })
+  .await
+  .expect("the stalled stream was never cut");
+  assert!(cut, "the stalled stream ended as if whole");
+
+  until("the child to see its caller go", || {
+    world.events("cancelled").iter().any(|entry| entry["stream"] == "stall")
+  })
+  .await;
+  let lines = cut_lines(&world);
+  assert_eq!(lines.len(), 1, "{}", world.said());
+  assert!(lines[0].contains("model pair-0-1"), "{}", lines[0]);
+  assert!(lines[0].contains(&format!("table {table}")), "{}", lines[0]);
+  assert!(lines[0].contains("sent no byte for 0.6s"), "{}", lines[0]);
+
+  // The request is no longer in hand: a new table stops the old child at once.
+  world.write(SINGLE).await;
+  world.serving(Some(&table)).await;
+  until("the old child to be stopped", || {
+    world.events("stopped").iter().any(|entry| entry["table"] == table.as_str())
+  })
+  .await;
+}
+
+#[tokio::test]
+async fn an_answer_of_headers_alone_is_cut_by_the_same_span() {
+  let world = World::new(PAIR).await.with_silent_child().stalling_after(STALL_MS).start().await;
+  world.serving(None).await;
+
+  let answer = stream_of(&world, "silent", 0, 0).await;
+  assert_eq!(answer.status(), 200);
+  assert_eq!(answer.headers()["content-type"], "text/event-stream");
+  let read = tokio::time::timeout(Duration::from_secs(10), answer.into_body().collect())
+    .await
+    .expect("the silent stream was never cut");
+  assert!(read.is_err(), "the silent stream ended as if whole");
+  until("the child to see its caller go", || !world.events("cancelled").is_empty()).await;
+  assert_eq!(cut_lines(&world).len(), 1, "{}", world.said());
+}
+
+#[tokio::test]
+async fn an_answer_not_streamed_keeps_no_clock() {
+  let world = World::new(PAIR).await.stalling_after(STALL_MS).start().await;
+  let table = world.serving(None).await;
+
+  let held = world.open("GET", "/held", &[], "").await;
+  let mut held = held.into_body();
+  let part = held.frame().await.unwrap().unwrap().into_data().unwrap();
+  assert_eq!(part, format!("{table}-first;").as_bytes());
+  tokio::time::sleep(Duration::from_millis(STALL_MS * 3)).await;
+
+  std::fs::write(world.root().join(format!("release-{table}")), "").unwrap();
+  let rest = held.collect().await.expect("the held answer is carried whole").to_bytes();
+  assert_eq!(rest, format!("{table}-second").as_bytes());
+  assert!(cut_lines(&world).is_empty(), "{}", world.said());
+}
+
+// A backend of the test's own that streams one chunk of an answer and then nothing, its connection held
+// open, and says when its caller has let the stream go.
+async fn stalling_backend() -> (u16, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+  struct Gone(std::sync::Arc<std::sync::atomic::AtomicBool>);
+  impl Drop for Gone {
+    fn drop(&mut self) {
+      self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+  }
+  let gone = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+  let told = gone.clone();
+  let app = axum::Router::new().route(
+    "/v1/chat/completions",
+    axum::routing::post(move || {
+      let guard = Gone(told.clone());
+      async move {
+        let chunk = json!({
+          "id": "chatcmpl-stall",
+          "object": "chat.completion.chunk",
+          "created": 1,
+          "model": "stall-model",
+          "choices": [{ "index": 0, "delta": { "role": "assistant", "content": "thinking" }, "finish_reason": null }],
+        });
+        let first = futures_util::stream::once(async move {
+          Ok::<_, std::convert::Infallible>(Bytes::from(format!("data: {chunk}\n\n")))
+        });
+        let held = futures_util::StreamExt::map(
+          futures_util::StreamExt::chain(first, futures_util::stream::pending()),
+          move |chunk| {
+            let _ = &guard;
+            chunk
+          },
+        );
+        axum::response::Response::builder()
+          .header("content-type", "text/event-stream")
+          .body(axum::body::Body::from_stream(held))
+          .unwrap()
+      }
+    }),
+  );
+  let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  (port, gone)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stalled_stream_cut_at_the_front_lets_go_of_the_backend_through_litellm() {
+  let (port, gone) = stalling_backend().await;
+  let stall = format!(
+    "INSERT INTO registered_models VALUES ('stall', 'Stall', 'stall-model', 32768, 4096, 0, 0, 3, 0);
+     INSERT INTO registered_model_addresses VALUES ('stall', 'local', 1, 'http://127.0.0.1:{port}/v1/chat/completions', NULL, 0, NULL);"
+  );
+  let world = World::new(&stall).await.on_litellm().stalling_after(3_000).start().await;
+  world.serving_within(None, Duration::from_secs(180)).await;
+
+  let answer = world
+    .open(
+      "POST",
+      "/v1/chat/completions",
+      &[("content-type", "application/json")],
+      r#"{"model":"stall","stream":true,"messages":[{"role":"user","content":"Say something."}]}"#,
+    )
+    .await;
+  assert_eq!(answer.status(), 200, "{}", world.said());
+  let read = tokio::time::timeout(Duration::from_secs(60), answer.into_body().collect())
+    .await
+    .expect("the stalled stream was never cut");
+  assert!(read.is_err(), "the stalled stream ended as if whole");
+  assert_eq!(cut_lines(&world).len(), 1, "{}", world.said());
+  until("the backend's stream to be let go", || gone.load(std::sync::atomic::Ordering::SeqCst)).await;
 }

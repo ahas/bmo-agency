@@ -1,8 +1,10 @@
 //! The gateway's front: the one address every run and every gate asks, which checks each request's key
 //! and streams the request through to the LiteLLM child it serves from and each answer back as they
-//! stand, reading of them only the model a chat request names. A new table is a new child: once it
-//! answers, new requests go to it, and the old child is stopped only when the requests in hand through it
-//! have ended, however long they take, so a saved change never cuts a request. A request on a registration
+//! stand, reading of them only the model a chat request names and whether an answer is streamed. A
+//! streamed answer that sends no byte for the stall span is cut as broken (docs/own-llm.md, 「A streamed
+//! answer whose bytes stop is cut」). A new table is a new child: once it answers, new requests go to it,
+//! and the old child is stopped only when the requests in hand through it have ended, however long they
+//! take, so a saved change never cuts a request. A request on a registration
 //! naming a card service whose engine stands nowhere asks the door for its card first, and is sent once
 //! the granted card's entry is served.
 
@@ -11,6 +13,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use axum::Router;
 use axum::body::{Body, Bytes};
@@ -72,6 +75,8 @@ pub struct Front {
   door: Option<Arc<Door>>,
   /// Each registration naming a card service, with the service, as the registry last read says.
   card_services: Mutex<HashMap<String, String>>,
+  /// How long a streamed answer may send no byte before it is cut.
+  stall: Duration,
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
 }
 
@@ -97,6 +102,20 @@ impl Drop for Owned {
     self.0.abort();
   }
 }
+
+// What a streamed answer is told by: its content type.
+const EVENT_STREAM: &str = "text/event-stream";
+
+// Whether an answer's headers say it is streamed.
+fn streamed(headers: &header::HeaderMap) -> bool {
+  headers
+    .get(header::CONTENT_TYPE)
+    .and_then(|kind| kind.to_str().ok())
+    .and_then(|kind| kind.split(';').next())
+    .is_some_and(|essence| essence.trim().eq_ignore_ascii_case(EVENT_STREAM))
+}
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 // A request in hand through one child, let go when the answer ends however it ends.
 struct InHand {
@@ -156,11 +175,12 @@ fn refused() -> Response {
 }
 
 impl Front {
-  /// A front checking every request against the gateway's own key, which is never empty, and asking its
-  /// cards at the door where one is given.
+  /// A front checking every request against the gateway's own key, which is never empty, asking its
+  /// cards at the door where one is given, and cutting a streamed answer silent for `stall`.
   pub fn new(
     key: String,
     door: Option<Arc<Door>>,
+    stall: Duration,
     on_status: impl Fn(&Status) + Send + Sync + 'static,
   ) -> Arc<Front> {
     assert!(!key.is_empty(), "the gateway's key is never empty");
@@ -170,6 +190,7 @@ impl Front {
       taken: watch::channel(0).0,
       door,
       card_services: Mutex::new(HashMap::new()),
+      stall,
       on_status: Box::new(on_status),
     })
   }
@@ -275,26 +296,21 @@ impl Front {
     Some((name.to_owned(), service.clone(), Some(node.to_owned())))
   }
 
-  // A chat request's body read whole, and where it names a registration naming a card service under a
-  // name the table serving now holds no entry for, its card asked at the door and waited for until the
-  // granted card's entry is served. Answered with the body to send, the model renamed where a pinned node
-  // is not the one granted, and the seat the request holds the card by; or with the status and line to
-  // answer where the body does not read or the master refuses the card.
+  // A chat request whose model names a registration naming a card service under a name the table serving
+  // now holds no entry for, its card asked at the door and waited for until the granted card's entry is
+  // served. Answered with the body to send, the model renamed where a pinned node is not the one granted,
+  // and the seat the request holds the card by; or with the status and line to answer where the master
+  // refuses the card.
   async fn carded(
     &self,
     door: &Arc<Door>,
-    body: Body,
+    bytes: Bytes,
+    model: &str,
   ) -> Result<(Bytes, Option<Seat>), (StatusCode, String)> {
-    let bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|fault| {
-      (StatusCode::BAD_REQUEST, format!("the request's body could not be read: {fault}"))
-    })?;
-    let Some(model) = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model) else {
-      return Ok((bytes, None));
-    };
-    if self.serves(&model) != Some(false) {
+    if self.serves(model) != Some(false) {
       return Ok((bytes, None));
     }
-    let Some((registration, service, pinned)) = self.card_registration(&model) else {
+    let Some((registration, service, pinned)) = self.card_registration(model) else {
       return Ok((bytes, None));
     };
 
@@ -320,14 +336,26 @@ impl Front {
     }
     let (parts, body) = request.into_parts();
     let chat = parts.method == Method::POST && CHAT_PATHS.contains(&parts.uri.path());
-    let door = self.door.as_ref().filter(|_| chat && self.stands());
-    let (body, seat) = if let Some(door) = door {
-      match self.carded(door, body).await {
-        Ok((bytes, seat)) => (Body::from(bytes), seat),
-        Err((status, said)) => return text(status, said),
+    // A chat request's body is read whole for the model it names, which a card is asked by and a cut
+    // stream is told by.
+    let (body, model, seat) = if chat {
+      let bytes = match axum::body::to_bytes(body, usize::MAX).await {
+        Ok(bytes) => bytes,
+        Err(fault) => {
+          return text(StatusCode::BAD_REQUEST, format!("the request's body could not be read: {fault}"));
+        }
+      };
+      let model = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model);
+      let door = self.door.as_ref().filter(|_| self.stands());
+      match (door, model.as_deref()) {
+        (Some(door), Some(named)) => match self.carded(door, bytes, named).await {
+          Ok((bytes, seat)) => (Body::from(bytes), model, seat),
+          Err((status, said)) => return text(status, said),
+        },
+        _ => (Body::from(bytes), model, None),
       }
     } else {
-      (body, None)
+      (body, None, None)
     };
     let request = Request::from_parts(parts, body);
     // Counted in hand under the lock the child is taken under, so a take that retires that child in
@@ -345,6 +373,7 @@ impl Front {
       serving: Arc::clone(&serving),
     };
     let port = serving.child.port();
+    let table = serving.table.clone();
 
     let (mut parts, body) = request.into_parts();
     for name in UNPASSED {
@@ -385,13 +414,24 @@ impl Front {
       parts.headers.remove(*name);
     }
     // The request stays in hand, and its connection to the child open, until its answer has been
-    // carried whole or its caller has gone.
+    // carried whole or its caller has gone, or, streamed, has gone silent for the stall span.
     let kept = (in_hand, connection, seat);
-    let streamed = BodyDataStream::new(body).map(move |chunk| {
-      let _ = &kept;
-      chunk
-    });
-    Response::from_parts(parts, Body::from_stream(streamed))
+    if !streamed(&parts.headers) {
+      let carried = BodyDataStream::new(body).map(move |chunk| {
+        let _ = &kept;
+        chunk
+      });
+      return Response::from_parts(parts, Body::from_stream(carried));
+    }
+    let watched = Watched {
+      body: BodyDataStream::new(body),
+      kept: Some(Box::new(kept)),
+      stall: self.stall,
+      model: model.unwrap_or_else(|| "(none named)".to_owned()),
+      table,
+      port,
+    };
+    Response::from_parts(parts, Body::from_stream(watched.relay()))
   }
 
   /// Every child stopped, the one serving and the ones draining.
@@ -419,6 +459,46 @@ impl Front {
     }
     serving.child.stop().await;
     self.report();
+  }
+}
+
+// A streamed answer carried back while its bytes are watched: from its headers on, a wait of the stall
+// span with no byte ends it with an error the caller reads as a broken connection, and lets go of what the
+// request held, its connection to the child first.
+struct Watched {
+  body: BodyDataStream<hyper::body::Incoming>,
+  kept: Option<Box<dyn Send>>,
+  stall: Duration,
+  model: String,
+  table: String,
+  port: u16,
+}
+
+impl Watched {
+  fn relay(self) -> impl futures_util::Stream<Item = Result<Bytes, BoxError>> + Send {
+    futures_util::stream::unfold((self, Instant::now()), |(mut watched, last)| async move {
+      watched.kept.as_ref()?;
+      match tokio::time::timeout(watched.stall, watched.body.next()).await {
+        Ok(Some(chunk)) => Some((chunk.map_err(BoxError::from), (watched, Instant::now()))),
+        Ok(None) => None,
+        Err(_) => {
+          let silent = last.elapsed();
+          watched.kept = None;
+          eprintln!(
+            "llm-gateway: model {} from table {} (port {}) sent no byte for {:.1}s; its stream was cut",
+            watched.model,
+            watched.table,
+            watched.port,
+            silent.as_secs_f64()
+          );
+          let cut = std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("the answer sent no byte for {:.1}s", silent.as_secs_f64()),
+          );
+          Some((Err(BoxError::from(cut)), (watched, last)))
+        }
+      }
+    })
   }
 }
 
