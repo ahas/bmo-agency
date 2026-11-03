@@ -117,6 +117,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, supervisor: &Speaker, 
     &supervisor.name,
     Some(&due.session),
     &mut log,
+    None,
   )
   .await
   {

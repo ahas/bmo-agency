@@ -273,11 +273,15 @@ never the model's name.
   `<name>@<node>`, once the gateway serves it, an engine the grant started being taken into the gateway's
   table on the launcher's next beat. A program standing with nothing put in, a supervisor's between its
   turns, names the registration alone.
-- **A run waits for its grant however long it takes,** its answer saying why — the engine starting, every
-  card in use, a bench or a claim. A supervisor's turn waits as it waits for an engine a
-  job holds (`docs/supervisors.md`, 「The engine it shares」), the room shown the reason; a role's run
-  waits for its grant as it waits for its slot (`docs/role-slots.md`, 「On a registration the arbiter
-  stands」). Agency adds no clock to that wait. A stop ends it: a run whose cancellation stands over its
+- **A run waits for its grant however long it takes,** the master's answer saying why — the engine
+  starting, every card in use, a bench or a claim. Each reason is written into the run's log as it changes,
+  and the turn the run goes out for carries the wait as its typed state: its `waiting`, a card wait of the
+  card service with the master's reason, on the turn's read and in `turn.changed` as it begins, changes and
+  clears on the grant (`docs/api.md`, 「sessions」), so the receiver shows it on the room's working line. A
+  supervisor's turn waits so as it waits for an engine a job holds (`docs/supervisors.md`, 「The engine it
+  shares」); a job's turn waits so as its job's `heldFor`, told to the item's orderer once
+  (`docs/api.md`, 「assignments and jobs」); a role's run waits for its grant as it waits for its slot
+  (`docs/role-slots.md`, 「On a registration the arbiter stands」). Agency adds no clock to that wait. A stop ends it: a run whose cancellation stands over its
   name — the interrupt of the turn it goes out for — gives back the demand it asked and goes out on nothing.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
   a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request

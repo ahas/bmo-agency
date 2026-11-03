@@ -9,6 +9,7 @@ pub struct Roads {
   pub logins: Logins,
   pub closed: Closed,
   pub job: Job,
+  pub blocks: Blocks,
 }
 
 /// Why a provider cannot answer now.
@@ -70,6 +71,22 @@ pub struct Job {
   pub road: String,
   /// How often a job waiting for a road asks again, in seconds.
   pub wait_seconds: u64,
+}
+
+/// How long a road a walk left for its provider's failure stays blocked, and the words of its block.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Blocks {
+  /// An outage, in seconds.
+  pub outage_seconds: i64,
+  /// A refused access, in seconds.
+  pub access_seconds: i64,
+  /// A limit whose failure names no reset, in seconds.
+  pub limit_seconds: i64,
+  /// With `{kind}` and `{why}`.
+  pub reason: String,
+  /// With `{until}` and `{reason}`.
+  pub passed: String,
 }
 
 crate::part!(pub ROADS: Roads = "roads.toml");

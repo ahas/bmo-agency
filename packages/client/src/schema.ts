@@ -1888,12 +1888,37 @@ export interface components {
             reason: string | null;
             answer: string | null;
             text: unknown[];
+            /**
+             * @description What the running turn waits for before its program is put to work; none while nothing holds it back
+             *     and once it has ended.
+             * @default null
+             */
+            waiting: components["schemas"]["TurnWaiting"] | null;
         };
         /**
          * @description One of the values the API accepts.
          * @enum {string}
          */
         TurnState: "running" | "ended" | "interrupted";
+        /** @description TurnWaiting: what a running turn waits for, typed. */
+        TurnWaiting: {
+            /** @description What it waits for: `card`, a card the arbiter's master has not yet granted. */
+            for: components["schemas"]["TurnWaitKind"];
+            /** @description The service whose grant it waits on. */
+            service: string;
+            /** @description Why it waits, as it stands now. */
+            reason: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds: when the wait began
+             */
+            since: number;
+        };
+        /**
+         * @description One of the values the API accepts.
+         * @enum {string}
+         */
+        TurnWaitKind: "card";
         /**
          * @description The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its
          *     own.
@@ -6583,7 +6608,6 @@ export interface operations {
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
             422: components["responses"]["UnknownModel"];
-            503: components["responses"]["NoLoginOpen"];
         };
     };
     readJobsByJobId: {

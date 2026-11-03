@@ -28,6 +28,7 @@ use crate::now_ms;
 use crate::places::Ground;
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
+use crate::session_output::OutputWatch;
 
 // How long a look that found nothing new waits before the next: the master unreached, the gateway not yet
 // serving a card's entry, or an engine not yet answering its health.
@@ -39,6 +40,28 @@ const AGAIN: Duration = Duration::from_secs(1);
 pub struct Ask {
   pub own: Option<i64>,
   pub within: Option<i64>,
+}
+
+/// One reason a run waits for its card, handed on as it changes: the card service it waits on and why, as it
+/// stands now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CardWait {
+  pub service: String,
+  pub reason: String,
+}
+
+impl CardWait {
+  fn of(service: &str, reason: impl Into<String>) -> Self {
+    Self {
+      service: service.to_owned(),
+      reason: reason.into(),
+    }
+  }
+
+  /// The wait as the run's log says it.
+  pub fn sentence(&self) -> String {
+    fill_marks(&CONTROL_WORDS.cards.waiting, &[("service", &self.service), ("why", &self.reason)])
+  }
 }
 
 /// A card a run holds for its turn.
@@ -73,7 +96,7 @@ pub async fn hold(
   work_key: Option<&str>,
   ask: Ask,
   stop: Option<&str>,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<Option<Held>, Refusal> {
   let Some(service) = registration.card_service.clone() else {
     return Ok(None);
@@ -97,7 +120,7 @@ pub async fn hold(
   )
   .await?;
 
-  served(ground, &registration.name, &held.node, waiting).await?;
+  served(ground, &registration.name, &service, &held.node, waiting).await?;
 
   Ok(Some(held))
 }
@@ -362,11 +385,19 @@ async fn ask_for_all(
 
 // A shared card's demand waited on until it is granted, and then until the gateway serves its entry.
 async fn held_for_all(asking: &SharedAsk, demand: Demand, asked: &AtomicI64) -> Result<Held, Refusal> {
-  let mut quiet = |_: &str| {};
+  let mut quiet = |_: &CardWait| {};
   let (demand, card) =
     granted(&asking.db, &asking.master, demand, Some(()), &asking.asking(), asked, &mut quiet).await?;
 
-  served_at(&asking.db, &asking.gateway, &asking.registration, &card.node_name, &mut quiet).await?;
+  served_at(
+    &asking.db,
+    &asking.gateway,
+    &asking.registration,
+    &asking.service,
+    &card.node_name,
+    &mut quiet,
+  )
+  .await?;
 
   Ok(Held {
     demand: demand.id,
@@ -404,8 +435,10 @@ pub async fn hold_shared(
   share(sharing, asking).await.map(Some)
 }
 
-/// A card held for a run whose log says each reason it waits on as it changes, so its room or its watcher
-/// reads why the run has not begun, and whose stop ends the wait; the same as `hold` otherwise.
+/// A card held for a run whose log says each reason it waits on as it changes, and whose turn carries the wait
+/// as its typed state (docs/api.md, 「sessions」, a running turn's wait), so its room or its watcher reads why
+/// the run has not begun; a job's run holds its job for the card meanwhile. The wait clears as the hold
+/// returns, granted or not, and the run's stop ends it; the same as `hold` otherwise.
 pub async fn hold_logged(
   ground: &Ground,
   registration: &Registration,
@@ -413,28 +446,98 @@ pub async fn hold_logged(
   work_key: Option<&str>,
   ask: Ask,
   log: &mut RunLog,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Option<Held>, Refusal> {
-  let (said, mut heard) = tokio::sync::mpsc::unbounded_channel::<String>();
-  let mut waiting = move |why: &str| {
-    let _ = said.send(why.to_owned());
+  let (said, mut heard) = tokio::sync::mpsc::unbounded_channel::<CardWait>();
+  let mut waiting = move |wait: &CardWait| {
+    let _ = said.send(wait.clone());
   };
   let run = log.run().to_owned();
+  let mut told = WaitTold {
+    ground,
+    shown,
+    run: &run,
+    job: log.job(),
+    since: None,
+  };
   let holding = hold(ground, registration, holder, work_key, ask, Some(&run), &mut waiting);
 
   tokio::pin!(holding);
 
-  loop {
+  let held = loop {
     tokio::select! {
       held = &mut holding => break held,
-      Some(why) = heard.recv() => {
-        log.write(&ground.db, Line::note(why)).await;
+      Some(wait) = heard.recv() => {
+        log.write(&ground.db, Line::note(wait.sentence())).await;
+        told.waits(&wait).await;
       }
     }
+  };
+
+  told.cleared().await;
+
+  held
+}
+
+/// A turn's card wait told as it begins, changes and clears: kept as the turn's `waiting` for its read,
+/// published as `turn.changed`, and, for a job's turn, held as its job's `heldFor`, the item's orderer told
+/// once as the wait begins.
+pub struct WaitTold<'a> {
+  pub ground: &'a Ground,
+  /// The turn the wait is of, where the run goes out for one.
+  pub shown: Option<OutputWatch<'a>>,
+  pub run: &'a str,
+  pub job: Option<i64>,
+  /// When the wait began; none while nothing was told.
+  pub since: Option<i64>,
+}
+
+impl WaitTold<'_> {
+  /// The run waits for its card, for the reason given.
+  pub async fn waits(&mut self, wait: &CardWait) {
+    let first = self.since.is_none();
+    let since = *self.since.get_or_insert_with(now_ms);
+
+    self.told(Some(agent_session::Waiting {
+      kind: agent_session::WaitKind::Card,
+      service: wait.service.clone(),
+      reason: wait.reason.clone(),
+      since,
+    }));
+
+    if let Some(job) = self.job {
+      crate::control::work::hold_job(self.ground, job, Some(&wait.sentence()), first).await;
+    }
+  }
+
+  /// The run waits for its card no longer; nothing is told where it never waited.
+  pub async fn cleared(&mut self) {
+    if self.since.take().is_none() {
+      return;
+    }
+
+    self.told(None);
+
+    if let Some(job) = self.job {
+      crate::control::work::hold_job(self.ground, job, None, false).await;
+    }
+  }
+
+  fn told(&self, waiting: Option<agent_session::Waiting>) {
+    let Some(shown) = self.shown else { return };
+
+    shown.waiting(waiting.clone());
+    self.ground.events.publish(crate::herdr_backend::TurnChanged {
+      session: shown.session.0.clone(),
+      turn_id: shown.turn,
+      run: self.run.to_owned(),
+      waiting,
+    });
   }
 }
 
 /// A card held for a run on a provider's model, where the provider is the registry's and the registration
-/// names a card service; none for any other.
+/// names a card service, its wait told as `hold_logged` tells it; none for any other.
 pub async fn hold_for_model(
   ground: &Ground,
   provider: &str,
@@ -442,13 +545,14 @@ pub async fn hold_for_model(
   holder: &str,
   work_key: Option<&str>,
   log: &mut RunLog,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Option<Held>, Refusal> {
   if provider != registry::PROVIDER {
     return Ok(None);
   }
 
   match registry::registration(&ground.db, model).await.map_err(|why| fault(why.error))? {
-    Some(held) => hold_logged(ground, &held, holder, work_key, Ask::default(), log).await,
+    Some(held) => hold_logged(ground, &held, holder, work_key, Ask::default(), log, shown).await,
     None => Ok(None),
   }
 }
@@ -472,7 +576,7 @@ pub async fn hold_on(
   db: &DatabaseConnection,
   master: &Master,
   asking: Asking<'_>,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<Held, Refusal> {
   if let Some(own) = asking.ask.own {
     let demand = loop {
@@ -484,7 +588,7 @@ pub async fn hold_on(
             fill_marks(&CONTROL_WORDS.cards.gone, &[("demand", &own.to_string())]),
           ));
         }
-        Err(_) => unreached(waiting).await,
+        Err(_) => unreached(asking.service, waiting).await,
       }
     };
     let (demand, card) = granted(db, master, demand, None, &asking, &AtomicI64::new(own), waiting).await?;
@@ -527,7 +631,7 @@ async fn ask_kept(
   db: &DatabaseConnection,
   master: &Master,
   asking: &Asking<'_>,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<Demand, Refusal> {
   let ask = DemandAsk {
     service_name: asking.service.to_owned(),
@@ -545,7 +649,7 @@ async fn ask_kept(
           asking.service
         )));
       }
-      Err(_) => unreached(waiting).await,
+      Err(_) => unreached(asking.service, waiting).await,
     }
   };
 
@@ -578,7 +682,7 @@ async fn granted(
   ours: Option<()>,
   asking: &Asking<'_>,
   asked: &AtomicI64,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<(Demand, GrantedCard), Refusal> {
   let mut said: Option<String> = None;
 
@@ -601,7 +705,7 @@ async fn granted(
     }
 
     if let Some(why) = demand.waiting_on().filter(|why| said.as_ref() != Some(why)) {
-      waiting(&fill_marks(&CONTROL_WORDS.cards.waiting, &[("service", asking.service), ("why", &why)]));
+      waiting(&CardWait::of(asking.service, why.clone()));
       said = Some(why);
     }
 
@@ -618,13 +722,13 @@ async fn granted(
           fill_marks(&CONTROL_WORDS.cards.gone, &[("demand", &demand.id.to_string())]),
         ));
       }
-      Err(_) => unreached(waiting).await,
+      Err(_) => unreached(asking.service, waiting).await,
     }
   }
 }
 
-async fn unreached(waiting: &mut (dyn FnMut(&str) + Send)) {
-  waiting(&CONTROL_WORDS.cards.unreachable);
+async fn unreached(service: &str, waiting: &mut (dyn FnMut(&CardWait) + Send)) {
+  waiting(&CardWait::of(service, CONTROL_WORDS.cards.unreachable.clone()));
   tokio::time::sleep(AGAIN).await;
 }
 
@@ -635,10 +739,11 @@ async fn unreached(waiting: &mut (dyn FnMut(&str) + Send)) {
 async fn served(
   ground: &Ground,
   registration: &str,
+  service: &str,
   node: &str,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<(), Refusal> {
-  served_at(&ground.db, &Gateway::of(ground), registration, node, waiting).await
+  served_at(&ground.db, &Gateway::of(ground), registration, service, node, waiting).await
 }
 
 // The same, on a gateway of the caller's.
@@ -646,8 +751,9 @@ async fn served_at(
   db: &DatabaseConnection,
   gateway: &Gateway,
   registration: &str,
+  card_service: &str,
   node: &str,
-  waiting: &mut (dyn FnMut(&str) + Send),
+  waiting: &mut (dyn FnMut(&CardWait) + Send),
 ) -> Result<(), Refusal> {
   let entry = format!("{registration}@{node}");
   let Some(mut service) = registry::service_of(db, registration).await.map_err(|why| fault(why.error))?
@@ -670,13 +776,7 @@ async fn served_at(
     }
 
     if !said {
-      waiting(&fill_marks(
-        &CONTROL_WORDS.cards.waiting,
-        &[
-          ("service", registration),
-          ("why", &format!("the gateway is taking {entry} into its table.")),
-        ],
-      ));
+      waiting(&CardWait::of(card_service, format!("the gateway is taking {entry} into its table.")));
       said = true;
     }
 
@@ -913,7 +1013,7 @@ pub async fn seat_card_on(
     lease: Some(&seat.token),
     stop: None,
   };
-  let mut quiet = |_: &str| {};
+  let mut quiet = |_: &CardWait| {};
   let read = match of_lease(db, &seat.token).await? {
     Some((demand, _)) => match master.demand(demand, Duration::ZERO).await {
       Ok(Some(demand)) => demand,
@@ -1000,7 +1100,7 @@ pub async fn native_card(
     Some(caller) => holding(db, caller).await?,
     None => None,
   };
-  let mut quiet = |_: &str| {};
+  let mut quiet = |_: &CardWait| {};
 
   hold_on(
     db,

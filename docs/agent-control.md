@@ -2872,7 +2872,7 @@ with the session.
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
 | A job's question asked | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
-| A job waiting for a road or for a slot of its role | the orderer | instruction, as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
+| A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |
 | A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner | owner notice, beside the orderer's instruction | code `job-failed` |
 | An ended job's item still leased at the lease pass after the one that first found it so | the orderer | instruction, from the lease pass | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |

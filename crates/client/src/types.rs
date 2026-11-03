@@ -325,6 +325,32 @@ pub struct Turn {
   pub reason: Option<String>,
   pub answer: Option<String>,
   pub text: Vec<Value>,
+  /// What the running turn waits for before its program is put to work; none while nothing holds it back
+  /// and once it has ended.
+  #[serde(default)]
+  pub waiting: Option<TurnWaiting>,
+}
+
+/// TurnWaiting: what a running turn waits for, typed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnWaiting {
+  /// What it waits for: `card`, a card the arbiter's master has not yet granted.
+  #[serde(rename = "for")]
+  pub kind: TurnWaitKind,
+  /// The service whose grant it waits on.
+  pub service: String,
+  /// Why it waits, as it stands now.
+  pub reason: String,
+  /// epoch milliseconds: when the wait began
+  pub since: i64,
+}
+
+/// One of the values the API accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum TurnWaitKind {
+  #[serde(rename = "card")]
+  Card,
 }
 
 /// TurnInput:

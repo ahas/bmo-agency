@@ -4,8 +4,9 @@
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
 //! with their lease, a native co-worker's card asked within the demand its caller's turn holds, a seat's
 //! admission reading its demand as it stands, a seat standing on its caller's own demand with none asked,
-//! and one card shared by the runs out at once on a registration, kept for the runs still out when one is
-//! let go and given back, granted or still waiting, once none is.
+//! one card shared by the runs out at once on a registration, kept for the runs still out when one is
+//! let go and given back, granted or still waiting, once none is; and a turn's card wait carried as the
+//! turn's typed state and its job's hold until the grant clears it.
 
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
@@ -13,11 +14,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use agency_server::cards::{
-  Ask, Asking, Gateway, SharedAsk, Sharing, give_back_lease, give_back_left, give_back_on,
-  give_back_with_leases, hold_on, holding, native_card, seat_card_on, share,
+  Ask, Asking, CardWait, Gateway, SharedAsk, Sharing, WaitTold, give_back_lease, give_back_left,
+  give_back_on, give_back_with_leases, hold_on, holding, native_card, seat_card_on, share,
 };
 use agency_server::control::registry::{change, registration, view};
+use agency_server::herdr_backend::TurnChanged;
 use agency_server::order_run::dispatch::Request;
+use agency_server::session_output::{OutputWatch, Outputs};
+use agent_session::{SessionId, WaitKind};
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -241,9 +245,12 @@ async fn a_run_waits_with_no_clock_until_its_demand_is_granted_and_gives_it_back
   let data = tempfile::tempdir().unwrap();
   let (master, shared) = stand_in(4, false, &key_file(&data)).await;
   let mut said = vec![];
-  let held = hold_on(scratch.db(), &master, asking("worker-a", Ask::default(), None), &mut |why: &str| {
-    said.push(why.to_owned())
-  })
+  let held = hold_on(
+    scratch.db(),
+    &master,
+    asking("worker-a", Ask::default(), None),
+    &mut |wait: &CardWait| said.push(wait.sentence()),
+  )
   .await
   .unwrap();
 
@@ -275,7 +282,7 @@ async fn a_run_stopped_while_it_waits_for_its_grant_gives_its_demand_back_and_ho
     ..asking("supervisor-a", Ask::default(), None)
   };
   let db = scratch.db().clone();
-  let waiting = tokio::spawn(async move { hold_on(&db, &master, asked, &mut |_: &str| {}).await });
+  let waiting = tokio::spawn(async move { hold_on(&db, &master, asked, &mut |_: &CardWait| {}).await });
 
   until(&shared, |stand_in| stand_in.reads.values().any(|reads| *reads > 2)).await;
   assert!(!waiting.is_finished(), "a run not stopped waits for its grant");
@@ -312,7 +319,7 @@ async fn a_demand_handed_in_is_stood_on_and_left_to_its_caller() {
     own: Some(7),
     within: None,
   };
-  let held = hold_on(scratch.db(), &master, asking("research", own, None), &mut |_: &str| {})
+  let held = hold_on(scratch.db(), &master, asking("research", own, None), &mut |_: &CardWait| {})
     .await
     .unwrap();
 
@@ -327,7 +334,8 @@ async fn a_demand_handed_in_is_stood_on_and_left_to_its_caller() {
     own: Some(99),
     within: None,
   };
-  let refused = hold_on(scratch.db(), &master, asking("research", gone, None), &mut |_: &str| {}).await;
+  let refused =
+    hold_on(scratch.db(), &master, asking("research", gone, None), &mut |_: &CardWait| {}).await;
 
   assert!(matches!(&refused, Err(why) if why.code == "demand-gone"), "{refused:?}");
 }
@@ -344,9 +352,14 @@ async fn work_asked_within_a_run_lends_its_card_and_the_run_is_told_once_its_eng
     own: None,
     within: Some(50),
   };
-  let held = hold_on(scratch.db(), &master, asking("worker-a", within, Some("seat-1")), &mut |_: &str| {})
-    .await
-    .unwrap();
+  let held = hold_on(
+    scratch.db(),
+    &master,
+    asking("worker-a", within, Some("seat-1")),
+    &mut |_: &CardWait| {},
+  )
+  .await
+  .unwrap();
 
   assert!(held.lent, "the run's own card was lent: {held:?}");
   assert_eq!(held.within, Some(50));
@@ -791,4 +804,161 @@ async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_i
   let refused = seat_card_on(scratch.db(), Some(&master), &seat, gone).await;
 
   assert!(matches!(&refused, Err(why) if why.code == "demand-gone"), "{refused:?}");
+}
+
+// A ground whose environment names the stand-in job service and receiver, so a wait is told to them.
+fn told_ground(
+  scratch: &Scratch,
+  home: &std::path::Path,
+  vars: BTreeMap<String, String>,
+) -> agency_server::places::Ground {
+  let service = agency_server::Service::new(
+    scratch.db().clone(),
+    agency_server::config::Config::read(|_| None).unwrap(),
+  );
+  let mut env = vec![
+    ("HOME".to_owned(), home.to_string_lossy().into_owned()),
+    ("PATH".to_owned(), "/nowhere".to_owned()),
+  ];
+
+  env.extend(vars);
+
+  agency_server::places::Ground::new(
+    &service,
+    &harness_providers::Machine::with_env(env, home.join("data")),
+    None,
+  )
+}
+
+// A job's row as a launch writes it, its turn going out.
+async fn running_job(scratch: &Scratch, id: i64) {
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+                             "state", "started_at", "prompt")
+         VALUES ($1, 40, 1, 'harness', 1, 'helper', 'running', $2, 'work')"#,
+      vec![id.into(), agency_server::now_ms().into()],
+    )
+    .await;
+}
+
+async fn held_for(scratch: &Scratch, id: i64) -> Option<String> {
+  store::one(scratch.db(), r#"SELECT "held_for" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .unwrap()
+    .and_then(|row| row.try_get::<Option<String>>("", "held_for").ok().flatten())
+}
+
+// A turn waiting for its card carries the wait as its typed state — what it waits for, the card service, the
+// reason as it changes and the moment it began — on its read and in `turn.changed`, its job held with the
+// wait's sentence meanwhile, and the grant clears all three (docs/api.md, 「sessions」).
+#[tokio::test]
+async fn a_turn_s_card_wait_is_its_state_and_its_job_s_hold_until_the_grant_clears_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = told_ground(&scratch, home.path(), vars);
+  let outputs = Outputs::default();
+
+  peers
+    .lock()
+    .unwrap()
+    .items
+    .insert(40, crate::support::peers::item(40, "leased", json!({ "scope": "-400" })));
+  let session = SessionId("helper@run:1".into());
+  let mut changed = ground.events.subscribe::<TurnChanged>();
+
+  running_job(&scratch, 7).await;
+  outputs.begun(&session, 3, "job-7");
+
+  let mut told = WaitTold {
+    ground: &ground,
+    shown: Some(OutputWatch {
+      outputs: &outputs,
+      session: &session,
+      turn: 3,
+    }),
+    run: "job-7",
+    job: Some(7),
+    since: None,
+  };
+
+  told.cleared().await;
+  assert!(changed.ready().is_none(), "a run that never waited tells nothing");
+
+  told
+    .waits(&CardWait {
+      service: "lab-arena".into(),
+      reason: "Every card is in use.".into(),
+    })
+    .await;
+
+  let waiting = outputs.read(&session, Some(3)).unwrap().waiting.expect("the turn waits for its card");
+
+  assert_eq!(
+    (waiting.kind, waiting.service.as_str(), waiting.reason.as_str()),
+    (WaitKind::Card, "lab-arena", "Every card is in use.")
+  );
+  assert_eq!(
+    held_for(&scratch, 7).await.as_deref(),
+    Some("Waiting for a card of lab-arena: Every card is in use.")
+  );
+
+  told
+    .waits(&CardWait {
+      service: "lab-arena".into(),
+      reason: "The engine is starting.".into(),
+    })
+    .await;
+
+  let moved = outputs.read(&session, Some(3)).unwrap().waiting.unwrap();
+
+  assert_eq!(moved.reason, "The engine is starting.");
+  assert_eq!(moved.since, waiting.since, "the wait began once, whatever its reason became");
+
+  told.cleared().await;
+
+  assert_eq!(outputs.read(&session, Some(3)).unwrap().waiting, None, "the grant clears the wait");
+  assert_eq!(held_for(&scratch, 7).await, None, "and the job's hold");
+
+  let mut events = vec![];
+
+  while let Some(event) = changed.ready() {
+    events.push(event);
+  }
+
+  assert_eq!(events.len(), 3, "{events:?}");
+  assert_eq!(
+    (events[0].session.as_str(), events[0].turn_id, events[0].run.as_str()),
+    ("helper@run:1", 3, "job-7")
+  );
+  assert_eq!(
+    events[0].waiting.as_ref().map(|wait| wait.reason.as_str()),
+    Some("Every card is in use.")
+  );
+  assert_eq!(
+    events[1].waiting.as_ref().map(|wait| wait.reason.as_str()),
+    Some("The engine is starting.")
+  );
+  assert_eq!(events[2].waiting, None, "the clearing is told as well");
+
+  // The item's orderer was told of the wait once, as it began, however often its reason changed.
+  let told_orderer = peers.lock().unwrap().instructed();
+
+  assert_eq!(told_orderer.len(), 1, "{told_orderer:?}");
+  assert_eq!(told_orderer[0]["kind"], "job-waiting:40");
+  assert!(
+    told_orderer[0]["said"]["order"].as_str().unwrap().contains("Every card is in use."),
+    "{told_orderer:?}"
+  );
+
+  // A turn that ends waits for nothing.
+  told
+    .waits(&CardWait {
+      service: "lab-arena".into(),
+      reason: "Every card is in use.".into(),
+    })
+    .await;
+  outputs.ended(&session, 3);
+  assert_eq!(outputs.read(&session, Some(3)).unwrap().waiting, None);
 }

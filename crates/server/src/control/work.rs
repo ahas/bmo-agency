@@ -745,19 +745,13 @@ impl Route for CreateJob {
     let role: String =
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned();
     let item_model = item_model(&call.shared_ground(), item_id, &item).await?;
-    // A job is refused only where nothing in its worker's walk can answer now (docs/cache-fallback.md,
-    // 「One road resolution」); the sentence names every provider's reason and what a person must do.
+    // A job is never refused for quota (docs/api.md, 「assignments and jobs」): where nothing in its walk can
+    // answer now, it is taken and waits `starting`, held with the reason, until a road can. The walk read
+    // here only says which chose the job's road.
     let resolution =
       road::for_job(call.ground(), Some(&role), Some(&worker_name), item_model.as_ref(), &[])
         .await
         .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
-    if resolution.road().is_none() {
-      road::went(call.ground(), &resolution, None, &[]).await;
-
-      return Err(
-        Refused::new(StatusCode::SERVICE_UNAVAILABLE, resolution.sentence()).with_code("no-login-open"),
-      );
-    }
     let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId")
       .or_else(|| number(&item, "roomId"))
@@ -1349,8 +1343,16 @@ async fn kept_roads(
   }
 }
 
-// That a job waits for a road, with the reason, or no longer does; the job told either way.
+// That a job waits for a road, with the reason, or no longer does; the job told either way, and its item's
+// orderer as the wait begins.
 async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
+  hold_job(ground, id, why, why.is_some()).await;
+}
+
+/// That a job waits, with the reason — for a road, or for its turn's card (docs/own-llm.md, 「An engine the
+/// arbiter stands」) — or no longer does: its `heldFor` written and the job published, and its item's orderer
+/// told of the wait where `tell` says this is where the wait begins.
+pub async fn hold_job(ground: &Ground, id: i64, why: Option<&str>, tell: bool) {
   if let Err(why) = run(
     &ground.db,
     r#"UPDATE "jobs" SET "held_for" = $1 WHERE "id" = $2"#,
@@ -1362,7 +1364,7 @@ async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
   }
 
   if let Ok((member, _)) = job(&ground.db, id).await {
-    if let Some(why) = why {
+    if let Some(why) = why.filter(|_| tell) {
       tell_waiting(ground, &member, why).await;
     }
 
@@ -1396,22 +1398,29 @@ async fn called_off(ground: &Ground, id: i64) -> bool {
     || crate::queue::stops::job_stop_reason(&ground.db, id).await.ok().flatten().is_some()
 }
 
-// A job waiting for a road: held with the closed road's sentence and asked again on the policy's clock until
-// a provider of its walk can answer. False where the job was ended from outside, or asked to stop, while it
-// waited.
+// A job waiting for a road: held with the closed road's sentence and asked again as quota or a road moves, and
+// on the policy's clock, until a provider of its walk can answer. False where the job was ended from outside,
+// or asked to stop, while it waited.
 async fn wait_for_road(
   ground: &Ground,
   job: &Carried<'_>,
   resolution: &road::Resolution,
 ) -> Result<bool, String> {
+  // Asked again as each usage reading, account change, rest or road fact comes in, and on the policy's clock
+  // where none does.
+  let mut moved = crate::order::quota_watch(ground);
   let sentence = resolution.sentence();
 
   held_for(ground, job.id, Some(&sentence)).await;
   road::went(ground, resolution, None, &[]).await;
   noted_line(ground, job.id, &sentence).await;
 
+  let every = std::time::Duration::from_secs(policy::roads::ROADS.job.wait_seconds);
+
   loop {
-    tokio::time::sleep(std::time::Duration::from_secs(policy::roads::ROADS.job.wait_seconds)).await;
+    if let Ok(None) = tokio::time::timeout(every, moved.next()).await {
+      tokio::time::sleep(every).await;
+    }
 
     if called_off(ground, job.id).await {
       held_for(ground, job.id, None).await;
@@ -1502,6 +1511,7 @@ pub async fn carry_job<C: Carrier>(
       &format!("The job's road {} stopped answering: {stopped}", taken.words()),
     )
     .await;
+    road::leave(ground, &taken, &stopped).await;
     prompt = continued(&taken, &stopped, job.prompt);
     left.push(Closed::plain(&taken.provider, stopped));
     last = Some(("ended".to_owned(), outcome, report, None));

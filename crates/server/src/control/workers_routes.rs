@@ -134,7 +134,7 @@ impl Route for RoadBlock {
       .ok_or_else(|| bad("until (a whole number of epoch milliseconds) is required"))?;
     let reason = body.get("reason").and_then(Value::as_str).unwrap_or_default();
 
-    if !block_route(call.store(), selection, until, reason).await? {
+    if !block_route(call.store(), selection, until, reason, None).await? {
       return Err(bad(format!("{selection} names no provider's model this build carries")));
     }
 

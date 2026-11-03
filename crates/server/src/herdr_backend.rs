@@ -88,6 +88,21 @@ impl Event for TurnStarted {
   const NAME: &'static str = "turn.created";
 }
 
+/// What a running turn waits for, as it begins, changes and clears (docs/api.md, 「sessions」): the session,
+/// the turn, the run it goes out as, and the wait, none once it has cleared.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnChanged {
+  pub session: String,
+  pub turn_id: i64,
+  pub run: String,
+  pub waiting: Option<agent_session::Waiting>,
+}
+
+impl Event for TurnChanged {
+  const NAME: &'static str = "turn.changed";
+}
+
 /// What a turn came to, as its send answers it (docs/api.md, 「Sessions」, a turn's end), and the session
 /// it went on.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -1230,6 +1245,7 @@ impl HerdrSessions {
       &speaker.name,
       resume.map(|(id, _)| id),
       log,
+      Some(shown),
     )
     .await
     .map_err(|refused| NoAnswer::Failed(refused.detail))?;

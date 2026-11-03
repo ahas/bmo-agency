@@ -104,13 +104,25 @@ quota is read is `docs/usage-windows.md`.
   lease, in the same checkout, at most once on each provider in one job, its prompt opened with a line
   saying it continues work already in the checkout. It keeps each provider it went out on and why it moved,
   and its report says so.
-- **The next run begins at the top of the order again.** A provider passed over for its quota or a failure
-  carries the next run the moment it can, so a row returns to its first provider at its next run, never
-  in the middle of one.
-- **A blocked road stays passed over for a while:** a provider and model the harness blocks after it did not
-  answer is passed over by the next runs — a minute for an outage, five for a refused access, fifteen or
-  until its reset for a limit (`docs/api.md`, 「road-blocks and launch-room」). A block is the harness's memory
-  of a failure, not a reason a provider cannot answer.
+- **The next run begins at the top of the order again.** A provider passed over for its quota carries the
+  next run the moment it can, and one left for a failure once the block that failure wrote opens, so a row
+  returns to its first provider at a next run, never in the middle of one.
+- **The walk that leaves a road blocks it.** A supervisor's turn or a job that leaves a provider for a failure
+  of the provider writes a block on the provider and model it left, with the failure's kind and words, as it
+  walks on: a minute for an outage — a server error, a refused connection, or a failure no kind is read off —,
+  five for a refused access — a refused credential or balance —, and fifteen for a limit, or until its reset
+  where the failure names one (`policy/roads.toml`, `[blocks]`). A failure of the work itself blocks nothing,
+  and a provider that holds logins is blocked by no walk: a failure there is its login's, which its account
+  walk rests (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」). The harness blocks a
+  road the same way through `POST /road-blocks` (`docs/api.md`, 「road-blocks and launch-room」).
+- **A blocked road stays passed over for a while:** the next runs of every order that reaches it pass it over
+  until its block opens, while a later provider of the order can answer, and say so as the reason it was
+  passed. A block is the walk's memory of a failure, not a reason a provider cannot answer: where every road
+  of the order that can answer is blocked, the run goes out on the first of them rather than waiting, and a
+  road walked alone — an item's model, a forced provider, a pin, a named road — is never passed over for a
+  block. A registration blocked for an outage is asked for its health before it is passed over, and one
+  whose engine answers is opened again at once (`docs/cache-fallback.md`, 「Automatic walks only on
+  providers, in order」).
 
 ## When every provider is out
 

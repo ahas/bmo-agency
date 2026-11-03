@@ -172,8 +172,11 @@ pub async fn stand_in_turn(
     };
 
     match outcome {
+      // The road left for its provider's failure is blocked as the walk goes on, so the next run passes it
+      // over (docs/provider-order.md, 「Falling over and coming back」).
       Err(why) => {
         note_failed(ground, log, &step, &why).await;
+        road::leave(ground, taken, &why).await;
         tried.push(Closed::plain(&taken.provider, why));
       }
       Ok(reply) => {
@@ -644,7 +647,9 @@ async fn registered_road(
   // end; its turn goes out on the card granted (docs/own-llm.md, 「An engine the arbiter stands」).
   let card = match registry::registration(&ground.db, &step.model).await.map_err(|why| failed(why.error))? {
     Some(held) => {
-      match cards::hold_logged(ground, &held, &run.agent, run.resume.as_deref(), run.cards, log).await {
+      match cards::hold_logged(ground, &held, &run.agent, run.resume.as_deref(), run.cards, log, shown)
+        .await
+      {
         Ok(card) => card,
         Err(why) => return Ok(Err(why.detail)),
       }

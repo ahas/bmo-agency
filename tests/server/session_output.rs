@@ -67,6 +67,7 @@ fn a_running_turns_words_are_read_as_they_are_written_and_stand_once_it_is_stopp
       run: "bmo-research-7".into(),
       running: true,
       text: "TITLE: the angle\n\nfirst finding".into(),
+      waiting: None,
     })
   );
   assert_eq!(
@@ -84,6 +85,7 @@ fn a_running_turns_words_are_read_as_they_are_written_and_stand_once_it_is_stopp
       run: "bmo-research-7".into(),
       running: false,
       text: "TITLE: the angle\n\nfirst finding".into(),
+      waiting: None,
     }),
     "a turn stopped from outside leaves what it wrote"
   );
@@ -114,6 +116,7 @@ fn an_attempt_that_goes_out_again_and_the_next_turn_begin_the_words_again() {
       run: "run-2".into(),
       running: true,
       text: String::new(),
+      waiting: None,
     })
   );
   assert_eq!(

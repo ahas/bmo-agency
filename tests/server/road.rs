@@ -2,7 +2,9 @@
 //! that has quota above its share and can answer now, every provider it passes named with why, the share read
 //! against the window with the least left, a balance at or below zero closing its provider, and a road its
 //! caller fixed or the owner forced walked alone — waited for, never left; a job's road chosen by the first
-//! that stands of its item's model, its role's forced provider, its repository's pin and its role's order.
+//! that stands of its item's model, its role's forced provider, its repository's pin and its role's order; and
+//! a road a walk left for its provider's failure blocked for its kind's span and passed over by the next run
+//! while a later road can answer, the work's own failure blocking nothing.
 
 use agency_server::order::{Entry, Order, least_left, quota, window_left};
 use agency_server::repositories::Pin;
@@ -376,4 +378,131 @@ async fn a_supervisor_s_forced_provider_carries_its_chat_turn() {
 
   assert_eq!(taken(&turn), Some(("deepseek".to_owned(), "forced-model".to_owned())), "{turn:?}");
   assert!(turn.fixed);
+}
+
+const BUSY: &str =
+  "API Error: 503 litellm.ServiceUnavailableError: DeepseekException - Service is too busy.";
+
+#[test]
+fn a_failure_s_kind_says_how_long_the_road_it_left_is_blocked_and_the_work_s_own_blocks_nothing() {
+  assert_eq!(BlockKind::of_words(BUSY), Some(BlockKind::Outage));
+  assert_eq!(BlockKind::of_words("connect ECONNREFUSED 127.0.0.1:18030"), Some(BlockKind::Outage));
+  assert_eq!(BlockKind::of_words("API Error: 401 invalid api key"), Some(BlockKind::Access));
+  assert_eq!(
+    BlockKind::of_words("API Error: Request rejected (429) · too many requests"),
+    Some(BlockKind::Limit { resets_at: None })
+  );
+  assert_eq!(BlockKind::of_words("API Error: 400 the prompt is too long"), None);
+
+  let now = 1_000_000_000;
+
+  assert_eq!(BlockKind::Outage.until(now), now + 60_000);
+  assert_eq!(BlockKind::Access.until(now), now + 300_000);
+  assert_eq!(BlockKind::Limit { resets_at: None }.until(now), now + 900_000);
+  assert_eq!(
+    BlockKind::Limit {
+      resets_at: Some(2_000_000)
+    }
+    .until(now),
+    2_000_000_000,
+    "until its reset"
+  );
+}
+
+// A supervisor whose order walks DeepSeek first and the registry after it, on a registration with an address.
+async fn walking(scratch: &Scratch, data: &std::path::Path, name: &str) -> Order {
+  use agency_server::control::registry::change;
+
+  let save = serde_json::json!({
+    "action": "save", "name": "a-registration", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
+  });
+  let address = serde_json::json!({
+    "action": "set-address", "name": "a-registration", "node": "alpha",
+    "url": "http://127.0.0.1:9/v1/chat/completions", "key": null,
+  });
+
+  change(scratch.db(), data, &save).await.unwrap().unwrap();
+  change(scratch.db(), data, &address).await.unwrap().unwrap();
+  crate::support::rows::supervisor(
+    scratch.db(),
+    name,
+    &[(
+      "provider_order",
+      r#"[{"provider":"deepseek","model":"deepseek-flash"},{"provider":"registered","model":"a-registration"}]"#
+        .into(),
+    )],
+  )
+  .await;
+
+  agency_server::supervisors::named(scratch.db(), name).await.unwrap().unwrap().order
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_road_a_walk_left_on_a_503_is_passed_over_by_the_next_run_and_the_work_s_own_error_blocks_nothing()
+ {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let order = walking(&scratch, &home.path().join("data"), "walker").await;
+  let ask = Ask::of(Row::Supervisor("walker"), "chat", &order);
+  let deepseek = || Some(("deepseek".to_owned(), "deepseek-flash".to_owned()));
+  let registered = || Some(("registered".to_owned(), "a-registration".to_owned()));
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let first = resolve(&ground, &ask).await.unwrap();
+  let left = first.road().cloned().unwrap();
+
+  assert_eq!(taken(&first), deepseek(), "{first:?}");
+  assert_eq!(first.open().count(), 2, "both roads answer now: {first:?}");
+
+  // A request refused for its shape is the work's own: no block, and the next run takes the same road.
+  assert_eq!(leave(&ground, &left, "API Error: 400 the prompt is too long").await, None);
+  assert_eq!(taken(&resolve(&ground, &ask).await.unwrap()), deepseek());
+
+  // The walk leaves DeepSeek on a 503: its road is blocked for an outage's minute, and the next run passes it
+  // over with the block's reason.
+  assert_eq!(leave(&ground, &left, BUSY).await, Some(BlockKind::Outage));
+
+  let next = resolve(&ground, &ask).await.unwrap();
+
+  assert_eq!(taken(&next), registered(), "{next:?}");
+
+  let passed = next.passed();
+
+  assert_eq!(passed.len(), 1, "{passed:?}");
+  assert_eq!(passed[0].provider, "deepseek");
+  assert!(passed[0].reason.contains("passed over until"), "{}", passed[0].reason);
+  assert!(passed[0].reason.contains("outage: API Error: 503"), "{}", passed[0].reason);
+
+  let blocks = agency_server::queue::routes::kept_blocks(scratch.db()).await.unwrap();
+  let block = blocks.iter().find(|block| block.selection == "deepseek::deepseek-flash").unwrap();
+  let now = agency_server::now_ms();
+
+  assert!(block.until > now + 50_000 && block.until <= now + 60_000, "{block:?}");
+
+  // A forced provider is walked alone and never passed over for a block.
+  let forced = Order {
+    forced: Some(Pin {
+      provider: "deepseek".into(),
+      model: "deepseek-flash".into(),
+    }),
+    ..order.clone()
+  };
+  let alone = resolve(&ground, &Ask::of(Row::Supervisor("walker"), "chat", &forced)).await.unwrap();
+
+  assert_eq!(taken(&alone), deepseek(), "{alone:?}");
+
+  // Every road that can answer blocked: a block is no reason a provider cannot answer, so the run goes out on
+  // the first of them rather than waiting.
+  leave(&ground, next.road().unwrap(), BUSY).await;
+
+  let all_blocked = resolve(&ground, &ask).await.unwrap();
+
+  assert_eq!(taken(&all_blocked), deepseek(), "{all_blocked:?}");
+  assert!(all_blocked.passed().is_empty(), "{all_blocked:?}");
+
+  // The block opened, the order's head carries the next run again.
+  agency_server::queue::routes::clear_block_by_id(scratch.db(), block.id).await.unwrap();
+  assert_eq!(taken(&resolve(&ground, &ask).await.unwrap()), deepseek());
 }

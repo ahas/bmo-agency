@@ -42,6 +42,7 @@
     "session.folded",
     "session.deleted",
     "turn.created",
+    "turn.changed",
     "turn.ended",
     "question.created",
     "run.created",
@@ -4393,9 +4394,6 @@
           },
           "422": {
             "$ref": "#/components/responses/UnknownModel"
-          },
-          "503": {
-            "$ref": "#/components/responses/NoLoginOpen"
           }
         },
         "x-codes": [
@@ -4403,8 +4401,7 @@
           "bad-request",
           "conflict",
           "gone",
-          "unknown-model",
-          "no-login-open"
+          "unknown-model"
         ],
         "requestBody": {
           "required": true,
@@ -7316,6 +7313,18 @@
           "text": {
             "type": "array",
             "items": true
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TurnWaiting"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the running turn waits for before its program is put to work; none while nothing holds it back\nand once it has ended.",
+            "default": null
           }
         },
         "required": [
@@ -7329,7 +7338,8 @@
           "ending",
           "reason",
           "answer",
-          "text"
+          "text",
+          "waiting"
         ],
         "description": "Turn:"
       },
@@ -7339,6 +7349,42 @@
           "running",
           "ended",
           "interrupted"
+        ],
+        "description": "One of the values the API accepts."
+      },
+      "TurnWaiting": {
+        "type": "object",
+        "properties": {
+          "for": {
+            "$ref": "#/components/schemas/TurnWaitKind",
+            "description": "What it waits for: `card`, a card the arbiter's master has not yet granted."
+          },
+          "service": {
+            "type": "string",
+            "description": "The service whose grant it waits on."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it waits, as it stands now."
+          },
+          "since": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds: when the wait began"
+          }
+        },
+        "required": [
+          "for",
+          "service",
+          "reason",
+          "since"
+        ],
+        "description": "TurnWaiting: what a running turn waits for, typed."
+      },
+      "TurnWaitKind": {
+        "type": "string",
+        "enum": [
+          "card"
         ],
         "description": "One of the values the API accepts."
       },

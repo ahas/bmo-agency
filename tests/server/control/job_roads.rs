@@ -298,6 +298,69 @@ async fn a_job_whose_item_s_model_cannot_answer_is_held_with_the_reason_and_neve
   assert!(held.contains("balance is spent"), "{held}");
 }
 
+// A job whose road cannot answer as it starts waits held with the reason, its item's orderer told once, and
+// goes out as soon as a quota move says its road answers again, not at the policy's clock.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_road_cannot_answer_is_told_once_and_goes_out_as_its_road_reopens() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let _ = standing(&scratch, home.path()).await;
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = {
+    let service = Service::new(scratch.db().clone(), Config::read(|_| None).unwrap());
+    let mut env = vec![
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/nowhere".to_owned()),
+    ];
+
+    env.extend(vars);
+    Ground::new(&service, &Machine::with_env(env, home.path().join("data")), None)
+  };
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", "done")]),
+    turns: vec![],
+  };
+
+  peers
+    .lock()
+    .unwrap()
+    .items
+    .insert(70, crate::support::peers::item(70, "leased", serde_json::json!({ "scope": "-400" })));
+  item_names(&scratch, "deepseek", "deepseek-flash").await;
+  deepseek_balance(&ground, 0.0).await;
+
+  let started = std::time::Instant::now();
+  let reopen = async {
+    while job_column(&scratch, "held_for").await.is_none() {
+      tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    deepseek_balance(&ground, 5.0).await;
+    ground.events.publish(agency_server::rest::DeploymentResting::of(
+      agency_server::rest::RestKind::Limit,
+      "login-a",
+      0,
+    ));
+  };
+  let carried_job = job();
+  let (carried, ()) = tokio::join!(carry_job(&ground, &carried_job, &mut carrier), reopen);
+  let (_, outcome, _, _) = carried.unwrap().expect("an end");
+
+  assert_eq!(outcome, None, "the turn answered: {:?}", carrier.turns);
+  assert_eq!(carrier.turns.len(), 1);
+  assert!(
+    started.elapsed() < std::time::Duration::from_secs(30),
+    "woken by the move, not the clock"
+  );
+  assert_eq!(job_column(&scratch, "held_for").await, None);
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!(told[0]["kind"], "job-waiting:70");
+  assert!(told[0]["said"]["order"].as_str().unwrap().contains("balance is spent"), "{told:?}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it() {
   let scratch = Scratch::new().await;

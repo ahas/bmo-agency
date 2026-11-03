@@ -373,6 +373,12 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
     steps.push(asked);
   }
 
+  // A road a walk left for its provider's failure is passed over while its block stands and a later road of
+  // the order can answer; a road walked alone never is.
+  if ask.fixed.is_none() {
+    pass_blocked(ground, &mut steps).await;
+  }
+
   Ok(Resolution {
     row: ask.row.name().to_owned(),
     supervisor: matches!(ask.row, Row::Supervisor(_)),
@@ -457,6 +463,154 @@ async fn step(
     model: entry.model.clone(),
     account,
   })))
+}
+
+// The open roads of a walk that stand blocked passed over, each with its block's reason, ahead of the first
+// open road that stands unblocked; where every open road is blocked, none is passed, since a block is the
+// walk's memory of a failure and no reason a provider cannot answer (docs/provider-order.md, 「Falling over
+// and coming back」).
+async fn pass_blocked(ground: &Ground, steps: &mut [Step]) {
+  let now = now_ms();
+  let mut blocked = vec![];
+
+  for (at, step) in steps.iter().enumerate() {
+    let Answer::Can(road) = &step.answer else { continue };
+
+    match blocked_now(ground, road, now).await {
+      Some(closed) => blocked.push((at, closed)),
+      None => {
+        for (at, closed) in blocked {
+          steps[at].answer = Answer::Cannot(closed);
+        }
+
+        return;
+      }
+    }
+  }
+}
+
+// The block standing on a road now, as the reason it is passed over, where one stands. A registration
+// blocked for an outage whose engine answers its health is opened again at once instead.
+async fn blocked_now(ground: &Ground, road: &Road, now: i64) -> Option<Closed> {
+  let selection = selection_of(road);
+  let standing = crate::queue::routes::standing_block(&ground.db, &selection, now).await.ok()??;
+
+  if standing.kind.as_deref() == Some(BlockKind::Outage.word())
+    && crate::queue::routes::own_services(&road.provider)
+    && crate::control::registry::registration_health(&ground.db, &ground.roots.data, &road.model)
+      .await
+      .ok()
+      .flatten()
+      .is_some()
+  {
+    let _ = crate::queue::routes::clear_route_block(&ground.db, &selection).await;
+
+    return None;
+  }
+
+  let until = standing.until.div_euclid(1000);
+  let reason =
+    fill_marks(&ROADS.blocks.passed, &[("until", &moment_words(until)), ("reason", &standing.reason)]);
+
+  Some(Closed {
+    reopens_at: Some(until),
+    ..Closed::plain(&road.provider, reason)
+  })
+}
+
+// A road as a block's selection names it.
+fn selection_of(road: &Road) -> String {
+  format!("{}::{}", road.provider, road.model)
+}
+
+/// The kind of failure a walk left a road for, which says how long the road's block stands
+/// (docs/provider-order.md, 「Falling over and coming back」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockKind {
+  /// A server error, a refused connection, or a failure no kind is read off.
+  Outage,
+  /// A credential or a balance refused.
+  Access,
+  /// A limit met, with the epoch second it resets where the failure names one.
+  Limit { resets_at: Option<i64> },
+}
+
+impl BlockKind {
+  /// The kind a failure's words read as, by the one failure reading every run asks; none for a request the
+  /// road refused for its shape, which is the work's own failure and blocks nothing.
+  pub fn of_words(why: &str) -> Option<Self> {
+    use crate::job_run::claude::failure::{self, AccountFailure, Failure};
+
+    if failure::request_refused(why, None) {
+      return None;
+    }
+
+    Some(match failure::of_errored(why, "") {
+      Failure::Limit { resets_at, .. } => Self::Limit { resets_at },
+      Failure::Account {
+        failure: AccountFailure::Limit,
+        ..
+      } => Self::Limit { resets_at: None },
+      Failure::Account {
+        failure: AccountFailure::Login,
+        ..
+      } => Self::Access,
+      _ => Self::Outage,
+    })
+  }
+
+  /// The word the kind is kept and said under.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Outage => "outage",
+      Self::Access => "access",
+      Self::Limit { .. } => "limit",
+    }
+  }
+
+  /// The moment, in epoch milliseconds, a block of this kind written at `now` opens.
+  pub fn until(self, now: i64) -> i64 {
+    let spans = &ROADS.blocks;
+
+    match self {
+      Self::Outage => now + spans.outage_seconds * 1000,
+      Self::Access => now + spans.access_seconds * 1000,
+      Self::Limit {
+        resets_at: Some(at),
+      } if at * 1000 > now => at * 1000,
+      Self::Limit { .. } => now + spans.limit_seconds * 1000,
+    }
+  }
+}
+
+/// The road a walk leaves for its provider's failure blocked, for the span the failure's kind holds, its reason
+/// naming the kind and the failure's words (docs/provider-order.md, 「Falling over and coming back」). A
+/// failure of the work itself blocks nothing, and neither does one on a provider that holds logins, whose
+/// failure is its login's, rested by its own account walk. Answers the kind written, none where nothing was.
+pub async fn leave(ground: &Ground, road: &Road, why: &str) -> Option<BlockKind> {
+  if harness::named(&road.provider).is_ok_and(|provider| provider.holds_logins()) {
+    return None;
+  }
+
+  let kind = BlockKind::of_words(why)?;
+  let reason = fill_marks(&ROADS.blocks.reason, &[("kind", kind.word()), ("why", why.trim())]);
+  let written = crate::queue::routes::block_route(
+    &ground.db,
+    &selection_of(road),
+    kind.until(now_ms()),
+    &reason,
+    Some(kind.word()),
+  )
+  .await;
+
+  match written {
+    Ok(true) => Some(kind),
+    Ok(false) => None,
+    Err(why) => {
+      eprintln!("road {}: its block was not written: {}", road.words(), why.detail);
+      None
+    }
+  }
 }
 
 // A share as a person reads it.

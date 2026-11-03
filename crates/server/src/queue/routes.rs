@@ -232,16 +232,17 @@ pub fn health_key(selection: &Choice<'_>) -> String {
 }
 
 /// A selection's road closed until a moment, in epoch milliseconds, with the reason the failure that
-/// closed it gives (docs/api.md, 「Workers」, a road's block). A value naming no provider this build carries
-/// closes nothing.
+/// closed it gives and, where a walk wrote it, the failure's kind (docs/api.md, 「road-blocks and
+/// launch-room」). A value naming no provider this build carries closes nothing.
 pub async fn block_route(
   db: &DatabaseConnection,
   selection: &str,
   until_ms: i64,
   reason: &str,
+  kind: Option<&str>,
 ) -> Result<bool, Refusal> {
   let Some(asked) = choice(selection) else { return Ok(false) };
-  let kept = json!({ "until": until_ms, "reason": reason, "selection": selection });
+  let kept = json!({ "until": until_ms, "reason": reason, "selection": selection, "kind": kind });
 
   settings::set(db, &health_key(&asked), &kept.to_string()).await?;
 
@@ -370,13 +371,21 @@ pub async fn route_blocked(judging: Judging<'_>, selection: &str, now_ms: i64) -
   Ok(standing_block(db, selection, now_ms).await?.is_some())
 }
 
-/// The block standing on a selection's road at `now_ms`, where one does: the moment it opens again, in
-/// epoch milliseconds, and the reason the failure that closed it gave.
+/// A block standing on a road: the moment it opens again, in epoch milliseconds, the reason the failure that
+/// closed it gave, and the failure's kind where a walk wrote it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Standing {
+  pub until: i64,
+  pub reason: String,
+  pub kind: Option<String>,
+}
+
+/// The block standing on a selection's road at `now_ms`, where one does.
 pub async fn standing_block(
   db: &DatabaseConnection,
   selection: &str,
   now_ms: i64,
-) -> Result<Option<(i64, String)>, Unrouted> {
+) -> Result<Option<Standing>, Unrouted> {
   let Some(asked) = choice(selection) else {
     return Ok(None);
   };
@@ -392,8 +401,13 @@ pub async fn standing_block(
   }
 
   let reason = block.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned();
+  let kind = block.get("kind").and_then(Value::as_str).map(str::to_owned);
 
-  Ok(Some((until as i64, reason)))
+  Ok(Some(Standing {
+    until: until as i64,
+    reason,
+    kind,
+  }))
 }
 
 /// Whether an item has a route to run on now: some selection its job may go out on that is not

@@ -823,6 +823,7 @@ impl Route for SessionTurn {
             "reason": end.reason,
             "answer": end.answer,
             "text": end.answer.as_ref().map(|answer| json!([answer])).unwrap_or_else(|| json!([])),
+            "waiting": Value::Null,
           }),
         )
       }
@@ -1115,6 +1116,7 @@ impl Route for SessionOutput {
           "reason": Value::Null,
           "answer": Value::Null,
           "text": [output.text],
+          "waiting": output.waiting,
         }),
       ),
       Err(fault) => faulted(fault),
@@ -1155,6 +1157,7 @@ impl Route for SessionInterrupt {
           "reason": Value::Null,
           "answer": Value::Null,
           "text": [],
+          "waiting": Value::Null,
         }),
       ),
       Err(fault) => faulted(fault),

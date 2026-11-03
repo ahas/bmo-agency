@@ -1828,7 +1828,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
-    codes: &["bad-request", "conflict", "gone", "unknown-model", "no-login-open"],
+    codes: &["bad-request", "conflict", "gone", "unknown-model"],
   },
   Operation {
     method: "GET",
@@ -2753,7 +2753,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 35] = [
+pub const EVENTS: [&str; 36] = [
   "supervisor.changed",
   "role.changed",
   "session.created",
@@ -2761,6 +2761,7 @@ pub const EVENTS: [&str; 35] = [
   "session.folded",
   "session.deleted",
   "turn.created",
+  "turn.changed",
   "turn.ended",
   "question.created",
   "run.created",

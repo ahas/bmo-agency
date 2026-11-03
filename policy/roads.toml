@@ -1,7 +1,7 @@
 # The words of the one road resolution (docs/provider-order.md, 「Choosing the provider」): why a provider
 # cannot answer now, why a login of it cannot, the sentence a closed road is refused or held with, the line
-# a job launched again on the next road is opened with and its report's account of where it ran, and how
-# often a job waiting for a road asks again. A provider's own words, the place its balance is topped up
+# a job launched again on the next road is opened with and its report's account of where it ran, how often a
+# job waiting for a road asks again, and how long a road a walk left for its provider's failure is blocked. A provider's own words, the place its balance is topped up
 # among them, stand in that provider's file.
 
 [reasons]
@@ -49,3 +49,16 @@ moved = "The job ran on {roads}."
 road = "{road} until it stopped answering ({why})"
 # How often a job waiting for a road asks the resolution again, in seconds.
 wait_seconds = 60
+
+[blocks]
+# How long a road a walk left for its provider's failure stays passed over, in seconds, by the failure's kind
+# (docs/provider-order.md, 「Falling over and coming back」): an outage — a server error, a refused connection
+# or a failure no kind is read off —, a refused access — a credential or balance refused —, and a limit whose
+# failure names no reset.
+outage_seconds = 60
+access_seconds = 300
+limit_seconds = 900
+# The reason a walk's block is written with: the failure's kind and its words.
+reason = "{kind}: {why}"
+# Why a blocked road was passed over: the moment its block opens and the reason it was written with.
+passed = "it did not answer a run moments ago and is passed over until {until} ({reason})"

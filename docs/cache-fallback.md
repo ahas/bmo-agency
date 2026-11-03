@@ -595,12 +595,14 @@ When a demotion first catches — when a healthy session first drops — two thi
     goes out again once one can; it is never failed for that. A job in a repository that pins a model
     never moves: it waits while the pin cannot answer (`docs/repositories.md`, 「A pinned model」). A
     failure of the work itself moves nothing and ends the job as it stands.
-  - **A blocked road stays passed over for a while.** A road a harness blocks after it did not answer is
-    passed over by the next runs whose order reaches it (`docs/api.md`, 「road-blocks and launch-room」) —
-    a minute for an outage, five for a refused access, fifteen or until its reset for a limit; a block is
-    the harness's memory of a failure, not one of the reasons a provider cannot answer now. On a provider
-    whose models are services of their own, that road is the one registration that did not answer, and
-    one registration going quiet leaves the others open (`docs/own-llm.md`).
+  - **A blocked road stays passed over for a while.** A road a supervisor's turn or a job walks off for its
+    provider's failure is blocked by that walk, and the harness blocks one through the boundary
+    (`docs/api.md`, 「road-blocks and launch-room」); either is passed over by the next runs whose order
+    reaches it while a later road of the order can answer (`docs/provider-order.md`, 「Falling over and
+    coming back」) — a minute for an outage, five for a refused access, fifteen or until its reset for a
+    limit; a block is the walk's memory of a failure, not one of the reasons a provider cannot answer now.
+    On a provider whose models are services of their own, that road is the one registration that did not
+    answer, and one registration going quiet leaves the others open (`docs/own-llm.md`).
     - **A turn stopped from outside closes no road:** a turn that ends without an answer while its job has
       been stopped is the stop, on every road.
     - **A request the road refused closes no road:** a registered model's turn that ends on a 400, 413 or

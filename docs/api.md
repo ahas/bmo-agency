@@ -472,11 +472,22 @@ read of a turn picked up after a restart answers `unknown-turn`.
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
 id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
 its `id`, `sessionId`, `prompt`, `context`, `state` (`running` or `ended`), `delivery`, `outcome`,
-`answer` and `text`, the last holding every text block the turn has written so far. The progress read
-answers the turn named while it runs, and the session's last turn once it has ended; the interrupt and
-the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
+`answer`, `text`, the last holding every text block the turn has written so far, and `waiting`. The
+progress read answers the turn named while it runs, and the session's last turn once it has ended; the
+interrupt and the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
 carries no turn of that id. A session's turn that has ended keeps what it wrote until the session's next
 turn begins.
+
+**A running turn says what it waits for.** `waiting` is null while nothing holds the turn back, and while
+the turn waits before its program is put to work it names the wait, typed: `for`, what it waits for —
+`card`, a card the arbiter's master has not yet granted the run on a registration naming a card service
+(`docs/own-llm.md`, 「An engine the arbiter stands」) —, `service`, the card service, `reason`, why it waits
+as it stands now — the master's reason, the master unreached, or the gateway taking the granted card's entry
+into its table —, and `since`, the moment in epoch milliseconds the wait began. The wait is
+published as `turn.changed` — `session`, `turnId`, `run` and `waiting` — as it begins, each time its reason
+changes, and once more with `waiting` null as it clears, on the grant or on the wait's end, so a consumer
+shows it on the room's working line from the event or from the read and never from the run's log. A turn
+that ended waits for nothing.
 
 A turn's end — the send's answer and `turn.ended` alike — carries `ending` beside `outcome`: the word the
 turn's wait ended on, typed, and `reason`, why a turn with no answer has none, or null. A turn put into a
@@ -792,7 +803,10 @@ Code road is a list of accounts」); the provider order and the route actions ar
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed to
 the roads a named model or role's order would take, and a deletion by that id opens the road again
-(`docs/provider-order.md`, 「Falling over and coming back」).
+(`docs/provider-order.md`, 「Falling over and coming back」). Agency writes a block itself as a supervisor's
+turn or a job walks off a road for its provider's failure, for the span the failure's kind holds, its reason
+naming the kind and the failure's words; a block written by the route and one written by a walk are one
+resource, listed and opened alike.
 
 The launch room answers `held`, every reason it is held, the jobs at work and, of those, the ones whose place
 runs a browser. The launcher's own notice is kept beside the machine's reasons and read back with them; a
@@ -1164,11 +1178,18 @@ service.
   orderer is told once for that label (`item-unlaunchable`, `docs/agent-control.md`, 「An item's change is
   told to its orderer」), and the mark is let go as a job of the item is launched.
 - **A job is never refused for quota:** where no provider of the order has quota, or the item's model, the
-  forced provider or the pin cannot answer, `POST /jobs` takes the job and it waits `running`, answering
-  `heldFor`, its sentence naming every provider's reason — each Claude login's own, with the moment the first
-  of them reopens — and what a person must do for the first provider a person can reopen, a sign-in command
-  or where a balance is topped up. A job held so, or not let in at its first ask for a slot of its role, is
-  told to its item's orderer as the wait begins (`job-waiting`).
+  forced provider or the pin cannot answer, `POST /jobs` takes the job all the same and answers 201. The job
+  is written `starting`, holds its assignment, its checkout and its item's lease, and waits, answering
+  `heldFor`, its sentence naming every provider's reason — the owner's switch, a spent balance or quota,
+  each Claude login's own, with the moment the first of them reopens — and what a person must do for the
+  first provider a person can reopen, a sign-in command or where a balance is topped up. It asks its road
+  again as each usage reading, account change, rest or road fact comes in and on the policy's clock
+  (`policy/roads.toml`, `[job]`), and goes out on the first road that can answer, `heldFor` then null. It
+  holds no slot while it waits for a road (`docs/provider-order.md`, 「When every provider is out」): its slot
+  is asked as its turn goes out. A job's turn waiting for its card names that wait as its `heldFor` until the
+  card is granted (`docs/own-llm.md`, 「An engine the arbiter stands」). A job held so — for a road, for its
+  card — or not let in at its first ask for a slot of its role, is told to its item's orderer once as the
+  wait begins (`job-waiting`).
 - **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
   quota, window, balance or credential refused, its last login closing under it, or its road found unable
   to answer as the turn ends — is launched again on the order's next provider: the same job, item,
@@ -1178,8 +1199,8 @@ service.
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
   saying where it ran and why it moved. Where no provider of the order has quota, the job stays `running`
   and answers `heldFor`, the reason it waits; it goes out again as soon as a provider has quota, and
-  `heldFor` is null whenever a turn is out. A job on its item's model, a forced provider or a pinned model
-  never moves: it waits for that one. A failure of the work itself moves nothing.
+  `heldFor` is null whenever a turn is out and not waiting for its card. A job on its item's model, a
+  forced provider or a pinned model never moves: it waits for that one. A failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
@@ -1217,7 +1238,7 @@ service.
 Agency publishes one stream, `GET /events`. The kinds are:
 
 `supervisor.changed`, `role.changed`, `session.created`, `session.changed`, `session.folded`, `session.deleted`,
-`turn.created`, `turn.ended`, `question.created`, `run.created`, `run.changed`, `run.stopped`,
+`turn.created`, `turn.changed`, `turn.ended`, `question.created`, `run.created`, `run.changed`, `run.stopped`,
 `execution.changed`, `slot-request.changed`, `reservation.changed`, `repository.changed`, `repository.deleted`,
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
@@ -1232,6 +1253,8 @@ notice to a reader resuming too late (「events」 above), never published as an
   go what waited for its turns; and the reset once agency's part is taken, `agent`, `ranges`, `alone` and
   `shared`, the rooms, `runs`, the runs its own log lines went under, `by` and `at` in epoch seconds, so each
   unit takes its own rows.
+- **`turn.changed`** carries what a running turn waits for (「sessions」 above): `session`, `turnId`, `run` and
+  `waiting`, null as the wait clears.
 - **`road.changed`** carries one fact of a supervisor's or a role's provider (`docs/provider-order.md`, 「The
   facts told」), published once per move, after the system has acted, and named in its `fact`; each names its
   row as `supervisor` or `role`, the other null:

@@ -520,13 +520,38 @@ pub enum Answer {
   },
 }
 
-/// What a session's turn now going, or its last one, has written so far.
+/// What a session's turn now going, or its last one, has written so far, and what the turn waits for while
+/// nothing holds it back but that wait.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Output {
   pub turn: i64,
   pub run: String,
   pub running: bool,
   pub text: String,
+  pub waiting: Option<Waiting>,
+}
+
+/// What a running turn waits for before its program is put to work, typed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Waiting {
+  /// What it waits for.
+  #[serde(rename = "for")]
+  pub kind: WaitKind,
+  /// The service whose grant it waits on.
+  pub service: String,
+  /// Why it waits, as it stands now.
+  pub reason: String,
+  /// The moment the wait began, in epoch milliseconds.
+  pub since: i64,
+}
+
+/// The kinds of thing a turn waits for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WaitKind {
+  /// A card the arbiter's master has not yet granted the run on a registration naming a card service.
+  Card,
 }
 
 /// The context a session's last request carried against the window of the registration it stands on.

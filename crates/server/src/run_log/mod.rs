@@ -107,6 +107,11 @@ impl RunLog {
     &self.target.run
   }
 
+  /// The job these lines are a run of, where they are a job's.
+  pub fn job(&self) -> Option<i64> {
+    self.target.job_id
+  }
+
   /// Where the job's lines left off read again before the next line: another writer of the same job has
   /// written its own lines meanwhile.
   pub fn resync(&mut self) {

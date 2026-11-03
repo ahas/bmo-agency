@@ -1,7 +1,7 @@
 //! A job asked of a running server in the shapes the harness sends (docs/api.md, 「assignments and jobs」): a
-//! launch refused while nothing in the order can answer, the assignment left held; a turn that
-//! fails ending the job with why, written into its log; and the end releasing the
-//! assignment, so the worker is held again for the next item.
+//! launch taken while nothing in the order can answer, the job waiting `starting` with every provider's reason
+//! and holding no slot, and going out once a login reopens; a turn that fails ending the job with why, written
+//! into its log; and the end releasing the assignment, so the worker is held again for the next item.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -192,8 +192,6 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert!(refused["error"].as_str().unwrap().contains("named help;"), "{refused}");
   assert!(refused["error"].as_str().unwrap().ends_with(": helper"), "{refused}");
 
-  // Nothing in the order can answer: nothing is launched, the worker stays held for the item, and the
-  // refusal names every provider's reason and the moment the first login reopens.
   let assignment = assigned(port, token, 41).await;
 
   // The repository's one checkout is held now, so another item waits for it to come free.
@@ -206,15 +204,6 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   .await;
 
   assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
-
-  let (status, refused) = run_job(port, token, assignment, 41).await;
-
-  assert_eq!(status, 503, "{refused}");
-  assert_eq!(refused["code"], "no-login-open", "{refused}");
-  assert!(refused["error"].as_str().unwrap().contains("login-a is at its limit"), "{refused}");
-  assert!(refused["error"].as_str().unwrap().contains("reopens on its own"), "{refused}");
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
-  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 
   // An item naming a model agency does not hold, or a label that names no provider and model, is refused
   // with the label's text before any road is asked, nothing written and the assignment left held.
@@ -243,17 +232,53 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 
-  // The login reopens; the launch goes out and its turn, with no herdr to stand it in, fails: the job ends
-  // saying why, in its report and in its log.
+  // Nothing in the order can answer: the job is taken all the same and waits `starting`, held with every
+  // provider's reason and the moment the first login reopens, its assignment running and no slot held.
+  let (status, job) = run_job(port, token, assignment, 41).await;
+
+  assert_eq!(status, 201, "{job}");
+  assert_eq!(job["state"], "starting", "{job}");
+
+  let id = job["id"].as_i64().unwrap();
+  let mut held = Value::Null;
+
+  for _ in 0..100 {
+    held = get(port, token, &format!("/jobs/{id}")).await.1;
+
+    if held["heldFor"].is_string() {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  let why = held["heldFor"].as_str().unwrap_or_default();
+
+  assert_eq!(held["state"], "starting", "{held}");
+  assert!(why.contains("login-a is at its limit"), "{held}");
+  assert!(why.contains("reopens on its own"), "{held}");
+  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "running");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "role_slot_requests" WHERE "owner" = $1"#,
+        vec![format!("job-{id}").into()],
+      )
+      .await,
+    0,
+    "a job waiting for a road holds no slot"
+  );
+
+  // The login reopens, and the rest's change wakes the waiting job: it goes out at once, and its turn, with
+  // no herdr to stand it in, fails: the job ends saying why, in its report and in its log.
   scratch
     .run(r#"DELETE FROM "settings" WHERE "key" = 'rest_until:login-a'"#, vec![])
     .await;
 
-  let (status, job) = run_job(port, token, assignment, 41).await;
+  let (status, _) = post(port, token, "/events", json!({ "kind": "rest.changed", "data": {} })).await;
 
-  assert_eq!(status, 201, "{job}");
+  assert_eq!(status, 201);
 
-  let id = job["id"].as_i64().unwrap();
   let mut ended = Value::Null;
 
   for _ in 0..100 {

@@ -2,19 +2,21 @@
 //! every text block the program's answers wrote in the turn's record, in order, joined as the turn's
 //! words, kept from the turn's start past its end until the session's next turn begins or the session
 //! ends, so a turn stopped from outside still leaves what it wrote. An attempt that goes out again on
-//! another login or a fresh session begins its words again. Each turn's words are kept under its id.
+//! another login or a fresh session begins its words again. Each turn's words are kept under its id, and
+//! beside them what the turn waits for while it waits (docs/api.md, 「sessions」, a running turn's wait).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use agent_session::{Output, SessionId};
+use agent_session::{Output, SessionId, Waiting};
 
-// One turn: the run it goes out as, whether it still goes, and the text blocks it wrote.
+// One turn: the run it goes out as, whether it still goes, the text blocks it wrote and what it waits for.
 struct Written {
   turn: i64,
   run: String,
   running: bool,
   texts: Vec<String>,
+  waiting: Option<Waiting>,
 }
 
 /// Where one turn's written text goes while it runs, for a watch that reads the program's record.
@@ -29,6 +31,11 @@ impl OutputWatch<'_> {
   /// The text blocks the program wrote since it was last read.
   pub fn wrote(&self, texts: &[String]) {
     self.outputs.wrote(self.session, self.turn, texts);
+  }
+
+  /// What the turn waits for now, or that it waits no longer.
+  pub fn waiting(&self, waiting: Option<Waiting>) {
+    self.outputs.waiting(self.session, self.turn, waiting);
   }
 }
 
@@ -61,6 +68,7 @@ impl Outputs {
         run: run.to_owned(),
         running: true,
         texts: Vec::new(),
+        waiting: None,
       },
     );
     self.latest().insert(session.clone(), turn);
@@ -80,10 +88,18 @@ impl Outputs {
     }
   }
 
-  /// The turn ended, what it wrote kept.
+  /// What the turn waits for now, or that it waits no longer.
+  pub fn waiting(&self, session: &SessionId, turn: i64, waiting: Option<Waiting>) {
+    if let Some(written) = self.written().get_mut(&(session.clone(), turn)) {
+      written.waiting = waiting;
+    }
+  }
+
+  /// The turn ended, what it wrote kept; an ended turn waits for nothing.
   pub fn ended(&self, session: &SessionId, turn: i64) {
     if let Some(written) = self.written().get_mut(&(session.clone(), turn)) {
       written.running = false;
+      written.waiting = None;
     }
   }
 
@@ -103,6 +119,7 @@ impl Outputs {
       run: written.run.clone(),
       running: written.running,
       text: written.texts.join("\n\n"),
+      waiting: written.waiting.clone(),
     })
   }
 }
