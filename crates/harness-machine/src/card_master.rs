@@ -105,6 +105,9 @@ pub struct Demand {
   pub state: String,
   #[serde(default)]
   pub taken: Option<Value>,
+  /// Whether a demand of a better rank took its card, rather than a claim or a lower tier.
+  #[serde(default)]
+  pub outranked: bool,
   #[serde(default)]
   pub reason: Option<Reason>,
   #[serde(default)]

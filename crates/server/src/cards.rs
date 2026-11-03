@@ -120,7 +120,9 @@ async fn job_rank(ground: &Ground, job: i64) -> Option<u32> {
   supervisor_rank(&ground.db, &supervisor).await
 }
 
-/// A turn's watch on the demand it stands on: the turn stopped the moment the demand reads `taken`.
+/// A turn's watch on the demand it stands on: the turn stopped the moment a demand of a better rank takes its
+/// card. A claim or a lower tier stops the engine under it, which cuts the request in hand and leaves the rest of
+/// the turn as it always has.
 pub struct TurnWatch {
   run: String,
   taken: Arc<std::sync::atomic::AtomicBool>,
@@ -169,13 +171,13 @@ pub fn watch_turn(ground: &Ground, held: &Held, run: &str) -> TurnWatch {
   }
 }
 
-/// Who took the card of the demand, read with its answer held open until it does; none where the master no
-/// longer holds it. A demand lent stands, its caller having lent it.
+/// Which demand of a better rank took the card of the demand, read with its answer held open until one does; none
+/// where the master no longer holds it. A demand lent, or taken by a claim or a lower tier, stands.
 pub async fn until_taken(master: &Master, demand: i64) -> Option<String> {
   loop {
     match master.watch(demand, DEMAND_WAIT).await {
       Ok(Some(read)) => {
-        if let Some(taken) = read.taken.as_ref().filter(|taken| !taken.is_null()) {
+        if let Some(taken) = read.taken.as_ref().filter(|taken| read.outranked && !taken.is_null()) {
           return Some(taken.as_str().map_or_else(|| taken.to_string(), str::to_owned));
         }
       }

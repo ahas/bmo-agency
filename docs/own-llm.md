@@ -296,11 +296,12 @@ never the model's name.
   one, or a job service that cannot be read, is no answer: the job asks at the default rank, and the server's
   log says why. Agency does not guess between supervisors of one room.
 - **The demand is held for the run's turn and given back at its end.** The card can be taken from it by a
-  bench or a claim, which stops the engine as the arbiter's lower tiers always have, or by a demand of a better
-  rank, which stops the engine only where it wants the other one. Agency watches the demand of every turn in
-  flight, its answer held open with the master's `watch`; once the demand reads `taken` the turn is stopped as an
-  interrupt stops it, and ends `card-taken` (`docs/api.md`, 「sessions」), and its session's next turn waits for
-  its demand to be granted again. A demand whose run
+  bench or a claim, which stops the engine as the arbiter's lower tiers always have: the turn's request in hand is
+  then cut, and its next request waits for its demand to be granted again. A demand of a better rank can take it
+  too, stopping the engine only where it wants the other one, so nothing else would cut the turn: agency watches the
+  demand of every turn in flight, its answer held open with the master's `watch`, and once a better rank has taken
+  the card the turn is stopped as an interrupt stops it and ends `card-taken` (`docs/api.md`, 「sessions」). Its
+  session's next turn waits for its demand to be granted again; asking the turn again is its caller's. A demand whose run
   has ended without giving it back is given back by agency at its start and with its lease: every demand
   agency asks is kept in the store's `card_demands` with its holder, the slot's lease where one holds it
   and the demand it was asked within, until it is given back; the server gives back every demand kept

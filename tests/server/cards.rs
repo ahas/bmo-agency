@@ -1019,7 +1019,19 @@ async fn a_watch_ends_only_when_the_card_is_taken_or_the_demand_is_gone() {
   tokio::time::sleep(Duration::from_millis(100)).await;
   assert!(!watched.is_finished(), "a card its caller lent is not taken");
 
-  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["taken"] = json!("agency a-better-rank");
+  // Taken by the bench: its engine is stopped under the turn, which the watch leaves as it stands.
+  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["taken"] = json!("bench");
+  tokio::time::sleep(Duration::from_millis(100)).await;
+  assert!(!watched.is_finished(), "a lower tier's taking stops no turn");
+
+  {
+    let demands = &mut shared.lock().unwrap().demands;
+    let demand = demands.get_mut(&held.demand).unwrap();
+
+    demand["taken"] = json!("agency a-better-rank");
+    demand["outranked"] = json!(true);
+  }
+
   assert_eq!(watched.await.unwrap().as_deref(), Some("agency a-better-rank"));
 
   assert!(shared.lock().unwrap().waits.iter().all(|wait| *wait > 0), "each read is held open");
@@ -1057,7 +1069,13 @@ async fn a_turns_watch_marks_its_run_once_its_card_is_taken_and_finishes_clean()
     .unwrap();
   let watching = watch_turn(&ground, &held, "a-run-of-a-watch");
 
-  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["taken"] = json!("agency a-better-rank");
+  {
+    let demands = &mut shared.lock().unwrap().demands;
+    let demand = demands.get_mut(&held.demand).unwrap();
+
+    demand["taken"] = json!("agency a-better-rank");
+    demand["outranked"] = json!(true);
+  }
 
   for _ in 0..200 {
     if agency_server::queue::cancels::standing_named(scratch.db(), "a-run-of-a-watch")

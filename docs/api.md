@@ -497,7 +497,7 @@ that ended waits for nothing.
 A turn's end — the send's answer and `turn.ended` alike — carries `ending` beside `outcome`: the word the
 turn's wait ended on, typed, and `reason`, why a turn with no answer has none, or null. A turn put into a
 program's pane ends `answered`, `silent` (back at rest, its record closing the turn with no answer),
-`errored` (the program's own error in the answer's place, or the failed request its program reported through its failure hook), `card-taken` (the demand the turn stood on lost its card, so the turn was stopped; what it wrote is unfinished and `reason` names who took it), `vanished` (herdr says its pane is gone),
+`errored` (the program's own error in the answer's place, or the failed request its program reported through its failure hook), `card-taken` (a demand of a better rank took the card of the demand the turn stood on, so the turn was stopped; what it wrote is unfinished and `reason` names who took it), `vanished` (herdr says its pane is gone),
 `program-lost` (the program's process is gone and its record never closed the turn), `silent-peer` (no
 program can be named for the turn, the pane shows none, and nothing the program writes moved between two
 looks), `blocked`, `untrusted`, `unsubmitted`, `overran` or `stopped`
