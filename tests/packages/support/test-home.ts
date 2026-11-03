@@ -118,11 +118,14 @@ mkdirSync(runtimeDir, { recursive: true, mode: 0o700 });
 process.env.XDG_RUNTIME_DIR = runtimeDir;
 delete process.env.DBUS_SESSION_BUS_ADDRESS;
 
-// The token is set empty rather than removed, which reads as no token at all: a bun process a test
-// starts in the checkout reads the .env there for every variable that is not set, and a removed
-// token would come straight back from it.
+// The token and the address are set empty rather than removed, which reads as no token and no port
+// at all: a bun process a test starts in the checkout reads the .env there for every variable that is
+// not set, and a removed one would come straight back from it. The token file is cleared too, since a
+// caller's environment can name the running server's token that way just as well.
 process.env.BMO_CONTROL_TOKEN = "";
 process.env.AGENCY_CONTROL_TOKEN = "";
+process.env.AGENCY_CONTROL_TOKEN_FILE = "";
+process.env.AGENCY_CONTROL_PORT = "";
 
 // The services agency calls are named by no address, for the same reason: a process a test starts
 // reaches the live ones of none of them, and answers each one's default (docs/api.md, 「Calls agency
