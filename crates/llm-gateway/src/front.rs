@@ -18,9 +18,10 @@ use std::time::{Duration, Instant};
 use axum::Router;
 use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, Method, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
+use harness_machine::card_master::{CardTerms, POOL_HEADER, RANK_HEADER};
 use http_body_util::BodyDataStream;
 use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
@@ -174,6 +175,12 @@ fn refused() -> Response {
     .into_response()
 }
 
+// What a request names of its demand, for a card asked at the door.
+fn terms_of(headers: &HeaderMap) -> CardTerms {
+  let named = |name: &str| headers.get(name).and_then(|value| value.to_str().ok());
+  CardTerms::of_headers(named(RANK_HEADER), named(POOL_HEADER))
+}
+
 impl Front {
   /// A front checking every request against the gateway's own key, which is never empty, asking its
   /// cards at the door where one is given, and cutting a streamed answer silent for `stall`.
@@ -306,6 +313,7 @@ impl Front {
     door: &Arc<Door>,
     bytes: Bytes,
     model: &str,
+    terms: &CardTerms,
   ) -> Result<(Bytes, Option<Seat>), (StatusCode, String)> {
     if self.serves(model) != Some(false) {
       return Ok((bytes, None));
@@ -315,7 +323,7 @@ impl Front {
     };
 
     let (seat, node) = door
-      .card(&service)
+      .card(&service, terms)
       .await
       .map_err(|refused| (StatusCode::SERVICE_UNAVAILABLE, refused))?;
     self.until_served(&format!("{registration}@{node}")).await;
@@ -348,7 +356,8 @@ impl Front {
       let model = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model);
       let door = self.door.as_ref().filter(|_| self.stands());
       match (door, model.as_deref()) {
-        (Some(door), Some(named)) => match self.carded(door, bytes, named).await {
+        (Some(door), Some(named)) => match self.carded(door, bytes, named, &terms_of(&parts.headers)).await
+        {
           Ok((bytes, seat)) => (Body::from(bytes), model, seat),
           Err((status, said)) => return text(status, said),
         },

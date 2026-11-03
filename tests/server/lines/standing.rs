@@ -30,3 +30,26 @@ fn the_fold_share_is_what_the_answer_ceiling_leaves_of_the_window_rounded_down()
   assert_eq!(fold_share(65_536, 0), "100.0000");
   assert_eq!(fold_share(4_096, 8_192), "0.0001");
 }
+
+#[test]
+fn a_run_names_its_card_terms_to_the_door_and_only_what_reads_is_taken() {
+  use harness_machine::card_master::{CardPool, CardTerms};
+
+  let terms = CardTerms {
+    rank: Some(0),
+    pool: Some(CardPool {
+      key: "my pool".into(),
+      cards: 1,
+    }),
+  };
+
+  assert_eq!(terms.headers(), ["x-bmo-card-rank: 0", "x-bmo-card-pool: 1 my pool"]);
+  assert_eq!(CardTerms::of_headers(Some("0"), Some("1 my pool")), terms);
+  assert_eq!(CardTerms::of_headers(Some("best"), Some("none")), CardTerms::default());
+  assert_eq!(
+    CardTerms::of_headers(None, Some("0 k")),
+    CardTerms::default(),
+    "a limit of nought is none"
+  );
+  assert!(CardTerms::default().headers().is_empty());
+}

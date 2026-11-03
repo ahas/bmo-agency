@@ -152,6 +152,60 @@ pub struct DemandAsk {
   pub work_key: Option<String>,
   #[serde(rename = "ref", skip_serializing_if = "Option::is_none")]
   pub reference: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub rank: Option<u32>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub pool: Option<CardPool>,
+}
+
+/// A pool a demand stands in: a key that means nothing to the master, and the most cards the demands of that
+/// key use of one service at once.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct CardPool {
+  pub key: String,
+  pub cards: u32,
+}
+
+/// What a caller says of the demands of its work: their rank and their pool, each its own setting.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct CardTerms {
+  pub rank: Option<u32>,
+  pub pool: Option<CardPool>,
+}
+
+/// The header a gateway request names its demand's rank in.
+pub const RANK_HEADER: &str = "x-bmo-card-rank";
+/// The header a gateway request names its demand's pool in, as `<cards> <key>`.
+pub const POOL_HEADER: &str = "x-bmo-card-pool";
+
+impl CardTerms {
+  /// The terms a gateway request's two headers name; one that does not read names nothing.
+  pub fn of_headers(rank: Option<&str>, pool: Option<&str>) -> Self {
+    Self {
+      rank: rank.and_then(|rank| rank.trim().parse().ok()),
+      pool: pool.and_then(|pool| {
+        let (cards, key) = pool.trim().split_once(' ')?;
+        let cards = cards.parse().ok().filter(|cards| *cards > 0)?;
+        let key = key.trim();
+        (!key.is_empty()).then(|| CardPool {
+          key: key.to_owned(),
+          cards,
+        })
+      }),
+    }
+  }
+
+  /// The header lines a gateway request names them in.
+  pub fn headers(&self) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(rank) = self.rank {
+      lines.push(format!("{RANK_HEADER}: {rank}"));
+    }
+    if let Some(pool) = &self.pool {
+      lines.push(format!("{POOL_HEADER}: {} {}", pool.cards, pool.key));
+    }
+    lines
+  }
 }
 
 /// One node a service stands on now, as the master reports it.
@@ -256,7 +310,17 @@ impl Master {
   /// A demand read, its answer held open up to `wait` for a change; none where the master holds no such
   /// demand.
   pub async fn demand(&self, id: i64, wait: Duration) -> Result<Option<Demand>, MasterFault> {
-    let request = self.http.get(self.at(&format!("/demands/{id}?waitMs={}", wait.as_millis())));
+    self.read_demand(&format!("/demands/{id}?waitMs={}", wait.as_millis())).await
+  }
+
+  /// A demand a caller stands on read, its answer held open up to `wait` for a change whatever its state; none
+  /// where the master holds no such demand.
+  pub async fn watch(&self, id: i64, wait: Duration) -> Result<Option<Demand>, MasterFault> {
+    self.read_demand(&format!("/demands/{id}?waitMs={}&watch=true", wait.as_millis())).await
+  }
+
+  async fn read_demand(&self, path: &str) -> Result<Option<Demand>, MasterFault> {
+    let request = self.http.get(self.at(path));
     let answer = self
       .authorized(request)
       .send()

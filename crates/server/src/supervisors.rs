@@ -28,6 +28,8 @@ pub struct Supervisor {
   /// For each provider, whether its prefix is kept warm while idle there.
   pub warming: BTreeMap<String, bool>,
   pub fold_ratio: f64,
+  /// The rank of the demands of the runs for it, where it holds one.
+  pub card_rank: Option<u32>,
   pub builtin: bool,
   /// What its last turn went out on.
   pub last_mode: Option<String>,
@@ -58,6 +60,7 @@ impl Supervisor {
         .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       warming: serde_json::from_str(&warming).unwrap_or_default(),
       fold_ratio: row.try_get("", "fold_ratio")?,
+      card_rank: row.try_get::<Option<i32>>("", "card_rank")?.and_then(|rank| u32::try_from(rank).ok()),
       builtin: row.try_get::<i64>("", "builtin")? != 0,
       last_mode: row.try_get("", "last_mode")?,
       last_model: row.try_get("", "last_model")?,

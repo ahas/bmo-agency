@@ -15,7 +15,8 @@ use std::time::Duration;
 
 use agency_server::cards::{
   Ask, Asking, CardWait, Gateway, SharedAsk, Sharing, WaitTold, give_back_lease, give_back_left,
-  give_back_on, give_back_with_leases, hold_on, holding, native_card, seat_card_on, share,
+  give_back_on, give_back_with_leases, hold_on, holding, native_card, only_supervisor_of_room,
+  seat_card_on, share, supervisor_rank, taken_from, terms, until_taken, watch_turn,
 };
 use agency_server::control::registry::{change, registration, view};
 use agency_server::herdr_backend::TurnChanged;
@@ -318,6 +319,7 @@ async fn a_demand_handed_in_is_stood_on_and_left_to_its_caller() {
   let own = Ask {
     own: Some(7),
     within: None,
+    ..Ask::default()
   };
   let held = hold_on(scratch.db(), &master, asking("research", own, None), &mut |_: &CardWait| {})
     .await
@@ -333,6 +335,7 @@ async fn a_demand_handed_in_is_stood_on_and_left_to_its_caller() {
   let gone = Ask {
     own: Some(99),
     within: None,
+    ..Ask::default()
   };
   let refused =
     hold_on(scratch.db(), &master, asking("research", gone, None), &mut |_: &CardWait| {}).await;
@@ -351,6 +354,7 @@ async fn work_asked_within_a_run_lends_its_card_and_the_run_is_told_once_its_eng
   let within = Ask {
     own: None,
     within: Some(50),
+    ..Ask::default()
   };
   let held = hold_on(
     scratch.db(),
@@ -732,8 +736,9 @@ async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() 
   let within = Ask {
     own: None,
     within: Some(30),
+    ..Ask::default()
   };
-  let admission = || seat_card_on(scratch.db(), Some(&master), &seat, within);
+  let admission = || seat_card_on(scratch.db(), Some(&master), &seat, within.clone());
 
   // The first admission asks the demand, within the run's; the stand-in grants it on its second read.
   let asked = admission().await.unwrap().unwrap();
@@ -782,6 +787,7 @@ async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_i
   let own = Ask {
     own: Some(7),
     within: None,
+    ..Ask::default()
   };
   let card = seat_card_on(scratch.db(), Some(&master), &seat, own).await.unwrap().unwrap();
 
@@ -800,6 +806,7 @@ async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_i
   let gone = Ask {
     own: Some(99),
     within: None,
+    ..Ask::default()
   };
   let refused = seat_card_on(scratch.db(), Some(&master), &seat, gone).await;
 
@@ -961,4 +968,157 @@ async fn a_turn_s_card_wait_is_its_state_and_its_job_s_hold_until_the_grant_clea
     .await;
   outputs.ended(&session, 3);
   assert_eq!(outputs.read(&session, Some(3)).unwrap().waiting, None);
+}
+
+#[tokio::test]
+async fn a_demand_is_asked_at_the_rank_and_in_the_pool_its_caller_names() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(1, false, &key_file(&data)).await;
+  let mut waiting = |_: &CardWait| {};
+  let named = Ask {
+    terms: terms(Some(0), Some(("mine".into(), 1))),
+    ..Ask::default()
+  };
+
+  hold_on(scratch.db(), &master, asking("a-holder", named, None), &mut waiting)
+    .await
+    .unwrap();
+  hold_on(scratch.db(), &master, asking("a-holder", Ask::default(), None), &mut waiting)
+    .await
+    .unwrap();
+
+  let asked = shared.lock().unwrap().asked.clone();
+
+  assert_eq!(
+    (&asked[0]["rank"], &asked[0]["pool"]),
+    (&json!(0), &json!({ "key": "mine", "cards": 1 }))
+  );
+  assert!(asked[1].get("rank").is_none() && asked[1].get("pool").is_none(), "{:?}", asked[1]);
+}
+
+#[tokio::test]
+async fn a_watch_ends_only_when_the_card_is_taken_or_the_demand_is_gone() {
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(1, false, &key_file(&data)).await;
+  let scratch = Scratch::new().await;
+  let mut quiet = |_: &CardWait| {};
+  let held = hold_on(scratch.db(), &master, asking("a-holder", Ask::default(), None), &mut quiet)
+    .await
+    .unwrap();
+
+  let watched = tokio::spawn({
+    let master = master.clone();
+    let demand = held.demand;
+    async move { until_taken(&master, demand).await }
+  });
+
+  // Granted, and then lent by its own caller: the watch stands through both.
+  tokio::time::sleep(Duration::from_millis(100)).await;
+  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["state"] = json!("lent");
+  tokio::time::sleep(Duration::from_millis(100)).await;
+  assert!(!watched.is_finished(), "a card its caller lent is not taken");
+
+  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["taken"] = json!("agency a-better-rank");
+  assert_eq!(watched.await.unwrap().as_deref(), Some("agency a-better-rank"));
+
+  assert!(shared.lock().unwrap().waits.iter().all(|wait| *wait > 0), "each read is held open");
+  shared.lock().unwrap().demands.remove(&held.demand);
+  assert_eq!(
+    until_taken(&master, held.demand).await,
+    None,
+    "a demand the master no longer holds was not taken"
+  );
+}
+
+#[tokio::test]
+async fn a_turns_watch_marks_its_run_once_its_card_is_taken_and_finishes_clean() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(1, false, &key_file(&home)).await;
+  let base = shared.lock().unwrap().base.clone();
+  let mut config = agency_server::config::Config::read(|_| None).unwrap();
+
+  config.peers.arbiter =
+    MasterAddress::read(|name| (name == "AGENCY_ARBITER_URL").then(|| base.clone())).unwrap();
+
+  let service = agency_server::Service::new(scratch.db().clone(), config);
+  let ground = agency_server::places::Ground::new(
+    &service,
+    &harness_providers::Machine::with_env(
+      vec![("HOME".to_owned(), home.path().to_string_lossy().into_owned())],
+      home.path().join("data"),
+    ),
+    None,
+  );
+  let mut quiet = |_: &CardWait| {};
+  let held = hold_on(scratch.db(), &master, asking("a-holder", Ask::default(), None), &mut quiet)
+    .await
+    .unwrap();
+  let watching = watch_turn(&ground, &held, "a-run-of-a-watch");
+
+  shared.lock().unwrap().demands.get_mut(&held.demand).unwrap()["taken"] = json!("agency a-better-rank");
+
+  for _ in 0..200 {
+    if agency_server::queue::cancels::standing_named(scratch.db(), "a-run-of-a-watch")
+      .await
+      .unwrap()
+    {
+      break;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  assert!(
+    agency_server::queue::cancels::standing_named(scratch.db(), "a-run-of-a-watch")
+      .await
+      .unwrap(),
+    "the turn is stopped"
+  );
+  watching.finish(&ground).await;
+  assert_eq!(taken_from("a-run-of-a-watch").as_deref(), Some("agency a-better-rank"));
+  assert_eq!(taken_from("a-run-of-a-watch"), None, "told once");
+}
+
+#[tokio::test]
+async fn a_room_names_its_supervisor_only_where_exactly_one_spoke_there() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  crate::support::rows::supervisor(db, "first", &[]).await;
+  crate::support::rows::supervisor(db, "second", &[]).await;
+
+  let (first, second) = (&"first".to_owned(), &"second".to_owned());
+  let run_in = async |agent: &str, room: i64, unit: &str| {
+    store::run(
+      db,
+      r#"INSERT INTO "runs" ("agent", "chat_id", "unit", "depth", "started_at") VALUES ($1, $2, $3, 0, 1)"#,
+      vec![agent.into(), room.into(), unit.into()],
+    )
+    .await
+    .unwrap();
+  };
+
+  run_in(first, 11, "one").await;
+  run_in("a-role-that-is-no-supervisor", 11, "two").await;
+  assert_eq!(only_supervisor_of_room(db, 11).await.unwrap().as_ref(), Some(first));
+
+  run_in(second, 12, "three").await;
+  run_in(first, 12, "four").await;
+  assert_eq!(
+    only_supervisor_of_room(db, 12).await.unwrap(),
+    None,
+    "two supervisors of one room is no answer"
+  );
+  assert_eq!(only_supervisor_of_room(db, 13).await.unwrap(), None, "a room none spoke in names none");
+
+  assert_eq!(supervisor_rank(db, first).await, None);
+  store::run(
+    db,
+    r#"UPDATE "supervisors" SET "card_rank" = 0 WHERE "name" = $1"#,
+    vec![first.as_str().into()],
+  )
+  .await
+  .unwrap();
+  assert_eq!(supervisor_rank(db, first).await, Some(0));
+  assert_eq!(supervisor_rank(db, "a-name-no-supervisor-holds").await, None);
 }

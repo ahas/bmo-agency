@@ -1,15 +1,15 @@
 //! The cards the gateway's door asks (docs/own-llm.md, 「The gateway」): a request on a registration naming
 //! a card service whose engine stands nowhere asks the arbiter's master for one card of the service and
-//! waits for it with no clock. The demand is the door's line's, one for each service: every request on the
-//! service that comes while it waits or stands waits on the same grant, and once the last of them has ended
-//! it is given back, granted or still waiting.
+//! waits for it with no clock. The demand is the door's line's, one for each service and each rank and pool
+//! its requests name: every request of those that comes while it waits or stands waits on the same grant, and
+//! once the last of them has ended it is given back, granted or still waiting.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use harness_machine::card_master::{DEMAND_WAIT, Demand, DemandAsk, Master, MasterFault};
+use harness_machine::card_master::{CardTerms, DEMAND_WAIT, Demand, DemandAsk, Master, MasterFault};
 use serde_json::Value;
 use tokio::sync::watch;
 
@@ -36,10 +36,13 @@ struct Line {
   gone: watch::Sender<bool>,
 }
 
-/// The door's lines, one for each card service it has requests out on.
+// A line's key: the card service and the terms its requests name.
+type LineKey = (String, CardTerms);
+
+/// The door's lines, one for each card service and naming it has requests out on.
 pub struct Door {
   master: Master,
-  lines: Mutex<HashMap<String, Line>>,
+  lines: Mutex<HashMap<LineKey, Line>>,
   asks: AtomicU64,
   /// Told once the demands a launcher that ended left have been given back, before which none is asked.
   swept: watch::Sender<bool>,
@@ -49,13 +52,13 @@ pub struct Door {
 /// caller gone.
 pub struct Seat {
   door: Arc<Door>,
-  service: String,
+  line: LineKey,
   ask: u64,
 }
 
 impl Drop for Seat {
   fn drop(&mut self) {
-    let Some(demand) = self.door.leave(&self.service, self.ask) else {
+    let Some(demand) = self.door.leave(&self.line, self.ask) else {
       return;
     };
     // Outside a runtime — the process ending — the next launcher gives it back as it starts.
@@ -106,18 +109,19 @@ impl Door {
     door
   }
 
-  fn lines(&self) -> std::sync::MutexGuard<'_, HashMap<String, Line>> {
+  fn lines(&self) -> std::sync::MutexGuard<'_, HashMap<LineKey, Line>> {
     self.lines.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
   }
 
   /// The card of `service` a request stands on: the one its line stands on or waits for, or a new ask
   /// where no line is out. Answered with the node granted once it is, however long that takes, or with the
   /// master's sentence where it refuses the demand.
-  pub async fn card(self: &Arc<Self>, service: &str) -> Result<(Seat, String), String> {
-    let (ask, mut card) = self.join(service);
+  pub async fn card(self: &Arc<Self>, service: &str, terms: &CardTerms) -> Result<(Seat, String), String> {
+    let line: LineKey = (service.to_owned(), terms.clone());
+    let (ask, mut card) = self.join(&line);
     let seat = Seat {
       door: Arc::clone(self),
-      service: service.to_owned(),
+      line,
       ask,
     };
     let answer = card.wait_for(Option::is_some).await.ok().and_then(|answer| answer.clone());
@@ -150,10 +154,10 @@ impl Door {
 
   // The request joins the line out on the service, or starts one where none is, whose ask then runs on its
   // own: no request's going away cuts it.
-  fn join(self: &Arc<Self>, service: &str) -> (u64, watch::Receiver<Answer>) {
+  fn join(self: &Arc<Self>, key: &LineKey) -> (u64, watch::Receiver<Answer>) {
     let mut lines = self.lines();
 
-    if let Some(line) = lines.get_mut(service) {
+    if let Some(line) = lines.get_mut(key) {
       line.requests += 1;
       return (line.ask, line.card.clone());
     }
@@ -163,7 +167,7 @@ impl Door {
     let (gone, left) = watch::channel(false);
 
     lines.insert(
-      service.to_owned(),
+      key.clone(),
       Line {
         ask,
         requests: 1,
@@ -172,23 +176,23 @@ impl Door {
         gone,
       },
     );
-    tokio::spawn(Arc::clone(self).ask_for_line(ask, service.to_owned(), answer, left));
+    tokio::spawn(Arc::clone(self).ask_for_line(ask, key.clone(), answer, left));
 
     (ask, card)
   }
 
   // A request of `ask` gone: where it was the last out, the demand to give back where one was granted, or
   // else the ask told to give back what it asked.
-  fn leave(&self, service: &str, ask: u64) -> Option<i64> {
+  fn leave(&self, key: &LineKey, ask: u64) -> Option<i64> {
     let mut lines = self.lines();
-    let line = lines.get_mut(service).filter(|line| line.ask == ask)?;
+    let line = lines.get_mut(key).filter(|line| line.ask == ask)?;
 
     line.requests -= 1;
     if line.requests > 0 {
       return None;
     }
 
-    let line = lines.remove(service)?;
+    let line = lines.remove(key)?;
 
     if line.demand.is_none() {
       let _ = line.gone.send(true);
@@ -200,16 +204,16 @@ impl Door {
   // The ask's answer laid down where its requests are still out: a granted demand kept for them, or a
   // refusal ending the line so the next request asks anew. False where the last request has gone, whatever
   // the ask holds being its own to give back.
-  fn answered(&self, service: &str, ask: u64, answer: &Result<(i64, String), String>) -> bool {
+  fn answered(&self, key: &LineKey, ask: u64, answer: &Result<(i64, String), String>) -> bool {
     let mut lines = self.lines();
-    let Some(line) = lines.get_mut(service).filter(|line| line.ask == ask) else {
+    let Some(line) = lines.get_mut(key).filter(|line| line.ask == ask) else {
       return false;
     };
 
     match answer {
       Ok((demand, _)) => line.demand = Some(*demand),
       Err(_) => {
-        lines.remove(service);
+        lines.remove(key);
       }
     }
 
@@ -222,19 +226,19 @@ impl Door {
   async fn ask_for_line(
     self: Arc<Self>,
     ask: u64,
-    service: String,
+    key: LineKey,
     answer: watch::Sender<Answer>,
     mut gone: watch::Receiver<bool>,
   ) {
     let asked = AtomicI64::new(0);
-    let outcome = match self.ask(&service).await {
+    let outcome = match self.ask(&key).await {
       Ok(demand) => {
         asked.store(demand.id, Ordering::Release);
-        self.granted(&service, demand, &asked, &mut gone).await
+        self.granted(&key, demand, &asked, &mut gone).await
       }
       Err(refused) => Some(Err(refused)),
     };
-    let kept = outcome.as_ref().is_some_and(|outcome| self.answered(&service, ask, outcome));
+    let kept = outcome.as_ref().is_some_and(|outcome| self.answered(&key, ask, outcome));
 
     if !(kept && matches!(outcome, Some(Ok(_)))) {
       let demand = asked.load(Ordering::Acquire);
@@ -251,12 +255,14 @@ impl Door {
 
   // A demand for one card of the service, asked once the left demands are given back and again while the
   // master cannot be reached; the master's sentence where it refuses.
-  async fn ask(&self, service: &str) -> Result<Demand, String> {
+  async fn ask(&self, (service, terms): &LineKey) -> Result<Demand, String> {
     let _ = self.swept.subscribe().wait_for(|swept| *swept).await;
     let ask = DemandAsk {
-      service_name: service.to_owned(),
+      service_name: service.clone(),
       count: 1,
       reference: Some(DOOR_REF.to_owned()),
+      rank: terms.rank,
+      pool: terms.pool.clone(),
       ..DemandAsk::default()
     };
 
@@ -275,7 +281,7 @@ impl Door {
   // master no longer holds — a master restarted — is asked again, and `asked` then names the one asked anew.
   async fn granted(
     &self,
-    service: &str,
+    key: &LineKey,
     mut demand: Demand,
     asked: &AtomicI64,
     gone: &mut watch::Receiver<bool>,
@@ -298,7 +304,7 @@ impl Door {
             tokio::time::sleep(AGAIN).await;
           }
         }
-        Ok(None) => match self.ask(service).await {
+        Ok(None) => match self.ask(key).await {
           Ok(again) => {
             asked.store(again.id, Ordering::Release);
             demand = again;

@@ -21,7 +21,7 @@ seeds. The other crates and the server reach the store only through it.
   - the supervisors: `supervisors`, one row a supervisor — its name, label, owner account, the words that
     call it, its prompt and brain folders, its session scope and turn shape, whether the deployment seeds it,
     its provider order as a JSON list with its quota share, its warming per provider as a JSON
-    object, its compaction threshold, the repository its items go to, and when it was made and last
+    object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
     the bundles it gives as a JSON list, its line, its provider order as a JSON list with its quota share,

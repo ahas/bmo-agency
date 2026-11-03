@@ -56,6 +56,7 @@ mod m20261126_000001_role_names;
 mod m20261127_000001_supervisor_settings;
 mod m20261128_000001_supervisors_alike;
 mod m20261129_000001_chosen_roads;
+mod m20261130_000001_supervisor_card_rank;
 
 use sea_orm_migration::prelude::*;
 
@@ -193,6 +194,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261127_000001_supervisor_settings::Migration),
       Box::new(m20261128_000001_supervisors_alike::Migration),
       Box::new(m20261129_000001_chosen_roads::Migration),
+      Box::new(m20261130_000001_supervisor_card_rank::Migration),
     ]
   }
 

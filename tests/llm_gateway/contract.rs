@@ -1059,6 +1059,30 @@ async fn the_demands_a_launcher_left_under_the_doors_reference_are_given_back_as
   assert_eq!(master.lock().unwrap().given_back, [7], "a demand of another holder was given back");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_naming_its_rank_and_pool_has_the_door_ask_them_on_a_line_of_their_own() {
+  let (world, master) = carded_world(vec![]).await;
+  world.serving(None).await;
+  let plain = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash","messages":[]}"#);
+  let named = world.ask(
+    "POST",
+    "/v1/chat/completions",
+    &[("x-bmo-card-rank", "0"), ("x-bmo-card-pool", "1 mine")],
+    r#"{"model":"flash","messages":[]}"#,
+  );
+  let steer = async {
+    until("the door to ask both lines' demands", || master.lock().unwrap().asked.len() == 2).await;
+    let asked = master.lock().unwrap().asked.clone();
+    let ranked = asked.iter().find(|one| one.get("rank").is_some()).expect("a demand at the rank named");
+    assert_eq!((&ranked["rank"], &ranked["pool"]), (&json!(0), &json!({ "key": "mine", "cards": 1 })));
+    let unnamed = asked.iter().find(|one| one.get("rank").is_none()).expect("a demand naming none");
+    assert!(unnamed.get("pool").is_none(), "{unnamed:?}");
+    master.lock().unwrap().granted = true;
+    master.lock().unwrap().standing = true;
+  };
+  tokio::join!(plain, named, steer);
+}
+
 // The span a stall test's gateway is given.
 const STALL_MS: u64 = 600;
 

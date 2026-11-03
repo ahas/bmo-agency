@@ -13,7 +13,9 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use harness_machine::card_master::{DEMAND_WAIT, Demand, DemandAsk, GrantedCard, Master, MasterFault};
+use harness_machine::card_master::{
+  CardPool, CardTerms, DEMAND_WAIT, Demand, DemandAsk, GrantedCard, Master, MasterFault,
+};
 use harness_machine::engine_health;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
@@ -36,10 +38,151 @@ const AGAIN: Duration = Duration::from_secs(1);
 
 /// What a run hands in of the demands it holds itself: one of its own, granted, which the run stands on
 /// with no other asked for it; or the run's demand the run's own is asked within.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Ask {
   pub own: Option<i64>,
   pub within: Option<i64>,
+  /// What its caller says of a demand the run asks.
+  pub terms: CardTerms,
+}
+
+/// The ending of a turn stopped because the demand it stood on lost its card (docs/api.md, 「sessions」).
+pub const CARD_TAKEN: &str = "card-taken";
+
+// Who took the card of each turn stopped for it, by the turn's run, until its end is told.
+static TAKEN_FROM: std::sync::LazyLock<Mutex<HashMap<String, String>>> =
+  std::sync::LazyLock::new(Mutex::default);
+
+/// Who took the card of the turn of this run, where it was stopped for that; told once.
+pub fn taken_from(run: &str) -> Option<String> {
+  TAKEN_FROM.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(run)
+}
+
+/// The terms a rank and a pool make, as a caller names them.
+pub fn terms(rank: Option<u32>, pool: Option<(String, u32)>) -> CardTerms {
+  CardTerms {
+    rank,
+    pool: pool.map(|(key, cards)| CardPool { key, cards }),
+  }
+}
+
+/// The rank of the demands of the runs for a supervisor, where the name is one's and its row holds one.
+pub async fn supervisor_rank<C: ConnectionTrait>(db: &C, name: &str) -> Option<u32> {
+  crate::supervisors::named(db, name)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|supervisor| supervisor.card_rank)
+}
+
+/// The supervisor the ledger names for a room: the one whose turns went into it, where exactly one's did.
+pub async fn only_supervisor_of_room<C: ConnectionTrait>(
+  db: &C,
+  room: i64,
+) -> Result<Option<String>, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT DISTINCT "r"."agent" FROM "runs" AS "r" JOIN "supervisors" AS "s" ON "s"."name" = "r"."agent"
+       WHERE "r"."chat_id" = $1"#,
+    vec![room.into()],
+  )
+  .await?;
+
+  match rows.as_slice() {
+    [only] => Ok(Some(only.try_get("", "agent")?)),
+    _ => Ok(None),
+  }
+}
+
+// The rank of the supervisor that ordered a job (docs/own-llm.md, 「An engine the arbiter stands」): the job's
+// item, its orderer's room, and the one supervisor whose turns went into that room. Anything short of that is no
+// answer, said in the log and never guessed.
+async fn job_rank(ground: &Ground, job: i64) -> Option<u32> {
+  let row = one(&ground.db, r#"SELECT "item_id" FROM "jobs" WHERE "id" = $1"#, vec![job.into()])
+    .await
+    .ok()??;
+  let item: i64 = row.try_get("", "item_id").ok()?;
+  let service = crate::queue::orderer::JobService::of(ground.env())?;
+  let orderer = match service.orderer_of_id(item).await {
+    Ok((_, orderer)) => orderer,
+    Err(why) => {
+      eprintln!("cards: the orderer of job {job} was not read, so it asks at the default rank: {why}");
+      return None;
+    }
+  };
+  let room = orderer.room?;
+  let supervisor = only_supervisor_of_room(&ground.db, room).await.ok().flatten();
+  let Some(supervisor) = supervisor else {
+    eprintln!("cards: room {room} names no one supervisor, so job {job} asks at the default rank");
+    return None;
+  };
+
+  supervisor_rank(&ground.db, &supervisor).await
+}
+
+/// A turn's watch on the demand it stands on: the turn stopped the moment the demand reads `taken`.
+pub struct TurnWatch {
+  run: String,
+  taken: Arc<std::sync::atomic::AtomicBool>,
+  watch: tokio::task::JoinHandle<()>,
+}
+
+impl TurnWatch {
+  /// The watch ended with the turn; the stop it raised over the run's name taken back, so the turn asked again
+  /// under that name is not stopped by it.
+  pub async fn finish(self, ground: &Ground) {
+    self.watch.abort();
+
+    if self.taken.load(Ordering::Acquire) {
+      let _ = crate::queue::cancels::take_back(&ground.db, &self.run).await;
+    }
+  }
+}
+
+/// The turn of this run watched on the demand it holds (docs/own-llm.md, 「An engine the arbiter stands」).
+pub fn watch_turn(ground: &Ground, held: &Held, run: &str) -> TurnWatch {
+  let taken = Arc::new(std::sync::atomic::AtomicBool::new(false));
+  let master = master_of(ground);
+  let demand = held.demand;
+  let stops = crate::queue::stops::Stops::of(ground, None);
+  let name = run.to_owned();
+  let raised = Arc::clone(&taken);
+  let watch = tokio::spawn(async move {
+    let Some(master) = master else { return };
+    let Some(by) = until_taken(&master, demand).await else { return };
+
+    TAKEN_FROM
+      .lock()
+      .unwrap_or_else(std::sync::PoisonError::into_inner)
+      .insert(name.clone(), by);
+    raised.store(true, Ordering::Release);
+
+    if let Err(why) = stops.cancel(&name).await {
+      eprintln!("cards: the turn {name} was not stopped as its card was taken: {why:?}");
+    }
+  });
+
+  TurnWatch {
+    run: run.to_owned(),
+    taken,
+    watch,
+  }
+}
+
+/// Who took the card of the demand, read with its answer held open until it does; none where the master no
+/// longer holds it. A demand lent stands, its caller having lent it.
+pub async fn until_taken(master: &Master, demand: i64) -> Option<String> {
+  loop {
+    match master.watch(demand, DEMAND_WAIT).await {
+      Ok(Some(read)) => {
+        if let Some(taken) = read.taken.as_ref().filter(|taken| !taken.is_null()) {
+          return Some(taken.as_str().map_or_else(|| taken.to_string(), str::to_owned));
+        }
+      }
+      Ok(None) => return None,
+      Err(_) => tokio::time::sleep(AGAIN).await,
+    }
+  }
 }
 
 /// One reason a run waits for its card, handed on as it changes: the card service it waits on and why, as it
@@ -448,6 +591,19 @@ pub async fn hold_logged(
   log: &mut RunLog,
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Option<Held>, Refusal> {
+  let mut ask = ask;
+
+  // Named by no caller, its rank is the supervisor's the run is for.
+  if ask.terms.rank.is_none() && ask.own.is_none() {
+    ask.terms.rank = match supervisor_rank(&ground.db, holder).await {
+      Some(rank) => Some(rank),
+      None => match log.job() {
+        Some(job) if registration.card_service.is_some() => job_rank(ground, job).await,
+        _ => None,
+      },
+    };
+  }
+
   let (said, mut heard) = tokio::sync::mpsc::unbounded_channel::<CardWait>();
   let mut waiting = move |wait: &CardWait| {
     let _ = said.send(wait.clone());
@@ -639,6 +795,8 @@ async fn ask_kept(
     within: asking.ask.within,
     work_key: asking.work_key.map(str::to_owned),
     reference: Some(format!("agency {}", asking.holder)),
+    rank: asking.ask.terms.rank,
+    pool: asking.ask.terms.pool.clone(),
   };
   let demand = loop {
     match master.ask(&ask).await {
@@ -1009,6 +1167,16 @@ pub async fn seat_card_on(
     ask: Ask {
       own: None,
       within: ask.within,
+      terms: CardTerms {
+        rank: match ask.terms.rank {
+          Some(rank) => Some(rank),
+          None => match seat.asked_by.as_deref() {
+            Some(supervisor) => supervisor_rank(db, supervisor).await,
+            None => None,
+          },
+        },
+        pool: ask.terms.pool.clone(),
+      },
     },
     lease: Some(&seat.token),
     stop: None,
@@ -1110,7 +1278,11 @@ pub async fn native_card(
       service: &service,
       holder: &seat.owner,
       work_key: None,
-      ask: Ask { own: None, within },
+      ask: Ask {
+        own: None,
+        within,
+        terms: CardTerms::default(),
+      },
       lease: Some(&seat.token),
       stop: None,
     },

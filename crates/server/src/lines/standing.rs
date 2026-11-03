@@ -412,6 +412,7 @@ pub async fn member_command(
     shell_guard: false,
     sampling,
     role: None,
+    card_terms: Default::default(),
     thinking: Some(run.thinking),
     claude_effort,
     backend_effort: Some(&run.effort),
@@ -465,6 +466,7 @@ pub async fn registered_command(
     shell_guard: false,
     sampling,
     role: None,
+    card_terms: Default::default(),
     thinking: None,
     claude_effort: None,
     backend_effort: None,
@@ -572,6 +574,8 @@ pub struct OnGateway<'a> {
   pub sampling: Option<String>,
   /// The role whose saved prefix the run's requests start from on an engine that keeps role files.
   pub role: Option<&'a str>,
+  /// What the run says of its demands, which a request asked for a card at the gateway's door names.
+  pub card_terms: harness_machine::card_master::CardTerms,
   /// Whether the run thinks, where its caller knows it otherwise than by the effort word.
   pub thinking: Option<bool>,
   /// The Claude Code effort word the run goes out with, where the provider's words differ from Claude
@@ -653,6 +657,8 @@ pub async fn gateway_command(
   }
 
   let mut headers = gateway_headers(on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
+
+  headers.extend(on.card_terms.headers());
 
   if let Some(word) = on.backend_effort {
     headers.push(format!("x-bmo-effort: {word}"));

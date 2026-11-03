@@ -285,9 +285,22 @@ never the model's name.
   (`docs/api.md`, 「assignments and jobs」); a role's run waits for its grant as it waits for its slot
   (`docs/role-slots.md`, 「On a registration the arbiter stands」). Agency adds no clock to that wait. A stop ends it: a run whose cancellation stands over its
   name — the interrupt of the turn it goes out for — gives back the demand it asked and goes out on nothing.
-- **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
-  a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request
-  in hand is then cut, and its next request waits for its demand to be granted again. A demand whose run
+- **A demand's rank and pool are the caller's settings, handed on as they are** (the arbiter's
+  `docs/placement.md`, 「A demand's rank」, 「A pool」). A caller names them on its slot or session ask
+  (`docs/api.md`, 「sessions」); where it names no rank, the demand is asked at the rank of the supervisor the
+  run is for: the supervisor whose turn it is, the one whose double it is or that delegated it, or the one that
+  ordered the job. Work asked within a run takes the run's rank and pool from the master.
+- **The supervisor that ordered a job** is found from the job's item by the one resolver of its orderer
+  (`docs/agent-control.md`, 「An item's change is told to its orderer」), which answers a room: the run ledger then
+  names the supervisors whose turns went into that room. Exactly one names that supervisor. None, or more than
+  one, or a job service that cannot be read, is no answer: the job asks at the default rank, and the server's
+  log says why. Agency does not guess between supervisors of one room.
+- **The demand is held for the run's turn and given back at its end.** The card can be taken from it by a
+  bench or a claim, which stops the engine as the arbiter's lower tiers always have, or by a demand of a better
+  rank, which stops the engine only where it wants the other one. Agency watches the demand of every turn in
+  flight, its answer held open with the master's `watch`; once the demand reads `taken` the turn is stopped as an
+  interrupt stops it, and ends `card-taken` (`docs/api.md`, 「sessions」), and its session's next turn waits for
+  its demand to be granted again. A demand whose run
   has ended without giving it back is given back by agency at its start and with its lease: every demand
   agency asks is kept in the store's `card_demands` with its holder, the slot's lease where one holds it
   and the demand it was asked within, until it is given back; the server gives back every demand kept
@@ -481,8 +494,12 @@ never the model's name.
   - Once the demand is granted it waits until the launcher's beat has laid the granted card's entry,
     `<name>@<node>`, into the table a child serves, and sends the request to that child as it sends every
     other. A pinned name the granted card does not match is sent under the registration's name alone.
-  - The demand is the door's line's, one for each card service, not the first request's: every request
-    on the same service that comes while it waits or stands waits on the same grant, none asking another,
+  - A request names who it is for where its run's composition knows, its rank in `x-bmo-card-rank` and its
+    pool in `x-bmo-card-pool`, as `<cards> <key>`, and the door's demand is asked with them; a request naming
+    neither is asked at the default rank in no pool.
+  - The demand is the door's line's, one for each card service and each such naming, not the first request's:
+    every request on the same service and naming that comes while it waits or stands waits on the same grant,
+    none asking another,
     and each holds it until its answer has been carried whole or its caller has gone. Once the last of
     them has ended the demand is given back, granted or still waiting. The engine then stays on its card
     until another service's demand takes it, which is the master's own rule, so the next request finds

@@ -498,8 +498,37 @@ fn runner_asked(body: &Value) -> Result<Apart, Refused> {
     tools_allowed,
     demand: demand("demandId")?,
     within: demand("within")?,
+    card_rank: card_rank(body)?,
+    card_pool: card_pool(body)?,
     ..Apart::default()
   })
+}
+
+/// The rank a body names for the demands of its work (docs/api.md, 「sessions」).
+pub fn card_rank(body: &Value) -> Result<Option<u32>, Refused> {
+  match body.get("cardRank") {
+    None | Some(Value::Null) => Ok(None),
+    Some(rank) => rank
+      .as_u64()
+      .and_then(|rank| u32::try_from(rank).ok())
+      .map(Some)
+      .ok_or_else(|| bad("cardRank is a whole number of zero or more")),
+  }
+}
+
+/// The pool a body names for the demands of its work, its key and its limit (docs/api.md, 「sessions」).
+pub fn card_pool(body: &Value) -> Result<Option<(String, u32)>, Refused> {
+  match body.get("cardPool") {
+    None | Some(Value::Null) => Ok(None),
+    Some(pool) => {
+      let key = pool.get("key").and_then(Value::as_str).map(str::trim).filter(|key| !key.is_empty());
+      let cards = pool.get("cards").and_then(Value::as_u64).and_then(|cards| u32::try_from(cards).ok());
+      match (key, cards.filter(|cards| *cards > 0)) {
+        (Some(key), Some(cards)) => Ok(Some((key.to_owned(), cards))),
+        _ => Err(bad("cardPool names a key and a limit of one card or more")),
+      }
+    }
+  }
 }
 
 fn number(body: &Value, field: &str) -> Option<i64> {
@@ -722,6 +751,13 @@ pub async fn on_slot(
     && let Some((demand, _)) = crate::cards::of_lease(db, &token).await.map_err(Refused::from)?
   {
     apart.demand = Some(demand);
+  }
+
+  // Named by no caller, its rank is the supervisor's it runs for: the one whose double it is, or that asked it.
+  if apart.card_rank.is_none()
+    && let Some(supervisor) = apart.supervisor.as_deref().or(held.asked_by.as_deref())
+  {
+    apart.card_rank = crate::cards::supervisor_rank(db, supervisor).await;
   }
 
   apart.role = Some(held.role.clone());

@@ -71,6 +71,10 @@ pub struct Apart {
   pub within: Option<i64>,
   /// The supervisor whose double the run is, whose tools every turn of the session holds beside its role's.
   pub supervisor: Option<String>,
+  /// The rank a demand its turns ask stands at, where its caller or the supervisor it is for names one.
+  pub card_rank: Option<u32>,
+  /// The pool a demand its turns ask stands in, its key and its limit, where its caller names one.
+  pub card_pool: Option<(String, u32)>,
 }
 
 impl Apart {

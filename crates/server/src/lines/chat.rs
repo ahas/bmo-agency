@@ -1343,6 +1343,7 @@ pub async fn compose_stand_in(
         role: policy::work_keys::WORK_KEYS
           .profile(&sent_run.agent)
           .and_then(|profile| profile.prefix_role.as_deref()),
+        card_terms: sent_run.cards.terms.clone(),
         thinking,
         claude_effort,
         backend_effort,

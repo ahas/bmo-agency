@@ -1992,6 +1992,12 @@ pub struct SessionStart {
   /// The caller's granted demand each turn's own demand is asked within.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub within: Option<i64>,
+  /// The rank a demand this work asks stands at, a whole number of zero or more.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_rank: Option<u32>,
+  /// The pool a demand this work asks stands in.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_pool: Option<CardPool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<SessionOptions>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2316,6 +2322,12 @@ pub struct SeatRequestChange {
   /// On an admission ask: the asking run's granted demand the seat's own is asked within.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub within: Option<i64>,
+  /// The rank a demand this work asks stands at, a whole number of zero or more.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_rank: Option<u32>,
+  /// The pool a demand this work asks stands in.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_pool: Option<CardPool>,
   /// On a binding: the agent the seat's child runs on.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent_name: Option<String>,
@@ -2745,6 +2757,14 @@ pub struct OrderEntry {
   pub answer_tokens: Option<i64>,
 }
 
+/// A pool the demands of a work stand in: its key, and the most cards they use of one service at once.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CardPool {
+  pub key: String,
+  pub cards: u32,
+}
+
 /// Supervisor: one supervisor as its row holds it, and what it stands on now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2769,6 +2789,9 @@ pub struct Supervisor {
   pub warming: BTreeMap<String, bool>,
   /// its compaction threshold
   pub fold_ratio: f64,
+  /// the rank of the demands of the runs for it, where it holds one
+  #[serde(default)]
+  pub card_rank: Option<u32>,
   pub gates: Value,
   pub voice: Option<String>,
   pub sampling: Option<Value>,
@@ -2876,6 +2899,9 @@ pub struct SupervisorChange {
   pub warming: Option<BTreeMap<String, bool>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub fold_ratio: Option<f64>,
+  /// the rank of the demands of the runs for it; null for none
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_rank: Option<Option<u32>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3372,6 +3398,12 @@ pub struct SlotRequestMove {
   pub demand_id: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub within: Option<i64>,
+  /// The rank a demand this work asks stands at, a whole number of zero or more.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_rank: Option<u32>,
+  /// The pool a demand this work asks stands in.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_pool: Option<CardPool>,
 }
 
 /// SlotRequestPage: the open slot requests.

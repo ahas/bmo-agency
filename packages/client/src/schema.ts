@@ -1826,6 +1826,13 @@ export interface components {
              * @description The caller's granted demand each turn's own demand is asked within.
              */
             within?: number | null;
+            /**
+             * Format: uint32
+             * @description The rank a demand this work asks stands at, a whole number of zero or more.
+             */
+            cardRank?: number | null;
+            /** @description The pool a demand this work asks stands in. */
+            cardPool?: components["schemas"]["CardPool"] | null;
             options?: components["schemas"]["SessionOptions"] | null;
             provider?: string | null;
             model?: string | null;
@@ -1833,6 +1840,12 @@ export interface components {
             /** Format: int64 */
             todo?: number | null;
             role?: string | null;
+        };
+        /** @description A pool the demands of a work stand in: its key, and the most cards they use of one service at once. */
+        CardPool: {
+            key: string;
+            /** Format: uint32 */
+            cards: number;
         };
         /**
          * @description What a session's start options name: the provider, the model and the folder a throwaway or a
@@ -3328,6 +3341,12 @@ export interface components {
              * @description its compaction threshold
              */
             foldRatio: number;
+            /**
+             * Format: uint32
+             * @description the rank of the demands of the runs for it, where it holds one
+             * @default null
+             */
+            cardRank: number | null;
             gates: unknown;
             voice: string | null;
             sampling: unknown;
@@ -3521,6 +3540,11 @@ export interface components {
             } | null;
             /** Format: double */
             foldRatio?: number | null;
+            /**
+             * Format: uint32
+             * @description the rank of the demands of the runs for it; null for none
+             */
+            cardRank?: number | null;
             repository?: string | null;
             gates?: {
                 [key: string]: boolean;
@@ -3967,6 +3991,13 @@ export interface components {
             demandId?: number | null;
             /** Format: int64 */
             within?: number | null;
+            /**
+             * Format: uint32
+             * @description The rank a demand this work asks stands at, a whole number of zero or more.
+             */
+            cardRank?: number | null;
+            /** @description The pool a demand this work asks stands in. */
+            cardPool?: components["schemas"]["CardPool"] | null;
         };
         /** @description ProviderModels: the models an order's entry may name on a provider. */
         ProviderModels: {

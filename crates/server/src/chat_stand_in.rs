@@ -647,8 +647,16 @@ async fn registered_road(
   // end; its turn goes out on the card granted (docs/own-llm.md, 「An engine the arbiter stands」).
   let card = match registry::registration(&ground.db, &step.model).await.map_err(|why| failed(why.error))? {
     Some(held) => {
-      match cards::hold_logged(ground, &held, &run.agent, run.resume.as_deref(), run.cards, log, shown)
-        .await
+      match cards::hold_logged(
+        ground,
+        &held,
+        &run.agent,
+        run.resume.as_deref(),
+        run.cards.clone(),
+        log,
+        shown,
+      )
+      .await
       {
         Ok(card) => card,
         Err(why) => return Ok(Err(why.detail)),
@@ -656,6 +664,7 @@ async fn registered_road(
     }
     None => None,
   };
+  let watching = card.as_ref().map(|card| cards::watch_turn(ground, card, log.run()));
   let outcome = async {
     if let Err(why) = listed(ground, &service, &step.model).await {
       return Ok(Err(why));
@@ -669,6 +678,10 @@ async fn registered_road(
     deliver(ground, machine, run, step, &door, log, answers, began, shown).await
   }
   .await;
+
+  if let Some(watching) = watching {
+    watching.finish(ground).await;
+  }
 
   if let Some(card) = &card
     && let Some(said) = cards::give_back(ground, card).await

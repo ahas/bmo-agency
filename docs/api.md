@@ -132,7 +132,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
   `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
   order (below); `active`, the provider the owner forced as its active provider, `provider` and `model`, or
-  null where its order chooses (`docs/provider-order.md`, 「A provider the owner forces」); `warming`, for each provider of its order whether its prefix is kept warm there;
+  null where its order chooses (`docs/provider-order.md`, 「A provider the owner forces」); `cardRank`, the rank of the demands of the runs for it, or null; `warming`, for each provider of its order whether its prefix is kept warm there;
   `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
   provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds,
@@ -182,7 +182,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
 - **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `order`, `active`,
-  `warming`, `foldRatio`, `repository`, `gates`, `sampling` and `voice`, each judged as the registration
+  `warming`, `foldRatio`, `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and `voice`, each judged as the registration
   judges it. `active` is `provider` and `model`, judged as one entry of an order is against the chat line
   and refused alike, or null, which clears it; it need not stand in the order. A changed order or forced
   provider reaches the supervisor's next turn; a turn already going finishes where it went out.
@@ -392,6 +392,10 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   turn's own is asked within (`docs/own-llm.md`, 「An engine the arbiter stands」); each a demand's id, a
   positive whole number, refused 400 otherwise. A start naming no `demandId` on a slot whose lease holds a
   demand stands on that demand.
+- **`cardRank` and `cardPool`:** the rank a demand its turns ask stands at, a whole number of zero or more, and
+  its pool, `key` and `cards`, a text that is not empty and a whole number of one or more; each refused 400
+  otherwise (the arbiter's `docs/placement.md`, 「A demand's rank」, 「A pool」). Named by neither, the rank is the
+  supervisor's the run is for, as `docs/own-llm.md` says, and there is no pool.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
   `archive`, `role`, `place` and `doubleOf` — is refused 400.
@@ -493,7 +497,7 @@ that ended waits for nothing.
 A turn's end — the send's answer and `turn.ended` alike — carries `ending` beside `outcome`: the word the
 turn's wait ended on, typed, and `reason`, why a turn with no answer has none, or null. A turn put into a
 program's pane ends `answered`, `silent` (back at rest, its record closing the turn with no answer),
-`errored` (the program's own error in the answer's place, or the failed request its program reported through its failure hook), `vanished` (herdr says its pane is gone),
+`errored` (the program's own error in the answer's place, or the failed request its program reported through its failure hook), `card-taken` (the demand the turn stood on lost its card, so the turn was stopped; what it wrote is unfinished and `reason` names who took it), `vanished` (herdr says its pane is gone),
 `program-lost` (the program's process is gone and its record never closed the turn), `silent-peer` (no
 program can be named for the turn, the pane shows none, and nothing the program writes moved between two
 looks), `blocked`, `untrusted`, `unsubmitted`, `overran` or `stopped`
@@ -663,7 +667,7 @@ A slot on a registration naming a card service asks its demand once the line let
 「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
 `nodeName` once a card is granted and `reason` while it waits, null on any other slot — and answers `request`
 null until the card is granted, the caller asking again, with no clock of agency's. An admission may name
-`demandId`, a granted demand of the caller's own the slot stands on, refused 400 `demand-gone` where the
+`cardRank` and `cardPool`, as a session's start names them, the demand a slot asks of its own; `demandId`, a granted demand of the caller's own the slot stands on, refused 400 `demand-gone` where the
 master no longer holds it; or `within`, the asking run's granted demand the slot's own is asked within. A
 demand the slot asked is given back as the slot is finished, or on the line's next minute whatever ended its
 lease.

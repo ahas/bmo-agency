@@ -559,6 +559,43 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
   on_slot(&ground.db, &json!({ "slot": active.token }), &mut handed_in).await.unwrap();
   assert_eq!(handed_in.demand, Some(5), "a demand the caller handed in stands over its slot's");
 
+  // Named by no caller, the rank is the supervisor's that asked the slot.
+  let supervisor = "a-supervisor".to_owned();
+
+  crate::support::rows::supervisor(&ground.db, &supervisor, &[]).await;
+
+  store::run(
+    &ground.db,
+    r#"UPDATE "supervisors" SET "card_rank" = 3 WHERE "name" = $1"#,
+    vec![supervisor.as_str().into()],
+  )
+  .await
+  .unwrap();
+  store::run(
+    &ground.db,
+    r#"UPDATE "role_slot_requests" SET "asked_by" = $2 WHERE "token" = $1"#,
+    vec![active.token.as_str().into(), supervisor.as_str().into()],
+  )
+  .await
+  .unwrap();
+
+  let mut for_supervisor = Apart::default();
+
+  on_slot(&ground.db, &json!({ "slot": active.token }), &mut for_supervisor)
+    .await
+    .unwrap();
+  assert_eq!(for_supervisor.card_rank, Some(3));
+
+  let mut named_by_caller = Apart {
+    card_rank: Some(1),
+    ..Apart::default()
+  };
+
+  on_slot(&ground.db, &json!({ "slot": active.token }), &mut named_by_caller)
+    .await
+    .unwrap();
+  assert_eq!(named_by_caller.card_rank, Some(1), "a rank its caller names stands");
+
   let mut other_road = Apart {
     model: "another-model".into(),
     ..Apart::default()

@@ -1249,6 +1249,7 @@ impl HerdrSessions {
     )
     .await
     .map_err(|refused| NoAnswer::Failed(refused.detail))?;
+    let watching = card.as_ref().map(|card| crate::cards::watch_turn(ground, card, &run));
     let turned = async {
       let composed = compose(
         ground,
@@ -1296,6 +1297,10 @@ impl HerdrSessions {
       Ok((reply, composed.placement))
     }
     .await;
+
+    if let Some(watching) = watching {
+      watching.finish(ground).await;
+    }
 
     if let Some(card) = &card {
       crate::cards::give_back(ground, card).await;
@@ -2096,6 +2101,12 @@ impl HerdrSessions {
   // A turn's end published, its `ending` the word the door's last turn under the send ended on where the
   // turn did not answer, else its outcome's own.
   fn published(&self, session: &SessionId, mut end: TurnEnd) -> TurnEnd {
+    // A turn stopped because its card was taken says so, whatever its program made of the stop.
+    if let Some(by) = crate::cards::taken_from(&end.run) {
+      end.ending = Some(crate::cards::CARD_TAKEN.to_owned());
+      end.reason = Some(format!("the card was taken by {by}"));
+    }
+
     if end.ending.is_none() {
       end.ending = Some(ending_of(&end).to_owned());
     }
@@ -2273,6 +2284,7 @@ impl HerdrSessions {
       cards: crate::cards::Ask {
         own: apart.demand,
         within: apart.within,
+        terms: crate::cards::terms(apart.card_rank, apart.card_pool.clone()),
       },
     });
     let mut log = RunLog::new(Target {

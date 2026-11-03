@@ -58,6 +58,11 @@ pub async fn standing(db: &DatabaseConnection, rows: &[Value]) -> Result<BTreeSe
   Ok(marked.iter().flat_map(|name| covered(rows, name)).collect())
 }
 
+/// Whether a cancellation stands over this name itself.
+pub async fn standing_named(db: &DatabaseConnection, name: &str) -> Result<bool, Refusal> {
+  Ok(settings::get(db, &format!("{EXECUTION_CANCEL_PREFIX}{name}")).await?.is_some())
+}
+
 /// Every marker the cancellation of this name raised taken back; the names actually dropped.
 pub async fn take_back(db: &DatabaseConnection, parent: &str) -> Result<Vec<String>, Refusal> {
   let rows = executions(db).await?;

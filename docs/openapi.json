@@ -7092,6 +7092,26 @@
             "format": "int64",
             "description": "The caller's granted demand each turn's own demand is asked within."
           },
+          "cardRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "description": "The rank a demand this work asks stands at, a whole number of zero or more."
+          },
+          "cardPool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardPool"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pool a demand this work asks stands in."
+          },
           "options": {
             "anyOf": [
               {
@@ -7138,6 +7158,24 @@
           "scope"
         ],
         "description": "The body that starts a session: the agent, the scope, the room and the options, with the older\ntop-level names read where the options name none."
+      },
+      "CardPool": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "cards": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "key",
+          "cards"
+        ],
+        "description": "A pool the demands of a work stand in: its key, and the most cards they use of one service at once."
       },
       "SessionOptions": {
         "type": "object",
@@ -11577,6 +11615,16 @@
             "format": "double",
             "description": "its compaction threshold"
           },
+          "cardRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "description": "the rank of the demands of the runs for it, where it holds one",
+            "default": null
+          },
           "gates": true,
           "voice": {
             "type": [
@@ -11641,6 +11689,7 @@
           "active",
           "warming",
           "foldRatio",
+          "cardRank",
           "gates",
           "voice",
           "sampling",
@@ -12170,6 +12219,15 @@
               "null"
             ],
             "format": "double"
+          },
+          "cardRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "description": "the rank of the demands of the runs for it; null for none"
           },
           "repository": {
             "type": [
@@ -13719,6 +13777,26 @@
               "null"
             ],
             "format": "int64"
+          },
+          "cardRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "description": "The rank a demand this work asks stands at, a whole number of zero or more."
+          },
+          "cardPool": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardPool"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pool a demand this work asks stands in."
           }
         },
         "description": "SlotRequestMove: a slot request asked for its admission, bound to its run, or given back."

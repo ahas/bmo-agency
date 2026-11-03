@@ -433,6 +433,10 @@ pub async fn compose(
     shell_guard: true,
     sampling: sampled,
     role: None,
+    card_terms: harness_machine::card_master::CardTerms {
+      rank: crate::cards::supervisor_rank(&ground.db, turn.agent).await,
+      pool: None,
+    },
     thinking: model.road.map(|_| member_thinking),
     claude_effort,
     backend_effort: model.road.map(|_| effort.as_str()),

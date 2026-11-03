@@ -23,6 +23,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   or a role. Beside it, its forced provider: a provider and one model of it the owner forced as its active
   provider, or none, which carries its turns while it stands (`docs/provider-order.md`, 「A provider the owner
   forces」).
+- **Its card rank:** the rank the demands of every run for it are asked at on an engine the arbiter stands, the
+  lower first, or none for the default (`docs/own-llm.md`, 「An engine the arbiter stands」). What the rank
+  means is the arbiter's; which supervisor stands at which is the owner's to set here.
 - **Its cache warming, switched per provider:** for each provider of its order, whether its resident
   program's prefix is kept warm while it is idle on that provider (`docs/keepalive-schedule.md`). A
   supervisor is the only thing agency warms.

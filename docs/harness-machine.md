@@ -86,8 +86,9 @@ flowchart TD
   the settings file `AGENCY_ARBITER_TOKEN_FILE` names, read as `KEY=value` lines by a maintained reader; a
   file that does not read or holds no such entry is no token.
 - **What it asks:** `POST /demands` for one card of a service, with the demand it is asked within, the work
-  key and a shown reference where they are named; `GET /demands/{demandId}` with its answer held open up to
-  thirty seconds and asked again by a caller that waits on longer; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
+  key, a shown reference, a rank and a pool where they are named; `GET /demands/{demandId}` with its answer held
+  open up to thirty seconds and asked again by a caller that waits on longer, or with `watch` for a caller
+  standing on the card; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
   `GET /demands`, every demand the master holds, each with its shown reference; and `GET /cluster`, the
   whole picture (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
   Each call waits for the master's answer; its end is that answer, or the connection refused or broken.

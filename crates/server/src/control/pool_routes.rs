@@ -256,6 +256,10 @@ impl Route for SlotMove {
         let ask = crate::cards::Ask {
           own: demand("demandId")?,
           within: demand("within")?,
+          terms: crate::cards::terms(
+            super::session_ops::card_rank(&body)?,
+            super::session_ops::card_pool(&body)?,
+          ),
         };
         let admitted = acquire(call.ground(), &held).await.map_err(refused)?;
         // A slot on a registration whose engine the arbiter stands is let out once its card is granted; while

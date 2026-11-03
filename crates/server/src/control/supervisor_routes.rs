@@ -90,6 +90,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "active": supervisor.order.forced.as_ref().map(Pin::view),
     "warming": supervisor.warming,
     "foldRatio": supervisor.fold_ratio,
+    "cardRank": supervisor.card_rank,
     "gates": gates_view(db, &supervisor.name).await?,
     "voice": supervisor.voice,
     "sampling": sampling,
@@ -420,6 +421,14 @@ impl Route for SupervisorChange {
       Some(_) => return Err(bad("voice", "A voice is a name, or null for none.")),
     };
 
+    let card_rank = match body.get("cardRank") {
+      None => held.card_rank,
+      Some(Value::Null) => None,
+      Some(rank) => Some(rank.as_u64().and_then(|rank| u32::try_from(rank).ok()).ok_or_else(|| {
+        bad("cardRank", "A card rank is a whole number of zero or more, or null for none.")
+      })?),
+    };
+
     if let Some(Value::Object(gates)) = body.get("gates") {
       for (gate, on) in gates {
         let on = on.as_bool().ok_or_else(|| bad("gates", CONTROL_WORDS.agents.gate_switch.as_str()))?;
@@ -444,7 +453,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider_order" = $3, "quota_share" = $4, "warming" = $5,
            "fold_ratio" = $6, "repository" = $7, "voice" = $8, "updated_at" = $9, "active_provider" = $10,
-           "active_model" = $11
+           "active_model" = $11, "card_rank" = $12
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -458,6 +467,7 @@ impl Route for SupervisorChange {
         now_ms().into(),
         active.as_ref().map(|active| active.provider.clone()).into(),
         active.as_ref().map(|active| active.model.clone()).into(),
+        card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
       ],
     )
     .await?;
