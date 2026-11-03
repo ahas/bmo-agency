@@ -263,9 +263,10 @@ never the model's name.
   registration's.
 - **Every run on it asks a demand first:** a supervisor's turn, a role's run — a translation's request among
   them — and a native co-worker's child alike ask the master for one card of the card service, with the
-  session's key as the work it continues and agency's holder as the demand's shown reference. A caller that
-  holds a granted demand of its own hands its id in with its slot or session request, and no other is asked
-  for that run. A translation shares one with those out beside it (below).
+  session's key as the work it continues and agency's holder as the demand's shown reference. A request at
+  the gateway's door on a registration with no instance standing asks one too (「The gateway」 below). A
+  caller that holds a granted demand of its own hands its id in with its slot or session request, and no
+  other is asked for that run. A translation shares one with those out beside it (below).
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
   open, and is computed from its first token where another card answers. The run names the card's entry,
@@ -447,14 +448,43 @@ never the model's name.
   - A child is stopped by asking it to end and waiting until it has.
   - Tables left by a launcher that ended without stopping its children are removed as it starts.
 - **The launcher is the front:** it listens on the gateway's loopback port itself and streams every
-  request through to the child it serves from, and every answer back, as they stand, reading neither. It
-  counts the requests in hand through each child.
+  request through to the child it serves from, and every answer back, as they stand. Of a request on the
+  chat completions path or the Messages route it reads the model the body names, and nothing else; of an
+  answer it reads nothing. It counts the requests in hand through each child.
   - The hop-by-hop headers are not handed on either way, a request asks for its answer unencoded, and an
     answer's content-encoding is not handed back.
   - Before any table stands it answers `503`, and where the child cannot be reached `502`, each with a
     line saying so.
   - A caller that leaves closes the front's connection to the child and its place among the requests in
     hand; LiteLLM still holds the node until the node has answered.
+- **A request on an engine standing nowhere asks for its card,** as a translation's request does (「An
+  engine the arbiter stands」 above). A request on the chat completions path or the Messages route that
+  names a registration naming a card service, or `<name>@<node>` of one, under a name the table it would
+  be served from holds no entry for, is not handed to LiteLLM, which would answer it with an unknown
+  model:
+  - The front asks the master for one card of the registration's card service, with the gateway's door as
+    the demand's shown reference and nothing more; for a pinned `<name>@<node>` the master still chooses
+    the node.
+  - It holds the caller's connection open while the demand waits, reading the demand with its answer held
+    open and asking again as the master answers, however long that takes; the front keeps no wait of its
+    own.
+  - Once the demand is granted it waits until the launcher's beat has laid the granted card's entry,
+    `<name>@<node>`, into the table a child serves, and sends the request to that child as it sends every
+    other. A pinned name the granted card does not match is sent under the registration's name alone.
+  - The demand is the door's line's, one for each card service, not the first request's: every request
+    on the same service that comes while it waits or stands waits on the same grant, none asking another,
+    and each holds it until its answer has been carried whole or its caller has gone. Once the last of
+    them has ended the demand is given back, granted or still waiting. The engine then stays on its card
+    until another service's demand takes it, which is the master's own rule, so the next request finds
+    its entry served and asks nothing.
+  - A master refusing the demand, such as one placing the service on no node, is answered `503` with the
+    master's sentence, to every request waiting on it; the next request asks anew.
+  - A model that is no registration and no member is handed to LiteLLM as it stands and answered `400`,
+    and no demand is asked for it; nor for a registration naming no card service. With no master named, a
+    registration naming a card service is served nowhere, as the table says, and no demand is asked.
+  - The demands the door asks are given back as the launcher starts: every demand the master holds under
+    the door's reference is one a launcher that ended left, since a demand lives no longer than the
+    requests waiting on it.
 - **What the table holds for a registration:** one entry under its name for every address, and, for a
   registration of several addresses, one more under `<name>@<node label>` for each (「Nodes and
   sessions」 above). A registration naming a card service holds the instances the arbiter's master reports

@@ -1,7 +1,7 @@
 //! The arbiter's master as agency asks it (docs/own-llm.md, 「An engine the arbiter stands」): where the
-//! deployment names it, a demand for one card of a service, the demand read and given back, and the
-//! instances of a service the master reports standing. Each call is the master's documented route (the
-//! arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
+//! deployment names it, a demand for one card of a service, the demand read and given back, the demands it
+//! holds, and the instances of a service the master reports standing. Each call is the master's documented
+//! route (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
 
 use std::path::Path;
 use std::time::Duration;
@@ -111,6 +111,9 @@ pub struct Demand {
   pub within: Option<i64>,
   #[serde(default)]
   pub work_key: Option<String>,
+  /// The reference its asker showed it under.
+  #[serde(rename = "ref", default)]
+  pub reference: Option<String>,
 }
 
 impl Demand {
@@ -284,6 +287,22 @@ impl Master {
       status: status.as_u16(),
       error: answer.text().await.unwrap_or_default().chars().take(400).collect(),
     })
+  }
+
+  /// Every demand the master holds, in the order they were asked.
+  pub async fn demands(&self) -> Result<Vec<Demand>, MasterFault> {
+    #[derive(Deserialize)]
+    struct Page {
+      items: Vec<Demand>,
+    }
+
+    let answer = self
+      .authorized(self.http.get(self.at("/demands")))
+      .send()
+      .await
+      .map_err(|why| MasterFault::Unreachable(why.to_string()))?;
+
+    Self::read::<Page>(answer).await.map(|page| page.items)
   }
 
   /// The master's whole picture.

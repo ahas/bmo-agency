@@ -26,17 +26,19 @@ use crate::support::scratch::Scratch;
 const GATEWAY_KEY: &str = "gateway-key-0123456789";
 
 // LiteLLM, standing in: started as the gateway starts it, it writes down its table, port, arguments
-// and environment; answers its liveliness path; echoes every other request; holds `/held` open until
-// the test lets it go; ends at `/die`; and writes down its stop. A `fail-start` file beside it makes
-// it end before it answers.
+// and environment; answers its liveliness path; answers a chat request naming a model its table holds
+// no entry for 400, as LiteLLM does; echoes every other request; holds `/held` open until the test lets
+// it go; ends at `/die`; and writes down its stop. A `fail-start` file beside it makes it end before it
+// answers.
 const STANDIN: &str = r#"
-import { appendFileSync, existsSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 const dir = dirname(import.meta.dir);
 const args = process.argv.slice(2);
 const at = (flag) => args[args.indexOf(flag) + 1];
 const config = at("--config");
 const table = /config-(\w+)\.yaml$/.exec(config)[1];
+const models = JSON.parse(readFileSync(config, "utf8")).model_list.map((entry) => entry.model_name);
 const log = (entry) => appendFileSync(join(dir, "children.log"), JSON.stringify({ table, ...entry }) + "\n");
 if (existsSync(join(dir, "fail-start"))) {
   log({ event: "failed" });
@@ -67,6 +69,16 @@ Bun.serve({
       }));
     }
     const body = await request.text();
+    if (request.method === "POST" && ["/v1/chat/completions", "/chat/completions", "/v1/messages"].includes(url.pathname)) {
+      let named;
+      try { named = JSON.parse(body).model; } catch {}
+      if (typeof named === "string" && !models.includes(named)) {
+        return Response.json(
+          { error: { message: `Invalid model name passed in model=${named}` } },
+          { status: 400, headers: { "x-standin": table } },
+        );
+      }
+    }
     return Response.json(
       { table, method: request.method, path: url.pathname, search: url.search, headers: Object.fromEntries(request.headers), body },
       { status: Number(request.headers.get("x-standin-status") ?? 200), headers: { "x-standin": table, "content-encoding": "identity" } },
@@ -111,6 +123,8 @@ struct World {
   store: Scratch,
   gateway: Option<Child>,
   port: u16,
+  /// The arbiter's master the gateway is pointed at, where the test stands one.
+  master: Option<String>,
 }
 
 impl World {
@@ -135,6 +149,7 @@ impl World {
       store,
       gateway: None,
       port: 0,
+      master: None,
     };
     world.write(registry).await;
     world
@@ -172,7 +187,13 @@ impl World {
       std::env::var("PATH").unwrap_or_default()
     );
     let log = std::fs::File::create(self.root().join("gateway.log")).unwrap();
-    command()
+    let mut command = command();
+    // No master but the test's own: the worker's environment names none to the gateway.
+    command.env_remove("AGENCY_ARBITER_URL").env_remove("AGENCY_ARBITER_TOKEN_FILE");
+    if let Some(master) = &self.master {
+      command.env("AGENCY_ARBITER_URL", master);
+    }
+    command
       .args(["--port", &self.port.to_string()])
       .env("PATH", path)
       .env("BMO_DATA_DIR", self.root().join("data"))
@@ -698,4 +719,247 @@ async fn a_runs_long_tools_reach_the_backend_through_litellm_in_the_field_the_en
   let last = seen[0]["messages"].as_array().unwrap().last().unwrap();
   assert_eq!((&last["role"], &last["tool_call_id"]), (&json!("tool"), &json!("toolu_01")), "{last}");
   assert!(seen[1].get("bmo_long_tools").is_none(), "{}", seen[1]);
+}
+
+// A registration naming a card service, whose engine the master stands, beside the pair.
+const CARDED: &str = "
+  INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked, added_at, card_service)
+    VALUES ('flash', 'Flash', 'flash-model', 32768, 4096, 0, 0, 3, 'lab-arena');
+";
+
+// The arbiter's master, standing in: it keeps every demand asked and every one given back, answers a
+// demand waiting until the test grants it, holds a read open while it waits, shows the service's
+// instance standing in its picture once the test stands it, and refuses every ask with `no-place` where
+// the test says so. The demands it holds as it starts are the test's.
+#[derive(Default)]
+struct Master {
+  asked: Vec<Value>,
+  given_back: Vec<i64>,
+  held: Vec<Value>,
+  granted: bool,
+  standing: bool,
+  refusing: bool,
+}
+
+type Shared = std::sync::Arc<std::sync::Mutex<Master>>;
+
+fn demand_of(master: &Master, id: i64) -> Option<Value> {
+  let asked = master.held.iter().find(|demand| demand["id"] == id)?;
+  let granted = master.granted;
+  Some(json!({
+    "id": id,
+    "serviceName": asked["serviceName"],
+    "count": 1,
+    "cards": if granted { json!([{ "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions" }]) } else { json!([]) },
+    "state": if granted { "granted" } else { "waiting" },
+    "reason": if granted { Value::Null } else { json!({ "code": "starting", "text": "The engine is starting." }) },
+    "waitedMs": 0,
+    "ref": asked["ref"],
+  }))
+}
+
+async fn master_standin(held: Vec<Value>) -> (String, Shared) {
+  use axum::extract::{Path as Key, Query, State};
+  use axum::http::StatusCode;
+  use axum::response::IntoResponse;
+  use axum::routing::{get, post};
+
+  let shared: Shared = std::sync::Arc::new(std::sync::Mutex::new(Master {
+    held,
+    ..Master::default()
+  }));
+  let app = axum::Router::new()
+    .route(
+      "/demands",
+      post(|State(shared): State<Shared>, axum::Json(ask): axum::Json<Value>| async move {
+        let mut master = shared.lock().unwrap();
+        master.asked.push(ask.clone());
+        if master.refusing {
+          let said = json!({ "code": "no-place", "error": "The service lab-arena is placed on no node." });
+          return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(said)).into_response();
+        }
+        let id = 1_000 + master.asked.len() as i64;
+        master
+          .held
+          .push(json!({ "id": id, "serviceName": ask["serviceName"], "ref": ask["ref"] }));
+        let demand = demand_of(&master, id).unwrap();
+        (StatusCode::ACCEPTED, axum::Json(demand)).into_response()
+      })
+      .get(|State(shared): State<Shared>| async move {
+        let master = shared.lock().unwrap();
+        let items: Vec<Value> = master
+          .held
+          .iter()
+          .filter_map(|one| demand_of(&master, one["id"].as_i64().unwrap()))
+          .collect();
+        axum::Json(json!({ "items": items, "more": false }))
+      }),
+    )
+    .route(
+      "/demands/{id}",
+      get(
+        |State(shared): State<Shared>,
+         Key(id): Key<i64>,
+         Query(query): Query<std::collections::HashMap<String, u64>>| async move {
+          let bound = Instant::now() + Duration::from_millis(query.get("waitMs").copied().unwrap_or(0));
+          loop {
+            let demand = demand_of(&shared.lock().unwrap(), id);
+            match demand {
+              None => {
+                return (
+                  StatusCode::NOT_FOUND,
+                  axum::Json(json!({ "code": "not-found", "error": "No such demand." })),
+                )
+                  .into_response();
+              }
+              Some(demand) if demand["state"] == "granted" || Instant::now() >= bound => {
+                return axum::Json(demand).into_response();
+              }
+              Some(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+          }
+        },
+      )
+      .delete(|State(shared): State<Shared>, Key(id): Key<i64>| async move {
+        let mut master = shared.lock().unwrap();
+        master.given_back.push(id);
+        let before = master.held.len();
+        master.held.retain(|demand| demand["id"] != id);
+        if master.held.len() < before { StatusCode::NO_CONTENT } else { StatusCode::NOT_FOUND }
+      }),
+    )
+    .route(
+      "/cluster",
+      get(|State(shared): State<Shared>| async move {
+        let standing = shared.lock().unwrap().standing;
+        let instances = if standing {
+          json!([{ "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions" }])
+        } else {
+          json!([])
+        };
+        axum::Json(json!({
+          "services": [{ "serviceName": "lab-arena", "tier": 2, "nodeNames": ["n3"], "instances": instances }],
+          "nodes": [{ "name": "n3", "link": { "state": "connected" }, "cards": [{ "queue": [] }] }],
+        }))
+      }),
+    )
+    .with_state(shared.clone());
+  let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+  let address = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  (address, shared)
+}
+
+async fn carded_world(held: Vec<Value>) -> (World, Shared) {
+  let (address, master) = master_standin(held).await;
+  let mut world = World::new(&format!("{PAIR}{CARDED}")).await;
+  world.master = Some(address);
+  (world.start().await, master)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_on_an_engine_standing_nowhere_waits_for_one_shared_card_and_gives_it_back_once_answered()
+{
+  let (world, master) = carded_world(vec![]).await;
+  let first = world.serving(None).await;
+  let answered = std::sync::atomic::AtomicUsize::new(0);
+  let asking = |path: &'static str, body: &'static str| {
+    let answered = &answered;
+    let world = &world;
+    async move {
+      let asked = world.ask("POST", path, &[], body).await;
+      answered.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+      asked
+    }
+  };
+
+  let plain = asking("/v1/chat/completions", r#"{"model":"flash","messages":[]}"#);
+  // Pinned to a node the master does not grant: sent under the registration's name alone.
+  let pinned = asking("/v1/messages", r#"{"model":"flash@n4","max_tokens":1}"#);
+  let steer = async {
+    until("the door to ask its demand", || !master.lock().unwrap().asked.is_empty()).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(answered.load(std::sync::atomic::Ordering::SeqCst), 0, "a request went before its card");
+
+    // Granted, but the instance not yet in the table: still held.
+    master.lock().unwrap().granted = true;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(answered.load(std::sync::atomic::Ordering::SeqCst), 0, "a request went before its entry");
+    assert!(master.lock().unwrap().given_back.is_empty(), "the card was given back while waited on");
+
+    master.lock().unwrap().standing = true;
+  };
+  let ((plain_status, plain_headers, plain_body), (pinned_status, _, pinned_body), ()) =
+    tokio::join!(plain, pinned, steer);
+
+  assert_eq!(plain_status, 200, "{plain_body}\n{}", world.said());
+  assert_ne!(plain_headers["x-standin"], first.as_str(), "sent before the instance's table took over");
+  let sent: Value = serde_json::from_str(&plain_body).unwrap();
+  assert_eq!(serde_json::from_str::<Value>(sent["body"].as_str().unwrap()).unwrap()["model"], "flash");
+  assert_eq!(pinned_status, 200, "{pinned_body}");
+  let sent: Value = serde_json::from_str(&pinned_body).unwrap();
+  assert_eq!(serde_json::from_str::<Value>(sent["body"].as_str().unwrap()).unwrap()["model"], "flash");
+
+  let asked = master.lock().unwrap().asked.clone();
+  assert_eq!(asked.len(), 1, "the two requests did not share one demand: {asked:?}");
+  assert_eq!(asked[0], json!({ "serviceName": "lab-arena", "count": 1, "ref": "agency gateway door" }));
+  until("the demand to be given back", || master.lock().unwrap().given_back == [1_001]).await;
+
+  // The engine stays on its card, so the next request finds it served and asks nothing.
+  let (status, _, body) = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash"}"#).await;
+  assert_eq!(status, 200, "{body}");
+  assert_eq!(master.lock().unwrap().asked.len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unknown_model_is_400_without_a_demand_and_a_refused_demand_is_503_with_the_masters_sentence() {
+  let (world, master) = carded_world(vec![]).await;
+  world.serving(None).await;
+
+  let (status, _, body) = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"nowhere"}"#).await;
+  assert_eq!(status, 400, "{body}");
+  assert!(body.contains("Invalid model name"), "{body}");
+  let (status, _, body) = world.ask("POST", "/v1/messages", &[], r#"{"model":"pair-0-1@nowhere"}"#).await;
+  assert_eq!(status, 400, "{body}");
+  assert!(
+    master.lock().unwrap().asked.is_empty(),
+    "a demand was asked for a model no card service serves"
+  );
+
+  master.lock().unwrap().refusing = true;
+  let (status, _, body) = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash"}"#).await;
+  assert_eq!((status, body.as_str()), (503, "The service lab-arena is placed on no node."));
+  assert_eq!(master.lock().unwrap().asked.len(), 1);
+
+  // The refusal ends the line: the next request asks anew.
+  let (status, _, _) = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash"}"#).await;
+  assert_eq!(status, 503);
+  assert_eq!(master.lock().unwrap().asked.len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_whose_caller_leaves_while_its_card_waits_gives_the_demand_back() {
+  let (world, master) = carded_world(vec![]).await;
+  world.serving(None).await;
+
+  let left = tokio::time::timeout(
+    Duration::from_millis(800),
+    world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash"}"#),
+  )
+  .await;
+  assert!(left.is_err(), "the request was answered with no card granted");
+  until("the waiting demand to be given back", || master.lock().unwrap().given_back == [1_001]).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_demands_a_launcher_left_under_the_doors_reference_are_given_back_as_it_starts() {
+  let left = vec![
+    json!({ "id": 7, "serviceName": "lab-arena", "ref": "agency gateway door" }),
+    json!({ "id": 8, "serviceName": "lab-arena", "ref": "agency translator" }),
+  ];
+  let (_world, master) = carded_world(left).await;
+
+  until("the door's left demand to be given back", || master.lock().unwrap().given_back == [7]).await;
+  tokio::time::sleep(Duration::from_millis(300)).await;
+  assert_eq!(master.lock().unwrap().given_back, [7], "a demand of another holder was given back");
 }

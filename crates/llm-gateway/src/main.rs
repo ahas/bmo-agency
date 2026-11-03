@@ -5,6 +5,7 @@
 //! The port is 18030 unless named; a check stands a launcher of its own on another. The store is the one the
 //! server runs on, found as every reader of it finds it (docs/store.md, 「Connecting」).
 
+use std::collections::HashMap;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -14,6 +15,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use harness_machine::card_master::{Master, MasterAddress, entry_of};
 use harness_machine::members::{self, Member};
 use llm_gateway::child::{Place, start, write_private};
+use llm_gateway::door::Door;
 use llm_gateway::front::{Front, Status, router};
 use llm_gateway::keys::read_key;
 use llm_gateway::table::{HOOKS, Table, gateway_table_with_members, laid_instances, table_digest};
@@ -63,7 +65,13 @@ fn store_address(data_root: &Path) -> Option<String> {
 /// before the bot — reads as nothing to serve for now. A registration naming a card service is served by
 /// the instances the arbiter's master reports standing, its picture read on the same beat; a picture that
 /// cannot be read leaves the last good table standing (docs/own-llm.md, 「An engine the arbiter stands」).
-async fn registry_table(address: &str, master: Option<&Master>, members: &[Member]) -> Option<Table> {
+/// The front is told each registration naming a card service as the registry reads, whatever the table.
+async fn registry_table(
+  front: &Front,
+  address: &str,
+  master: Option<&Master>,
+  members: &[Member],
+) -> Option<Table> {
   let read = async {
     let mut store = open_read(address).await?;
     let read = registrations(&mut store).await;
@@ -77,6 +85,12 @@ async fn registry_table(address: &str, master: Option<&Master>, members: &[Membe
       return None;
     }
   };
+  front.know(
+    registry
+      .iter()
+      .filter_map(|one| Some((one.name.clone(), one.card_service.clone()?)))
+      .collect::<HashMap<_, _>>(),
+  );
   let picture = match (master, registry.iter().any(|one| one.card_service.is_some())) {
     (Some(master), true) => match master.picture().await {
       Ok(picture) => Some(picture),
@@ -123,11 +137,11 @@ async fn refresh(
       last.clone()
     }
   };
-  let Some(table) = registry_table(store, master, &current).await else {
+  let Some(table) = registry_table(front, store, master, &current).await else {
     return;
   };
   let digest = table_digest(&table, |key_file| read_key(&place.env_dir, key_file), &place.hook_texts());
-  if let Err(fault) = front.take(&digest, start(place, &table, &digest)).await {
+  if let Err(fault) = front.take(&digest, table.names.clone(), start(place, &table, &digest)).await {
     eprintln!("llm-gateway: the table {digest} did not start: {fault}");
   }
 }
@@ -197,7 +211,10 @@ async fn main() -> ExitCode {
   place.clear_leftovers();
 
   let status_path = place.folder.join("status.json");
-  let front = Front::new(gateway_key, {
+  // The door asks the master for the cards of the requests on an engine standing nowhere; a demand a
+  // launcher that ended left under its reference is given back first.
+  let door = master.clone().map(Door::new);
+  let front = Front::new(gateway_key, door, {
     let path = status_path.clone();
     move |status| write_status(&path, status)
   });

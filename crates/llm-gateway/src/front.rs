@@ -1,26 +1,33 @@
 //! The gateway's front: the one address every run and every gate asks, which checks each request's key
 //! and streams the request through to the LiteLLM child it serves from and each answer back as they
-//! stand, reading neither. A new table is a new child: once it answers, new requests go to it, and the
-//! old child is stopped only when the requests in hand through it have ended, however long they take, so
-//! a saved change never cuts a request.
+//! stand, reading of them only the model a chat request names. A new table is a new child: once it
+//! answers, new requests go to it, and the old child is stopped only when the requests in hand through it
+//! have ended, however long they take, so a saved change never cuts a request. A request on a registration
+//! naming a card service whose engine stands nowhere asks the door for its card first, and is sent once
+//! the granted card's entry is served.
 
+use std::collections::{BTreeSet, HashMap};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use axum::Router;
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
 use http_body_util::BodyDataStream;
 use hyper_util::rt::TokioIo;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::net::TcpStream;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
+
+use crate::door::{Door, Seat};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -41,6 +48,8 @@ pub struct Status {
 
 struct Serving {
   table: String,
+  /// Every model name the table holds an entry under.
+  names: BTreeSet<String>,
   child: Box<dyn Child>,
   in_hand: AtomicUsize,
   retired: AtomicBool,
@@ -57,7 +66,22 @@ pub struct Front {
   /// The gateway's own key, which every request carries as its Bearer.
   key: String,
   held: Mutex<Held>,
+  /// Told each time a new child takes over, for the requests waiting on an entry to be served.
+  taken: watch::Sender<u64>,
+  /// Where cards are asked, where the arbiter's master is named.
+  door: Option<Arc<Door>>,
+  /// Each registration naming a card service, with the service, as the registry last read says.
+  card_services: Mutex<HashMap<String, String>>,
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
+}
+
+// The paths a chat request comes on, whose body names its model.
+const CHAT_PATHS: [&str; 3] = ["/v1/chat/completions", "/chat/completions", "/v1/messages"];
+
+// What the front reads of a chat request: the model it names.
+#[derive(Deserialize)]
+struct Named {
+  model: Option<String>,
 }
 
 // The hop-by-hop headers, which belong to one connection and are not handed on, and the ones a hop
@@ -132,14 +156,27 @@ fn refused() -> Response {
 }
 
 impl Front {
-  /// A front checking every request against the gateway's own key, which is never empty.
-  pub fn new(key: String, on_status: impl Fn(&Status) + Send + Sync + 'static) -> Arc<Front> {
+  /// A front checking every request against the gateway's own key, which is never empty, and asking its
+  /// cards at the door where one is given.
+  pub fn new(
+    key: String,
+    door: Option<Arc<Door>>,
+    on_status: impl Fn(&Status) + Send + Sync + 'static,
+  ) -> Arc<Front> {
     assert!(!key.is_empty(), "the gateway's key is never empty");
     Arc::new(Front {
       key,
       held: Mutex::new(Held::default()),
+      taken: watch::channel(0).0,
+      door,
+      card_services: Mutex::new(HashMap::new()),
       on_status: Box::new(on_status),
     })
+  }
+
+  /// The registrations naming a card service, each with its service, as the registry now reads.
+  pub fn know(&self, card_services: HashMap<String, String>) {
+    *self.card_services.lock().unwrap() = card_services;
   }
 
   fn status_of(held: &Held) -> Status {
@@ -159,11 +196,13 @@ impl Front {
     (self.on_status)(&status);
   }
 
-  /// The table the front is to serve. A table already served, or a start already under way, starts
-  /// nothing; a new one starts its child, waits for it, and takes over from the old one, which drains.
+  /// The table the front is to serve, with the names it holds entries under. A table already served, or a
+  /// start already under way, starts nothing; a new one starts its child, waits for it, and takes over from
+  /// the old one, which drains.
   pub async fn take(
     &self,
     table: &str,
+    names: BTreeSet<String>,
     start: impl Future<Output = Result<Box<dyn Child>, String>>,
   ) -> Result<(), String> {
     {
@@ -184,6 +223,7 @@ impl Front {
       let mut held = self.held.lock().unwrap();
       let old = held.current.replace(Arc::new(Serving {
         table: table.to_owned(),
+        names,
         child,
         in_hand: AtomicUsize::new(0),
         retired: AtomicBool::new(false),
@@ -194,11 +234,82 @@ impl Front {
       }
       old
     };
+    self.taken.send_modify(|taken| *taken += 1);
     if let Some(old) = old {
       self.stop_if_idle(&old).await;
     }
     self.report();
     Ok(())
+  }
+
+  // Whether any table stands.
+  fn stands(&self) -> bool {
+    self.held.lock().unwrap().current.is_some()
+  }
+
+  // Whether the child serving now holds an entry under `name`; none where no table stands.
+  fn serves(&self, name: &str) -> Option<bool> {
+    let held = self.held.lock().unwrap();
+    held.current.as_ref().map(|serving| serving.names.contains(name))
+  }
+
+  // Until the child serving holds an entry under `name`: the launcher lays a standing instance into a new
+  // table on its beat, and a new child takes over once it answers.
+  async fn until_served(&self, name: &str) {
+    let mut taken = self.taken.subscribe();
+    while self.serves(name) != Some(true) {
+      if taken.changed().await.is_err() {
+        return;
+      }
+    }
+  }
+
+  // The registration naming a card service a model name stands for, with the node it pins, if any.
+  fn card_registration(&self, model: &str) -> Option<(String, String, Option<String>)> {
+    let card_services = self.card_services.lock().unwrap();
+    if let Some(service) = card_services.get(model) {
+      return Some((model.to_owned(), service.clone(), None));
+    }
+    let (name, node) = model.rsplit_once('@')?;
+    let service = card_services.get(name)?;
+    Some((name.to_owned(), service.clone(), Some(node.to_owned())))
+  }
+
+  // A chat request's body read whole, and where it names a registration naming a card service under a
+  // name the table serving now holds no entry for, its card asked at the door and waited for until the
+  // granted card's entry is served. Answered with the body to send, the model renamed where a pinned node
+  // is not the one granted, and the seat the request holds the card by; or with the status and line to
+  // answer where the body does not read or the master refuses the card.
+  async fn carded(
+    &self,
+    door: &Arc<Door>,
+    body: Body,
+  ) -> Result<(Bytes, Option<Seat>), (StatusCode, String)> {
+    let bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|fault| {
+      (StatusCode::BAD_REQUEST, format!("the request's body could not be read: {fault}"))
+    })?;
+    let Some(model) = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model) else {
+      return Ok((bytes, None));
+    };
+    if self.serves(&model) != Some(false) {
+      return Ok((bytes, None));
+    }
+    let Some((registration, service, pinned)) = self.card_registration(&model) else {
+      return Ok((bytes, None));
+    };
+
+    let (seat, node) = door
+      .card(&service)
+      .await
+      .map_err(|refused| (StatusCode::SERVICE_UNAVAILABLE, refused))?;
+    self.until_served(&format!("{registration}@{node}")).await;
+
+    if pinned.is_none_or(|pinned| pinned == node) {
+      return Ok((bytes, Some(seat)));
+    }
+    let mut named: Value = serde_json::from_slice(&bytes).expect("a body that named its model reads");
+    named["model"] = Value::String(registration);
+    Ok((Bytes::from(serde_json::to_vec(&named).expect("a body read is written")), Some(seat)))
   }
 
   /// One request, refused without the key, else carried to the child serving now and its answer
@@ -207,6 +318,18 @@ impl Front {
     if !carries_key(request.headers(), &self.key) {
       return refused();
     }
+    let (parts, body) = request.into_parts();
+    let chat = parts.method == Method::POST && CHAT_PATHS.contains(&parts.uri.path());
+    let door = self.door.as_ref().filter(|_| chat && self.stands());
+    let (body, seat) = if let Some(door) = door {
+      match self.carded(door, body).await {
+        Ok((bytes, seat)) => (Body::from(bytes), seat),
+        Err((status, said)) => return text(status, said),
+      }
+    } else {
+      (body, None)
+    };
+    let request = Request::from_parts(parts, body);
     // Counted in hand under the lock the child is taken under, so a take that retires that child in
     // between never finds it idle and stops it under the request.
     let serving = {
@@ -263,7 +386,7 @@ impl Front {
     }
     // The request stays in hand, and its connection to the child open, until its answer has been
     // carried whole or its caller has gone.
-    let kept = (in_hand, connection);
+    let kept = (in_hand, connection, seat);
     let streamed = BodyDataStream::new(body).map(move |chunk| {
       let _ = &kept;
       chunk

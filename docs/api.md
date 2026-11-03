@@ -1331,6 +1331,12 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
   the gateway's launcher reads it on its beat for each service's standing instances (`docs/own-llm.md`, 「An
   engine the arbiter stands」). With no address, no demand is asked and a run on such a registration is
   refused.
+- **The gateway's door asks the master too.** The gateway's front, for a request on a registration naming
+  a card service with no instance standing, asks `POST /demands` for one card with the door as its `ref`,
+  reads `GET /demands/{demandId}` with `waitMs` until it is granted, and gives it back with `DELETE
+  /demands/{demandId}` once the last request waiting on it has ended; as the launcher starts it reads `GET
+  /demands` and gives back every demand under the door's reference (`docs/own-llm.md`, 「The gateway」).
+  The launcher reads the master's address and token as 「The gateway」 says.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
   its token stands in. With no address, no reference is asked and a job or a role's session carries only
   its own words.

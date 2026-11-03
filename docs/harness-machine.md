@@ -88,7 +88,8 @@ flowchart TD
 - **What it asks:** `POST /demands` for one card of a service, with the demand it is asked within, the work
   key and a shown reference where they are named; `GET /demands/{demandId}` with its answer held open up to
   thirty seconds and asked again by a caller that waits on longer; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
-  and `GET /cluster`, the whole picture (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
+  `GET /demands`, every demand the master holds, each with its shown reference; and `GET /cluster`, the
+  whole picture (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
   Each call waits for the master's answer; its end is that answer, or the connection refused or broken.
 - **A demand's card** is the first card it is granted while its state is `granted` and nothing has taken
   it; what it waits on is the master's reason, else the occupant that took its card.

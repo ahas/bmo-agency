@@ -35,6 +35,8 @@ pub struct Table {
   pub text: String,
   /// Each variable the table names, with the key file under the data root's `env/` it is read from.
   pub key_files: BTreeMap<String, String>,
+  /// Every model name the table holds an entry under.
+  pub names: BTreeSet<String>,
 }
 
 /// The variable one key file is handed under.
@@ -246,10 +248,12 @@ pub fn gateway_table_with_members(
     },
   };
   let text = serde_json::to_string_pretty(&config).expect("the table is plain data");
+  let names = config.model_list.iter().map(|entry| entry.model_name.clone()).collect();
 
   Ok(Table {
     text: format!("{text}\n"),
     key_files,
+    names,
   })
 }
 

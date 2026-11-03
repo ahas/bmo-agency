@@ -5,6 +5,7 @@
 //! finishes the requests it holds.
 
 pub mod child;
+pub mod door;
 pub mod front;
 pub mod keys;
 pub mod table;
