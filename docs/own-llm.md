@@ -266,7 +266,9 @@ never the model's name.
   session's key as the work it continues and agency's holder as the demand's shown reference. A request at
   the gateway's door on a registration with no instance standing asks one too (「The gateway」 below). A
   caller that holds a granted demand of its own hands its id in with its slot or session request, and no
-  other is asked for that run. A translation shares one with those out beside it (below).
+  other is asked for that run. A session started on a slot whose lease holds a demand stands on that demand
+  the same way, so a run holds one card however many turns it takes. A translation shares one with those out
+  beside it (below).
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
   open, and is computed from its first token where another card answers. The run names the card's entry,

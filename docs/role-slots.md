@@ -273,4 +273,5 @@ The worker settings' hook takes the slot for one native `Agent` call a job's pro
   (`docs/own-llm.md`, 「An engine the arbiter stands」). The role's cap is the ceiling and the master's
   grants are what run: a run waits for its grant as it waits for its slot, and gives its demand back with
   its lease. A slot asked from a run on such a registration asks within that run's demand, and a slot whose
-  caller hands in a granted demand of its own stands on that demand and asks none.
+  caller hands in a granted demand of its own stands on that demand and asks none. A session started on a
+  slot stands on the demand its lease holds, its turns asking none of their own.

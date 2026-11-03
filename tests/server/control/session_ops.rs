@@ -535,6 +535,30 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
   );
   assert_eq!(apart.effort, active.effort);
 
+  // A slot whose lease holds a demand has its session stand on that demand, so the turns ask none of their own.
+  sea_orm::ConnectionTrait::execute_unprepared(
+    &ground.db,
+    &format!(
+      r#"INSERT INTO "card_demands" ("demand_id", "service", "registration", "holder", "lease", "within", "asked_at")
+         VALUES (77, 'engine', 'a-registration', 'owner:start', '{}', NULL, 1)"#,
+      active.token
+    ),
+  )
+  .await
+  .unwrap();
+  let mut on_lease = Apart::default();
+
+  on_slot(&ground.db, &json!({ "slot": active.token }), &mut on_lease).await.unwrap();
+  assert_eq!(on_lease.demand, Some(77), "the session stands on its slot's demand");
+
+  let mut handed_in = Apart {
+    demand: Some(5),
+    ..Apart::default()
+  };
+
+  on_slot(&ground.db, &json!({ "slot": active.token }), &mut handed_in).await.unwrap();
+  assert_eq!(handed_in.demand, Some(5), "a demand the caller handed in stands over its slot's");
+
   let mut other_road = Apart {
     model: "another-model".into(),
     ..Apart::default()

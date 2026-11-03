@@ -717,6 +717,13 @@ pub async fn on_slot(
     }
   }
 
+  // The turns stand on the demand the slot's lease holds, so a run holds one card however many turns it takes.
+  if apart.demand.is_none()
+    && let Some((demand, _)) = crate::cards::of_lease(db, &token).await.map_err(Refused::from)?
+  {
+    apart.demand = Some(demand);
+  }
+
   apart.role = Some(held.role.clone());
   apart.provider.clone_from(&held.provider);
   apart.model.clone_from(&held.model);

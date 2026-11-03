@@ -390,7 +390,8 @@ prompt. Beside them its road is checked, and the start may name the rest below:
 - **`demandId` and `within`:** on a registration naming a card service, a granted demand of the caller's
   own that every turn of the session stands on, with no other asked, or the caller's granted demand each
   turn's own is asked within (`docs/own-llm.md`, 「An engine the arbiter stands」); each a demand's id, a
-  positive whole number, refused 400 otherwise.
+  positive whole number, refused 400 otherwise. A start naming no `demandId` on a slot whose lease holds a
+  demand stands on that demand.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
   `archive`, `role`, `place` and `doubleOf` — is refused 400.
