@@ -2,7 +2,7 @@
 //! default compaction threshold and typed quota; a supervisor's reset point alone and the rooms its turns went
 //! into; the stand-in's provider; a repository's typed checkouts and sampling settings, an add with no path
 //! refused, a node checkout on a node that takes no jobs refused, a change refused for its sampling writing
-//! none of its node checkouts; the nodes with whether they take jobs; a seeded companion's removal refused as
+//! none of its node checkouts; the nodes with whether they take jobs; a seeded supervisor's removal refused as
 //! seeded; a slot asked for a model alone, its runs on `/slots`, an owner's release and the admission's state
 //! after it; and a slot carrying role sessions in turn, its tile naming its session and run, and the forms
 //! that are gone refused — on a store the server settled itself.
@@ -182,16 +182,16 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     .run(r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = 'kept'"#, vec![])
     .await;
 
-  // A companion added with its order whole is written with it, its share beside it.
+  // A supervisor added with its order whole is written with it, its share beside it.
   let (status, added) = call(
     port,
     token,
     reqwest::Method::POST,
-    "/companions",
+    "/supervisors",
     Some(json!({
       "name": "pal",
       "label": "Pal",
-      "worker": "kept",
+      "repository": "kept",
       "order": [{ "provider": "claude-code", "model": "claude-opus-5" }],
       "quotaShare": 0.05,
     })),
@@ -209,11 +209,11 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     port,
     token,
     reqwest::Method::POST,
-    "/companions",
+    "/supervisors",
     Some(json!({
       "name": "pal-two",
       "label": "Pal",
-      "worker": "kept",
+      "repository": "kept",
       "provider": "deepseek",
       "model": "deepseek-flash",
       "order": [{ "provider": "claude-code", "model": "claude-opus-5" }],
@@ -223,8 +223,8 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   assert_eq!((status, refused["field"].clone()), (400, json!("order")), "{refused}");
 
-  // A seeded companion's removal is refused as seeded.
-  let (status, refused) = call(port, token, reqwest::Method::DELETE, "/companions/seeded-one", None).await;
+  // A seeded supervisor's removal is refused as seeded.
+  let (status, refused) = call(port, token, reqwest::Method::DELETE, "/supervisors/seeded-one", None).await;
 
   assert_eq!((status, refused["code"].clone()), (409, json!("seeded")), "{refused}");
 

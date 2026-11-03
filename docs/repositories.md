@@ -26,7 +26,7 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   - **its dev command,** the one line its jobs' dev server is started with (`docs/worker-bench.md`, 「Dev
     server」);
   - **its pinned model,** a provider and one model of it, or none (「A pinned model」 below), with the
-    sampling a run on a pinned registration is sent: the companions' generation settings by the same names
+    sampling a run on a pinned registration is sent: the supervisors' generation settings by the same names
     and bounds, less the answer ceiling, each held or left out; one left out is the engine's own default,
     which agency neither sets nor reads (`docs/own-llm.md`);
   - **its downgrade heal,** on unless the owner turns it off, whether a job that fell to a lower model is

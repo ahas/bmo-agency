@@ -11,7 +11,6 @@ use crate::support::grounds::{OrderEntry, set_provider_order};
 use crate::support::rows::supervisor;
 use agency_server::Service;
 use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn};
-use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
 use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
 use agency_server::lines::standing::GatewayModel;
@@ -19,6 +18,7 @@ use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
 use agency_server::stand_in::Step;
+use agency_server::supervisor_turn::run::NoAnswer;
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use sea_orm::DatabaseConnection;
@@ -334,7 +334,7 @@ fn the_chat_s_own_launch_stands_on_claude_code_in_its_agent_s_home_and_a_named_f
 
   assert_eq!(
     std::path::PathBuf::from(&folder),
-    ground.roots.data.join("companion-homes").join("chat-agent")
+    ground.roots.data.join("supervisor-homes").join("chat-agent")
   );
   assert!(std::path::Path::new(&folder).is_dir());
 }

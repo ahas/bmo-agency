@@ -67,14 +67,14 @@ never the model's name.
   confirming and reporting, and the context management stay, since the program needs them to run; so
   does the program's own opening line, which the identity layer the rules carry answers. Another prompt
   chosen in its place — one written for another harness — is handed the same way.
-- **On the chat line it is the chat agent.** A chat round on a registered model is handed the chat
-  agent's system prompt exactly as that agent is, with nothing of a worker's or a companion's in it.
-- **As a companion,** on the chat line, what a turn is given is the companion's own to say: its base
-  prompt, then the companion role whole and its persona, in place of a harness's own prompt
-  (`docs/companions.md`). Nothing of the chat agent's prompt or of the worker's rules is among them.
+- **On the chat line it is the supervisor whose turn it is.** A round of the window shape on a registered
+  model is handed that supervisor's system prompt exactly as it is, with nothing of a worker's in it.
+- **A turn of the pieces shape,** on the chat line, is given its own system prompt: its base prompt, then
+  the pieces role whole and its persona, in place of a harness's own prompt (`docs/supervisors.md`, 「What a
+  turn is given」). Nothing of the window shape's documents or of the worker's rules is among them.
 - **The rule against destroying the system is on every line that acts,** since every agent that acts is
   given the self-preservation rule (`prompts/rules/self-preservation.md`): the worker and chat lines,
-  a companion's prompt after its base prompt.
+  a pieces-shaped turn's prompt after its base prompt.
 - **A repository's rules follow the path, not the model:** a run in a repository's support worktree is
   handed that repository's rules, and a run elsewhere on the same registered model is not.
 - **A job's session closes with nothing handed over.** Where a job's runner hands its session over as
@@ -89,9 +89,9 @@ never the model's name.
   registration, and the entry's thinking overrides it where it names one (`docs/provider-order.md`,
   「Effort and thinking」). A registered model takes no effort level.
 - **Each run samples by its own settings:** a job on a repository's pinned registration by the
-  repository's sampling (「A repository pinned to a registration」 below), a companion by its generation
-  settings (`docs/companions.md`); a run that names none — the chat agent's turn among them — leaves the
-  engine's defaults to hold.
+  repository's sampling (「A repository pinned to a registration」 below), a supervisor's pieces-shaped turn by its
+  generation settings (`docs/supervisors.md`, 「Its generation settings」); a run that names none — a turn of
+  the window shape among them — leaves the engine's defaults to hold.
 - **The model behind a registration is the engine's, and the engine's model is a catalogue entry.** The
   deployment's own engine serves the file its placement names — an entry of the model catalogue
   (`docs/model-catalogue.md`) — and every request reaches whatever file that is, since the gateway
@@ -184,7 +184,7 @@ never the model's name.
 ### A repository's own registration
 
 - **A registration the owner makes** with the registry's command, like any other and not a seed, may be
-  the model a repository pins (「A repository pinned to a registration」 below), while a companion stays
+  the model a repository pins (「A repository pinned to a registration」 below), while a supervisor stays
   on another. What this document says of the worker line holds there alike: a job in the repository reads
   the worker line, and the pinned model answers as a worker of that repository.
 
@@ -273,8 +273,8 @@ never the model's name.
   table on the launcher's next beat. A program standing with nothing put in, a supervisor's between its
   turns, names the registration alone.
 - **A run waits for its grant however long it takes,** its answer saying why — the engine starting, every
-  card in use, a bench or a claim. A companion's or the chat agent's turn waits as it waits for an engine a
-  job holds (`docs/companions.md`, 「The engine it shares」), the room shown the reason; a role's run
+  card in use, a bench or a claim. A supervisor's turn waits as it waits for an engine a
+  job holds (`docs/supervisors.md`, 「The engine it shares」), the room shown the reason; a role's run
   waits for its grant as it waits for its slot (`docs/role-slots.md`, 「On a registration the arbiter
   stands」). Agency adds no clock to that wait.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
@@ -512,7 +512,7 @@ never the model's name.
     before routing, over the program's own: every numeric entry so named is written; the template words
     are laid over the request's own and those over its table entry's, word by word, since LiteLLM sends a
     request's template words in place of its entry's whole; which settings are sent and their bounds are
-    the caller's (`docs/companions.md`), and the hook keeps no list. A request with no such header is
+    the caller's (`docs/supervisors.md`, 「Its generation settings」), and the hook keeps no list. A request with no such header is
     asked with the program's own values.
   - **Past thinking goes where the template is told it goes.** A request whose template words name
     `preserve_thinking` off has the thinking of every answer before its last question taken out before
@@ -565,7 +565,7 @@ never the model's name.
   Which files stand and whether one is still valid are the engine deployment's own: it builds them and
   builds them again when the prompt or a setting bound into them changes, so a file that stands is the
   role's. Agency never saves one.
-- **Which requests name a role file:** the chat agent's runs send `chat` in the role header on every
+- **Which requests name a role file:** the supervisor's runs send `chat` in the role header on every
   request they make through the gateway. A request naming no role file — a translation's among them, and
   every role's run — is asked as it stands. An engine deployment may build files under other names, such
   as `gate` or `session-summary`, which no run of agency's names.
@@ -651,7 +651,7 @@ never the model's name.
   prompt is carried whole every time.
 - **The request is its caller's alone:** its system message is the caller's instructions and its one user
   message the caller's input. Nothing of a conversation goes with it — no persona, no room context, no
-  companion's settings — and it joins no conversation on the same registration.
+  supervisor's settings — and it joins no conversation on the same registration.
 - **An engine with one slot answers one request at a time,** shared by everything on it — supervisors'
   turns, roles' runs and every request with no tools. A request waits behind whatever holds the slot, a
   long answer being written holds it for minutes, and a request that takes the slot from a conversation
@@ -761,11 +761,11 @@ never the model's name.
     repository's work wait, and nothing falls back (`docs/repositories.md`, 「A pinned model」).
   - A job that names its own `<provider>::<model>` still asks that first.
   - A pinned job holds a slot of its role like any other run (`docs/role-slots.md`).
-- **Its sampling is the repository's,** apart from any companion's on the same registration: a repository
+- **Its sampling is the repository's,** apart from any supervisor's on the same registration: a repository
   holds sampling settings of its own (`docs/repositories.md`, 「What a repository row holds」), and every run
-  on its pinned registration names them (「How requests go」 below). They are the companions' generation
+  on its pinned registration names them (「How requests go」 below). They are the supervisors' generation
   settings, by the same names and bounds, less the answer ceiling, which stays the registration's
-  (`docs/companions.md`); one left empty is the engine's own default. Only a run on a registration carries
+  (`docs/supervisors.md`, 「Its generation settings」); one left empty is the engine's own default. Only a run on a registration carries
   them, since only the gateway reads them; a run in a support worktree runs on its repository's; a save
   checks each against its bounds, refuses one out of them, and lets the next run carry the new values; it
   is set in the sampling block of the repository's settings, shown while its pin is a registration.
@@ -825,8 +825,8 @@ never the model's name.
     `thinking` of type `adaptive`; one with it off is sent `low` with its thinking tokens at zero, so it
     names no thinking at all. The gateway carries either to the backend. Whether a run thinks is its
     order's entry's thinking where that names one, and the registration's thinking default otherwise.
-  - **Sampling is the run's own:** a run that names sampling settings — a companion's turn, from its
-    generation settings, and a job on a repository's pinned registration, from the repository's
+  - **Sampling is the run's own:** a run that names sampling settings — a supervisor's pieces-shaped turn, from
+    its generation settings, and a job on a repository's pinned registration, from the repository's
     sampling — sends them in the Anthropic custom
     headers, as the header the gateway writes into each request; a run that names none
     sends no such header, and the backend samples with what the program sent and its own defaults.
@@ -869,7 +869,7 @@ never the model's name.
 
 - **The registry's provider declares Claude Code's interactive program over the gateway as its
   interactive surface,** and nothing outside the provider names a registration for that. A request with
-  no tools stands no program; a companion's turn goes into its own program as the chat agent's does.
+  no tools stands no program; every supervisor's turn goes into its own program.
 - **The top of its screen names the registration by its label:** the program's settings carry a model
   picker row for the model it is started on, the node placement included, labelled with the
   registration's label, so Claude Code shows that label where it would show the gateway's name and its
@@ -882,11 +882,11 @@ never the model's name.
   registered model, and a role's run stands it in a pane of its own for the run (`docs/agents.md`, 「A run
   in a pane of its own」). A supervisor's turn and a role's run are each one turn the bot puts into it,
   and a person attached to the console types into it as into any Claude Code program.
-- **A supervisor's turn goes on in its scope's session,** the chat agent's and a companion's alike, on the
+- **A supervisor's turn goes on in its scope's session,** whatever its scope, on the
   node that session stands on: the supervisor's one session, or the room's where its scope is the room, a
   turn for another room then starting the program again on that room's session in the same pane
   (`docs/supervisors.md`, 「The session's scope」). A full session is handed over by the handoff this
-  provider declares rather than folded (`docs/companions.md`, 「Its limit」).
+  provider declares rather than folded (`docs/supervisors.md`, 「Its limit」).
 - **A role's run goes on in its role's kept session:** where the role holds a valid session on the
   registration at the run's path — on its model, effort and login, on a node the registration still has
   — the run resumes it on its node (`docs/sessions.md`, 「A role's session」); otherwise it opens a
@@ -895,7 +895,7 @@ never the model's name.
   typed after a turn go on in its session, on its node, while the run's pane stands.
 - **Words mid-turn are taken:** words for the agent that arrive while a turn works go into that turn, as
   Claude Code's pane takes them on the claude-code provider; a registration's window carries them.
-- **A line a person types into the chat agent's program is composed by the program, not the gateway:**
+- **A line a person types into the supervisor's program is composed by the program, not the gateway:**
   the chat's submit hook hands it what a round of the owner's chat would carry, on this road as on
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
 - **What stays in the host:** a request with no tools is one request and one answer, asked in the agent's
@@ -945,8 +945,8 @@ never the model's name.
   window rather than cut either, answering a 400 that names the prompt's tokens, the ceiling and its
   context.
 - **Claude Code folds before the limit:** it takes the window from the context-tokens variable and
-  compacts its conversation as it nears it, as it does on the Claude road. A companion's session is handed
-  over earlier, in a turn of its own that writes its state for the next session (`docs/companions.md`,
+  compacts its conversation as it nears it, as it does on the Claude road. A supervisor's session on a registration is
+  handed over earlier, in a turn of its own that writes its state for the next session (`docs/supervisors.md`,
   「Its limit」).
 - **Its own fold point keeps room for a bounded answer,** which falls short where the answer ceiling is
   larger, so a request carrying the whole ceiling could still pass the window.

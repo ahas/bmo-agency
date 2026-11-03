@@ -16,7 +16,7 @@
   and served by the tool host (`mcp-host.md`, 「Placed tools」); the scripts are TypeScript until their own
   port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
   same answer, so a tool and the script cannot answer the same question differently. The script
-  run by a job answers in the same English; run by a person or by the chat agent, in the reader's language.
+  run by a job answers in the same English; run by a person or by the supervisor, in the reader's language.
 
 ## What they serve
 

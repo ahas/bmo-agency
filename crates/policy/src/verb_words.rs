@@ -237,12 +237,12 @@ pub struct DevServersWords {
   pub pane: DevServersPaneWords,
 }
 
-/// A companion's session in a room followed as its standing pane prints it: an {agent} not in the agents
+/// A supervisor's session in a room followed as its standing pane prints it: an {agent} not in the agents
 /// table, a {room} it holds no session in with the {rooms} it does, each turn's heading and each
 /// generation's.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompanionFollowWords {
+pub struct SupervisorFollowWords {
   pub usage: String,
   pub unknown_agent: String,
   pub no_session: String,
@@ -266,12 +266,12 @@ pub struct MachineMemoryWords {
   pub head: String,
 }
 
-/// A companion started afresh from the shell, as `bmo-agency companion reset` prints it
-/// (docs/companions.md, 「Starting it afresh」): its heading, its rooms, its rows, its files, what the brain
+/// A supervisor started afresh from the shell, as `bmo-agency supervisor reset` prints it
+/// (docs/supervisors.md, 「Starting it afresh」): its heading, its rooms, its rows, its files, what the brain
 /// would take, and what was left.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompanionResetWords {
+pub struct SupervisorResetWords {
   pub no_token: String,
   pub unanswered: String,
   pub refused: String,
@@ -342,8 +342,8 @@ pub struct VerbWords {
   pub worker_fold: WorkerFoldWords,
   pub agents: AgentsWords,
   pub dev_servers: DevServersWords,
-  pub companion_follow: CompanionFollowWords,
-  pub companion_reset: CompanionResetWords,
+  pub supervisor_follow: SupervisorFollowWords,
+  pub supervisor_reset: SupervisorResetWords,
   pub machine_memory: MachineMemoryWords,
   pub run_list: RunListWords,
   pub run_stop: RunStopWords,

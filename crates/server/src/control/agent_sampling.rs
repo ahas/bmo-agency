@@ -12,14 +12,14 @@
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
-use policy::companions::GENERATION;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
+use policy::supervisors::GENERATION;
 use sea_orm::DatabaseConnection;
 use serde_json::{Map, Value, json};
 
-use super::companions::{generation_refusal, generation_settings};
 use super::fault::{Fault, refused};
+use super::supervisor_settings::{generation_refusal, generation_settings};
 use super::{Call, Refused, Route, answer};
 use crate::queue::settings;
 use store::one;

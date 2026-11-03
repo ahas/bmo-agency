@@ -152,7 +152,7 @@ export function render(template: string, vars: Record<string, string | number>):
 
 // The ABSOLUTE RULES, as every agent that speaks to people opens with them: bare, under their own
 // heading line, since the manuals refer to them by number as ABSOLUTE RULES rather than as a file.
-// One copy serves the chat agent's prompt and every companion's (docs/companions.md).
+// One copy serves every supervisor's prompt (docs/supervisors.md).
 export function absoluteRules(): string {
   return readRequired(join(rulesDir, chatLine.system.absolute_rules));
 }

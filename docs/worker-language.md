@@ -3,7 +3,7 @@
 A job worker is an agent, and what only an agent reads is English. A result it writes for a person is
 the exception: its report, the account it closes its item with, a document it files for the archive, a
 measurement report or a research write-up is written in the language of the person who asked
-(`docs/agent-documents.md`). Its notes, a question it puts to the owner, which the chat agent puts to
+(`docs/agent-documents.md`). Its notes, a question it puts to the owner, which the supervisor puts to
 him in his own language, and what it writes into git are English. So the worker reads English, writes
 English for agents and the asker's language for the asker, and every other translation in between is
 done on the way in or on the way out, never by the worker. Agency's part is what reaches a

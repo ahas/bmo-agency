@@ -1,4 +1,4 @@
-//! The chat agent's own documents as the owner keeps them (docs/agent-documents.md, 「The chat agent」): the
+//! The chat agent's own documents as the owner keeps them (docs/agent-documents.md, 「A supervisor of the window shape」): the
 //! opening, the absolute rules and the manual, each read from the store's `chat_documents` where a text is
 //! kept and from its file otherwise, with a save that overwrites it and a reset that lets the file stand
 //! again. The chat line composes every launch with what this route answers (docs/api.md, 「The chat's

@@ -84,7 +84,7 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
     accounts[accounts.len() - 6..],
     ["rowid", "user_id", "endpoint_url", "key_file", "endpoint_models", "base_prompt"]
   );
-  assert_eq!(columns("companion_settings").await.last().unwrap(), "saved_settings");
+  assert_eq!(columns("supervisor_settings").await.last().unwrap(), "saved_settings");
   let room_sessions = columns("room_sessions").await;
   assert_eq!(room_sessions[room_sessions.len() - 3..], ["rowid", "spent_calls", "spent_ms"]);
 }
@@ -169,22 +169,22 @@ async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
   for statement in [
     r#"INSERT INTO "agents" ("name", "kind", "role") VALUES ('digest', 'recollector', 'recollector'),
          ('people-digest', 'recollector', 'recollector'), ('session-summary', 'recollector', 'recollector'),
-         ('people-standing', 'gate', 'gate'), ('companion', 'chat', 'chat'), ('translator', 'gate', 'gate')"#,
+         ('people-standing', 'gate', 'gate'), ('pal', 'chat', 'chat'), ('translator', 'gate', 'gate')"#,
     r#"INSERT INTO "companion_settings" ("agent", "persona", "recollector_model")
-         VALUES ('companion', 'Plain.', 'local-model'), ('digest', NULL, NULL)"#,
+         VALUES ('pal', 'Plain.', 'local-model'), ('digest', NULL, NULL)"#,
     r#"INSERT INTO "runs" ("agent", "unit", "depth", "started_at") VALUES ('digest', 'u-1', 0, 1),
-         ('people-digest', 'u-2', 0, 1), ('companion', 'u-3', 0, 1)"#,
+         ('people-digest', 'u-2', 0, 1), ('pal', 'u-3', 0, 1)"#,
     r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text") VALUES ('people-standing', 'r-1', 1, 'line', 'x'),
-         ('companion', 'r-2', 1, 'line', 'y')"#,
+         ('pal', 'r-2', 1, 'line', 'y')"#,
     r#"INSERT INTO "run_clocks" ("run", "work_key", "agent", "what", "started_at", "bound_ms")
-         VALUES ('clocked-digest', 'digest', 'companion', 'w', 1, 1), ('clocked-voice', 'voice-reading', 'companion', 'w', 1, 1)"#,
+         VALUES ('clocked-digest', 'digest', 'pal', 'w', 1, 1), ('clocked-voice', 'voice-reading', 'pal', 'w', 1, 1)"#,
     r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at", "answer_by") VALUES ('clocked-digest', '{}', 1, 2),
          ('clocked-voice', '{}', 1, 2)"#,
     r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('digest', 'Reliable'),
          ('people-standing', 'Simple'), ('session-summary', 'Reliable'), ('translator', 'Reliable')"#,
     r#"INSERT INTO "fallback_routes" ("key", "set_at") VALUES ('people-digest', 1), ('translator', 1)"#,
     r#"INSERT INTO "settings" ("key", "value") VALUES ('agent_gate:digest:sanitizer', 'off'),
-         ('agent_sampling:people-digest', '{}'), ('reset_point:session-summary', '1'), ('reset_point:companion', '2')"#,
+         ('agent_sampling:people-digest', '{}'), ('reset_point:session-summary', '1'), ('reset_point:pal', '2')"#,
   ] {
     scratch.run(statement, vec![]).await;
   }
@@ -202,10 +202,7 @@ async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
     0
   );
   assert_eq!(count(r#"SELECT count(*) FROM "agents" WHERE "kind" = 'recollector'"#).await, 0);
-  assert_eq!(
-    count(r#"SELECT count(*) FROM "agents" WHERE "name" IN ('companion', 'translator')"#).await,
-    2
-  );
+  assert_eq!(count(r#"SELECT count(*) FROM "agents" WHERE "name" IN ('pal', 'translator')"#).await, 2);
   assert_eq!(
     count(r#"SELECT count(*) FROM "agents" WHERE "name" IN ('digest', 'people-digest', 'session-summary', 'people-standing')"#)
       .await,
@@ -240,10 +237,7 @@ async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
       .await,
     0
   );
-  assert_eq!(
-    count(r#"SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:companion'"#).await,
-    1
-  );
+  assert_eq!(count(r#"SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:pal'"#).await, 1);
 }
 
 #[tokio::test]
@@ -290,4 +284,46 @@ async fn a_moment_kept_in_seconds_is_given_its_milliseconds_and_one_in_milliseco
 
   assert_eq!(at("seconds").await, 1_793_003_847_000);
   assert_eq!(at("milliseconds").await, 1_792_580_336_000);
+}
+
+#[tokio::test]
+async fn every_supervisor_s_settings_stand_in_the_supervisors_settings_table_with_its_rows_kept() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that names the settings table for the supervisors.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261127_000001_supervisor_settings")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "companion_settings" ("agent", "persona", "generation") VALUES ('pal', 'Plain.', '{}')"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "supervisor_settings" WHERE "agent" = 'pal' AND "persona" = 'Plain.'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM pg_constraint WHERE conname IN ('supervisor_settings_pkey', 'supervisor_settings_rowid_key')"#,
+        vec![]
+      )
+      .await,
+    2
+  );
+  scratch
+    .run(r#"INSERT INTO "supervisor_settings" ("agent") VALUES ('another')"#, vec![])
+    .await;
 }

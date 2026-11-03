@@ -39,10 +39,10 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
 #[test]
 fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_session() {
   let dir = tempfile::tempdir().unwrap();
-  let system = dir.path().join("companion-a.md");
+  let system = dir.path().join("supervisor-a.md");
   let settings = dir.path().join("settings.json");
 
-  std::fs::write(&system, "a companion").unwrap();
+  std::fs::write(&system, "a supervisor").unwrap();
   std::fs::write(&settings, "{}").unwrap();
 
   let words = line(dir.path(), &system);
@@ -176,7 +176,7 @@ async fn launched(scratch: &Scratch, home: &Path, socket: &Path) -> ChatRun {
 
 // The chat's whole system prompt opens on the platform's harness opening read out of the tree the line is
 // composed from, then the role, and goes to Claude Code in the program's own place (docs/agent-documents.md,
-// 「The chat agent」).
+// 「A supervisor of the window shape」).
 #[tokio::test]
 async fn a_chat_launch_opens_on_the_platform_s_harness_and_is_handed_whole() {
   let scratch = Scratch::new().await;
@@ -478,7 +478,7 @@ fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each
     prompt("agents/worker/plugin/skills/bmo-closing-a-job/SKILL.md")
       .contains("written in the language of the\nperson who asked, as the item's brief names it")
   );
-  assert!(prompt("agents/companion/handoff.md").contains("Write it in English"));
+  assert!(prompt("agents/pieces/handoff.md").contains("Write it in English"));
 }
 
 // A chat with no folder of its own works in the deploy tree's link, whose path stays the same across
@@ -749,11 +749,11 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
 
   assert_eq!(String::from_utf8_lossy(&shell.stdout), "job-token-value");
 
-  // A companion's configuration carries the same servers but for agency's own plugin: it files no item
+  // A supervisor's configuration carries the same servers but for agency's own plugin: it files no item
   // and launches nothing.
-  let companion = mcp_config(&ground, &Trees::of(&ground), "companion-agent", true).unwrap();
+  let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent", true).unwrap();
   let config: serde_json::Value =
-    serde_json::from_str(&std::fs::read_to_string(&companion).unwrap()).unwrap();
+    serde_json::from_str(&std::fs::read_to_string(&supervisor).unwrap()).unwrap();
 
   assert!(config["mcpServers"]["agency"].is_null(), "{config}");
   assert!(config["mcpServers"]["job"].is_object(), "{config}");

@@ -59,7 +59,7 @@ fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name(
   assert!(RUN_LINES.shows("chat", "gate/translate"));
   assert_eq!(RUN_LINES.variables("chat"), ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]);
   assert!(RUN_LINES.variables("worker").is_empty());
-  assert!(!RUN_LINES.shows("companion", "worker/graph_impact"));
+  assert!(!RUN_LINES.shows("supervisor", "worker/graph_impact"));
 }
 
 #[test]

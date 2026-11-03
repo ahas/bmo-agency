@@ -14,7 +14,7 @@ export interface ResidentTurnRow {
 export interface ExecutionRecord {
   id: string;
   // The agent the run is for: whose program a turn goes into, whose host a run is left in, or the agent a
-  // host carries a run for. A companion's removal takes every record naming it.
+  // host carries a run for. A supervisor's removal takes every record naming it.
   agent?: string | null;
   parent: string | null;
   root?: string;

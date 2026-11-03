@@ -20,7 +20,7 @@ fn clocked(run: &str) -> Clocked {
     run: run.to_owned(),
     parent: Some("batch-unit".to_owned()),
     work_key: "voice-reading".to_owned(),
-    agent: Some("companion".to_owned()),
+    agent: Some("supervisor".to_owned()),
     what: "The voice-reading run".to_owned(),
     clock: Duration::from_secs(60),
   }
@@ -61,7 +61,7 @@ async fn a_clocked_run_is_asked_about_kept_and_cut_on_the_chat_agents_verdict() 
 
   assert_eq!(
     (ask.run.as_str(), ask.agent.as_str(), ask.verb.as_str()),
-    ("run-one", "companion", "bmo-agency overtime")
+    ("run-one", "supervisor", "bmo-agency overtime")
   );
   assert_eq!(clock_of(db, "run-one").await.unwrap().kept_until, None);
   assert_eq!(open_asks(db).await.unwrap().len(), 1);

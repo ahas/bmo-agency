@@ -14,7 +14,7 @@ fn the_control_words_read_with_the_marks_they_are_filled_by() {
   assert!(words.workers.sampling.unknown.contains("{name}"));
   assert!(words.agents.gates_of.contains("{agent}") && words.agents.gates_of.contains("{gates}"));
   assert!(words.sessions.none_in_room.contains("{room}"));
-  assert!(words.companions.own_name.contains("{pieces}"));
+  assert!(words.supervisors.own_name.contains("{pieces}"));
   assert!(
     words.tiers.answer_tokens.contains("{providers}") && words.tiers.answer_tokens.contains("{choices}")
   );
@@ -22,7 +22,7 @@ fn the_control_words_read_with_the_marks_they_are_filled_by() {
   assert!(
     words.models.engine_switching.contains("{engine}") && words.models.engine_switching.contains("{entry}")
   );
-  assert!(words.companion_reset.not_companion.contains("{agent}"));
+  assert!(words.supervisor_reset.not_supervisor.contains("{agent}"));
 }
 
 #[test]

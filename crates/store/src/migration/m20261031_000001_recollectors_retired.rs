@@ -1,4 +1,4 @@
-//! No recollector stands (docs/agent-ownership.md, 「Who writes long-term memory」): the companions' column
+//! No recollector stands (docs/agent-ownership.md, 「Who writes long-term memory」): the supervisors' column
 //! naming a model for their recollectors goes, and so does every row kept under a recollector's name or its
 //! work key.
 

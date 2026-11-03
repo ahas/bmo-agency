@@ -10,9 +10,6 @@ mod catalogues;
 mod chat_documents;
 pub mod claude_account_changes;
 pub mod claude_accounts;
-pub mod companion_reset;
-mod companion_roster;
-pub mod companions;
 mod documents;
 pub mod events_stream;
 mod executions;
@@ -42,7 +39,10 @@ mod run_log;
 pub mod session_ops;
 pub mod sessions;
 pub mod stand_ins;
+mod supervisor_removal;
+pub mod supervisor_reset;
 mod supervisor_routes;
+pub mod supervisor_settings;
 pub mod translation_runs;
 pub mod typed_line;
 mod walk_reads;
@@ -70,10 +70,10 @@ use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::companion::going::GoingRuns;
 use crate::events::Bus;
 use crate::places::{Ground, Places};
 use crate::queue::settings;
+use crate::supervisor_turn::going::GoingRuns;
 pub use inventory;
 
 /// One route the front answers, written beside its answer: `crate::moved!(BasePrompts);`
@@ -339,7 +339,7 @@ impl Call {
     self.sessions.clone()
   }
 
-  /// The companions' runs going now, as `companion-run-going` names them.
+  /// The supervisors' runs going now, as `supervisor-run-going` names them.
   pub fn going(&self) -> Arc<GoingRuns> {
     self.going.clone()
   }
@@ -415,7 +415,7 @@ pub fn answer(status: StatusCode, body: Value) -> Response {
 }
 
 /// What the front stands on: the token a caller is let in by, agency's ground, the places the server
-/// stands, the picture of herdr it keeps, the companions' runs going, and the routes linked in.
+/// stands, the picture of herdr it keeps, the supervisors' runs going, and the routes linked in.
 pub struct Front {
   token: String,
   ground: Arc<Ground>,

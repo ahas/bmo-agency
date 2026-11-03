@@ -155,12 +155,12 @@ none_in_room = "There is no session to clear: {agent} (room {room})"
 asked_shape = "Name the session to clear by its agent and its room."
 asked = "session reset asked"
 
-# A companion's settings: an {agent} that is no companion, a {field} a save does not take, a setting
+# A supervisor's settings: an {agent} that is no supervisor, a {field} a save does not take, a setting
 # {name} not known, an own piece's
-# {name} out of its shape, beside the {pieces} every companion has, or past its {most} characters, the
+# {name} out of its shape, beside the {pieces} every supervisor has, or past its {most} characters, the
 # pieces {offered} to choose from, and the reason the rooms a saved generation reaches are reset under.
-[companions]
-not_companion = "Not a companion: {agent}"
+[supervisors]
+not_supervisor = "There is no supervisor {agent}."
 generation_pairs = "Generation settings are names paired with values."
 not_generation = "Not a generation setting: {name}"
 reference = "The reference switch is on or off."
@@ -172,7 +172,7 @@ pieces_twice = "A piece cannot be put in twice."
 pieces_none = "A system prompt holds at least one piece."
 persona = "A persona is a text of at most {most} characters."
 registration = "Choose a registered model with an address."
-not_field = "Not a companion setting: {field}"
+not_field = "Not a supervisor setting: {field}"
 thinking = "Thinking is on, off or the default."
 reset_reason = "generation settings saved"
 
@@ -199,7 +199,7 @@ conflicts = "Review the kept earlier settings and agree to the tier first."
 mapping = "Choose a provider, a model and an effort."
 answer_tokens = "An answer ceiling is set only on {providers}, as one of {choices}."
 
-# The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {companion}'s pin, a
+# The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {supervisor}'s pin, a
 # work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
 # its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
 # {node}, {what} cannot be removed while the {names} name it, and an address refused to a {name} naming a
@@ -207,7 +207,7 @@ answer_tokens = "An answer ceiling is set only on {providers}, as one of {choice
 [registry]
 tier = "the {tier} tier"
 worker_pin = "worker {worker}'s pin"
-companion_pin = "companion {companion}'s pin"
+supervisor_pin = "supervisor {supervisor}'s pin"
 key_pin = "work key {key}'s own registration"
 model_file = "model file {entry}"
 name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
@@ -266,27 +266,20 @@ engine_switching = "The {engine} engine is being switched to {entry}; try again 
 unit_failed = "The run unit could not be made: {why}"
 node_unread = "The node's name could not be read."
 
-# A companion added on the console and removed there: a name out of its shape or already an agent's, no
-# label, a {provider} that carries no companion, a model with no address, a {worker} that is no worker, an
-# {agent} that is no companion, and one the deployment seeds, by its {label}.
-[companion_roster]
+# A supervisor registered: a name out of its shape or already an agent's, and no label.
+[supervisor_roster]
 name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, 40 characters at most."
 name_taken = "The name {name} is already another agent's."
 label = "Enter a label."
-provider = "The {provider} provider cannot carry a companion."
-model = "Choose a registered model with an address."
-worker = "Choose the worker among the workers: {worker}"
-not_companion = "Not a companion: {agent}"
-seeded = "{label} is a companion the deployment seeds, so it cannot be removed."
 
-# A companion's reset: one naming no companion or no range, an {agent} that is no companion or whose
+# A supervisor's reset: one naming no supervisor or no range, an {agent} that is no supervisor or whose
 # folder is the brain root, and the reason a room session it ended is recorded under.
-[companion_reset]
-no_agent = "Name the companion to reset."
+[supervisor_reset]
+no_agent = "Name the supervisor to reset."
 no_range = "Choose at least one range to take, the conversation or the person record. To start only its session afresh, reset the session."
-not_companion = "{agent} is not a companion, so it cannot be reset."
+not_supervisor = "There is no supervisor {agent}."
 brain_root = "{agent}'s memory folder is the brain root, so it is not reset."
-reason = "companion reset"
+reason = "supervisor reset"
 
 # The cards the arbiter's master grants a run on a registration naming a card {service}: a master named
 # nowhere, a run waiting on its grant and {why}, a master that could not be reached, a {demand} handed in

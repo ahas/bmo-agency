@@ -307,7 +307,7 @@
 
 - **A repository takes as many jobs as it has free checkouts** — the base's, and each support checkout's
   within the count — and each of them waits for a slot of the role it runs as as well
-  (`docs/role-slots.md`). The fact that tells the chat agent the queue is waiting counts the free checkouts
+  (`docs/role-slots.md`). The fact that tells the supervisor the queue is waiting counts the free checkouts
   of each repository, and one item is launched per free checkout.
 - **The launcher picks the checkout.** It takes, in this order: a free support checkout already on the
   item's branch; the base checkout; a free support checkout by number. A launch naming a support checkout

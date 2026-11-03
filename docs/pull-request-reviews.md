@@ -58,7 +58,7 @@ repository, and a merge lets the item that waited on the pull request go on.
 
 - **One item per pull request and head.** An open pull request on a repository agency holds is filed in the job
   service as an item for that repository (`POST /items`), the repository the pull request belongs to named as its
-  `assigneeName`, so only a job in that repository takes it and the idle queue's alarm tells the chat agent once
+  `assigneeName`, so only a job in that repository takes it and the idle queue's alarm tells the supervisor once
   it waits a minute on that repository while one of its checkouts is free (`docs/agent-control.md`, 「An idle queue is told to the
   owner」): its title names the repository and the pull request's number and title, and its
   brief is the review the job runs — hold the change to the base-library rule where the repository is a

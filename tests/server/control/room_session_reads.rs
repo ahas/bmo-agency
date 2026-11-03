@@ -46,14 +46,13 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
   let (status, added) = post(
     port,
     token,
-    "/companions",
+    "/supervisors",
     json!({
-      "name": "companion-a",
-      "label": "Companion A",
+      "name": "supervisor-a",
+      "label": "Supervisor A",
       "provider": "claude-code",
       "model": "opus",
-      "worker": "helper",
-      "room": -7,
+      "repository": "helper",
     }),
   )
   .await;
@@ -64,23 +63,23 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
     port,
     token,
     "/sessions",
-    json!({ "agentName": "companion-a", "scope": "room", "roomId": -7 }),
+    json!({ "agentName": "supervisor-a", "scope": "room", "roomId": -7 }),
   )
   .await;
 
   assert_eq!(status, 201, "{started}");
   assert_eq!(
     (started["id"].as_str(), started["scope"].as_str()),
-    (Some("companion-a@-7"), Some("room"))
+    (Some("supervisor-a@-7"), Some("room"))
   );
   assert_eq!(started["provider"], json!("claude-code"), "{started}");
   assert_eq!(started["model"], json!("opus"), "{started}");
   assert_eq!(started["generation"], json!(0), "{started}");
 
-  let (status, state) = get(port, token, "/sessions/companion-a@-7").await;
+  let (status, state) = get(port, token, "/sessions/supervisor-a@-7").await;
 
   assert_eq!(status, 200, "{state}");
-  assert_eq!((state["id"].as_str(), state["scope"].as_str()), (Some("companion-a@-7"), Some("room")));
+  assert_eq!((state["id"].as_str(), state["scope"].as_str()), (Some("supervisor-a@-7"), Some("room")));
   assert_eq!(state["provider"], json!("claude-code"), "{state}");
   assert_eq!(state["model"], json!("opus"), "{state}");
   assert_eq!(state["generation"], json!(0), "{state}");
@@ -90,7 +89,7 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
   // Reading it wrote nothing of the room's session: the first turn still opens the first generation.
   assert_eq!(
     scratch
-      .count(r#"SELECT count(*) FROM "room_sessions" WHERE "agent" = 'companion-a'"#, vec![])
+      .count(r#"SELECT count(*) FROM "room_sessions" WHERE "agent" = 'supervisor-a'"#, vec![])
       .await,
     0
   );
@@ -99,12 +98,12 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
   scratch
     .run(
       r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at", "harness_session", "harness_road")
-         VALUES ('companion-a', -7, 1, 1, 'harness-1', 'claude-code::opus')"#,
+         VALUES ('supervisor-a', -7, 1, 1, 'harness-1', 'claude-code::opus')"#,
       vec![],
     )
     .await;
 
-  let (status, opened) = get(port, token, "/sessions/companion-a@-7").await;
+  let (status, opened) = get(port, token, "/sessions/supervisor-a@-7").await;
 
   assert_eq!(status, 200, "{opened}");
   assert_eq!(
@@ -115,10 +114,10 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
 
   // The state names the supervisor's compaction threshold, read afresh from its row.
   scratch
-    .run(r#"UPDATE "supervisors" SET "fold_ratio" = 0.6 WHERE "name" = 'companion-a'"#, vec![])
+    .run(r#"UPDATE "supervisors" SET "fold_ratio" = 0.6 WHERE "name" = 'supervisor-a'"#, vec![])
     .await;
 
-  let (_, folded) = get(port, token, "/sessions/companion-a@-7").await;
+  let (_, folded) = get(port, token, "/sessions/supervisor-a@-7").await;
 
   assert_eq!(folded["foldRatio"], json!(0.6), "{folded}");
 }

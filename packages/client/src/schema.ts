@@ -915,59 +915,6 @@ export interface paths {
         patch: operations["changeSettings"];
         trace?: never;
     };
-    "/companions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Companion agents, by room. */
-        get: operations["listCompanions"];
-        put?: never;
-        /** Add a companion agent, with its order whole or one provider and model. */
-        post: operations["createCompanions"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/companions/{companionName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a companion from the deployment; one the deployment seeds is refused as seeded. */
-        delete: operations["deleteCompanion"];
-        options?: never;
-        head?: never;
-        /** Change a companion and the rooms it answers in. */
-        patch: operations["changeCompanion"];
-        trace?: never;
-    };
-    "/companion-resets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset a companion's person ranges and rooms; dryRun counts it first. */
-        post: operations["createCompanionResets"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/repositories/{repositoryName}/definition": {
         parameters: {
             query?: never;
@@ -1365,6 +1312,41 @@ export interface paths {
         get: operations["getSupervisorResetPoint"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A supervisor's settings, its system prompt and its room sessions. */
+        get: operations["getSupervisorSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a supervisor's reference switch, persona, generation settings, registration or thinking. */
+        patch: operations["changeSupervisorSettings"];
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}/resets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a supervisor afresh in the ranges named; dryRun counts it first. */
+        post: operations["createSupervisorReset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3046,88 +3028,6 @@ export interface components {
             keepaliveStopped?: boolean | null;
             stopped?: boolean | null;
         };
-        /** @description CompanionPage: */
-        CompanionPage: {
-            items: components["schemas"]["Companion"][];
-            more: boolean;
-        };
-        /** @description Companion: */
-        Companion: {
-            name: string;
-            label: string;
-            provider: string;
-            model: string;
-            workerName: string | null;
-            roomIds: unknown[];
-        };
-        /** @description The body that adds a companion: its order whole with its share, or one provider and model. */
-        CompanionAsk: {
-            name: string;
-            label: string;
-            /** @description The repository its items go to. */
-            worker: string;
-            provider?: string | null;
-            model?: string | null;
-            /**
-             * @description Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
-             *     theirs.
-             */
-            order?: components["schemas"]["OrderEntry"][] | null;
-            /**
-             * Format: double
-             * @description a fraction from 0 to 1
-             */
-            quotaShare?: number | null;
-        };
-        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
-        OrderEntry: {
-            provider: string;
-            model: string;
-            /**
-             * @description a level of the effort scale; null for the provider's own
-             * @default null
-             */
-            effort: string | null;
-            /**
-             * @description `on`, `off`, or null for the provider's own
-             * @default null
-             */
-            thinking: string | null;
-            /**
-             * Format: int64
-             * @description on the registry's provider, the answer ceiling; null for the registration's own
-             * @default null
-             */
-            answerTokens: number | null;
-        };
-        /** @description The body that changes a companion. */
-        CompanionChange: {
-            agent?: string | null;
-            by?: string | null;
-            referenceOn?: boolean | null;
-            persona?: string | null;
-            registration?: string | null;
-            generation?: unknown;
-            thinking?: boolean | null;
-        };
-        /** @description CompanionReset: */
-        CompanionReset: {
-            agentName: string;
-            ranges: unknown;
-            roomIds: unknown[];
-            gone: unknown;
-            stayed: unknown;
-        };
-        /** @description The body that asks for a companion reset. */
-        CompanionResetAsk: {
-            agent: string;
-            conversation?: unknown;
-            person?: unknown;
-            alone?: unknown;
-            shared?: unknown;
-            dryRun?: boolean | null;
-            by?: string | null;
-        };
         /** @description WorkerDefinition: */
         WorkerDefinition: {
             graph: string;
@@ -3408,6 +3308,27 @@ export interface components {
              */
             resetPoint: number | null;
         };
+        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
+        OrderEntry: {
+            provider: string;
+            model: string;
+            /**
+             * @description a level of the effort scale; null for the provider's own
+             * @default null
+             */
+            effort: string | null;
+            /**
+             * @description `on`, `off`, or null for the provider's own
+             * @default null
+             */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @description on the registry's provider, the answer ceiling; null for the registration's own
+             * @default null
+             */
+            answerTokens: number | null;
+        };
         /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
         SupervisorRegistered: {
             supervisor: components["schemas"]["Supervisor"];
@@ -3418,11 +3339,18 @@ export interface components {
          * @enum {string}
          */
         BrainBirth: "made" | "kept" | "none" | "failed";
-        /** @description SupervisorAsk: the body that registers a supervisor. */
+        /** @description SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model. */
         SupervisorAsk: {
             name: string;
             label: string;
-            order: components["schemas"]["OrderEntry"][];
+            /**
+             * @description Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
+             *     theirs.
+             */
+            order?: components["schemas"]["OrderEntry"][] | null;
+            /** @description One provider and model, an order of that one entry where no order is named. */
+            provider?: string | null;
+            model?: string | null;
             /** Format: double */
             quotaShare?: number | null;
             repository?: string | null;
@@ -3467,6 +3395,72 @@ export interface components {
              * @description epoch milliseconds, or null where it was never reset
              */
             resetPoint: number | null;
+        };
+        /** @description SupervisorSettings: a supervisor as its settings page shows it. */
+        SupervisorSettings: {
+            agent: string;
+            label: string;
+            icon: string | null;
+            /** @description Whether the deployment seeds it. */
+            builtin: boolean;
+            turnShape: string;
+            /** @description What its order names first. */
+            provider: string | null;
+            model: string | null;
+            /** @description The registration its order names at the registry's provider, or null. */
+            registration: string | null;
+            /** @description Every offered registration, each `name` and `label`. */
+            registrations: unknown[];
+            /** @description The model files behind its registration. */
+            entries: unknown[];
+            serving: string | null;
+            modelUse: unknown;
+            /** @description `referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`. */
+            settings: unknown;
+            /** @description Every generation setting with its bounds. */
+            generationSettings: unknown[];
+            thinking: boolean | null;
+            personaFile: string;
+            basePrompt: string | null;
+            basePrompts: unknown[];
+            /** @description The system prompt its next turn sends, `characters`, `hash` and `text`, where its turn shape is `pieces`. */
+            system: unknown;
+            /** @description Its room sessions. */
+            sessions: unknown[];
+        };
+        /** @description The body that changes a supervisor's settings. */
+        SupervisorSettingsChange: {
+            by?: string | null;
+            referenceOn?: boolean | null;
+            persona?: string | null;
+            registration?: string | null;
+            generation?: unknown;
+            thinking?: boolean | null;
+        };
+        /** @description SupervisorReset: what a reset of a supervisor took, or would take on a dry run. */
+        SupervisorReset: {
+            agent: string;
+            label: string;
+            ranges: string[];
+            /** @description The rooms it answers alone, each `chatId` and `title`. */
+            alone: unknown[];
+            /** @description The rooms it shares with other supervisors, each `chatId` and `title`. */
+            shared: unknown[];
+            /** @description What it took of each table and range, each `table`, `range` and `rows`. */
+            rows: unknown[];
+            /** @description The harness records it took. */
+            files: string[];
+            /** @description The brain's answer for the person range, or null. */
+            brain: unknown;
+        };
+        /** @description The body that asks for a supervisor reset. */
+        SupervisorResetAsk: {
+            conversation?: unknown;
+            person?: unknown;
+            alone?: unknown;
+            shared?: unknown;
+            dryRun?: boolean | null;
+            by?: string | null;
         };
         /** @description SupervisorChange: the fields a change of a supervisor names. */
         SupervisorChange: {
@@ -6212,131 +6206,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    listCompanions: {
-        parameters: {
-            query?: {
-                roomId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanionPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createCompanions: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompanionAsk"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Companion"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    deleteCompanion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                companionName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            409: components["responses"]["Seeded"];
-        };
-    };
-    changeCompanion: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                companionName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompanionChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Companion"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    createCompanionResets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CompanionResetAsk"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanionReset"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
     getWorkersDefinition: {
         parameters: {
             query?: never;
@@ -6532,7 +6401,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            422: components["responses"]["NoWorkerFree"];
+            422: components["responses"]["UnknownRepository"];
         };
     };
     readAssignmentsByAssignmentId: {
@@ -7234,6 +7103,88 @@ export interface operations {
                     "application/json": components["schemas"]["SupervisorResetPoint"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSupervisorSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeSupervisorSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorSettingsChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createSupervisorReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorResetAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorReset"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };

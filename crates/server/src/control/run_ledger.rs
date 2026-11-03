@@ -18,7 +18,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use store::{all, one};
 
-use super::companion_reset::to_its_end;
+use super::supervisor_reset::to_its_end;
 use super::{Call, Refused, Route, answer};
 use crate::run_ledger::{self, Closing, Launch, NotClosed, NotLaunched, Opening, SearchId};
 

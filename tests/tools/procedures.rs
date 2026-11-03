@@ -1,6 +1,6 @@
 //! The procedures: each document listed by its address and read whole outside any room, held in a room's
 //! turn to the verbs its road performs as agency's server answers them, refused where it is no procedure,
-//! and none of it for a turn a companion's reset overtook; then the executable, placed in a tree, reading
+//! and none of it for a turn a supervisor's reset overtook; then the executable, placed in a tree, reading
 //! one in a room's turn through agency's own server and the consumer registered at its `road-verbs` hook.
 
 use std::collections::BTreeMap;
@@ -245,7 +245,7 @@ async fn a_rooms_read_is_held_to_the_verbs_the_server_answers_for_its_road() {
 }
 
 #[tokio::test]
-async fn a_turn_a_companions_reset_overtook_is_listed_none_and_refused_its_read() {
+async fn a_turn_a_supervisors_reset_overtook_is_listed_none_and_refused_its_read() {
   let scratch = scratch::Scratch::new().await;
   let tree = tree();
   let point = 1_790_000_000_000_i64;
@@ -253,13 +253,13 @@ async fn a_turn_a_companions_reset_overtook_is_listed_none_and_refused_its_read(
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value") VALUES ($1, $2)"#,
-      vec![store::reset_point::key("companion").into(), point.to_string().into()],
+      vec![store::reset_point::key("supervisor").into(), point.to_string().into()],
     )
     .await;
 
-  let overtaken_turn = session(&scratch.address(), Some(-5), Some(("companion", point - 7_000)));
-  let at_the_point = session(&scratch.address(), Some(-5), Some(("companion", point)));
-  let after = session(&scratch.address(), None, Some(("companion", point + 1)));
+  let overtaken_turn = session(&scratch.address(), Some(-5), Some(("supervisor", point - 7_000)));
+  let at_the_point = session(&scratch.address(), Some(-5), Some(("supervisor", point)));
+  let after = session(&scratch.address(), None, Some(("supervisor", point + 1)));
   let read = read_in(tree.path(), &overtaken_turn, &unreachable(), "bmo://procedure/sending").await;
 
   assert!(listed(tree.path(), &overtaken_turn).await.is_empty());

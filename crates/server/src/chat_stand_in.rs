@@ -12,7 +12,6 @@ use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
 use crate::cards;
-use crate::companion::run::{NoAnswer, Reply, run_turn};
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::events::Event;
@@ -26,6 +25,7 @@ use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::session_output::OutputWatch;
 use crate::stand_in::{CLAUDE, Step, announce, listed, step_of};
+use crate::supervisor_turn::run::{NoAnswer, Reply, run_turn};
 use crate::{Refusal, now_ms};
 use store::{one, run as written};
 
@@ -576,7 +576,7 @@ pub async fn registered_door(
   registration: &str,
 ) -> Result<Door, Refusal> {
   let placement = place_registered(ground, registration).await?;
-  let held = crate::lines::companion::registration_named(ground, registration).await?;
+  let held = crate::lines::pieces::registration_named(ground, registration).await?;
 
   Ok(Door::Gateway {
     held: Box::new(GatewayModel::registration(machine, &held)),
@@ -592,7 +592,7 @@ pub async fn carded_door(
   registration: &str,
   node: &str,
 ) -> Result<Door, Refusal> {
-  let held = crate::lines::companion::registration_named(ground, registration).await?;
+  let held = crate::lines::pieces::registration_named(ground, registration).await?;
 
   Ok(Door::Gateway {
     held: Box::new(GatewayModel::registration(machine, &held)),

@@ -1,7 +1,7 @@
 //! Agency's verbs from a shell (docs/api.md, and each verb's own document): the agents and their settings,
 //! an agent's status line and hooks, a job's live Claude runs and native co-worker calls, a batch on a
 //! pinned login, the work nodes, the workers' sessions and dev servers, the model catalogue, the documents
-//! reloaded, the chat agent's verdict on a run past its clock, a companion's room followed, and the agents'
+//! reloaded, the chat agent's verdict on a run past its clock, a supervisor's room followed, and the agents'
 //! documents composed. Each prints what it came to
 //! and ends with its own code; a refusal is said on the error stream.
 
@@ -13,7 +13,6 @@ use std::process::ExitCode;
 use agency_server::mcp::AgencyServer;
 use agency_server::verbs::agents::{self, AgentsArgs};
 use agency_server::verbs::claude_batch::{self, ClaudeBatch};
-use agency_server::verbs::companion_reset::{self, ResetArgs};
 use agency_server::verbs::dev_servers::{self, DevAction};
 use agency_server::verbs::models::{self, ModelsArgs};
 use agency_server::verbs::overtime::{self, OvertimeAsked};
@@ -21,10 +20,11 @@ use agency_server::verbs::process_memory::{self, MemoryArgs};
 use agency_server::verbs::reload::{self, TreeRedeploy};
 use agency_server::verbs::run_list::{self, ListArgs};
 use agency_server::verbs::run_stop::{self, StopArgs};
+use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
-  Answer, VerbError, agent_status, claude_token, code_tree, companion_follow, coworker_pool, deploy_link,
-  live_claude, node_pane, turns,
+  Answer, VerbError, agent_status, claude_token, code_tree, coworker_pool, deploy_link, live_claude,
+  node_pane, supervisor_follow, turns,
 };
 use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
@@ -52,8 +52,8 @@ pub const NOUNS: [&str; 23] = [
   "node-pane",
   "dev-server",
   "dev-pane",
-  "companion follow",
-  "companion reset\thome",
+  "supervisor follow",
+  "supervisor reset\thome",
   "claude batch",
   "live-claude",
   "run list\thome",
@@ -184,10 +184,10 @@ enum Verb {
     #[arg(long, allow_hyphen_values = true)]
     why: Option<String>,
   },
-  /// A companion from the shell.
-  Companion {
+  /// A supervisor from the shell.
+  Supervisor {
     #[command(subcommand)]
-    what: CompanionVerb,
+    what: SupervisorVerb,
   },
   /// The runs on this machine: what is running and what is waiting, and a run stopped by its target.
   Run {
@@ -295,8 +295,8 @@ enum DevVerb {
 }
 
 #[derive(Subcommand)]
-enum CompanionVerb {
-  /// A companion's session in a room printed as it was kept and then each turn as it is appended.
+enum SupervisorVerb {
+  /// A supervisor's session in a room printed as it was kept and then each turn as it is appended.
   Follow {
     /// The room by its number, which may begin with a minus.
     #[arg(allow_negative_numbers = true)]
@@ -307,7 +307,7 @@ enum CompanionVerb {
     #[arg(long)]
     version: Option<String>,
   },
-  /// A companion started afresh: what it said, what it remembers, or both.
+  /// A supervisor started afresh: what it said, what it remembers, or both.
   Reset(ResetArgs),
 }
 
@@ -532,11 +532,11 @@ async fn run(verb: Verb) -> ExitCode {
 
       ended(verdict(&data_root, &asked).await)
     }
-    Verb::Companion { what } => ended(match what {
-      CompanionVerb::Follow { room, agent, .. } => {
-        companion_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())
+    Verb::Supervisor { what } => ended(match what {
+      SupervisorVerb::Follow { room, agent, .. } => {
+        supervisor_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())
       }
-      CompanionVerb::Reset(args) => companion_reset::reset(args).await,
+      SupervisorVerb::Reset(args) => supervisor_reset::reset(args).await,
     }),
     Verb::Run { what } => ended(match what {
       RunVerb::List(asked) => run_list::run_list(&data_root, &asked).await,

@@ -176,7 +176,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
   runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the default answerer's brain. The
   line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
-  establishes into the same brain the chat agent reads, while the run itself stays the role's.
+  establishes into the same brain the supervisor reads, while the run itself stays the role's.
 
 ## The translator and the transliterator roles
 

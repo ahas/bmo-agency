@@ -24,10 +24,10 @@ use policy::run_lines::RUN_LINES;
 
 use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
 use super::codex::{Shape, resident_command_of};
-use super::companion::{ComposedTurn, LOST_SESSION, Window, walked_login};
 use super::dsh::Composed;
 use super::openrouter::resident_command;
 use super::ordered::Ordered;
+use super::pieces::{ComposedTurn, LOST_SESSION, Window, walked_login};
 use super::place::{Holds, Place, read_settings, write_place_settings};
 use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
 use super::token::{self, facts};
@@ -142,7 +142,7 @@ pub struct ChatRun {
 
 /// The owner's own text of each of the chat's documents, by the name the store keeps (`chat_documents`): the
 /// opening, the absolute rules and the manual, each standing in place of its file where one is kept
-/// (docs/agent-documents.md, 「The chat agent」).
+/// (docs/agent-documents.md, 「A supervisor of the window shape」).
 #[derive(Clone, Debug, Default)]
 pub struct ChatDocuments {
   pub opening: Option<String>,
@@ -235,7 +235,7 @@ pub fn chat_system(
   })
 }
 
-/// The chat's tools paragraph (docs/agent-documents.md, 「The chat agent」): the program's own tools by name,
+/// The chat's tools paragraph (docs/agent-documents.md, 「A supervisor of the window shape」): the program's own tools by name,
 /// the servers the line's MCP configuration hands the session, and the tool host's entries the line shows by
 /// name, each as a program calls it, in the words the chat line's policy holds.
 pub fn tools_paragraph(program: &[&str], servers: &[String], shown: &[String]) -> String {
@@ -272,7 +272,7 @@ pub struct SystemParts {
 
 impl SystemParts {
   /// The chat's whole system prompt on Claude Code, whose own tools are these: the platform's harness
-  /// opening, then the role and the persona (docs/agent-documents.md, 「The chat agent」).
+  /// opening, then the role and the persona (docs/agent-documents.md, 「A supervisor of the window shape」).
   pub fn whole(&self, trees: &Trees, program: &[&str]) -> Result<String, Refusal> {
     super::harnessed(trees, &self.compose(trees, program)?)
   }
@@ -303,25 +303,18 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 }
 
 /// The chat line's MCP configuration: the tool host's own namespaces, each behind the run's session token,
-/// where the chat agent's sending, filing and memory tools stand; then the job service's harness plugin,
+/// where a supervisor's sending, filing and memory tools stand; then the job service's harness plugin,
 /// which leases an item from a queue, and the agency's own, which assigns a worker and launches the item's
 /// job. A hosted tool those namespaces do not show is reached with `bmo use`. The two plugins start as
 /// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
-/// that names neither leaves that server out. A companion's configuration carries no agency plugin: a
-/// companion files no item and launches nothing, and tells the chat agent in the consult room what needs
-/// hands (docs/companions.md, 「What a turn is given」). Written on every composition, since this line is
+/// that names neither leaves that server out. A turn of the pieces shape is handed no agency plugin: it
+/// files no item and launches nothing, and tells the consult room what needs hands (docs/launch-lines.md,
+/// 「A turn of the pieces shape」). Written on every composition, since this line is
 /// the one writer.
-pub fn mcp_config(
-  ground: &Ground,
-  trees: &Trees,
-  agent: &str,
-  companion: bool,
-) -> Result<PathBuf, Refusal> {
+pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str, pieces: bool) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join(format!("chat.{agent}.mcp.json"));
-  let text = format!(
-    "{}\n",
-    Ordered::map([("mcpServers", harness_servers(ground, agent, companion))]).pretty()
-  );
+  let text =
+    format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent, pieces))]).pretty());
 
   agent_host::disk::private_dir(&trees.agents)
     .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
@@ -339,7 +332,7 @@ pub struct Double {
 }
 
 /// The servers of `supervisor`'s double on a role line whose own configuration is `line_config`: the
-/// supervisor's chat configuration — a companion's carrying no agency plugin, as its own does — with each
+/// supervisor's chat configuration — one of the pieces shape carrying no agency plugin, as its own does — with each
 /// server of the line's configuration the chat's holds none of beside it, written as
 /// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there.
 pub async fn double_of(
@@ -349,13 +342,14 @@ pub async fn double_of(
   line: &str,
   line_config: &std::path::Path,
 ) -> Result<Double, Refusal> {
-  let companion = !crate::supervisors::named(&ground.db, supervisor)
+  let pieces = crate::supervisors::named(&ground.db, supervisor)
     .await
     .map_err(|why| fault(format!("the supervisor {supervisor} could not be read: {why}")))?
     .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?
-    .default_answerer;
+    .turn_shape
+    == crate::conversational::Shape::Pieces.word();
   let mut servers: indexmap::IndexMap<String, Ordered> =
-    harness_servers(ground, supervisor, companion).entries().cloned().unwrap_or_default();
+    harness_servers(ground, supervisor, pieces).entries().cloned().unwrap_or_default();
   let read: Ordered = serde_json::from_str(
     &std::fs::read_to_string(line_config)
       .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
@@ -390,11 +384,11 @@ const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || e
 
 // The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
 // its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
-// under, and the agency's own binary on the same verb, which a companion is not handed.
+// under, and the agency's own binary on the same verb, which a turn of the pieces shape is not handed.
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
-fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
+fn harness_servers(ground: &Ground, agent: &str, pieces: bool) -> Ordered {
   let env = ground.env();
   let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
@@ -545,7 +539,7 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
     servers.push(("artifact".to_owned(), Ordered::map(fields)));
   }
 
-  if let (false, Ok(server), Some(url)) = (companion, std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+  if let (false, Ok(server), Some(url)) = (pieces, std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
     // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
     let program = server
       .parent()
@@ -770,11 +764,11 @@ pub fn claude_folder(ground: &Ground, run: &ChatRun) -> Result<String, Refusal> 
     return Ok(run.cwd.clone());
   }
 
-  let roots = harness_machine::companion_prompt::Roots {
+  let roots = harness_machine::supervisor_prompt::Roots {
     assets: ground.code_root(),
     data: ground.roots.data.clone(),
   };
-  let home = harness_machine::companion_prompt::folder(&roots, &run.agent);
+  let home = harness_machine::supervisor_prompt::folder(&roots, &run.agent);
 
   std::fs::create_dir_all(&home).map_err(|why| fault(format!("{}: {why}", home.display())))?;
 
@@ -924,8 +918,8 @@ pub fn gate_run(
 pub struct Words<'a> {
   pub model: &'a str,
   pub effort: &'a str,
-  /// The whole system prompt, which stands in the program's own place: the chat agent's and a companion's
-  /// open with a harness, a gate's is its instructions.
+  /// The whole system prompt, which stands in the program's own place: a supervisor's opens with a
+  /// harness, a gate's is its instructions.
   pub system: &'a Path,
   pub mcp: &'a Path,
   pub hands: Hands<'a>,

@@ -239,11 +239,11 @@ moved = "The dev-server command or its working path changed; starting it again."
 starting_now = "Asked to, starting the dev server now."
 pane_closed = "The pane closed; taking the dev server down."
 
-# A companion's session in a room followed as its standing pane prints it (docs/companions.md, 「The
+# A supervisor's session in a room followed as its standing pane prints it (docs/supervisors.md, 「The
 # session」): an {agent} not in the agents table, a {room} it holds no session in with the {rooms} it does,
 # each turn's heading with {who} spoke and {at} when, and each generation's heading.
-[companion_follow]
-usage = "usage: bmo-agency companion follow <room> --agent <agent>"
+[supervisor_follow]
+usage = "usage: bmo-agency supervisor follow <room> --agent <agent>"
 unknown_agent = "'{agent}' is not a name in the agents table."
 no_session = "{label} holds no session in room '{room}'. Rooms it holds one in: {rooms}."
 turn = "── {who} · {at}"
@@ -283,15 +283,15 @@ none = "(no process holds any)"
 # that, its resident size, and its median holding. Figures are MB.
 head = "  program                           n     held MB resident MB    swap MB     RSS MB   median MB"
 
-# A companion started afresh from the shell, as `bmo-agency companion reset` prints it
-# (docs/companions.md, 「Starting it afresh」).
-[companion_reset]
+# A supervisor started afresh from the shell, as `bmo-agency supervisor reset` prints it
+# (docs/supervisors.md, 「Starting it afresh」).
+[supervisor_reset]
 # The variable {variable} is not set in this process, so the server whose route the reset is cannot be asked.
-no_token = "companion reset: {variable} is not set in this process, so the reset cannot be asked"
+no_token = "supervisor reset: {variable} is not set in this process, so the reset cannot be asked"
 # No server answered on the control port {port}, and why.
-unanswered = "companion reset: no agency server answered on port {port} ({why})"
-refused = "companion reset: {why}"
-# The companion {label} ({agent}), whether {mode} is a preview or a run, in the {ranges} asked.
+unanswered = "supervisor reset: no agency server answered on port {port} ({why})"
+refused = "supervisor reset: {why}"
+# The supervisor {label} ({agent}), whether {mode} is a preview or a run, in the {ranges} asked.
 head = "{label} ({agent}) · {mode} · {ranges}"
 preview = "preview"
 run = "run"

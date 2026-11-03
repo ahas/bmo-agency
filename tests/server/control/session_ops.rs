@@ -88,7 +88,8 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
   );
 
   assert_eq!(
-    context_read(&json!({ "run": "a-run", "agent": "companion", "chatId": -7, "desk": "desk-1" })).unwrap(),
+    context_read(&json!({ "run": "a-run", "agent": "supervisor", "chatId": -7, "desk": "desk-1" }))
+      .unwrap(),
     TurnContext::default(),
     "a turn carries no run parts"
   );

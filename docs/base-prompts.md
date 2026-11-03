@@ -40,10 +40,10 @@
     co-worker role's own, then the same rules. A co-worker is a Claude Code subagent of the run's session
     whose definition's prompt is its whole system prompt, so it opens on the platform's opening whatever
     base its caller's account names.
-- **A companion** is sent the platform's harness opening as its harness, then the companion role whole,
-  then its persona (`docs/companions.md`, 「What a turn is given」).
-- **The other lines read no base prompt:** the chat agent's harness is the platform's opening, which its
-  role and persona follow (`docs/agent-documents.md`, 「The chat agent」); the search and browse runners
+- **A turn of the pieces shape** is sent the platform's harness opening as its harness, then the pieces
+  role whole, then its persona (`docs/supervisors.md`, 「What a turn is given」).
+- **The other lines read no base prompt:** the supervisor's harness is the platform's opening, which its
+  role and persona follow (`docs/agent-documents.md`, 「A supervisor of the window shape」); the search and browse runners
   and a search's branches open on it before their instructions; the translator and batch runs are
   handed the prompt their caller or their line composes, whole.
 
@@ -51,7 +51,7 @@
 flowchart TD
   F[The account's base prompt] -- the account names one --> B{The run's line}
   H[prompts/harness.md] -- the account names none --> B
-  H --> D[Companion: + companion role + persona]
+  H --> D[Pieces turn: + pieces role + persona]
   B -- worker line --> C[+ role prompt + line rules]
   C --> E[One file, whole system prompt]
   D --> E

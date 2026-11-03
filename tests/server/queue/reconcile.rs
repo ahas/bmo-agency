@@ -65,7 +65,7 @@ fn a_row_never_placed_closes_only_a_day_after_it_began_and_one_in_a_pane_never_d
   let fresh = body(json!({ "id": "run-c", "line": "gate", "startedAt": NOW - 60_000 }));
   let old = body(json!({ "id": "run-c", "line": "gate", "startedAt": NOW - NEVER_PLACED_MS - 1 }));
   let in_pane = body(json!({ "id": "run-c", "line": "worker", "paneId": "w1:p1", "startedAt": 0 }));
-  let resident = body(json!({ "id": "run-c", "line": "companion", "resident": {}, "startedAt": 0 }));
+  let resident = body(json!({ "id": "run-c", "line": "supervisor", "resident": {}, "startedAt": 0 }));
 
   assert_eq!(ending(&fresh, false, &missing, NOW), None);
   assert_eq!(

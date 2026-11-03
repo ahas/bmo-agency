@@ -8,10 +8,10 @@ use std::collections::BTreeMap;
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bmo_agency_client::BrainBirth;
-use policy::companions::COMPANIONS;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::roles::ROLES;
+use policy::supervisors::SUPERVISORS;
 use regex::Regex;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
@@ -20,9 +20,9 @@ use store::{one, run};
 
 use super::agent_sampling;
 use super::claude_accounts::Judging;
-use super::companion_reset::{reset_whole, rooms_named, to_its_end};
-use super::companion_roster::{Left, remove};
 use super::sessions::asked_by;
+use super::supervisor_removal::{Left, remove};
+use super::supervisor_reset::{reset_whole, rooms_named, to_its_end};
 use super::{Call, Refused, Route, answer, set_setting, setting};
 use crate::conversational::Settings as Conversation;
 use crate::now_ms;
@@ -35,7 +35,7 @@ use crate::road::{self, Ask, Row};
 use crate::supervisors::{self, Supervisor};
 
 static NAME: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(&COMPANIONS.name_pattern).expect("the supervisor name pattern reads"));
+  LazyLock::new(|| Regex::new(&SUPERVISORS.name_pattern).expect("the supervisor name pattern reads"));
 
 // The line every supervisor's turns go out on.
 const CHAT_LINE: &str = "chat";
@@ -97,7 +97,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "effort": supervisor.last_effort,
     "waitingFor": waiting_for,
     "seeded": supervisor.builtin || supervisor.default_answerer,
-    "resetPoint": crate::companion::overtaken::point(db, &supervisor.name).await,
+    "resetPoint": crate::supervisor_turn::overtaken::point(db, &supervisor.name).await,
   }))
 }
 
@@ -153,7 +153,7 @@ impl Route for SupervisorResetPoint {
       return Err(not_found(&name));
     }
 
-    let point = crate::companion::overtaken::point(call.store(), &name).await;
+    let point = crate::supervisor_turn::overtaken::point(call.store(), &name).await;
 
     Ok(answer(StatusCode::OK, json!({ "supervisor": name, "resetPoint": point })))
   }
@@ -209,17 +209,39 @@ crate::moved!(SupervisorRooms);
 async fn order_of(ground: &Ground, body: &Value) -> Result<Option<Order>, Refused> {
   let Some(entries) = body.get("order") else { return Ok(None) };
 
-  order::judge(
-    Judging::of(ground),
-    &ground.machine(),
-    CHAT_LINE,
-    entries,
-    body.get("quotaShare"),
-    order::Empty::Refused,
-  )
-  .await
-  .map(Some)
-  .map_err(|refusal| bad(&refusal.field, refusal.error))
+  judged(ground, entries, body.get("quotaShare")).await.map(Some)
+}
+
+// Entries judged as an order against the chat line, with the share beside them.
+async fn judged(ground: &Ground, entries: &Value, share: Option<&Value>) -> Result<Order, Refused> {
+  order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, entries, share, order::Empty::Refused)
+    .await
+    .map_err(|refusal| bad(&refusal.field, refusal.error))
+}
+
+// The order a registration names: its order whole, or the one entry of the provider and model it names, which
+// must stand first where both are named.
+async fn registered_order(ground: &Ground, body: &Value) -> Result<Order, Refused> {
+  let text = |field: &str| body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default();
+  let (provider, model) = (text("provider"), text("model"));
+  let order = match body.get("order") {
+    Some(entries) => judged(ground, entries, body.get("quotaShare")).await?,
+    None if !provider.is_empty() || !model.is_empty() => {
+      judged(ground, &json!([{ "provider": provider, "model": model }]), body.get("quotaShare")).await?
+    }
+    None => return Err(bad("order", "A supervisor names its order.")),
+  };
+  let disagrees = (!provider.is_empty() || !model.is_empty())
+    && order.first().is_none_or(|first| first.provider != provider || first.model != model);
+
+  if disagrees {
+    return Err(bad(
+      "order",
+      "The order's first entry is not the provider and model the registration names.",
+    ));
+  }
+
+  Ok(order)
 }
 
 // A compaction threshold a body names: a fraction above 0 and at most 1.
@@ -246,8 +268,8 @@ async fn repository_of(db: &DatabaseConnection, body: &Value) -> Result<Option<O
   }
 }
 
-/// `POST /supervisors`: a supervisor registered as a companion added on the console is, with its own order,
-/// and given its brain.
+/// `POST /supervisors`: a supervisor registered as one added on the console is, with its own order, and given
+/// its brain.
 pub struct SupervisorCreate;
 
 impl Route for SupervisorCreate {
@@ -256,7 +278,7 @@ impl Route for SupervisorCreate {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let roster = &CONTROL_WORDS.companion_roster;
+    let roster = &CONTROL_WORDS.supervisor_roster;
     let text =
       |field: &str| body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned();
     let name = text("name");
@@ -276,9 +298,7 @@ impl Route for SupervisorCreate {
       return Err(bad("label", roster.label.as_str()));
     }
 
-    let order = order_of(call.ground(), &body)
-      .await?
-      .ok_or_else(|| bad("order", "A supervisor names its order."))?;
+    let order = registered_order(call.ground(), &body).await?;
     let repository = repository_of(call.store(), &body).await?.flatten();
     let owner = match body.get("ownerAccount") {
       None | Some(Value::Null) => None,
@@ -287,7 +307,7 @@ impl Route for SupervisorCreate {
       }
     };
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or_else(|| order.default_fold_ratio());
-    let conversation = Conversation::companion_added();
+    let conversation = Conversation::console_added();
     let warming: BTreeMap<&str, bool> =
       order.entries.iter().map(|entry| (entry.provider.as_str(), true)).collect();
     let now = now_ms();
@@ -302,7 +322,7 @@ impl Route for SupervisorCreate {
         name.clone().into(),
         label.clone().into(),
         owner.into(),
-        COMPANIONS.added_icon.clone().into(),
+        SUPERVISORS.added_icon.clone().into(),
         format!("agents/{name}").into(),
         conversation.scope.word().into(),
         conversation.shape.word().into(),
@@ -363,7 +383,7 @@ impl Route for SupervisorChange {
     let label = match body.get("label") {
       None => held.label.clone(),
       Some(Value::String(label)) if !label.trim().is_empty() => Some(label.trim().to_owned()),
-      Some(_) => return Err(bad("label", CONTROL_WORDS.companion_roster.label.as_str())),
+      Some(_) => return Err(bad("label", CONTROL_WORDS.supervisor_roster.label.as_str())),
     };
     let warming = match body.get("warming") {
       None => held.warming.clone(),
@@ -468,7 +488,7 @@ impl Route for SupervisorDelete {
       return Err(Refused::new(StatusCode::CONFLICT, running).with_code("running"));
     }
 
-    // A companion's conversation is reset first, so the rooms it answered keep their record and only its own
+    // A supervisor's conversation is reset first, so the rooms it answered keep their record and only its own
     // rows go; the reset cuts off a turn still holding it.
     let reset = reset_whole(&call, &name, rooms, &asked_by(&Value::Null), forget_brain);
     let left = Left::of(&call, &name);

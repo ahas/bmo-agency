@@ -53,6 +53,7 @@ mod m20261124_000001_renewal;
 mod m20261124_000001_stream_events;
 mod m20261125_000001_delegator_follows_supervisor;
 mod m20261126_000001_role_names;
+mod m20261127_000001_supervisor_settings;
 
 use sea_orm_migration::prelude::*;
 
@@ -117,7 +118,7 @@ pub const OWN_TABLES: [&str; 51] = [
   "clock_asks",
   "room_sessions",
   "room_session_turns",
-  "companion_settings",
+  "supervisor_settings",
   "settings",
   "assignments",
   "jobs",
@@ -184,6 +185,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261124_000001_renewal::Migration),
       Box::new(m20261125_000001_delegator_follows_supervisor::Migration),
       Box::new(m20261126_000001_role_names::Migration),
+      Box::new(m20261127_000001_supervisor_settings::Migration),
     ]
   }
 

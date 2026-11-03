@@ -334,7 +334,7 @@ pub trait Provider: Sync {
 
   /// The files and folders its program keeps of one session it ran in `cwd` on `model`, wherever they
   /// would stand, whether or not they do; none for a provider whose program keeps nothing of a
-  /// session on this machine (docs/companions.md, 「How it runs」).
+  /// session on this machine (docs/supervisors.md, 「A session in each room」).
   fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
     let _ = (machine, cwd, session, model);
 
@@ -343,7 +343,7 @@ pub trait Provider: Sync {
 
   /// The files and folders its program keeps of every session it ran in `cwd`, on any model, where they
   /// stand, whether or not anything recorded the session; none for a provider whose program keeps nothing of
-  /// a session on this machine (docs/companions.md, 「How it runs」).
+  /// a session on this machine (docs/supervisors.md, 「A session in each room」).
   fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
     let _ = (machine, cwd);
 
@@ -351,8 +351,8 @@ pub trait Provider: Sync {
   }
 
   /// The prompts its program kept in a history of what was put in while it worked in `cwd`, of one session
-  /// where `session` names one, taken out of that history, as the reset of a companion takes the words they
-  /// hold (docs/companions.md, 「How it runs」); how many. None for a provider whose program keeps no such
+  /// where `session` names one, taken out of that history, as the reset of a supervisor takes the words they
+  /// hold (docs/supervisors.md, 「A session in each room」); how many. None for a provider whose program keeps no such
   /// history on this machine.
   fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
     let _ = (machine, cwd, session);

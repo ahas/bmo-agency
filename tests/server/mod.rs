@@ -16,7 +16,8 @@ mod command_reading {
   mod shell;
 }
 
-mod companion {
+mod supervisor_homes;
+mod supervisor_turn {
   mod going;
   mod guard;
   mod reset;
@@ -32,8 +33,6 @@ mod control {
   mod chat_documents;
   mod claude_account_changes;
   mod claude_accounts;
-  mod companion_reset;
-  mod companions;
   mod console_reads;
   mod consumer_calls;
   mod conversation_routes;
@@ -63,6 +62,8 @@ mod control {
   mod session_ops;
   mod sessions;
   mod stand_in_route;
+  mod supervisor_reset;
+  mod supervisor_settings;
   mod worker_runtime;
 }
 mod conversational;

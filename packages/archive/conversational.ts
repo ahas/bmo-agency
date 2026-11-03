@@ -11,7 +11,7 @@ import type { ArchiveSql } from "./archive-sql";
 export type SessionScope = "agent" | "room";
 
 // What a supervisor's turn is made of: the chat documents, the window's round prompt and the re-asks after
-// an answer, or its settings' pieces, the companion blocks and no re-ask.
+// an answer, or its settings' pieces, its new words and no re-ask.
 export type TurnShape = "window" | "pieces";
 
 /** A supervisor's settings, as its row holds them. */
@@ -41,11 +41,6 @@ export function conversationOf(row: ConversationColumns): Conversation | null {
     shape: shapeNamed(row.turn_shape) ?? (scope === "agent" ? "window" : "pieces"),
     defaultAnswerer: Number(row.default_answerer ?? 0) !== 0,
   };
-}
-
-/** Whether a supervisor is a companion: one other than the one answering the unnamed rooms. */
-export function isCompanion(conversation: Conversation | null): boolean {
-  return conversation !== null && !conversation.defaultAnswerer;
 }
 
 /** The supervisor answering every room that names nobody, by its row, and the deployment's own where none says so. */

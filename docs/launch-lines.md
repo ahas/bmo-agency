@@ -6,7 +6,7 @@
   permission mode and the tools it is denied or allowed, what of this machine's configuration it reads,
   how its system prompt is delivered, and its environment.
 - **Where the lines are:** agency's server's `lines` module — the chat line every supervisor stands on,
-  a companion's turn, and the lines a role names: the worker line, the search, browse and translate
+  a pieces-shaped supervisor's turn, and the lines a role names: the worker line, the search, browse and translate
   lines. The interactive program a supervisor keeps standing in its pane, and the one each run of a role
   stands in a pane of its own, are built from those same lines by the Claude Code surface in
   `packages/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a provider
@@ -152,8 +152,8 @@
 ## What is fixed
 
 - **Every line on Claude Code is handed one whole system prompt** with `--system-prompt-file`, in the
-  CLI's own place; none appends to the CLI's prompt. The chat session, a run of the worker line, a
-  companion's turn, and every turn on the search and browse runner lines each open theirs on the
+  CLI's own place; none appends to the CLI's prompt. A supervisor's chat session, a run of the worker
+  line, a pieces-shaped turn, and every turn on the search and browse runner lines each open theirs on the
   platform's harness opening, `prompts/harness.md` read out of the deploy tree, but a run of the worker
   line on an account that names a base prompt, which opens on that base (`docs/base-prompts.md`); the
   translator's is its role's and purpose's, whole.
@@ -163,7 +163,7 @@
   names that cannot carry the chat line is refused as the order is written. The console is the one place
   they are chosen, and the line, the record of the session, the keepalive's cache policy and the check for a
   runtime downgrade all read that one answer. The system prompt is the harness, the role and the persona,
-  each whole (`docs/agent-documents.md`, 「The chat agent」): the platform's harness opening,
+  each whole (`docs/agent-documents.md`, 「A supervisor of the window shape」): the platform's harness opening,
   `prompts/harness.md`; then the chat role's documents with the tools paragraph composed for the program the
   session runs on, the three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`), the brain's discipline and the tool host's paragraph on finding
@@ -176,7 +176,7 @@
   keeps every other server out: the tool host's namespaces the chat line names — `bmo`, `gate`, `eye`,
   `ear`, `testbed`, `voice` and `research` (`policy/run-lines.toml`, the chat line's `namespaces`) —
   each a streamable HTTP server behind the run's session token (the tool host's `mcp-host.md`), which is
-  where the chat agent's own tools stand — sending, its brain's memory tools, and the gate's translator
+  where the supervisor's own tools stand — sending, its brain's memory tools, and the gate's translator
   among them; the artifact and explorer services as first-class servers of the line, `artifact` and
   `explorer`, which publish a document and read a page; the job service's harness plugin, `job`, which
   leases an item from a queue, started on the chat's own caller token where the deployment names one
@@ -211,7 +211,7 @@
   chat agent's resident program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
   session in place, on the same prefix its turns stand on. There is no separate fold line for the chat. It
   works in a folder whose name a release does not change — the deploy tree's link on dsh, the agent's own
-  home `companion-homes/<agent>` on Claude Code, which names its records after the folder's real path — so
+  home `supervisor-homes/<agent>` on Claude Code, which names its records after the folder's real path — so
   the program's own record of its session is taken up again after a restart or a deploy (docs/sessions.md,
   「A restart hands the session over」). A turn that finds no pane to stand the program in, herdr down, fails
   as a transport failure and is run in no other shape.
@@ -356,15 +356,15 @@
   hooks — with the member's home, window, answer ceiling and request wait, and the gateway's key read
   from its file by the settings' key helper. The member's effort word goes out in the effort header; no
   login of the Claude road goes with it.
-- **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
-  which stands on the chat line above as the chat agent's does (`docs/supervisors.md`, 「One runner」) —
-  the same permission mode and denied tools, the same configuration but for agency's own plugin, which a
-  companion is not handed, so it files no item and launches no job and tells the chat agent
-  in the consult room what needs hands, the same mode and the same shell guard —
-  with the system prompt its own settings compose (`docs/companions.md`, 「What a turn is given」) in
-  place of the chat's — one whole prompt given with `--system-prompt-file`, opening on the platform's
-  harness opening — its own folder, the session of the room the turn is for, resumed or opened under
-  the id the turn names, and its program's own commands reachable. The room, the companion, the run,
+- **A turn of the pieces shape** (agency's server's pieces turn): a turn of the supervisor's resident
+  program, which stands on the chat line above as every supervisor's does (`docs/supervisors.md`, 「One
+  runner」) — the same permission mode and denied tools, the same configuration but for agency's own
+  plugin, which a pieces-shaped turn is not handed, so it files no item and launches no job and tells the
+  consult room what needs hands, the same mode and the same shell guard — with the system prompt its own
+  settings compose (`docs/supervisors.md`, 「What a turn is given」) in place of the window shape's — one
+  whole prompt given with `--system-prompt-file`, opening on the platform's harness opening — its own
+  home, the session of the room the turn is for, resumed or opened under the id the turn names, and its
+  program's own commands reachable. The room, the supervisor, the run,
   the messages the turn answers and whether each is the owner's stand in the place's run as its own
   variables. On a registered model it goes out as every run on one does, the thinking its order's entry
   names or else the registration's, with its generation settings as the run's sampling.
@@ -377,7 +377,7 @@
   is reached with `bmo use`; no settings sources, no other MCP, no Chrome, run in its deployed directory
   unless the session names a folder. It is handed the standing `search.mcp.json`, and the run's session
   record carries the labels and keeps the capabilities the session's caller named, so the web tools read
-  what that caller told them; the record also names the chat agent — the agent whose row answers every room
+  what that caller told them; the record also names the supervisor — the agent whose row answers every room
   that names nobody — as the turn its brain tools run for, so a fact the run establishes is written into the
   chat agent's brain while the run itself stays the runner's. The voyager role's bundles show it
   bmo-explorer's `research` tool, which opens a branch through the research unit, and the research unit's
@@ -389,7 +389,7 @@
     instructions read one prefix. What differs per run is the prompt. So nothing of Claude Code's coding
     conventions reaches a search.
   - **What a run establishes is written into the shared brain.** The search line holds
-    `brain_learn` and `brain_similar` on the chat agent's brain: a fact or a piece of knowledge
+    `brain_learn` and `brain_similar` on the supervisor's brain: a fact or a piece of knowledge
     a run establishes is written there with the source it was read from, after the brain's similar rows
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
     closes what a row contradicts.
@@ -446,7 +446,7 @@
 - **`bmo use`**: a hosted tool a line holds and its namespaces do not list is reached with the `bmo use`
   command, under the run's own tool session token, as the tool host's paragraph in the session's prompt says
   (`toolbook.md`). No line's MCP configuration names the tool host's toolbook. The site tools are the
-  voyager's and the seeker's alone; a run of the worker line and a companion's hands keep web search
+  voyager's and the seeker's alone; a run of the worker line and a supervisor's turn keep web search
   and page fetch.
 - **Environment**: every one of these processes is started with the repository's git status
   left out of its prompt; every Claude line also carries the configuration directory of the
@@ -503,7 +503,7 @@
 
   | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
   |---|---|---|---|---|---|
-  | chat | a supervisor's resident program — the chat agent's turns and every companion's | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency` (a companion's holds none), `artifact` and `explorer` | the supervisor's chat configuration, strict |
+  | chat | a supervisor's resident program — every supervisor's turns | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency` (a pieces-shaped turn's holds none), `artifact` and `explorer` | the supervisor's chat configuration, strict |
   | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
   | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
@@ -532,13 +532,13 @@
 
 ## The owner's gate
 
-A chat agent holds Bash and reads every word said in its rooms, so what a room's words may make it do is not
+A supervisor holds Bash and reads every word said in its rooms, so what a room's words may make it do is not
 left to its prompt. In front of each action that touches the machine or spends money, the code that carries
 the action out asks who sent the words the turn answers.
 
 - **The actions gated:** asking a worker through `bmo/worker_ask`, which runs a `worker` run on the words;
   handing a task off through `bmo/delegate`, which takes a slot of the role it names and runs the task; and
-  `run_job`, the chat agent's own `agency` server launching an item's job. Each asks the room relation
+  `run_job`, the supervisor's own `agency` server launching an item's job. Each asks the room relation
   `launch`.
 - **The turn asked about** is the one the agent's place carries now: the room it answers (`BMO_TURN_CHAT`), the
   messages it answers (`BMO_TURN_MESSAGES`) and whether the receiver marked every new message in it the
@@ -559,7 +559,7 @@ the action out asks who sent the words the turn answers.
   `env/web.env` under the data root, as the receiver's room tools do.
 - **What stands outside agency.** A deploy, `testbed/deploy`, is the testbed's hosted tool and a capability
   `bmo use` reaches is the tool host's; each takes the same check with its own relation (`deploy` for a
-  deploy) in the unit that serves it, and agency hands it nothing it could gate there. An item the chat agent
+  deploy) in the unit that serves it, and agency hands it nothing it could gate there. An item the supervisor
   files is not gated: one filed on a turn not the owner's stands a draft that an approver's approval opens
   (`docs/api.md`, 「assignments and jobs」) — the owner's, or the agent's own where the deployment marks the
   chat's caller an approver, given by the agent's own judgement under its instructions for routine work it
@@ -567,7 +567,7 @@ the action out asks who sent the words the turn answers.
   nothing runs on a member's ask the owner has not allowed.
 - **What the gate does not close.** The agent's shell reaches agency's control port with the token file it is
   handed, so a model turned against its rooms can still call a route itself; the gate stands in front of the
-  tools the chat agent is given to act with, not in front of the port.
+  tools the supervisor is given to act with, not in front of the port.
 
 ## Why a line is held steady
 

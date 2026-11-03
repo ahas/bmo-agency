@@ -31,9 +31,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 - **Tool:** `file_item` with `queueName`, `title`, `brief` and, where they apply, `repository`,
   `priority`, `requesterName` and `labels`. It is the only way an item is filed.
-- **The item names its repository:** `repository`, the repository the work is in, by its internal
-  name. It becomes the item's `assigneeName`, so only that repository's worker takes it; a name the
-  agency does not hold is refused `unknown-repository`. Host work names none.
+- **The item names its repository:** `repository`, the repository the work is in, by its name
+  exactly as `GET /repositories` lists it (`bmo-arbiter`, never a short form like `arbiter`). It becomes
+  the item's `assigneeName`, so only that repository's worker takes it; a name the agency does not hold
+  is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
+  the repositories to choose from. Host work names none.
 - **Work across several repositories is one item per repository,** each with the same brief and the
   same `series=<name>` label, the name one short word for the whole of it, so the items read as one
   piece of work in the queue.
@@ -156,6 +158,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   anyone's word, and relay each run's end as for any other.
 - **One run at a time.** `assign_worker` refuses a worker already held or running (`no-worker-free`);
   do not force it, and do not take a lease you cannot launch. Wait for that run to end, then choose
+  again. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so
+  nothing will free up; correct the item's `assigneeName` to the name the refusal lists and assign it
   again.
 - **A run that ended in an error is repaired before anything else moves on.** Read the item and its
   notes and find the cause, not the symptom. A cause outside the item's own work is filed as a

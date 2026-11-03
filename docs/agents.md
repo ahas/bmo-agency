@@ -11,7 +11,7 @@ program is spoken to is `docs/agent-control.md`.
 ## Two axes
 
 - **A supervisor is one row of the `supervisors` table:** a conversational agent that answers in rooms,
-  the chat agent and every companion alike. It keeps one resident program and its own settings: its
+  whichever it is. It keeps one resident program and its own settings: its
   provider order, its cache warming per provider, its compaction threshold, its documents and its brain
   (`docs/supervisors.md`).
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
@@ -161,8 +161,8 @@ flowchart TD
 ## Adding a supervisor, a role and a repository
 
 - **A supervisor:** the console's supervisor tab adds one — its name, label, provider order and the
-  repository its TODO items go to — with a room of the web console's own that it answers alone
-  (`docs/companions.md`, 「Where a companion and its rooms come from」), or `POST /supervisors`
+  repository its TODO items go to — with a room of the web console's own that names it
+  (`docs/supervisors.md`, 「Adding and removing a supervisor」), or `POST /supervisors`
   (`docs/api.md`, 「supervisors」). One added is given its own brain as it is registered.
 - **A role:** the console's role tab, or `POST /roles` (`docs/agent-roles.md`, 「Changing the roles」).
 - **A repository:** the console's repository tab, or `POST /repositories` (`docs/repositories.md`).

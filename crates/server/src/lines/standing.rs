@@ -896,7 +896,7 @@ pub(crate) async fn worker_sampling(
   let Ok(saved) = serde_json::from_str::<indexmap::IndexMap<String, Value>>(&text) else {
     return Ok(None);
   };
-  let generation = &policy::companions::GENERATION;
+  let generation = &policy::supervisors::GENERATION;
   let mut sampling: indexmap::IndexMap<String, Value> = indexmap::IndexMap::new();
   let mut template: indexmap::IndexMap<String, Value> = indexmap::IndexMap::new();
 

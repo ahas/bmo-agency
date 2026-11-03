@@ -170,6 +170,32 @@ async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result
   Ok(())
 }
 
+// The most repository names a refusal lists before it points at `GET /repositories` instead.
+const NAMES_LISTED: usize = 12;
+
+/// The refusal of an assignee no repository holds a checkout by: the name it gave, and the repositories' names
+/// where they are few enough to list.
+async fn unknown_repository(db: &sea_orm::DatabaseConnection, assignee: &str) -> Result<Refused, Refused> {
+  let names: Vec<String> = crate::repositories::every(db)
+    .await?
+    .into_iter()
+    .map(|repository| repository.name)
+    .collect();
+  let which = if names.len() <= NAMES_LISTED {
+    format!("a repository is named exactly as GET /repositories lists it: {}", names.join(", "))
+  } else {
+    "a repository is named exactly as GET /repositories lists it".to_owned()
+  };
+
+  Ok(
+    Refused::new(
+      StatusCode::UNPROCESSABLE_ENTITY,
+      format!("no repository holds a checkout named {assignee}; {which}"),
+    )
+    .with_code("unknown-repository"),
+  )
+}
+
 /// A worker held for an item for the harness that asked.
 pub struct CreateAssignment;
 
@@ -213,8 +239,15 @@ impl Route for CreateAssignment {
 
     // A checkout of a repository that no assignment or job holds now, the named one where one is named.
     let mut picked = None;
+    let checkouts = crate::queue::workers::workers(db, &call.ground().source).await?;
 
-    for checkout in crate::queue::workers::workers(db, &call.ground().source).await? {
+    if let Some(assignee) = assignee
+      && !checkouts.iter().any(|checkout| checkout.name == assignee)
+    {
+      return Err(unknown_repository(db, assignee).await?);
+    }
+
+    for checkout in checkouts {
       if checkout.builtin || assignee.is_some_and(|assignee| assignee != checkout.name) {
         continue;
       }

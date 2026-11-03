@@ -84,6 +84,13 @@ async fn serve(args: Args) -> Result<(), String> {
     .await
     .map_err(|fault| format!("the store: {fault}"))?;
 
+  // The supervisors' homes stand in their own folder before any program is stood on one.
+  let machine_config = harness_providers::claude_code::ClaudeCode::machine_config_dir(&machine);
+
+  for line in agency_server::supervisor_homes::carried(&data_root, &machine_config) {
+    println!("agency: the supervisors' homes: {line}");
+  }
+
   let config = Config::read(|name| std::env::var(name).ok())?;
   let service = Service::new(db.clone(), config);
 

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use agency_server::lines::*;
-use harness_machine::companion_prompt::{self, Companion, Composition, Roots};
+use harness_machine::supervisor_prompt::{self, Composition, Roots, Supervisor};
 
 #[test]
 fn a_mark_is_filled_where_it_is_named_and_left_where_it_is_not() {
@@ -48,21 +48,22 @@ fn a_tree_without_the_harness_opening_composes_no_whole_prompt() {
   assert!(harnessed(&trees, "the line's own").is_err());
 }
 
-// A companion composed out of the checkout's documents, with no base chosen, opens on the same file the chat
+// A supervisor composed out of the checkout's documents, with no base chosen, opens on the same file the chat
 // and the worker lines open on.
 #[test]
-fn a_companion_composed_out_of_the_tree_opens_on_its_harness_opening() {
+fn a_supervisor_composed_out_of_the_tree_opens_on_its_harness_opening() {
   let scratch = tempfile::tempdir().unwrap();
   let trees = trees_over(&checkout(), scratch.path());
   let roots = Roots {
     assets: checkout(),
     data: scratch.path().join("data"),
   };
-  let companion = Companion {
+  let supervisor = Supervisor {
     name: "tester-pal",
     prompts: None,
   };
-  let composed = companion_prompt::system(&roots, companion, &Composition::default(), None, true).unwrap();
+  let composed =
+    supervisor_prompt::system(&roots, supervisor, &Composition::default(), None, true).unwrap();
   let harness = std::fs::read_to_string(trees.harness_path()).unwrap();
 
   assert!(composed.starts_with(&format!("{}\n\n", harness.trim())), "{composed}");

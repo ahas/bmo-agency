@@ -443,7 +443,7 @@ pub async fn run_heard<H: Heard>(
 /// herdr reads it as, and the program.
 pub struct Left<'a> {
   pub agent: &'a str,
-  /// The agent the run works for where the host is another's, such as a companion's person-book run in the
+  /// The agent the run works for where the host is another's, such as a supervisor's person-book run in the
   /// writer's host, which its row names in the host's place.
   pub for_agent: Option<&'a str>,
   pub name: &'a str,

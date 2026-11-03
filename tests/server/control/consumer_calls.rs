@@ -1,5 +1,5 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
-//! consumer sends: a companion's supervisor row stood up and taken out with its reset point, a save of its
+//! consumer sends: a supervisor's row stood up and taken out with its reset point, a save of its
 //! settings naming a field none takes, why a rest that has just passed silenced the deployment, words pushed
 //! into a session's working turn, and a run of the ledger read by its id and listed by its search beside its
 //! opening and closing, on a store the server settled itself.
@@ -70,77 +70,95 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
   let added = json!({
-    "name": "companion-a",
-    "label": "Companion A",
+    "name": "supervisor-a",
+    "label": "Supervisor A",
     "provider": "claude-code",
     "model": "m",
-    "worker": "helper",
-    "room": -7,
+    "repository": "helper",
   });
 
-  // A companion's supervisor row stood up from the fields the console's dialog gave, its order the provider and
+  // A supervisor's row stood up from the fields the console's dialog gave, its order the provider and
   // model it names alone, and refused once its name is taken or its repository is none.
-  assert_eq!(post(port, token, "/companions", added.clone()).await, (201, json!({ "ok": true })));
+  let (status, registered) = post(port, token, "/supervisors", added.clone()).await;
+
+  assert_eq!(
+    (status, registered["supervisor"]["name"].as_str()),
+    (201, Some("supervisor-a")),
+    "{registered}"
+  );
   assert_eq!(
     scratch
       .count(
-        r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'companion-a'
+        r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'supervisor-a'
            AND "session_scope" = 'room' AND "default_answerer" = 0
            AND jsonb_array_length("provider_order"::jsonb) = 1
            AND "provider_order"::jsonb -> 0 ->> 'provider' = 'claude-code'
            AND "provider_order"::jsonb -> 0 ->> 'model' = 'm'
-           AND "repository" = 'helper' AND "brain_folder" = 'agents/companion-a' AND "builtin" = 0"#,
+           AND "repository" = 'helper' AND "brain_folder" = 'agents/supervisor-a' AND "builtin" = 0"#,
         vec![],
       )
       .await,
     1
   );
 
-  let (status, taken) = post(port, token, "/companions", added.clone()).await;
+  let (status, taken) = post(port, token, "/supervisors", added.clone()).await;
 
-  assert_eq!((status, taken["field"].as_str()), (400, Some("name")), "{taken}");
+  assert_eq!((status, taken["code"].as_str()), (409, Some("name-taken")), "{taken}");
 
   let mut workerless = added.clone();
 
-  workerless["name"] = json!("companion-b");
-  workerless["worker"] = json!("chat-agent");
+  workerless["name"] = json!("supervisor-b");
+  workerless["repository"] = json!("chat-agent");
 
-  let (status, refused) = post(port, token, "/companions", workerless).await;
+  let (status, refused) = post(port, token, "/supervisors", workerless).await;
 
-  assert_eq!((status, refused["field"].as_str()), (400, Some("worker")), "{refused}");
+  assert_eq!((status, refused["field"].as_str()), (400, Some("repository")), "{refused}");
+
+  // Its settings read whole, its room sessions none yet.
+  let (status, settings) = get(port, token, "/supervisors/supervisor-a/settings").await;
+
+  assert_eq!((status, settings["agent"].as_str()), (200, Some("supervisor-a")), "{settings}");
+  assert_eq!(settings["turnShape"], "pieces");
+  assert_eq!(get(port, token, "/supervisors/nobody/settings").await.0, 404);
 
   // A reset point is kept for it, which its removal takes with it.
   scratch
     .run(
-      r#"INSERT INTO "settings" ("key", "value") VALUES ('reset_point:companion-a', '2000')"#,
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('reset_point:supervisor-a', '2000')"#,
       vec![],
     )
     .await;
 
   // A save naming a field no save takes — the recollectors' model among them — is refused by that field,
   // and nothing is written.
-  let (status, refused) =
-    patch(port, token, "/companions/companion-a", json!({ "recollectorModel": "local-model" })).await;
+  let (status, refused) = patch(
+    port,
+    token,
+    "/supervisors/supervisor-a/settings",
+    json!({ "recollectorModel": "local-model" }),
+  )
+  .await;
 
   assert_eq!((status, refused["field"].as_str()), (400, Some("recollectorModel")), "{refused}");
 
   for retired in ["pieces", "ownPieces"] {
-    let (status, refused) = patch(port, token, "/companions/companion-a", json!({ retired: [] })).await;
+    let (status, refused) =
+      patch(port, token, "/supervisors/supervisor-a/settings", json!({ retired: [] })).await;
 
     assert_eq!((status, refused["field"].as_str()), (400, Some(retired)), "{refused}");
   }
 
   assert_eq!(
     scratch
-      .count(r#"SELECT count(*) FROM "companion_settings" WHERE "agent" = 'companion-a'"#, vec![])
+      .count(r#"SELECT count(*) FROM "supervisor_settings" WHERE "agent" = 'supervisor-a'"#, vec![])
       .await,
     0
   );
 
   // Words name the turn they are pushed into, and a turn the session carries none of is not there.
   assert_eq!(
-    post(port, token, "/sessions/companion-a@-7/turns/1/inputs", json!({ "words": "more" })).await,
-    (404, json!({ "code": "unknown-turn", "error": "no turn 1 is going in companion-a@-7" }))
+    post(port, token, "/sessions/supervisor-a@-7/turns/1/inputs", json!({ "words": "more" })).await,
+    (404, json!({ "code": "unknown-turn", "error": "no turn 1 is going in supervisor-a@-7" }))
   );
   assert_eq!(
     post(port, token, "/sessions/nobody@-7/turns/1/inputs", json!({ "words": "more" }))
@@ -149,24 +167,24 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     "unknown-session"
   );
 
-  // Taken out again with everything of its own; one the deployment seeds, or no companion, is refused.
-  let (status, _) = delete(port, token, "/companions/companion-a").await;
+  // Taken out again with everything of its own; one the deployment seeds, or no supervisor, is refused.
+  let (status, _) = delete(port, token, "/supervisors/supervisor-a").await;
 
   assert_eq!(status, 204);
   assert_eq!(
     scratch
       .count(
-        r#"SELECT (SELECT count(*) FROM "supervisors" WHERE "name" = 'companion-a')
-           + (SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:companion-a')"#,
+        r#"SELECT (SELECT count(*) FROM "supervisors" WHERE "name" = 'supervisor-a')
+           + (SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:supervisor-a')"#,
         vec![],
       )
       .await,
     0
   );
 
-  let (status, refused) = delete(port, token, "/companions/helper").await;
+  let (status, _) = delete(port, token, "/supervisors/helper").await;
 
-  assert_eq!((status, refused["field"].as_str()), (400, Some("agent")), "{refused}");
+  assert_eq!(status, 404);
 
   // The service's outage rest past its end: cleared as it is read, and told once.
   scratch

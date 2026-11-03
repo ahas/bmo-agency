@@ -1,7 +1,7 @@
 //! Agency's procedures as resources, served by the `procedures` tool (docs/tools.md, 「The procedures」): one
 //! document each under the chat agent's procedures folder of the tree the tool is placed in, listed by name and
 //! read held to the verbs the road of the turn's room performs, which agency's server asks the consumer that
-//! holds the rooms. A request reads its turn afresh from the session's record, and a turn a companion's reset
+//! holds the rooms. A request reads its turn afresh from the session's record, and a turn a supervisor's reset
 //! overtook is listed none and refused its read.
 
 use std::path::{Path, PathBuf};
@@ -243,7 +243,7 @@ impl Server {
   }
 }
 
-/// The refusal of a turn a companion's reset overtook, read out of the store the record names; none for a turn
+/// The refusal of a turn a supervisor's reset overtook, read out of the store the record names; none for a turn
 /// naming no agent or no moment, or where no reset point can be read.
 pub async fn overtaken(session: &Session) -> Option<String> {
   let turn = Turn::of(session);

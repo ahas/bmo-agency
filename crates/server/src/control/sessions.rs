@@ -1,7 +1,7 @@
 //! Every session an agent holds now, and an ask to clear one (docs/session-resets.md). Each kind of agent
 //! that holds sessions answers which it holds and how a reset of one is carried out; the ask is kept as a
 //! row and carried out by the session's own holder. A worker's is carried out here once the ask is written,
-//! where no job of it runs, and by its next job otherwise; a companion's has the program standing on its
+//! where no job of it runs, and by its next job otherwise; a supervisor's has the program standing on its
 //! room's session taken down here, and the session itself opened afresh by the room's next turn.
 
 use std::cmp::Ordering;
@@ -212,11 +212,11 @@ impl SessionHolder for Worker {
   }
 }
 
-/// A companion's session in one room, cleared by the next turn there (docs/companions.md, 「Clearing
+/// A supervisor's session in one room, cleared by the next turn there (docs/supervisors.md, 「Clearing
 /// it」).
-struct Companion;
+struct Supervisor;
 
-impl SessionHolder for Companion {
+impl SessionHolder for Supervisor {
   fn sessions<'a>(
     &'a self,
     db: &'a DatabaseTransaction,
@@ -246,7 +246,7 @@ impl SessionHolder for Companion {
           sessions.push(AgentSession {
             agent: name.clone(),
             chat_id: Some(chat_id),
-            kind: "companion",
+            kind: "supervisor",
             title: None,
             generation: Some(room.try_get("", "generation")?),
             models: models.clone(),
@@ -267,8 +267,8 @@ impl SessionHolder for Companion {
     Box::pin(async { Ok(Clearing::AtOnce) })
   }
 
-  // The program standing on a session a waiting ask clears taken down, where no turn of the companion holds
-  // it (docs/companions.md, 「The program on an ended session」); the ask waits for the room's next turn.
+  // The program standing on a session a waiting ask clears taken down, where no turn of the supervisor holds
+  // it (docs/supervisors.md, 「The program on an ended session」); the ask waits for the room's next turn.
   fn carry_out<'a>(&'a self, places: &'a crate::places::Places, _running: &'a Running) -> Holding<'a, ()> {
     Box::pin(async move {
       let waiting = all(
@@ -285,7 +285,7 @@ impl SessionHolder for Companion {
         let agent: String = row.try_get("", "agent")?;
         let session: String = row.try_get("", "harness_session")?;
 
-        crate::companion::run::let_go(&places.ground, &agent, &[session]).await;
+        crate::supervisor_turn::run::let_go(&places.ground, &agent, &[session]).await;
       }
 
       Ok(())
@@ -339,7 +339,7 @@ impl SessionHolder for Chat {
 }
 
 // Every holder, in the order they are asked.
-const HOLDERS: [&dyn SessionHolder; 3] = [&Worker, &Companion, &Chat];
+const HOLDERS: [&dyn SessionHolder; 3] = [&Worker, &Supervisor, &Chat];
 
 /// An ask to clear a session, waiting or carried out.
 #[derive(Debug, Serialize)]

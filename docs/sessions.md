@@ -10,7 +10,7 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## One session per chat
 
-- One Claude session per chat is kept and resumed, so the chat agent remembers previous exchanges. Every
+- One Claude session per chat is kept and resumed, so the supervisor remembers previous exchanges. Every
   supervisor turn is on the model and effort its provider order names for the provider it runs on
   (`docs/provider-order.md`), and `bmo-agency agent` shows what each supervisor and each role is
   configured to run on.
@@ -32,7 +32,7 @@ statements below about either are kept for a rollback to the road a deployment l
     same while its target moves from release to release;
   - on Claude Code, which names a session's records after the folder's real path, every link followed,
     the link would be a new folder with each release, so the chat works in its agent's own home under
-    the data root, `companion-homes/<agent>`, a real folder, as a companion does; its prompt, its
+    the data root, `supervisor-homes/<agent>`, a real folder, as every supervisor's program does; its prompt, its
     configuration, its settings and its MCP servers are handed by absolute path, so nothing of the
     launch reads the folder it stands in.
 - **A deploy moves the link's target, not the chat's folder,** so a program stood after it resumes the
@@ -79,8 +79,8 @@ statements below about either are kept for a rollback to the road a deployment l
   first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
   own launches, which name none, stand in the folder above.
-- **A fresh session of a chat agent is never opened without the handoff.** Where a chat-line turn — the
-  chat agent's across rooms, or a companion's in a room — is about to open a fresh session for an agent
+- **A fresh session of a supervisor is never opened without the handoff.** Where a chat-line turn — one
+  of the `agent` scope across rooms, or one of the `room` scope in a room — is about to open a fresh session for an agent
   that had one, agency first asks the receiver for the agent's handoff (`POST /handoffs/{agentName}` of
   the receiver, with the reason and the room where the turn names one) and waits for its answer, so the
   session going away writes what the next one needs before anything replaces it:
@@ -182,7 +182,7 @@ statements below about either are kept for a rollback to the road a deployment l
 
 - After every chat turn the program's status line reports how many tokens the session's context
   holds and how large the model's context window is. When a reply leaves the session past its fold
-  ratio, the chat agent announces in that
+  ratio, the supervisor announces in that
   chat (and only there, when that chat's rest notices are on) that it is going to sleep for a
   moment, types `/compact` into its resident program, and announces that it woke up.
 - **The fold ratio is the compaction threshold of the session's supervisor or role,** a field of its row
@@ -219,7 +219,7 @@ statements below about either are kept for a rollback to the road a deployment l
   names by status code and the caller's language pack words, are only the fallback when the session cannot be asked. Each line is a full
   run of that session, so a chat that would not be shown it — its rest notices off — is not asked
   for it either. A `/compact` the CLI declines to run is a failed compaction, not a silent success.
-- **A fold that fails is said out loud.** The room that was just told the chat agent was going for a nap is
+- **A fold that fails is said out loud.** The room that was just told the supervisor was going for a nap is
   told the nap did not happen, in the fixed line named by its status code, and the owner is told
   which room and what stopped it — a fold nothing can complete leaves the context exactly as full as
   it was, so the next reply asks for another one, and a console log is not where anyone would find
@@ -359,7 +359,7 @@ statements below about either are kept for a rollback to the road a deployment l
   would write at least four times what it writes — a room a little over the line keeps its memory,
   one carrying several times its own weight does not.
 - **A closed session hands nothing over.** No summary of a session is made or kept anywhere: the old
-  session's record is not read, and the new session opens on its turn's words alone. A chat agent's
+  session's record is not read, and the new session opens on its turn's words alone. A supervisor's
   session carries only the note the receiver hands in with its own turn, which is the receiver's.
 - The session id is cleared and a new session opens on the next run; the room hears nothing.
 - Who the people are reaches the new session by the brain's index, whose people group its first turn

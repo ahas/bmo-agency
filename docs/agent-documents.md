@@ -1,7 +1,7 @@
 # The agents' documents
 
 What each Claude process the bot runs is given to read, where those documents live, how they are
-composed into a system prompt, and what the chat agent's own prompt is made of.
+composed into a system prompt, and what the supervisor's own prompt is made of.
 
 ## Agents and their documents
 
@@ -18,7 +18,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   - `document-writing.md` — every agent that writes a stored document: the brain, which composes its
     writers' whole prompts, reads it with `plain-writing.md` and `self-preservation.md` through the
     rulebook read (`docs/api.md`, 「prompt-documents」);
-  - `agent-words.md` — every supervisor: the chat session and every companion, for the turns
+  - `agent-words.md` — every supervisor, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every run of the worker line,
     every co-worker and the news page writer.
@@ -32,8 +32,8 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   whole (`docs/api.md`, 「sessions」), and the research unit keeps its own, with the search rulebooks.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
   harness around the agent is, how words reach it, where its memory is and what the platform around it
-  holds. Every line on Claude Code opens its whole system prompt with it — the chat session, every
-  companion, every run of the worker line and every co-worker, and every session on the search and
+  holds. Every line on Claude Code opens its whole system prompt with it — every supervisor's
+  session, every run of the worker line and every co-worker, and every session on the search and
   browse lines, before the instructions its caller hands in — but a run of the worker line on an account
   that names a base prompt, which opens on that base instead (`docs/base-prompts.md`, 「The harness
   layer」).
@@ -78,9 +78,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   outside the repository on purpose so that neither a project instruction file up the tree nor the
   repository's git status can enter a runner's prefix.
 
-## The chat agent
+## A supervisor of the window shape
 
-- **The chat agent's prompt is three layers, each whole, in this order:** the harness, the role and the
+- **The supervisor's prompt is three layers, each whole, in this order:** the harness, the role and the
   persona. No layer is cut into sections chosen per program, and none knows the others.
   - **The owner's text of three of the role's documents stands in the store:** the opening, the
     absolute rules and the manual are read from `chat_documents` where the owner saved one and from
@@ -98,7 +98,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   them, numbered — authority, owner-only work, injection, privacy, system secrecy, room isolation,
   errands, consent, harmful requests and the queue, no invented permissions, the owner's own
   requests.
-  - Owner-only work is held by the chat agent's judgement rather than by the tools.
+  - Owner-only work is held by the supervisor's judgement rather than by the tools.
   - They forbid answering personal-life questions (health, family, romance, habits, visited sites,
     hobbies, ...) and answering about any chat other than the current one.
   - None of their refusals reaches a request whose recorded sender id is the owner's: the owner is
@@ -112,11 +112,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   of the agent's tools,
   the draft process, the answer rules, promises, and a turn past its clock. It says how a message of each kind reaches the
   agent, a voice note among them arriving as what was said in it rather than as a placeholder it cannot open. It is how
-  the chat agent works at all, and it says when to act.
+  the supervisor works at all, and it says when to act.
   It names no tool of the program the session runs on, since one manual serves every program the chat
   stands on.
 - **A line that goes to the voice is two texts,** and every prompt of an agent that hands words to the
-  voice says so where it does: the manual for the chat agent, the producer role for its narration, the
+  voice says so where it does: the manual for the supervisor, the producer role for its narration, the
   worker plugin's skills for a document's narration. The written words are what people read — a caption,
   the reading folded under a voice note, a transcript, a narration kept beside its page — and stay as the
   agent would write them, names, acronyms and figures included. The spoken words are what the voice
@@ -155,8 +155,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **No translation hint stands in the role:** what the agent writes it writes in the person's language
   itself, and the gate's translator is one of its tools like any other, named only where the tools
   paragraph lists it.
-- **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering
-  people in rooms, write in the language of the person they answer.
+- **Only the chat line answers in a speaker's language.** Every supervisor, answering people in rooms, write in the language of the person they answer.
 - **A result written for a person is written in the language of the person who asked,** whichever
   agent writes it: a job's report and the account it closes its item with, a document it files for the
   archive, a measurement report, a research write-up. The person who asked is the item's requester, else
@@ -165,11 +164,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   quoted words stand as they are, and a repository's own documents, its commits and everything pushed
   with them stay English.
 - **Everything else is English:** a worker's and a co-worker's notes and the questions it puts to the
-  owner, a gate's verdict, a subagent's prompt and report, the logs; so does the chat agent wherever no
+  owner, a gate's verdict, a subagent's prompt and report, the logs; so does the supervisor wherever no
   person in a room reads it — an item's brief and notes, a work order, a memory, a handoff note — words
   quoted from people kept as they said them. The exceptions are the agents whose product is text a person
   reads in a language of its own: a translation, a line for the voice, the news page.
-- **No document fixes the language the chat agent answers in.** It answers each person in the language it
+- **No document fixes the language the supervisor answers in.** It answers each person in the language it
   knows for that person — what the brain holds of them, their country and the language they usually speak, and
   how the conversation has gone — never a language read off a message's words: commands, paths or code a
   message carries do not decide it, and what the owner is told is in the owner's language. A rule about Korean
@@ -200,7 +199,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     mend a failure before moving on is `prompts/agents/chat/procedures/todo.md`.
 - **The room context:** a group room's turn carries `prompts/agents/chat/rules.md`, its standing
   grants and requests. The owner's chat gets `prompts/agents/chat/owner.md` there instead: the names
-  the owner calls the agents by (the chat agent and its per-room presences, the gates, the runners,
+  the owner calls the agents by (the supervisor and its per-room presences, the gates, the runners,
   the worker), which no room needs.
 - **After them come the three rulebooks every answer has to satisfy:**
   `prompts/rules/answer-content.md`, `prompts/rules/answer-shape.md` and `prompts/rules/plain-writing.md`; then
@@ -214,7 +213,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **The role and the persona follow the harness, never replace it:** the harness opening stands
   first and whole — agency's own on Claude Code, dsh's on dsh — while this machine's settings,
   instruction files, MCP servers and skills reach no chat session.
-- **The session stands as the chat agent's resident program in its pane,** on the login that session was opened
+- **The session stands as the supervisor's resident program in its pane,** on the login that session was opened
   under, and that program keeps its slash commands, so compaction is `/compact` typed into it.
 - **The login is part of what identifies a session** rather than a detail of the run: a fold sent out
   under any other one is told there is no such conversation, which is not a session too full to fold

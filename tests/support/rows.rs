@@ -1,4 +1,4 @@
-//! The rows a test lays down on the two axes' store: a supervisor, which every chat agent and companion is, and
+//! The rows a test lays down on the two axes' store: a supervisor, which every conversational agent is, and
 //! a repository, the place a job's checkout is read off. Each is written with the columns its table requires
 //! and whatever else the test names beside them.
 

@@ -167,11 +167,11 @@ pub struct SessionsWords {
   pub asked: String,
 }
 
-/// A companion's settings.
+/// A supervisor's settings.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompanionsWords {
-  pub not_companion: String,
+pub struct SupervisorsWords {
+  pub not_supervisor: String,
   pub generation_pairs: String,
   pub not_generation: String,
   pub reference: String,
@@ -220,7 +220,7 @@ pub struct TiersWords {
 pub struct RegistryWords {
   pub tier: String,
   pub worker_pin: String,
-  pub companion_pin: String,
+  pub supervisor_pin: String,
   pub key_pin: String,
   pub model_file: String,
   pub name: String,
@@ -280,27 +280,22 @@ pub struct ModelsWords {
   pub node_unread: String,
 }
 
-/// A companion's reset.
-/// A companion added on the console and removed there.
+/// A supervisor registered.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompanionRosterWords {
+pub struct SupervisorRosterWords {
   pub name: String,
   pub name_taken: String,
   pub label: String,
-  pub provider: String,
-  pub model: String,
-  pub worker: String,
-  pub not_companion: String,
-  pub seeded: String,
 }
 
+/// A supervisor's reset.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CompanionResetWords {
+pub struct SupervisorResetWords {
   pub no_agent: String,
   pub no_range: String,
-  pub not_companion: String,
+  pub not_supervisor: String,
   pub brain_root: String,
   pub reason: String,
 }
@@ -316,13 +311,13 @@ pub struct ControlWords {
   pub agent_roles: AgentRolesWords,
   pub base_prompts: BasePromptsWords,
   pub sessions: SessionsWords,
-  pub companions: CompanionsWords,
+  pub supervisors: SupervisorsWords,
   pub generation: GenerationWords,
   pub tiers: TiersWords,
   pub registry: RegistryWords,
   pub models: ModelsWords,
-  pub companion_roster: CompanionRosterWords,
-  pub companion_reset: CompanionResetWords,
+  pub supervisor_roster: SupervisorRosterWords,
+  pub supervisor_reset: SupervisorResetWords,
   pub cards: CardWords,
 }
 

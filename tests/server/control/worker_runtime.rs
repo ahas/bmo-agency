@@ -71,8 +71,8 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
   repository(
     scratch.db(),
     "kept-apart",
-    &home.path().join("companion").to_string_lossy(),
-    &[("support_count", 1i64.into()), ("prompts", "companion".into())],
+    &home.path().join("supervisor").to_string_lossy(),
+    &[("support_count", 1i64.into()), ("prompts", "pieces".into())],
   )
   .await;
 

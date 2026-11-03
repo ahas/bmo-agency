@@ -432,9 +432,9 @@ pub async fn compose(ground: &Ground, worker: &str) -> Result<Option<Standing>, 
 
 /// A supervisor's program let go where its registered model or its registration moved under it: a program on
 /// another model than its order names on the registry's provider now, or on an address its registration no longer holds, is taken down so the
-/// next turn stands the pin's own (docs/companions.md, 「The program on an ended session」). A program on
+/// next turn stands the pin's own (docs/supervisors.md, 「The program on an ended session」). A program on
 /// the pin's model and an address it holds is left as it stands.
-pub async fn release_stale_companion(ground: &Ground, agent: &str) {
+pub async fn release_stale_supervisor(ground: &Ground, agent: &str) {
   let place = Place::of(&ground.roots.data, agent);
   let Some(program) = place.program() else { return };
   let Some(model) = program
@@ -460,21 +460,21 @@ pub async fn release_stale_companion(ground: &Ground, agent: &str) {
     let before = place.release().await;
 
     if before.is_some() {
-      println!("companion {agent}: its program stood on {model}, not its pin {pin}; it was let go");
+      println!("supervisor {agent}: its program stood on {model}, not its pin {pin}; it was let go");
     }
   }
 }
 
-/// Every companion's standing program checked against its pin, as a pin or a registration changes: one on
+/// Every supervisor's standing program checked against its pin, as a pin or a registration changes: one on
 /// another model, or on an address its registration lost, is let go.
-pub async fn release_stale_companions(ground: &Ground) {
+pub async fn release_stale_supervisors(ground: &Ground) {
   let Ok(rows) = all(&ground.db, r#"SELECT "name" FROM "supervisors""#, vec![]).await else {
     return;
   };
 
   for row in rows {
     if let Ok(name) = row.try_get::<String>("", "name") {
-      release_stale_companion(ground, &name).await;
+      release_stale_supervisor(ground, &name).await;
     }
   }
 }

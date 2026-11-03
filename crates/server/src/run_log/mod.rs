@@ -95,7 +95,7 @@ impl RunLog {
     }
   }
 
-  /// The same log keeping what each run was launched with whole: a companion's turn, whose screen reads every
+  /// The same log keeping what each run was launched with whole: a supervisor's turn, whose screen reads every
   /// prompt it was handed.
   pub fn keeping_launch(mut self) -> Self {
     self.keeps_launch = true;

@@ -1078,27 +1078,58 @@ pub struct Settings {
   pub downgrade_return: Value,
 }
 
-/// Companion:
+/// SupervisorSettings: a supervisor as its settings page shows it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct Companion {
-  pub name: String,
+pub struct SupervisorSettings {
+  pub agent: String,
   pub label: String,
-  pub provider: String,
-  pub model: String,
-  pub worker_name: Option<String>,
-  pub room_ids: Vec<Value>,
+  pub icon: Option<String>,
+  /// Whether the deployment seeds it.
+  pub builtin: bool,
+  pub turn_shape: String,
+  /// What its order names first.
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  /// The registration its order names at the registry's provider, or null.
+  pub registration: Option<String>,
+  /// Every offered registration, each `name` and `label`.
+  pub registrations: Vec<Value>,
+  /// The model files behind its registration.
+  pub entries: Vec<Value>,
+  pub serving: Option<String>,
+  pub model_use: Option<Value>,
+  /// `referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`.
+  pub settings: Value,
+  /// Every generation setting with its bounds.
+  pub generation_settings: Vec<Value>,
+  pub thinking: Option<bool>,
+  pub persona_file: String,
+  pub base_prompt: Option<String>,
+  pub base_prompts: Vec<Value>,
+  /// The system prompt its next turn sends, `characters`, `hash` and `text`, where its turn shape is `pieces`.
+  pub system: Option<Value>,
+  /// Its room sessions.
+  pub sessions: Vec<Value>,
 }
 
-/// CompanionReset:
+/// SupervisorReset: what a reset of a supervisor took, or would take on a dry run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct CompanionReset {
-  pub agent_name: String,
-  pub ranges: Value,
-  pub room_ids: Vec<Value>,
-  pub gone: Value,
-  pub stayed: Value,
+pub struct SupervisorReset {
+  pub agent: String,
+  pub label: String,
+  pub ranges: Vec<String>,
+  /// The rooms it answers alone, each `chatId` and `title`.
+  pub alone: Vec<Value>,
+  /// The rooms it shares with other supervisors, each `chatId` and `title`.
+  pub shared: Vec<Value>,
+  /// What it took of each table and range, each `table`, `range` and `rows`.
+  pub rows: Vec<Value>,
+  /// The harness records it took.
+  pub files: Vec<String>,
+  /// The brain's answer for the person range, or null.
+  pub brain: Value,
 }
 
 /// Worker:
@@ -1513,14 +1544,6 @@ pub struct RoadBlockPage {
 #[serde(rename_all = "camelCase")]
 pub struct AccountPage {
   pub items: Vec<Account>,
-  pub more: bool,
-}
-
-/// CompanionPage:
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CompanionPage {
-  pub items: Vec<Companion>,
   pub more: bool,
 }
 
@@ -2488,33 +2511,10 @@ pub struct SettingsAsk {
   pub stopped: Option<bool>,
 }
 
-/// The body that adds a companion: its order whole with its share, or one provider and model.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// The body that changes a supervisor's settings.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct CompanionAsk {
-  pub name: String,
-  pub label: String,
-  /// The repository its items go to.
-  pub worker: String,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub provider: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub model: Option<String>,
-  /// Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
-  /// theirs.
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub order: Option<Vec<OrderEntry>>,
-  /// a fraction from 0 to 1
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub quota_share: Option<f64>,
-}
-
-/// The body that changes a companion.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct CompanionChange {
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub agent: Option<String>,
+pub struct SupervisorSettingsChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub by: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2529,11 +2529,10 @@ pub struct CompanionChange {
   pub thinking: Option<bool>,
 }
 
-/// The body that asks for a companion reset.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// The body that asks for a supervisor reset.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct CompanionResetAsk {
-  pub agent: String,
+pub struct SupervisorResetAsk {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub conversation: Option<Value>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2782,13 +2781,21 @@ pub struct SupervisorList {
   pub more: bool,
 }
 
-/// SupervisorAsk: the body that registers a supervisor.
+/// SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SupervisorAsk {
   pub name: String,
   pub label: String,
-  pub order: Vec<OrderEntry>,
+  /// Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
+  /// theirs.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub order: Option<Vec<OrderEntry>>,
+  /// One provider and model, an order of that one entry where no order is named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub quota_share: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

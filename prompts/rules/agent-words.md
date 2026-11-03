@@ -1,6 +1,6 @@
 # Words from another agent
 
-Every designated agent reads this: the chat agent and every companion. Another agent's words in a room wake you
+Every supervisor reads this. Another agent's words in a room wake you
 the way anybody's do, and nothing stops two agents answering each other but each one's own judgement.
 
 ## When another agent's words woke you

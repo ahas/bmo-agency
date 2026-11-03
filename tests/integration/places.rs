@@ -169,7 +169,7 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
   let herdr = &bench.herdr;
 
   bench.supervisor("chat-agent", "Chat agent").await;
-  bench.supervisor("busy", "Busy companion").await;
+  bench.supervisor("busy", "Busy supervisor").await;
 
   // The chat agent's home with a bun head left in it, and a shell a rebuilt herdr left.
   let bun_head = bench.bun_head("chat-agent");
@@ -178,10 +178,10 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
 
   herdr.tab(&chat_home, None);
 
-  // A companion whose bun head is still at work for an open execution keeps it.
+  // A supervisor whose bun head is still at work for an open execution keeps it.
   let busy_head = bench.bun_head("busy");
   let (_, busy_pane) =
-    herdr.workspace("Busy companion", json!({ "agent": "busy" }), Some(&as_words(&busy_head)));
+    herdr.workspace("Busy supervisor", json!({ "agent": "busy" }), Some(&as_words(&busy_head)));
 
   bench
     .scratch
@@ -214,19 +214,19 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
   assert_eq!(herdr.commands_of("agent", "role"), [bench.head("role")]);
 
   // A supervisor with no workspace yet is given one under its label, its token reported.
-  bench.supervisor("fresh", "New companion").await;
+  bench.supervisor("fresh", "New supervisor").await;
   heads::stand_all(&bench.places).await;
 
-  let fresh = herdr.workspaces().into_iter().find(|one| one.label == "New companion").unwrap();
+  let fresh = herdr.workspaces().into_iter().find(|one| one.label == "New supervisor").unwrap();
 
   assert_eq!(fresh.tokens.unwrap()["agent"], "fresh");
   assert_eq!(herdr.commands_of("agent", "fresh"), [bench.head("fresh")]);
   // Standing again changes nothing.
   assert_eq!(herdr.commands_of("agent", "chat-agent"), [bench.head("chat-agent")]);
-  assert_eq!(herdr.workspaces().iter().filter(|one| one.label == "New companion").count(), 1);
+  assert_eq!(herdr.workspaces().iter().filter(|one| one.label == "New supervisor").count(), 1);
 }
 
-// The follow pane each room session of a companion stands in.
+// The follow pane each room session of a supervisor stands in.
 #[tokio::test]
 async fn each_room_session_has_its_follow_pane_named_by_its_room_an_older_one_replaced() {
   let bench = Bench::new().await;
@@ -262,7 +262,7 @@ async fn each_room_session_has_its_follow_pane_named_by_its_room_an_older_one_re
       r#"exec "$@""#,
       "bmo-standing-follow",
       "/old/bin/bmo",
-      "companion",
+      "supervisor",
       "follow",
       "7",
       "--agent",
@@ -281,7 +281,7 @@ async fn each_room_session_has_its_follow_pane_named_by_its_room_an_older_one_re
       r#"exec "$@""#,
       "bmo-standing-follow",
       &binary,
-      "companion",
+      "supervisor",
       "follow",
       chat,
       "--agent",

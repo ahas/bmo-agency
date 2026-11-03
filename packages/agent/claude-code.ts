@@ -271,7 +271,7 @@ function workerLine(run: HarnessRun): string[] {
   return withPrompt(run, args);
 }
 
-// The chat line, and a companion's turn, which is of the same shape with its own prompt, tools and
+// The chat line, and a supervisor's turn, which is of the same shape with its own prompt, tools and
 // server. Its system prompt replaces the CLI's own, nothing of this machine rides along but the one
 // MCP configuration it is handed, and a supervisor's program holds every tool of its own but the
 // line's denied list in bypass-permissions mode, the same in every run of every supervisor on every

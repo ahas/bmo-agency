@@ -1,4 +1,4 @@
-//! The standing panes of every agent's room sessions (docs/companions.md, 「What a turn shows」): in the
+//! The standing panes of every agent's room sessions (docs/supervisors.md, 「What a turn shows」): in the
 //! agent's own herdr workspace, one tab per room session, named by the room's title, running the follow
 //! verb. Every name comes from the rows and from the consumer that owns the room; none is written here.
 
@@ -13,8 +13,8 @@ use super::{AgentRow, Ground, VERBS_BINARY};
 use crate::Refusal;
 use crate::hooks::HookPoint;
 
-// The verb the follow pane runs, the verbs' binary's companion verb and its form.
-const FOLLOW_VERB: [&str; 2] = ["companion", "follow"];
+// The verb the follow pane runs, the verbs' binary's supervisor verb and its form.
+const FOLLOW_VERB: [&str; 2] = ["supervisor", "follow"];
 
 /// The name the standing mark carries for a follow pane.
 pub const FOLLOW_NAME: &str = "follow";

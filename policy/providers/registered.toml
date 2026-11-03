@@ -60,11 +60,11 @@ turns = "endpoint"
 words_mid_turn = true
 # A conversation grown to its mark is handed over by a turn asking it for its note, which a new session opens
 # with: the program's own fold goes out on a request of its own shape the engine holds no saved state for, and
-# reads the whole conversation again (docs/companions.md, 「Its limit」).
+# reads the whole conversation again (docs/supervisors.md, 「Its limit」).
 handover = "handoff"
 # A conversation's turn is watched for going nowhere and cut at the conversation limits: a model on its own
-# engine loops where Claude would not (docs/companions.md, 「A turn that goes nowhere」).
+# engine loops where Claude would not (docs/supervisors.md, 「A turn that goes nowhere」).
 turn_limits = true
 # A conversation's turn waits while an open job runs on its registration, since the engine serves one slot
-# (docs/companions.md, 「The engine it shares」).
+# (docs/supervisors.md, 「The engine it shares」).
 waits_for_engine = true

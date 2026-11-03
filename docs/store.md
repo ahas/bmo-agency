@@ -43,9 +43,9 @@ seeds. The other crates and the server reach the store only through it.
     role's session」);
   - the base prompts: `base_prompts`, `agent_base_prompts`, and `base_prompt_seeded`, the name of
     every seed the store has been given (`docs/base-prompts.md`, 「The seeds」);
-  - the chat agent's own documents the owner keeps a text of: `chat_documents`, one row a document's
+  - the supervisor's own documents the owner keeps a text of: `chat_documents`, one row a document's
     name and its text, with when and by whom it was last saved (`docs/agent-documents.md`,
-    「The chat agent」);
+    「A supervisor of the window shape」);
   - the accounts: `claude_accounts`, one row an account of the Claude Code road — its id, name,
     place, on/off, when it was added and when its login was found gone; its `credential_kind`,
     `directory`, `token` or `endpoint`, and its `credential_path`, the configuration directory, the
@@ -95,8 +95,8 @@ seeds. The other crates and the server reach the store only through it.
     tokens its context held, what it spent (its input, output, cache-read and cache-write tokens), the
     search it carried, the round it belongs to and the message its answer went out as — opened and closed by the job unit, and a job turn's and a chat turn's by agency (`docs/api.md`,
     「runs」, `docs/run-records.md`, 「The run ledger」); a room forgotten takes its runs with it, and a
-    companion's reset of its conversation takes the companion's and those of the rooms it answers alone
-    (`docs/companions.md`, 「Starting it afresh」);
+    supervisor's reset of its conversation takes the supervisor's and those of the rooms it answers alone
+    (`docs/supervisors.md`, 「Starting it afresh」);
   - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
     the name it runs under, its role or supervisor, what it is doing, when it started, its clock and when
     it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked, the
@@ -113,7 +113,8 @@ seeds. The other crates and the server reach the store only through it.
     and its ending, when it ended and the reading the ending stood on — opened as the turn opens, written
     as its wait looks and closed with its ending (`docs/agent-control.md`, 「Telling that a turn's program
     is gone」); a row ended a week ago goes as a turn's next row is opened;
-  - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
+  - the supervisors' room sessions and settings: `room_sessions`, `room_session_turns`,
+    `supervisor_settings` (`docs/supervisors.md`, 「Its settings」);
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the settings, below.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
@@ -125,10 +126,10 @@ seeds. The other crates and the server reach the store only through it.
   `user_id` names, or none for the administrator's; agency writes the one its registration is handed and
   never chooses one itself.
 - **A supervisor's `prompts`** names the folder under `prompts/agents/` that holds what that supervisor alone
-  is given, one plain name, or none for one given no folder of its own, as a companion added on the console
-  starts; a repository's names the folder its rules are read from. A companion's system prompt and its persona are read from this folder, never from the
-  agent's name (`docs/harness-machine.md`, 「A companion's system prompt」). Whoever makes the row writes
-  it, a companion's seed among them; a row written without it names none.
+  is given, one plain name, or none for one given no folder of its own, as a supervisor added on the console
+  starts; a repository's names the folder its rules are read from. A pieces-shaped turn's persona is read
+  from this folder, never from the agent's name (`docs/harness-machine.md`, 「A supervisor's system
+  prompt」). Whoever makes the row writes it, a seed among them; a row written without it names none.
 
 ## The settings table
 
@@ -148,7 +149,7 @@ seeds. The other crates and the server reach the store only through it.
   - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
     stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
     highest number the store has dropped (`docs/api.md`, 「events」);
-  - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
+  - a supervisor's reset point, `reset_point:*` (`docs/supervisors.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;

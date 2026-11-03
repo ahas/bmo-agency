@@ -62,8 +62,8 @@ crateBinary(codeRoot, "harness-providers");
 // or is dropped fails here, which is the point: the prompt cache matches a byte-identical prefix,
 // so a line that moved has cost every warm session standing on it its whole context.
 describe("the commands are the commands they were", () => {
-  // A companion with a worker's hands names what it keeps back before its mode, and with no allow
-  // list every call goes ahead unasked, as a job's does (docs/companions.md, 「Its hands」).
+  // A supervisor with a worker's hands names what it keeps back before its mode, and with no allow
+  // list every call goes ahead unasked, as a job's does (docs/supervisors.md, 「What a turn is given」).
 
   test("the chat line, and the one it runs with the thinking off", async () => {
     const command = await claudeCode.command(chatRunFor(true));

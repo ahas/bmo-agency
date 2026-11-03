@@ -2,21 +2,24 @@
 //! thrown-away session's, which only its start numbers; and a failed
 //! turn's ending, which carries the engine's error kind where its engine ended it with one.
 
-use agency_server::companion::run::NoAnswer;
 use agency_server::herdr_backend::{TurnEnded, failure_of, id_of, scope_of};
+use agency_server::supervisor_turn::run::NoAnswer;
 use agent_session::{Apart, Scope, SessionId, TurnEnd};
 use serde_json::json;
 
 #[test]
 fn a_session_id_names_its_agent_and_scope_and_reads_back() {
   for scope in [Scope::Agent, Scope::Worker, Scope::Room("-1001".into())] {
-    let id = id_of("companion-a", &scope).expect("the scope names a session");
+    let id = id_of("supervisor-a", &scope).expect("the scope names a session");
 
-    assert_eq!(scope_of(&id), ("companion-a".to_owned(), scope));
+    assert_eq!(scope_of(&id), ("supervisor-a".to_owned(), scope));
   }
 
   assert_eq!(id_of("worker-a", &Scope::Worker), Some(SessionId("worker-a@worker".into())));
-  assert_eq!(id_of("companion-a", &Scope::Room("7".into())), Some(SessionId("companion-a@7".into())));
+  assert_eq!(
+    id_of("supervisor-a", &Scope::Room("7".into())),
+    Some(SessionId("supervisor-a@7".into()))
+  );
 }
 
 #[test]
@@ -39,7 +42,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
     let (reason, engine_error) = failure_of(no);
 
     serde_json::to_value(TurnEnded {
-      session: "companion-a@-7".into(),
+      session: "supervisor-a@-7".into(),
       end: TurnEnd::failed("run-1", reason, engine_error),
     })
     .unwrap()
@@ -52,7 +55,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
   assert_eq!(
     ended(errored(Some("rate_limit"))),
     json!({
-      "session": "companion-a@-7",
+      "session": "supervisor-a@-7",
       "turn": 0,
       "delivery": "taken",
       "run": "run-1",

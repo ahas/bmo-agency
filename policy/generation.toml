@@ -1,4 +1,4 @@
-# The generation settings a companion's turns are asked with (docs/companions.md, 「Its generation
+# The generation settings a supervisor's turns are asked with (docs/supervisors.md, 「Its generation
 # settings」), each by the name the engine's chat completions path reads it under, with its bounds.
 # A setting with no max is held below the window of the registration it runs on; above_min refuses
 # the lowest value itself; whole takes whole numbers only. A switch takes on or off and has no bounds.

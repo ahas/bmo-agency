@@ -2,7 +2,7 @@
 
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
-agency keeps under `prompts/` — the chat agent's procedures — let a supervisor hand a small coding task
+agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
 to a run of the worker role, and let a supervisor delegate a task to a run of any role and read what it has
 delegated. A tool that
 belongs to no one service is a repository of its own, not a folder here.
@@ -78,8 +78,8 @@ belongs to no one service is a repository of its own, not a folder here.
   variable is not set. A placed tool's environment holds neither, since the tool host hands it a
   clean one, so it reads them from `env/agency.env` under the record's data root, the file the server's
   unit takes its environment from; a variable its own environment holds stands first.
-- **A turn a companion's reset overtook** — one naming an agent and a moment at or before that agent's
-  reset point in agency's store (`docs/companions.md`, 「What the reset cuts off」) — is listed nothing and
+- **A turn a supervisor's reset overtook** — one naming an agent and a moment at or before that agent's
+  reset point in agency's store (`docs/supervisors.md`, 「What the reset cuts off」) — is listed nothing and
   refused every read, saying the agent was reset after the turn began.
 
 ## The worker ask

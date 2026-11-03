@@ -261,7 +261,7 @@
   - So a script that calls the pane-opening function or the herdr client directly, bypassing the
     function that runs a turn, meets the same guard.
 - **What it blocks:** the lines that hold a session or write a prefix the next run will read — job,
-  room, a companion's turn, search, browse, and a session inside a pane.
+  room, a pieces-shaped turn, search, browse, and a session inside a pane.
 - **A pane holding another provider's program** — Codex's, standing in a supervisor's or a run's pane — is
   still a pane a job does not put words into, so the job refusal holds there too. No Claude session is
   written by it, so Claude being off does not refuse it and nothing is recorded as a Claude run.

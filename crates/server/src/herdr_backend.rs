@@ -1,6 +1,6 @@
 //! The herdr backend of the session contract (docs/api.md, 「Sessions」): the ten operations answered over
 //! the door, the places and the lines. A worker's session is its own, one per worker, carried by the
-//! worker's session turn on the line a job runs on; a companion's session is one per room, carried by its
+//! worker's session turn on the line a job runs on; a supervisor's session is one per room, carried by its
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
 //! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
 //! the road and the base persona, its brain's or else the one the turn's caller hands in, or by a stand-in
@@ -28,22 +28,17 @@ use agent_session::{
   Scope, Session, SessionId, Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
-use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
 use policy::gate_places::GATE_PLACES;
 use policy::handoff::HANDOFF;
+use policy::supervisor_runner::SUPERVISOR_RUNNER;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use store::{all, one, run as written};
 
 use crate::chat_stand_in::{fallback_ended, stand_in_turn};
-use crate::companion::guard::{Spent, spent_out};
-use crate::companion::handoff::{Companion, Due, hand_over};
-use crate::companion::overtaken;
-use crate::companion::run::{NoAnswer, Reply, Tally, let_go, run_turn};
-use crate::companion::sessions::{self, Harness, Kept, RoomSession, harness_road};
-use crate::control::companions::Settings;
+use crate::control::supervisor_settings::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::AsideOutcome;
@@ -51,7 +46,7 @@ use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, TASK_LOCKED, TURN_AGENT, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
-use crate::lines::companion::{CompanionTurn, compose, lost_session, registration_named};
+use crate::lines::pieces::{SupervisorTurn, compose, lost_session, registration_named};
 use crate::places::gate_places;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_ledger;
@@ -59,6 +54,11 @@ use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::session_output::{OutputWatch, Outputs};
 use crate::session_questions::Questions;
+use crate::supervisor_turn::guard::{Spent, spent_out};
+use crate::supervisor_turn::handoff::{Due, Speaker, hand_over};
+use crate::supervisor_turn::overtaken;
+use crate::supervisor_turn::run::{NoAnswer, Reply, Tally, let_go, run_turn};
+use crate::supervisor_turn::sessions::{self, Harness, Kept, RoomSession, harness_road};
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session;
 use crate::worker_session::fold::{Folded, fold};
@@ -155,7 +155,7 @@ impl RoadWalked {
     let sum = |pick: fn(&ModelSpend) -> i64| reported.then(|| spend.iter().map(pick).sum::<i64>());
 
     Self {
-      stage: COMPANION_RUNNER.turn_stage.clone(),
+      stage: SUPERVISOR_RUNNER.turn_stage.clone(),
       chat_id,
       run: run.to_owned(),
       provider: provider.to_owned(),
@@ -405,7 +405,7 @@ fn room_number(room: &str) -> Result<i64, Fault> {
 
 // What a supervisor's row holds that its turn reads: who it is, its order, its prompts and its threshold.
 struct Pinned {
-  companion: Companion,
+  speaker: Speaker,
   supervisor: crate::supervisors::Supervisor,
   prompts: Option<String>,
 }
@@ -417,7 +417,7 @@ async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
   let Some(supervisor) = held else { return Ok(None) };
 
   Ok(Some(Pinned {
-    companion: Companion {
+    speaker: Speaker {
       name: agent.to_owned(),
       label: supervisor.label.clone(),
       pinned_model: None,
@@ -458,7 +458,7 @@ async fn choice_of(
   }
 }
 
-// The system prompt a companion's settings compose, out of the documents of the tree the process runs, for
+// The system prompt a supervisor's settings compose, out of the documents of the tree the process runs, for
 // the provider and model it answers on.
 async fn system_of(
   ground: &Ground,
@@ -470,35 +470,35 @@ async fn system_of(
   let chosen = one(
     &ground.db,
     "SELECT p.text FROM agent_base_prompts c JOIN base_prompts p ON p.name = c.prompt WHERE c.agent = $1",
-    vec![pinned.companion.name.clone().into()],
+    vec![pinned.speaker.name.clone().into()],
   )
   .await
   .map_err(|why| why.detail)?
   .and_then(|row| row.try_get::<String>("", "text").ok());
-  let base = chosen.map(|text| harness_machine::companion_prompt::Base {
+  let base = chosen.map(|text| harness_machine::supervisor_prompt::Base {
     text,
     model: model.to_owned(),
   });
-  let roots = harness_machine::companion_prompt::Roots {
+  let roots = harness_machine::supervisor_prompt::Roots {
     assets: ground.code_root(),
     data: ground.roots.data.clone(),
   };
-  let companion = harness_machine::companion_prompt::Companion {
-    name: &pinned.companion.name,
+  let supervisor = harness_machine::supervisor_prompt::Supervisor {
+    name: &pinned.speaker.name,
     prompts: pinned.prompts.as_deref(),
   };
 
-  harness_machine::companion_prompt::system(
+  harness_machine::supervisor_prompt::system(
     &roots,
-    companion,
+    supervisor,
     &settings.composition(),
     base.as_ref(),
-    crate::lines::companion::takes_harness(provider.name()),
+    crate::lines::pieces::takes_harness(provider.name()),
   )
   .map_err(|why| why.to_string())
 }
 
-// The generation settings a companion's row holds, in the order they were saved.
+// The generation settings a supervisor's row holds, in the order they were saved.
 fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
   settings
     .generation()
@@ -552,7 +552,7 @@ impl Came {
   }
 }
 
-// The context a companion run's answer left.
+// The context a supervisor run's answer left.
 fn left(reply: &Reply) -> Option<Context> {
   carried_of(reply.context_tokens, reply.context_ratio)
 }
@@ -595,7 +595,7 @@ pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
     NoAnswer::Errored { error, kind } => (error, Some(EngineError { kind })),
     NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Unsubmitted(why) => (why, None),
-    NoAnswer::Overtaken => ("the companion's reset overtook the turn".to_owned(), None),
+    NoAnswer::Overtaken => ("the supervisor's reset overtook the turn".to_owned(), None),
   }
 }
 
@@ -866,7 +866,7 @@ impl HerdrSessions {
     Ok(())
   }
 
-  // The companion's session in the room its turn goes on in: the one it holds, or a new generation where it
+  // The supervisor's session in the room its turn goes on in: the one it holds, or a new generation where it
   // holds none, where the harness session it holds was opened on another provider or model or stands on a
   // place its registration no longer has, or where a generation that kept turns holds no harness session.
   async fn room_session(
@@ -924,7 +924,7 @@ impl HerdrSessions {
     }
 
     // A failed run asks for a fresh session no more than once a minute: a turn that keeps failing must not
-    // leave the room in a handoff loop of a row every ten seconds (docs/companions.md, 「A turn that goes
+    // leave the room in a handoff loop of a row every ten seconds (docs/supervisors.md, 「A turn that goes
     // nowhere」).
     let key = format!("handoff_asked:{agent}:{}", room.unwrap_or(0));
     let now = now_ms();
@@ -944,7 +944,7 @@ impl HerdrSessions {
     log.write(&ground.db, Line::note(handed.said())).await;
   }
 
-  // One turn of a companion in a room, carried by its resident program on its room's session.
+  // One turn of a supervisor in a room, carried by its resident program on its room's session.
   async fn room_turn(
     &self,
     agent: &str,
@@ -993,21 +993,21 @@ impl HerdrSessions {
       }
 
       sessions::settle_reset(&db, agent, chat_id).await.map_err(store_fault)?;
-      log.write(&db, Line::note(COMPANION_RUNNER.log.cleared.clone())).await;
+      log.write(&db, Line::note(SUPERVISOR_RUNNER.log.cleared.clone())).await;
     }
 
     let mut session = self
       .room_session(agent, chat_id, provider, &model)
       .await
       .map_err(|why| fault(FaultKind::Refused, detail(why)))?;
-    let limits = &COMPANION_RUNNER.limits;
+    let limits = &SUPERVISOR_RUNNER.limits;
     let guarded = provider.declared().resident.as_ref().is_some_and(|resident| resident.turn_limits);
 
     // A room session carried over its net by a turn that never ended opens a fresh generation rather
     // than judging every new turn over the net at once.
     if guarded && session.spent.calls >= limits.calls {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
-      log.write(&db, Line::note(COMPANION_RUNNER.log.cleared.clone())).await;
+      log.write(&db, Line::note(SUPERVISOR_RUNNER.log.cleared.clone())).await;
     }
 
     let hash = format!("{:x}", Sha256::digest(system.as_bytes()));
@@ -1018,7 +1018,7 @@ impl HerdrSessions {
       session = sessions::mark_system(&db, agent, chat_id, &hash).await.map_err(store_fault)?;
 
       if changed {
-        log.write(&db, Line::note(COMPANION_RUNNER.log.system_changed.clone())).await;
+        log.write(&db, Line::note(SUPERVISOR_RUNNER.log.system_changed.clone())).await;
 
         if let Some(session) = id_of(agent, &Scope::Room(chat_id.to_string())) {
           ground.events.publish(SystemPromptChanged {
@@ -1041,7 +1041,7 @@ impl HerdrSessions {
 
     let started = Instant::now();
 
-    // A fresh generation in place of one the companion's program still stands on asks for its handoff first.
+    // A fresh generation in place of one the supervisor's program still stands on asks for its handoff first.
     self
       .handed_off(&mut log, agent, Some(chat_id), session.harness.is_some(), &HANDOFF.reasons.replaced)
       .await;
@@ -1049,7 +1049,7 @@ impl HerdrSessions {
     let mut asked = self
       .room_run(
         &mut log,
-        &pinned.companion,
+        &pinned.speaker,
         provider,
         &model,
         &session,
@@ -1074,7 +1074,7 @@ impl HerdrSessions {
       asked = self
         .room_run(
           &mut log,
-          &pinned.companion,
+          &pinned.speaker,
           provider,
           &model,
           &session,
@@ -1160,7 +1160,7 @@ impl HerdrSessions {
         &db,
         Line {
           kind: "end",
-          text: COMPANION_RUNNER.log.answered.clone(),
+          text: SUPERVISOR_RUNNER.log.answered.clone(),
           state: Some("succeeded"),
           ..Line::default()
         },
@@ -1168,7 +1168,7 @@ impl HerdrSessions {
       .await;
 
     // A turn whose context reached its fold ratio hands its session over before the next one, where its
-    // provider declares the handoff (docs/companions.md, 「Its limit」).
+    // provider declares the handoff (docs/supervisors.md, 「Its limit」).
     let hands_off = provider
       .declared()
       .resident
@@ -1186,9 +1186,9 @@ impl HerdrSessions {
         placement,
         ratio,
       };
-      let (ground, hold, companion) = (self.places.ground.clone(), hold.clone(), pinned.companion);
+      let (ground, hold, speaker) = (self.places.ground.clone(), hold.clone(), pinned.speaker);
 
-      tokio::spawn(async move { hand_over(&ground, &hold, &companion, chat_id, due).await });
+      tokio::spawn(async move { hand_over(&ground, &hold, &speaker, chat_id, due).await });
     }
 
     Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
@@ -1198,7 +1198,7 @@ impl HerdrSessions {
   async fn room_run(
     &self,
     log: &mut RunLog,
-    companion: &Companion,
+    speaker: &Speaker,
     provider: &'static dyn harness_providers::Provider,
     model: &str,
     session: &RoomSession,
@@ -1212,7 +1212,7 @@ impl HerdrSessions {
   ) -> Result<(Reply, Option<String>), NoAnswer> {
     let ground = self.ground();
 
-    if let Some(reason) = spent_out(&COMPANION_RUNNER.limits, session.spent).filter(|_| guarded) {
+    if let Some(reason) = spent_out(&SUPERVISOR_RUNNER.limits, session.spent).filter(|_| guarded) {
       return Err(NoAnswer::Cut(reason));
     }
 
@@ -1227,7 +1227,7 @@ impl HerdrSessions {
       ground,
       provider.name(),
       model,
-      &companion.name,
+      &speaker.name,
       resume.map(|(id, _)| id),
       log,
     )
@@ -1237,8 +1237,8 @@ impl HerdrSessions {
       let composed = compose(
         ground,
         &ground.machine(),
-        &CompanionTurn {
-          agent: &companion.name,
+        &SupervisorTurn {
+          agent: &speaker.name,
           chat_id: session.chat_id,
           provider: provider.name(),
           model,
@@ -1259,13 +1259,13 @@ impl HerdrSessions {
       log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
 
       let tally = Tally {
-        agent: &companion.name,
+        agent: &speaker.name,
         chat_id: session.chat_id,
         carried: session.spent,
       };
       let reply = run_turn(
         ground,
-        &companion.name,
+        &speaker.name,
         crate::lines::chat::LINE,
         provider.name(),
         &composed,
@@ -1326,7 +1326,7 @@ impl HerdrSessions {
       sessions::settle_reset_agent(&db, agent).await.map_err(store_fault)?;
       held = None;
       log
-        .write(&db, Line::note(policy::companion_runner::COMPANION_RUNNER.log.cleared.clone()))
+        .write(&db, Line::note(policy::supervisor_runner::SUPERVISOR_RUNNER.log.cleared.clone()))
         .await;
     }
 
@@ -1437,7 +1437,7 @@ impl HerdrSessions {
         &db,
         Line {
           kind: "end",
-          text: COMPANION_RUNNER.log.answered.clone(),
+          text: SUPERVISOR_RUNNER.log.answered.clone(),
           state: Some("succeeded"),
           ..Line::default()
         },
@@ -1544,7 +1544,7 @@ impl HerdrSessions {
         &ground.db,
         Line {
           kind: "end",
-          text: COMPANION_RUNNER.log.answered.clone(),
+          text: SUPERVISOR_RUNNER.log.answered.clone(),
           state: Some("succeeded"),
           ..Line::default()
         },
@@ -1687,7 +1687,7 @@ impl HerdrSessions {
         &ground.db,
         Line {
           kind: "end",
-          text: COMPANION_RUNNER.log.answered.clone(),
+          text: SUPERVISOR_RUNNER.log.answered.clone(),
           state: Some("succeeded"),
           ..Line::default()
         },
@@ -1816,14 +1816,14 @@ impl HerdrSessions {
     .await
   }
 
-  // What a companion's run spent is its own: its last answer written and its usage published.
+  // What a supervisor's run spent is its own: its last answer written and its usage published.
   async fn record_usage(&self, agent: &str, reply: &Reply, run: &str) {
     let ground = self.ground();
 
     if let Err(why) =
       note_answer(&ground.db, agent, &reply.mode, Some(&reply.model), reply.effort.as_deref()).await
     {
-      eprintln!("companion {agent}: its last answer was not written: {}", why.detail);
+      eprintln!("supervisor {agent}: its last answer was not written: {}", why.detail);
     }
 
     let account = slot_account(&reply.mode, reply.account.as_deref());
@@ -1897,7 +1897,7 @@ impl HerdrSessions {
     let run = match (&room, work) {
       (_, Some(work)) => work.name.clone(),
       (Some(room), None) => {
-        fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
+        fill_marks(&SUPERVISOR_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
       }
       (None, None) => format!("turn:{agent}:{at}"),
     };
@@ -2732,7 +2732,7 @@ impl Sessions for HerdrSessions {
           ratio: 1.0,
         };
 
-        hand_over(ground, &self.places.kept.reset, &pinned.companion, chat_id, due).await;
+        hand_over(ground, &self.places.kept.reset, &pinned.speaker, chat_id, due).await;
         Ok(())
       }
       Scope::Agent => Err(fault(

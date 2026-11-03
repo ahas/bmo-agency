@@ -146,15 +146,15 @@ async fn live(scratch: &Scratch) {
     r#""name", "kind", "role", "session_scope", "turn_shape", "pinned_provider", "pinned_model", "item_worker",
        "brain_folder", "keepalive_stopped""#,
     vec![
-      "companion".into(),
+      "supervisor".into(),
       "chat".into(),
       "chat".into(),
       "room".into(),
       "pieces".into(),
       "registered".into(),
       "flash-next".into(),
-      "companion-repo".into(),
-      "agents/companion".into(),
+      "supervisor-repo".into(),
+      "agents/supervisor".into(),
       1i64.into(),
     ],
   )
@@ -174,12 +174,12 @@ async fn live(scratch: &Scratch) {
   for (name, role, pin, support_of, node, cwd) in [
     ("alpha", "worker", Some(("deepseek", "deepseek-flash")), None, None, "/repos/alpha"),
     (
-      "companion-repo",
+      "supervisor-repo",
       "worker",
       Some(("registered", "flash-next")),
       None,
       None,
-      "/repos/companion",
+      "/repos/supervisor",
     ),
     ("web", "worker", Some(("deepseek", "deepseek-flash")), None, None, "/repos/web"),
     ("web-w2", "worker", None, Some("web"), None, "/repos/web-w2"),
@@ -317,7 +317,7 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
 
   assert_eq!(
     names(&scratch, r#"SELECT "name" FROM "supervisors" ORDER BY "name""#).await,
-    ["bmo", "companion"]
+    ["bmo", "supervisor"]
   );
 
   let chat = row(&scratch, "supervisors", "bmo").await;
@@ -346,18 +346,18 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
   let warming: Value = serde_json::from_str(&chat.try_get::<String>("", "warming").unwrap()).unwrap();
   assert_eq!(warming["deepseek"], true);
 
-  let companion = row(&scratch, "supervisors", "companion").await;
+  let supervisor = row(&scratch, "supervisors", "supervisor").await;
   assert_eq!(
-    order(&companion),
+    order(&supervisor),
     pairs(&[("registered", "flash-next")]),
     "a fixed model is the whole order"
   );
-  assert_eq!(companion.try_get::<f64>("", "fold_ratio").unwrap(), 0.95);
+  assert_eq!(supervisor.try_get::<f64>("", "fold_ratio").unwrap(), 0.95);
   assert_eq!(
-    companion.try_get::<Option<String>>("", "repository").unwrap().as_deref(),
-    Some("companion-repo")
+    supervisor.try_get::<Option<String>>("", "repository").unwrap().as_deref(),
+    Some("supervisor-repo")
   );
-  let warming: Value = serde_json::from_str(&companion.try_get::<String>("", "warming").unwrap()).unwrap();
+  let warming: Value = serde_json::from_str(&supervisor.try_get::<String>("", "warming").unwrap()).unwrap();
   assert_eq!(
     warming["registered"], false,
     "a supervisor whose keepalive was stopped is warmed nowhere"
@@ -373,7 +373,7 @@ async fn worker_rows_become_repositories_and_only_a_registered_pin_is_carried() 
 
   assert_eq!(
     names(&scratch, r#"SELECT "name" FROM "repositories" ORDER BY "name""#).await,
-    ["alpha", "companion-repo", "video", "web"],
+    ["alpha", "supervisor-repo", "video", "web"],
     "every worker row is a repository but a support checkout and the helper's"
   );
 
@@ -390,7 +390,7 @@ async fn worker_rows_become_repositories_and_only_a_registered_pin_is_carried() 
   );
   assert_eq!(alpha.try_get::<i64>("", "downgrade_heal").unwrap(), 0);
 
-  let pinned = row(&scratch, "repositories", "companion-repo").await;
+  let pinned = row(&scratch, "repositories", "supervisor-repo").await;
   assert_eq!(
     pinned.try_get::<Option<String>>("", "pinned_provider").unwrap().as_deref(),
     Some("registered")

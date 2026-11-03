@@ -22,7 +22,7 @@ fn a_follow_pane_is_told_by_its_mark_and_the_agent_it_names() {
 fn the_follow_verb_names_the_room_the_agent_and_the_binarys_version() {
   assert_eq!(
     follow_verb("/deploy/bin/bmo-agency", 7, "pal", "v1"),
-    ["/deploy/bin/bmo-agency", "companion", "follow", "7", "--agent", "pal", "--version=v1"]
+    ["/deploy/bin/bmo-agency", "supervisor", "follow", "7", "--agent", "pal", "--version=v1"]
   );
 }
 

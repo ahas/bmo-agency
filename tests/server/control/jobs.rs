@@ -178,9 +178,35 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(status, 422, "{refused}");
   assert_eq!(refused["code"], "unknown-role", "{refused}");
 
+  // An assignee no repository holds a checkout by is no busy worker: it is refused as an unknown repository,
+  // naming it and the repositories to choose from.
+  let (status, refused) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 40, "holderName": "harness", "assigneeName": "help", "item": item() }),
+  )
+  .await;
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("unknown-repository")), "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("named help;"), "{refused}");
+  assert!(refused["error"].as_str().unwrap().ends_with(": helper"), "{refused}");
+
   // Nothing in the order can answer: nothing is launched, the worker stays held for the item, and the
   // refusal names every provider's reason and the moment the first login reopens.
   let assignment = assigned(port, token, 41).await;
+
+  // The repository's one checkout is held now, so another item waits for it to come free.
+  let (status, refused) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 42, "holderName": "harness", "assigneeName": "helper", "item": item() }),
+  )
+  .await;
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
+
   let (status, refused) = run_job(port, token, assignment, 41).await;
 
   assert_eq!(status, 503, "{refused}");

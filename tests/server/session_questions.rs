@@ -225,14 +225,14 @@ async fn a_session_whose_turns_put_no_question_to_their_caller_takes_no_answer()
   let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
   supervisor(
     scratch.db(),
-    "companion",
+    "supervisor",
     &[("session_scope", "room".into()), ("turn_shape", "pieces".into())],
   )
   .await;
 
   let conversation = sessions
     .start(Start {
-      agent: "companion".into(),
+      agent: "supervisor".into(),
       scope: Scope::Conversation(Conversation {
         provider: "claude-code".into(),
         model: "claude-sonnet-5".into(),

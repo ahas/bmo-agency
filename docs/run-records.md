@@ -127,7 +127,7 @@ about a message is not agency's: the judgement records belong to the units that 
   `road-walked` as the turn ends (`docs/api.md`, 「Events」), and the unit that keeps the road records
   writes the line.
 - **What a road carries:** its stage, `chat`, the stage a conversational turn's run is written down at
-  (`policy/companion-runner.toml`), the room, the run, the provider and the model, its outcome, `answered`
+  (`policy/supervisor-runner.toml`), the room, the run, the provider and the model, its outcome, `answered`
   or `error`, how long it held the run in milliseconds, its tokens summed over the models that answered,
   none where the road reported none, and how full the session's context window stood once it ended.
 - **A turn a reset overtook walked no road,** and none is published for it.

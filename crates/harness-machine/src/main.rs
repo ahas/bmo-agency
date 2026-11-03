@@ -1,4 +1,4 @@
-//! The machine's part of the registry, the model catalogue and the companions as the TypeScript verbs
+//! The machine's part of the registry, the model catalogue and the supervisors as the TypeScript verbs
 //! and sidecars ask it (docs/harness-machine.md, 「The binary」): one line of JSON on the standing output;
 //! a refusal the owner reads as JSON on the standing error with status 2, any other failure's reason
 //! there with status 1. A key is read from standing input alone and never printed.
@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use harness_machine::companion_prompt::{self, Base, Companion, Composition, Roots};
 use harness_machine::engine_health::{self, Address};
 use harness_machine::model_use::{self, Install, Start};
+use harness_machine::supervisor_prompt::{self, Base, Composition, Roots, Supervisor};
 use harness_machine::{Fault, gateway, keys};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -18,10 +18,10 @@ use serde_json::{Value, json};
 #[derive(Parser)]
 #[command(
   name = "harness-machine",
-  about = "Reads, writes and starts on this machine what the registry, the model catalogue and the companions need"
+  about = "Reads, writes and starts on this machine what the registry, the model catalogue and the supervisors need"
 )]
 struct Cli {
-  /// The data root the key files, the gateway's status and the companions' folders stand under.
+  /// The data root the key files, the gateway's status and the supervisors' folders stand under.
   #[arg(long, global = true, default_value = ".")]
   data_root: PathBuf,
   /// The tree the agent documents are read out of.
@@ -48,12 +48,12 @@ enum Ask {
     #[command(subcommand)]
     ask: UseAsk,
   },
-  /// A companion's system prompt, composed out of what standard input holds:
+  /// A supervisor's system prompt, composed out of what standard input holds:
   /// `{"agent", "prompts": <folder> | null, "settings": {"pieces", "ownPieces", "persona"},
   /// "base": {"text", "model"} | null}`, where `prompts` is the prompt folder the agent's row names.
-  CompanionSystem,
+  SupervisorSystem,
   /// The persona a prompt folder's file holds, or an empty text where it has none.
-  CompanionPersona { folder: String },
+  SupervisorPersona { folder: String },
 }
 
 #[derive(Subcommand)]
@@ -106,16 +106,16 @@ enum UseAsk {
   Log { log: PathBuf },
 }
 
-/// What a companion's prompt is composed from.
+/// What a supervisor's prompt is composed from.
 #[derive(Deserialize)]
-struct CompanionAsk {
+struct SupervisorAsk {
   agent: String,
   /// The prompt folder the agent's row names under `prompts/agents/`, none where it names none.
   #[serde(default)]
   prompts: Option<String>,
   settings: Composition,
   base: Option<Base>,
-  /// Whether the companion's program is a harness of its own, whose own prompt stands where the platform's
+  /// Whether the supervisor's program is a harness of its own, whose own prompt stands where the platform's
   /// harness opening would; by default it runs on Claude Code and takes the platform's.
   #[serde(default, rename = "ownHarness")]
   own_harness: bool,
@@ -210,23 +210,23 @@ async fn answer(cli: Cli) -> Result<Value, Fault> {
       }
       UseAsk::Log { log } => Ok(json!(model_use::log_tail(Some(&log)))),
     },
-    Ask::CompanionSystem => {
-      let asked: CompanionAsk = read_input()?;
+    Ask::SupervisorSystem => {
+      let asked: SupervisorAsk = read_input()?;
 
-      let companion = Companion {
+      let supervisor = Supervisor {
         name: &asked.agent,
         prompts: asked.prompts.as_deref(),
       };
 
-      Ok(json!(companion_prompt::system(
+      Ok(json!(supervisor_prompt::system(
         &roots,
-        companion,
+        supervisor,
         &asked.settings,
         asked.base.as_ref(),
         !asked.own_harness
       )?))
     }
-    Ask::CompanionPersona { folder } => {
+    Ask::SupervisorPersona { folder } => {
       roots.prompt_folder(&folder)?;
 
       Ok(json!(roots.persona(Some(&folder), None).unwrap_or_default()))

@@ -8,8 +8,6 @@ mod common;
 
 mod agent_status_verb;
 mod claude_logins;
-mod companion_follow_verb;
-mod companion_reset_verb;
 mod dev_model_verbs;
 mod door_guard;
 mod machine_memory;
@@ -20,4 +18,6 @@ mod runs;
 mod slot_release;
 mod stops;
 mod subcommands;
+mod supervisor_follow_verb;
+mod supervisor_reset_verb;
 mod work_node_verbs;

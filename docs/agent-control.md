@@ -32,7 +32,7 @@ The owner's words for the scope are:
   axes」): a supervisor stands in a standing workspace under its name, and a run of a role in a
   workspace opened for the run. A name a run is launched under that has no row still gets a workspace
   of its own under that name. No roster is kept in the code: a row is written by whoever registers it —
-  a companion from the seed its deployment hands in, a role the owner adds — and what each is called on
+  a supervisor from the seed its deployment hands in, a role the owner adds — and what each is called on
   a screen is the console's own wording.
 
 ### A pane carries the real execution
@@ -184,8 +184,8 @@ The owner's words:
 - **The leftovers go with it.** A pane of the agent's workspace with no run in it and no command of
   its own — a shell a rebuilt herdr left, a pane whose loop let go — is closed as the panes are
   stood up. A job's dev server runs its own command and is kept, and so is a standing pane — one
-  whose command line carries the standing mark (`bmo-standing-*`), such as a companion's follow pane
-  (`docs/companions.md`, 「What a turn shows」).
+  whose command line carries the standing mark (`bmo-standing-*`), such as a supervisor's follow pane
+  (`docs/supervisors.md`, 「What a turn shows」).
 - **A job's end sweeps the whole of herdr the same way.** When a job ends, and on agency's own clock
   every ten minutes, agency reads every workspace and every pane in it, on this machine and on each ready work node whose
   link the node service reports up. Every supervisor standing and every run open counts, a pane a
@@ -206,10 +206,11 @@ The owner's words:
 - **Every agent runs as an interactive program in a pane; none runs in print mode**
   (`docs/agents.md`, 「No print mode」).
 - **A supervisor is resident when its current provider declares an interactive surface and its line
-  keeps a session.** That is every supervisor — the chat agent and every companion (`docs/supervisors.md`,
-  「One runner」) — and nothing else. Its turns follow one another on one program: the chat's rounds come
-  off one common queue, and a companion's turns in its rooms take the supervisor's own lock in turn.
-  - A companion keeps a session in each room it answers, and its one program goes on in the session of
+  keeps a session.** That is every supervisor (`docs/supervisors.md`, 「One runner」) and
+  nothing else. Its turns follow one another on one program: the rounds of a supervisor of the `agent`
+  scope come off one common queue, and the turns of one of the `room` scope in its rooms take the
+  supervisor's own lock in turn.
+  - A supervisor of the `room` scope keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
 - **Every run of a role stands apart:** a job's turn, a worker ask, a delegated task, a co-work branch,
@@ -443,8 +444,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     agent ran with a token in it included, and the records are read by more than the agent they belong to.
   - **The place's records are read from their end.** Each call is one line appended to the place's
     status record or its hooks record, and neither is cut while what they hold stands, so an agent's records
-    grow to hundreds of megabytes. A companion's are cut where its conversation is taken: its reset empties both,
-    and a turn the reset overtook takes its session's lines out of them (`docs/companions.md`, 「Starting it
+    grow to hundreds of megabytes. A supervisor's are cut where its conversation is taken: its reset empties both,
+    and a turn the reset overtook takes its session's lines out of them (`docs/supervisors.md`, 「Starting it
     afresh」). Every reader wants only the lines since a moment — a turn's start, its end,
     the program's own start — and reads back from the end of the file only as far as that moment, one
     line at a time, never the whole file into memory.
@@ -552,7 +553,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   - **dsh's own prompt is the harness, and agency's follows it.** The overlay sets dsh's `system-prompt`
     persona suffix to the run's role and persona — the chat's the one the Claude Code line is handed,
     but for the chat's tools paragraph, which names dsh's own tools in place of Claude Code's
-    (`docs/agent-documents.md`, 「The chat agent」); a worker's its rules — so dsh's identity line, its
+    (`docs/agent-documents.md`, 「A supervisor of the window shape」); a worker's its rules — so dsh's identity line, its
     profile's opening line and its guidance stand whole before it. Each `{{` in agency's text is broken
     by a word joiner, since dsh refuses a prompt naming a variable it does not hold. The overlay switches
     off dsh's instruction-file reader and its title call; a worker keeps the instruction-file reader,
@@ -674,9 +675,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     place's hook records hold its submit and its end, and the session's own record holds its words and
     its answer — and belongs to no round and no job;
   - its answer goes to no room;
-  - on a line that declares it — the chat agent's line alone — the submit hook hands the line the composition a
+  - on a line that declares it — the supervisor's line alone — the submit hook hands the line the composition a
     round of the owner's private chat would carry, as context beside it (`bmo-window.md`, 「A
-    line typed into the chat agent's program」);
+    line typed into the supervisor's program」);
   - the bot's own turn does not touch the program while it works: while the place names a person's
     turn still open and the pane reads working or waiting on a question, the turn that arrives — a
     round, a keepalive — neither stands, replaces nor resets the program nor puts words
@@ -975,10 +976,10 @@ The owner's words:
 
 ```mermaid
 flowchart TD
-  A[run passes its clock] --> D[ask the chat agent: order in the owner's chat]
-  D --> E{the chat agent answers}
+  A[run passes its clock] --> D[ask the supervisor: order in the owner's chat]
+  D --> E{the supervisor answers}
   E -- keep --> F[watch on, ask again when the keep runs out]
-  E -- cut --> G[stopped, the chat agent's call]
+  E -- cut --> G[stopped, the supervisor's call]
   E -- no answer yet --> H[the run goes on, the ask stands]
   D --> I[run ends on its own: ask withdrawn]
 ```
@@ -995,20 +996,20 @@ flowchart TD
   goes on in between, so a run that ends on its own ends as it always does. A run handed no policy
   carries no clock. A policy that cannot answer leaves the run going, asked again once the clock's
   own length has passed.
-- **The ask goes to the chat agent:**
-  1. The ask is an order queued for the chat agent's session in the owner's private chat, carrying the facts:
+- **The ask goes to the supervisor:**
+  1. The ask is an order queued for the supervisor's session in the owner's private chat, carrying the facts:
      which agent and run it is and what it is doing, how long it has run, when it last did anything
      and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
      opens the ask on a run it carries and publishes it as `clock-asked` (`docs/api.md`, 「Events」); the
      consumer holding the owner's chat queues the order, since agency sends nothing to a room.
-  2. The chat agent decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
+  2. The supervisor decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
      with `bmo-agency overtime`, which the event names, or `PATCH /overtime-requests/{requestId}`; a keep names how long,
      the clock's own length where it names none and two hours at most, and the run is asked about again
-     when that runs out. A cut is the chat agent stopping the run. The run's door looks for the verdict
+     when that runs out. A cut is the supervisor stopping the run. The run's door looks for the verdict
      every five seconds while the ask stands.
-  3. A fault the chat agent sees in the run is filed as a TODO item and fixed by a job, as every change to the
+  3. A fault the supervisor sees in the run is filed as a TODO item and fixed by a job, as every change to the
      system is.
-  4. Nothing is cut without a verdict. An ask with no answer — the chat agent resting, its session down,
+  4. Nothing is cut without a verdict. An ask with no answer — the supervisor resting, its session down,
      the order never delivered — stands for as long as the run goes, and the run goes on under it.
   5. A run that ends on its own while asked closes its ask as ended, published as `clock-ask-closed` so an
      order not yet delivered is withdrawn; a verdict given afterwards is refused as too late.
@@ -1016,7 +1017,7 @@ flowchart TD
   the name it runs under, its clock and when it started and ended — and each ask on it a row of
   `clock_asks`: the facts the order carried, the verdict, who gave it, why, and when (`docs/store.md`).
   A consumer reads a run's clock through `GET /runs/{runId}`: when its clock passes, and until when a
-  keep on it stands. A run cut on one gives the clock and the chat agent's call as its failure's cause,
+  keep on it stands. A run cut on one gives the clock and the supervisor's call as its failure's cause,
   which is what its room or the owner hears.
 - **What waits behind a clocked run waits for its end.** A run is never cut for its clock, so whatever
   waits behind one — a voice node's asker — waits until the run ends, however long that is.
@@ -1224,8 +1225,8 @@ concurrent launches cannot create two executions for the same claim.
 The row also names the supervisor it is for, among the keys that never change once written: the
 supervisor whose program a resident turn goes into, the supervisor whose host a run is left in, or,
 where a host carries a run on a supervisor's behalf, that supervisor. A native child's row carries its
-parent's. A role's run in a pane of its own names none. This is what a companion's removal finds its rows
-by (`docs/companions.md`, 「Where a companion and its rooms come from」); neither a root nor a place's
+parent's. A role's run in a pane of its own names none. This is what a supervisor's removal finds its rows
+by (`docs/supervisors.md`, 「Adding and removing a supervisor」); neither a root nor a place's
 path says it.
 
 The supervisor waits for the start grant until it is written. The launcher puts the execution into
@@ -1483,7 +1484,7 @@ four-provider byte test does not establish provider support for an otherwise uns
 | A role's run and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
 | Search/browse | Pane fixture | Unsupported by harness | Unsupported by harness | Unsupported by harness |
 | A role's session compaction | Pane fixture | Existing provider-specific compaction only | Existing provider-specific compaction only | Existing provider-specific compaction only |
-| Native children | Request/start/notification reducer fixtures; external format and Claude Workflow branch coverage incomplete | Receiver-state reducer fixtures; installed CLI format coverage incomplete | Native tools disabled by the chat agent overlay; inapplicable | Native tools disabled by the chat agent overlay; inapplicable |
+| Native children | Request/start/notification reducer fixtures; external format and Claude Workflow branch coverage incomplete | Receiver-state reducer fixtures; installed CLI format coverage incomplete | Native tools disabled by the supervisor overlay; inapplicable | Native tools disabled by the supervisor overlay; inapplicable |
 
 Original Stage 7 suite evidence was 3,899 passes and 13 skips. Stage 10's corrected suite
 reported 3,904 passes and 13 skips, followed by additional targeted checks recorded under
@@ -1688,7 +1689,7 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     end on the stop words already in, the reconciliation closing its row on the program's record. The row a resident turn
     opens says it is one, and names the program's record and the process the program was, which
     is what its collector and the reconciliation both close it on.
-  - **A job stopped through agency's routes** — `PATCH /jobs/{jobId}`, and the chat agent's `stop_job`
+  - **A job stopped through agency's routes** — `PATCH /jobs/{jobId}`, and the supervisor's `stop_job`
     on the owner's word (`docs/api.md`, 「assignments and jobs」) — is the same cancellation of the job's
     run, read by the door carrying its turn or by the pass that picked the turn up across a restart, each
     of which puts the stop words in and waits for the turn to end on them. The route answers once the
@@ -1732,7 +1733,7 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   (the job unit's `work-orders.md`, 「The owner stops an item now」). A runner salvages what its run wrote and returns that
   to the room it was working for; with nothing to salvage, the room gets one line saying the work was cut
   off with no result. A chat turn stopped while it is answering leaves that same one line in the room it
-  was answering, in the chat agent's own voice — the room watched it typing, so the room is what is told, and the
+  was answering, in the supervisor's own voice — the room watched it typing, so the room is what is told, and the
   owner hears nothing about a breakdown, because there was none. A watch is a promise as well as a run,
   so stopping its runner ends the watch itself: the record is ended before the unit goes, since a
   standing watch nobody holds is what the sweeper puts back in a run, and the chat that set it hears
@@ -1742,7 +1743,7 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   none was given — and it is the same mark the owner's stop of an item writes (the job unit's
   `work-orders.md`, 「The owner stops an item now」). It stands in the store, so it holds across a restart of the bot: whoever closes
   the row reads it — the runner's own ending, or the dead-job sweep where the runner was taken down
-  before it could write one — and the row closes as `stopped` with the reason in its report. The chat agent is told
+  before it could write one — and the row closes as `stopped` with the reason in its report. The supervisor is told
   that ending once, as a stop; the chat gets no breakdown notice, no failure order is raised, and nothing
   is counted against the item's launches or attempts.
 - **A job of an item stopped by its unit keeps counting as work until its run is gone.** Its item has not
@@ -2274,8 +2275,8 @@ the rest goes to the owner.
 What a person attached to herdr reads in the sidebar is a workspace label, so places are split by an
 agent's character.
 
-- **Every supervisor stands in one workspace.** Every row of agency's `supervisors` table — the chat
-  agent and every companion — has one workspace, its label the row's herdr name where the row carries
+- **Every supervisor stands in one workspace.** Every row of agency's `supervisors` table has one
+  workspace, its label the row's herdr name where the row carries
   one and its calling name otherwise. The herdr name is the owner's, for a supervisor the owner wants
   shown in herdr under another name than the console's, such as a Latin spelling of a name the console
   writes in another script. A name a run is launched under with no row — message sending, a voice
@@ -2409,8 +2410,8 @@ all three, and if any holds it, take it as alive.**
 
 ### What the sweep tells about work that is open
 
-The dead-job sweep, once a minute, tells the chat agent three things about the work it walks, each as a fact and
-none of them as an order. What to do about any of them is the chat agent's. The chat receiver's clock runs it,
+The dead-job sweep, once a minute, tells the supervisor three things about the work it walks, each as a fact and
+none of them as an order. What to do about any of them is the supervisor's. The chat receiver's clock runs it,
 agency's server's.
 
 - **A job circling.** An open job re-invoked past the runaway ceiling inside a process that never exits.
@@ -2449,7 +2450,7 @@ agency's server's.
 
 A job that is about to stand still on purpose — a unit it waits on, another process, a long training,
 judging or checking run — says so before it goes quiet, and the quiet watch reads what it said instead
-of asking the chat agent to go and look.
+of asking the supervisor to go and look.
 
 - **The mark belongs to the running job of one item** and is one per job; a new mark replaces the old.
   It holds what is waited on in the job's own words, the one thing whose life says the wait is still
@@ -2473,9 +2474,9 @@ of asking the chat agent to go and look.
   - While the mark stands, a quiet job is not told of at all.
   - Once the target has gone, the job's quiet is counted from the later of its last line and the moment
     the target was found gone, so the tool call that was waiting has the ordinary five minutes to come
-    back. Past that, the chat agent is told what the job was waiting on, that it ended and when, and how long the
+    back. Past that, the supervisor is told what the job was waiting on, that it ended and when, and how long the
     job has stood since.
-  - Past the expected end with the target still alive and the job quiet for five minutes, the chat agent is told
+  - Past the expected end with the target still alive and the job quiet for five minutes, the supervisor is told
     once what the job was waiting on, that the time it gave has passed and that the target has not ended.
   - Either fact carries the mark as `wait`, beside the ordinary `lastLine`.
 - **Where the mark is shown.** The running report writes it on the job's line, and the console's TODO panel
@@ -2514,7 +2515,7 @@ pane. So the earlier investigation's conclusion holds under herdr too.
 - **A role's session folds inside a run's program,** between turns, once it is past its role's compaction
   threshold (`docs/sessions.md`, 「Session compaction」), so the fold stands on the prefix its runs stand
   on.
-- **No agent on Claude Code folds outside its program:** the chat agent's fold with no pane to stand in fails
+- **No agent on Claude Code folds outside its program:** the supervisor's fold with no pane to stand in fails
   as its turn does, and a host agent on another harness folds as that harness does.
 
 ## The cache prefix
@@ -2554,7 +2555,7 @@ enters the prefix.
   answer from the record. A ping that finds a turn working is skipped: that turn is keeping the prefix
   warm itself.
   - A ping is known by the mark its run carries, never by its words. agency's own touch is composed by
-    the one window like every turn of the chat agent's, so it carries the room's memories and reference ahead
+    the one window like every turn of the supervisor's, so it carries the room's memories and reference ahead
     of the `«keepalive»` line (`bmo-window.md`).
   - A person attached to herdr sees the ping in the same program as the turns.
   - The cache the ping reads and writes is the cache the next turn reads. Pinging on another line warms a
@@ -2773,11 +2774,11 @@ them run a browser, and whose a place is.
 - **The hold is told to agency, and the queue moves on by itself.** The launcher tells agency the
   launches it held and why; agency keeps the notice and reads the room every minute while it stands.
   Once nothing is held it lets the notice go and publishes `machine-room-returned`, and the launcher
-  tells the chat agent the queue as it stands (`queue-waiting`, moment `machine-slack`), told even where
+  tells the supervisor the queue as it stands (`queue-waiting`, moment `machine-slack`), told even where
   the same standing was told before. A notice the launcher withdraws is let go without a word.
 - **While the machine is short the queue is not told as waiting** and the stall watch counts nothing:
   a queue held for the machine is not a stuck one. A `job-ended` fact carries `machineShort`, the
-  limits met, so the chat agent does not launch on it. Both are the launcher's.
+  limits met, so the supervisor does not launch on it. Both are the launcher's.
 - **The start of a work order is held the same way;** the stages its runner launches after it are
   the runner's own.
 
@@ -2795,13 +2796,13 @@ them run a browser, and whose a place is.
   queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
   of the receiver with the code `queue-idle`: the waiting items by number, title, repository and role,
-  the idle minutes and when the last job started, and that the chat agent launches the next item or says
-  why it does not. The receiver hands it to the chat agent in the owner's private chat, which
+  the idle minutes and when the last job started, and that the supervisor launches the next item or says
+  why it does not. The receiver hands it to the supervisor in the owner's private chat, which
   voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
   was told is kept, and nothing more is said until a job starts again.
-- **An item that could go is told to the chat agent on its own.** Where an open item waits to go, and it is
+- **An item that could go is told to the supervisor on its own.** Where an open item waits to go, and it is
   still waiting a minute after agency first saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency
-  queues one instruction for the chat agent in the room the item was asked in — its `roomId`, else the room
+  queues one instruction for the supervisor in the room the item was asked in — its `roomId`, else the room
   its `scope` names — and in the owner's private room only for an item that names none, through the
   receiver's `POST /instructions`, under the event `item-awaits-launch:#<item>`: the item awaits a launch,
   so lease it (`job_lease_next`), run it (`run_job`), or say in one line why not. It is told once for each
@@ -2825,7 +2826,7 @@ them run a browser, and whose a place is.
   jobs with a browser as the room counts them. The consumer that holds the owner's chat tells it to the
   chat agent as a fact.
 - **No job is launched while the disk is under its launch line,** since the room holds it; what to free
-  is the chat agent's to find.
+  is the supervisor's to find.
 - **herdr not answering is the same fact.** Every call herdr leaves unanswered for five seconds is
   written to the machine's own record of them, and goes on waiting for its answer; a line per call in the temporary directory
   (`BMO_HERDR_SILENCES` names another file). Agency's watch tells new ones as `machine-pressure` (cause

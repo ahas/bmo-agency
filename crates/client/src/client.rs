@@ -296,13 +296,6 @@ pub struct GetUsageQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ListCompanionsQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub room_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DeleteRoomHoldingQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub dry_run: Option<bool>,
@@ -761,31 +754,6 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["settings"]).json(body)).await
   }
 
-  /// `GET /companions`: Companion agents, by room.
-  pub async fn list_companions(&self, query: &ListCompanionsQuery) -> Answer<CompanionPage> {
-    Self::answered(self.request(Method::GET, &["companions"]).query(query)).await
-  }
-
-  /// `POST /companions`: Add a companion agent.
-  pub async fn create_companions(&self, body: &CompanionAsk) -> Answer<Companion> {
-    Self::answered(self.request(Method::POST, &["companions"]).json(body)).await
-  }
-
-  /// `PATCH /companions/{companionName}`: Change a companion and the rooms it answers in.
-  pub async fn change_companion(&self, companion_name: &str, body: &CompanionChange) -> Answer<Companion> {
-    Self::answered(self.request(Method::PATCH, &["companions", companion_name]).json(body)).await
-  }
-
-  /// `DELETE /companions/{companionName}`: Remove a companion from the deployment.
-  pub async fn delete_companion(&self, companion_name: &str) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["companions", companion_name])).await
-  }
-
-  /// `POST /companion-resets`: Reset a companion's person ranges and rooms; dryRun counts it first.
-  pub async fn create_companion_resets(&self, body: &CompanionResetAsk) -> Answer<CompanionReset> {
-    Self::answered(self.request(Method::POST, &["companion-resets"]).json(body)).await
-  }
-
   /// `GET /repositories/{repositoryName}/definition`: The worker's agent definition: graph, trailer, handoff.
   pub async fn get_workers_definition(&self, worker_name: &str) -> Answer<WorkerDefinition> {
     Self::answered(self.request(Method::GET, &["repositories", worker_name, "definition"])).await
@@ -1067,6 +1035,33 @@ impl AgencyClient {
   /// `GET /supervisors/{supervisorName}/reset-point`: A supervisor's reset point alone.
   pub async fn get_supervisor_reset_point(&self, supervisor_name: &str) -> Answer<SupervisorResetPoint> {
     Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "reset-point"])).await
+  }
+
+  /// `GET /supervisors/{supervisorName}/settings`: A supervisor's settings, its system prompt and its room
+  /// sessions.
+  pub async fn get_supervisor_settings(&self, supervisor_name: &str) -> Answer<SupervisorSettings> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "settings"])).await
+  }
+
+  /// `PATCH /supervisors/{supervisorName}/settings`: Change a supervisor's reference switch, persona,
+  /// generation settings, registration or thinking.
+  pub async fn change_supervisor_settings(
+    &self,
+    supervisor_name: &str,
+    body: &SupervisorSettingsChange,
+  ) -> Answer<SupervisorSettings> {
+    Self::answered(self.request(Method::PATCH, &["supervisors", supervisor_name, "settings"]).json(body))
+      .await
+  }
+
+  /// `POST /supervisors/{supervisorName}/resets`: Start a supervisor afresh in the ranges named; dryRun counts it
+  /// first.
+  pub async fn create_supervisor_reset(
+    &self,
+    supervisor_name: &str,
+    body: &SupervisorResetAsk,
+  ) -> Answer<SupervisorReset> {
+    Self::answered(self.request(Method::POST, &["supervisors", supervisor_name, "resets"]).json(body)).await
   }
 
   /// `GET /nodes`: The nodes the node service keeps, each with whether it takes jobs.

@@ -24,13 +24,13 @@ says. Each is a TOML file under `policy/`, one file to a part, and the `policy` 
 
 ## The parts agency shares with its callers
 
-Some parts hold settings another service also works by: a worker's job prompt, the chat agent's health
+Some parts hold settings another service also works by: a worker's job prompt, the supervisor's health
 notices and the browser's launch. Of each, agency's file holds only the keys agency itself reads (the
 scratch folder under a worker's workbench, the account of a dead run and the notice of one that came back,
 how a Chrome agency starts stands apart). Agency owns those keys:
 a caller that needs one has it from agency rather than keeping a copy of its own, and every other key of
 those settings is the caller's. The gates are not among them: a gate's run is the gate service's own, not
-agency's, and agency's file holds only the companion's own part of a turn.
+agency's, and agency's file holds only the supervisor's own part of a turn.
 
 ## The deployment's names
 

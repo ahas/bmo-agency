@@ -833,7 +833,7 @@ fn restand(call: &crate::control::Call) {
   if let Some(places) = call.places().cloned() {
     tokio::spawn(async move {
       crate::places::standby::restand_all(&places.ground, false).await;
-      crate::places::standby::release_stale_companions(&places.ground).await;
+      crate::places::standby::release_stale_supervisors(&places.ground).await;
     });
   }
 }

@@ -5,11 +5,11 @@
 pub mod chat;
 pub mod claude;
 pub mod codex;
-pub mod companion;
 pub mod dsh;
 pub mod openrouter;
 pub mod ordered;
 pub mod persona;
+pub mod pieces;
 pub mod place;
 pub mod prefix;
 pub mod role;

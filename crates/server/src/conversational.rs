@@ -22,7 +22,7 @@ pub enum Scope {
 pub enum Shape {
   /// The chat documents as its system prompt, the window's round prompt and the re-asks after an answer.
   Window,
-  /// Its settings' pieces as its system prompt, the companion blocks as its turn, and no re-ask.
+  /// The pieces role and its persona as its system prompt, its new words as its turn, and no re-ask.
   Pieces,
 }
 
@@ -100,18 +100,13 @@ impl Settings {
     })
   }
 
-  /// The settings the console gives a companion it adds, and the seed one it declares.
-  pub fn companion_added() -> Self {
+  /// The settings a supervisor registered through `POST /supervisors` is given.
+  pub fn console_added() -> Self {
     Self {
       scope: Scope::Room,
       shape: Shape::Pieces,
       default_answerer: false,
     }
-  }
-
-  /// Whether it is a companion: a conversational agent other than the one answering the unnamed rooms.
-  pub fn companion(&self) -> bool {
-    !self.default_answerer
   }
 }
 
@@ -124,7 +119,6 @@ fn unsettled(kind: &str) -> Option<Settings> {
       shape: Shape::Window,
       default_answerer: true,
     }),
-    "companion" => Some(Settings::companion_added()),
     _ => None,
   }
 }
@@ -149,14 +143,9 @@ pub async fn settings(db: &impl ConnectionTrait, agent: &str) -> Result<Option<S
   }
 }
 
-/// Whether an agent is a companion: a conversational agent whose row does not make it the default answerer.
-pub async fn is_companion(db: &impl ConnectionTrait, agent: &str) -> Result<bool, Refusal> {
-  Ok(settings(db, agent).await?.is_some_and(|settings| settings.companion()))
-}
-
-/// The prompt folder an agent's row names under `prompts/agents/`, which a companion's system prompt and
+/// The prompt folder an agent's row names under `prompts/agents/`, which a supervisor's system prompt and
 /// persona are read from, or none where its row names none or it has no row (`docs/store.md`). Every
-/// path composing a companion's prompt hands this as its `prompts`, never the companion's name.
+/// path composing a supervisor's prompt hands this as its `prompts`, never the supervisor's name.
 pub async fn prompt_folder(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
   match one(db, r#"SELECT "prompts" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()]).await? {
     Some(row) => Ok(row.try_get("", "prompts")?),

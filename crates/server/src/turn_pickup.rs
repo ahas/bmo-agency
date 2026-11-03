@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use agent_session::TurnEnd;
-use policy::companion_runner::COMPANION_RUNNER;
 use policy::resident_turn::RESIDENT_TURN;
+use policy::supervisor_runner::SUPERVISOR_RUNNER;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use store::{all, one};
@@ -344,7 +344,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
       Line {
         kind: "end",
         text: match &came {
-          Came::Answered(_) => COMPANION_RUNNER.log.answered.clone(),
+          Came::Answered(_) => SUPERVISOR_RUNNER.log.answered.clone(),
           Came::Failed(why) => why.clone(),
         },
         state: Some(if answered { "succeeded" } else { "failed" }),
@@ -452,7 +452,7 @@ fn road_walked(chat_id: i64, turn: &InFlight, provider: &str, reply: Option<&Rep
   };
 
   RoadWalked {
-    stage: COMPANION_RUNNER.turn_stage.clone(),
+    stage: SUPERVISOR_RUNNER.turn_stage.clone(),
     chat_id,
     run: turn.run.clone(),
     provider: reply.map_or_else(|| provider.to_owned(), |reply| reply.mode.clone()),

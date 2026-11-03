@@ -13,7 +13,7 @@
 import type { ContextState } from "./runlog";
 
 // Where the turn is: turning it over, writing the answer, working a tool, or waiting for its engine
-// while a Job holds it (docs/companions.md, 「The engine it shares」).
+// while a Job holds it (docs/supervisors.md, 「The engine it shares」).
 export type RunPhase = "thinking" | "writing" | "tool" | "waiting";
 
 // The Job a turn waits on: its number, and the item it is a run of, where it is one.

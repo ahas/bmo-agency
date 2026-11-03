@@ -10,7 +10,7 @@ fn a_commit_moves_the_prefix_through_a_memory_file_a_worker_s_own_rules_or_a_pro
     "AGENTS.md",
     "server/bot.ts",
     "prompts/harness.md",
-    "prompts/agents/companion/own-rules.md",
+    "prompts/agents/pieces/own-rules.md",
     "prompts/agents/worker/plugin/skills/x/SKILL.md",
     "prompts/agents/worker/trailer.md",
     "prompts/agents/worker/request.md",
@@ -24,7 +24,7 @@ fn a_commit_moves_the_prefix_through_a_memory_file_a_worker_s_own_rules_or_a_pro
     [
       "AGENTS.md",
       "prompts/harness.md",
-      "prompts/agents/companion/own-rules.md",
+      "prompts/agents/pieces/own-rules.md",
       "prompts/agents/worker/plugin/skills/x/SKILL.md",
       "prompts/agents/worker/trailer.md"
     ]

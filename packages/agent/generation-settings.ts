@@ -1,4 +1,4 @@
-// The generation settings a companion's turns are asked with (docs/companions.md, 「Its generation
+// The generation settings a supervisor's turns are asked with (docs/supervisors.md, 「Its generation
 // settings」): each by the name the engine's chat completions path reads it under, a number with its
 // bounds or a switch. One left empty is the engine's own default. `max_tokens` is the run's answer
 // ceiling; every other one is the run's sampling, which the gateway writes into the request the engine

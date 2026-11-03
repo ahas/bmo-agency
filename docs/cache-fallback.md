@@ -165,7 +165,7 @@ model it launched, the account the run went out on, and the walk it runs when a 
 When a demotion first catches — when a healthy session first drops — two things happen.
 
 - **Notify:** the owner's private chat is told which room dropped to which model. The room itself is
-  not told. (Agency raises the fact; the chat agent is what tells the owner.)
+  not told. (Agency raises the fact; the supervisor is what tells the owner.)
 - **Heal:** that room's session is discarded so the next turn opens a new one, which opens with
   nothing carried over and so restarts on a context the safeguard does not catch.
 - **Once only:** the notice and heal happen on the turn a room started dropping, not on every turn it
@@ -570,7 +570,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **Which of the two a failure is, is one judgement,** read off the run's ending through the program's
   own failure reading, in one place every run asks, so no two lines read the same failure differently.
 - **A line that spawns once takes the first open account rather than walking.** Search and browse runs
-  are each one process given the account their run is offered first, and a companion's turn on Claude
+  are each one process given the account their run is offered first, and a pieces-shaped turn on Claude
   Code takes the first open account the same way. Everything that can be launched again is carried
   account by account.
 - **Walking down:** if a run's provider has no quota above its share, cannot answer now, is not run or

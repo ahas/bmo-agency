@@ -87,7 +87,7 @@ pub async fn cancelled(db: &DatabaseConnection, names: &[&str]) -> Result<bool, 
 const OPEN_POLL: Duration = Duration::from_millis(500);
 
 /// Every row naming this agent as the one it is for taken, once the agent itself is gone
-/// (docs/companions.md, 「Where a companion and its rooms come from」), with each row's envelope directory
+/// (docs/supervisors.md, 「Adding and removing a supervisor」), with each row's envelope directory
 /// and the attempt count of a root no row holds any more. A row still open is waited on until it closes,
 /// however long that takes, since its collector writes it as it ends and would write back a row taken
 /// before then. Answers what of the disk could not be removed.

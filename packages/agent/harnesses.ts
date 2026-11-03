@@ -24,8 +24,8 @@ import type { RunLine } from "./run-lines";
 // those reach back here; the list is read once everything has loaded. The order is the order a
 // screen offers them in, and Claude Code first is the program a line's own code spawns on.
 // The registered models carry the lines their file of the policy names: the chat, the worker and the
-// companions as Claude Code on the gateway, and the gates as one request with no tools
-// (docs/own-llm.md, docs/companions.md). Which lines it carries is said in its file of the policy and
+// supervisors as Claude Code on the gateway, and the gates as one request with no tools
+// (docs/own-llm.md, docs/supervisors.md). Which lines it carries is said in its file of the policy and
 // read here; which models there are is the registry's, which the owner changes with no commit.
 export const agencyRegisteredProvider = registeredProvider({ lines: declaredRegistered.lines as RunLine[] });
 

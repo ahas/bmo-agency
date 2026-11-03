@@ -1,11 +1,11 @@
 # What each supervisor owns
 
-Every supervisor — the chat agent and every companion (`docs/supervisors.md`) — keeps its own state:
+Every supervisor (`docs/supervisors.md`) keeps its own state:
 its sessions, its long-term memory, the reminders and watches that wake it, its gate settings, its voice
 and its usage. This document is the canonical statement of how that state is split. Agency holds the
 supervisor's row in the `supervisors` table and its room sessions; the other stores named below belong
 to the units that keep them, and are listed so every consumer reads the same owner column.
-`docs/companions.md` is what a companion's session does with it. A role owns none of this: a run of a
+`docs/supervisors.md` is what a supervisor's session does with it. A role owns none of this: a run of a
 role keeps no memory, reminder or watch of its own (`docs/agent-roles.md`).
 
 ## The principle
@@ -18,11 +18,11 @@ role keeps no memory, reminder or watch of its own (`docs/agent-roles.md`).
   name.
 - **Nothing counts the supervisors.** No code, schema, screen or test assumes a number of supervisors
   or names one of them: every reader takes the supervisor a turn is for and reads that supervisor's
-  rows, so a companion added as a row has every part below on its own from its first turn.
-- **The rows that stood before the split are the chat agent's.** Each owner column is added with a
-  backfill naming the chat agent's row — the row of the deployment's agent key, read at the
-  settling, never a literal name — so nothing the chat agent held moves or changes.
-- **The proof is a third agent.** The tests stand a fake companion beside the two real agents and
+  rows, so a supervisor added as a row has every part below on its own from its first turn.
+- **The rows that stood before the split are the supervisor's.** Each owner column is added with a
+  backfill naming the supervisor's row — the row of the deployment's agent key, read at the
+  settling, never a literal name — so nothing the supervisor held moves or changes.
+- **The proof is a third agent.** The tests stand a fake supervisor beside the two real agents and
   check that it gets its own session, reminders, watches, voice setting, usage and gate settings, and
   reads nothing of the others'; its brain is its own by its keys.
 
@@ -31,25 +31,24 @@ role keeps no memory, reminder or watch of its own (`docs/agent-roles.md`).
 Beside its provider order, its cache warming per provider and its compaction threshold
 (`docs/supervisors.md`, 「What a supervisor row holds」):
 
-| Column | What it says | The chat agent's | A companion's default |
+| Column | What it says | The seeded default answerer's | One added on the console |
 |---|---|---|---|
 | `voice` | the voice its words are spoken in, or none | the briefing voice it speaks in now | none |
 | `window_seconds` | how long a room it answered keeps it listening without a call, or none | the conversation window it has now | none |
 | `wake_words` | the words that call it, beside its label | the deployment's trigger keywords | its aliases |
 | `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
-| `turn_shape` | the shape of its turns: the chat agent's window (`window`) or a companion's (`pieces`) | `window` | `pieces` |
+| `turn_shape` | the shape of its turns: the window (`window`) or the pieces (`pieces`) | `window` | `pieces` |
 | `default_answerer` | whether it answers every room that names nobody | yes | no |
-| `prompts` | the folder under `prompts/agents/` a companion's system prompt and persona are read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
+| `prompts` | the folder under `prompts/agents/` a pieces-shaped turn's persona is read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 | `owner_account` | the id of the login account that owns it, or none | none | the one its registration names, or none |
 
 - **A supervisor with no voice makes no voice.** No briefing, voice chip or reading is made for its
   turns, and a voice given to its row later turns all three on with no other change
   (`voice-briefing.md`).
-- **The window and the wake words are read by the receiver alone** (`docs/companions.md`, 「Who is
-  woken」).
+- **The window and the wake words are read by the receiver alone.**
 - **No column locates its memory.** Its long-term memory is its brain, found by its account and its
-  key (「Long-term memory」 below). The row's `brain_folder` locates nothing; a companion's reset reads it
-  only to refuse the supervisor whose value is empty, the chat agent.
+  key (「Long-term memory」 below). The row's `brain_folder` locates nothing; a supervisor's reset reads it
+  only to refuse the supervisor whose value is empty, the brain's root.
 
 ## The stores split by an owner column
 
@@ -59,7 +58,7 @@ Beside its provider order, its cache warming per provider and its compaction thr
 | watches | `agent` | the watch runner, which wakes the owner when its check ends |
 | gate options | `agent` | the gates when they run for that supervisor's turn |
 | usage runs | `agent` | the usage screens, grouped by supervisor |
-| room sessions | `agent` | the runner, for a supervisor of the `room` scope (`docs/companions.md`, 「The session」) |
+| room sessions | `agent` | the runner, for a supervisor of the `room` scope (`docs/supervisors.md`, 「A session in each room」) |
 | instructions | `agent` | the supervisor's own conversation: each supervisor's takes only its own rows |
 
 - **Every write names the supervisor it is for.** A tool or a block writes the supervisor of the turn
@@ -68,16 +67,16 @@ Beside its provider order, its cache warming per provider and its compaction thr
   a default.
 - **A reminder, a watch and a memory event wake their own supervisor:** their quiet instruction is
   queued for the supervisor the row is, and only that supervisor's turns take it, through its own
-  conversation in the row's room, the chat agent's and a companion's alike (`docs/companions.md`).
-  Nothing of another supervisor's ever reaches the chat agent's window.
+  conversation in the row's room, whatever its scope (`docs/supervisors.md`).
+  Nothing of another supervisor's ever reaches a supervisor's turn.
 - **A turn names its supervisor.** Every supervisor's turn carries its name in `BMO_TURN_AGENT`, which
   the reminder and watch scripts and the chat tools read; a script also takes `--agent`, and a call
   naming no supervisor is refused.
 - **Every read names the supervisor too.** A turn reads its own supervisor's rows, and a reminder or
   watch wakes its own supervisor. Every room several supervisors share holds rows of each, and each
   sees only its own.
-- **A companion's gate options are made when it stands,** copied from the chat agent's as they are
-  then, so the gates run for it from its first turn and are tuned apart afterwards.
+- **An added supervisor's gate options are made when it stands,** copied from the default answerer's as
+  they are then, so the gates run for it from its first turn and are tuned apart afterwards.
 
 ## Long-term memory
 
@@ -102,8 +101,7 @@ Beside its provider order, its cache warming per provider and its compaction thr
 
 ## Who writes long-term memory
 
-- **Each supervisor writes its own,** the chat agent and every companion alike, in the
-  turn itself and on its own model: as it reads each message, the live one that woke it and every
+- **Each supervisor writes its own,** in the turn itself and on its own model: as it reads each message, the live one that woke it and every
   archived message a turn hands it — what arrived while it was away, after a handover or on its
   return to a room — it writes what matters of them into its brain. The discipline its system prompt
   carries from the brain says so (`docs/api.md`, 「Calls agency makes」), and no other agent writes a
@@ -112,15 +110,15 @@ Beside its provider order, its cache warming per provider and its compaction thr
   into its own turns as it wrote it, and no other model's judgement of what is fit to say reaches its
   turns through its memory.
 - **A room several supervisors answer is read by each,** and each writes its own.
-- **A companion hands its own session over,** the session itself writing its state on its own
-  model in one more turn once its context reaches the handoff mark (`docs/companions.md`, 「Its
+- **A supervisor on the registry's provider hands its own session over,** the session itself writing its state on its own
+  model in one more turn once its context reaches the handoff mark (`docs/supervisors.md`, 「Its
   limit」).
 
 ## The console
 
-- **The supervisor tab lists every supervisor,** each under its own label, so another companion
+- **The supervisor tab lists every supervisor,** each under its own label, so another supervisor
   stands there the moment its row does. The console reads them from agency's supervisor list
   (`docs/api.md`, 「supervisors」).
 - **A supervisor's memories are read on the brain's own screen,** by the brain its two keys name.
-- **Each supervisor's own screen shows its usage,** its week's tokens read from its usage rows, a
-  companion's from the usage its turns write (`web.md`, 「Agent screen」).
+- **Each supervisor's own screen shows its usage,** its week's tokens read from the usage its turns
+  write (`web.md`, 「Agent screen」).

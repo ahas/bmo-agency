@@ -210,20 +210,20 @@ fn a_file_carrying_no_fetch_time_is_read_as_the_oldest_and_always_stale() {
 #[test]
 fn the_prompts_of_a_folder_leave_the_history_and_every_other_line_stays_as_it_stood() {
   let dir = tempfile::tempdir().unwrap();
-  let home = Path::new("/data/companion-homes/pal");
+  let home = Path::new("/data/supervisor-homes/pal");
   let line = |project: &str, session: &str| {
     format!(
       "{}\n",
       json!({ "display": "words", "pastedContents": {}, "project": project, "sessionId": session })
     )
   };
-  let other = line("/data/companion-homes/pal-2", "s1");
+  let other = line("/data/supervisor-homes/pal-2", "s1");
   let history = [
-    line("/data/companion-homes/pal", "s1"),
+    line("/data/supervisor-homes/pal", "s1"),
     other.clone(),
-    line("/data/companion-homes/pal/rooms", "s2"),
+    line("/data/supervisor-homes/pal/rooms", "s2"),
     "not a line of the history\n".to_owned(),
-    line("/data/companion-homes/pal", "s3"),
+    line("/data/supervisor-homes/pal", "s3"),
   ];
 
   std::fs::write(dir.path().join(HISTORY), history.concat()).unwrap();

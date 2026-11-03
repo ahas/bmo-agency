@@ -11,7 +11,7 @@
 - **One ask waits for a session at a time.** An ask for a session that already has one waiting is
   the same ask, and adds no row.
 - **The old session is kept, never deleted:** the program's own record of it stays where the
-  program wrote it, and whatever the holder keeps of its turns stays under it. Only a companion's
+  program wrote it, and whatever the holder keeps of its turns stays under it. Only a supervisor's
   reset of its conversation deletes sessions, and that is a reset of its own (below).
 
 ## Who holds a session, and how each clears it
@@ -32,7 +32,7 @@ flowchart TD
   F --> D
 ```
 
-- **The chat agent:** the one session every room's rounds go on in (`unified-bmo.md`).
+- **A supervisor of the `agent` scope:** the one session every room's rounds go on in (`unified-bmo.md`).
   - A reset is the chat's forced replacement: the next round closes the session and opens a new one,
     nothing of the old one carried into it, as with any replaced session (`docs/sessions.md`,
     「Session replacement」).
@@ -46,13 +46,13 @@ flowchart TD
   - Agency carries a role's reset out, since it holds the records and knows which runs go: once an ask
     is written, every waiting ask none of whose sessions a run holds is carried out before the route
     answers, and so is it on a script's `session-resets` word (`docs/api.md`, 「Events」).
-- **A companion in a room:** that room's session, cleared by the next turn there
-  (`docs/companions.md`, 「Clearing it」).
+- **A supervisor of the `room` scope in a room:** that room's session, cleared by the next turn there
+  (`docs/supervisors.md`, 「Clearing it」).
   - Its resident program standing on that session is taken down as the ask is written, where no
-    turn of the companion holds it, so the cleared session is not what its pane holds while the ask
-    waits (`docs/companions.md`, 「The program on an ended session」).
-  - Agency does this too, as it holds the companion's program: once an ask is written,
-    and on a script's `session-resets` word, every waiting ask of a companion's room session has
+    turn of the supervisor holds it, so the cleared session is not what its pane holds while the ask
+    waits (`docs/supervisors.md`, 「The program on an ended session」).
+  - Agency does this too, as it holds the supervisor's program: once an ask is written,
+    and on a script's `session-resets` word, every waiting ask of a room session has
     the program on that session taken down.
 
 ## A session boundary is what applies a new chat tool
@@ -69,15 +69,15 @@ flowchart TD
 ## Where it is asked
 
 - **The console:** the agent settings' session list holds every session there is, one row each, and
-  the companion's settings hold a reset for each of its rooms, both read from agency's session
+  a supervisor's settings hold a reset for each of its room sessions, both read from agency's session
   routes. Before anything is
   asked, a confirmation says in one line what the reset clears and whether it waits for a running
   turn or job.
-- **A companion's generation settings** ask it of every room session of that companion as they are
-  saved (`docs/companions.md`, 「Its generation settings」).
-- **A companion's reset with its conversation range** ends that companion's room sessions itself,
+- **A supervisor's generation settings** ask it of every room session of that supervisor as they are
+  saved (`docs/supervisors.md`, 「Its generation settings」).
+- **A supervisor's reset with its conversation range** ends that supervisor's room sessions itself,
   and records each as an ask carried out at that moment, settling any ask still waiting for it
-  (`docs/companions.md`, 「Starting it afresh」).
+  (`docs/supervisors.md`, 「Starting it afresh」).
 - **A base prompt** asks it of every session of each agent that chooses it, as its text is saved,
   and an agent's change of choice asks it of that agent's (`docs/base-prompts.md`, 「Saving」).
 - **Who may ask:** the owner, signed in to the console; the ask is recorded under the owner's name.

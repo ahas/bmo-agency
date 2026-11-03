@@ -20,15 +20,15 @@ entry is the file behind it, where the file is the system's own to serve.
 - **Its engine:** the engine that serves it, by the name of that engine's installer (`own-llm`), or
   none for a file no engine of the system installs.
 - **Its registration:** the registration the engine is reached by (`own-0-1`), or none. A
-  companion whose order names that registration is offered the entry (`docs/companions.md`, 「Its
+  supervisor whose order names that registration is offered the entry (`docs/supervisors.md`, 「Its
   settings」).
 - **Its nodes:** the nodes the file lies on now, by their names in the node list, as the engine's
   installer records them; nothing in the code names a node.
 - **Its defaults:** the settings the file is meant to be asked with — thinking, `temperature`
   from 0 to 2, `top_p` above 0 up to 1, `presence_penalty` from −2 to 2 and `max_tokens` from 1 —
   each one empty or a value. They are the file's own record, shown with it, and no run reads them: a
-  run on its engine is sampled with what its own caller names, a companion's generation settings
-  (`docs/companions.md`, 「Its generation settings」), and the engine's defaults otherwise.
+  run on its engine is sampled with what its own caller names, a supervisor's generation settings
+  (`docs/supervisors.md`, 「Its generation settings」), and the engine's defaults otherwise.
 - **Its note:** free text for the owner.
 
 ## Where it is kept
@@ -55,7 +55,7 @@ entry is the file behind it, where the file is the system's own to serve.
 
 ## Choosing a model for an engine
 
-- **Where:** the companion's settings, which offer the entries of its registration, the model files tab
+- **Where:** a supervisor's settings, which offer the entries of its registration, the model files tab
   on the console, or `bmo-agency model use <entry>`.
 - **What it does, in order,** as one run of its own that outlives the screen that started it:
   1. checks the entry has an engine, and that no other choice for the same engine is running;

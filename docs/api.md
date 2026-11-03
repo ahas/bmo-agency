@@ -118,11 +118,14 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors/{supervisorName}` | One supervisor: its row, order, warming, threshold, gates, sampling, voice, and what it stands on now. |
 | GET | `/supervisors/{supervisorName}/rooms` | The rooms a supervisor's turns went into, each with its last run there. |
 | GET | `/supervisors/{supervisorName}/reset-point` | A supervisor's reset point alone. |
+| GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
+| PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
+| POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
 | PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
-- **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change and end any of them:
-  the chat agent and the companions alike.
+- **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
+  them alike.
 - **A supervisor is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
   an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
   which supervisor is the caller's to judge; agency writes the owner it is handed.
@@ -133,7 +136,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
   provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds or the
   default answerer, which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
-  its last reset cut its turns off at (`docs/companions.md`, 「What the reset cuts off」), or null where it
+  its last reset cut its turns off at (`docs/supervisors.md`, 「What the reset cuts off」), or null where it
   was never reset. The reset also publishes each move of the point as it makes it (「Events」), so a consumer
   that missed one reads the point again here or at `GET /supervisors/{supervisorName}/reset-point`. Whether a
   stand-in answers a supervisor now is `GET /stand-in` (「accounts, rest and usage」).
@@ -154,19 +157,20 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
   is set (`docs/provider-order.md`, 「What an order is」). The same shape is a role's.
 - **`POST /supervisors` takes the registration,** each field judged in this order and nothing written until
-  all have passed: `name`, a lowercase letter, then lowercase letters, digits and hyphens, forty characters at
-  most, held by no supervisor yet; `label`, given; `order`, judged as an order is (below); `repository`, a
-  repository the store holds; `ownerAccount`, none where the caller gives none; and `foldRatio`, the first
-  provider's declared default where none is given. The row is written as a companion added on the console
-  is: the `room` scope, the `pieces` shape, not the default answerer, the brain folder `agents/<name>`, and no
-  prompt folder. The order is written whole at creation, its `quotaShare` beside it.
-- **A supervisor added on the console is added through the receiver,** which owns the room it answers: the
-  console asks the receiver's companion add, the receiver writes the console's room, its answerers and the
-  record, and asks agency's `POST /companions` (「companions and companion-resets」) for the agent's half. That
-  add takes the whole order and its share where the receiver hands them, so one ask writes the row with its
-  order; where it hands only `provider` and `model`, the order is that one entry, and the whole order is a
-  `PATCH /supervisors/{supervisorName}` after it. `POST /supervisors` registers a supervisor with no room of the
-  console's, for a caller that owns no room.
+  all have passed (`docs/supervisors.md`, 「Adding and removing a supervisor」): `name`, a lowercase letter,
+  then lowercase letters, digits and hyphens, forty characters at most, held by no supervisor yet, 409
+  `name-taken` where one holds it; `label`, given; the order, either `order` with its `quotaShare`, judged as
+  an order is (below), or `provider` and `model`, an order of that one entry at the default share — a body
+  naming both is refused 400 `order` where the order's first entry is not that provider and model;
+  `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none; and
+  `foldRatio`, the first provider's declared default where none is given. The row is written as one added
+  on the console is: the `room` scope, the `pieces` shape, not the default answerer, warmed on each provider
+  of its order, the brain folder `agents/<name>`, and no prompt folder. The order is written whole at
+  creation, its `quotaShare` beside it.
+- **A supervisor added on the console is added through the receiver,** which owns the rooms it answers: the
+  console asks the receiver, the receiver writes the console's room, the supervisor's number there and the
+  room's `supervisors` list, and asks `POST /supervisors` for the supervisor's half. Agency holds no room's
+  list.
 - **An order is refused** 400 `bad-request` with `field` beside `error`, naming the member: an empty order, a
   provider agency does not carry or named twice, a provider whose program does not carry the chat line, a
   model the provider does not hold — a catalogue that reads and does not name it, a member its road does not
@@ -184,13 +188,42 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   - 404 `not-found` for no supervisor of the name;
   - 409 `seeded` for a supervisor the deployment seeds or the default answerer, whatever `force` says;
   - 409 `running` for a supervisor a turn holds now, unless `force`, which ends it under the turn.
-  - A companion's conversation is reset first, as its removal resets it (`docs/companions.md`, 「Starting it
-    afresh」), each of the `rooms` named read as a room it shares, so the rooms keep their record.
-  - Then in one write its settings, its session reset asks, its gate switches, its sampling, its reset point
-    and its row; then what stands for it: its program, its workspace, its place and home folder, its
+  - Its conversation is reset first (`docs/supervisors.md`, 「Starting it afresh」), each of the `rooms`
+    named — a list of room numbers joined by commas — read as a room it shares, so the rooms keep their
+    record; its person range is reset with it where `forgetBrain` is true.
+  - Then in one write its settings, its base prompt choice, its session reset asks, its gate switches, its
+    sampling, its reset point and its row; then what stands for it: its program, its workspace, its place and home folder, its
     execution rows, the agent host's records of it and its lock. What could not go is logged.
   - **Its brain is data and stays,** unless `forgetBrain` is true.
   - The answer is 204.
+- **`GET /supervisors/{supervisorName}/settings`** answers a supervisor as its settings page shows it
+  (`docs/supervisors.md`, 「Its settings」): `agent` and `label`; `icon`; `builtin`, whether the deployment
+  seeds it; `turnShape`; `provider` and `model`, what its order names first; `registration`, the registration
+  its order names at the registry's provider, or null, and `registrations`, every offered registration, each
+  `name` and `label`; `entries`, the model files behind that registration, `serving`, the one its engine
+  serves now, and `modelUse`, the engine's latest use; `settings` — `referenceOn`, `persona`, `generation`,
+  `updatedAt` and `updatedBy`; `generationSettings`, every generation setting with its bounds, as a
+  repository's `samplingSettings` are answered (「repositories」), `max_tokens` held under the registration's
+  window; `thinking`, on, off or null for the provider's own; `personaFile`, the persona its prompt folder's
+  file holds; `basePrompt` and `basePrompts`; `system`, the system prompt its next turn sends —
+  `characters`, `hash` and `text` — where its turn shape is `pieces`, and null for the `window` shape; and
+  `sessions`, its room sessions, each `chatId`, the room's `title`, `generation`, `systemResetAt`,
+  `resetWaiting` and `lastResetAt`. 404 `not-found` for no supervisor of the name.
+- **`PATCH /supervisors/{supervisorName}/settings`** takes `referenceOn`, `persona`, `generation`, an object
+  of settings by name, a null letting one go back to the engine's default, `registration`, an offered
+  registration put at the head of its order at the registry's provider or null to take that entry out,
+  `thinking` and `by`, who saves, each judged before anything is written; a field it does not name is
+  refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
+  changes its generation settings or its thinking asks a reset of every room session it holds. The answer
+  is the settings read as it then stands; a program standing on a model its order no longer gives is let go.
+- **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
+  「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
+  `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list
+  of room numbers; `dryRun`, true to count what it would take and write nothing; and `by`. It answers 200
+  with `agent`, `label`, `ranges`, `alone` and `shared`, each room's `chatId` and `title`, `rows`, what it
+  took or would take of each table and range, `files`, the harness records, and `brain`, the brain's
+  answer for the person range or null. 400 for a body naming no range, and for a supervisor whose brain
+  folder is the brain's root.
 
 ### roles
 
@@ -254,7 +287,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/chat-documents` | The chat agent's own documents the owner may keep — its opening, the absolute rules and the manual — each with the text it stands as, where that text comes from, and its version. |
+| GET | `/chat-documents` | The supervisor's own documents the owner may keep — its opening, the absolute rules and the manual — each with the text it stands as, where that text comes from, and its version. |
 | PATCH | `/chat-documents/{documentName}` | Save the owner's text of one document, or reset it to its file. |
 
 - **A document stands as the owner's text where one is saved,** and as its file under the deploy tree
@@ -265,7 +298,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   again.
 - **The chat line reads them afresh at every launch,** so a save reaches the next turn with no
   restart, and a turn keeps its conversation under the changed system prompt as any change of it does
-  (`docs/agent-documents.md`, 「The chat agent」).
+  (`docs/agent-documents.md`, 「A supervisor of the window shape」).
 
 ### document-moves
 
@@ -329,7 +362,7 @@ in on, on the role's line.
   running sessions one after another on one slot starts the next before it ends the one before.
 
 Every role's session but a co-work branch's carries the reference its first prompt's instruction calls for,
-picked by the gate's reference selection over the chat agent's brain and attached to that first prompt, the same
+picked by the gate's reference selection over the supervisor's brain and attached to that first prompt, the same
 way a job's is (「assignments and jobs」); a later turn of the same session is asked over it and not over it
 again. A co-work branch's prompt is composed by its parent and carries none.
 
@@ -868,31 +901,6 @@ yesterday to now where none is given.
 | GET | `/settings` | Agency's own switches: downgrade return. |
 | PATCH | `/settings` | Change agency's switches. |
 
-### companions and companion-resets
-
-| Method | Path | Does |
-|---|---|---|
-| GET | `/companions` | Companion supervisors, by room. |
-| POST | `/companions` | Add a companion supervisor. |
-| PATCH | `/companions/{companionName}` | Change a companion and the rooms it answers in. |
-| DELETE | `/companions/{companionName}` | Remove a companion from the deployment. |
-| POST | `/companion-resets` | Reset a companion's person ranges and rooms; `dryRun` counts it first. |
-
-A companion's settings are its reference switch, its persona, its generation settings, its provider order and
-its thinking; its system prompt is the platform's harness opening, every companion's prompt whole and its persona, and no
-section of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and
-`ownPieces` are no setting: a change naming them is refused 400 as naming no field, and the settings a
-companion is answered with name neither.
-
-A companion is answered with its provider order, in the shape a supervisor's is (「supervisors」), and the
-`provider` and `model` it answers on now. A change takes `order`, judged as a supervisor's is.
-
-`POST /companions` takes `name`, `label`, `worker`, the repository its items go to, and its order: `order` and
-`quotaShare`, judged as a supervisor's are, or `provider` and `model`, an order of that one entry at the default
-share. A body naming both is refused 400 `order` where the order's first entry is not that provider and model.
-`DELETE /companions/{companionName}` answers 204; 400 `agent` for an agent that is no companion added on the
-console, and 409 `seeded` for one the deployment seeds, as `DELETE /supervisors/{supervisorName}` refuses it.
-
 ### repositories, prefix-checks and room-holdings
 
 | Method | Path | Does |
@@ -992,6 +1000,11 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   null for a checkout no repository holds any longer. `GET /assignments` narrows by `repositoryName` and by
   `workerName` alike.
 
+- **`POST /assignments` names the repository by its `assigneeName`,** exactly as `GET /repositories` lists it,
+  or a checkout of one: an assignee no repository holds a checkout by is refused 422 `unknown-repository`,
+  naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
+  a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
+  to come free. An assignment naming none takes a free checkout of any repository.
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
@@ -1013,7 +1026,7 @@ service.
   agency's log. The harness may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
 and the filing of an item.
 
-- **An item a chat agent files goes through agency,** `POST /item-filings`, so what the item says of where it
+- **An item a supervisor files goes through agency,** `POST /item-filings`, so what the item says of where it
   was asked and who asked is agency's reading of the turn rather than anything the model writes. It takes the
   `agentName` its harness plugin was started for — never one the model names — and the item's `title`,
   `brief`, `queueName`, and where they apply `repository`, `priority`, `assigneeName`, `requesterName` and
@@ -1029,13 +1042,13 @@ and the filing of an item.
   - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
     the owner's — and lose any `asked-by` the call names, so the job service's unattended labels open an item
     the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft
-    until an approver approves it: the owner, or the chat agent itself where the deployment marks the chat's
+    until an approver approves it: the owner, or the supervisor itself where the deployment marks the chat's
     caller an approver in the job service, for the routine work its own instructions let it judge;
   - an agent carrying no turn now files no item: 409 `no-turn`.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
 
-- **A chat agent stops a job on the owner's word,** `POST /job-stops`. It takes the `agentName` its harness
+- **A supervisor stops a job on the owner's word,** `POST /job-stops`. It takes the `agentName` its harness
   plugin was started for, never one the model names; exactly one of `jobId`, the job, and `itemId`, the item
   whose `starting` or `running` job it stops; and `reason`, a short line that becomes the job's report. The
   turn's privilege decides, as it does for a filing, so no one else in a room stops a job through the chat
@@ -1107,7 +1120,7 @@ and the filing of an item.
   to is no part of the prompt; it stands in the run's cached prefix (`docs/launch-lines.md`).
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
   instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
-  the entries the gate picks from the chat agent's brain — knowledge, rules and documents — are attached
+  the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a job's run reads the brain only through what the gate picked here.
 - **A job goes out on its role's active provider** (`docs/provider-order.md`, 「Choosing the provider」): the
@@ -1164,12 +1177,17 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `execution.changed`, `slot-request.changed`, `reservation.changed`, `repository.changed`, `repository.deleted`,
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
-`road.changed`, `launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
+`road.changed`, `launch-room.changed`, `supervisor-reset.created`, `place.changed`, `assignment.created`,
 `assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`.
 
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
 
+- **`supervisor-reset.created`** carries a supervisor's reset (`docs/supervisors.md`, 「Starting it afresh」) in
+  two shapes: each move of its reset point, `agent` and `point` in epoch milliseconds, so the rooms' owner lets
+  go what waited for its turns; and the reset once agency's part is taken, `agent`, `ranges`, `alone` and
+  `shared`, the rooms, `runs`, the runs its own log lines went under, `by` and `at` in epoch seconds, so each
+  unit takes its own rows.
 - **`road.changed`** carries one fact of a supervisor's or a role's provider (`docs/provider-order.md`, 「The
   facts told」), published once per move, after the system has acted, and named in its `fact`; each names its
   row as `supervisor` or `role`, the other null:
@@ -1224,8 +1242,8 @@ input, so `bmo` finds it from any directory.
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
 | `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, and the store |
 | `dev-pane` | `<checkout>` | the checkout's dev-server pane, and the store |
-| `companion follow` | `<room> --supervisor <supervisor> [--version <version>]` | the store, as the room is kept and its turns are appended |
-| `companion reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/companion-resets` route |
+| `supervisor follow` | `<room> --agent <supervisor> [--version <version>]` | the store, as the room is kept and its turns are appended |
+| `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
@@ -1273,7 +1291,7 @@ pocket, testbed, gate and chat through their clients, and cache-warmer through t
 is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's chat agent; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
-program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a chat agent's turn opens a fresh
+program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
 hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
@@ -1290,7 +1308,7 @@ with the issuer token, a session token for each program and run that holds a cap
 back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
 reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a role's session's instruction
-calls for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
+calls for, picked over the supervisor's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
 - **Where the arbiter's master is.** `AGENCY_ARBITER_URL` names its address and `AGENCY_ARBITER_TOKEN_FILE`
@@ -1322,8 +1340,7 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
   `name` of its `[owner]` table, and nothing else of the file is read. With no file named, a file that does
   not read, or a key it holds no string for, the placeholder stays unfilled and the brain's persona is not
   used.
-- **Making an agent's brain.** As a companion is added, or an agent given a brain is registered
-  (「agents」), the brain is asked for the agent's key first; where it answers one, nothing is made. A brain
+- **Making an agent's brain.** As a supervisor is registered (「supervisors」), the brain is asked for the agent's key first; where it answers one, nothing is made. A brain
   that cannot be reached, or refuses, leaves the agent registered and the failure logged.
 - **The tool discipline.** At a chat launch, the tool host's `GET /discipline` is read through its client
   and its text, telling the session how to find and use a hosted tool with `bmo use`, is put into the

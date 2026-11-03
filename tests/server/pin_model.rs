@@ -1,6 +1,6 @@
-//! A pinned model is the one its pin names now (docs/repositories.md, 「A pinned model」; docs/companions.md,
+//! A pinned model is the one its pin names now (docs/repositories.md, 「A pinned model」; docs/supervisors.md,
 //! 「The program on an ended session」): a repository's jobs stand on the registration its pin names, a pin
-//! moved to another registration is that one, and a companion's program standing on another model than its
+//! moved to another registration is that one, and a supervisor's program standing on another model than its
 //! order's registration is let go.
 
 use crate::support::rows::{repository, supervisor};
@@ -38,7 +38,7 @@ async fn a_worker_s_model_is_the_pin_s_never_its_last_model() {
 }
 
 #[tokio::test]
-async fn a_companion_program_on_an_old_model_is_let_go_for_its_pin() {
+async fn a_supervisor_program_on_an_old_model_is_let_go_for_its_pin() {
   use std::collections::HashMap;
 
   use agency_server::Service;
@@ -88,7 +88,7 @@ async fn a_companion_program_on_an_old_model_is_let_go_for_its_pin() {
   std::fs::create_dir_all(&place.path).unwrap();
   std::fs::write(place.path.join("program.json"), serde_json::to_vec(&program).unwrap()).unwrap();
 
-  agency_server::places::standby::release_stale_companion(&ground, "kakia-chat").await;
+  agency_server::places::standby::release_stale_supervisor(&ground, "kakia-chat").await;
 
   assert!(place.program().is_none(), "the program on the old model is let go");
 }

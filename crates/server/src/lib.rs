@@ -12,9 +12,9 @@ pub mod chat_stand_in;
 pub mod clock;
 pub mod command_reading;
 
-/// A companion's runs (docs/companions.md): its guard, its handoff, the point its reset cuts it off at, its
+/// A supervisor's runs (docs/supervisors.md): its guard, its handoff, the point its reset cuts it off at, its
 /// runs going, its room sessions, and what its reset tells the units holding the rest of it.
-pub mod companion {
+pub mod supervisor_turn {
   pub mod going;
   pub mod guard;
   pub mod handoff;
@@ -77,6 +77,7 @@ pub mod session_output;
 pub mod session_questions;
 pub mod session_tools;
 pub mod stand_in;
+pub mod supervisor_homes;
 pub mod supervisors;
 pub mod text;
 pub mod translate;

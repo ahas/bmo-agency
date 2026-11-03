@@ -3,7 +3,7 @@
   "info": {
     "title": "bmo-agency",
     "version": "0.1.0-rev.81",
-    "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. As a job ends, the agency gives its lease back to the job service and queues its report in the room through the receiver's instruction route. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
+    "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, supervisors and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. As a job ends, the agency gives its lease back to the job service and queues its report in the room through the receiver's instruction route. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
   },
   "servers": [
     {
@@ -63,7 +63,7 @@
     "usage.changed",
     "road.changed",
     "launch-room.changed",
-    "companion-reset.created",
+    "supervisor-reset.created",
     "place.changed",
     "assignment.created",
     "assignment.changed",
@@ -152,12 +152,6 @@
     },
     {
       "name": "settings"
-    },
-    {
-      "name": "companions"
-    },
-    {
-      "name": "companion-resets"
     },
     {
       "name": "repositories"
@@ -3718,209 +3712,6 @@
         }
       }
     },
-    "/companions": {
-      "get": {
-        "operationId": "listCompanions",
-        "tags": [
-          "companions"
-        ],
-        "summary": "Companion agents, by room.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompanionPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "parameters": [
-          {
-            "name": "roomId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "post": {
-        "operationId": "createCompanions",
-        "tags": [
-          "companions"
-        ],
-        "summary": "Add a companion agent, with its order whole or one provider and model.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Companion"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompanionAsk"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/companions/{companionName}": {
-      "patch": {
-        "operationId": "changeCompanion",
-        "tags": [
-          "companions"
-        ],
-        "summary": "Change a companion and the rooms it answers in.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Companion"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "companionName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompanionChange"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteCompanion",
-        "tags": [
-          "companions"
-        ],
-        "summary": "Remove a companion from the deployment; one the deployment seeds is refused as seeded.",
-        "responses": {
-          "204": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "409": {
-            "$ref": "#/components/responses/Seeded"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request",
-          "seeded"
-        ],
-        "parameters": [
-          {
-            "name": "companionName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
-    },
-    "/companion-resets": {
-      "post": {
-        "operationId": "createCompanionResets",
-        "tags": [
-          "companion-resets"
-        ],
-        "summary": "Reset a companion's person ranges and rooms; dryRun counts it first.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompanionReset"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompanionResetAsk"
-              }
-            }
-          }
-        }
-      }
-    },
     "/repositories/{repositoryName}/definition": {
       "get": {
         "operationId": "getWorkersDefinition",
@@ -4262,12 +4053,13 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "422": {
-            "$ref": "#/components/responses/NoWorkerFree"
+            "$ref": "#/components/responses/UnknownRepository"
           }
         },
         "x-codes": [
           "unauthorized",
           "bad-request",
+          "unknown-repository",
           "no-worker-free"
         ],
         "requestBody": {
@@ -5596,6 +5388,158 @@
             }
           }
         ]
+      }
+    },
+    "/supervisors/{supervisorName}/settings": {
+      "get": {
+        "operationId": "getSupervisorSettings",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "A supervisor's settings, its system prompt and its room sessions.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "changeSupervisorSettings",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Change a supervisor's reference switch, persona, generation settings, registration or thinking.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorSettingsChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/supervisors/{supervisorName}/resets": {
+      "post": {
+        "operationId": "createSupervisorReset",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Start a supervisor afresh in the ranges named; dryRun counts it first.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorReset"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorResetAsk"
+              }
+            }
+          }
+        }
       }
     },
     "/roles": {
@@ -10791,250 +10735,6 @@
         },
         "description": "The body that throws the warming switch."
       },
-      "CompanionPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Companion"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "CompanionPage:"
-      },
-      "Companion": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "workerName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "roomIds": {
-            "type": "array",
-            "items": true
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "provider",
-          "model",
-          "workerName",
-          "roomIds"
-        ],
-        "description": "Companion:"
-      },
-      "CompanionAsk": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "worker": {
-            "type": "string",
-            "description": "The repository its items go to."
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "order": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            },
-            "description": "Its provider order, written whole; where it is named with `provider` and `model`, its first entry is\ntheirs."
-          },
-          "quotaShare": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double",
-            "description": "a fraction from 0 to 1"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "worker"
-        ],
-        "description": "The body that adds a companion: its order whole with its share, or one provider and model."
-      },
-      "OrderEntry": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "a level of the effort scale; null for the provider's own",
-            "default": null
-          },
-          "thinking": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "`on`, `off`, or null for the provider's own",
-            "default": null
-          },
-          "answerTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "on the registry's provider, the answer ceiling; null for the registration's own",
-            "default": null
-          }
-        },
-        "required": [
-          "provider",
-          "model",
-          "effort",
-          "thinking",
-          "answerTokens"
-        ],
-        "description": "OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there."
-      },
-      "CompanionChange": {
-        "type": "object",
-        "properties": {
-          "agent": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "by": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "referenceOn": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "persona": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "registration": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "generation": true,
-          "thinking": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        },
-        "description": "The body that changes a companion."
-      },
-      "CompanionReset": {
-        "type": "object",
-        "properties": {
-          "agentName": {
-            "type": "string"
-          },
-          "ranges": true,
-          "roomIds": {
-            "type": "array",
-            "items": true
-          },
-          "gone": true,
-          "stayed": true
-        },
-        "required": [
-          "agentName",
-          "ranges",
-          "roomIds",
-          "gone",
-          "stayed"
-        ],
-        "description": "CompanionReset:"
-      },
-      "CompanionResetAsk": {
-        "type": "object",
-        "properties": {
-          "agent": {
-            "type": "string"
-          },
-          "conversation": true,
-          "person": true,
-          "alone": true,
-          "shared": true,
-          "dryRun": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "by": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "agent"
-        ],
-        "description": "The body that asks for a companion reset."
-      },
       "WorkerDefinition": {
         "type": "object",
         "properties": {
@@ -11876,6 +11576,50 @@
         ],
         "description": "Supervisor: one supervisor as its row holds it, and what it stands on now."
       },
+      "OrderEntry": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "a level of the effort scale; null for the provider's own",
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`on`, `off`, or null for the provider's own",
+            "default": null
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "on the registry's provider, the answer ceiling; null for the registration's own",
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens"
+        ],
+        "description": "OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there."
+      },
       "SupervisorRegistered": {
         "type": "object",
         "properties": {
@@ -11912,10 +11656,27 @@
             "type": "string"
           },
           "order": {
-            "type": "array",
+            "type": [
+              "array",
+              "null"
+            ],
             "items": {
               "$ref": "#/components/schemas/OrderEntry"
-            }
+            },
+            "description": "Its provider order, written whole; where it is named with `provider` and `model`, its first entry is\ntheirs."
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One provider and model, an order of that one entry where no order is named."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "quotaShare": {
             "type": [
@@ -11947,10 +11708,9 @@
         },
         "required": [
           "name",
-          "label",
-          "order"
+          "label"
         ],
-        "description": "SupervisorAsk: the body that registers a supervisor."
+        "description": "SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model."
       },
       "SupervisorRoomList": {
         "type": "object",
@@ -12034,6 +11794,237 @@
           "resetPoint"
         ],
         "description": "SupervisorResetPoint: a supervisor's reset point alone."
+      },
+      "SupervisorSettings": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "builtin": {
+            "type": "boolean",
+            "description": "Whether the deployment seeds it."
+          },
+          "turnShape": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What its order names first."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The registration its order names at the registry's provider, or null."
+          },
+          "registrations": {
+            "type": "array",
+            "items": true,
+            "description": "Every offered registration, each `name` and `label`."
+          },
+          "entries": {
+            "type": "array",
+            "items": true,
+            "description": "The model files behind its registration."
+          },
+          "serving": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelUse": true,
+          "settings": {
+            "description": "`referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`."
+          },
+          "generationSettings": {
+            "type": "array",
+            "items": true,
+            "description": "Every generation setting with its bounds."
+          },
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "personaFile": {
+            "type": "string"
+          },
+          "basePrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "basePrompts": {
+            "type": "array",
+            "items": true
+          },
+          "system": {
+            "description": "The system prompt its next turn sends, `characters`, `hash` and `text`, where its turn shape is `pieces`."
+          },
+          "sessions": {
+            "type": "array",
+            "items": true,
+            "description": "Its room sessions."
+          }
+        },
+        "required": [
+          "agent",
+          "label",
+          "icon",
+          "builtin",
+          "turnShape",
+          "provider",
+          "model",
+          "registration",
+          "registrations",
+          "entries",
+          "serving",
+          "modelUse",
+          "settings",
+          "generationSettings",
+          "thinking",
+          "personaFile",
+          "basePrompt",
+          "basePrompts",
+          "system",
+          "sessions"
+        ],
+        "description": "SupervisorSettings: a supervisor as its settings page shows it."
+      },
+      "SupervisorSettingsChange": {
+        "type": "object",
+        "properties": {
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceOn": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "persona": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": true,
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "description": "The body that changes a supervisor's settings."
+      },
+      "SupervisorReset": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ranges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alone": {
+            "type": "array",
+            "items": true,
+            "description": "The rooms it answers alone, each `chatId` and `title`."
+          },
+          "shared": {
+            "type": "array",
+            "items": true,
+            "description": "The rooms it shares with other supervisors, each `chatId` and `title`."
+          },
+          "rows": {
+            "type": "array",
+            "items": true,
+            "description": "What it took of each table and range, each `table`, `range` and `rows`."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The harness records it took."
+          },
+          "brain": {
+            "description": "The brain's answer for the person range, or null."
+          }
+        },
+        "required": [
+          "agent",
+          "label",
+          "ranges",
+          "alone",
+          "shared",
+          "rows",
+          "files",
+          "brain"
+        ],
+        "description": "SupervisorReset: what a reset of a supervisor took, or would take on a dry run."
+      },
+      "SupervisorResetAsk": {
+        "type": "object",
+        "properties": {
+          "conversation": true,
+          "person": true,
+          "alone": true,
+          "shared": true,
+          "dryRun": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "The body that asks for a supervisor reset."
       },
       "SupervisorChange": {
         "type": "object",
@@ -14154,7 +14145,7 @@
       "why": "a run in a repository is a role's session started on the slot its sender was let in on, and a turn goes out on its session's road"
     },
     {
-      "what": "the agent kind and role recollector, the session scope editor with a turn's run parts (run, parent, agent, chatId, step, steps, workdir, desk, registration), the work keys digest, people-digest and people-standing, the companion setting recollectorModel and the agent's recollectorRegistration",
+      "what": "the agent kind and role recollector, the session scope editor with a turn's run parts (run, parent, agent, chatId, step, steps, workdir, desk, registration), the work keys digest, people-digest and people-standing, the supervisor setting recollectorModel and the agent's recollectorRegistration",
       "why": "no recollector stands: every agent of the chat kind writes its own long-term memory into its brain as it reads"
     }
   ],

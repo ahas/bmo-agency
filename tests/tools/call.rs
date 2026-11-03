@@ -94,7 +94,7 @@ fn the_turn_is_the_run_its_place_names_over_the_records_own_and_none_for_a_perso
   let place = tempfile::tempdir().unwrap();
   let session = Session {
     variables: BTreeMap::from([
-      ("BMO_TURN_AGENT".to_owned(), "companion".to_owned()),
+      ("BMO_TURN_AGENT".to_owned(), "supervisor".to_owned()),
       ("BMO_TURN_BEGAN".to_owned(), "1000".to_owned()),
       ("BMO_TURN_CHAT".to_owned(), "-5".to_owned()),
     ]),
@@ -108,7 +108,7 @@ fn the_turn_is_the_run_its_place_names_over_the_records_own_and_none_for_a_perso
   assert_eq!(
     Turn::of(&session),
     Turn {
-      agent: Some("companion".into()),
+      agent: Some("supervisor".into()),
       began: Some(1000),
       chat: Some(-5),
       via: None
