@@ -733,7 +733,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** File an item in the job service for the turn an agent is carrying now: its room as the item's scope, and asked-by=owner where every message of that turn is the owner's. */
+        /** File an item in the job service for the turn an agent is carrying now: its room as the item's scope, the repository it names as its assigneeName, and asked-by=owner where every message of that turn is the owner's. */
         post: operations["createItemFilings"];
         delete?: never;
         options?: never;
@@ -2782,6 +2782,8 @@ export interface components {
             title: string;
             brief: string;
             queueName: string;
+            /** @description The repository the work is in, written as the item's `assigneeName`; none for host work. */
+            repository?: string | null;
             /** Format: int64 */
             priority?: number | null;
             assigneeName?: string | null;
@@ -3957,9 +3959,15 @@ export interface components {
             brief: string;
             /** @description The queue it is filed in. */
             queueName: string;
+            /**
+             * @description The repository the work is in, by its internal name, so only that repository's worker takes it;
+             *     left out for host work, which is in no repository. Work across several repositories is one item per
+             *     repository, each with the same brief and the same `series=<name>` label.
+             */
+            repository?: string | null;
             /** Format: int64 */
             priority?: number | null;
-            /** @description The worker it is to go to, where it names one. */
+            /** @description The worker it is to go to, where it names one; the repository's name where `repository` names one. */
             assigneeName?: string | null;
             /** @description Who asked for it. */
             requesterName?: string | null;
@@ -4152,6 +4160,15 @@ export interface components {
         };
         /** @description unauthorized */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-repository */
+        UnknownRepository: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5854,6 +5871,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["NoTurn"];
+            422: components["responses"]["UnknownRepository"];
             502: components["responses"]["UpstreamFailed"];
         };
     };

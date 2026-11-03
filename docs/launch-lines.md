@@ -181,11 +181,11 @@
   `explorer`, which publish a document and read a page; the job service's harness plugin, `job`, which
   leases an item from a queue, started on the chat's own caller token where the deployment names one
   (`BMO_JOB_CHAT_TOKEN`, or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the
-  chat does — an approval among it, which it keeps as the chat's recommendation rather than the owner's
-  approval — under the chat's name, and on the deployment's shared token otherwise — either handed as the
-  file it stands in and read by a shell in front of the plugin, which takes its token from its environment
-  alone (`docs/agent-control.md`, 「A token is handed as the file it stands in」) — its own item creation left
-  out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
+  chat does under the chat's name — an approval among it, which opens a draft where the deployment marks the
+  chat's caller an approver and stands as a recommendation where it does not — and on the deployment's
+  shared token otherwise — either handed as the file it stands in and read by a shell in front of the
+  plugin, which takes its token from its environment alone (`docs/agent-control.md`, 「A token is handed as
+  the file it stands in」) — its own item creation left out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
   as well; and the agency's own, `agency`, started for the supervisor the configuration is
   composed for (`--agent`, one configuration a supervisor), which files an item through agency and launches
   the item's job (`docs/api.md`, 「assignments and jobs」). A hosted tool those namespaces do not show is
@@ -560,8 +560,11 @@ the action out asks who sent the words the turn answers.
 - **What stands outside agency.** A deploy, `testbed/deploy`, is the testbed's hosted tool and a capability
   `bmo use` reaches is the tool host's; each takes the same check with its own relation (`deploy` for a
   deploy) in the unit that serves it, and agency hands it nothing it could gate there. An item the chat agent
-  files is not gated: one filed on a turn not the owner's stands a draft that only the owner's approval opens
-  (`docs/api.md`, 「assignments and jobs」), so nothing runs on it before he says so.
+  files is not gated: one filed on a turn not the owner's stands a draft that an approver's approval opens
+  (`docs/api.md`, 「assignments and jobs」) — the owner's, or the agent's own where the deployment marks the
+  chat's caller an approver, given by the agent's own judgement under its instructions for routine work it
+  raised itself, and on a member's word only where a grant the owner made in that room names approving — so
+  nothing runs on a member's ask the owner has not allowed.
 - **What the gate does not close.** The agent's shell reaches agency's control port with the token file it is
   handed, so a model turned against its rooms can still call a route itself; the gate stands in front of the
   tools the chat agent is given to act with, not in front of the port.

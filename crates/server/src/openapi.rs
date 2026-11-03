@@ -1270,11 +1270,11 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/item-filings",
     id: "createItemFilings",
     tag: "assignments-and-jobs",
-    summary: "File an item in the job service for the turn an agent is carrying now: its room as the item's scope, and asked-by=owner where every message of that turn is the owner's.",
+    summary: "File an item in the job service for the turn an agent is carrying now: its room as the item's scope, the repository it names as its assigneeName, and asked-by=owner where every message of that turn is the owner's.",
     params: &[],
     body: Some("ItemFilingAsk"),
     answers: &[(201, Some("ItemFiled"), false)],
-    codes: &["bad-request", "no-turn", "upstream-failed"],
+    codes: &["bad-request", "no-turn", "unknown-repository", "upstream-failed"],
   },
   Operation {
     method: "POST",

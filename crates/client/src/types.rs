@@ -829,6 +829,9 @@ pub struct ItemFilingAsk {
   pub title: String,
   pub brief: String,
   pub queue_name: String,
+  /// The repository the work is in, written as the item's `assigneeName`; none for host work.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub priority: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -849,9 +852,14 @@ pub struct FileItem {
   pub brief: String,
   /// The queue it is filed in.
   pub queue_name: String,
+  /// The repository the work is in, by its internal name, so only that repository's worker takes it;
+  /// left out for host work, which is in no repository. Work across several repositories is one item per
+  /// repository, each with the same brief and the same `series=<name>` label.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub priority: Option<i64>,
-  /// The worker it is to go to, where it names one.
+  /// The worker it is to go to, where it names one; the repository's name where `repository` names one.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub assignee_name: Option<String>,
   /// Who asked for it.

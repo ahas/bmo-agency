@@ -411,6 +411,50 @@ fn a_research_ask_continuing_a_report_names_the_report_it_follows_from() {
 }
 
 #[test]
+fn the_agent_approves_routine_work_itself_leaves_the_rest_to_the_owner_and_names_each_item_s_repository() {
+  let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
+  let todo = std::fs::read_to_string(tree().join("prompts/agents/chat/procedures/todo.md")).unwrap();
+  let queue = manual
+    .split("THE QUEUE (")
+    .nth(1)
+    .and_then(|rest| rest.split("\n\n").next())
+    .expect("the manual's THE QUEUE");
+
+  // An approver's approval opens a draft, and the agent is one for routine work it can judge.
+  for said in [
+    "the owner's on the console, or your own",
+    "Approve a draft yourself where the work is routine and you can judge it safe",
+    "a dependency's security fix or version bump that the repository's tests cover",
+    "a repair of something broken",
+    "housekeeping a repository's own document prescribes",
+    "with its number and why",
+    "Leave to the owner, as a draft waiting on his approval",
+    "what a service does for people, their data, money or his own files, and anything you cannot judge",
+    "never a member's ask",
+    "An item you approved yourself is yours to launch",
+    // An item names its repository; work across several is one item per repository in a series.
+    "file_item's repository",
+    "Host work names none",
+    "one item per repository, each with the same brief and the same series=<name> label",
+  ] {
+    assert!(queue.contains(said), "{said}: {queue}");
+  }
+  assert!(!queue.contains("recommendation"), "{queue}");
+
+  for said in [
+    "**Your approval opens a draft.**",
+    "**on your own judgement, for routine work you can judge safe**",
+    "**The item names its repository:** `repository`",
+    "`series=<name>` label",
+    "**An item you approved yourself is yours to launch,** as its repository's worker frees",
+    "relay each run's end",
+  ] {
+    assert!(todo.contains(said), "{said}");
+  }
+  assert!(!todo.contains("is your recommendation"));
+}
+
+#[test]
 fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each_other_is_english() {
   let language = section(&composed(), "THE LANGUAGE YOU ANSWER IN");
   let prompt = |path: &str| std::fs::read_to_string(tree().join("prompts").join(path)).unwrap();

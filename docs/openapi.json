@@ -3124,7 +3124,7 @@
         "tags": [
           "assignments-and-jobs"
         ],
-        "summary": "File an item in the job service for the turn an agent is carrying now: its room as the item's scope, and asked-by=owner where every message of that turn is the owner's.",
+        "summary": "File an item in the job service for the turn an agent is carrying now: its room as the item's scope, the repository it names as its assigneeName, and asked-by=owner where every message of that turn is the owner's.",
         "responses": {
           "201": {
             "description": "Answered.",
@@ -3145,6 +3145,9 @@
           "409": {
             "$ref": "#/components/responses/NoTurn"
           },
+          "422": {
+            "$ref": "#/components/responses/UnknownRepository"
+          },
           "502": {
             "$ref": "#/components/responses/UpstreamFailed"
           }
@@ -3153,6 +3156,7 @@
           "unauthorized",
           "bad-request",
           "no-turn",
+          "unknown-repository",
           "upstream-failed"
         ],
         "requestBody": {
@@ -10047,6 +10051,13 @@
           "queueName": {
             "type": "string"
           },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository the work is in, written as the item's `assigneeName`; none for host work."
+          },
           "priority": {
             "type": [
               "integer",
@@ -13701,6 +13712,13 @@
             "type": "string",
             "description": "The queue it is filed in."
           },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository the work is in, by its internal name, so only that repository's worker takes it;\nleft out for host work, which is in no repository. Work across several repositories is one item per\nrepository, each with the same brief and the same `series=<name>` label."
+          },
           "priority": {
             "type": [
               "integer",
@@ -13713,7 +13731,7 @@
               "string",
               "null"
             ],
-            "description": "The worker it is to go to, where it names one."
+            "description": "The worker it is to go to, where it names one; the repository's name where `repository` names one."
           },
           "requesterName": {
             "type": [
@@ -13952,6 +13970,16 @@
       },
       "Unauthorized": {
         "description": "unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownRepository": {
+        "description": "unknown-repository",
         "content": {
           "application/json": {
             "schema": {

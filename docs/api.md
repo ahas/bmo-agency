@@ -975,7 +975,7 @@ console, and 409 `seeded` for one the deployment seeds, as `DELETE /supervisors/
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
-| POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
+| POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, the repository it names as its `assigneeName`, and `asked-by=owner` where every message of that turn is the owner's. |
 | POST | `/job-stops` | Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's. |
 | POST | `/pane-deaths` | A head pane died: every job its worker (`agent`) is running ends failed with the exit `code` and the `last` stderr line as its report. |
 
@@ -1016,12 +1016,21 @@ and the filing of an item.
 - **An item a chat agent files goes through agency,** `POST /item-filings`, so what the item says of where it
   was asked and who asked is agency's reading of the turn rather than anything the model writes. It takes the
   `agentName` its harness plugin was started for — never one the model names — and the item's `title`,
-  `brief`, `queueName`, and where they apply `priority`, `assigneeName`, `requesterName` and `labels`, and
-  raises it in the job service (`POST /items`) on the chat's own caller token where the deployment names one:
+  `brief`, `queueName`, and where they apply `repository`, `priority`, `assigneeName`, `requesterName` and
+  `labels`, and raises it in the job service (`POST /items`) on the chat's own caller token where the
+  deployment names one:
   - its `scope` is the room of the turn that agent is carrying now;
+  - `repository` names the repository the work is in, one the store holds (`GET /repositories`), and is
+    written as the item's `assigneeName`, the one field a launch reads for where an item goes
+    (`POST /assignments`), so the item is taken only in that repository's checkout; a repository the store
+    does not hold is 422 `unknown-repository`, and a call naming an `assigneeName` other than its
+    `repository` is 400 `bad-request`. An item for work in no repository, host work, names none and goes to
+    whichever worker its launch names;
   - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
     the owner's — and lose any `asked-by` the call names, so the job service's unattended labels open an item
-    the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft;
+    the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft
+    until an approver approves it: the owner, or the chat agent itself where the deployment marks the chat's
+    caller an approver in the job service, for the routine work its own instructions let it judge;
   - an agent carrying no turn now files no item: 409 `no-turn`.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
@@ -1235,7 +1244,9 @@ tool is a thin call of one route through the agency's own client.
 
 - `file_item` calls `POST /item-filings`, naming the agent its server was started for (`bmo-agency mcp
   --agent <name>`); it is the chat line's one road for filing an item: the job plugin is started without its own
-  item creation on every program, and no prompt names it.
+  item creation on every program, and no prompt names it. Its description tells the agent to name the
+  repository the work is in, none for host work, and to file work across several repositories as one item
+  per repository, each with the same brief and a shared `series=<name>` label.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
 - `assign_worker` calls `POST /assignments`, naming the repository and the role.

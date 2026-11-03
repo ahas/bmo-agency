@@ -1,6 +1,6 @@
 //! An item a chat agent files (docs/api.md, 「assignments and jobs」): raised in the job service under the room of
 //! the turn the agent carries now, and marked as the owner's ask where that turn is privileged, so neither is the
-//! model's to write.
+//! model's to write; the repository it names goes where a launch reads it, the item's `assigneeName`.
 
 use std::collections::BTreeMap;
 
@@ -18,9 +18,27 @@ pub const ASKED_BY: &str = "asked-by";
 /// Its value.
 pub const OWNER: &str = "owner";
 
+/// A name the ask gives, trimmed; none where it is left out or blank.
+fn given(name: Option<&String>) -> Option<&str> {
+  name.map(|name| name.trim()).filter(|name| !name.is_empty())
+}
+
+/// Where the item goes: the repository the ask names, which a launch reads as the item's `assigneeName`, else
+/// the assignee it names; none for host work. An ask naming an assignee other than its repository is refused.
+pub fn assignee_of(ask: &ItemFilingAsk) -> Result<Option<&str>, String> {
+  match (given(ask.repository.as_ref()), given(ask.assignee_name.as_ref())) {
+    (Some(repository), Some(assignee)) if assignee != repository => {
+      Err(format!("assigneeName {assignee} is not the repository {repository} the item names"))
+    }
+    (Some(repository), _) => Ok(Some(repository)),
+    (None, assignee) => Ok(assignee),
+  }
+}
+
 /// The item the job service is asked to raise: the ask as it came, its room the turn's, its `asked-by` label
-/// agency's alone.
-pub fn item_of(ask: &ItemFilingAsk, mark: turn_marks::Mark) -> Value {
+/// agency's alone, and its `assigneeName` the repository it names.
+pub fn item_of(ask: &ItemFilingAsk, mark: turn_marks::Mark) -> Result<Value, String> {
+  let assignee = assignee_of(ask)?;
   let mut labels: BTreeMap<String, String> = ask
     .labels
     .iter()
@@ -42,7 +60,7 @@ pub fn item_of(ask: &ItemFilingAsk, mark: turn_marks::Mark) -> Value {
 
   for (field, value) in [
     ("priority", ask.priority.map(Value::from)),
-    ("assigneeName", ask.assignee_name.clone().map(Value::from)),
+    ("assigneeName", assignee.map(Value::from)),
     ("requesterName", ask.requester_name.clone().map(Value::from)),
   ] {
     if let Some(value) = value {
@@ -50,7 +68,7 @@ pub fn item_of(ask: &ItemFilingAsk, mark: turn_marks::Mark) -> Value {
     }
   }
 
-  item
+  Ok(item)
 }
 
 /// One item filed for the turn an agent carries now.
@@ -73,6 +91,19 @@ impl Route for FileItem {
         .with_code("no-turn"),
       );
     };
+    let item = item_of(&ask, mark).map_err(|why| {
+      Refused::new(StatusCode::BAD_REQUEST, format!("an item's filing: {why}")).with_code("bad-request")
+    })?;
+
+    if let Some(repository) = given(ask.repository.as_ref())
+      && crate::repositories::named(&call.ground().db, repository).await?.is_none()
+    {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no repository is named {repository}"))
+          .with_code("unknown-repository"),
+      );
+    }
+
     let vars = call.ground().vars();
     let (Some(url), Some(bearer)) = (
       address(vars, "BMO_JOB_URL"),
@@ -85,7 +116,7 @@ impl Route for FileItem {
     let answered = reqwest::Client::new()
       .post(format!("{url}/items"))
       .bearer_auth(bearer)
-      .json(&item_of(&ask, mark))
+      .json(&item)
       .send()
       .await
       .map_err(|why| upstream(format!("the job service: {why}")))?;

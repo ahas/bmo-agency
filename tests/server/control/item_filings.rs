@@ -1,8 +1,10 @@
 //! An item a chat agent files (docs/api.md, 「assignments and jobs」): its room the turn's, `asked-by=owner` stamped
-//! only where the turn is the owner's, any such label the call names let go, and no item for an agent carrying no
-//! turn.
+//! only where the turn is the owner's, any such label the call names let go, the repository it names written as
+//! its `assigneeName`, where a launch reads it, and no item for an agent carrying no turn.
 
 use agency_server::control::item_filings::item_of;
+use agency_server::mcp::tools;
+use agency_server::openapi::openapi;
 use agency_server::turn_marks::{self, Mark};
 use bmo_agency_client::ItemFilingAsk;
 use serde_json::{Value, json};
@@ -16,6 +18,7 @@ fn ask(labels: &[(&str, &str)]) -> ItemFilingAsk {
     title: "Mend the guard".to_owned(),
     brief: "The guard refuses a good command.".to_owned(),
     queue_name: "todo".to_owned(),
+    repository: None,
     priority: None,
     assignee_name: Some("helper".to_owned()),
     requester_name: Some("a member".to_owned()),
@@ -31,7 +34,8 @@ fn the_owner_s_turn_stamps_his_ask_and_the_room_is_the_turn_s() {
       chat_id: -9_000_000_000_003,
       privileged: true,
     },
-  );
+  )
+  .unwrap();
 
   assert_eq!(owner["scope"], "-9000000000003");
   assert_eq!(owner["labels"], json!({ "asked-by": "owner", "lane": "repair" }));
@@ -45,10 +49,71 @@ fn the_owner_s_turn_stamps_his_ask_and_the_room_is_the_turn_s() {
       chat_id: -5,
       privileged: false,
     },
-  );
+  )
+  .unwrap();
 
   assert_eq!(other["labels"], json!({ "lane": "repair" }));
   assert_eq!(other["scope"], "-5");
+}
+
+const TURN: Mark = Mark {
+  chat_id: -5,
+  privileged: false,
+};
+
+#[test]
+fn an_item_naming_a_repository_goes_where_a_launch_reads_it_and_host_work_names_none() {
+  let in_repository = ItemFilingAsk {
+    repository: Some(" web ".to_owned()),
+    assignee_name: None,
+    labels: [("series".to_owned(), "rustsec-2026-0101".to_owned())].into(),
+    ..ask(&[])
+  };
+  let item = item_of(&in_repository, TURN).unwrap();
+
+  assert_eq!(item["assigneeName"], "web", "{item}");
+  assert_eq!(item["labels"], json!({ "series": "rustsec-2026-0101" }));
+  assert!(item.get("repository").is_none(), "the repository travels as the assignee alone: {item}");
+
+  // Naming the same assignee beside it changes nothing.
+  let same = ItemFilingAsk {
+    assignee_name: Some("web".to_owned()),
+    ..in_repository.clone()
+  };
+
+  assert_eq!(item_of(&same, TURN).unwrap()["assigneeName"], "web");
+
+  // Host work names no repository, and its item no assignee.
+  let host = ItemFilingAsk {
+    assignee_name: None,
+    ..ask(&[])
+  };
+  let item = item_of(&host, TURN).unwrap();
+
+  assert!(item.get("assigneeName").is_none(), "{item}");
+
+  // An assignee other than the repository it names is refused.
+  let apart = ItemFilingAsk {
+    assignee_name: Some("helper".to_owned()),
+    ..in_repository
+  };
+  let refused = item_of(&apart, TURN).unwrap_err();
+
+  assert!(refused.contains("helper") && refused.contains("web"), "{refused}");
+}
+
+#[test]
+fn the_file_item_tool_takes_the_repository_and_says_how_work_across_repositories_is_filed() {
+  let listed = tools(Some("chat-agent"));
+  let file_item = listed.iter().find(|tool| tool.name == "file_item").expect("file_item is listed");
+  let input = &openapi()["components"]["schemas"]["FileItem"];
+
+  assert!(input["properties"]["repository"].is_object(), "{input}");
+  assert!(
+    file_item.description.contains("repository") && file_item.description.contains("series="),
+    "{}",
+    file_item.description
+  );
 }
 
 #[test]

@@ -135,7 +135,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
 
     tools.push(tool::<FileItem, ItemFiled, _, _>(
       "file_item",
-      "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
+      "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other is a draft until an approver approves it. Name the repository the work is in, so only that repository's worker takes it, and none for host work; work across several repositories is one item per repository, each with the same brief and the same series=<name> label.",
       "POST /item-filings",
       move |client, item: FileItem| {
         let ask = ItemFilingAsk {
@@ -143,6 +143,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
           title: item.title,
           brief: item.brief,
           queue_name: item.queue_name,
+          repository: item.repository,
           priority: item.priority,
           assignee_name: item.assignee_name,
           requester_name: item.requester_name,
