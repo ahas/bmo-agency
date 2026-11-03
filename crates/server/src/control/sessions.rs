@@ -246,7 +246,7 @@ impl SessionHolder for Supervisor {
           sessions.push(AgentSession {
             agent: name.clone(),
             chat_id: Some(chat_id),
-            kind: "supervisor",
+            kind: "room",
             title: None,
             generation: Some(room.try_get("", "generation")?),
             models: models.clone(),
