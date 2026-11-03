@@ -148,8 +148,7 @@ async fn a_running_job_s_item_waits_on_no_free_worker() {
   let open = |id: i64| agency_server::watches::queue_idle::Open {
     id,
     title: format!("item {id}"),
-    assignee: None,
-    room: None,
+    ..Default::default()
   };
   let standing = agency_server::watches::queue_idle::held(scratch.db(), vec![open(21), open(23), open(30)])
     .await
@@ -193,4 +192,166 @@ async fn a_worker_with_a_running_job_reads_as_working_on_it() {
     "{working}"
   );
   assert_eq!(idle, Value::Null);
+}
+
+// The jobs of the two passes below: 1 to 4 running, 5 and 6 ended with their lease kept.
+async fn running_and_ended(scratch: &Scratch) {
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+                             "started_at", "prompt", "lease_kept")
+         VALUES (1, 101, 11, 'harness', 1, 'w1', 'running', 1, 'work', false),
+                (2, 102, 12, 'harness', 2, 'w1', 'running', 1, 'work', false),
+                (3, 103, 13, 'harness', 3, 'w1', 'running', 1, 'work', false),
+                (4, 104, 14, 'harness', 4, 'w1', 'running', 1, 'work', false),
+                (5, 105, 15, 'harness', 5, 'w1', 'ended', 1, 'work', true),
+                (6, 106, 16, 'harness', 6, 'w1', 'ended', 1, 'work', true)"#,
+      vec![],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn an_item_moved_under_a_running_job_is_told_once_to_its_orderer_and_the_carrying_item_s() {
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+
+  running_and_ended(&scratch).await;
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    // 100 holds a room; 101 is held, raised by it; 102 dropped in a room of its own; 103 merged into 200, whose
+    // room is another; 104 taken by another holder, its lease gone, a take refused. 105 and 106 stand leased.
+    held.items.insert(100, item(100, "done", json!({ "scope": "-1000" })));
+    held.items.insert(101, item(101, "held", json!({ "raisedBy": 100 })));
+    held.items.insert(102, item(102, "dropped", json!({ "scope": "-1020" })));
+    held
+      .items
+      .insert(103, item(103, "merged", json!({ "scope": "-1030", "mergedInto": 200 })));
+    held.items.insert(200, item(200, "open", json!({ "scope": "-2000" })));
+    held.items.insert(104, item(104, "open", json!({ "scope": "-1040" })));
+    held.leases = [15, 16].into();
+  }
+
+  let kept = pass(scratch.db(), &vars).await.unwrap();
+
+  assert!(kept.iter().take(4).all(|(_, done)| matches!(done, Kept::Left(_))), "{kept:?}");
+
+  pass(scratch.db(), &vars).await.unwrap();
+
+  let moved: Vec<(Value, Value)> = peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .filter(|body| body["kind"].as_str().unwrap().starts_with("item-moved-under-job:"))
+    .map(|body| (body["kind"].clone(), body["room"].clone()))
+    .collect();
+
+  assert_eq!(
+    moved,
+    [
+      (json!("item-moved-under-job:101"), json!(-1000)),
+      (json!("item-moved-under-job:102"), json!(-1020)),
+      (json!("item-moved-under-job:103"), json!(-1030)),
+      (json!("item-moved-under-job:103"), json!(-2000)),
+      (json!("item-moved-under-job:104"), json!(-1040)),
+    ],
+    "each once, in its orderer's room, a merge's carrying item's too"
+  );
+
+  let said = peers.lock().unwrap().instructed()[0]["said"]["order"].as_str().unwrap().to_owned();
+
+  assert!(said.contains("held") && said.contains("job 1"), "{said}");
+
+  // The item moves again, to another state: told again; the job ends: its mark let go.
+  peers
+    .lock()
+    .unwrap()
+    .items
+    .insert(101, item(101, "dropped", json!({ "raisedBy": 100 })));
+  pass(scratch.db(), &vars).await.unwrap();
+  scratch.run(r#"UPDATE "jobs" SET "state" = 'stopped' WHERE "id" = 1"#, vec![]).await;
+  pass(scratch.db(), &vars).await.unwrap();
+
+  let told_101 = peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .filter(|body| body["kind"] == "item-moved-under-job:101")
+    .count();
+
+  assert_eq!(told_101, 2, "held, then dropped");
+  assert_eq!(
+    agency_server::queue::settings::get(scratch.db(), "job_moved_told:1").await.unwrap(),
+    None,
+    "the mark let go once the job no longer runs"
+  );
+}
+
+#[tokio::test]
+async fn an_ended_job_s_item_left_leased_is_told_once_at_the_pass_after_the_one_that_found_it() {
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+
+  running_and_ended(&scratch).await;
+  scratch.run(r#"DELETE FROM "jobs" WHERE "state" = 'running'"#, vec![]).await;
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.items.insert(100, item(100, "done", json!({ "scope": "-1000" })));
+    held.items.insert(105, item(105, "leased", json!({ "labels": { "raised-by": "100" } })));
+    held.items.insert(106, item(106, "leased", json!({})));
+    held.leases = [15, 16].into();
+  }
+
+  let awaiting = |peers: &crate::support::peers::Peers| -> Vec<(Value, Value)> {
+    peers
+      .lock()
+      .unwrap()
+      .instructed()
+      .iter()
+      .filter(|body| body["kind"].as_str().unwrap().starts_with("job-awaits-close:"))
+      .map(|body| (body["kind"].clone(), body["room"].clone()))
+      .collect()
+  };
+
+  pass(scratch.db(), &vars).await.unwrap();
+  assert!(awaiting(&peers).is_empty(), "the first pass only marks it");
+
+  pass(scratch.db(), &vars).await.unwrap();
+  pass(scratch.db(), &vars).await.unwrap();
+  assert_eq!(
+    awaiting(&peers),
+    [
+      (json!("job-awaits-close:105"), json!(-1000)),
+      (json!("job-awaits-close:106"), Value::Null)
+    ],
+    "told once each, a derived item's in its parent's room, one naming none in the owner's private room"
+  );
+
+  let said = peers.lock().unwrap().instructed()[0]["said"]["order"].as_str().unwrap().to_owned();
+
+  assert!(said.contains("lease 15"), "{said}");
+
+  // The close ends the lease: the mark let go.
+  peers.lock().unwrap().leases.remove(&15);
+  pass(scratch.db(), &vars).await.unwrap();
+  assert_eq!(
+    agency_server::queue::settings::get(scratch.db(), "job_close_mark:5").await.unwrap(),
+    None
+  );
+  assert!(
+    agency_server::queue::settings::get(scratch.db(), "job_close_mark:6")
+      .await
+      .unwrap()
+      .is_some()
+  );
 }

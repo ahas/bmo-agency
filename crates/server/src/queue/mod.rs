@@ -6,6 +6,7 @@
 
 pub mod cancels;
 pub mod leftovers;
+pub mod orderer;
 pub mod paths;
 pub mod pins;
 pub mod reconcile;

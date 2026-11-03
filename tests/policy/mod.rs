@@ -12,6 +12,7 @@ mod deployment;
 mod door_words;
 mod gate_places;
 mod handoff;
+mod job_notices;
 mod keepalive;
 mod machine_room;
 mod marks;

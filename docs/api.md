@@ -1030,9 +1030,12 @@ service.
   that took it still stands — its session replaced, its plugin restarted, agency itself restarted under the
   job. A lease the job service no longer holds, run out before a renewal reached it, is taken again on the
   same item for the same holder and assignee, and the job keeps the new lease's id, which its end keeps or
-  gives back as below. An item another holder leased meanwhile, or one no longer open, is left as it stands and said in
-  agency's log. The harness may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
-and the filing of an item.
+  gives back as below. An item another holder leased meanwhile, or one no longer open — held, dropped or
+  merged — is left as it stands, said in agency's log and told once to the item's orderer
+  (`item-moved-under-job`, `docs/agent-control.md`, 「An item's change is told to its orderer」). The harness
+  may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes
+  there are the ones a job's end states below, the filing of an item, and the reads 「Calls agency makes」
+  names.
 
 - **An item a supervisor files goes through agency,** `POST /item-filings`, so what the item says of where it
   was asked and who asked is agency's reading of the turn rather than anything the model writes. It takes the
@@ -1052,7 +1055,7 @@ and the filing of an item.
     the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft
     until an approver approves it: the owner, or the supervisor itself where the deployment marks the chat's
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
-    tells the supervisor of each such draft once (「Calls agency makes」);
+    tells the orderer of each such draft once (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - an agent carrying no turn now files no item: 409 `no-turn`.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
@@ -1085,22 +1088,26 @@ and the filing of an item.
   item stays `leased` from the job's start through its close, never `open` between them: the requester
   writes the final report and moves the item to `done`, which ends the lease (the job service's 「States and
   moves」), or, where the item is not to close, gives that lease back itself, and the next renewal finds it
-  gone and stops. A lease the job service no longer holds is not taken again for an ended job.
+  gone and stops. A lease the job service no longer holds is not taken again for an ended job. An item the
+  lease pass still finds leased at the pass after the one that first found its job ended is told once to its
+  orderer (`job-awaits-close`).
 - **A job that is stopped gives its lease back.** A stop — the harness's or the owner's, or the pass below
   ending a job whose process went away — returns the item's lease to the job service as the end is written,
   so the item is open again for a rerun.
-- **A job's end reaches the room.** However a job ends, agency queues the job's report for the agent
-  that filed the item through the receiver's `POST /instructions`: an order under the sort `job`, naming the
-  requester its item names, and carrying the item, the repository, the role, the outcome and the report whole, under the
-  event `job-ended:#<item>`; an ended job's order names the lease that still stands on the item, which the
-  close ends. The receiver keeps the instruction until a turn takes it, so a chat session
-  being replaced when the job ended loses nothing, and it queues the notice for that requester and no other
-  agent. The requester reads the report and relays the job's end in a few lines in that room, as its own
-  manual says, the report itself staying whole on the item. A job with no room is queued for the owner's
-  private room, which is the room the receiver gives an instruction that names none. The room a job answers is
-  `roomId` from the launch, or the item's own `roomId`, or the item's `scope` where the item was filed from a
-  room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told
-  back in that room.
+- **A job's end reaches the room.** However a job ends, agency queues the job's report for the item's
+  orderer through the receiver's `POST /instructions`: an order under the sort `job` in the orderer's room,
+  naming the requester of the item the orderer was found on, and carrying the item, the repository, the role,
+  the outcome and the report whole, under the kind `job-ended:<item>` and the event `job-ended:#<item>`; an
+  ended job's order names the lease that still stands on the item, which the close ends. The receiver keeps
+  the instruction until a turn takes it, so a chat session being replaced when the job ended loses nothing.
+  The supervisor reads the report and relays the job's end in a few lines in that room, as its own manual
+  says, the report itself staying whole on the item. The orderer is the item's room, else its parent's up
+  the chain it was raised from, read from the job service (`docs/agent-control.md`, 「An item's change is
+  told to its orderer」); where the job service cannot be read or the chain finds no room, the job's own
+  `roomId` from the launch, which the harness hands over as the item's `scope`; and where none is found, the
+  owner's private room, which is the room the receiver gives an instruction that names none. A job that ends
+  `failed` or `blocked` in a room other than the owner's private room is also queued as an owner notice,
+  `POST /owner/notices` with the code `job-failed`.
 
 - **A job whose turn goes on across agency's restart ends as its turn does.** Its turn is kept in flight
   while it goes, and the server that starts next picks it up (「sessions」 above): a turn whose program's
@@ -1141,7 +1148,8 @@ and the filing of an item.
   order has quota, or the pin cannot answer, `POST /jobs` takes the job and it waits `running`, answering
   `heldFor`, its sentence naming every provider's reason — each Claude login's own, with the moment the first
   of them reopens — and what a person must do for the first provider a person can reopen, a sign-in command
-  or where a balance is topped up.
+  or where a balance is topped up. A job held so, or not let in at its first ask for a slot of its role, is
+  told to its item's orderer as the wait begins (`job-waiting`).
 - **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
   quota, window, balance or credential refused, its last login closing under it, or its road found unable
   to answer as the turn ends — is launched again on the order's next provider: the same job, item,
@@ -1312,13 +1320,16 @@ program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter 
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
 hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
-`open`, `GET /items` with `state` `draft` and its port's `GET /items?open=1`, whose `approved` says which
-items are approved, are read, and an idle queue is told once through the receiver's `POST /owner/notices`
-with the code `queue-idle`, an item awaiting a launch once through `POST /instructions`, and a draft
-awaiting approval once through `POST /instructions` as an order under the sort `job` with the kind
-`item-awaits-approval:<item>` and the event `item-awaits-approval:#<item>`, its room found, for a draft
-naming none, by reading the item its `raised-by` label names with `GET /items/{itemId}`, up the chain
-(`docs/agent-control.md`, 「An idle queue is told to the owner」); and for pull request reviews the job service's `GET /items` by the `pr` label,
+`open` and `GET /items` with `state` `draft` are read, and its events as a page, `GET /events` with `Accept:
+application/json` past the cursor agency keeps, narrowed to `item.changed`, `question.created`,
+`question.due` and `reply.created`; an idle queue is told once through the receiver's `POST /owner/notices`
+with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told once to
+the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event
+of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due` and
+`job-failed`, and an instruction for a question a settling reply answered is withdrawn with `DELETE
+/instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
+kind, event and code); the orderer is found by reading the item and the items it was raised from with `GET
+/items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
 `gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
 must reach it; agency keeps no client of these units and no store of their rows.
@@ -1380,14 +1391,16 @@ Each surface is a crate of its own repository, declared in the workspace manifes
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 
-It calls no downstream but the job service's lease route and the receiver's instruction route: the lease
-renewed or, for a stopped job, returned, and the report handed over as a job ends, a supervisor told of an item awaiting its launch or its approval, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
-above for everything else.
+It calls no downstream but the job service's lease, item and event routes and the receiver's instruction
+and owner-notice routes: the lease renewed or, for a stopped job, returned; the items, queues and events
+read; the report handed over as a job ends, an orderer told of each change of its items and jobs and the
+owner of what only he can act on, and a chat session told of a server it lacks. The gate and the receiver
+reach it through the hook point above for everything else.
 
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with
   no deployment's peer address or token inherited from the worker that runs the suite; it names a peer
   only where the test itself names one, and it marks itself a test's. Every call in this section — the
-  job service's lease, the receiver's instruction, notice and handoff, the job service's queue reads — is then not made, and the line saying so is logged. A test
+  job service's lease, the receiver's instruction, notice and handoff, the job service's queue, item and event reads — is then not made, and the line saying so is logged. A test
   that wants a stand-in calls the call itself with a map of its own, never through a test server's
   ground.
 

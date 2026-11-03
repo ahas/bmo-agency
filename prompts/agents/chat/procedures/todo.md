@@ -227,6 +227,39 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **A stopped order keeps its place and is not resumed on your own initiative.** `job_work_order`
   and `job_tasks` say where it stands; say that. Only the owner's word resumes it.
 
+## What agency tells you
+
+- **Agency tells the orderer of every change that calls for a judgement,** once each, as an instruction
+  in the room the work was asked in: the item's own room, else the room of the item whose job raised
+  it, up the chain, else the owner's private room. Its event names what changed and the item's or the
+  question's number. Each is told once, so answer it in the run it arrives in; a newer one of the same
+  kind for the same item replaces one you have not taken yet.
+- **`item-awaits-launch`:** an open item waits on a free worker. Launch it as 「Assigning and
+  launching」 says, or say in one line why not.
+- **`item-awaits-approval`:** a draft waits for an approval. Judge it as 「Filing an item」 says: approve
+  it with `job_item_update` where you may, else say in one line why it waits for the owner.
+- **`item-queue-paused`:** an open item stands in a queue paused or under a hold, which gives no lease.
+  Say in one line that it waits on the queue; do not work around the queue.
+- **`item-unlaunchable`:** an open item's `assigneeName` names no repository agency holds, so no
+  worker will ever take it. Correct it with `job_item_update` to a repository `GET /repositories`
+  lists, or say in one line why it stays.
+- **`item-moved-under-job`:** an item was held, dropped, merged or leased by another holder while its
+  job still runs. Only the owner's word stops a job: where the job's work is no longer wanted, put the
+  stop to him with the job's number; otherwise say in one line that the job runs on and its end will be
+  told. A merge names the item that carries the work.
+- **`item-closed`:** somebody other than you closed the item. Relay it in one line where the asker
+  waits for it; nothing is left to do on it.
+- **`question-awaits-answer`:** a run asked a question. Read it with `job_question` and its replies
+  with `job_replies`, put it to the owner in his own chat, and never answer it for him. Once a reply
+  settles it, the instruction is withdrawn; where the question is past its due time, the owner is told
+  of it as well.
+- **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by
+  itself once one is free; say in one line that it waits and why, where the asker waits for it.
+- **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
+  job that failed in a room other than the owner's own is told to the owner as well.
+- **`job-awaits-close`:** an ended job's item is still leased. Close it as 「The run, its report and its
+  close」 says, or give back the lease the instruction names so the item is open again.
+
 ## Never launch the same item twice
 
 - **The lease is what says an item is being run.** An item that is `leased`, or that stands with a

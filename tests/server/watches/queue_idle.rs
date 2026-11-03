@@ -6,10 +6,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
+use agency_server::queue::orderer::Orderer;
 use agency_server::watches::queue_idle::{
   DRAFT_TOLD_PREFIX, Draft, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, approval_instruction,
   awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started, launch_instruction, launches_due,
-  notice, pass, room_of, waiting,
+  notice, pass, room_of, unlaunchable, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -27,7 +28,15 @@ fn open(id: i64, assignee: Option<&str>) -> Open {
     id,
     title: format!("item {id}"),
     assignee: assignee.map(str::to_owned),
-    room: None,
+    queue: "todo".to_owned(),
+    ..Open::default()
+  }
+}
+
+fn room(room: Option<i64>) -> Orderer {
+  Orderer {
+    room,
+    requester: None,
   }
 }
 
@@ -35,10 +44,10 @@ fn standing(open: Vec<Open>, free: &[&str]) -> Standing {
   Standing {
     open,
     free: free.iter().map(|name| (*name).to_owned()).collect(),
+    known: ["w1", "w2", "worker"].map(str::to_owned).to_vec(),
     last_start: Some(1_000),
-    told: None,
-    silenced: false,
     minutes: 5,
+    ..Standing::default()
   }
 }
 
@@ -90,8 +99,12 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
 
   assert_eq!(
     awaiting_launch(&quiet),
-    vec![&open(1, Some("w1"))],
-    "its own assignee free, and only that"
+    vec![&open(1, Some("w1")), &open(3, None)],
+    "its own assignee free, or naming none while a checkout is free"
+  );
+  assert!(
+    awaiting_launch(&standing(vec![open(3, None)], &[])).is_empty(),
+    "naming none while no checkout is free"
   );
 
   let seen = BTreeMap::from([(1, 10_000)]);
@@ -99,6 +112,10 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
 
   assert!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE - 1).is_empty(), "not yet a minute");
   assert_eq!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE), vec![&open(1, Some("w1"))]);
+  assert_eq!(
+    launches_due(&quiet, &BTreeMap::from([(1, 10_000), (3, 10_000)]), &none, 10_000 + MINUTE),
+    vec![&open(1, Some("w1")), &open(3, None)]
+  );
   assert!(
     launches_due(&quiet, &seen, &BTreeSet::from([1]), 10_000 + MINUTE).is_empty(),
     "told once"
@@ -114,18 +131,29 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
 
 #[test]
 fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_the_three_calls() {
-  let told = launch_instruction(&open(2265, Some("w1")));
+  let told = launch_instruction(&open(2265, Some("w1")), &room(None));
   let order = told["said"]["order"].as_str().unwrap();
 
   assert_eq!(told["room"], Value::Null, "an item naming no room is the owner's private room's");
+  assert_eq!((&told["sort"], &told["kind"]), (&json!("job"), &json!("item-awaits-launch:2265")));
 
   // An item asked in a room is told in that room: its roomId, else the room its scope names.
-  let asked = Open {
-    room: room_of(&json!({ "scope": "-9000000000003" })),
-    ..open(2268, Some("w1"))
-  };
+  let asked = open(2268, Some("w1"));
 
-  assert_eq!(launch_instruction(&asked)["room"], json!(-9_000_000_000_003_i64));
+  assert_eq!(
+    launch_instruction(&asked, &room(room_of(&json!({ "scope": "-9000000000003" }))))["room"],
+    json!(-9_000_000_000_003_i64)
+  );
+
+  let anyone = launch_instruction(&open(2269, None), &room(None));
+
+  assert!(
+    anyone["said"]["order"]
+      .as_str()
+      .unwrap()
+      .contains(&policy::job_notices::JOB_NOTICES.any_worker),
+    "{anyone}"
+  );
   assert_eq!(room_of(&json!({ "roomId": 5, "scope": "-7" })), Some(5));
   assert_eq!(room_of(&json!({ "scope": "" })), None);
   assert_eq!(told["events"], json!(["item-awaits-launch:#2265"]));
@@ -188,14 +216,18 @@ fn a_draft_is_told_as_a_job_order_with_its_kind_event_and_the_start_of_its_brief
     brief,
     room: None,
   };
-  let told = approval_instruction(&draft, Some(-9_000_000_000_003));
+  let told = approval_instruction(&draft, &room(Some(-9_000_000_000_003)));
   let order = told["said"]["order"].as_str().unwrap();
 
   assert_eq!(told["sort"], "job");
   assert_eq!(told["kind"], "item-awaits-approval:2434");
   assert_eq!(told["events"], json!(["item-awaits-approval:#2434"]));
   assert_eq!(told["room"], json!(-9_000_000_000_003_i64));
-  assert_eq!(approval_instruction(&draft, None)["room"], Value::Null, "the owner's private room");
+  assert_eq!(
+    approval_instruction(&draft, &room(None))["room"],
+    Value::Null,
+    "the owner's private room"
+  );
 
   for word in ["#2434", "a follow-up", "item #2432", "w1", "line 1", "job_item_update", "owner"] {
     assert!(order.contains(word), "{order}");
@@ -336,7 +368,10 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
       .lock()
       .unwrap()
       .iter()
-      .filter(|(path, _)| path == "/instructions")
+      .filter(|(path, body)| {
+        path == "/instructions"
+          && body["kind"].as_str().is_some_and(|kind| kind.starts_with("item-awaits-launch:"))
+      })
       .map(|(_, body)| body.clone())
       .collect()
   };
@@ -527,4 +562,94 @@ async fn an_item_the_owner_asked_for_opens_at_once_and_is_never_told_for_approva
     peers.calls.lock().unwrap().iter().any(|(path, _)| path == "/items"),
     "the pass read the job service"
   );
+}
+
+#[test]
+fn an_item_whose_assignee_is_no_checkout_is_unlaunchable_and_never_awaits_a_launch() {
+  let stuck = standing(vec![open(1, Some("gone")), open(2, Some("w1")), open(3, None)], &["w1"]);
+
+  assert_eq!(unlaunchable(&stuck), vec![&open(1, Some("gone"))]);
+  assert!(!awaiting_launch(&stuck).contains(&&open(1, Some("gone"))));
+}
+
+// The kinds of the instructions the stand-in was handed, each with its room, in the order they came.
+fn kinds(peers: &crate::support::peers::Peers) -> Vec<(String, Value)> {
+  peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .map(|body| (body["kind"].as_str().unwrap_or_default().to_owned(), body["room"].clone()))
+    .collect()
+}
+
+#[tokio::test]
+async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_orderer() {
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  repository(db, "w1", "/checkouts/w1", &[]).await;
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.queues = vec![
+      json!({ "name": "todo", "state": "open", "holds": [] }),
+      json!({ "name": "later", "state": "paused", "holds": [] }),
+      json!({ "name": "aside", "state": "open", "holds": [{ "reason": "deploy" }] }),
+    ];
+    // 90 holds the room; 91 is raised by it and names no checkout; 92 waits on a paused queue, 93 on one
+    // under a hold; 94 names a repository no checkout is of.
+    held.items.insert(90, item(90, "done", json!({ "scope": "-9000" })));
+    held.items.insert(91, item(91, "open", json!({ "raisedBy": 90 })));
+    held
+      .items
+      .insert(92, item(92, "open", json!({ "queueName": "later", "scope": "-9200" })));
+    held
+      .items
+      .insert(93, item(93, "open", json!({ "queueName": "aside", "labels": { "raised-by": "90" } })));
+    held
+      .items
+      .insert(94, item(94, "open", json!({ "assigneeName": "nowhere", "scope": "-9400" })));
+  }
+
+  pass(db, &vars).await.unwrap();
+
+  // An item naming no checkout is first seen waiting; told once a minute has passed.
+  scratch
+    .run(
+      r#"UPDATE "settings" SET "value" = $1 WHERE "key" = $2"#,
+      vec![(agency_server::now_ms() - 61_000).to_string().into(), format!("{SEEN_PREFIX}91").into()],
+    )
+    .await;
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  let told: BTreeMap<String, Value> = kinds(&peers).into_iter().collect();
+
+  assert_eq!(kinds(&peers).len(), 4, "each told once: {:?}", kinds(&peers));
+  assert_eq!(
+    told,
+    BTreeMap::from([
+      ("item-queue-paused:92".to_owned(), json!(-9200)),
+      ("item-queue-paused:93".to_owned(), json!(-9000)),
+      ("item-unlaunchable:94".to_owned(), json!(-9400)),
+      ("item-awaits-launch:91".to_owned(), json!(-9000)),
+    ]),
+    "each in its orderer's room, a derived item's in its parent's"
+  );
+
+  // The paused queue opens: the item's mark let go; the queue paused again tells it again.
+  peers.lock().unwrap().queues[1]["state"] = json!("open");
+  pass(db, &vars).await.unwrap();
+  assert!(agency_server::queue::settings::get(db, "queue_paused_told:92").await.unwrap().is_none());
+  peers.lock().unwrap().queues[1]["state"] = json!("paused");
+  pass(db, &vars).await.unwrap();
+
+  let again = kinds(&peers).into_iter().filter(|(kind, _)| kind == "item-queue-paused:92").count();
+
+  assert_eq!(again, 2, "a transition that comes again is told again");
 }

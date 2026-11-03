@@ -95,6 +95,7 @@ mod host_run;
 // The job run members built so far; the reset stands beside this and is declared with its module.
 mod job_leases;
 mod job_list;
+mod job_notices;
 mod job_run {
   mod claude {
     mod failure;
@@ -146,6 +147,7 @@ mod places {
 mod queue {
   mod cancels;
   mod leftovers;
+  mod orderer;
   mod paths;
   mod reconcile;
   mod routes;
@@ -184,6 +186,7 @@ mod verbs {
 }
 
 mod watches {
+  mod job_events;
   mod links;
   mod machine;
   mod pressure;
