@@ -66,8 +66,9 @@ pub struct OrderEntry {
 /// One role a store is seeded with: its name, its label as a screen writes it, its line, the file under
 /// `prompts/roles/` whose text is its prompt or the co-worker definition under
 /// `prompts/agents/worker/coworkers/` whose body is its prompt and whose description is its description, the
-/// bundles it gives, the tool entries its runs are shown by name, its cap, whether its runs keep their
-/// sessions, whether a run may call it as a co-worker and its provider order.
+/// one sentence that is its description where it names no definition, the bundles it gives, the tool
+/// entries its runs are shown by name, its cap, whether its runs keep their sessions, whether a run may call
+/// it as a co-worker and its provider order.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Role {
@@ -78,6 +79,9 @@ pub struct Role {
   pub prompt: Option<String>,
   #[serde(default)]
   pub definition: Option<String>,
+  /// What the role is for, in one sentence; none where a co-worker definition says it.
+  #[serde(default)]
+  pub description: Option<String>,
   pub bundles: Vec<String>,
   #[serde(default)]
   pub shown: Vec<String>,

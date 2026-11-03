@@ -173,9 +173,11 @@ seeds. The other crates and the server reach the store only through it.
   folder; the catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none,
   since a model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
   text of its seed file under the code tree's `prompts/base/`; and the roles `policy/roles.toml` declares,
-  each with the text of the prompt file it names under the code tree's `prompts/roles/`, its provider order
-  and its compaction threshold. A supervisor and a repository are the deployment's to add; the registry's
-  provider is named in an order by the owner.
+  each with its prompt and its description as `docs/agent-roles.md`, 「The roles the policy seeds」, states
+  them — a prompt file's text under the code tree's `prompts/roles/` and the declaration's description, or a
+  co-worker definition's body and description — its provider order and its compaction threshold. A
+  supervisor and a repository are the deployment's to add; the registry's provider is named in an order by
+  the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.

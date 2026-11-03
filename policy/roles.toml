@@ -21,10 +21,11 @@
 # [[roles]]: the roles a store is given once by name, in the order a screen lists them: each one's name, its
 #   label, its line, the bundles it gives, its cap, the file under prompts/roles/ whose text is its prompt or
 #   the co-worker definition under prompts/agents/worker/coworkers/ whose body is its prompt and whose
-#   description is its description, whether its runs keep their sessions, whether a run may call it as a
-#   co-worker, and its provider order, each entry a provider once with the model, the effort and the thinking
-#   it runs on there, or none for a role that follows the supervisor asking it. Its compaction threshold is
-#   its first provider's declared default.
+#   description is its description, the one sentence that is its description where it names no definition,
+#   whether its runs keep their sessions, whether a run may call it as a co-worker, and its provider order,
+#   each entry a provider once with the model, the effort and the thinking it runs on there, or none for a
+#   role that follows the supervisor asking it. Its compaction threshold is its first provider's declared
+#   default.
 
 job = "worker"
 delegate = "delegator"
@@ -78,6 +79,7 @@ label = "Rulebooks"
 [[roles]]
 name = "worker"
 label = "Worker"
+description = "Works one job of a repository's queue in its checkout, from the item's brief to its report, where the item names no other role."
 line = "worker"
 max_concurrent = 3
 bundles = ["graph.read", "queue.read", "web.read"]
@@ -94,6 +96,7 @@ order = [
 [[roles]]
 name = "delegator"
 label = "Delegator"
+description = "The supervisor's double: takes a task the supervisor hands off, holding its tools and going out on its provider, and answers the cause or the decision in plain sentences."
 line = "worker"
 prompt = "delegator.md"
 max_concurrent = 2
@@ -103,6 +106,7 @@ order = []
 [[roles]]
 name = "helper"
 label = "Helper"
+description = "Takes a task a supervisor hands off by name, a hard problem, an investigation or a reading of code, and answers the cause or the decision in plain sentences."
 line = "worker"
 prompt = "helper.md"
 max_concurrent = 2
@@ -118,6 +122,7 @@ order = [
 [[roles]]
 name = "video"
 label = "Video producer"
+description = "Turns a brief into a finished video with the video-shotcraft studio and sends the file into the item's room."
 line = "worker"
 prompt = "video.md"
 max_concurrent = 2
@@ -204,6 +209,7 @@ order = [
 [[roles]]
 name = "searcher"
 label = "Searcher"
+description = "A research run on the search line: searches the web, reads pages, opens branches and reads rulebooks to answer one question."
 line = "search"
 max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.branches", "web.rulebooks"]
@@ -216,6 +222,7 @@ order = [
 [[roles]]
 name = "browser"
 label = "Browser"
+description = "A research run on the browse line: visits and reads the sites and pages it is named rather than searching."
 line = "browse"
 max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.branches", "web.rulebooks"]
@@ -225,6 +232,7 @@ order = [{ provider = "claude-code", model = "claude-opus-5", effort = "high" }]
 [[roles]]
 name = "translator"
 label = "Translator"
+description = "Renders one text into the language its caller names, keeping its shape and its named terms, and answers the translation alone."
 line = "translate"
 prompt = "translator.md"
 max_concurrent = 4
@@ -235,6 +243,7 @@ order = [{ provider = "claude-code", model = "claude-sonnet-5", effort = "high" 
 [[roles]]
 name = "transliterator"
 label = "Transliterator"
+description = "Spells the written words of a line as the spoken words the voice unit asks for, using no tool."
 line = "search"
 max_concurrent = 4
 bundles = []
@@ -248,6 +257,7 @@ order = [
 [[roles]]
 name = "upkeep"
 label = "Upkeep"
+description = "Agency's own housekeeping runs that stand for no one's work, the usage reader's renewal turn among them."
 line = "worker"
 max_concurrent = 1
 bundles = []

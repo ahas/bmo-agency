@@ -1,6 +1,6 @@
 //! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the fourteen seeded roles with their
-//! lines, caps, sessions, callable marks and orders, the defaults nothing names, the supervisor bundles and the
-//! shape of a role's name.
+//! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the supervisor
+//! bundles and the shape of a role's name.
 
 use std::collections::BTreeSet;
 
@@ -140,6 +140,27 @@ fn every_seeded_role_carries_a_label_a_screen_shows_where_its_pack_holds_no_word
     assert!(
       role.label.chars().count() <= ROLES.label_most,
       "{}'s label is past the policy's length",
+      role.name
+    );
+  }
+}
+
+#[test]
+fn every_role_declares_its_description_once_and_a_co_worker_its_definition() {
+  for role in &ROLES.roles {
+    match (&role.definition, &role.description) {
+      (Some(_), Some(_)) => panic!("{} states a description beside its definition's", role.name),
+      (Some(_), None) => {
+        assert!(role.prompt.is_none(), "{} names a prompt beside its definition", role.name)
+      }
+      (None, Some(description)) => {
+        assert!(!description.trim().is_empty(), "{}'s description is empty", role.name)
+      }
+      (None, None) => panic!("{} states no description and names no definition", role.name),
+    }
+    assert!(
+      !role.callable || role.definition.is_some(),
+      "{} is callable, so a co-worker definition gives its prompt and description",
       role.name
     );
   }

@@ -76,29 +76,38 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 ## The roles the policy seeds
 
 - **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to the
-  store once by its name, the first time the store is settled with it, its prompt the text of the file the
-  declaration names under `prompts/roles/` and its description the text of the co-worker definition under
-  `prompts/agents/worker/coworkers/` where it names one. A role the store holds is never touched by the
-  policy again, and one the owner removed stays removed. A role whose prompt file cannot be read is not
-  given and waits for the next settling that can read it.
+  store once by its name, the first time the store is settled with it, with the prompt and the description
+  its declaration gives. A role naming a prompt file under `prompts/roles/` takes that file's text as its
+  prompt and the one sentence its declaration states as its description; a role naming a co-worker
+  definition under `prompts/agents/worker/coworkers/` takes the definition's body as its prompt and its
+  front matter's description as its description, and states none of its own; a role naming neither takes
+  no prompt and the description its declaration states. Every seeded role carries a description. A role
+  the store holds is never touched by the policy again, and one the owner removed stays removed, so a
+  prompt or a description the policy gives a role the store already holds reaches the row only through
+  `PATCH /roles/{roleName}`. A role whose prompt file or definition cannot be read is not given and waits
+  for the next settling that can read it.
 - **The seeded roles:**
 
-  | Role | Label | Line | Bundles | Cap | Prompt | Sessions | Co-worker |
-  |---|---|---|---|---|---|---|---|
-  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | keep | no |
-  | `delegator` | Delegator | worker | `graph.read`, `queue.read`, `web.read` | 2 | `delegator.md` | keep | no |
-  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep | no |
-  | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep | no |
-  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
-  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | none | fresh | yes |
-  | `digest` | Digest | worker | `graph.read`, `queue.read`, `web.read` | 6 | none | fresh | yes |
-  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read` | 12 | none | fresh | yes |
-  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read` | 12 | none | fresh | yes |
-  | `searcher` | Searcher | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh | no |
-  | `browser` | Browser | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh | no |
-  | `translator` | Translator | translate | none | 4 | `translator.md` | fresh | no |
-  | `transliterator` | Transliterator | search | none | 4 | none | keep | no |
-  | `upkeep` | Upkeep | worker | none | 1 | none | fresh | no |
+  | Role | Label | Line | Bundles | Cap | Prompt | Description | Sessions | Co-worker |
+  |---|---|---|---|---|---|---|---|---|
+  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | policy | keep | no |
+  | `delegator` | Delegator | worker | `graph.read`, `queue.read`, `web.read` | 2 | `delegator.md` | policy | keep | no |
+  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | policy | keep | no |
+  | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | policy | keep | no |
+  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | definition | definition | keep | no |
+  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
+  | `digest` | Digest | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
+  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
+  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
+  | `searcher` | Searcher | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
+  | `browser` | Browser | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
+  | `translator` | Translator | translate | none | 4 | `translator.md` | policy | fresh | no |
+  | `transliterator` | Transliterator | search | none | 4 | none | policy | keep | no |
+  | `upkeep` | Upkeep | worker | none | 1 | none | policy | fresh | no |
+
+  A prompt named by file is the file under `prompts/roles/`; `definition` is the co-worker definition of the
+  role's name under `prompts/agents/worker/coworkers/`. A `policy` description is the sentence the role's
+  declaration states.
 
 - **Each seeded role's provider order and compaction threshold are the policy's,** given with the row and
   changed by the owner afterwards like any field. The `delegator` role's seeded order is empty, so it follows
@@ -113,6 +122,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The role a job runs as where its item names none.** Its run works in a repository's checkout, on what
   the repository hands it — its prefix documents, the prompt that stands before the job's and its rules
   (`docs/repositories.md`) — under the worker line's standing rules.
+- **It carries no prompt:** a job's run opens on the harness opening and the worker line's rules, with
+  what its repository hands it after them.
 - **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
   and the queue's two (`docs/worker-mcp.md`); and `web.read`, web search and page fetch. The site tools are
   the searcher's and the browser's alone.
@@ -170,6 +181,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   role and narrows the bundles (`docs/api.md`, 「sessions」): an apart session keeps only the capabilities
   its start's `toolsAllowed` names, so the research unit decides whether a search, a browse, a round or a
   branch holds the branch tool and the rulebooks.
+- **Neither carries a prompt:** a run on the search or the browse line opens on the harness opening and
+  the instructions its caller hands in, and no role prompt is read there (`docs/launch-lines.md`, 「Search
+  runner」). The searcher answers a question by searching; the browser visits and reads the sites and pages
+  it is named.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
   runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the default answerer's brain. The
   line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
@@ -182,12 +197,14 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   from `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for. It holds
   no bundle: no web, no tool.
 - **The transliterator is the voice unit's,** asked for a slot under its name with the search line, and
-  holds no bundle (the voice's `docs/boundary-api.md`).
+  holds no bundle (the voice's `docs/boundary-api.md`). It carries no seeded prompt: the voice unit hands
+  every session its own instructions, and the search line reads no role prompt.
 
 ## The upkeep role
 
 - **Held by agency's own runs that stand for no one's work,** the usage reader's renewal turn among them. It
-  gives no bundle: what such a run holds of a role is its order, its cap and its sessions setting.
+  gives no bundle and carries no prompt: what such a run holds of a role is its order, its cap and its
+  sessions setting.
 
 ## Co-workers
 

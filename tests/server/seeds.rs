@@ -80,12 +80,16 @@ fn a_seed_whose_file_cannot_be_read_is_left_out() {
 }
 
 #[test]
-fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
+fn every_declared_role_is_seeded_with_its_prompt_and_its_description() {
   let code = std::env::current_dir().unwrap();
   let seeds = role_seeds(&code);
 
   assert_eq!(seeds.len(), ROLES.roles.len());
   for (seed, declared) in seeds.iter().zip(&ROLES.roles) {
+    let description = match &declared.definition {
+      Some(_) => seed.description.clone(),
+      None => declared.description.clone(),
+    };
     let prompt = match (&declared.prompt, &declared.definition) {
       (Some(file), _) => {
         Some(std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap())
@@ -102,7 +106,18 @@ fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
     assert_eq!(seed.line, declared.line);
     assert_eq!(seed.callable, declared.callable);
     assert_eq!(seed.prompt, prompt);
+    assert_eq!(seed.description, description);
     assert_eq!(seed.sessions, declared.sessions.word());
+    assert!(
+      seed.description.as_deref().is_some_and(|text| !text.trim().is_empty()),
+      "{} is seeded with no description",
+      seed.name
+    );
+    assert!(
+      !seed.callable || seed.prompt.as_deref().is_some_and(|text| !text.trim().is_empty()),
+      "the co-worker role {} is seeded with no prompt",
+      seed.name
+    );
   }
   assert!(seeds.iter().any(|seed| seed.name == "video" && seed.prompt.is_some()));
 

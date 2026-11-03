@@ -1,8 +1,8 @@
 //! The seeds agency's server settles its store with (docs/store.md, 「Its seeds」): the values agency's
 //! policy declares — the account, the catalogue's entries, the base prompts and the roles — with the
 //! account's credential the machine's own Claude Code login directory, each base prompt's text its seed file
-//! in the code tree, and each role's prompt and description its prompt file or its co-worker definition
-//! there.
+//! in the code tree, and each role's prompt its prompt file there and its description the policy's, or both
+//! its co-worker definition's.
 
 use std::path::Path;
 
@@ -115,18 +115,18 @@ struct Definition {
   description: Option<String>,
 }
 
-// A role's prompt and description: the prompt file's text, or a co-worker definition's body and its front
-// matter's description.
+// A role's prompt and description: the prompt file's text, or none, and the declaration's description; or a
+// co-worker definition's body and its front matter's description.
 fn role_texts(code: &Path, role: &Role) -> Result<(Option<String>, Option<String>), String> {
   let read =
     |file: &Path| std::fs::read_to_string(file).map_err(|why| format!("{}: {why}", file.display()));
 
   if let Some(file) = &role.prompt {
-    return Ok((Some(read(&code.join("prompts").join("roles").join(file))?), None));
+    return Ok((Some(read(&code.join("prompts").join("roles").join(file))?), role.description.clone()));
   }
 
   let Some(file) = &role.definition else {
-    return Ok((None, None));
+    return Ok((None, role.description.clone()));
   };
   let path = code.join("prompts").join("agents").join("worker").join("coworkers").join(file);
   let text = read(&path)?;
