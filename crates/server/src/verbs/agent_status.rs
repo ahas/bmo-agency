@@ -59,21 +59,8 @@ pub const USAGE: &str =
 // The session record's lines written since a moment, or none where it cannot be read.
 fn lines_since(payload: &Value, started_at: i64) -> Option<Vec<Value>> {
   let transcript = payload.get("transcript_path").and_then(Value::as_str)?;
-  let text = std::fs::read_to_string(transcript).ok()?;
 
-  Some(
-    text
-      .split('\n')
-      .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-      .filter(|record| {
-        record
-          .get("timestamp")
-          .and_then(Value::as_str)
-          .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
-          .is_some_and(|at| at.timestamp_millis() >= started_at)
-      })
-      .collect(),
-  )
+  crate::door::place_run::transcript_since(Path::new(transcript), started_at)
 }
 
 // A turn's end, a stop or a failure, closes agency's run unless the round still owes a turn: a word still

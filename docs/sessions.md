@@ -45,25 +45,33 @@ statements below about either are kept for a rollback to the road a deployment l
   - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
     agent, the room, the chat turn's run in the ledger and the job;
-  - a server that starts reads each turn the process before it left there against the record of the
-    pane program that carries it, `loop.jsonl` in its place, by the run's name, before it reads anything
-    else that process left: the agent's place, or, for a turn of a role's thrown-away session — a job's
-    among them — the place of that session's own, which stands while the turn goes on and is ended once
-    its end is handed back (`docs/api.md`, 「sessions」);
-  - a turn whose end the record holds is handed back through the path a live turn's end takes: what of
-    its record the run log lacks is filed there with its end, its execution row and the place's run are
-    closed, a chat turn's road, spend and ledger run are written, its end is published as `turn.ended`
-    under the turn's own id, and a job's turn ends its job with its report as the job's launch would have
-    (`docs/api.md`, 「assignments and jobs」);
+  - a server that starts reads each turn the process before it left there, before it reads anything else
+    that process left, in the place of the pane program that carries it — the agent's place, or, for a
+    turn of a role's thrown-away session (a job's or a supervisor's double's among them), the place of
+    that session's own, which stands while the turn goes on and is ended once its end is handed back
+    (`docs/api.md`, 「sessions」) — and as that program writes its turns down:
+    - on a dsh pane, against the program's record, `loop.jsonl`, by the run's name, and its inbox;
+    - on a Claude Code pane, against the place's run, `run.json`, and the hooks' calls since that run
+      began (`docs/agent-control.md`, 「What a resident turn reads」): a run naming the turn that the
+      program took — a `submit` since the run began — and that stands open is going; one the hooks have
+      closed, which they do once a stop or a failure ends the round, has ended, and its answer or its
+      error is read from the session's own record, the transcript the hooks name, from the run's start;
+      a run naming another turn, or one the program never took, does not name this one;
+  - a turn whose end its program has written is handed back through the path a live turn's end takes:
+    what of its record the run log lacks is filed there with its end, its execution row and the place's
+    run are closed, a chat turn's road, spend and ledger run are written, its end is published as
+    `turn.ended` under the turn's own id, and a job's turn ends its job with its report as the job's launch
+    would have (`docs/api.md`, 「assignments and jobs」);
   - a turn the program is still working on, or still holds in its inbox, is attached to: the server
-    holds the agent's program, so no turn of its own goes in meanwhile, waits on the record, and hands
-    the end back once it is written; a program that goes away meanwhile ends the turn failed;
+    holds the place's program, so no turn of its own goes in meanwhile, waits on what the program writes
+    down, and hands the end back once it is written; a program that goes away meanwhile ends the turn
+    failed;
   - a job's turn picked up this way keeps everything its running job holds until the job ends: the job
     stays `running`, so its checkout reads as held and its slot as taken, its item's lease
     is kept on the harness's behalf as every running job's is, and no launch notice is told for its item
     (`docs/api.md`, 「assignments and jobs」);
-  - a turn no record names — one on a program that keeps no such record — is ended failed for its
-    caller, and a job's is left to the pass that ends a job left running.
+  - a turn nothing in its place names is ended failed for its caller, and a job's is left to the pass that
+    ends a job left running.
   - every turn's liveness row the process before it left open is closed first, with the ending
     `restarted` and what the server then finds of the turn's program, and the same is written to its log,
     before any place that process left is taken down (`docs/agent-control.md`, 「Telling that a turn's

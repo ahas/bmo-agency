@@ -1,12 +1,13 @@
 //! A turn in flight across agency's own restart, picked up again (docs/sessions.md, 「A restart hands the
 //! session over」): every turn sent is kept in the settings under its run while it goes, with what its end
 //! needs to reach its caller — the session and the turn's id, the agent, the room, its run in the ledger and
-//! its job. A server that starts reads each one left by the process before it against the record of the
-//! pane program that carries it, in the agent's place or in the place of the thrown-away session it went
-//! on: a turn whose end the record holds is handed back through the path a live turn's end takes, a turn the
-//! program is still working on, or has not taken yet, is attached to and waited on with the program held,
-//! its thrown-away session's place kept until its end is handed back and ended then, and a turn no record
-//! names is ended as lost.
+//! its job. A server that starts reads each one left by the process before it in the place of the pane
+//! program that carries it, the agent's or that of the thrown-away session it went on, as that program
+//! writes its turns down: a dsh pane's in its record and inbox, a Claude Code pane's in the place's run,
+//! the hooks' calls and the session's transcript. A turn whose end the program wrote is handed back through
+//! the path a live turn's end takes, a turn the program is still working on, or has not taken yet, is
+//! attached to and waited on with the program held, its thrown-away session's place kept until its end is
+//! handed back and ended then, and a turn nothing names is ended as lost.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,8 +23,8 @@ use crate::door::execution::{Row, cancelled, publish_envelope};
 use crate::door::inbox::{
   State, provider_named, read_turn_on, record_of, span_named, span_named_after, waiting_in_inbox,
 };
-use crate::door::place_run::end_run;
-use crate::door::record::{Reply, UsageSpent};
+use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
+use crate::door::record::{Reply, UsageSpent, answered_since, read_round, read_turn, turn_error};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
@@ -133,15 +134,77 @@ pub async fn carrying_places(db: &sea_orm::DatabaseConnection) -> Vec<String> {
   in_flight(db).await.unwrap_or_default().iter().map(place_name_of).collect()
 }
 
-/// Where a kept turn stands, read from the place its program carries it in.
+/// Where a kept turn stands, read from the place its program carries it in, as that program writes its
+/// turns down: a dsh pane's in its record and its inbox, a Claude Code pane's in the place's run and the
+/// hooks' calls (docs/sessions.md, 「A restart hands the session over」).
 pub fn standing(place: &Place, turn: &InFlight) -> Standing {
   let records = record_of(&place.path).1;
   let Some(span) = span_named(&records, &turn.run) else {
-    return if waiting_in_inbox(&place.path, &turn.run) { Standing::Going } else { Standing::Lost };
+    if waiting_in_inbox(&place.path, &turn.run) {
+      return Standing::Going;
+    }
+
+    return standing_on_hooks(place, turn);
   };
 
   standing_in(&records[span])
 }
+
+// Where a turn of a Claude Code pane stands, which keeps no record of agency's but the place's run, its
+// hooks' calls and the session's own transcript: going while the place's run is the turn's, the program
+// took it — a submit since the run began — and no end has closed it; ended once the hooks have closed the
+// run, its answer or its error read from the transcript the hooks name, from the run's start; lost where
+// the run is another's or the program never took it.
+fn standing_on_hooks(place: &Place, turn: &InFlight) -> Standing {
+  let Some(run) =
+    read_run(&place.path).filter(|run| !run.person && run.name.as_deref() == Some(turn.run.as_str()))
+  else {
+    return Standing::Lost;
+  };
+  let hooks = read_hooks(&place.path, run.started_at);
+
+  if !hooks.iter().any(|hook| hook.kind == "submit") {
+    return Standing::Lost;
+  }
+
+  if run.ended_at.is_none() {
+    return Standing::Going;
+  }
+
+  // The hooks of the run's session name its transcript, the latest naming it the one it ended in.
+  let named = |key: &str| {
+    hooks
+      .iter()
+      .rev()
+      .find_map(|hook| hook.payload.get(key).and_then(Value::as_str).map(str::to_owned))
+  };
+  let lines = named("transcript_path")
+    .and_then(|transcript| transcript_since(std::path::Path::new(&transcript), run.started_at))
+    .unwrap_or_default();
+  let read = read_turn(&lines, 0);
+  let answered = answered_since(&lines, 0);
+  let failure = latest_failure(&place.path, run.started_at).map(|failure| failure.failure());
+
+  if let Some((error, _)) = turn_error(&read, answered, failure) {
+    return Standing::Ended(Came::Failed(error));
+  }
+
+  if !answered {
+    return Standing::Ended(Came::Failed(NO_ANSWER.to_owned()));
+  }
+
+  let mut reply = read.reply(&named("session_id").unwrap_or_default(), read.spend.clone());
+  let round = read_round(&lines).text;
+
+  if !round.is_empty() {
+    reply.text = round;
+  }
+
+  Standing::Ended(Came::Answered(Box::new(reply)))
+}
+
+// Why a turn whose end its program wrote with no answer ended.
+const NO_ANSWER: &str = "the pane program wrote no answer";
 
 /// Where a turn put into a place under a name stands, the turns put in under that name before it being
 /// `before`: read from the place's record where the program took it, going where it waits in the inbox, and
@@ -171,7 +234,7 @@ fn standing_in(lines: &[Value]) -> Standing {
     State::Interrupted => Standing::Ended(Came::Failed("the turn was interrupted".to_owned())),
     State::Ended => Standing::Ended(match error {
       Some(error) => Came::Failed(error),
-      None if reply.text.is_empty() => Came::Failed("the pane program wrote no answer".to_owned()),
+      None if reply.text.is_empty() => Came::Failed(NO_ANSWER.to_owned()),
       None => Came::Answered(Box::new(reply)),
     }),
   }
@@ -303,12 +366,15 @@ pub async fn close_rows(ground: &Ground, run: &str, answered: bool) {
   }
 }
 
-// The open execution rows a turn's program put in under its run.
+// The open execution rows a turn's program put in under its run: a dsh pane's turn names its run on its
+// row, and a Claude Code pane's is named by the turn's liveness row, which names the run and its execution.
 async fn open_rows(ground: &Ground, run: &str) -> Vec<Row> {
   all(
     &ground.db,
     r#"SELECT "body" FROM "agent_executions"
-       WHERE ("body"::jsonb)->>'endedAt' IS NULL AND ("body"::jsonb)->'inboxTurn'->>'name' = $1"#,
+       WHERE ("body"::jsonb)->>'endedAt' IS NULL
+         AND (("body"::jsonb)->'inboxTurn'->>'name' = $1
+              OR "id" IN (SELECT "execution" FROM "turn_liveness" WHERE "run" = $1))"#,
     vec![run.into()],
   )
   .await

@@ -287,6 +287,26 @@ pub fn append(path: &Path, record: &Value) -> std::io::Result<()> {
   file.write_all(format!("{}\n", crate::text::redact_tokens(&line)).as_bytes())
 }
 
+/// The lines a Claude Code session's own record, its transcript, holds stamped at or after `since`, oldest
+/// first; none where it cannot be read.
+pub fn transcript_since(transcript: &Path, since: i64) -> Option<Vec<Value>> {
+  let text = std::fs::read_to_string(transcript).ok()?;
+
+  Some(
+    text
+      .split('\n')
+      .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+      .filter(|record| {
+        record
+          .get("timestamp")
+          .and_then(Value::as_str)
+          .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+          .is_some_and(|at| at.timestamp_millis() >= since)
+      })
+      .collect(),
+  )
+}
+
 /// The failure the program's latest turn since `since` ended with: none where that turn ended with a stop,
 /// or a prompt came after its end.
 pub fn latest_failure(place: &Path, since: i64) -> Option<HookRecord> {

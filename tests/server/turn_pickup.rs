@@ -4,7 +4,9 @@
 //! run closed, a turn its program is still working on is waited on, and one no record names ends failed; a
 //! job's turn adopted at start stands as seen, its slot kept while it goes and given back as it ends; a job's
 //! turn on a thrown-away session is read from that session's place, which the sweep at start keeps while the
-//! turn goes on and which is ended with the turn, while a job's turn no record names is reaped as before.
+//! turn goes on and which is ended with the turn, while a job's turn no record names is reaped as before; a
+//! turn on a Claude Code pane, which keeps no record of agency's, is read from the place's run, the hooks'
+//! calls and the session's transcript, a job's and a supervisor's double's alike.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -627,4 +629,255 @@ async fn a_job_s_turn_on_a_thrown_away_session_no_record_names_is_reaped_and_its
 
   assert_eq!(state, "stopped");
   assert!(report.unwrap_or_default().starts_with(agency_server::control::work::REAPED));
+}
+
+// A moment as a Claude Code transcript stamps its lines.
+fn stamp(at: i64) -> String {
+  chrono::DateTime::from_timestamp_millis(at).unwrap().to_rfc3339()
+}
+
+// Lines appended to a Claude Code session's transcript.
+fn transcribe(transcript: &std::path::Path, lines: &[serde_json::Value]) {
+  use std::io::Write as _;
+
+  let mut file = std::fs::OpenOptions::new().create(true).append(true).open(transcript).unwrap();
+
+  for line in lines {
+    writeln!(file, "{line}").unwrap();
+  }
+}
+
+// A Claude Code pane's place as the process before left it with a turn going: the place's run naming the
+// turn, the program standing in it, the hooks' start and submit, and the session's transcript holding the
+// prompt. Answers the transcript's path and the hooks' payload.
+fn claude_code_turn(
+  place: &Place,
+  run: &str,
+  began: i64,
+  program: u32,
+) -> (std::path::PathBuf, serde_json::Value) {
+  use agency_server::door::place_run::{begin_run, record_call};
+
+  let identity = agent_host::identity::ProcessIdentity::of(program as i32).unwrap();
+  let transcript = place.path.join("session-s.jsonl");
+  let payload = json!({ "session_id": "s", "transcript_path": transcript });
+
+  begin_run(&place.path, run, "a turn", began, Default::default()).unwrap();
+  std::fs::write(
+    place.path.join("running.json"),
+    json!({ "identity": "one", "pid": identity.pid, "birth": identity.birth, "loop": identity,
+            "starts": 1, "startedAt": began, "recent": [], "paneId": "w1:p2" })
+    .to_string(),
+  )
+  .unwrap();
+  record_call(&place.path, "start", &payload, began + 1, false, None).unwrap();
+  record_call(&place.path, "submit", &payload, began + 2, false, None).unwrap();
+  transcribe(
+    &transcript,
+    &[json!({ "type": "user", "timestamp": stamp(began + 3), "message": { "content": "the work" } })],
+  );
+
+  (transcript, payload)
+}
+
+// The turn's answer written to the transcript and its stop recorded by the hooks, which closes the run.
+fn claude_code_answers(
+  place: &Place,
+  transcript: &std::path::Path,
+  payload: &serde_json::Value,
+  text: &str,
+) {
+  let at = now_ms();
+
+  transcribe(
+    transcript,
+    &[
+      json!({ "type": "assistant", "timestamp": stamp(at),
+              "message": { "id": "m1", "model": "deepseek-flash",
+                           "content": [{ "type": "text", "text": text }] } }),
+      json!({ "type": "system", "subtype": "turn_duration", "timestamp": stamp(at + 1) }),
+    ],
+  );
+  agency_server::door::place_run::record_call(&place.path, "stop", payload, at + 2, false, None).unwrap();
+}
+
+#[test]
+fn a_claude_code_pane_s_turn_stands_as_its_place_s_run_and_hooks_say() {
+  let data = tempfile::tempdir().unwrap();
+  let place = Place::of(data.path(), "apart-worker-a-run-20");
+  let turn = InFlight {
+    session: "worker-a@run:20".into(),
+    ..in_flight("job-20", "worker-a", 1, None, None, Some(20))
+  };
+  let began = now_ms() - 5_000;
+  let transcript = place.path.join("session-s.jsonl");
+  let payload = json!({ "session_id": "s", "transcript_path": transcript });
+
+  std::fs::create_dir_all(&place.path).unwrap();
+  assert_eq!(standing(&place, &turn), Standing::Lost, "no run names it");
+
+  agency_server::door::place_run::begin_run(&place.path, "job-20", "a turn", began, Default::default())
+    .unwrap();
+  assert_eq!(standing(&place, &turn), Standing::Lost, "the program never took it");
+
+  agency_server::door::place_run::record_call(&place.path, "submit", &payload, began + 1, false, None)
+    .unwrap();
+  assert_eq!(standing(&place, &turn), Standing::Going, "taken and not closed");
+
+  claude_code_answers(&place, &transcript, &payload, "The report.");
+
+  match standing(&place, &turn) {
+    Standing::Ended(Came::Answered(reply)) => {
+      assert_eq!(reply.text, "The report.");
+      assert_eq!(reply.session_id.as_deref(), Some("s"));
+    }
+    other => panic!("{other:?}"),
+  }
+
+  let other = InFlight {
+    run: "job-21".into(),
+    ..turn.clone()
+  };
+
+  assert_eq!(standing(&place, &other), Standing::Lost, "the place's run is another turn's");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends_through_the_job_s_end() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let data = ground.roots.data.clone();
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  running_job(&scratch, 43, now_ms() - 20 * 60 * 1000).await;
+
+  let held = job_slot(&ground, 43, true).await;
+  let (name, place) = apart_place(&ground, "worker-a@run:16");
+  let (transcript, payload) = claude_code_turn(&place, "job-43", now_ms() - 60_000, program.id());
+
+  // The door's row of the turn, named by its liveness row, which the last process left open.
+  scratch
+    .run(
+      r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('door-43', $1)"#,
+      vec![
+        json!({ "id": "door-43", "agent": name, "line": "worker", "provider": "deepseek",
+                "state": "running", "startedAt": now_ms() - 60_000, "endedAt": null, "paneId": "w1:p2",
+                "resident": { "place": place.path, "pid": program.id() } })
+        .to_string()
+        .into(),
+      ],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "turn_liveness" ("execution", "run", "line", "session", "phase", "opened_at",
+           "written_at", "ending", "ended_at")
+         VALUES ('door-43', 'job-43', 'worker', 's', 'working', $1, $1, 'restarted', $1)"#,
+      vec![now_ms().into()],
+    )
+    .await;
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "worker-a@run:16".into(),
+      ..in_flight("job-43", "worker-a", 63, Some(7), None, Some(43))
+    },
+  )
+  .await;
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 0, "the adopted place is kept");
+  assert!(agency_server::apart_places::is_apart_place(&data, &name));
+  assert_eq!(agency_server::queue::reconcile::pass(scratch.db(), &data).await.unwrap(), 0);
+  assert_eq!(reap_stale(&ground).await.unwrap(), 0);
+  assert_eq!(job_state(&scratch, 43).await.0, "running", "the job goes on across the start");
+  assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  // The program answers and its hooks close the run: the job ends with the answer as its report.
+  claude_code_answers(&place, &transcript, &payload, "The Claude Code job's report.");
+
+  for _ in 0..80 {
+    if !agency_server::apart_places::is_apart_place(&data, &name) {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  assert!(
+    !agency_server::apart_places::is_apart_place(&data, &name),
+    "the place ends with its turn"
+  );
+  assert_eq!(
+    job_state(&scratch, 43).await,
+    ("ended".to_owned(), Some("The Claude Code job's report.".to_owned()))
+  );
+  assert_eq!(slot_now(&ground, &held.token).await.state, "released");
+
+  let door =
+    store::one(scratch.db(), r#"SELECT "body" FROM "agent_executions" WHERE "id" = 'door-43'"#, vec![])
+      .await
+      .unwrap()
+      .unwrap()
+      .try_get::<String>("", "body")
+      .unwrap();
+
+  assert!(!door.contains("\"endedAt\":null"), "the door's row is closed with the turn: {door}");
+
+  let _ = program.kill();
+  let _ = program.wait();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_supervisor_s_double_s_turn_on_a_claude_code_pane_is_adopted_and_its_end_reaches_its_session() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let data = ground.roots.data.clone();
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+  let mut ended = ground.events.subscribe::<TurnEnded>();
+  let (name, place) = apart_place(&ground, "double-a@run:1");
+  let (transcript, payload) = claude_code_turn(&place, "delegate:9", now_ms() - 60_000, program.id());
+
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "double-a@run:1".into(),
+      ..in_flight("delegate:9", "double-a", 71, None, None, None)
+    },
+  )
+  .await;
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 0);
+  assert!(ended.ready().is_none(), "nothing ends while the turn goes on");
+
+  claude_code_answers(&place, &transcript, &payload, "Delegated and done.");
+
+  let end = tokio::time::timeout(std::time::Duration::from_secs(10), ended.next())
+    .await
+    .unwrap()
+    .unwrap();
+
+  assert_eq!((end.session.as_str(), end.end.turn), ("double-a@run:1", 71));
+  assert_eq!(end.end.answer.as_deref(), Some("Delegated and done."));
+
+  for _ in 0..80 {
+    if !agency_server::apart_places::is_apart_place(&data, &name) {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  assert!(
+    !agency_server::apart_places::is_apart_place(&data, &name),
+    "the place ends with its turn"
+  );
+
+  let _ = program.kill();
+  let _ = program.wait();
 }
