@@ -368,6 +368,10 @@ never the model's name.
   command, environment or record of agency's.
 - **How the gateway is handed the registrations' keys:** its launcher reads each file into its child's
   environment alone (「The gateway」 below).
+- **The gateway's own key is its only door:** `llm-gateway.key` under `env/`, which every caller of the
+  gateway presents as `Authorization: Bearer <key>`. The front checks it on every request before anything
+  reaches LiteLLM, so a reverse proxy standing a public door in front of the gateway adds no check of its
+  own and needs none (「The gateway」 below).
 
 ## The gateway's members
 
@@ -395,9 +399,9 @@ never the model's name.
 - **The deployment seeds the file once.** The repository's `deploy/llm-gateway-members.json` is placed
   where the data-root file is absent, and a file the deployment already holds is never overwritten:
   the members are the deployment's, not the repository's.
-- **A member's model name is what Claude Code's `/model` asks for.** The gateway still listens on its
-  loopback port alone; health, a streamed answer and a tool call are asked through the Messages API at
-  `/v1/messages`.
+- **A member's model name is what Claude Code's `/model` asks for.** Health, a streamed answer and a
+  tool call are asked through the Messages API at `/v1/messages`, behind the gateway's key like every
+  other request.
 - **`/v1/models` names every member** beside every registration, under the gateway's key. `/health`
   remains LiteLLM's own and can fail on an installation with no Prisma database. A member whose
   provider refuses its key is named by its provider's error, never answered by another member.
@@ -407,8 +411,8 @@ never the model's name.
 
 ## The gateway
 
-- **What it is:** a LiteLLM proxy behind a front of agency's, standing as its own user unit on loopback
-  alone. It serves the OpenAI-compatible API and Anthropic's Messages API in front, and asks an
+- **What it is:** a LiteLLM proxy behind a front of agency's, standing as its own user unit and listening
+  on loopback. It serves the OpenAI-compatible API and Anthropic's Messages API in front, and asks an
   OpenAI-compatible backend at its chat completions path behind, translating the Messages API both ways:
   tool-use and tool-result blocks against tool calls, the streamed events, and an error in the shape the
   caller reads.
@@ -420,6 +424,14 @@ never the model's name.
   - A run with tools, on the Messages API: Claude Code speaks nothing else, and a registration is an
     OpenAI-compatible address.
   - A request with no tools, on the chat completions path and the model list.
+  - A caller off the machine, through a public door: a reverse proxy may stand in front of the gateway's
+    loopback port — the deployment's nginx serves it under `/llm/` — and hands every request through as
+    it stands. The proxy checks nothing; the gateway's own key, checked at the front, is the only door.
+- **What a public caller may ask:** the OpenAI-compatible routes `/v1/models` and
+  `/v1/chat/completions`, and Anthropic's Messages route `/v1/messages`, each under the public door's
+  prefix. A model is named by its registration's name, such as `flash-next`, which LiteLLM serves from
+  any of its addresses, or pinned to one node as `<name>@<node>`, such as `flash-next@n3`; a member of the
+  gateway is named by its own name (「The gateway's members」 above).
 - **Its table is written from the registry:** the unit's process is agency's gateway launcher, the
   `llm-gateway` binary. It reads the registry out of the store the server runs on, at the address found
   as every reader of the store finds it (`docs/store.md`, 「Connecting」), opened read-only for each
@@ -527,11 +539,16 @@ never the model's name.
   models in while running only from a database, which this gateway does not keep.
 - **Why LiteLLM:** it is a translator and nothing more, serves both APIs from one table in one file, and
   runs as one process with no database.
-- **Its own key:** a key file read by the launcher into each child's environment as it starts it.
-  Without that file, or with one that is empty or not `0600`, the launcher does not stand.
-- **A request without the key is answered `500`, not `401`,** since LiteLLM's own refusal path imports a
-  database client the installed LiteLLM does not carry; a wrong key is answered `400`. The front hands
-  both back as they came; a caller with the key is answered.
+- **Its own key:** the key file `llm-gateway.key` under the data root's `env/`, read once as the launcher
+  starts. Without that file, or with one that is empty or not `0600`, the launcher does not stand. The key
+  read then is the one the front checks and the one handed to each child it starts as LiteLLM's own key,
+  so the two never disagree; a key given again reaches the gateway with its restart.
+- **The front checks the key on every request,** whatever its path, before the request reaches a child
+  or is told no table stands yet. A request must carry `Authorization: Bearer <key>`; one with no such
+  header, another scheme or another key is answered `401` with `WWW-Authenticate: Bearer` and an error in
+  the OpenAI shape — an `error` object holding a `message`, the `type` `authentication_error` and the
+  `code` `"401"` — and nothing of it is handed on. The key is compared in constant time. LiteLLM's own
+  check stays behind it, so a request a child is handed carries the key the child holds.
 - **How it stands:** the gateway's unit is linked into the user's systemd directory and enabled by
   the deployment, and carries the restart mark, so every deployment restarts it with agency's other
   services. That restart is the one moment the front itself goes down, and the requests in hand then

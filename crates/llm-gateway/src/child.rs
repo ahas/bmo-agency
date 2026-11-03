@@ -27,6 +27,9 @@ pub struct Place {
   pub folder: PathBuf,
   /// The data root's `env/`.
   pub env_dir: PathBuf,
+  /// The gateway's own key, read once as the launcher starts: the one the front checks, handed to each
+  /// child as LiteLLM's own.
+  pub gateway_key: String,
   pub hooks: Vec<PathBuf>,
 }
 
@@ -137,10 +140,7 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
   let mut env = BTreeMap::new();
   env.insert("PATH".to_owned(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned()));
   env.insert("HOME".to_owned(), std::env::var("HOME").unwrap_or_default());
-  env.insert(
-    GATEWAY_KEY_VARIABLE.to_owned(),
-    read_key(&place.env_dir, "llm-gateway.key").unwrap_or_default(),
-  );
+  env.insert(GATEWAY_KEY_VARIABLE.to_owned(), place.gateway_key.clone());
   for (variable, key_file) in &table.key_files {
     let key = read_key(&place.env_dir, key_file);
     if key.is_none() {

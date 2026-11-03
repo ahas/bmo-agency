@@ -15,7 +15,7 @@ use harness_machine::card_master::{Master, MasterAddress, entry_of};
 use harness_machine::members::{self, Member};
 use llm_gateway::child::{Place, start, write_private};
 use llm_gateway::front::{Front, Status, router};
-use llm_gateway::keys::{read_key, usable_secret_file};
+use llm_gateway::keys::read_key;
 use llm_gateway::table::{HOOKS, Table, gateway_table_with_members, laid_instances, table_digest};
 use sqlx::Connection;
 use store::open_read;
@@ -167,11 +167,7 @@ async fn main() -> ExitCode {
   };
   let members_path = members::path(&data_root);
   let hooks_dir = code_root().join("crates/llm-gateway/hooks");
-  let place = Arc::new(Place {
-    folder: data_root.join("llm-gateway"),
-    env_dir: data_root.join("env"),
-    hooks: HOOKS.iter().map(|hook| hooks_dir.join(format!("{hook}.py"))).collect(),
-  });
+  let env_dir = data_root.join("env");
   let refresh_every = Duration::from_millis(
     named("LLM_GATEWAY_REFRESH_MS")
       .and_then(|ms| ms.parse().ok())
@@ -179,15 +175,21 @@ async fn main() -> ExitCode {
       .unwrap_or(5_000),
   );
 
-  // Without its own key the gateway would answer anyone on this machine, so it does not stand at all.
-  let gateway_key = place.env_dir.join("llm-gateway.key");
-  if !usable_secret_file(&gateway_key) {
+  // Its own key is the only door every request passes, so without it the gateway does not stand at all.
+  // It is read once here: the key the front checks and the one each child is handed.
+  let Some(gateway_key) = read_key(&env_dir, "llm-gateway.key").filter(|key| !key.is_empty()) else {
     eprintln!(
-      "llm-gateway: {} is missing or not 0600, so the gateway does not start",
-      gateway_key.display()
+      "llm-gateway: {} is missing, empty or not 0600, so the gateway does not start",
+      env_dir.join("llm-gateway.key").display()
     );
     return ExitCode::FAILURE;
-  }
+  };
+  let place = Arc::new(Place {
+    folder: data_root.join("llm-gateway"),
+    env_dir,
+    gateway_key: gateway_key.clone(),
+    hooks: HOOKS.iter().map(|hook| hooks_dir.join(format!("{hook}.py"))).collect(),
+  });
   if let Err(fault) = std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&place.folder) {
     eprintln!("llm-gateway: {} could not be made: {fault}", place.folder.display());
     return ExitCode::FAILURE;
@@ -195,7 +197,7 @@ async fn main() -> ExitCode {
   place.clear_leftovers();
 
   let status_path = place.folder.join("status.json");
-  let front = Front::new({
+  let front = Front::new(gateway_key, {
     let path = status_path.clone();
     move |status| write_status(&path, status)
   });

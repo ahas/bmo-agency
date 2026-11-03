@@ -1,8 +1,8 @@
-//! The gateway's front: the one address every run and every gate asks, which streams each request
-//! through to the LiteLLM child it serves from and each answer back as they stand, reading neither. A
-//! new table is a new child: once it answers, new requests go to it, and the old child is stopped only
-//! when the requests in hand through it have ended, however long they take, so a saved change never
-//! cuts a request.
+//! The gateway's front: the one address every run and every gate asks, which checks each request's key
+//! and streams the request through to the LiteLLM child it serves from and each answer back as they
+//! stand, reading neither. A new table is a new child: once it answers, new requests go to it, and the
+//! old child is stopped only when the requests in hand through it have ended, however long they take, so
+//! a saved change never cuts a request.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -18,6 +18,7 @@ use futures_util::StreamExt;
 use http_body_util::BodyDataStream;
 use hyper_util::rt::TokioIo;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 
@@ -53,6 +54,8 @@ struct Held {
 }
 
 pub struct Front {
+  /// The gateway's own key, which every request carries as its Bearer.
+  key: String,
   held: Mutex<Held>,
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
 }
@@ -92,9 +95,48 @@ fn text(status: StatusCode, said: String) -> Response {
   (status, [(header::CONTENT_TYPE, "text/plain;charset=utf-8")], said).into_response()
 }
 
+// Two secrets compared in a time that depends on neither: each is hashed to the same length first, and
+// every byte of the two hashes is looked at.
+fn same_secret(given: &[u8], key: &[u8]) -> bool {
+  let (given, key) = (Sha256::digest(given), Sha256::digest(key));
+  let differ = given.iter().zip(key.iter()).fold(0u8, |differ, (a, b)| differ | (a ^ b));
+  std::hint::black_box(differ) == 0
+}
+
+/// Whether a request carries the key as its Bearer: the scheme in any case, the key as it stands.
+pub fn carries_key(headers: &header::HeaderMap, key: &str) -> bool {
+  let Some(said) = headers.get(header::AUTHORIZATION).map(HeaderValue::as_bytes) else {
+    return false;
+  };
+  let Some((scheme, given)) = said.split_at_checked(7) else {
+    return false;
+  };
+  scheme.eq_ignore_ascii_case(b"bearer ") && same_secret(given.trim_ascii(), key.as_bytes())
+}
+
+// A request without the key, refused in the OpenAI error shape before anything of it is handed on.
+fn refused() -> Response {
+  let body = serde_json::json!({
+    "error": {
+      "message": "The gateway's key is missing or wrong: send it as `Authorization: Bearer <key>`.",
+      "type": "authentication_error",
+      "code": "401",
+    }
+  });
+  (
+    StatusCode::UNAUTHORIZED,
+    [(header::CONTENT_TYPE, "application/json"), (header::WWW_AUTHENTICATE, "Bearer")],
+    body.to_string(),
+  )
+    .into_response()
+}
+
 impl Front {
-  pub fn new(on_status: impl Fn(&Status) + Send + Sync + 'static) -> Arc<Front> {
+  /// A front checking every request against the gateway's own key, which is never empty.
+  pub fn new(key: String, on_status: impl Fn(&Status) + Send + Sync + 'static) -> Arc<Front> {
+    assert!(!key.is_empty(), "the gateway's key is never empty");
     Arc::new(Front {
+      key,
       held: Mutex::new(Held::default()),
       on_status: Box::new(on_status),
     })
@@ -159,8 +201,12 @@ impl Front {
     Ok(())
   }
 
-  /// One request, carried to the child serving now and its answer carried back as it comes.
+  /// One request, refused without the key, else carried to the child serving now and its answer
+  /// carried back as it comes.
   pub async fn handle(self: &Arc<Self>, request: Request) -> Response {
+    if !carries_key(request.headers(), &self.key) {
+      return refused();
+    }
     // Counted in hand under the lock the child is taken under, so a take that retires that child in
     // between never finds it idle and stops it under the request.
     let serving = {
@@ -253,7 +299,7 @@ impl Front {
   }
 }
 
-/// Every path and method comes through the front.
+/// Every path and method comes through the front, and through its check of the key.
 pub fn router(front: Arc<Front>) -> Router {
   Router::new()
     .fallback(

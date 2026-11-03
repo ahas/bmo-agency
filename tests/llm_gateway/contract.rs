@@ -245,7 +245,25 @@ impl World {
     seen.unwrap()
   }
 
+  /// A request as a caller of the gateway sends it: with the gateway's key as its Bearer unless the
+  /// headers name an authorization of their own.
   async fn open(
+    &self,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+  ) -> hyper::Response<Incoming> {
+    let keyed = format!("Bearer {GATEWAY_KEY}");
+    let mut headers = headers.to_vec();
+    if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("authorization")) {
+      headers.push(("authorization", &keyed));
+    }
+    self.open_bare(method, path, &headers, body).await
+  }
+
+  /// A request carrying the headers named and nothing more.
+  async fn open_bare(
     &self,
     method: &str,
     path: &str,
@@ -273,10 +291,7 @@ impl World {
     headers: &[(&str, &str)],
     body: &str,
   ) -> (u16, hyper::HeaderMap, String) {
-    let answer = self.open(method, path, headers, body).await;
-    let (status, headers) = (answer.status().as_u16(), answer.headers().clone());
-    let body = answer.into_body().collect().await.unwrap().to_bytes();
-    (status, headers, String::from_utf8_lossy(&body).into_owned())
+    read_whole(self.open(method, path, headers, body).await).await
   }
 
   /// Which child answered a plain request.
@@ -291,6 +306,12 @@ impl World {
       libc::kill(self.gateway.as_ref().unwrap().id() as i32, libc::SIGTERM);
     }
   }
+}
+
+async fn read_whole(answer: hyper::Response<Incoming>) -> (u16, hyper::HeaderMap, String) {
+  let (status, headers) = (answer.status().as_u16(), answer.headers().clone());
+  let body = answer.into_body().collect().await.unwrap().to_bytes();
+  (status, headers, String::from_utf8_lossy(&body).into_owned())
 }
 
 impl Drop for World {
@@ -391,7 +412,7 @@ async fn a_request_and_its_answer_pass_as_they_stand() {
   assert_eq!(asked["headers"]["accept-encoding"], "identity");
   assert!(asked["headers"].get("keep-alive").is_none());
 
-  // A child's own failure — LiteLLM's 500 to a request without the gateway's key — comes back as it came.
+  // A child's own failure comes back as it came.
   let (status, _, _) = world.ask("GET", "/v1/models", &[("x-standin-status", "500")], "").await;
   assert_eq!(status, 500);
 }
@@ -504,6 +525,59 @@ async fn a_key_given_again_is_a_new_child_on_it() {
     world.events("stopped").iter().any(|entry| entry["table"] == first.as_str())
   })
   .await;
+}
+
+// A refusal for want of the key, as the front answers it: 401 in the OpenAI error shape.
+fn assert_refused((status, headers, body): (u16, hyper::HeaderMap, String)) {
+  assert_eq!(status, 401, "{body}");
+  assert_eq!(headers["www-authenticate"], "Bearer");
+  assert_eq!(headers["content-type"], "application/json");
+  let error: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(error["error"]["type"], "authentication_error", "{body}");
+  assert_eq!(error["error"]["code"], "401", "{body}");
+  assert!(error["error"]["message"].as_str().is_some_and(|message| !message.is_empty()), "{body}");
+}
+
+#[tokio::test]
+async fn a_request_without_the_gateways_key_is_refused_401_at_the_front() {
+  let world = World::over(Scratch::blank().await, "").await.start().await;
+
+  // Before any table stands the key is still asked for first.
+  assert_refused(read_whole(world.open_bare("GET", "/v1/models", &[], "").await).await);
+
+  Migrator::up(world.store.db(), None).await.unwrap();
+  world.write(PAIR).await;
+  let table = world.serving(None).await;
+
+  let wrong = format!("Bearer {GATEWAY_KEY}-wrong");
+  let basic = format!("Basic {GATEWAY_KEY}");
+  let refusals: [&[(&str, &str)]; 5] = [
+    &[],
+    &[("authorization", &wrong)],
+    &[("authorization", "Bearer ")],
+    &[("authorization", &basic)],
+    &[("x-api-key", GATEWAY_KEY)],
+  ];
+  for headers in refusals {
+    for path in ["/v1/models", "/v1/chat/completions", "/v1/messages", "/health/liveliness", "/held"] {
+      assert_refused(read_whole(world.open_bare("POST", path, headers, "{}").await).await);
+    }
+  }
+  // Nothing refused reached the child.
+  assert!(world.events("holding").is_empty());
+
+  let keyed = format!("bearer {GATEWAY_KEY}");
+  let (status, headers, body) = read_whole(
+    world
+      .open_bare("POST", "/v1/chat/completions", &[("authorization", &keyed)], "{}")
+      .await,
+  )
+  .await;
+  assert_eq!(status, 200, "{body}");
+  assert_eq!(headers["x-standin"], table.as_str());
+  let asked: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(asked["path"], "/v1/chat/completions");
+  assert_eq!(asked["headers"]["authorization"], keyed);
 }
 
 #[tokio::test]
