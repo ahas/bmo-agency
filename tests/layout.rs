@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Directories that are built, fetched or kept by tools rather than written.
-const NOT_WRITTEN: &[&str] = &[".git", "target", "node_modules"];
+const NOT_WRITTEN: &[&str] = &[".git", "target", "node_modules", ".claude"];
 
 /// Manifests and lockfiles of build tools other than Cargo.
 const OTHER_MANIFESTS: &[&str] = &[

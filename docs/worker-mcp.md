@@ -12,9 +12,9 @@
 - **They answer in English.** A worker reads English (`docs/worker-language.md`), so the two queue
   tools give their labels in English and every text a person or the bot wrote as its translation out
   of the table, never asking the translator themselves.
-- **They answer as the scripts do.** The tools are Rust, placed in `tools/graph/` and `tools/todo/`
-  and served by the tool host (`mcp-host.md`, 「Placed tools」); the scripts are TypeScript until their own
-  port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
+- **They answer as the scripts do.** The tools are Rust, the queue's placed by the job service and the graph's
+  served by the graph service's MCP server, each by the tool host (`mcp-host.md`, 「Placed tools」); the scripts
+  are TypeScript until their own port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
   same answer, so a tool and the script cannot answer the same question differently. The script
   run by a job answers in the same English; run by a person or by the supervisor, in the reader's language.
 
@@ -48,10 +48,10 @@
 ## How the host serves them
 
 - **Two registrations stand under the `worker` namespace.** The queue's `todo_list` and `todo_show` are
-  the operations deploy tree's placed `todo` tool, registered by agency's deployment. The graph's
+  the job service's own placed `todo` tool, registered by bmo-job's deployment. The graph's
   `graph_search`, `graph_get`, `graph_list` and `graph_impact` are the graph service's own MCP server,
-  registered as an external server under `worker` with `graph.read`. Agency's deployment registers both,
-  so a dsh worker's `worker` server opens with entries.
+  registered as an external server under `worker` with `graph.read`. Agency's deployment registers the
+  graph's, so a dsh worker's `worker` server opens with entries.
 - **The dsh worker overlay names a namespace only where the host serves it.** The worker line's
   `web` and `worker` namespaces are the host's; a namespace with no entry would answer not-found and
   dsh would log an `mcp-worker` failure rather than start.
@@ -157,7 +157,7 @@
   read as itself rather than as the base checkout the environment names
   (`docs/worker-slots.md` 「A job on a support checkout」). It is read on every call, so a job's own
   edits to it are in the next answer.
-- The queue a call answers out of is the archive the record names, read on every call.
+- The queue a call answers out of is the job service the session's record reaches, read on every call.
 - The answers stand under the standing ceiling on what a verb of ours returns
   (`job-tools.md` 「What a verb answers with」), cut by the same units the scripts cut by.
 - Which namespaces the worker's line is handed, and what else stands in its fixed prompt, are in

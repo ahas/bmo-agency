@@ -125,12 +125,10 @@ mkdir -p tools/procedures/.placed
 cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 '''
 
-# The worker tools are placed by the operations deploy tree, not built here: the tool host is handed them
-# under the worker namespace at every agency deployment, so a dsh worker's `worker` server has entries to
-# open and its session starts without an mcp-worker failure (docs/worker-mcp.md).
 # The graph reads are the graph service's own MCP server, registered as an external server under the
-# worker namespace beside the queue tools (docs/worker-mcp.md): the host lists its tools for a worker's
-# dsh session, so the namespace is never empty.
+# worker namespace (docs/worker-mcp.md): the host lists its tools for a worker's dsh session, so the
+# namespace is never empty. The queue tool is the job service's own, registered by that service's
+# deployment (bmo-job's docs/tools.md), not by this one.
 # The gateway's members: the seed of the deployment's own file, the provider APIs it serves beside the
 # registry, each with the key file under the data root's env/ that holds its credential. The deployment
 # places the seed only where the file is absent; a file it already holds is the deployment's and is not
@@ -152,18 +150,6 @@ phase = "after-health"
 command = '''
 set -eu
 bmo-pocket put --mcp deploy/worker-graph.server.toml --allow graph.read --service agency
-'''
-
-[[deploy.step]]
-id = "place-worker-tools"
-phase = "after-health"
-command = '''
-set -eu
-tools="$HOME/.local/share/bmo/deploy/tools"
-if [ -d "$tools/todo" ]; then
-  bmo-pocket put "$tools/todo" --placed --service agency \
-    --allow queue.read --allow room.chat --allow room.tools --allow approve --allow file_todo
-fi
 '''
 
 # Every agent's place rewritten to hand agency's tokens as the files they stand in, once the new server stands
