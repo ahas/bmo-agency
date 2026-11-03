@@ -405,6 +405,51 @@ async fn a_turn_whose_program_died_is_closed_and_its_room_freed() {
   assert!(end.end.reason.unwrap_or_default().contains("died silent"));
 }
 
+// A turn this process still carries is its own end's to close: its walk goes from one road to the next under
+// the same run, and the place's run ends between them — a failed request ending the first road's turn — while
+// the turn goes on (docs/sessions.md, 「A turn whose program dies」).
+#[tokio::test]
+async fn a_turn_this_process_carries_is_left_to_its_own_end_though_its_place_s_run_ended() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let place = Place::of(&ground.roots.data, "agent-walking");
+  let turn = in_flight("chat:8:1", "agent-walking", 8, Some(8), None, None);
+  let mut ended = ground.events.subscribe::<TurnEnded>();
+
+  agency_server::door::place_run::begin_run(
+    &place.path,
+    "chat:8:1",
+    "a turn",
+    now_ms() - 1_000,
+    Default::default(),
+  )
+  .unwrap();
+  agency_server::door::place_run::record_call(
+    &place.path,
+    agency_server::lines::place::FAILURE_KIND,
+    &json!({ "hook_event_name": "StopFailure", "error": "server_error",
+             "last_assistant_message": "API Error: 503 Service is too busy" }),
+    now_ms(),
+    false,
+    None,
+  )
+  .unwrap();
+  assert!(agency_server::door::place_run::read_run(&place.path).unwrap().ended_at.is_some());
+  keep(scratch.db(), &turn).await;
+
+  let carrying = Carrying::of("chat:8:1");
+
+  assert_eq!(reap_dead(&ground).await, 0);
+  assert!(kept(scratch.db(), "chat:8:1").await, "the turn going on stays kept");
+  assert!(ended.ready().is_none(), "nothing is handed back for it");
+
+  // Once its end has gone, a run left ended in its place is no longer kept.
+  drop(carrying);
+  assert_eq!(reap_dead(&ground).await, 0);
+  assert!(!kept(scratch.db(), "chat:8:1").await);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_back_when_the_turn_ends() {
   let scratch = Scratch::new().await;

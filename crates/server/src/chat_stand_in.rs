@@ -15,6 +15,7 @@ use crate::cards;
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::events::Event;
+use crate::job_run::claude::failure::request_refused;
 use crate::lines::chat::{ChatLaunch, ChatRun, Door, chat_run, compose_stand_in};
 use crate::lines::codex::lost_thread;
 use crate::lines::standing::{GatewayModel, member_model, place_registered};
@@ -85,6 +86,15 @@ fn refusal(why: Refusal) -> NoAnswer {
   failed(why.detail)
 }
 
+// Why a walk stopped from outside went out on no further road.
+const STOPPED: &str = "The turn was stopped from outside, so it went out on no further provider.";
+
+// Whether the turn a walk goes out for was stopped from outside: its interrupt stands a cancellation over
+// its run (docs/cache-fallback.md, 「Automatic walks only on providers, in order」).
+async fn stopped(ground: &Ground, log: &RunLog) -> bool {
+  crate::door::execution::cancelled(&ground.db, &[log.run()]).await.unwrap_or(false)
+}
+
 // A line of the turn's log under the stand-in's own name, saying why a step did not answer.
 async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) {
   log
@@ -103,7 +113,9 @@ async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) 
 /// resolution」): each road of it that can answer now in turn, until one answers. None where the walk reaches
 /// Claude Code, whose own session carries the turn — and where no stand-in answered while Claude Code is on,
 /// whose own failure then says why; the stand-in's reply where one answered; and the closed road's sentence
-/// where nothing of the order answered and Claude Code is off.
+/// where nothing of the order answered and Claude Code is off. A road that failed for the work's own sake —
+/// its request refused for its shape — ends the turn with that failure, and a turn stopped from outside
+/// goes out on no further road.
 #[allow(clippy::too_many_arguments)]
 pub async fn stand_in_turn(
   ground: &Ground,
@@ -127,6 +139,10 @@ pub async fn stand_in_turn(
   let mut noted = false;
 
   for taken in resolution.open() {
+    if stopped(ground, log).await {
+      return Err(failed(STOPPED));
+    }
+
     if taken.provider == CLAUDE {
       road::went(ground, &resolution, Some(taken), &tried).await;
 
@@ -450,6 +466,11 @@ async fn deliver(
     // A pane that left the words unsubmitted is no road's failure: the next road would put the same words
     // before a program of its own, on a session of its own, for a dialog somebody left open.
     Err(NoAnswer::Unsubmitted(why)) => Err(NoAnswer::Unsubmitted(why)),
+    // Nor is a request the road refused for its shape: the next road would be sent the same request
+    // (docs/provider-order.md, 「Falling over and coming back」).
+    Err(NoAnswer::Errored { error, kind }) if request_refused(&error, kind.as_deref()) => {
+      Err(NoAnswer::Errored { error, kind })
+    }
     Err(NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Errored { error: why, .. }) => Ok(Err(why)),
   }
 }

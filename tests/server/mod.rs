@@ -84,6 +84,7 @@ mod door {
   mod record;
   mod rollout;
   mod stand;
+  mod turn;
 }
 mod events;
 mod ground;

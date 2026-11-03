@@ -273,7 +273,10 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A turn whose program is gone is closed by the queue's pass.** Every kept turn is read in the place
   whose program carries it — the agent's, or the place of the thrown-away session it went on — and only
   where that place's run is the turn's own; a place whose run is another's, an earlier turn of the agent's
-  own place among them, says nothing of it. A turn whose run there has ended is no longer kept. Otherwise
+  own place among them, says nothing of it. A turn this process still carries is its own to close and is
+  left to it: a turn's walk goes from one provider's road to the next under the same run, and the place's run
+  ends between them while the turn goes on, its run in the ledger closed by the turn's own end. Any other
+  turn whose run there has ended is no longer kept. Otherwise
   it is read against the execution rows its run put in; where a row's recorded pid and birth are gone and
   the run has no end, the pass closes the run with the moment and a reason naming the room, run, pid and
   that it died silent, and hands its end back as a finished turn does. The room's one turn is freed, so the next

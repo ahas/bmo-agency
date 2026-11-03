@@ -1178,10 +1178,12 @@ pub struct Carried<'a> {
 }
 
 /// Why a turn's end says its road stopped answering rather than the work failing, where it does
-/// (docs/cache-fallback.md, 「Automatic walks only on providers, in order」): the provider refusing its quota,
-/// its window, its balance or its credential, its last login closing under it, or the road switched off —
-/// read off the end's own failure, its engine's error, and its words through the one failure reading every
-/// run asks. A turn that answered, or was stopped from outside, never says so.
+/// (docs/cache-fallback.md, 「Automatic walks only on providers, in order」; docs/provider-order.md, 「Falling
+/// over and coming back」): the provider refusing its quota, its window, its balance or its credential, its
+/// last login closing under it, answering with a server error or refusing the connection, or the road
+/// switched off — read off the end's own failure, its engine's error, and its words through the one failure
+/// reading every run asks. A turn that answered, was stopped from outside, or whose request the provider
+/// refused for its shape never says so.
 pub fn road_stopped(end: &TurnEnd) -> Option<String> {
   use agent_session::{AccountFailure, Failure, Outcome};
 
@@ -1209,25 +1211,39 @@ pub fn road_stopped(end: &TurnEnd) -> Option<String> {
       Failure::Limit { .. }
       | Failure::Unavailable { .. }
       | Failure::Account {
-        failure: AccountFailure::Limit | AccountFailure::Login,
+        failure: AccountFailure::Limit | AccountFailure::Login | AccountFailure::Outage,
         ..
       },
     ) => return said(),
     _ => {}
   }
 
+  use crate::job_run::claude::failure::{self as reading, AccountFailure as Read};
+
   let engine = end.engine_error.as_ref().and_then(|engine| engine.kind.as_deref());
 
-  if matches!(engine, Some("rate_limit" | "billing_error" | "authentication_error")) {
-    return said();
+  if reading::request_refused(&words, engine) {
+    return None;
   }
 
-  use crate::job_run::claude::failure::{self as reading, AccountFailure as Read};
+  if matches!(
+    engine,
+    Some(
+      "rate_limit"
+        | "billing_error"
+        | "authentication_error"
+        | "authentication_failed"
+        | "server_error"
+        | "overloaded"
+    )
+  ) {
+    return said();
+  }
 
   match reading::of_errored(&words, JOB_WORK_KEY) {
     reading::Failure::Limit { .. }
     | reading::Failure::Account {
-      failure: Read::Limit | Read::Login,
+      failure: Read::Limit | Read::Login | Read::Outage,
       ..
     } => said(),
     _ => None,

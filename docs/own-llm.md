@@ -277,7 +277,8 @@ never the model's name.
   card in use, a bench or a claim. A supervisor's turn waits as it waits for an engine a
   job holds (`docs/supervisors.md`, 「The engine it shares」), the room shown the reason; a role's run
   waits for its grant as it waits for its slot (`docs/role-slots.md`, 「On a registration the arbiter
-  stands」). Agency adds no clock to that wait.
+  stands」). Agency adds no clock to that wait. A stop ends it: a run whose cancellation stands over its
+  name — the interrupt of the turn it goes out for — gives back the demand it asked and goes out on nothing.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
   a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request
   in hand is then cut, and its next request waits for its demand to be granted again. A demand whose run

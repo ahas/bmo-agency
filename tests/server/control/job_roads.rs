@@ -243,6 +243,44 @@ fn a_road_stops_answering_on_its_quota_window_balance_or_credential_and_never_on
   assert!(road_stopped(&TurnEnd::answered("r", "claude usage limit reached")).is_none());
 }
 
+// A failed request the program reported is the provider's where the provider could not answer — a server
+// error, its connection refused, as the model gateway refuses it while it restarts — and the work's own where
+// the request was refused for its shape (docs/provider-order.md, 「Falling over and coming back」).
+#[test]
+fn a_reported_api_failure_moves_the_road_on_a_server_error_and_never_on_the_request_s_shape() {
+  let reported = |said: &str, kind: &str| {
+    TurnEnd::failed(
+      "r",
+      said,
+      Some(EngineError {
+        kind: Some(kind.into()),
+      }),
+    )
+  };
+  let busy = "API Error: 503 litellm.ServiceUnavailableError: DeepseekException - Service is too busy.";
+  let refused = "API Error: Connection refused — a firewall or proxy may be blocking it (ECONNREFUSED)";
+
+  assert!(road_stopped(&reported(busy, "server_error")).is_some());
+  assert!(road_stopped(&TurnEnd::failed("r", busy, None)).is_some(), "the status alone says it");
+  assert!(road_stopped(&reported(refused, "server_error")).is_some());
+  assert!(
+    road_stopped(&TurnEnd::failed("r", refused, None)).is_some(),
+    "the refusal alone says it"
+  );
+  assert!(road_stopped(&reported("API Error: 529 Overloaded", "overloaded")).is_some());
+
+  assert!(
+    road_stopped(&reported(
+      "API Error: 400 messages: text content blocks must be non-empty",
+      "invalid_request"
+    ))
+    .is_none()
+  );
+  assert!(road_stopped(&TurnEnd::failed("r", "API Error: 400 the request is malformed", None)).is_none());
+  assert!(road_stopped(&reported("API Error: 413 request too large", "server_error")).is_none());
+  assert!(road_stopped(&reported("the answer ran past its ceiling", "max_output_tokens")).is_none());
+}
+
 #[test]
 fn a_job_launched_again_is_told_it_continues_the_work_in_the_checkout() {
   let from = Road {

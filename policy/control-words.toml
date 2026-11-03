@@ -283,10 +283,12 @@ reason = "supervisor reset"
 
 # The cards the arbiter's master grants a run on a registration naming a card {service}: a master named
 # nowhere, a run waiting on its grant and {why}, a master that could not be reached, a {demand} handed in
-# that the master no longer holds, and what an ask hands back where its run's own model stood down for it.
+# that the master no longer holds, what an ask hands back where its run's own model stood down for it, and a
+# {run} stopped while it waited, its demand given back.
 [cards]
 no_master = "{name} names the card service {service}, and no arbiter master is named (AGENCY_ARBITER_URL)."
 waiting = "Waiting for a card of {service}: {why}"
 unreachable = "The arbiter's master could not be reached; asked again."
 gone = "The demand {demand} handed in is one the arbiter's master no longer holds."
 stood_down = "Your own model stood down while this work ran on its card, and it has come back."
+stopped = "{run} was stopped while it waited for a card of {service}; its demand was given back."

@@ -188,6 +188,22 @@ static KEY_REFUSED: LazyLock<Regex> =
 static BALANCE_SPENT: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r#"(?i)"message"\s*:\s*"insufficient balance""#).expect("a balance refusal"));
 
+// The connection to the provider, or to the model gateway in front of it, refused: nothing answered the
+// request at all, as while the gateway restarts.
+static CONNECTION_REFUSED: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"(?i)connection refused|ECONNREFUSED").expect("a refused connection"));
+
+/// Whether a turn that ended on an API error was refused for the request it sent rather than for its road:
+/// the error's kind naming the request (`invalid_request`, `max_output_tokens`), or a 400, 413 or 422 status.
+/// That failure is the work's own and moves no road (docs/provider-order.md, 「Falling over and coming back」).
+pub fn request_refused(error: &str, kind: Option<&str>) -> bool {
+  matches!(kind, Some("invalid_request" | "max_output_tokens"))
+    || API_STATUS
+      .captures(error)
+      .and_then(|found| found[1].parse::<i64>().ok())
+      .is_some_and(|status| matches!(status, 400 | 413 | 422))
+}
+
 /// Whether a run's words say its login's window is full.
 pub fn mentions_limit(text: &str) -> bool {
   LIMIT_WORDINGS.iter().any(|pattern| pattern.is_match(text))
@@ -337,7 +353,8 @@ fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
 
 /// What a turn whose program wrote its own error in the answer's place comes to: the endpoint refusing its
 /// key or its balance, or too many of its requests at once; a full window, with the reset it names; the
-/// service answering with a server error, which no other login would get past either; or, read as a turn
+/// service answering with a server error or refusing the connection, which no other login would get past
+/// either; or, read as a turn
 /// that did not answer, a login gone or the run having died.
 pub fn of_errored(error: &str, key: &str) -> Failure {
   if let Some(refused) = status_refusal(error, key) {
@@ -357,6 +374,13 @@ pub fn of_errored(error: &str, key: &str) -> Failure {
     .and_then(|found| found[1].parse::<i64>().ok())
     .is_some_and(|status| status >= 500)
   {
+    return Failure::Account {
+      failure: AccountFailure::Outage,
+      detail: failure_text(error),
+    };
+  }
+
+  if CONNECTION_REFUSED.is_match(error) {
     return Failure::Account {
       failure: AccountFailure::Outage,
       detail: failure_text(error),

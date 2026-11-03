@@ -581,7 +581,10 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **Who receives that failure, each in its own place:**
   - **A supervisor's turn** goes on to the next provider of the supervisor's order; where none can take
     it, the turn waits and its room is told by the receiver (`docs/supervisors.md`, 「Where a supervisor's
-    turn runs」).
+    turn runs」). A failure that is the work's own — the provider refusing the request for its shape —
+    ends the turn failed rather than moving it. A turn stopped from outside goes on to no further
+    provider: the interrupt standing over its run ends the walk wherever it stands, a wait for a card
+    included, and the turn ends with the stop.
   - **A job moves to the next provider rather than failing.** A job whose turn fails for its provider's
     availability — the provider refusing its quota, its window, its balance or its credential, its last
     open login closing under it, or the provider it went out on found unable to answer as the turn ends —

@@ -67,6 +67,17 @@ quota is read is `docs/usage-windows.md`.
   under it, or the provider found unable to answer as the turn ends; it is read off the run's ending by the
   one failure reading every run asks (`docs/cache-fallback.md`, 「Automatic walks only on providers, in
   order」). A failure of the work itself moves nothing.
+- **A request failure the run's program reports is one of these.** A program that gives a turn up on a
+  failed request says so itself — Claude Code through its `StopFailure` hook, with the error's kind — and
+  the turn ends `errored` on it at once (`docs/agent-control.md`, 「Telling that a turn's program is
+  gone」). The failure reading reads it as the provider's where the provider could not answer: a server
+  error (a 5xx status, the kinds `server_error` and `overloaded`), the connection to the provider or the
+  model gateway refused, too many requests or a spent window (a 429, `rate_limit`), and a refused
+  credential or balance (a 401 or 402, `authentication_failed`, `billing_error`). The model gateway refusing
+  connections while it restarts with a deploy is such a failure like any other: the run moves, and the
+  provider takes the next run once it answers again.
+- **A request the provider refused for its shape is the work's own** and moves nothing: a 400, 413 or 422,
+  the kinds `invalid_request` and `max_output_tokens`. The run ends failed with that error.
 - **A job moved this way is the same job:** launched again on the next provider, with the same item and
   lease, in the same checkout, at most once on each provider in one job, its prompt opened with a line
   saying it continues work already in the checkout. It keeps each provider it went out on and why it moved,

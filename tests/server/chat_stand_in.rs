@@ -276,6 +276,31 @@ async fn a_walk_that_meets_no_stand_in_before_an_open_claude_leaves_the_turn_to_
   assert!(matches!(walked, Ok(None)), "{walked:?}");
 }
 
+// A turn interrupted between roads, or while one waits for a card, goes out on no further road: the walk ends
+// with the stop rather than walking on (docs/cache-fallback.md, 「Automatic walks only on providers, in order」).
+#[tokio::test]
+async fn a_walk_whose_turn_was_stopped_goes_out_on_no_further_road() {
+  let home = tempfile::tempdir().unwrap();
+  let scratch =
+    store_with(&[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)]).await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
+
+  agency_server::queue::settings::set(
+    scratch.db(),
+    &format!("{}chat:-5:1", agency_server::queue::running::EXECUTION_CANCEL_PREFIX),
+    "1",
+  )
+  .await
+  .unwrap();
+
+  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+
+  assert!(
+    matches!(&walked, Err(NoAnswer::Failed(said)) if said.contains("stopped from outside")),
+    "{walked:?}"
+  );
+}
+
 #[tokio::test]
 async fn claude_answering_again_clears_a_standing_fallback_and_publishes_its_end_once() {
   let home = tempfile::tempdir().unwrap();

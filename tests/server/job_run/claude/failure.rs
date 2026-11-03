@@ -91,6 +91,22 @@ fn a_failure_travels_by_its_kind() {
   );
 }
 
+// A connection refused — the model gateway restarting with a deploy among them — is the service not answering,
+// as a server error is; a request refused for its shape is the work's own.
+#[test]
+fn a_refused_connection_is_an_outage_and_a_request_refused_for_its_shape_is_the_work_s() {
+  let refused = "API Error: Connection refused — a firewall or proxy may be blocking it (ECONNREFUSED)";
+
+  assert_eq!(of_errored(refused, "bmo").account_failure(), Some(AccountFailure::Outage));
+  assert!(!request_refused(refused, Some("server_error")));
+  assert!(!request_refused("API Error: 503 Service is too busy", Some("server_error")));
+  assert!(request_refused("API Error: 400 messages must alternate", None));
+  assert!(request_refused("API Error: 422 unprocessable", None));
+  assert!(request_refused("anything", Some("invalid_request")));
+  assert!(request_refused("anything", Some("max_output_tokens")));
+  assert!(!request_refused("API Error: 429 too many requests", Some("rate_limit")));
+}
+
 // The endpoint answers in HTTP status codes rather than in a subscription's words: a refused key or a
 // spent balance waits for a person, and too many requests at once is a short limit. The text is what
 // DeepSeek answered with, in the line Claude Code 2.1.304 writes around it.

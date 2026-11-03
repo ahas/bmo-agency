@@ -183,6 +183,7 @@ fn asking<'a>(holder: &'a str, ask: Ask, lease: Option<&'a str>) -> Asking<'a> {
     work_key: Some("session-1"),
     ask,
     lease,
+    stop: None,
   }
 }
 
@@ -259,6 +260,43 @@ async fn a_run_waits_with_no_clock_until_its_demand_is_granted_and_gives_it_back
 
   assert_eq!(told, None, "a run that lent nothing is told nothing");
   assert_eq!(shared.lock().unwrap().given_back, vec![held.demand]);
+  assert!(ledger(scratch.db()).await.is_empty());
+}
+
+#[tokio::test]
+async fn a_run_stopped_while_it_waits_for_its_grant_gives_its_demand_back_and_holds_nothing() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  // Never granted while the test lasts.
+  let (master, shared) = stand_in(u32::MAX, false, &key_file(&data)).await;
+  let run = "chat:5:1";
+  let asked = Asking {
+    stop: Some(run),
+    ..asking("supervisor-a", Ask::default(), None)
+  };
+  let db = scratch.db().clone();
+  let waiting = tokio::spawn(async move { hold_on(&db, &master, asked, &mut |_: &str| {}).await });
+
+  until(&shared, |stand_in| stand_in.reads.values().any(|reads| *reads > 2)).await;
+  assert!(!waiting.is_finished(), "a run not stopped waits for its grant");
+
+  agency_server::queue::settings::set(
+    scratch.db(),
+    &format!("{}{run}", agency_server::queue::running::EXECUTION_CANCEL_PREFIX),
+    "1",
+  )
+  .await
+  .unwrap();
+
+  let held = tokio::time::timeout(Duration::from_secs(20), waiting)
+    .await
+    .expect("the stop ends the wait")
+    .unwrap();
+  let refused = held.expect_err("a stopped run holds no card");
+
+  assert_eq!(refused.code, "stopped");
+  assert!(refused.detail.contains(run), "{}", refused.detail);
+  assert_eq!(shared.lock().unwrap().given_back.len(), 1, "the demand asked is given back");
   assert!(ledger(scratch.db()).await.is_empty());
 }
 

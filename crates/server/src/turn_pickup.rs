@@ -71,6 +71,38 @@ pub async fn forget(db: &sea_orm::DatabaseConnection, run: &str) {
   let _ = settings::forget(db, &format!("{PREFIX}{run}")).await;
 }
 
+// The runs of the turns this process carries now.
+static CARRIED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+  std::sync::LazyLock::new(Default::default);
+
+fn carried() -> std::sync::MutexGuard<'static, std::collections::HashSet<String>> {
+  CARRIED.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// A turn this process carries, marked from its start until the mark goes with its end: its own end closes
+/// it, so the queue's pass leaves it alone, though its place's run ends between the roads its walk goes out
+/// on (docs/sessions.md, 「A turn whose program dies」).
+pub struct Carrying(String);
+
+impl Carrying {
+  pub fn of(run: &str) -> Self {
+    carried().insert(run.to_owned());
+
+    Self(run.to_owned())
+  }
+}
+
+impl Drop for Carrying {
+  fn drop(&mut self) {
+    carried().remove(&self.0);
+  }
+}
+
+/// Whether this process carries a turn under a run now.
+pub fn carried_here(run: &str) -> bool {
+  carried().contains(run)
+}
+
 /// Whether a run's turn is kept in flight, which the pass ending a job left running leaves to this one.
 pub async fn kept(db: &sea_orm::DatabaseConnection, run: &str) -> bool {
   settings::get(db, &format!("{PREFIX}{run}")).await.ok().flatten().is_some()
@@ -511,11 +543,16 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
 /// program's own end would close it, so the room's turn is free and the words it did not answer wait for
 /// the next turn. A pane that is still standing but whose turn's collector is gone is left alone. Each turn
 /// is read in the place its program carries it in, and only where that place's run is the turn's: the run
-/// of another turn, an earlier one in the agent's own place among them, says nothing of this one.
+/// of another turn, an earlier one in the agent's own place among them, says nothing of this one. A turn
+/// this process still carries is its own end's to close, and is left to it.
 pub async fn reap_dead(ground: &Ground) -> usize {
   let mut closed = 0;
 
   for turn in in_flight(&ground.db).await.unwrap_or_default() {
+    if carried_here(&turn.run) {
+      continue;
+    }
+
     let place = Place::of(&ground.roots.data, &place_name_of(&turn));
     let Some(run) = crate::door::place_run::read_run(&place.path)
       .filter(|run| run.name.as_deref() == Some(turn.run.as_str()))

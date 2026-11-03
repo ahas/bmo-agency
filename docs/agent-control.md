@@ -366,6 +366,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     - The reader ends the turn as errored on it, or on the error in the answer's place, whichever
       it reads first, with the error's kind beside the text. The record's own error line carries the
       same kind, so a program started before the hook was added still ends its turn the same way.
+    - The hook ends the turn the moment it is read, whatever herdr reads the pane as: herdr can go on
+      reading `working` for a look or two after the program gave the turn up, and words pushed into
+      the program then would open a turn of the program's own that hides the failure. Nothing more is
+      pushed into a turn its program reported failed.
   - **Tokens** are summed once per `message.id` over the turn's lines (「The session record and
     usage」).
   - **Money.** The status line's `cost.total_cost_usd` is the session's running total, and `/clear`
@@ -2057,6 +2061,12 @@ reads it.
 - **A turn whose words went in ends at the first of these, each observed:**
   - **its record closed the turn:** the line a turn ends with, or the program's error in the answer's
     place — `answered`, `silent` or `errored`, read as the steps above read them;
+  - **its program reported the request failed:** the program's failure hook — Claude Code's
+    `StopFailure` — recorded in its place since the words went in — `errored`, the hook's error kind
+    beside it and its last message as the reason. It is the program's own word that the turn is over, so
+    it ends the turn the moment it is read, whatever herdr reads the pane as, and no word is pushed into
+    the program after it (「What a resident turn reads」). Whether the failure was the provider's or the
+    work's is the failure reading's (`docs/provider-order.md`, 「Falling over and coming back」);
   - **its pane is gone:** herdr says so look after look — `vanished`;
   - **its program is gone:** the process on its liveness row is no longer alive, or its place now records
     another process in its stead, and the record has not closed the turn — `program-lost`. The record

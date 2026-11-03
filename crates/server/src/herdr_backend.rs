@@ -1951,6 +1951,9 @@ impl HerdrSessions {
     )
     .await;
 
+    // Carried by this process until its end, which closes it; the queue's pass leaves it to that end.
+    let _carrying = crate::turn_pickup::Carrying::of(&run);
+
     // A room turn of a conversational agent is what an item it files is filed under.
     if let (Some(room), None, None) = (&room, work, &turn.context.gate) {
       crate::turn_marks::carrying(

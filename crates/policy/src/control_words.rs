@@ -330,6 +330,7 @@ pub struct CardWords {
   pub unreachable: String,
   pub gone: String,
   pub stood_down: String,
+  pub stopped: String,
 }
 
 crate::part!(pub CONTROL_WORDS: ControlWords = "control-words.toml");

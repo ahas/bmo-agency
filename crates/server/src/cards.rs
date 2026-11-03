@@ -63,16 +63,16 @@ pub fn master_of(ground: &Ground) -> Option<Master> {
 
 /// A card held for a run on a registration naming a card service, or none on one that names none: a
 /// demand handed in, read until it is granted; or one asked for one card with the session's key as the
-/// work it continues and kept in the ledger under its holder and the lease where one holds it. Either is
-/// waited on however long its grant takes, each reason it waits on handed to `waiting` as it changes,
-/// and then until the gateway serves the card's entry.
+/// work it continues and kept in the ledger under its holder. Either is waited on however long its grant
+/// takes, each reason it waits on handed to `waiting` as it changes, and then until the gateway serves the
+/// card's entry; a stop standing over the run `stop` names ends the wait, the demand asked given back.
 pub async fn hold(
   ground: &Ground,
   registration: &Registration,
   holder: &str,
   work_key: Option<&str>,
   ask: Ask,
-  lease: Option<&str>,
+  stop: Option<&str>,
   waiting: &mut (dyn FnMut(&str) + Send),
 ) -> Result<Option<Held>, Refusal> {
   let Some(service) = registration.card_service.clone() else {
@@ -90,7 +90,8 @@ pub async fn hold(
       holder,
       work_key,
       ask,
-      lease,
+      lease: None,
+      stop,
     },
     waiting,
   )
@@ -248,6 +249,7 @@ impl SharedAsk {
       work_key: None,
       ask: Ask::default(),
       lease: None,
+      stop: None,
     }
   }
 }
@@ -403,7 +405,7 @@ pub async fn hold_shared(
 }
 
 /// A card held for a run whose log says each reason it waits on as it changes, so its room or its watcher
-/// reads why the run has not begun; the same as `hold` otherwise.
+/// reads why the run has not begun, and whose stop ends the wait; the same as `hold` otherwise.
 pub async fn hold_logged(
   ground: &Ground,
   registration: &Registration,
@@ -416,7 +418,8 @@ pub async fn hold_logged(
   let mut waiting = move |why: &str| {
     let _ = said.send(why.to_owned());
   };
-  let holding = hold(ground, registration, holder, work_key, ask, None, &mut waiting);
+  let run = log.run().to_owned();
+  let holding = hold(ground, registration, holder, work_key, ask, Some(&run), &mut waiting);
 
   tokio::pin!(holding);
 
@@ -458,6 +461,9 @@ pub struct Asking<'a> {
   pub work_key: Option<&'a str>,
   pub ask: Ask,
   pub lease: Option<&'a str>,
+  /// The run whose stop ends the wait: a cancellation standing over its name gives the demand asked back,
+  /// and nothing is held.
+  pub stop: Option<&'a str>,
 }
 
 /// A card held on the master: the demand handed in, or one asked and kept in the ledger, waited on until
@@ -579,6 +585,19 @@ async fn granted(
   loop {
     if let Some(card) = demand.card().cloned() {
       return Ok((demand, card));
+    }
+
+    if let Some(run) = asking.stop
+      && crate::door::execution::cancelled(db, &[run]).await.unwrap_or(false)
+    {
+      if ours.is_some() {
+        returned(db, master, demand.id).await;
+      }
+
+      return Err(Refusal::bad(
+        "stopped",
+        fill_marks(&CONTROL_WORDS.cards.stopped, &[("run", run), ("service", asking.service)]),
+      ));
     }
 
     if let Some(why) = demand.waiting_on().filter(|why| said.as_ref() != Some(why)) {
@@ -892,6 +911,7 @@ pub async fn seat_card_on(
       within: ask.within,
     },
     lease: Some(&seat.token),
+    stop: None,
   };
   let mut quiet = |_: &str| {};
   let read = match of_lease(db, &seat.token).await? {
@@ -992,6 +1012,7 @@ pub async fn native_card(
       work_key: None,
       ask: Ask { own: None, within },
       lease: Some(&seat.token),
+      stop: None,
     },
     &mut quiet,
   )

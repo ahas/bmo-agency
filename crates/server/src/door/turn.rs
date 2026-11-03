@@ -323,6 +323,14 @@ impl Ending {
   }
 }
 
+/// Whether a turn's wait is over on an error of its program's: a failed request the program reported through
+/// its failure hook ends it at once, whatever herdr reads the pane as; the error the program wrote in the
+/// answer's place ends it once the pane is no longer working (docs/agent-control.md, 「Telling that a turn's
+/// program is gone」).
+pub fn over_on_error(working: bool, error_in_record: bool, failure_reported: bool) -> bool {
+  failure_reported || (error_in_record && !working)
+}
+
 /// How a turn ended, for its execution row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum End {
@@ -1621,10 +1629,14 @@ async fn watch_turn<W: Watch>(
     // of whose answers spends usage credits, so it is closed with the keys the provider cuts a turn
     // with — on Claude Code its 「stop and wait」 — and the program stands at rest for the next turn.
     // It is read before any question the pane holds is put to anybody, since this one is no question of
-    // the turn's.
-    if !now.is("working")
-      && (ended_on_error(&door.lines(), answer_from) || door.failure_since(failed_from).is_some())
-    {
+    // the turn's, and before any word is pushed in: a failure the program reported is its own word that
+    // the turn is over, however herdr still reads the pane, and a word pushed after it would open a turn of
+    // the program's own that hides it.
+    if over_on_error(
+      now.is("working"),
+      ended_on_error(&door.lines(), answer_from),
+      door.failure_since(failed_from).is_some(),
+    ) {
       if now.is("blocked") {
         door.watch.note(&DOOR_WORDS.notes.error_menu).await;
         door.interrupt(pane, &turn.interrupt).await;
