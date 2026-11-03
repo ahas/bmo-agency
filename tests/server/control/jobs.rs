@@ -216,6 +216,33 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 
+  // An item naming a model agency does not hold, or a label that names no provider and model, is refused
+  // with the label's text before any road is asked, nothing written and the assignment left held.
+  for (label, quoted) in [
+    ("nowhere/some-model", "model=nowhere/some-model"),
+    ("just-a-model", "model=just-a-model"),
+  ] {
+    let (status, refused) = post(
+      port,
+      token,
+      "/jobs",
+      json!({
+        "assignmentId": assignment,
+        "itemId": 41,
+        "leaseId": 1,
+        "holderName": "harness",
+        "item": { "title": "A harmless item", "brief": "Nothing.", "notes": [], "labels": { "model": label } },
+      }),
+    )
+    .await;
+
+    assert_eq!((status, refused["code"].as_str()), (422, Some("unknown-model")), "{refused}");
+    assert!(refused["error"].as_str().unwrap().contains(quoted), "{refused}");
+  }
+
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
+  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
+
   // The login reopens; the launch goes out and its turn, with no herdr to stand it in, fails: the job ends
   // saying why, in its report and in its log.
   scratch

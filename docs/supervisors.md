@@ -20,7 +20,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Where it runs — its provider order:** the providers it runs on, in order, each with the model and the
   effort it runs on there, and the quota share below which a provider is passed over
   (`docs/provider-order.md`). Every supervisor carries its own; no order is shared with another supervisor
-  or a role.
+  or a role. Beside it, its forced provider: a provider and one model of it the owner forced as its active
+  provider, or none, which carries its turns while it stands (`docs/provider-order.md`, 「A provider the owner
+  forces」).
 - **Its cache warming, switched per provider:** for each provider of its order, whether its resident
   program's prefix is kept warm while it is idle on that provider (`docs/keepalive-schedule.md`). A
   supervisor is the only thing agency warms.
@@ -147,10 +149,12 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 ## Where a supervisor's turn runs
 
-- **On the first provider of its order that has quota above its share and can answer now,** on the model
-  and effort the order names there (`docs/provider-order.md`, 「Choosing the provider」). A turn whose
-  provider fails for a limit or its availability goes on to the next provider of the order; the next turn
-  begins at the top again.
+- **On its active provider:** the provider the owner forced on it where one stands, else the first
+  provider of its order that has quota above its share and can answer now, on the model and effort the order
+  names there (`docs/provider-order.md`, 「Choosing the provider」). A turn on the order's choice whose
+  provider fails for a limit or its availability goes on to the next provider of the order, and the next turn
+  begins at the top again; a turn on a forced provider waits for it instead (「A provider the owner
+  forces」).
 - **Where no provider of its order has quota,** the turn waits, never refused, and goes out once a provider
   of the order has quota again (`docs/provider-order.md`, 「When every provider is out」).
 - **A provider move changes the program's command,** so the next turn stands the program again on the new

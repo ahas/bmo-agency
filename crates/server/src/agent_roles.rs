@@ -47,7 +47,8 @@ impl AgentRole {
       description: row.try_get("", "description")?,
       sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
       line: row.try_get("", "line")?,
-      order: Order::of_row(&order, row.try_get("", "quota_share")?),
+      order: Order::of_row(&order, row.try_get("", "quota_share")?)
+        .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       fold_ratio: row.try_get("", "fold_ratio")?,
       callable: row.try_get::<i64>("", "callable")? != 0,
       position: row.try_get("", "position")?,

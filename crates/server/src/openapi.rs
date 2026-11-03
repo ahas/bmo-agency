@@ -1828,7 +1828,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
-    codes: &["bad-request", "conflict", "gone", "no-login-open"],
+    codes: &["bad-request", "conflict", "gone", "unknown-model", "no-login-open"],
   },
   Operation {
     method: "GET",

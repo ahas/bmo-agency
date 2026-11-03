@@ -14,6 +14,8 @@ pub struct JobNotices {
   pub paused_order: String,
   /// An open item whose assignee no checkout is of: `{item}`, `{title}` and `{assignee}`.
   pub unlaunchable_order: String,
+  /// An item whose launch was refused for its `model` label: `{item}`, `{title}`, `{label}` and `{why}`.
+  pub model_order: String,
   /// An item moved while its job runs: `{item}`, `{title}`, `{state}`, `{merged}`, `{job}` and `{worker}`.
   pub moved_order: String,
   /// An item closed by somebody else: `{item}`, `{title}` and `{by}`.

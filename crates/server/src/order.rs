@@ -14,6 +14,7 @@ use crate::control::claude_accounts::{self, Judging};
 use crate::control::harness;
 use crate::now_ms;
 use crate::places::Ground;
+use crate::repositories::Pin;
 use cache_siren::Slot;
 
 /// One entry of an order: a provider and what the row runs on there.
@@ -42,12 +43,16 @@ impl Entry {
   }
 }
 
-/// A row's order with its quota share.
+/// A row's order with its quota share, and the provider the owner forced as the row's active provider where
+/// one stands (docs/provider-order.md, 「A provider the owner forces」), which is kept beside the order rather
+/// than in it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Order {
   pub entries: Vec<Entry>,
   pub quota_share: f64,
+  #[serde(skip)]
+  pub forced: Option<Pin>,
 }
 
 impl Order {
@@ -57,6 +62,31 @@ impl Order {
     Self {
       entries: serde_json::from_str(entries).unwrap_or_default(),
       quota_share: share.unwrap_or(ROLES.quota_share),
+      forced: None,
+    }
+  }
+
+  /// The order with the provider and model a row's columns force as its active provider, none where either
+  /// is missing or empty.
+  pub fn forcing(self, provider: Option<String>, model: Option<String>) -> Self {
+    Self {
+      forced: Pin::of_parts(provider, model),
+      ..self
+    }
+  }
+
+  /// The entry a run goes out on where its provider and model are fixed over the order — an item's model, a
+  /// forced provider or a repository's pin: that provider and model, at the effort, thinking and answer
+  /// ceiling the order's entry for the provider names where it holds one, else the provider's own.
+  pub fn entry_on(&self, fixed: &Pin) -> Entry {
+    let own = self.entry(&fixed.provider);
+
+    Entry {
+      provider: fixed.provider.clone(),
+      model: fixed.model.clone(),
+      effort: own.and_then(|entry| entry.effort.clone()),
+      thinking: own.and_then(|entry| entry.thinking.clone()),
+      answer_tokens: own.and_then(|entry| entry.answer_tokens),
     }
   }
 
@@ -192,7 +222,33 @@ pub async fn judge(
   Ok(Order {
     entries: read,
     quota_share,
+    forced: None,
   })
+}
+
+/// A provider and one model of it a write names — a role's or a supervisor's forced provider, or a
+/// repository's pin — judged as one entry of an order for `line` is: a provider agency carries whose program
+/// carries the line, on a model it holds. Answers the refusal's sentence.
+pub async fn judge_one(
+  judging: Judging<'_>,
+  machine: &Machine,
+  line: &str,
+  named: &Value,
+) -> Result<Pin, String> {
+  let entry = serde_json::json!([{ "provider": named["provider"], "model": named["model"] }]);
+  let judged = judge(judging, machine, line, &entry, None, Empty::Refused)
+    .await
+    .map_err(|refusal| refusal.error)?;
+
+  judged
+    .entries
+    .into_iter()
+    .next()
+    .map(|first| Pin {
+      provider: first.provider,
+      model: first.model,
+    })
+    .ok_or_else(|| "A provider and a model are named.".to_owned())
 }
 
 // Why a provider does not hold a model, or none where it does or its catalogue cannot be read.

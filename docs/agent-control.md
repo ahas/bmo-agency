@@ -2864,7 +2864,7 @@ with the session.
 |---|---|---|---|
 | An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
-| An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it | the orderer | instruction | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
+| An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
@@ -2886,7 +2886,11 @@ with the session.
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
   agency holds never awaits a launch and would sit for good: its orderer is told once to correct its
-  `assigneeName`, the mark let go once the item is no longer open or names a checkout agency holds.
+  `assigneeName`, the mark let go once the item is no longer open or names a checkout agency holds. An item
+  whose launch is refused for its `model` label, a provider or model agency does not hold
+  (`docs/repositories.md`, 「A model an item names」), is told to its orderer once for that label, to correct
+  the label or set it to `auto`; the mark keeps the label told, so the same label refused again is not told
+  again and another one is, and it is let go once a job of the item is launched.
 - **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job
   service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for. One
   the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each draft

@@ -121,7 +121,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
 | PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
 | POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
-| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, warming, threshold, gates, sampling or voice. |
+| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, forced provider, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
@@ -131,7 +131,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   which supervisor is the caller's to judge; agency writes the owner it is handed.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
   `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
-  order (below); `warming`, for each provider of its order whether its prefix is kept warm there;
+  order (below); `active`, the provider the owner forced as its active provider, `provider` and `model`, or
+  null where its order chooses (`docs/provider-order.md`, 「A provider the owner forces」); `warming`, for each provider of its order whether its prefix is kept warm there;
   `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
   provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds,
@@ -180,9 +181,11 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
-- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `order`, `warming`,
-  `foldRatio`, `repository`, `gates`, `sampling` and `voice`, each judged as the registration judges it. A
-  changed order reaches the supervisor's next turn; a turn already going finishes where it went out.
+- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `order`, `active`,
+  `warming`, `foldRatio`, `repository`, `gates`, `sampling` and `voice`, each judged as the registration
+  judges it. `active` is `provider` and `model`, judged as one entry of an order is against the chat line
+  and refused alike, or null, which clears it; it need not stand in the order. A changed order or forced
+  provider reaches the supervisor's next turn; a turn already going finishes where it went out.
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
@@ -242,13 +245,15 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   and what a screen shows the role by (`docs/agent-roles.md`, 「A role's label」); `label`, the English word a
   log keeps; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code` (the
   name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider order
-  in the shape a supervisor's is (「supervisors」); `maxConcurrent`, its cap; `sessions`, `keep` or `fresh`;
+  in the shape a supervisor's is (「supervisors」); `active`, the provider the owner forced as its active
+  provider, `provider` and `model`, or null where its order chooses (`docs/provider-order.md`, 「A provider
+  the owner forces」); `maxConcurrent`, its cap; `sessions`, `keep` or `fresh`;
   `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker;
   `followsSupervisor`, true while its order is empty, so its runs go out on the road of the supervisor that
   asks them (`docs/role-slots.md`, 「A delegated task」) and a screen shows its road as the supervisor's; and
   what stands of it now: `running` and `waiting`, how many of its runs go and wait, `provider`, its active
-  provider, or null where none of its order has quota or its order is empty, and `waitingFor`, why its runs
-  wait, or null, null too while it follows the supervisor.
+  provider, or null where it cannot answer now or its order is empty and none is forced, and `waitingFor`,
+  why its runs wait, or null, null too while it follows the supervisor.
 - **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
   bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
   name.
@@ -262,7 +267,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   may be; a cap that is no whole number of zero or
   more; a prompt or description that is not text; and `sessions` other than `keep` or `fresh`.
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
-  `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
+  `POST` judges it; a `prompt` or `description` given as null clears it. It alone takes `active`, `provider`
+  and `model` judged as one entry of an order is against the role's line and refused 422 alike, or null,
+  which clears it; it need not stand in the order. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
   under, and a raised cap lets in at once the waiting runs it frees.
 - **`DELETE /roles/{roleName}`** answers 204; 404 `not-found` for a role the store does not hold, and 409
@@ -752,7 +759,7 @@ default — what a run on it does where its order's entry leaves thinking to the
 under its own name as its label, at the registry's smallest window and answer and with no address, and is
 refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
 engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
-`usedBy`, every supervisor, role and repository whose order or pin names it, and a take-away is refused 409
+`usedBy`, every supervisor, role and repository whose order, forced provider or pin names it, and a take-away is refused 409
 while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
 and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
 change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
@@ -1016,7 +1023,8 @@ naming anything else, or a value that does not read as its filter's kind, is ref
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
-  keyed by the checkout, goes out on the role's order, or the repository's pin, in a session of the role's
+  keyed by the checkout, goes out on its item's model, the role's active provider or the repository's pin
+  (「A job goes out on its role's active provider」 below), in a session of the role's
   started for each turn and ended with it, and resumes the session the role keeps at that checkout on that
   provider and model where it keeps one (「sessions」 above; `docs/role-slots.md`, 「The line」).
 
@@ -1142,10 +1150,21 @@ service.
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a job's run reads the brain only through what the gate picked here.
 - **A job goes out on its role's active provider** (`docs/provider-order.md`, 「Choosing the provider」): the
-  first provider of the role's order that has quota above the role's share and can answer now, on the model
-  and effort the order names there; or on its repository's pinned model where the repository pins one
-  (`docs/repositories.md`, 「A pinned model」). A job is never refused for quota: where no provider of the
-  order has quota, or the pin cannot answer, `POST /jobs` takes the job and it waits `running`, answering
+  provider the owner forced on the role, else the first provider of the role's order that has quota above
+  the role's share and can answer now, on the model and effort the order names there. Two choices stand
+  over the order: the model its item names, its label `model=<provider>/<model>` other than `auto`
+  (`docs/repositories.md`, 「A model an item names」), over everything; and its repository's pinned model,
+  where the repository pins one and the role has no forced provider (`docs/repositories.md`, 「A pinned
+  model」). The job answers `chosenBy`, which chose its provider and model: `item`, `forced`, `pin` or
+  `order`, the first of them that stands in that order.
+- **An item's `model` is read off the item `POST /jobs` is handed,** its `labels`, and judged as a
+  repository's pin is: a value that is no `<provider>/<model>`, a provider agency does not carry or whose
+  program does not carry the worker line, or a model it does not hold refuses the launch 422
+  `unknown-model`, the sentence quoting the label, nothing written and the assignment left held; the item's
+  orderer is told once for that label (`item-unlaunchable`, `docs/agent-control.md`, 「An item's change is
+  told to its orderer」), and the mark is let go as a job of the item is launched.
+- **A job is never refused for quota:** where no provider of the order has quota, or the item's model, the
+  forced provider or the pin cannot answer, `POST /jobs` takes the job and it waits `running`, answering
   `heldFor`, its sentence naming every provider's reason — each Claude login's own, with the moment the first
   of them reopens — and what a person must do for the first provider a person can reopen, a sign-in command
   or where a balance is topped up. A job held so, or not let in at its first ask for a slot of its role, is
@@ -1159,8 +1178,8 @@ service.
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
   saying where it ran and why it moved. Where no provider of the order has quota, the job stays `running`
   and answers `heldFor`, the reason it waits; it goes out again as soon as a provider has quota, and
-  `heldFor` is null whenever a turn is out. A job on a pinned model never moves: it waits for its pin. A
-  failure of the work itself moves nothing.
+  `heldFor` is null whenever a turn is out. A job on its item's model, a forced provider or a pinned model
+  never moves: it waits for that one. A failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends

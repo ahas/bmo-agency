@@ -34,14 +34,16 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its provider order,** the providers its runs go out on, in order, each with the model and the effort
     the role runs on there, and its quota share, the remaining quota below which a provider is passed over,
     1% where none is set (`docs/provider-order.md`);
+  - **its forced provider,** a provider and one model of it the owner forced as the role's active provider,
+    or none (`docs/provider-order.md`, 「A provider the owner forces」);
   - **its cap,** `max_concurrent`, the most of its runs that go at once (`docs/role-slots.md`);
   - **its sessions,** `keep` or `fresh` (「A role's sessions」 below);
   - **its compaction threshold,** the share of its model's window a run's session may fill before the
     session is folded between turns (`docs/sessions.md`, 「Session compaction」);
   - **whether it may be called as a co-worker,** by a run of another role naming it.
 - **A role's order is its own.** No order is shared between roles, and none is read from a table of
-  providers: every run of the role goes out on the role's active provider, the first of its order that has
-  quota above the share and can answer now.
+  providers: every run of the role goes out on the role's active provider, the provider the owner forced on
+  it where one stands, else the first of its order that has quota above the share and can answer now.
 - **A role's order may be empty, and it then follows the supervisor that asks it.** A run of such a role a
   supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is
   asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A delegated task」). The role's

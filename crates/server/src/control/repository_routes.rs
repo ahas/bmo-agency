@@ -369,24 +369,16 @@ impl Fields {
       fields.pin = Some(match pin {
         Value::Null => None,
         Value::Object(_) => {
-          let entry = json!([{ "provider": pin["provider"], "model": pin["model"] }]);
-          let judged = crate::order::judge(
+          let judged = crate::order::judge_one(
             Judging::of(ground),
             &ground.machine(),
             crate::queue::routes::job_line(),
-            &entry,
-            None,
-            crate::order::Empty::Refused,
+            pin,
           )
           .await
-          .map_err(|refusal| bad("pin", refusal.error))?;
-          let first = judged
-            .entries
-            .into_iter()
-            .next()
-            .ok_or_else(|| bad("pin", "A pin names a provider and a model."))?;
+          .map_err(|why| bad("pin", why))?;
 
-          Some((first.provider, first.model))
+          Some((judged.provider, judged.model))
         }
         _ => return Err(bad("pin", "A pin is a provider and a model, or null for none.")),
       });

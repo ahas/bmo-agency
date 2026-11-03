@@ -21,6 +21,7 @@ use crate::now_ms;
 use crate::order::{self, Order};
 use crate::order_run::dispatch;
 use crate::places::Ground;
+use crate::repositories::Pin;
 use crate::road::{self, Ask, Row};
 use crate::text::length;
 use store::{all, one, run};
@@ -87,8 +88,9 @@ async fn standing(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
   let running = count("active").await?;
   let waiting = count("waiting").await?;
 
-  // A role whose order is empty has no road of its own: its runs go out on the asking supervisor's.
-  if role.order.follows_supervisor() {
+  // A role whose order is empty and on which no provider is forced has no road of its own: its runs go out
+  // on the asking supervisor's.
+  if role.order.follows_supervisor() && role.order.forced.is_none() {
     return Ok(json!({
       "running": running,
       "waiting": waiting,
@@ -123,6 +125,7 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "line": role.line,
     "order": role.order.entries,
     "quotaShare": role.order.quota_share,
+    "active": role.order.forced.as_ref().map(Pin::view),
     "maxConcurrent": role.max_concurrent,
     "sessions": role.sessions.word(),
     "foldRatio": role.fold_ratio,
@@ -151,6 +154,8 @@ struct Fields {
   sessions: Option<Sessions>,
   fold_ratio: Option<f64>,
   callable: Option<bool>,
+  /// The provider forced as its active provider, `Some(None)` where the body clears it.
+  active: Option<Option<Pin>>,
 }
 
 fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused> {
@@ -252,6 +257,24 @@ impl Fields {
         Some(callable) => fields.callable = Some(callable),
         None => return Err(unprocessable(words.callable.as_str())),
       }
+    }
+
+    if let Some(active) = body.get("active") {
+      let line = fields.line.as_deref().or(held_line).unwrap_or("worker");
+
+      fields.active = Some(match active {
+        Value::Null => None,
+        Value::Object(_) => Some(
+          order::judge_one(Judging::of(ground), &ground.machine(), line, active)
+            .await
+            .map_err(|why| unprocessable(format!("active: {why}")))?,
+        ),
+        _ => {
+          return Err(unprocessable(
+            "active: A forced provider is a provider and a model, or null for none.",
+          ));
+        }
+      });
     }
 
     Ok(fields)
@@ -394,13 +417,14 @@ impl Route for RoleChange {
       return Err(unknown(&name));
     };
     let fields = Fields::of(call.ground(), &body, Some(&held.line)).await?;
+    let active = fields.active.clone().unwrap_or_else(|| held.order.forced.clone());
     let order = fields.order.unwrap_or(held.order);
 
     run(
       call.store(),
       r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5,
            "sessions" = $7, "description" = $8, "line" = $9, "provider_order" = $10, "quota_share" = $11,
-           "fold_ratio" = $12, "callable" = $13
+           "fold_ratio" = $12, "callable" = $13, "active_provider" = $14, "active_model" = $15
          WHERE "name" = $6"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
@@ -416,6 +440,8 @@ impl Route for RoleChange {
         order.quota_share.into(),
         fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
         i64::from(fields.callable.unwrap_or(held.callable)).into(),
+        active.as_ref().map(|active| active.provider.clone()).into(),
+        active.as_ref().map(|active| active.model.clone()).into(),
       ],
     )
     .await?;

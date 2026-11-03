@@ -123,6 +123,23 @@ pub fn unlaunchable(item: i64, title: &str, assignee: &str, orderer: &Orderer) -
   instruction("item-unlaunchable", item, orderer, format!("Item #{item} names no repository"), order)
 }
 
+/// An item whose launch was refused for its `model` label, a provider or model agency does not hold.
+pub fn model_refused(item: i64, title: &str, label: &str, why: &str, orderer: &Orderer) -> Value {
+  let number = item.to_string();
+  let order = fill_marks(
+    &JOB_NOTICES.model_order,
+    &[("item", &number), ("title", title), ("label", label), ("why", why)],
+  );
+
+  instruction(
+    "item-unlaunchable",
+    item,
+    orderer,
+    format!("Item #{item} names a model no job can run on"),
+    order,
+  )
+}
+
 /// An item moved while a job of agency's still runs on it: held, dropped, merged or leased by another holder.
 pub fn moved(item: &Value, job: i64, worker: &str, orderer: &Orderer) -> Value {
   let id = id_of(item);

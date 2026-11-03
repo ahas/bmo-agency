@@ -4391,6 +4391,9 @@
           "410": {
             "$ref": "#/components/responses/Gone"
           },
+          "422": {
+            "$ref": "#/components/responses/UnknownModel"
+          },
           "503": {
             "$ref": "#/components/responses/NoLoginOpen"
           }
@@ -4400,6 +4403,7 @@
           "bad-request",
           "conflict",
           "gone",
+          "unknown-model",
           "no-login-open"
         ],
         "requestBody": {
@@ -10158,6 +10162,18 @@
             "description": "Why the job waits, where no provider of its order can answer now; none whenever a turn is out.",
             "default": null
           },
+          "chosenBy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobChoice"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What chose its provider and model; none for a job launched before it was kept.",
+            "default": null
+          },
           "startedAt": {
             "type": "integer",
             "format": "int64",
@@ -10192,6 +10208,7 @@
           "instruction",
           "roads",
           "heldFor",
+          "chosenBy",
           "startedAt",
           "endedAt"
         ],
@@ -10277,6 +10294,16 @@
           "reason"
         ],
         "description": "JobRoad: one road a job's turn went out on."
+      },
+      "JobChoice": {
+        "type": "string",
+        "enum": [
+          "item",
+          "forced",
+          "pin",
+          "order"
+        ],
+        "description": "What chose a job's provider and model: its item's `model` label, its role's forced provider, its\nrepository's pin or its role's order."
       },
       "JobStopAsk": {
         "type": "object",
@@ -11480,6 +11507,18 @@
             "format": "double",
             "description": "a fraction from 0 to 1"
           },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveProvider"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the provider the owner forced as its active provider, or null where its order chooses",
+            "default": null
+          },
           "warming": {
             "type": "object",
             "additionalProperties": {
@@ -11553,6 +11592,7 @@
           "repository",
           "order",
           "quotaShare",
+          "active",
           "warming",
           "foldRatio",
           "gates",
@@ -11610,6 +11650,22 @@
           "answerTokens"
         ],
         "description": "OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there."
+      },
+      "ActiveProvider": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "description": "ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider."
       },
       "SupervisorRegistered": {
         "type": "object",
@@ -12035,6 +12091,17 @@
               "$ref": "#/components/schemas/OrderEntry"
             }
           },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveProvider"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The provider forced as its active provider; null clears it."
+          },
           "quotaShare": {
             "type": [
               "number",
@@ -12155,6 +12222,18 @@
             "type": "number",
             "format": "double"
           },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveProvider"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the provider the owner forced as its active provider, or null where its order chooses",
+            "default": null
+          },
           "maxConcurrent": {
             "type": "integer",
             "format": "int64",
@@ -12207,6 +12286,7 @@
           "line",
           "order",
           "quotaShare",
+          "active",
           "maxConcurrent",
           "sessions",
           "foldRatio",
@@ -12409,6 +12489,17 @@
               "boolean",
               "null"
             ]
+          },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActiveProvider"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The provider forced as its active provider; null clears it."
           }
         },
         "description": "RoleChange: the fields a change of a role names; a prompt or a description given as null clears it."
@@ -13952,6 +14043,16 @@
       },
       "Unauthorized": {
         "description": "unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownModel": {
+        "description": "unknown-model",
         "content": {
           "application/json": {
             "schema": {

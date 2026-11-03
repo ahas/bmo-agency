@@ -31,6 +31,7 @@ use crate::peers::brain::{Brain, Made};
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, held};
 use crate::queue::settings;
+use crate::repositories::Pin;
 use crate::road::{self, Ask, Row};
 use crate::supervisors::{self, Supervisor};
 
@@ -86,6 +87,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "repository": supervisor.repository,
     "order": supervisor.order.entries,
     "quotaShare": supervisor.order.quota_share,
+    "active": supervisor.order.forced.as_ref().map(Pin::view),
     "warming": supervisor.warming,
     "foldRatio": supervisor.fold_ratio,
     "gates": gates_view(db, &supervisor.name).await?,
@@ -377,6 +379,18 @@ impl Route for SupervisorChange {
     let body = call.body().await?;
     let held = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
     let order = order_of(call.ground(), &body).await?.unwrap_or(held.order.clone());
+    let active = match body.get("active") {
+      None => held.order.forced.clone(),
+      Some(Value::Null) => None,
+      Some(named @ Value::Object(_)) => Some(
+        order::judge_one(Judging::of(call.ground()), &call.ground().machine(), CHAT_LINE, named)
+          .await
+          .map_err(|why| bad("active", why))?,
+      ),
+      Some(_) => {
+        return Err(bad("active", "A forced provider is a provider and a model, or null for none."));
+      }
+    };
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or(held.fold_ratio);
     let repository = repository_of(call.store(), &body).await?.unwrap_or(held.repository.clone());
     let label = match body.get("label") {
@@ -429,7 +443,8 @@ impl Route for SupervisorChange {
     run(
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider_order" = $3, "quota_share" = $4, "warming" = $5,
-           "fold_ratio" = $6, "repository" = $7, "voice" = $8, "updated_at" = $9
+           "fold_ratio" = $6, "repository" = $7, "voice" = $8, "updated_at" = $9, "active_provider" = $10,
+           "active_model" = $11
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -441,6 +456,8 @@ impl Route for SupervisorChange {
         repository.into(),
         voice.into(),
         now_ms().into(),
+        active.as_ref().map(|active| active.provider.clone()).into(),
+        active.as_ref().map(|active| active.model.clone()).into(),
       ],
     )
     .await?;

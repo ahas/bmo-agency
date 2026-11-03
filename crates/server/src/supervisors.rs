@@ -54,7 +54,8 @@ impl Supervisor {
       session_scope: row.try_get("", "session_scope")?,
       turn_shape: row.try_get("", "turn_shape")?,
       repository: row.try_get("", "repository")?,
-      order: Order::of_row(&order, row.try_get("", "quota_share")?),
+      order: Order::of_row(&order, row.try_get("", "quota_share")?)
+        .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       warming: serde_json::from_str(&warming).unwrap_or_default(),
       fold_ratio: row.try_get("", "fold_ratio")?,
       builtin: row.try_get::<i64>("", "builtin")? != 0,

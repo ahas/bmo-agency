@@ -37,6 +37,9 @@ pub const LAUNCH_TOLD_PREFIX: &str = "queue_item_told:";
 pub const PAUSED_TOLD_PREFIX: &str = "queue_paused_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the item names no checkout.
 pub const UNLAUNCHABLE_TOLD_PREFIX: &str = "queue_unlaunchable_told:";
+/// The settings rows, one an item by its number, of the `model` label whose refused launch the orderer was
+/// told of.
+pub const MODEL_TOLD_PREFIX: &str = "queue_model_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the draft awaits approval.
 pub const DRAFT_TOLD_PREFIX: &str = "queue_draft_told:";
 
@@ -379,6 +382,46 @@ pub async fn tell_stuck(
   }
 
   Ok(())
+}
+
+/// An item whose launch was refused for its `model` label told to its orderer, once for that label
+/// (docs/agent-control.md, 「An item's change is told to its orderer」): the label told is kept by the item, so
+/// the same label refused again is not told again and another one is. Answers whether it was told now.
+pub async fn tell_model_refused(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  id: i64,
+  item: &Value,
+  label: &str,
+  why: &str,
+) -> Result<bool, String> {
+  let Some(receiver) = Receiver::of(vars) else { return Ok(false) };
+  let fault = |why: Refusal| why.detail;
+  let key = format!("{MODEL_TOLD_PREFIX}{id}");
+
+  if settings::get(db, &key).await.map_err(fault)?.as_deref() == Some(label) {
+    return Ok(false);
+  }
+
+  let mut item = item.clone();
+
+  item["id"] = json!(id);
+
+  let orderer = orderer(JobService::of(vars).as_ref(), &item).await?;
+  let title = item["title"].as_str().unwrap_or_default();
+
+  receiver.instruct(&job_notices::model_refused(id, title, label, why, &orderer)).await?;
+  settings::set(db, &key, label).await.map_err(fault)?;
+  println!("queue: item #{id} names model={label}, which no job can run on, told to its orderer");
+
+  Ok(true)
+}
+
+/// The mark of an item's refused `model` label let go, as a job of the item is launched.
+pub async fn model_told_let_go(db: &DatabaseConnection, id: i64) {
+  if let Err(why) = settings::forget(db, &format!("{MODEL_TOLD_PREFIX}{id}")).await {
+    eprintln!("queue: the told mark of item #{id}'s model was not let go: {}", why.detail);
+  }
 }
 
 /// Whether the queue is idle at `now` and not yet told for this stretch: work a free checkout could take, no

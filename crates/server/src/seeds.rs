@@ -91,6 +91,7 @@ fn role_seed(role: &Role, prompt: Option<String>, description: Option<String>) -
       })
       .collect(),
     quota_share: ROLES.quota_share,
+    forced: None,
   };
 
   RoleSeed {

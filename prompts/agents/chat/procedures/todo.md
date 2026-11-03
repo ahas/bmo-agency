@@ -36,6 +36,12 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   the item's `assigneeName`, so only that repository's worker takes it; a name the agency does not hold
   is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
   the repositories to choose from. Host work names none.
+- **The item names its model where the owner names one for this piece of work:** the label
+  `model=<provider>/<model>`, the provider and model as an order's entry names them (a registered model
+  as `registered/<name>`). Its job runs on that model alone, over the role's provider order and the
+  repository's pin, at the effort the role's order names for that provider, and waits for it while it
+  cannot answer rather than falling back. `model=auto`, or no `model` label, leaves the choice to the
+  order. Never change a role's provider order for one item's sake.
 - **Work across several repositories is one item per repository,** each with the same brief and the
   same `series=<name>` label, the name one short word for the whole of it, so the items read as one
   piece of work in the queue.
@@ -79,7 +85,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 ## Changing an item that stands
 
 - **`job_item_update` changes one item as a merge patch:** `title`, `brief`, `priority`, `position`,
-  `assigneeName`, `queueName`, `state` and `mergedInto` among them. A field left out stays.
+  `assigneeName`, `queueName`, `labels`, `state` and `mergedInto` among them. A field left out stays.
+- **The owner names a model for an item that stands:** set its `model` label with `job_item_update`,
+  keeping the labels it already carries, before you launch it, as 「Filing an item」 says; an item already
+  running keeps its road, and the label holds from its next launch.
 - **One more condition on work that already stands goes onto that item,** never into a second item:
   `job_note_add` with item <id>, the words, and `actorName` `harness`. Then rewrite the brief with
   `job_item_update` where the run must read them, and name the change. The brief is the run's
@@ -242,7 +251,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   Say in one line that it waits on the queue; do not work around the queue.
 - **`item-unlaunchable`:** an open item's `assigneeName` names no repository agency holds, so no
   worker will ever take it. Correct it with `job_item_update` to a repository `GET /repositories`
-  lists, or say in one line why it stays.
+  lists, or say in one line why it stays. Told of an item's `model` label, its launch was refused
+  `unknown-model` for a provider or model agency does not hold: correct the label, or set it to `auto`
+  where the owner named no model, and launch it again.
 - **`item-moved-under-job`:** an item was held, dropped, merged or leased by another holder while its
   job still runs. Only the owner's word stops a job: where the job's work is no longer wanted, put the
   stop to him with the job's number; otherwise say in one line that the job runs on and its end will be

@@ -437,8 +437,15 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
       .map(|row| row.try_get::<String>("", column).map_err(Refused::from))
       .collect()
   };
-  let names_it =
-    |order: &crate::order::Order| order.entry(PROVIDER).is_some_and(|entry| entry.model == name);
+  // An order names it in its entry at the registry's provider, or as the provider the owner forced beside
+  // it.
+  let names_it = |order: &crate::order::Order| {
+    order.entry(PROVIDER).is_some_and(|entry| entry.model == name)
+      || order
+        .forced
+        .as_ref()
+        .is_some_and(|forced| forced.provider == PROVIDER && forced.model == name)
+  };
   let mut used = vec![];
 
   for supervisor in crate::supervisors::every(db).await? {

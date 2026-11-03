@@ -1,14 +1,15 @@
 //! A job carried across its roads (docs/cache-fallback.md, 「One road resolution」; docs/api.md, 「assignments
 //! and jobs」): a turn whose road stopped answering carried again on the next road, the same job, its prompt
 //! opened with the line saying it continues the work and its report saying where it ran; at most once on
-//! each provider; and a failure of the work itself moving nothing.
+//! each provider; a failure of the work itself moving nothing; and a job whose item names its model carried
+//! on that model alone, over the repository's pin, waiting for it rather than falling back.
 
 use std::collections::{HashMap, VecDeque};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::support::grounds::{OrderEntry, set_provider_order};
+use crate::support::grounds::{OrderEntry, deepseek_balance, set_provider_order};
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work::{Carried, Carrier, carry_job, continued, road_stopped};
@@ -218,6 +219,127 @@ async fn a_failure_of_the_work_itself_moves_nothing() {
   assert_eq!(carrier.turns.len(), 1);
   assert_eq!(outcome.as_deref(), Some("failed"));
   assert_eq!(report.as_deref(), Some("the tests failed: 3 of 40"));
+}
+
+// The job's row naming the model its item names, and its repository pinned to DeepSeek.
+async fn item_names(scratch: &Scratch, provider: &str, model: &str) {
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "item_provider" = $1, "item_model" = $2 WHERE "id" = 7"#,
+      vec![provider.to_owned().into(), model.to_owned().into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"UPDATE "repositories" SET "pinned_provider" = 'deepseek', "pinned_model" = 'deepseek-flash'
+         WHERE "name" = 'helper'"#,
+      vec![],
+    )
+    .await;
+}
+
+async fn job_column(scratch: &Scratch, column: &str) -> Option<String> {
+  store::one(scratch.db(), &format!(r#"SELECT "{column}" FROM "jobs" WHERE "id" = 7"#), vec![])
+    .await
+    .unwrap()
+    .unwrap()
+    .try_get("", column)
+    .unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_item_names_its_model_goes_out_on_it_over_the_pin_and_never_moves_off_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+  let mut carrier = Ends {
+    ends: VecDeque::from([limit(), TurnEnd::answered("job-7", "never asked")]),
+    turns: vec![],
+  };
+
+  item_names(&scratch, "claude-code", "item-model").await;
+
+  let (_, outcome, _, _) = carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  assert_eq!(
+    carrier
+      .turns
+      .iter()
+      .map(|(road, _)| (road.provider.as_str(), road.model.as_str()))
+      .collect::<Vec<_>>(),
+    vec![("claude-code", "item-model")],
+    "the item's model alone, over the pin, and nothing after its road stopped answering"
+  );
+  assert_eq!(outcome.as_deref(), Some("failed"));
+  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("item"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_item_s_model_cannot_answer_is_held_with_the_reason_and_never_falls_back() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", "never asked")]),
+    turns: vec![],
+  };
+
+  item_names(&scratch, "deepseek", "deepseek-flash").await;
+  deepseek_balance(&ground, 0.0).await;
+
+  let waited =
+    tokio::time::timeout(std::time::Duration::from_secs(3), carry_job(&ground, &job(), &mut carrier)).await;
+
+  assert!(waited.is_err(), "the job waits for its item's model");
+  assert!(carrier.turns.is_empty(), "no turn went out on another road: {:?}", carrier.turns);
+
+  let held = job_column(&scratch, "held_for").await.unwrap_or_default();
+
+  assert!(held.contains("balance is spent"), "{held}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+  let answered = || Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", "Done.")]),
+    turns: vec![],
+  };
+
+  let mut carrier = answered();
+
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("order"));
+
+  scratch
+    .run(
+      r#"UPDATE "repositories" SET "pinned_provider" = 'claude-code', "pinned_model" = 'pinned-model'
+         WHERE "name" = 'helper'"#,
+      vec![],
+    )
+    .await;
+
+  let mut carrier = answered();
+
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+  assert_eq!(carrier.turns[0].0.model, "pinned-model");
+  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("pin"));
+
+  scratch
+    .run(
+      r#"UPDATE "roles" SET "active_provider" = 'claude-code', "active_model" = 'forced-model'
+         WHERE "name" = 'worker'"#,
+      vec![],
+    )
+    .await;
+
+  let mut carrier = answered();
+
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+  assert_eq!(carrier.turns[0].0.model, "forced-model", "the forced provider stands over the pin");
+  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("forced"));
 }
 
 #[test]

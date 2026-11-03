@@ -117,11 +117,30 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(changed["bundles"].as_array().unwrap().len(), 2);
   assert_eq!((&changed["maxConcurrent"], &changed["prompt"]), (&json!(5), &Value::Null));
   assert_eq!(changed["sessions"], "fresh");
+  assert_eq!(changed["active"], Value::Null, "its order chooses");
+
+  // The owner forces its active provider and clears it again; the order stays as it was.
+  let (status, forced) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/roles/reviewer",
+    Some(json!({ "active": { "provider": "claude-code", "model": "claude-opus-5" } })),
+  )
+  .await;
+  assert_eq!(status, 200, "{forced}");
+  assert_eq!(forced["active"], json!({ "provider": "claude-code", "model": "claude-opus-5" }));
+  assert_eq!(forced["order"][0]["model"], "claude-sonnet-4-6");
+
+  let (status, cleared) =
+    ask(reqwest::Method::PATCH, port, "/roles/reviewer", Some(json!({ "active": null }))).await;
+  assert_eq!((status, cleared["active"].clone()), (200, Value::Null), "{cleared}");
 
   for body in [
     json!({ "sessions": "never" }),
     json!({ "bundles": ["web.nothing"] }),
     json!({ "maxConcurrent": -1 }),
+    json!({ "active": { "provider": "nowhere", "model": "x" } }),
+    json!({ "active": "claude-code" }),
   ] {
     let (status, _) = ask(reqwest::Method::PATCH, port, "/roles/reviewer", Some(body.clone())).await;
     assert_eq!(status, 422, "{body}");

@@ -4,12 +4,50 @@
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
-/// A repository's pinned model: a provider and one model of it (docs/repositories.md, 「A pinned model」).
+/// A provider and one model of it, as a repository's pin (docs/repositories.md, 「A pinned model」), an item's
+/// model and a row's forced provider (docs/provider-order.md, 「A provider the owner forces」) name one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pin {
   pub provider: String,
   pub model: String,
 }
+
+impl Pin {
+  /// The pin two columns hold, none where either is missing or empty.
+  pub fn of_parts(provider: Option<String>, model: Option<String>) -> Option<Self> {
+    provider
+      .filter(|provider| !provider.trim().is_empty())
+      .zip(model.filter(|model| !model.trim().is_empty()))
+      .map(|(provider, model)| Self { provider, model })
+  }
+
+  /// The model an item's `model` label names (docs/repositories.md, 「A model an item names」):
+  /// `<provider>/<model>`, the provider before the first `/` and the model all after it. None for a label
+  /// that is `auto`, empty or absent; the refusal's sentence for one that names no provider and model.
+  pub fn of_label(label: Option<&str>) -> Result<Option<Self>, String> {
+    let Some(label) = label.map(str::trim).filter(|label| !label.is_empty() && *label != AUTO) else {
+      return Ok(None);
+    };
+    let named = label.split_once('/').and_then(|(provider, model)| {
+      Self::of_parts(Some(provider.trim().to_owned()), Some(model.trim().to_owned()))
+    });
+
+    named.map(Some).ok_or_else(|| {
+      format!("The label {MODEL_LABEL}={label} names no provider and model, as <provider>/<model>.")
+    })
+  }
+
+  /// The pin as JSON answers it.
+  pub fn view(&self) -> serde_json::Value {
+    serde_json::json!({ "provider": self.provider, "model": self.model })
+  }
+}
+
+/// The label an item names the model its job runs on with.
+pub const MODEL_LABEL: &str = "model";
+
+/// The value of an item's `model` label that leaves its job to the order.
+pub const AUTO: &str = "auto";
 
 /// One repository as its row holds it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,10 +88,7 @@ impl Repository {
       preamble: row.try_get("", "preamble")?,
       rules: row.try_get("", "prompts")?,
       dev_command: row.try_get("", "dev_command")?,
-      pin: provider
-        .filter(|provider| !provider.trim().is_empty())
-        .zip(model.filter(|model| !model.trim().is_empty()))
-        .map(|(provider, model)| Pin { provider, model }),
+      pin: Pin::of_parts(provider, model),
       downgrade_heal: row.try_get::<i64>("", "downgrade_heal")? != 0,
     })
   }

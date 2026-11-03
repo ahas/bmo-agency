@@ -155,6 +155,20 @@ pub enum JobState {
   Stopped,
 }
 
+/// What chose a job's provider and model: its item's `model` label, its role's forced provider, its
+/// repository's pin or its role's order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum JobChoice {
+  #[serde(rename = "item")]
+  Item,
+  #[serde(rename = "forced")]
+  Forced,
+  #[serde(rename = "pin")]
+  Pin,
+  #[serde(rename = "order")]
+  Order,
+}
+
 /// Error:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1659,6 +1673,9 @@ pub struct Job {
   /// Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
   #[serde(default)]
   pub held_for: Option<String>,
+  /// What chose its provider and model; none for a job launched before it was kept.
+  #[serde(default)]
+  pub chosen_by: Option<JobChoice>,
   /// epoch milliseconds
   pub started_at: i64,
   /// epoch milliseconds
@@ -2719,6 +2736,9 @@ pub struct Supervisor {
   pub order: Vec<OrderEntry>,
   /// a fraction from 0 to 1
   pub quota_share: f64,
+  /// the provider the owner forced as its active provider, or null where its order chooses
+  #[serde(default)]
+  pub active: Option<ActiveProvider>,
   /// for each provider of its order, whether its prefix is kept warm there
   pub warming: BTreeMap<String, bool>,
   /// its compaction threshold
@@ -2821,6 +2841,9 @@ pub struct SupervisorChange {
   pub label: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub order: Option<Vec<OrderEntry>>,
+  /// The provider forced as its active provider; null clears it.
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub active: Option<Option<ActiveProvider>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub quota_share: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2871,6 +2894,9 @@ pub struct Role {
   pub line: String,
   pub order: Vec<OrderEntry>,
   pub quota_share: f64,
+  /// the provider the owner forced as its active provider, or null where its order chooses
+  #[serde(default)]
+  pub active: Option<ActiveProvider>,
   /// the most of its runs that go at once
   pub max_concurrent: i64,
   pub sessions: RoleSessions,
@@ -2946,6 +2972,9 @@ pub struct RoleChange {
   pub fold_ratio: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub callable: Option<bool>,
+  /// The provider forced as its active provider; null clears it.
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub active: Option<Option<ActiveProvider>>,
 }
 
 /// RoleSession: one session a role's runs opened, and whether the next run of its key would resume it.
@@ -2994,6 +3023,14 @@ pub struct RoleSessionsQuery {
   pub before: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub limit: Option<i64>,
+}
+
+/// ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveProvider {
+  pub provider: String,
+  pub model: String,
 }
 
 /// RepositoryPin: a repository's pinned provider and model.

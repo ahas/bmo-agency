@@ -16,6 +16,7 @@ use sea_orm::{QueryResult, Value as DbValue};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
+use crate::control::claude_accounts::Judging;
 use crate::events::Named;
 use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
@@ -23,6 +24,7 @@ use crate::now_ms;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
+use crate::repositories::{MODEL_LABEL, Pin};
 use crate::road::{self, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
@@ -421,7 +423,7 @@ crate::moved!(ChangeAssignment);
 const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "role",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
-  "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for""#;
+  "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for", "chosen_by""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
 fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -472,6 +474,7 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
       .and_then(|text| serde_json::from_str::<Value>(&text).ok())
       .unwrap_or_else(|| json!([])),
     "heldFor": row.try_get::<Option<String>>("", "held_for")?,
+    "chosenBy": row.try_get::<Option<String>>("", "chosen_by")?,
     "startedAt": row.try_get::<i64>("", "started_at")?,
     "endedAt": row.try_get::<Option<i64>>("", "ended_at")?,
   }))
@@ -741,11 +744,13 @@ impl Route for CreateJob {
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
     let role: String =
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned();
+    let item_model = item_model(&call.shared_ground(), item_id, &item).await?;
     // A job is refused only where nothing in its worker's walk can answer now (docs/cache-fallback.md,
     // 「One road resolution」); the sentence names every provider's reason and what a person must do.
-    let resolution = road::for_job(call.ground(), Some(&role), Some(&worker_name), None, &[])
-      .await
-      .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
+    let resolution =
+      road::for_job(call.ground(), Some(&role), Some(&worker_name), item_model.as_ref(), &[])
+        .await
+        .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
     if resolution.road().is_none() {
       road::went(call.ground(), &resolution, None, &[]).await;
 
@@ -761,8 +766,9 @@ impl Route for CreateJob {
     let row = one(
       db,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
-              "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10) RETURNING "id""#,
+              "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role", "item_provider",
+              "item_model", "chosen_by")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -774,11 +780,16 @@ impl Route for CreateJob {
         prompt.clone().into(),
         instruction.as_ref().map(Value::to_string).into(),
         role.into(),
+        item_model.as_ref().map(|named| named.provider.clone()).into(),
+        item_model.as_ref().map(|named| named.model.clone()).into(),
+        resolution.chosen_by.map(|chosen| chosen.word().to_owned()).into(),
       ],
     )
     .await?
     .ok_or_else(|| Refused::failed("the job was written but not answered"))?;
     let id: i64 = row.try_get("", "id")?;
+
+    crate::watches::queue_idle::model_told_let_go(db, item_id).await;
 
     run(
       db,
@@ -1310,14 +1321,27 @@ fn summed(spent: Option<Spent>, more: Option<Spent>) -> Option<Spent> {
   }
 }
 
-// The roads a job went out on written onto its row, with the model of the last, and the job told.
-async fn kept_roads(ground: &Ground, id: i64, roads: &[(Road, Option<String>)], values: &[Value]) {
+// The roads a job went out on written onto its row, with the model of the last and what chose it, and the
+// job told.
+async fn kept_roads(
+  ground: &Ground,
+  id: i64,
+  roads: &[(Road, Option<String>)],
+  values: &[Value],
+  chosen_by: Option<road::ChosenBy>,
+) {
   let model = roads.last().map(|(taken, _)| taken.model.clone());
 
   if let Err(why) = run(
     &ground.db,
-    r#"UPDATE "jobs" SET "roads" = $1, "model" = COALESCE($2, "model") WHERE "id" = $3"#,
-    vec![Value::Array(values.to_vec()).to_string().into(), model.into(), id.into()],
+    r#"UPDATE "jobs" SET "roads" = $1, "model" = COALESCE($2, "model"), "chosen_by" = COALESCE($4, "chosen_by")
+       WHERE "id" = $3"#,
+    vec![
+      Value::Array(values.to_vec()).to_string().into(),
+      model.into(),
+      id.into(),
+      chosen_by.map(|chosen| chosen.word().to_owned()).into(),
+    ],
   )
   .await
   {
@@ -1395,7 +1419,9 @@ async fn wait_for_road(
       return Ok(false);
     }
 
-    if road::for_job(ground, Some(&role_of_job(ground, job.id).await), Some(job.worker), None, &[])
+    let item = item_model_of_job(ground, job.id).await;
+
+    if road::for_job(ground, Some(&role_of_job(ground, job.id).await), Some(job.worker), item.as_ref(), &[])
       .await?
       .road()
       .is_some()
@@ -1425,6 +1451,8 @@ pub async fn carry_job<C: Carrier>(
 
   let role = role_of_job(ground, job.id).await;
   let role = Some(role.as_str());
+  let item = item_model_of_job(ground, job.id).await;
+  let item = item.as_ref();
   let mut left: Vec<Closed> = vec![];
   let mut roads: Vec<(Road, Option<String>)> = vec![];
   let mut values: Vec<Value> = vec![];
@@ -1433,11 +1461,11 @@ pub async fn carry_job<C: Carrier>(
   let mut last: Option<Ended> = None;
 
   loop {
-    let resolution = road::for_job(ground, role, Some(job.worker), None, &left).await?;
+    let resolution = road::for_job(ground, role, Some(job.worker), item, &left).await?;
     let Some(taken) = resolution.road().cloned() else {
       // Every road that can answer now was already tried in this job: it ends as its last turn did.
       if let Some((state, outcome, report, _)) = last.take()
-        && road::for_job(ground, role, Some(job.worker), None, &[]).await?.road().is_some()
+        && road::for_job(ground, role, Some(job.worker), item, &[]).await?.road().is_some()
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
@@ -1454,7 +1482,7 @@ pub async fn carry_job<C: Carrier>(
     road::went(ground, &resolution, Some(&taken), &[]).await;
     values.push(road_value(&taken, why.as_deref()));
     roads.push((taken.clone(), why));
-    kept_roads(ground, job.id, &roads, &values).await;
+    kept_roads(ground, job.id, &roads, &values, resolution.chosen_by).await;
 
     let end = carrier.carry(&taken, &prompt).await?;
 
@@ -1478,6 +1506,71 @@ pub async fn carry_job<C: Carrier>(
     left.push(Closed::plain(&taken.provider, stopped));
     last = Some(("ended".to_owned(), outcome, report, None));
   }
+}
+
+/// The model a job's item names, as its row keeps it from the launch (docs/repositories.md, 「A model an item
+/// names」); none where its item named none.
+pub async fn item_model_of_job(ground: &Ground, id: i64) -> Option<Pin> {
+  let row = one(
+    &ground.db,
+    r#"SELECT "item_provider", "item_model" FROM "jobs" WHERE "id" = $1"#,
+    vec![id.into()],
+  )
+  .await
+  .ok()
+  .flatten()?;
+
+  Pin::of_parts(
+    row.try_get("", "item_provider").ok().flatten(),
+    row.try_get("", "item_model").ok().flatten(),
+  )
+}
+
+/// The model the item `POST /jobs` is handed names with its `model` label, judged as a repository's pin is
+/// (docs/repositories.md, 「A model an item names」): none for `auto` or no label, and 422 `unknown-model` with
+/// the label's text for one agency does not hold, its orderer told once for that label.
+async fn item_model(ground: &Arc<Ground>, item_id: i64, item: &Value) -> Result<Option<Pin>, Refused> {
+  let label = item["labels"][MODEL_LABEL].as_str();
+  let judged = match Pin::of_label(label) {
+    Ok(None) => return Ok(None),
+    Ok(Some(named)) => crate::order::judge_one(
+      Judging::of(ground),
+      &ground.machine(),
+      crate::queue::routes::job_line(),
+      &named.view(),
+    )
+    .await
+    .map(Some),
+    Err(why) => Err(why),
+  };
+
+  judged.map_err(|why| {
+    let label = label.unwrap_or_default().trim().to_owned();
+    let sentence = format!("Item #{item_id} names {MODEL_LABEL}={label}, which no job can run on: {why}");
+
+    if !ground.testing() {
+      let ground = ground.clone();
+      let item = item.clone();
+      let why = sentence.clone();
+
+      tokio::spawn(async move {
+        if let Err(fault) = crate::watches::queue_idle::tell_model_refused(
+          &ground.db,
+          ground.vars(),
+          item_id,
+          &item,
+          &label,
+          &why,
+        )
+        .await
+        {
+          eprintln!("job of item #{item_id}: its refused model was not told: {fault}");
+        }
+      });
+    }
+
+    Refused::new(StatusCode::UNPROCESSABLE_ENTITY, sentence).with_code("unknown-model")
+  })
 }
 
 /// The role a job runs as: the one its row names, `worker` where it names none (docs/repositories.md, 「A

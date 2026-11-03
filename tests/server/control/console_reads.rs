@@ -204,6 +204,38 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   assert_eq!(pal["order"][0]["model"], "claude-opus-5", "{pal}");
   assert_eq!(pal["quotaShare"], json!(0.05), "{pal}");
+  assert_eq!(pal["active"], Value::Null, "its order chooses: {pal}");
+
+  // The owner forces its active provider beside the order, refused for a provider agency does not carry, and
+  // clears it again; the order itself stays as it was.
+  let (status, forced) = call(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/supervisors/pal",
+    Some(json!({ "active": { "provider": "claude-code", "model": "claude-sonnet-4-6" } })),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{forced}");
+  assert_eq!(forced["active"], json!({ "provider": "claude-code", "model": "claude-sonnet-4-6" }));
+  assert_eq!(forced["order"][0]["model"], "claude-opus-5", "{forced}");
+
+  let (status, refused) = call(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/supervisors/pal",
+    Some(json!({ "active": { "provider": "nowhere", "model": "x" } })),
+  )
+  .await;
+
+  assert_eq!((status, refused["field"].clone()), (400, json!("active")), "{refused}");
+
+  let (status, cleared) =
+    call(port, token, reqwest::Method::PATCH, "/supervisors/pal", Some(json!({ "active": null }))).await;
+
+  assert_eq!((status, cleared["active"].clone()), (200, Value::Null), "{cleared}");
 
   let (status, refused) = call(
     port,

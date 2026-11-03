@@ -1,10 +1,11 @@
 # Provider order
 
 How a run gets its provider and its model. Every supervisor and every role carries a provider order of
-its own; a run goes out on the first provider of its order that has quota and can answer now, moves down
-the order on a limit or a failure, and comes back to the top at its next run. There is no order shared by
-everything, no level of work standing between a role and its model, and no limit on how many runs go out on
-one provider at once. How the Claude Code provider walks its own accounts is `docs/cache-fallback.md`; how
+its own, which decides where a run whose model is left to the row goes: the row's active provider. That is
+the provider the owner forced on the row where one stands, else the first provider of its order that has
+quota and can answer now; a run on the order's choice moves down the order on a limit or a failure, and
+comes back to the top at its next run. There is no order shared by everything, no level of work standing
+between a role and its model, and no limit on how many runs go out on one provider at once. How the Claude Code provider walks its own accounts is `docs/cache-fallback.md`; how
 quota is read is `docs/usage-windows.md`.
 
 ## What an order is
@@ -45,7 +46,11 @@ quota is read is `docs/usage-windows.md`.
 
 ## Choosing the provider
 
-- **A run goes out on the first provider of its order that has quota above the share and can answer now.**
+- **A run whose model is left to its row goes out on the row's active provider.** A provider becomes the
+  row's active provider in one of two ways: the owner forces it on the row (「A provider the owner forces」
+  below), or, where none is forced, the order and the quota choose it.
+- **The order's choice is the first provider of the order that has quota above the share and can answer
+  now.**
   Can answer now is the provider's own answer (`docs/cache-fallback.md`, 「Availability: whether a provider
   can answer now」): the owner's switch on it is on, its credential stands on this machine, and, for a
   provider that holds logins, one of them is open.
@@ -54,11 +59,28 @@ quota is read is `docs/usage-windows.md`.
   thinking default of the gateway member or the registration the model is, which is read beside the model
   (「Models a provider holds」); a model of the Claude CLI's catalogue states none, and its thinking is the
   line's own.
-- **That provider is the row's active provider.** Every run of a role goes out on the role's active provider
-  at that moment; a role's runs never spread over several providers by count, since no provider carries a
-  concurrency limit of its own and the role's cap is the only bound (`docs/role-slots.md`).
+- **That provider is the row's active provider while none is forced.** Every run of a role goes out on the
+  role's active provider at that moment; a role's runs never spread over several providers by count, since
+  no provider carries a concurrency limit of its own and the role's cap is the only bound
+  (`docs/role-slots.md`).
 - **The choice is made as the run starts and kept for the run.** A run already going finishes where it went
   out; a change of the order, the share or the quota holds from the next run.
+
+## A provider the owner forces
+
+- **The owner may force a supervisor's or a role's active provider:** a provider and one model of it, held
+  on the row beside its order (`active`, `docs/api.md`, 「supervisors」 and 「roles」). It is a provider agency
+  carries whose program carries the row's line, on a model it holds, judged as an order's entry is; it need
+  not stand in the order.
+- **While it stands it is the row's active provider.** Every run of the row whose model is left to the row
+  goes out on it, at the effort and thinking the order's entry for that provider names where the order holds
+  one, else the provider's own; a supervisor's chat turns alike.
+- **It is never walked off.** A forced provider with no quota above the share, switched off, without its
+  credential, or whose engine is down makes the run wait with the reason, as a pinned model does; a run on
+  it that fails for its provider waits for it again rather than moving down the order, since the owner
+  chose it.
+- **Clearing it returns the row to the order's choice** from its next run; a run already going finishes
+  where it went out. The order itself is never changed by forcing or clearing.
 
 ## Falling over and coming back
 
@@ -106,9 +128,14 @@ quota is read is `docs/usage-windows.md`.
 
 ## Runs that do not walk their own role's order
 
-- **A repository's pinned model** carries every job in the repository instead of the role's order, and its
-  work waits while the pin has no quota or cannot answer; nothing falls back (`docs/repositories.md`, 「A
-  pinned model」).
+- **An item's own model,** its `model` label other than `auto`, carries that item's job instead of its
+  role's active provider and instead of its repository's pin, and the job waits while it has no quota or
+  cannot answer; nothing falls back (`docs/repositories.md`, 「A model an item names」).
+- **A repository's pinned model** carries every job in the repository whose item names no model and whose
+  role has no forced provider, instead of the role's order, and its work waits while the pin has no quota or
+  cannot answer; nothing falls back (`docs/repositories.md`, 「A pinned model」).
+- **A job's provider and model are chosen by the first that stands** of its item's `model`, its role's
+  forced provider, its repository's pin and its role's order, and the job says which.
 - **A run of a role whose order is empty** — the supervisor's double, the `doppelganger` role, as seeded —
   goes out on the asking supervisor's own provider, model and effort as they stand when it is asked, and
   waits, never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An order
@@ -141,8 +168,9 @@ quota is read is `docs/usage-windows.md`.
   window, answer ceiling and thinking default (`docs/cache-fallback.md`, 「The Codex road is a member of the
   gateway」 and the sections after it).
 - **The registry's provider:** an offered registration, one with an address or naming a card service, each
-  with its window, answer ceiling and thinking default (`docs/own-llm.md`, 「Registered models」). A registration an order or a repository's pin names is not
-  removed, and the refusal names each row that names it.
+  with its window, answer ceiling and thinking default (`docs/own-llm.md`, 「Registered models」). A
+  registration an order, a forced provider or a repository's pin names is not removed, and the refusal names
+  each row that names it.
 - **A catalogue that cannot be read at the moment an order is written** keeps the model rather than refusing
   it, since a catalogue that cannot be read says nothing against the name; one that reads and does not name
   the model refuses it.

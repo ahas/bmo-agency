@@ -2831,6 +2831,11 @@ export interface components {
              */
             heldFor: string | null;
             /**
+             * @description What chose its provider and model; none for a job launched before it was kept.
+             * @default null
+             */
+            chosenBy: components["schemas"]["JobChoice"] | null;
+            /**
              * Format: int64
              * @description epoch milliseconds
              */
@@ -2871,6 +2876,12 @@ export interface components {
             /** @description Why the road before it was left; none on the first. */
             reason: string | null;
         };
+        /**
+         * @description What chose a job's provider and model: its item's `model` label, its role's forced provider, its
+         *     repository's pin or its role's order.
+         * @enum {string}
+         */
+        JobChoice: "item" | "forced" | "pin" | "order";
         /**
          * @description JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the
          *     one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
@@ -3278,6 +3289,11 @@ export interface components {
              * @description a fraction from 0 to 1
              */
             quotaShare: number;
+            /**
+             * @description the provider the owner forced as its active provider, or null where its order chooses
+             * @default null
+             */
+            active: components["schemas"]["ActiveProvider"] | null;
             /** @description for each provider of its order, whether its prefix is kept warm there */
             warming: {
                 [key: string]: boolean;
@@ -3328,6 +3344,11 @@ export interface components {
              * @default null
              */
             answerTokens: number | null;
+        };
+        /** @description ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider. */
+        ActiveProvider: {
+            provider: string;
+            model: string;
         };
         /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
         SupervisorRegistered: {
@@ -3466,6 +3487,8 @@ export interface components {
         SupervisorChange: {
             label?: string | null;
             order?: components["schemas"]["OrderEntry"][] | null;
+            /** @description The provider forced as its active provider; null clears it. */
+            active?: components["schemas"]["ActiveProvider"] | null;
             /** Format: double */
             quotaShare?: number | null;
             warming?: {
@@ -3498,6 +3521,11 @@ export interface components {
             order: components["schemas"]["OrderEntry"][];
             /** Format: double */
             quotaShare: number;
+            /**
+             * @description the provider the owner forced as its active provider, or null where its order chooses
+             * @default null
+             */
+            active: components["schemas"]["ActiveProvider"] | null;
             /**
              * Format: int64
              * @description the most of its runs that go at once
@@ -3567,6 +3595,8 @@ export interface components {
             /** Format: double */
             foldRatio?: number | null;
             callable?: boolean | null;
+            /** @description The provider forced as its active provider; null clears it. */
+            active?: components["schemas"]["ActiveProvider"] | null;
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -4154,6 +4184,15 @@ export interface components {
         };
         /** @description unauthorized */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-model */
+        UnknownModel: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6543,6 +6582,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
+            422: components["responses"]["UnknownModel"];
             503: components["responses"]["NoLoginOpen"];
         };
     };

@@ -63,21 +63,46 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   its repository (`docs/worker-slots.md`, 「The queue with support checkouts」). Jobs on three repositories
   whose role is capped at two run two at a time, each in its own repository's checkout on the role's
   provider and model; the third waits for a slot.
-- **It runs on its role's active provider,** the first of the role's order with quota above the role's
-  share (`docs/provider-order.md`), unless the repository pins a model (below).
+- **It runs on its role's active provider:** the provider the owner forced on the role, else the first of
+  the role's order with quota above the role's share (`docs/provider-order.md`), unless its item names a
+  model, or, where the role has no forced provider, its repository pins one (below).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
 - **Its checkout, its branch and its landing** are `docs/worker-slots.md`'s; its workbench and dev server
   are `docs/worker-bench.md`'s.
 
+## A model an item names
+
+- **An item may name the provider and model its job runs on** with its label `model=<provider>/<model>`,
+  the model the item was filed to run on: a provider agency carries whose program carries the worker line,
+  and a model it holds — the values a repository's pin takes, judged the same way (「A pinned model」 below);
+  a registered model is `registered/<name>`. The provider is what stands before the first `/`, the model all
+  after it. A `model` label that is `auto` or empty, or none at all, names no model, and the job goes out as
+  「A job」 above says.
+- **It carries that item's job alone,** whatever role it runs as: the run goes out on the named provider
+  and model instead of its role's active provider and instead of its repository's pin, at the effort the
+  role's order names for that provider where it names one, else the provider's own default.
+- **A named model that is unavailable makes the job wait,** as a pin does: it is held with the reason and
+  goes out once the named provider can answer again, and it never falls back to another provider or
+  model, since the item chose it.
+- **A named model agency does not hold refuses the launch** with the label's text, and the item's orderer
+  is told once (`docs/agent-control.md`, 「An item's change is told to its orderer」); a label that does not
+  read as a provider and a model is refused alike.
+- **The job holds a slot of its role,** so the role's cap counts it like any other run.
+- **What chose a job's provider and model is the first of four that stands:** its item's `model`, else
+  its role's forced provider (`docs/provider-order.md`, 「A provider the owner forces」), else its
+  repository's pin, else its role's order. The job says which (`chosenBy`, `docs/api.md`, 「assignments and
+  jobs」).
+
 ## A pinned model
 
 - **A repository may pin a model:** a provider and one model of it — a model the Claude CLI's catalogue
   names on Claude Code, a member of a provider's own road, or an offered registration on the registry's
   provider (`docs/provider-order.md`, 「Models a provider holds」).
-- **A pin carries every job in the repository,** whatever role the job runs as: the run goes out on the
-  pinned provider and model instead of its role's order, at the effort the role's order names for that
+- **A pin carries every job in the repository whose item names no model and whose role has no forced
+  provider,** whatever role the job runs as: the run goes out on the pinned provider and model instead of its
+  role's order, at the effort the role's order names for that
   provider where it names one, else the provider's own default.
 - **A pinned model that is unavailable makes the repository's work wait.** Where the pinned provider has no
   quota above the role's share, cannot answer now, or the pinned registration's engine is down, the job is

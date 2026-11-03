@@ -3,11 +3,12 @@
 //! provider of it answers for itself whether it can answer now — the owner's switch, its presence on this
 //! machine, its balance and its logins — and whether it has quota above the row's share, each out of its own
 //! member, and the first that can carries the run on the model, effort and thinking its entry names, on the
-//! first login with quota where the provider holds logins. A run whose caller fixes its road — a repository's
-//! pin, a delegation as its supervisor's double, a native co-worker on its caller's provider, a session's
-//! named road — walks that road alone and waits while it cannot answer. The resolution knows no provider by
-//! name. A move off the top of the order, a return to it and an order that cannot answer at all are each
-//! published once, as the facts of `road.changed` (docs/api.md, 「Events」).
+//! first login with quota where the provider holds logins. A row the owner forced a provider on walks that
+//! provider alone. A run whose caller fixes its road — an item's model, a repository's pin, a delegation as
+//! its supervisor's double, a native co-worker on its caller's provider, a session's named road — walks that
+//! road alone. A road walked alone is waited for while it cannot answer, never left. The resolution knows no
+//! provider by name. A move off the top of the order, a return to it and an order that cannot answer at all
+//! are each published once, as the facts of `road.changed` (docs/api.md, 「Events」).
 
 use cache_siren::Slot;
 use harness_providers::{Machine, Provider};
@@ -22,6 +23,7 @@ use crate::now_ms;
 use crate::order::{self, Entry, Order};
 use crate::places::Ground;
 use crate::queue::settings;
+use crate::repositories::Pin;
 
 /// The row a run is of: a supervisor or a role, by name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -147,8 +149,37 @@ pub struct Resolution {
   /// The row's line, and the providers of its order whose program cannot carry it.
   pub line: String,
   pub uncarried: Vec<String>,
-  /// Whether the caller fixed the road, so the walk was that road alone.
+  /// Whether the caller fixed the road or the owner forced the row's provider, so the walk was that road
+  /// alone.
   pub fixed: bool,
+  /// What chose a job's provider and model; none for a run that is no job.
+  pub chosen_by: Option<ChosenBy>,
+}
+
+/// What chose a job's provider and model, the first that stands of four (docs/repositories.md, 「A model an
+/// item names」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChosenBy {
+  /// The model its item's `model` label names.
+  Item,
+  /// The provider the owner forced on its role.
+  Forced,
+  /// Its repository's pinned model.
+  Pin,
+  /// Its role's order.
+  Order,
+}
+
+impl ChosenBy {
+  /// The word a job answers it with.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Item => "item",
+      Self::Forced => "forced",
+      Self::Pin => "pin",
+      Self::Order => "order",
+    }
+  }
 }
 
 impl Resolution {
@@ -263,15 +294,15 @@ impl Resolution {
   }
 }
 
-/// Where a job of a role at a checkout goes out now: its repository's pinned model alone where the repository
-/// pins one, which its work waits for and never leaves, else the role's own order (docs/repositories.md, 「A
-/// pinned model」); the job role where none is named. The providers the job already left count as unable to
-/// answer.
+/// Where a job of a role at a checkout goes out now, the first that stands of four (docs/repositories.md, 「A
+/// model an item names」): the model its item names, else the provider the owner forced on its role, else its
+/// repository's pinned model, each walked alone, waited for and never left; else the role's own order. The
+/// role is the job role where none is named. The providers the job already left count as unable to answer.
 pub async fn for_job(
   ground: &Ground,
   role: Option<&str>,
   checkout: Option<&str>,
-  user: Option<i64>,
+  item: Option<&Pin>,
   left: &[Closed],
 ) -> Result<Resolution, String> {
   let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
@@ -286,34 +317,40 @@ pub async fn for_job(
       .and_then(|repository| repository.pin),
     None => None,
   };
-  // A pin goes out at the effort the role's order names for its provider, else the provider's own default.
-  let fixed = pin.map(|pin| {
-    let own = held.order.entry(&pin.provider);
-
-    Entry {
-      provider: pin.provider.clone(),
-      model: pin.model,
-      effort: own.and_then(|entry| entry.effort.clone()),
-      thinking: own.and_then(|entry| entry.thinking.clone()),
-      answer_tokens: own.and_then(|entry| entry.answer_tokens),
-    }
-  });
+  // An item's model and a pin go out at the effort the role's order names for their provider; a forced
+  // provider is the order's own, which the resolution walks alone.
+  let (fixed, chosen_by) = match (item, &held.order.forced, pin) {
+    (Some(item), _, _) => (Some(held.order.entry_on(item)), ChosenBy::Item),
+    (None, Some(_), _) => (None, ChosenBy::Forced),
+    (None, None, Some(pin)) => (Some(held.order.entry_on(&pin)), ChosenBy::Pin),
+    (None, None, None) => (None, ChosenBy::Order),
+  };
   let ask = Ask {
-    user,
     left,
     fixed: fixed.as_ref(),
     ..Ask::of(Row::Role(&held.name), &held.line, &held.order)
   };
+  let resolution = resolve(ground, &ask).await?;
 
-  resolve(ground, &ask).await
+  Ok(Resolution {
+    chosen_by: Some(chosen_by),
+    ..resolution
+  })
 }
 
-/// Where a row's run goes out now (docs/provider-order.md, 「Choosing the provider」).
+/// Where a row's run goes out now (docs/provider-order.md, 「Choosing the provider」): a road the caller fixes
+/// stands over a provider the owner forced on the row, which stands over the order.
 pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, String> {
   let machine = ground.machine();
-  let walked: Vec<&Entry> = match ask.fixed {
+  let forced = ask.order.forced.as_ref().map(|forced| ask.order.entry_on(forced));
+  let alone = ask.fixed.or(forced.as_ref());
+  let walked: Vec<&Entry> = match alone {
     Some(entry) => vec![entry],
     None => ask.order.entries.iter().collect(),
+  };
+  let ask = &Ask {
+    fixed: alone,
+    ..*ask
   };
   let mut steps = vec![];
   let mut uncarried = vec![];
@@ -343,6 +380,7 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
     line: ask.line.to_owned(),
     uncarried,
     fixed: ask.fixed.is_some(),
+    chosen_by: None,
   })
 }
 

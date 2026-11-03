@@ -653,3 +653,38 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
 
   assert_eq!(again, 2, "a transition that comes again is told again");
 }
+
+#[tokio::test]
+async fn an_item_whose_model_label_was_refused_is_told_once_for_that_label() {
+  use agency_server::watches::queue_idle::{MODEL_TOLD_PREFIX, model_told_let_go, tell_model_refused};
+
+  use crate::support::peers::stand;
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let item = json!({ "title": "on a named model", "scope": "-9500", "labels": { "model": "nowhere/x" } });
+  let why = "Item #95 names model=nowhere/x, which no job can run on";
+
+  assert!(tell_model_refused(db, &vars, 95, &item, "nowhere/x", why).await.unwrap());
+  assert!(!tell_model_refused(db, &vars, 95, &item, "nowhere/x", why).await.unwrap(), "told once");
+  assert_eq!(kinds(&peers), vec![("item-unlaunchable:95".to_owned(), json!(-9500))]);
+
+  let said = peers.lock().unwrap().instructed()[0]["said"]["order"]
+    .as_str()
+    .unwrap_or_default()
+    .to_owned();
+
+  assert!(said.contains("model=nowhere/x"), "{said}");
+
+  // Another label refused is told again; a launch of the item lets the mark go.
+  assert!(tell_model_refused(db, &vars, 95, &item, "nowhere/y", why).await.unwrap());
+  model_told_let_go(db, 95).await;
+  assert!(
+    agency_server::queue::settings::get(db, &format!("{MODEL_TOLD_PREFIX}95"))
+      .await
+      .unwrap()
+      .is_none()
+  );
+  assert_eq!(kinds(&peers).len(), 2);
+}
