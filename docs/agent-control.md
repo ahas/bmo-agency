@@ -2796,10 +2796,11 @@ them run a browser, and whose a place is.
   service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues (`GET /queues`),
   beside its own jobs. An item stands open only once an approver approved it or it was raised with one of
   the job service's unattended labels — a pull request's review among them — so its state is the whole of
-  whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, its
-  repository has a checkout no job holds, and its role has a free slot. An item a job of agency's is still
-  at work on — its lease run out, or a restart of agency under the job — waits on nothing and is told to
-  nobody. Where one item waits so and no job has started on this machine for the idle minutes
+  whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, a
+  checkout it may go to is free — its repository's checkout no job holds where it names one, any free
+  checkout where it names none — and its role has a free slot. An item a job of agency's is still at work
+  on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody.
+  Where one item waits so and no job has started on this machine for the idle minutes
   (`policy/queue-idle.toml`, five, or the owner's own row `queue_idle_minutes` of the settings table), the
   queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
@@ -2808,38 +2809,110 @@ them run a browser, and whose a place is.
   why it does not. The receiver hands it to the supervisor in the owner's private chat, which
   voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
   was told is kept, and nothing more is said until a job starts again.
-- **An item that could go is told to the supervisor on its own.** Where an open item waits to go, and it is
-  still waiting a minute after agency first saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency
-  queues one instruction for the supervisor in the room the item was asked in — its `roomId`, else the room
-  its `scope` names — and in the owner's private room only for an item that names none, through the
-  receiver's `POST /instructions`, under the event `item-awaits-launch:#<item>`: the item awaits a launch,
-  so lease it (`job_lease_next`), run it (`run_job`), or say in one line why not. It is told once for each
-  item: the moment it was first seen waiting and the moment it was told are kept by the item's number, the
-  first let go once the item no longer waits to go, the second once the item is no longer open. It stands
-  beside the idle stretch's notice and does not wait for the idle minutes.
-- **A draft awaiting approval is told to the supervisor on its own.** In the same minute pass agency reads the
-  job service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for.
-  One the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each
-  draft not told yet agency queues one instruction through the receiver's `POST /instructions`, an order under
-  the sort `job` with the kind `item-awaits-approval:<item>` and the event `item-awaits-approval:#<item>`, in
-  the room the item was asked in — its `roomId`, else the room its `scope` names — and in the owner's private
-  room only where none is found. The order carries the item's number and title, who raised it (its `raised-by`
-  label, else its requester), its repository and the first lines of its brief (`policy/queue-idle.toml`,
-  `draft_brief_lines` and at most `draft_brief_chars`), and asks the supervisor to judge it by its manual:
-  approve it where the work is routine and it can judge it safe, the approval recorded as its own, or leave it
-  a draft and say in one line why the owner should decide. It is told once for each item: the moment it was
-  told is kept by the item's number and let go once the item is no longer a draft — approved, dropped or
-  merged — so neither a restart nor the next pass repeats it, and an item that left `draft` is told nothing
-  more.
-- **A derived item has its parent's orderer.** A draft that names no room of its own but carries the label
-  `raised-by=<item>` is told in the room of the item it names: that item's `roomId`, else its scope's room,
-  else, where that item is itself derived, its own parent's, followed up the chain. So a worker's follow-ups,
-  and follow-ups of follow-ups, are judged by the supervisor whose job raised them; only a chain that reaches
-  no room, or an item the job service no longer answers for, goes to the owner's private room.
 - **A switch silences the idle stretch's notice and the launch notice,** the settings row `queue_idle_alarm`
-  set to `off`; the next job that starts turns it on again. A draft awaiting approval is told whatever the
-  switch says, since it waits on a judgement rather than on a launch. A deployment that names no job service
-  or no receiver tells nothing.
+  set to `off`; the next job that starts turns it on again. Every other notice of 「An item's change is told
+  to its orderer」 is told whatever the switch says, since each waits on a judgement rather than on a launch.
+  A deployment that names no job service or no receiver tells nothing.
+
+### An item's change is told to its orderer
+
+Every change of an item or of a job that calls for a judgement or an action is told: to the supervisor that
+ordered the work, as an instruction, where its own judgement or action is called for, and to the owner, as an
+owner notice, where only the owner can act. The job plugin's live `item.created` and `item.changed` facts in a
+supervisor's session are no telling of this kind: they are not routed to the orderer, not queued, and lost
+with the session.
+
+- **The orderer of an item** is the supervisor of the room the item was asked in, found in this order: the
+  item's `roomId`, else the room its `scope` names; else, where the item was raised from another, that item's
+  orderer, the parent read with the job service's `GET /items/{itemId}` — named by the item's `raisedBy`
+  field where the job service answers one, else by its `raised-by` label — followed up the chain while each
+  names no room of its own; else the owner's private room. So a worker's follow-ups, and follow-ups of
+  follow-ups, are told to the supervisor whose job raised them. A chain that reaches no room, an item the job
+  service no longer answers for, an item already passed on the chain, and a chain deeper than the policy's
+  depth (`policy/job-notices.toml`, `orderer_depth`) all end in the owner's private room. One resolver answers
+  this for every notice below; nothing else finds an orderer.
+- **Through the receiver.** An instruction is `POST /instructions` of the receiver: an order under the sort
+  `job` in the orderer's room (null for the owner's private room), with a `kind` of its row and the item's or
+  the question's number, so a newer notice of the same kind replaces one still pending there, and one event
+  of its row, `<event>:#<number>`. An owner notice is `POST /owner/notices` with its code and its fields
+  beside it. The words of every order stand in `policy/job-notices.toml`, beside the launch and draft orders
+  of `policy/queue-idle.toml`.
+- **Told once for each transition.** Each notice keeps a mark in agency's settings table, keyed by the item,
+  the job or the question and, where one transition can come again, by the state it reached; the mark is let
+  go once the item, the job or the question has moved on, so neither a restart nor the next pass repeats a
+  notice, and a transition that comes again is told again. No clock decides whether a notice is due beyond
+  the launch's own minute below: every one is keyed by the transition it tells.
+- **The job service's events.** In the same minute pass agency reads the job service's events as a page
+  (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `question.created`, `question.due`
+  and `reply.created`, past its cursor), keeping the last event's number as the settings row
+  `job_events_after`. A pass with no cursor, or one the job service answers 410 because the cursor left its
+  window, reads to the end and keeps the last number, telling nothing of what it passed. The cursor is the
+  mark of every notice told from the events, kept after each page, so each event is told of once. An item's
+  event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item.
+
+| Transition | Who is told | Through | Kind and event |
+|---|---|---|---|
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
+| An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it | the orderer | instruction | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
+| A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
+| An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
+| An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
+| A job's question asked | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
+| A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
+| A job waiting for a road or for a slot of its role | the orderer | instruction, as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
+| A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |
+| A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner | owner notice, beside the orderer's instruction | code `job-failed` |
+| An ended job's item still leased at the lease pass after the one that first found it so | the orderer | instruction, from the lease pass | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |
+| An idle queue | the owner | owner notice (「An idle queue is told to the owner」) | code `queue-idle` |
+
+- **An item that could go is told to its orderer on its own.** Where an open item waits to go, and it is
+  still waiting a minute after agency first saw it so, agency queues one instruction for its orderer: the
+  item awaits a launch, so lease it (`job_lease_next`), run it (`run_job`), or say in one line why not. The
+  moment it was first seen waiting and the moment it was told are kept by the item's number, the first let go
+  once the item no longer waits to go, the second once the item is no longer open. It stands beside the idle
+  stretch's notice and does not wait for the idle minutes.
+- **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
+  waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
+  the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
+  agency holds never awaits a launch and would sit for good: its orderer is told once to correct its
+  `assigneeName`, the mark let go once the item is no longer open or names a checkout agency holds.
+- **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job
+  service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for. One
+  the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each draft
+  not told yet agency queues one instruction for its orderer. The order carries the item's number and title,
+  who raised it (its parent item, else its requester), its repository and the first lines of its brief
+  (`policy/queue-idle.toml`, `draft_brief_lines` and at most `draft_brief_chars`), and asks the supervisor to
+  judge it by its manual: approve it where the work is routine and it can judge it safe, the approval
+  recorded as its own, or leave it a draft and say in one line why the owner should decide. The mark is let
+  go once the item is no longer a draft — approved, dropped or merged.
+- **An item moved under a running job is told from the lease pass.** Where the pass renewing a running job's
+  lease finds the lease gone and the item not open — held, dropped, merged, or leased by another holder — it
+  takes no lease and tells the orderer once for that job and that state: the job runs on an item that moved,
+  so the supervisor puts a stop to the owner or relays it. A merge names the carrying item, whose orderer is
+  told too where it answers another room. The marks are let go once the job is no longer running.
+- **An item closed by somebody else is told to its orderer.** An `item.changed` event whose item stands
+  `done`, moved there from another state, by a `changedBy` that is neither the requester of the item the
+  orderer was found on nor a supervisor agency holds, is told once to the orderer, so the asker hears of work
+  closed out of its sight.
+- **A job's question goes to the owner through its orderer.** A `question.created` event is told to the
+  orderer of the question's item, else to the room its `scope` names: put the question to the owner in his
+  own chat and never answer it for him. The instruction's id the receiver answers is kept by the question,
+  and a settling reply (`reply.created` whose `settles` holds) withdraws it with the receiver's
+  `DELETE /instructions/{id}`; a withdrawn instruction already handed is no refusal. A `question.due` event,
+  the question still open past its due time, is an owner notice `job-question-due` with the question, its
+  item, its text and its choices, since only the owner can answer it; it is told once for the question.
+- **A job's wait is told as it begins.** A job held for a road (its `heldFor` written) or not let in at its
+  first ask for a slot of its role is told to its orderer for that wait, with the reason it waits, so the
+  asker hears why nothing has started; the kind replaces a wait told before that is still pending.
+- **A failed job is told to the owner as well.** A job's end whose outcome is `failed` or `blocked` is told
+  to its orderer as every end is, and, where the orderer is a room other than the owner's private room, also
+  queued as an owner notice `job-failed` naming the job, the item, the checkout, the outcome and the room, so
+  the owner hears of a failure in a room he may not read.
+- **An ended job's item left unclosed is told once.** An ended job keeps its item's lease for the close; the
+  first lease pass that finds the lease still standing marks it, and the next pass that still finds it
+  standing tells the orderer once to close the item or give the lease back. The mark is let go once the
+  lease ends.
 
 ### Pressure told as a fact
 

@@ -155,6 +155,13 @@ seeds. The other crates and the server reach the store only through it.
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
+  - the queue's notices (`docs/agent-control.md`, 「An idle queue is told to the owner」 and 「An item's change
+    is told to its orderer」): the idle alarm's `queue_idle_alarm`, `queue_idle_told` and
+    `queue_idle_minutes`; the marks of a notice told, by the item, the job or the question it tells of,
+    `queue_item_waiting:*`, `queue_item_told:*`, `queue_paused_told:*`, `queue_unlaunchable_told:*`,
+    `queue_draft_told:*`, `job_moved_told:*`, `job_close_mark:*` and `question_told:*` (the receiver's
+    instruction id); and the job service's event cursor, `job_events_after`, which is the mark of every
+    notice told from its events;
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);

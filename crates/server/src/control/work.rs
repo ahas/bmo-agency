@@ -1322,8 +1322,25 @@ async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
   }
 
   if let Ok((member, _)) = job(&ground.db, id).await {
+    if let Some(why) = why {
+      tell_waiting(ground, &member, why).await;
+    }
+
     publish(ground, "job.changed", member);
   }
+}
+
+// A job's wait told to its item's orderer as it begins (docs/agent-control.md, 「An item's change is told to its
+// orderer」); a test's ground tells no one.
+async fn tell_waiting(ground: &Ground, member: &Value, why: &str) {
+  if ground.testing() {
+    return;
+  }
+
+  let item = member["itemId"].as_i64().unwrap_or_default();
+  let worker = member["workerName"].as_str().unwrap_or_default();
+
+  crate::job_notices::tell_waiting(ground.vars(), item, worker, why).await;
 }
 
 // Whether a job was ended or stopped from outside while this process carried it.
@@ -1519,10 +1536,17 @@ impl OnSession<'_> {
       ..dispatch::Asked::default()
     };
     let mut held = dispatch::enqueue(&ground.db, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
+    let mut told = false;
 
     loop {
       if let Some(let_in) = dispatch::acquire(ground, &held).await? {
         return Ok(Some(dispatch::bind(&ground.db, &let_in, self.name).await?));
+      }
+
+      // Not let in at its first ask: the wait is told to the item's orderer once.
+      if !told {
+        told = true;
+        tell_waiting(ground, self.member, &format!("it waits for a slot of the {} role", self.role)).await;
       }
 
       if called_off(ground, id).await {

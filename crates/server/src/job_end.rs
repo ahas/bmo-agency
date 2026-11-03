@@ -1,14 +1,11 @@
-//! A job's end giving back its slot, reaching the room, and its lease kept for the item's close or given back
-//! (docs/api.md, 「assignments and jobs」): the slot every request of the job's run held, given back whatever
-//! its lease is bound to; the report a run left, queued in the room's supervisor through the receiver's
-//! instruction route; the job service's lease on the item kept standing where the job ended, so the item
-//! stays leased until its close ends the lease, and given back where it was stopped, so the item is open
-//! again for a rerun. A run's end is written where the run ends, so neither the room's session being
-//! replaced nor the harness that launched the job being gone loses it: the receiver keeps the row until a
-//! turn takes it.
-//!
-//! Agency calls no downstream but for these two: the lease of a stopped job given back, and the end told to
-//! the room delivery that holds it (docs/api.md, 「Calls agency makes」).
+//! A job's end giving back its slot, reaching its orderer, and its lease kept for the item's close or given
+//! back (docs/api.md, 「assignments and jobs」): the slot every request of the job's run held, given back
+//! whatever its lease is bound to; the report a run left, queued for the item's orderer through the receiver's
+//! instruction route, and a failure in another room told to the owner as well; the job service's lease on the
+//! item kept standing where the job ended, so the item stays leased until its close ends the lease, and given
+//! back where it was stopped, so the item is open again for a rerun. A run's end is written where the run
+//! ends, so neither the room's session being replaced nor the harness that launched the job being gone loses
+//! it: the receiver keeps the row until a turn takes it.
 
 use std::collections::BTreeMap;
 
@@ -157,9 +154,9 @@ async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
   }
 }
 
-/// The job's report queued for the room's supervisor: an instruction that waits in the receiver for the
-/// next turn, naming the item and carrying the report whole. No address is a deployment that carries no
-/// receiver, and then no room is told.
+/// The job's report queued for the item's orderer: an instruction that waits in the receiver for the next
+/// turn, naming the item and carrying the report whole; and a failure in a room other than the owner's own
+/// told to the owner as well. No address is a deployment that carries no receiver, and then no one is told.
 async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
   let (Some(url), Some(token)) = (
     address(vars, "BMO_RECEIVER_URL"),
@@ -169,49 +166,41 @@ async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
 
     return;
   };
-  // The job's end is queued for the agent that filed the item and no other (the receiver's `docs/api.md`,
-  // 「Instructions」), so its requester is read from the job service where the item names one.
-  let requester = requester(vars, member).await;
+  let orderer = orderer(vars, member).await;
+  let body = instruction_body(member, &orderer);
 
-  if let Err(why) = post_instruction(&url, &token, &instruction_body(member, requester.as_deref())).await {
+  if let Err(why) = post_instruction(&url, &token, &body).await {
     eprintln!("job {}: its end was not told to the room: {why}", id_of(member));
+  }
+
+  if crate::job_notices::owner_hears_failure(member, &orderer)
+    && let Some(receiver) = crate::job_notices::Receiver::of(vars)
+    && let Err(why) = receiver.notify_owner(&crate::job_notices::failed(member, orderer.room)).await
+  {
+    eprintln!("job {}: its failure was not told to the owner: {why}", id_of(member));
   }
 }
 
-/// The agent that filed the item, read from the job service: the row's `requesterName`, none where the item
-/// names the job service no requester or cannot be read.
-async fn requester(vars: &BTreeMap<String, String>, member: &Value) -> Option<String> {
-  let item = member["itemId"].as_i64().filter(|id| *id > 0)?;
-  let (Some(url), Some(token)) =
-    (address(vars, "BMO_JOB_URL"), token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"))
-  else {
-    return None;
-  };
-  let answer = reqwest::Client::new()
-    .get(format!("{url}/items/{item}"))
-    .bearer_auth(token)
-    .send()
-    .await;
-
-  let said: Value = match answer {
-    Ok(answer) if answer.status().is_success() => answer.json().await.ok()?,
-    Ok(answer) => {
-      eprintln!("job {item}: its requester was not read: {}", answer.status());
-
-      return None;
-    }
-    Err(why) => {
-      eprintln!("job {item}: its requester was not read: {why}");
-
-      return None;
-    }
+/// The orderer a job's end is told to: the item's, up the chain it was raised from, read from the job service;
+/// where the service cannot be read or the chain finds no room, the room the job was launched for, with the
+/// item's requester where it was read.
+pub async fn orderer(vars: &BTreeMap<String, String>, member: &Value) -> crate::queue::orderer::Orderer {
+  let launched = member["roomId"].as_i64().filter(|room| *room != 0);
+  let found = match (crate::queue::orderer::JobService::of(vars), member["itemId"].as_i64()) {
+    (Some(service), Some(item)) if item > 0 => match service.orderer_of_id(item).await {
+      Ok((_, orderer)) => orderer,
+      Err(why) => {
+        eprintln!("job {}: its item's orderer was not read: {why}", id_of(member));
+        crate::queue::orderer::Orderer::default()
+      }
+    },
+    _ => crate::queue::orderer::Orderer::default(),
   };
 
-  said["requesterName"]
-    .as_str()
-    .map(str::trim)
-    .filter(|name| !name.is_empty())
-    .map(str::to_owned)
+  crate::queue::orderer::Orderer {
+    room: found.room.or(launched),
+    requester: found.requester,
+  }
 }
 
 // One instruction handed to the receiver's instruction route.
@@ -291,18 +280,16 @@ pub fn order(member: &Value) -> String {
   text
 }
 
-/// The instruction queued for the room: the order, the item it names as news of the queue, the agent that
-/// filed the item where the job service named one, the room the job answers where it names one, and the run
-/// it was. It is a job's status notice, an order under the sort `job`, so the receiver queues it for the
-/// requester rather than for whoever answers the room.
-pub fn instruction_body(member: &Value, requester: Option<&str>) -> Value {
+/// The instruction queued for the orderer: the order, the item it names as news of the queue, the orderer's
+/// room, the owner's private room where it names none, the requester of the item that room was found on, and
+/// the run it was. It is a job's status notice, an order under the sort `job`.
+pub fn instruction_body(member: &Value, orderer: &crate::queue::orderer::Orderer) -> Value {
   let item = member["itemId"].as_i64().unwrap_or_default();
-  let room = member["roomId"].as_i64().filter(|room| *room != 0);
   let run = member["runId"].as_i64().filter(|run| *run != 0);
   json!({
-    "room": room,
+    "room": orderer.room,
     "said": { "order": order(member) },
-    "agentName": requester,
+    "agentName": orderer.requester,
     "sort": "job",
     "kind": format!("job-ended:{item}"),
     "summary": format!("The job of item #{item} ended"),

@@ -12,6 +12,7 @@ use agency_server::config::Config;
 use agency_server::job_end::{delivered, delivered_with, instruction_body, order};
 use agency_server::job_leases::{Kept, pass};
 use agency_server::places::Ground;
+use agency_server::queue::orderer::Orderer;
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::{HeaderMap, Method, StatusCode, Uri};
@@ -62,7 +63,13 @@ fn a_job_that_left_no_report_says_so_and_a_stop_carries_its_outcome() {
 
 #[test]
 fn the_instruction_names_the_item_as_queue_news_and_the_room_the_job_answers() {
-  let body = instruction_body(&member(Some("done"), None), Some("agent-a"));
+  let body = instruction_body(
+    &member(Some("done"), None),
+    &Orderer {
+      room: Some(90000001),
+      requester: Some("agent-a".to_owned()),
+    },
+  );
 
   assert_eq!(body["room"], 90000001);
   assert_eq!(body["sort"], "job");
