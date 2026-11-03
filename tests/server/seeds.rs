@@ -33,7 +33,7 @@ fn the_account_is_the_machines_own_login_directory() {
 }
 
 #[tokio::test]
-async fn a_fresh_store_is_given_the_account_and_the_fourteen_roles_once() {
+async fn a_fresh_store_is_given_the_account_and_the_twelve_roles_once() {
   let scratch = Scratch::blank().await;
   let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
 
@@ -41,8 +41,8 @@ async fn a_fresh_store_is_given_the_account_and_the_fourteen_roles_once() {
   settle(scratch.db(), &seeds).await.unwrap();
 
   assert_eq!(scratch.count(r#"SELECT count(*) FROM "claude_accounts""#, vec![]).await, 1);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 12);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 12);
   assert_eq!(
     scratch
       .count(
@@ -119,11 +119,11 @@ fn every_declared_role_is_seeded_with_its_prompt_and_its_description() {
       seed.name
     );
   }
-  assert!(seeds.iter().any(|seed| seed.name == "video" && seed.prompt.is_some()));
+  assert!(seeds.iter().any(|seed| seed.name == "producer" && seed.prompt.is_some()));
 
   // A role whose prompt file cannot be read waits for a settling that can; one naming none is given.
   let elsewhere: Vec<String> =
     role_seeds(std::path::Path::new("/nowhere")).into_iter().map(|seed| seed.name).collect();
 
-  assert_eq!(elsewhere, ["worker", "searcher", "browser", "transliterator", "upkeep"]);
+  assert_eq!(elsewhere, ["worker", "voyager", "seeker", "transliterator", "upkeep"]);
 }

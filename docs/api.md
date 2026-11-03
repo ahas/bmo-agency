@@ -205,11 +205,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 
 - **The roles are the store's rows** (`docs/agent-roles.md`, 「What a role row holds」), and these routes are
   the one way to change them.
-- **A role is answered with every field of its row:** `name`; `code`, its kebab-case word, which is its
-  name; `label`; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code`
-  (the name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider
-  order in the shape a supervisor's is (「supervisors」); `maxConcurrent`, its cap; `sessions`, `keep` or
-  `fresh`; `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker;
+- **A role is answered with every field of its row:** `name`; `code`, its kebab-case word, which is its name
+  and what a screen shows the role by (`docs/agent-roles.md`, 「A role's label」); `label`, the English word a
+  log keeps; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code` (the
+  name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider order
+  in the shape a supervisor's is (「supervisors」); `maxConcurrent`, its cap; `sessions`, `keep` or `fresh`;
+  `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker;
   `followsSupervisor`, true while its order is empty, so its runs go out on the road of the supervisor that
   asks them (`docs/role-slots.md`, 「A delegated task」) and a screen shows its road as the supervisor's; and
   what stands of it now: `running` and `waiting`, how many of its runs go and wait, `provider`, its active
@@ -566,14 +567,14 @@ out and the paths the call changed.
 
 A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
 caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
-(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, a road the run goes
-out on in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
-provider; or `model` alone, whose provider is the first entry of the role's order naming that model, else the
-role's active provider, else the order's first; a `provider` named alone is refused 400. It may name
-`placeKey`, the key only one active request holds at once. A slot naming no road under a role whose order is
-empty goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went out on,
-else its order's first; asked under no supervisor the store holds, it is refused 422 `unprocessable-entity`
-saying the role follows the supervisor that asks it.
+(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, a road the run
+goes out on in place of the role's order — a `doppelganger` run as its supervisor's double, a native call on
+its caller's provider; or `model` alone, whose provider is the first entry of the role's order naming that
+model, else the role's active provider, else the order's first; a `provider` named alone is refused 400. It
+may name `placeKey`, the key only one active request holds at once. A slot naming no road under a role whose
+order is empty goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went
+out on, else its order's first; asked under no supervisor the store holds, it is refused 422
+`unprocessable-entity` saying the role follows the supervisor that asks it.
 
 A request key names one request for good (`docs/role-slots.md`, 「Request keys」). Asked again with the same key
 while that request stands — `waiting`, `reserved` or `active` — the ask answers 201 with that request and

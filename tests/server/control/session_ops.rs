@@ -539,7 +539,7 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
     ..Apart::default()
   };
   let mut other_role = Apart {
-    role: Some("helper".into()),
+    role: Some("builder".into()),
     ..Apart::default()
   };
 

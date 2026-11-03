@@ -116,7 +116,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   It names no tool of the program the session runs on, since one manual serves every program the chat
   stands on.
 - **A line that goes to the voice is two texts,** and every prompt of an agent that hands words to the
-  voice says so where it does: the manual for the chat agent, the video role for its narration, the
+  voice says so where it does: the manual for the chat agent, the producer role for its narration, the
   worker plugin's skills for a document's narration. The written words are what people read — a caption,
   the reading folded under a voice note, a transcript, a narration kept beside its page — and stay as the
   agent would write them, names, acronyms and figures included. The spoken words are what the voice

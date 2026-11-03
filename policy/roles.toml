@@ -28,7 +28,7 @@
 #   default.
 
 job = "worker"
-delegate = "delegator"
+delegate = "doppelganger"
 renewal = "upkeep"
 translate = "translator"
 send = "room.send"
@@ -94,37 +94,23 @@ order = [
 # the asking supervisor's own provider, model and effort until the owner sets an order on it
 # (docs/role-slots.md, 「A delegated task」).
 [[roles]]
-name = "delegator"
-label = "Delegator"
+name = "doppelganger"
+label = "Doppelganger"
 description = "The supervisor's double: takes a task the supervisor hands off, holding its tools and going out on its provider, and answers the cause or the decision in plain sentences."
 line = "worker"
-prompt = "delegator.md"
+prompt = "doppelganger.md"
 max_concurrent = 2
 bundles = ["graph.read", "queue.read", "web.read"]
 order = []
 
+# The producer: a role whose items make videos with the video-shotcraft studio, which reads its items, the
+# web and sends the finished file into a room (docs/agent-roles.md, 「The producer role」).
 [[roles]]
-name = "helper"
-label = "Helper"
-description = "Takes a task a supervisor hands off by name, a hard problem, an investigation or a reading of code, and answers the cause or the decision in plain sentences."
-line = "worker"
-prompt = "helper.md"
-max_concurrent = 2
-bundles = ["graph.read", "queue.read", "web.read"]
-order = [
-  { provider = "claude-code", model = "claude-sonnet-5", effort = "high" },
-  { provider = "codex", model = "gpt-5.6-terra", effort = "high" },
-  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
-]
-
-# The video producer: a role whose items make videos with the video-shotcraft studio, which reads its items,
-# the web and sends the finished file into a room (docs/agent-roles.md, 「The video role」).
-[[roles]]
-name = "video"
-label = "Video producer"
+name = "producer"
+label = "Producer"
 description = "Turns a brief into a finished video with the video-shotcraft studio and sends the file into the item's room."
 line = "worker"
-prompt = "video.md"
+prompt = "producer.md"
 max_concurrent = 2
 bundles = ["queue.read", "web.read", "room.send"]
 order = [
@@ -162,21 +148,6 @@ order = [
 ]
 
 [[roles]]
-name = "digest"
-label = "Digest"
-line = "worker"
-definition = "digest.md"
-max_concurrent = 6
-bundles = ["graph.read", "queue.read", "web.read"]
-sessions = "fresh"
-callable = true
-order = [
-  { provider = "claude-code", model = "claude-sonnet-5", effort = "low" },
-  { provider = "codex", model = "gpt-5.6-terra", effort = "low" },
-  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
-]
-
-[[roles]]
 name = "scout"
 label = "Scout"
 line = "worker"
@@ -207,8 +178,8 @@ order = [
 ]
 
 [[roles]]
-name = "searcher"
-label = "Searcher"
+name = "voyager"
+label = "Voyager"
 description = "A research run on the search line: searches the web, reads pages, opens branches and reads rulebooks to answer one question."
 line = "search"
 max_concurrent = 4
@@ -220,8 +191,8 @@ order = [
 ]
 
 [[roles]]
-name = "browser"
-label = "Browser"
+name = "seeker"
+label = "Seeker"
 description = "A research run on the browse line: visits and reads the sites and pages it is named rather than searching."
 line = "browse"
 max_concurrent = 4

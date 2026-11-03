@@ -215,8 +215,8 @@
   the program's own record of its session is taken up again after a restart or a deploy (docs/sessions.md,
   「A restart hands the session over」). A turn that finds no pane to stand the program in, herdr down, fails
   as a transport failure and is run in no other shape.
-- **Worker line**: the line the `worker` role names and every role that names it — the delegator, the
-  helper, the video producer, the builder, every co-worker and upkeep (`docs/agent-roles.md`, 「The roles
+- **Worker line**: the line the `worker` role names and every role that names it — the doppelganger,
+  the producer, the builder, every co-worker and upkeep (`docs/agent-roles.md`, 「The roles
   the policy seeds」). A run on it goes out on the model, effort and thinking its role's order names for the
   provider the run goes out on (`docs/provider-order.md`), or a job's on its repository's pinned model
   (`docs/repositories.md`, 「A pinned model」), in
@@ -371,7 +371,7 @@
 - **Search runner**: the line a search goes out on, carried by agency and composed by whoever starts a apart
   session on it (`docs/api.md`, 「sessions」) — the research unit for its searches, their rounds and their
   branches. Its instructions are handed in whole by that caller; agency composes none and asks nothing of a
-  run after its answer. On Claude Code: the model and effort the session names, else those the searcher
+  run after its answer. On Claude Code: the model and effort the session names, else those the voyager
   role's order names for the provider it goes out on, don't-ask mode, no built-in tool shown, the web MCP
   server's tools and the brain's `bmo` namespace, and nothing else allowed; any other hosted tool it holds
   is reached with `bmo use`; no settings sources, no other MCP, no Chrome, run in its deployed directory
@@ -379,7 +379,7 @@
   record carries the labels and keeps the capabilities the session's caller named, so the web tools read
   what that caller told them; the record also names the chat agent — the agent whose row answers every room
   that names nobody — as the turn its brain tools run for, so a fact the run establishes is written into the
-  chat agent's brain while the run itself stays the runner's. The searcher role's bundles show it
+  chat agent's brain while the run itself stays the runner's. The voyager role's bundles show it
   bmo-explorer's `research` tool, which opens a branch through the research unit, and the research unit's
   `rulebook` reader where the record holds `web.rulebooks`; the line's `eye` namespace shows it `eye/see`,
   which looks at a picture by its address and answers a question about it. No native Claude Code subagent is
@@ -424,7 +424,7 @@
   server, the session the translator role's setting gives it (`docs/agent-roles.md`, 「A role's sessions」),
   thinking off. No other provider carries the line. The answer is the translation whole.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is,
-  by whoever starts an apart session on it: the model and effort the session names, else those the browser
+  by whoever starts an apart session on it: the model and effort the session names, else those the seeker
   role's order names for the provider it goes out on, don't-ask mode, no built-in tool shown, the
   chrome-devtools tools, the tool host's web tools and the brain's `bmo` namespace from the line's MCP
   configuration — chrome-devtools started headless, apart from a person's session, its D-Bus and its
@@ -446,7 +446,7 @@
 - **`bmo use`**: a hosted tool a line holds and its namespaces do not list is reached with the `bmo use`
   command, under the run's own tool session token, as the tool host's paragraph in the session's prompt says
   (`toolbook.md`). No line's MCP configuration names the tool host's toolbook. The site tools are the
-  searcher's and the browser's alone; a run of the worker line and a companion's hands keep web search
+  voyager's and the seeker's alone; a run of the worker line and a companion's hands keep web search
   and page fetch.
 - **Environment**: every one of these processes is started with the repository's git status
   left out of its prompt; every Claude line also carries the configuration directory of the
@@ -505,8 +505,8 @@
   |---|---|---|---|---|---|
   | chat | a supervisor's resident program — the chat agent's turns and every companion's | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency` (a companion's holds none), `artifact` and `explorer` | the supervisor's chat configuration, strict |
   | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
-  | search | a searcher's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
-  | browse | a browser's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
+  | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
+  | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
   | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
 
 - **A supervisor is allowed the same on every road.** Its resident program is started on the chat line's one

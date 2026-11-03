@@ -1,7 +1,7 @@
 //! The gate (docs/api.md, 「Calls agency makes」) through the client it publishes: the reference a job's
 //! or a thrown-away session's first prompt is handed, picked over its instruction by the gate's reference
 //! road. The reference is the chat agent's brain's knowledge, rules and documents, chosen by the gate; a
-//! worker and a searcher read the brain only through what the gate hands them here.
+//! worker and a voyager read the brain only through what the gate hands them here.
 
 use std::sync::Arc;
 

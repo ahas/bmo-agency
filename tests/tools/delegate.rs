@@ -1,9 +1,9 @@
-//! The delegate: a slot of the role asked — the delegator role where the ask names none — and waited for in
-//! its line however long that takes, one run of the role started at the task's folder on the road the slot
-//! carries, waited on with no bound, the slot bound to the run and finished, and the answer the run's words
-//! with the files it created or changed in the task's folder; a slot given back before it was let in, a role
-//! the store does not hold, a run that answers nothing and a turn not the owner's past the gate are refused,
-//! and a stopped call gives its slot back (docs/tools.md, 「The delegate」).
+//! The delegate: a slot of the role asked — the doppelganger role where the ask names none — and waited for
+//! in its line however long that takes, one run of the role started at the task's folder on the road the
+//! slot carries, waited on with no bound, the slot bound to the run and finished, and the answer the run's
+//! words with the files it created or changed in the task's folder; a slot given back before it was let in,
+//! a role the store does not hold, a run that answers nothing and a turn not the owner's past the gate are
+//! refused, and a stopped call gives its slot back (docs/tools.md, 「The delegate」).
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -48,7 +48,7 @@ type Shared = Arc<Mutex<Stub>>;
 // The slot as agency answers it: the double's road is the asking supervisor's, fixed at its ask.
 fn seat(state: &str) -> Value {
   json!({
-    "token": "t1", "state": state, "role": "delegator", "provider": "deepseek", "model": "deepseek-flash",
+    "token": "t1", "state": state, "role": "doppelganger", "provider": "deepseek", "model": "deepseek-flash",
     "effort": "high",
   })
 }
@@ -88,7 +88,7 @@ async fn start(State(stub): State<Shared>, Json(body): Json<Value>) -> (StatusCo
 
   stub.started = Some(body);
 
-  (StatusCode::CREATED, Json(json!({ "id": "delegator@run:1", "carries": carries })))
+  (StatusCode::CREATED, Json(json!({ "id": "doppelganger@run:1", "carries": carries })))
 }
 
 async fn move_seat(State(stub): State<Shared>, Json(body): Json<Value>) -> Json<Value> {
@@ -227,7 +227,7 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
   let stub = stub.lock().unwrap();
   let asked = stub.asked_seat.clone().unwrap();
 
-  // No role named: agency takes it as the delegator's, on the asking supervisor's own road.
+  // No role named: agency takes it as the doppelganger's, on the asking supervisor's own road.
   assert!(asked.get("role").is_none(), "{asked}");
   assert!(asked.get("provider").is_none(), "the road is agency's to fix: {asked}");
   assert_eq!(asked["source"], "delegate");
@@ -248,7 +248,7 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
   assert_eq!(started["supervisor"], "bmo", "the run is the asking supervisor's double");
   assert_eq!(started["cwd"], scratch.display().to_string());
   assert!(started.get("options").is_none(), "the role and the road are the slot's");
-  assert_eq!(stub.sends, ["delegator@run:1"]);
+  assert_eq!(stub.sends, ["doppelganger@run:1"]);
 
   let turned = stub.turned.clone().unwrap();
   let work = &turned;
@@ -300,7 +300,7 @@ async fn a_named_folder_is_the_one_worked_in_and_a_role_the_store_does_not_hold_
     role: role.map(str::to_owned),
     folder: Some(folder.to_string_lossy().into_owned()),
   };
-  let answer = delegate_with(&api, &session(home.path()), named(Some("helper")), &Held::default()).await;
+  let answer = delegate_with(&api, &session(home.path()), named(Some("builder")), &Held::default()).await;
 
   assert!(serde_json::to_string(&answer).unwrap().contains("done"));
   assert!(folder.join("found.txt").exists(), "the task worked in the folder named");
@@ -311,7 +311,11 @@ async fn a_named_folder_is_the_one_worked_in_and_a_role_the_store_does_not_hold_
   .unwrap();
 
   assert!(refused.contains("No role named nobody"), "{refused}");
-  assert_eq!(stub.lock().unwrap().asked_seat.clone().unwrap()["role"], "helper", "no slot for nobody");
+  assert_eq!(
+    stub.lock().unwrap().asked_seat.clone().unwrap()["role"],
+    "builder",
+    "no slot for nobody"
+  );
 }
 
 #[tokio::test]
@@ -419,13 +423,13 @@ async fn delegations(Query(asked): Query<BTreeMap<String, String>>) -> Json<Valu
 
   Json(json!({ "items": [
     { "token": "t2", "title": "Read the node's disk", "askedBy": "bmo", "stage": "running",
-      "role": "delegator", "provider": "deepseek", "model": "deepseek-flash", "askedAt": 1_780_000_000_000_i64,
+      "role": "doppelganger", "provider": "deepseek", "model": "deepseek-flash", "askedAt": 1_780_000_000_000_i64,
       "runningSince": 1, "endedAt": null, "outcome": null },
     { "token": "t3", "title": "Find the slow query", "askedBy": "bmo", "stage": "waiting",
-      "role": "helper", "provider": null, "model": null, "askedAt": 1_780_000_060_000_i64,
+      "role": "builder", "provider": null, "model": null, "askedAt": 1_780_000_060_000_i64,
       "runningSince": null, "endedAt": null, "outcome": null },
     { "token": "t1", "title": "Check the backup", "askedBy": "bmo", "stage": "ended",
-      "role": "delegator", "provider": "claude-code", "model": "claude-opus-5", "askedAt": 1_779_990_000_000_i64,
+      "role": "doppelganger", "provider": "claude-code", "model": "claude-opus-5", "askedAt": 1_779_990_000_000_i64,
       "runningSince": 1, "endedAt": 2, "outcome": "answered" },
   ] }))
 }
@@ -453,16 +457,18 @@ async fn the_listing_names_each_delegation_by_its_title_stage_role_road_and_star
 
   assert_eq!(lines.len(), 3, "{text}");
   assert!(
-    lines[0]
-      .starts_with("- Read the node's disk — running — delegator on deepseek deepseek-flash — asked 2026-"),
+    lines[0].starts_with(
+      "- Read the node's disk — running — doppelganger on deepseek deepseek-flash — asked 2026-"
+    ),
     "{text}"
   );
   assert!(
-    lines[1].starts_with("- Find the slow query — waiting for a slot — helper — asked "),
+    lines[1].starts_with("- Find the slow query — waiting for a slot — builder — asked "),
     "{text}"
   );
   assert!(
-    lines[2].starts_with("- Check the backup — ended: answered — delegator on claude-code claude-opus-5"),
+    lines[2]
+      .starts_with("- Check the backup — ended: answered — doppelganger on claude-code claude-opus-5"),
     "{text}"
   );
 }

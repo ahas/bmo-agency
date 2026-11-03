@@ -52,6 +52,7 @@ mod m20261123_000001_turn_liveness;
 mod m20261124_000001_renewal;
 mod m20261124_000001_stream_events;
 mod m20261125_000001_delegator_follows_supervisor;
+mod m20261126_000001_role_names;
 
 use sea_orm_migration::prelude::*;
 
@@ -65,6 +66,10 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 /// the agent rows over (docs/agents.md, 「Two axes」): what writes rows in the shape before it, the archive's
 /// import, runs the migrations up to it, writes, and then runs it.
 pub const TWO_AXES: &str = m20261124_000001_renewal::NAME;
+
+/// The migration that gives the roles the names the owner chose and retires the roles no one calls
+/// (docs/agent-roles.md, 「The roles the policy seeds」).
+pub const ROLE_NAMES: &str = m20261126_000001_role_names::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -178,6 +183,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261124_000001_stream_events::Migration),
       Box::new(m20261124_000001_renewal::Migration),
       Box::new(m20261125_000001_delegator_follows_supervisor::Migration),
+      Box::new(m20261126_000001_role_names::Migration),
     ]
   }
 

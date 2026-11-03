@@ -725,7 +725,7 @@ never the model's name.
   the worker line and the search line as a Claude Code road, and the translate line as requests with no
   tools (「A request with no tools」 above). A supervisor's or a role's order may name it on any of those
   lines; the browse line, which needs a browser the registration's window does not carry, stays off it,
-  so the browser role's order cannot name it (`docs/provider-order.md`, 「What an order is」).
+  so the seeker role's order cannot name it (`docs/provider-order.md`, 「What an order is」).
 - **Jobs:** a job goes out on its role's order, reaching the registry where the order names it, or on the
   registration its repository pins (「A repository pinned to a registration」 below). A manual job run, an
   item or a work order that names a model of its own names a registration as `registered::<registration>`.

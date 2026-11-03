@@ -119,15 +119,15 @@ belongs to no one service is a repository of its own, not a folder here.
   instruction, carrying every piece of context the task needs, since the run sees nothing of the
   conversation; an optional role; and an optional folder.
   - The role is any role the store holds; where none is named it is the one agency's roles policy names for
-    delegated work, `delegator`, the supervisor's double. A role the store does not hold is an error: the call
-    is refused with the name and starts nothing.
+    delegated work, `doppelganger`, the supervisor's double. A role the store does not hold is an error: the
+    call is refused with the name and starts nothing.
   - The folder is where the task works: the asking supervisor's scratch workspace under the data root where
     none is named, made on first use, the same one the worker ask defaults to.
 - **Every delegated run is the asking supervisor's double:** it runs with the supervisor's tools beside its
   role's (`docs/worker-mcp.md`, 「A supervisor's double」), as a turn of that supervisor. A task naming no role
-  is a run of the `delegator` role, on the asking supervisor's own provider, model and effort as they stand
+  is a run of the `doppelganger` role, on the asking supervisor's own provider, model and effort as they stand
   when it is asked, rather than the role's order (`docs/role-slots.md`, 「A delegated task」), under the
-  delegator role's prompt and bundles. A task naming a role runs on that role's own order, under its prompt
+  doppelganger role's prompt and bundles. A task naming a role runs on that role's own order, under its prompt
   and bundles.
 - **It takes a slot of the role and waits in its line however long the line takes.** It asks for its
   admission again at a steady pace until it is let in, is never refused for the role being full — but for a

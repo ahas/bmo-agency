@@ -940,7 +940,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/delegations",
     id: "listDelegations",
     tag: "seat-requests",
-    summary: "The tasks an agent delegated, each with its title, stage, helper agent and start.",
+    summary: "The tasks an agent delegated, each with its title, stage, role and start.",
     params: &[
       Param {
         name: "askedBy",

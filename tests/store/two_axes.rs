@@ -423,7 +423,8 @@ async fn roles_take_their_orders_caps_and_lines_and_the_chat_and_gate_roles_go()
   let scratch = before().await;
 
   live(&scratch).await;
-  Migrator::up(scratch.db(), None).await.unwrap();
+  // The two axes' own migration alone, so the roles it carried are read under the names it gave them.
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
 
   assert_eq!(
     names(&scratch, r#"SELECT "name" FROM "roles" ORDER BY "position", "name""#).await,

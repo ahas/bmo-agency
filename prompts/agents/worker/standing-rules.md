@@ -12,7 +12,7 @@ says, and every co-worker a job opens and every line the owner types into a work
   close are done. Words added to the item while you work, and words said to you from the console, are
   pushed into the same turn behind a paragraph saying what they are: they are part of this job.
 - **A co-worker's task.** Your prompt opens with a co-worker's definition (`scout`, `screener`,
-  `digest`, `verifier` or `builder`) when a job's session opened you as its sub-agent, or a co-work
+  `verifier` or `builder`) when a job's session opened you as its sub-agent, or a co-work
   order opened you as one of its branches. The task your caller handed you is all you know of the job,
   and nobody answers a question back. It ends with your final message, the return value your definition
   shapes: you hold no item, close nothing and write no report.
@@ -145,7 +145,7 @@ Start with the cheapest mechanism and escalate only when it falls short:
    workflow, and nothing fans out before the target list is pinned down.
 
 The co-worker types are one per stage: `scout` searches and locates, `screener` filters first,
-`digest` merges and dedupes, `verifier` verifies and judges, `builder` designs and implements. Each
+`verifier` verifies and judges, `builder` designs and implements. Each
 definition carries its own model and effort, so none is passed at the call site; a default subagent
 is used only where none fits, and then with its model and effort named. At most two or three
 `builder`s run in one workflow — more needs the owner's approval. A majority check opens with three

@@ -484,7 +484,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
 - **Runs that do not walk their own role's order** — a repository's pinned model, a run of a role whose order
-  is empty on the road of the supervisor that asks it (the `delegator` role as seeded), a native co-worker on its caller's provider, a session whose caller names its
+  is empty on the road of the supervisor that asks it (the `doppelganger` role as seeded), a native co-worker on its caller's provider, a session whose caller names its
   provider and model — are `docs/provider-order.md`'s, 「Runs that do not walk their own role's order」; the
   account walk inside the Claude Code entry is the same for each of them.
 - **Every line asks it, and none keeps a walk of its own:** a supervisor's turn, a job's launch and its
@@ -635,7 +635,7 @@ When a demotion first catches — when a healthy session first drops — two thi
     can. Whichever provider it goes out on, the turn goes on in the role's session kept at that path on
     that provider and model where one is valid (`docs/sessions.md`, 「A role's session」).
 - **A search or a browse run walks its role's order** like any role's run, each provider of the order one
-  whose program carries its line (`docs/agent-roles.md`, 「The searcher and the browser roles」).
+  whose program carries its line (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
 
 ### A turned-off provider is not used
 

@@ -541,17 +541,17 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
 
   let ground = ground(&scratch, &machine, None);
-  let video = Apart {
+  let producer = Apart {
     provider: "deepseek".into(),
     model: "deepseek-flash".into(),
     cwd: "/tmp".into(),
-    role: Some("video".into()),
+    role: Some("producer".into()),
     ..Apart::default()
   };
   let env: BTreeMap<String, String> =
-    agency_server::lines::token::record_variables(&video).into_iter().collect();
+    agency_server::lines::token::record_variables(&producer).into_iter().collect();
 
-  assert_eq!(env[agency_server::lines::token::RUN_ROLE], "video");
+  assert_eq!(env[agency_server::lines::token::RUN_ROLE], "producer");
   assert!(agency_server::lines::token::names_record(&env));
 
   agency_server::lines::token::issue_for_run(&ground, "worker", "some-checkout", "/tmp", &env, u64::MAX)
@@ -562,10 +562,10 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
   let record = issued.lock().unwrap().pop().expect("a record was issued");
   let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
 
-  assert_eq!(record["labels"]["role"], json!("video"), "{record}");
+  assert_eq!(record["labels"]["role"], json!("producer"), "{record}");
   assert!(
     capabilities.contains(&"room.send".to_owned()),
-    "the video role's own bundle: {capabilities:?}"
+    "the producer role's own bundle: {capabilities:?}"
   );
   assert!(
     !capabilities.contains(&"graph.read".to_owned()),
@@ -587,18 +587,18 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
 
   let ground = ground(&scratch, &machine, None);
-  let searcher = Apart {
+  let voyager = Apart {
     provider: "registered".into(),
     model: "flash-next".into(),
     cwd: "/tmp".into(),
-    role: Some("searcher".into()),
+    role: Some("voyager".into()),
     line: Some("search".into()),
     system_prompt: Some("THE INSTRUCTIONS".into()),
     ..Apart::default()
   };
   let run_env: BTreeMap<String, String> =
-    agency_server::lines::token::record_variables(&searcher).into_iter().collect();
-  let place = home.path().join("apart-searcher-run-1");
+    agency_server::lines::token::record_variables(&voyager).into_iter().collect();
+  let place = home.path().join("apart-voyager-run-1");
   let program_env = agency_server::door::place_run::resident_environment(&run_env, &place);
 
   assert!(
@@ -623,10 +623,10 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
   let record = issued.lock().unwrap().pop().expect("a record was issued");
   let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
 
-  assert_eq!(record["labels"]["role"], json!("searcher"), "{record}");
+  assert_eq!(record["labels"]["role"], json!("voyager"), "{record}");
 
   for bundle in ["web.read", "web.sites", "web.branches", "web.rulebooks"] {
-    assert!(capabilities.contains(&bundle.to_owned()), "the searcher's {bundle}: {capabilities:?}");
+    assert!(capabilities.contains(&bundle.to_owned()), "the voyager's {bundle}: {capabilities:?}");
   }
 }
 
@@ -648,7 +648,7 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
     provider: "deepseek".into(),
     model: "deepseek-flash".into(),
     cwd: "/tmp".into(),
-    role: Some("delegator".into()),
+    role: Some("doppelganger".into()),
     supervisor: Some("bmo".into()),
     ..Apart::default()
   };
@@ -657,7 +657,7 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
 
   env.insert("BMO_TURN_CHAT".into(), "-7".into());
 
-  agency_server::lines::token::issue_for_run(&ground, "worker", "delegator", "/tmp", &env, u64::MAX)
+  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
     .await
     .unwrap()
     .expect("a token");
@@ -669,7 +669,7 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
   assert_eq!(record["holderName"], json!("bmo"), "held under the supervisor's name: {record}");
   assert_eq!(record["variables"]["BMO_TURN_AGENT"], json!("bmo"), "{record}");
   assert_eq!(record["variables"]["BMO_TURN_CHAT"], json!("-7"), "the asking turn's room: {record}");
-  assert_eq!(record["labels"]["role"], json!("delegator"), "{record}");
+  assert_eq!(record["labels"]["role"], json!("doppelganger"), "{record}");
 
   for capability in ["room.tools", "room.chat", "room.send", "web.read", "graph.read", "queue.read"] {
     assert!(capabilities.contains(&capability.to_owned()), "{capability}: {capabilities:?}");
@@ -844,7 +844,7 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
     .await;
 
   let double = Apart {
-    role: Some("delegator".into()),
+    role: Some("doppelganger".into()),
     supervisor: Some("bmo".into()),
     ..worker
   };
@@ -858,11 +858,11 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
   }
 }
 
-// A searcher's run on DeepSeek holds the search line's servers and nothing of its program's own, as on Claude
-// Code's own road, and its record the whole of the web namespace's bundles with the eye and research
-// namespaces (docs/agent-roles.md, 「The searcher and the browser roles」).
+// A voyager's run on DeepSeek holds the search line's servers and nothing of its program's own, as on
+// Claude Code's own road, and its record the whole of the web namespace's bundles with the eye and research
+// namespaces (docs/agent-roles.md, 「The voyager and the seeker roles」).
 #[tokio::test]
-async fn a_searcher_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_and_research() {
+async fn a_voyager_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_and_research() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let machine = machine(home.path());
@@ -870,16 +870,16 @@ async fn a_searcher_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_a
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
 
   let ground = ground(&scratch, &machine, None);
-  let searcher = Apart {
+  let voyager = Apart {
     provider: "deepseek".into(),
     model: "deepseek-flash".into(),
     cwd: "/tmp".into(),
-    role: Some("searcher".into()),
+    role: Some("voyager".into()),
     line: Some("search".into()),
     system_prompt: Some("FIND IT.".into()),
     ..Apart::default()
   };
-  let (args, servers) = stood_on_deepseek(&ground, &searcher).await;
+  let (args, servers) = stood_on_deepseek(&ground, &voyager).await;
   let allowed: Vec<&str> = after(&args, "--allowedTools").unwrap().split(',').collect();
 
   assert_eq!(after(&args, "--permission-mode"), Some("dontAsk"), "{args:?}");
@@ -890,7 +890,7 @@ async fn a_searcher_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_a
     assert!(allowed.contains(&format!("mcp__{server}").as_str()), "{server}: {allowed:?}");
   }
 
-  let carries = agency_server::lines::token::carried_by(&ground, &searcher).await.unwrap();
+  let carries = agency_server::lines::token::carried_by(&ground, &voyager).await.unwrap();
 
   for bundle in ["web.read", "web.sites", "web.branches", "web.rulebooks"] {
     assert!(carries.capabilities.contains(&bundle.to_owned()), "{bundle}: {carries:?}");

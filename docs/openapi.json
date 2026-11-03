@@ -2283,7 +2283,7 @@
         "tags": [
           "seat-requests"
         ],
-        "summary": "The tasks an agent delegated, each with its title, stage, helper agent and start.",
+        "summary": "The tasks an agent delegated, each with its title, stage, role and start.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -8475,7 +8475,7 @@
               "string",
               "null"
             ],
-            "description": "The helper agent its turn runs on; null before it is bound."
+            "description": "The agent its turn runs on; null before it is bound."
           },
           "role": {
             "type": "string"
@@ -13349,7 +13349,7 @@
               "string",
               "null"
             ],
-            "description": "the delegator where a delegation names none"
+            "description": "the doppelganger where a delegation names none"
           },
           "source": {
             "type": [

@@ -222,8 +222,8 @@ describe("a run of a standing agent", () => {
   test("a second run stands in a tab of its own rather than replacing the first, and the head outlives both", async () => {
     const herdr = herdrLike("two");
 
-    await openPane(run("bmo-search-1", { home: home("searcher") }), { socket: herdr.path });
-    await openPane(run("bmo-search-2", { home: home("searcher") }), { socket: herdr.path });
+    await openPane(run("bmo-search-1", { home: home("voyager") }), { socket: herdr.path });
+    await openPane(run("bmo-search-2", { home: home("voyager") }), { socket: herdr.path });
 
     const first = runOf(herdr, "bmo-search-1");
     const second = runOf(herdr, "bmo-search-2");
@@ -239,7 +239,7 @@ describe("a run of a standing agent", () => {
     herdr.model.exit(first?.pane_id ?? "");
     await closeRun("bmo-search-2", { socket: herdr.path });
 
-    expect(herdr.model.workspaces().map((one) => one.label)).toEqual(["searcher"]);
+    expect(herdr.model.workspaces().map((one) => one.label)).toEqual(["voyager"]);
     expect(herdr.model.panes().map((pane) => pane.command?.includes(paneHead))).toEqual([true]);
   });
 
@@ -323,10 +323,10 @@ describe("a run of a standing agent", () => {
   test("two workspaces for one agent settle on the lower-numbered, which both launches agree on", async () => {
     const herdr = herdrLike("race");
 
-    herdr.model.answer("workspace.create", { label: "searcher" });
-    herdr.model.answer("workspace.create", { label: "searcher" });
+    herdr.model.answer("workspace.create", { label: "voyager" });
+    herdr.model.answer("workspace.create", { label: "voyager" });
 
-    const settled = await standingWorkspace(home("searcher"), { socket: herdr.path });
+    const settled = await standingWorkspace(home("voyager"), { socket: herdr.path });
 
     expect(settled.ok ? settled.result.workspaceId : "").toBe("w1");
   });

@@ -37,22 +37,22 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   let server = standing::stand_server(home.path(), &data, &scratch.address(), TOKEN);
   let port = server.port;
 
-  // The seeded roles stand in the store, the delegator among them with its cap, the translator's prompt its
-  // file's text.
+  // The seeded roles stand in the store, the doppelganger among them with its cap, the translator's prompt
+  // its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 14, "{listing}");
-  assert_eq!(role(&listing, "delegator").unwrap()["maxConcurrent"], 2);
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 12, "{listing}");
+  assert_eq!(role(&listing, "doppelganger").unwrap()["maxConcurrent"], 2);
   // The double's order is seeded empty: its road follows the supervisor that asks it, which a screen shows.
-  assert_eq!(role(&listing, "delegator").unwrap()["order"], json!([]));
-  assert_eq!(role(&listing, "delegator").unwrap()["followsSupervisor"], true);
-  assert_eq!(role(&listing, "delegator").unwrap()["provider"], Value::Null);
-  assert_eq!(role(&listing, "delegator").unwrap()["waitingFor"], Value::Null);
+  assert_eq!(role(&listing, "doppelganger").unwrap()["order"], json!([]));
+  assert_eq!(role(&listing, "doppelganger").unwrap()["followsSupervisor"], true);
+  assert_eq!(role(&listing, "doppelganger").unwrap()["provider"], Value::Null);
+  assert_eq!(role(&listing, "doppelganger").unwrap()["waitingFor"], Value::Null);
   assert_eq!(role(&listing, "worker").unwrap()["followsSupervisor"], false);
   assert_eq!(role(&listing, "worker").unwrap()["maxConcurrent"], 3);
   assert_eq!(role(&listing, "worker").unwrap()["order"][0]["model"], "deepseek-flash");
   assert_eq!(role(&listing, "scout").unwrap()["callable"], true);
-  assert_eq!(role(&listing, "helper").unwrap()["callable"], false);
+  assert_eq!(role(&listing, "producer").unwrap()["callable"], false);
 
   let translator =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/translator.md")).unwrap();
@@ -63,7 +63,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   // Each refusal is 422 with one sentence, and nothing is written.
   for body in [
     json!({ "name": "Not_Kebab", "label": "X", "bundles": [], "line": "worker", "order": order, "maxConcurrent": 1 }),
-    json!({ "name": "helper", "label": "X", "bundles": [], "line": "worker", "order": order, "maxConcurrent": 1 }),
+    json!({ "name": "producer", "label": "X", "bundles": [], "line": "worker", "order": order, "maxConcurrent": 1 }),
     json!({ "name": "reviewer", "label": "", "bundles": [], "line": "worker", "order": order, "maxConcurrent": 1 }),
     json!({ "name": "reviewer", "label": "Reviewer", "line": "worker", "order": order, "maxConcurrent": 1 }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": ["web.everything"], "line": "worker", "order": order,
@@ -80,7 +80,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 12);
 
   // A role added, its bundles once each.
   let (status, added) = ask(
@@ -131,7 +131,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(status, 404);
 
   // A role a default names stays; an unknown one is not found.
-  let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/delegator", None).await;
+  let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/doppelganger", None).await;
   assert_eq!(status, 409);
 
   let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/nobody", None).await;

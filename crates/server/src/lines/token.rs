@@ -223,7 +223,8 @@ pub async fn issue(
   variables.extend(line_variables(ground, line));
 
   // A thrown-away session's place stands no agent row, so its calls name the agent its line's brain tools
-  // write for, the chat agent, as a run of the line does (docs/agent-roles.md, 「The searcher role's bundles」).
+  // write for, the chat agent, as a run of the line does (docs/agent-roles.md, 「The voyager and the seeker
+  // roles」).
   if crate::apart_places::session_agent(&ground.roots.data, agent).is_some()
     && RUN_LINES.writes_agent_brain(line)
   {
@@ -463,7 +464,7 @@ pub async fn issue_for_run(
 
   // A runner line's brain tools write the chat agent's brain, the agent whose row answers every room that
   // names nobody: the record names that agent as the turn its tools run for, while the run itself stays the
-  // runner's (docs/agent-roles.md, 「The searcher role's bundles」).
+  // runner's (docs/agent-roles.md, 「The voyager and the seeker roles」).
   if RUN_LINES.writes_agent_brain(line) {
     let chat = crate::conversational::default_answerer(&ground.db, &DEPLOYMENT.agent_key).await?;
 

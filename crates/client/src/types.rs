@@ -520,7 +520,7 @@ pub struct Delegation {
   pub title: Option<String>,
   pub asked_by: Option<String>,
   pub stage: DelegationStage,
-  /// The helper agent its turn runs on; null before it is bound.
+  /// The agent its turn runs on; null before it is bound.
   pub agent_name: Option<String>,
   pub role: String,
   /// Epoch milliseconds.
@@ -3248,7 +3248,7 @@ pub struct OwnerReleaseQuery {
 pub struct SlotRequestAsk {
   pub request_key: String,
   pub owner: String,
-  /// the delegator where a delegation names none
+  /// the doppelganger where a delegation names none
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

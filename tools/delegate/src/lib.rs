@@ -1,9 +1,9 @@
 //! `delegate`: a supervisor hands a task to a run of a role, with no queue item: a slot of the role asked —
-//! the delegator role, the supervisor's double, where the ask names none — and waited for in its line however
-//! long that takes, one run of the role at the task's folder on the provider and model the slot carries and
-//! waited on with no bound, the slot finished, and the run's words answered with the files it created or
-//! changed in the task's folder; and the asking supervisor's delegations listed by their titles and stages
-//! (docs/tools.md, 「The delegate」; docs/role-slots.md, 「A delegated task」).
+//! the doppelganger role, the supervisor's double, where the ask names none — and waited for in its line
+//! however long that takes, one run of the role at the task's folder on the provider and model the slot
+//! carries and waited on with no bound, the slot finished, and the run's words answered with the files it
+//! created or changed in the task's folder; and the asking supervisor's delegations listed by their titles
+//! and stages (docs/tools.md, 「The delegate」; docs/role-slots.md, 「A delegated task」).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -341,7 +341,7 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure("title must not be empty");
   }
 
-  // No role named leaves it to agency: the delegator role, on the asking supervisor's own road.
+  // No role named leaves it to agency: the doppelganger role, on the asking supervisor's own road.
   let role = input.role.as_deref().map(str::trim).filter(|role| !role.is_empty());
   let folder = match workspace(session, input.folder.as_deref()) {
     Ok(folder) => folder,

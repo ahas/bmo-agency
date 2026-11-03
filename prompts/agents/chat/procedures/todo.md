@@ -109,9 +109,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   another machine, reading code, a question to settle. Call it with `bmo use bmo/delegate --async`, so your
   turn goes on, give it a `title`, one line naming the task, and bundle everything into the one ask: what
   to find or do, where, on which machine, and what the answer must hold, since the run sees nothing of
-  this conversation. Named no role, it runs as your double, on your own model; name `helper` for a hard
-  problem that wants the helper's care. It waits in its role's line for a slot, however long that takes,
-  and runs with no time limit; never ask it again while it stands.
+  this conversation. Named no role, it runs as your double, on your own model. It waits in its role's line
+  for a slot, however long that takes, and runs with no time limit; never ask it again while it stands.
 - **`delegations` lists what you have delegated:** each task's title, its stage — waiting for a slot,
   running, ended — its role, the model it runs on and when it was asked. Read it before delegating, and
   delegate nothing the list shows already waiting or running for the same task. Asked how delegated work

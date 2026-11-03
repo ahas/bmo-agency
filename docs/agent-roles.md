@@ -15,15 +15,15 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the delegator, the helper, the video producer, the searcher, the browser, the translator, the
-  transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
+- **The workers, the doppelganger, the producer, the voyager, the seeker, the translator, the transliterator
+  and every co-worker are roles alike.** Nothing tells a co-worker role from any other
   role but what its row says.
 
 ## What a role row holds
 
 - **Kept in agency's store,** the `roles` table (`docs/store.md`), one row a role:
-  - **its name,** its key, kebab-case as the policy's pattern says, and **its label**, the English words a
-    screen shows the role by (「A role's label」 below);
+  - **its name,** its key, kebab-case as the policy's pattern says, which a screen shows the role by, and
+    **its label**, the English words a log keeps of it (「A role's label」 below);
   - **its prompt,** written in English, which every run of the role opens with after the platform's harness
     opening; a role carrying none gives none;
   - **its description,** one paragraph saying what the role is for and when to call it, which is what a
@@ -54,7 +54,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The policy keeps what is not a role's own,** `policy/roles.toml`, read by the bun side and the Rust side
   alike: the bundles a role may give, `[[bundles]]`, each with its label; the supervisor bundles every
   supervisor holds (`docs/supervisors.md`, 「The bundles a supervisor holds」); the role a job runs as where
-  its item names none, `worker`; the role delegated work goes to where its ask names none, `delegator`; the
+  its item names none, `worker`; the role delegated work goes to where its ask names none, `doppelganger`; the
   role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
   sending; and the shape of a role's name.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
@@ -62,16 +62,18 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.
 - **A screen is handed each role and bundle with its kebab-case code beside the label** (`docs/api.md`,
-  「roles」), and words the code; the label is the English the log keeps.
+  「roles」): it shows a role by its name (「A role's label」 below) and words a bundle by its code; the label
+  is the English a log keeps.
 
 ## A role's label
 
 - **A role's label is its row's,** never empty: every seeded role is given the label the policy declares
-  for it, and an add or a change refuses an empty one. It is what a screen shows of the role and the English
-  a log keeps.
-- **A screen may word a role in its own language by the role's code,** its kebab-case name, the key its
-  language pack carries; where the pack holds no word for the code, the screen shows the row's label. A role
-  the owner adds is shown by its label until a pack carries its code.
+  for it, and an add or a change refuses an empty one. It is the English word a log keeps of the role, and
+  agency's API answers it with the row.
+- **A screen shows a role by its name alone,** the kebab-case key agency holds it under — `worker`,
+  `doppelganger`, `voyager`, `seeker`, `producer` and every other — on every screen that names one: never
+  the row's label and never a word translated from the name. A role the owner adds is shown by its name
+  from its first listing.
 
 ## The roles the policy seeds
 
@@ -91,16 +93,14 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | Role | Label | Line | Bundles | Cap | Prompt | Description | Sessions | Co-worker |
   |---|---|---|---|---|---|---|---|---|
   | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | policy | keep | no |
-  | `delegator` | Delegator | worker | `graph.read`, `queue.read`, `web.read` | 2 | `delegator.md` | policy | keep | no |
-  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | policy | keep | no |
-  | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | policy | keep | no |
+  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read` | 2 | `doppelganger.md` | policy | keep | no |
+  | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `producer.md` | policy | keep | no |
   | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | definition | definition | keep | no |
   | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
-  | `digest` | Digest | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
   | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
   | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
-  | `searcher` | Searcher | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
-  | `browser` | Browser | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
+  | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
+  | `seeker` | Seeker | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
   | `translator` | Translator | translate | none | 4 | `translator.md` | policy | fresh | no |
   | `transliterator` | Transliterator | search | none | 4 | none | policy | keep | no |
   | `upkeep` | Upkeep | worker | none | 1 | none | policy | fresh | no |
@@ -110,11 +110,11 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   declaration states.
 
 - **Each seeded role's provider order and compaction threshold are the policy's,** given with the row and
-  changed by the owner afterwards like any field. The `delegator` role's seeded order is empty, so it follows
-  the supervisor that asks it until the owner sets one.
+  changed by the owner afterwards like any field. The `doppelganger` role's seeded order is empty, so it
+  follows the supervisor that asks it until the owner sets one.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
   asked** (`docs/agent-documents.md`): a job's report and the documents it files, in the language the item's
-  brief names for its requester, else its room; a searcher's result, in its question's language. What
+  brief names for its requester, else its room; a voyager's result, in its question's language. What
   roles read of each other stays English.
 
 ## The worker role
@@ -126,15 +126,15 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   what its repository hands it after them.
 - **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
   and the queue's two (`docs/worker-mcp.md`); and `web.read`, web search and page fetch. The site tools are
-  the searcher's and the browser's alone.
+  the voyager's and the seeker's alone.
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
   job」), and its run holds that role's prompt, bundles, order and cap in the same repository's checkout.
 
-## The delegator role
+## The doppelganger role
 
 - **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
-  delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/delegator.md`, stands first in
-  every run.
+  delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/doppelganger.md`, stands first
+  in every run.
 - **Its order is seeded empty, so a run of it goes out on the asking supervisor's own provider, model and
   effort** as they stand when it is asked, and waits while that provider has no quota (`docs/role-slots.md`,
   「A delegated task」). An order the owner sets on the role stands over that: its runs then walk that order
@@ -147,23 +147,11 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`; a run a supervisor asks holds
   that supervisor's tools beside them (`docs/tools.md`, 「The delegate」).
 
-## The helper role
+## The producer role
 
-- **A role a supervisor names when it delegates a task to the helper** (`docs/tools.md`, 「The delegate」).
-  Its prompt, seeded from `prompts/roles/helper.md`, stands first in every run.
-- **Its runs go out on the helper role's own order** and hold a slot of the helper role, like any role named
-  in a delegation, and a run a supervisor asks holds that supervisor's tools beside its bundles
-  (`docs/tools.md`, 「The delegate」).
-- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
-  root where none is named, so a delegation that follows another at the same folder on the same provider and
-  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
-
-## The video role
-
-- **The video producer is a role whose items make videos.** Its runs work in the video repository's
-  checkout, where its projects and its studio live; its line is the worker line, and its role prompt,
-  seeded from `prompts/roles/video.md`, stands first in every run: what the studio is (the video-shotcraft
+- **The producer is a role whose items make videos.** Its runs work in the video repository's checkout,
+  where its projects and its studio live; its line is the worker line, and its role prompt, seeded from
+  `prompts/roles/producer.md`, stands first in every run: what the studio is (the video-shotcraft
   skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes out and the studio's
   licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the render and the
   checks.
@@ -171,20 +159,20 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   `room.send` for the finished file, which goes into the item's room through the receiver's file send tool
   as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」). It holds no graph.
 
-## The searcher and the browser roles
+## The voyager and the seeker roles
 
 - **`web.read`, `web.sites`, `web.branches` and `web.rulebooks` — the whole of the web namespace:** search
   and fetch, the site tools, the branch tool and the rulebooks, the rulebook reader standing in the research
   unit's namespace. The look at a picture is the eye service's `eye/see`, which the search and browse lines
   hold through their `eye` namespace (`policy/run-lines.toml`).
-- **The searcher runs on the search line, the browser on the browse line.** A session's caller names the
+- **The voyager runs on the search line, the seeker on the browse line.** A session's caller names the
   role and narrows the bundles (`docs/api.md`, 「sessions」): an apart session keeps only the capabilities
   its start's `toolsAllowed` names, so the research unit decides whether a search, a browse, a round or a
   branch holds the branch tool and the rulebooks.
 - **Neither carries a prompt:** a run on the search or the browse line opens on the harness opening and
   the instructions its caller hands in, and no role prompt is read there (`docs/launch-lines.md`, 「Search
-  runner」). The searcher answers a question by searching; the browser visits and reads the sites and pages
-  it is named.
+  runner」). The voyager answers a question by searching; the seeker visits and reads the sites and pages it
+  is named.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
   runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the default answerer's brain. The
   line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
@@ -234,12 +222,12 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 ## Which role a run holds
 
 - **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」).
-- **A delegated task:** the role the ask names, `delegator` where it names none (`docs/tools.md`, 「The
+- **A delegated task:** the role the ask names, `doppelganger` where it names none (`docs/tools.md`, 「The
   delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
 - **A co-worker:** the role the calling run names.
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
-  names `searcher` or `browser`, the voice unit `transliterator`, a translation's caller `translator`.
+  names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`.
 - **A run standing for no one's work:** `upkeep`.
 - **A role the store does not hold gives nothing,** and every one of these refuses it with the name.
 
@@ -271,6 +259,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   other than `keep` or `fresh`.
 - **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
 - **`DELETE /roles/{roleName}`** removes a role, and is refused while a run of it goes or waits, and for a
-  role the policy names as a default — `worker`, `delegator` and `upkeep`.
+  role the policy names as a default — `worker`, `doppelganger` and `upkeep`.
 - **A role added or changed is read at its next use;** nothing running is stopped for it, and a run already
   let in finishes under the row it began under.

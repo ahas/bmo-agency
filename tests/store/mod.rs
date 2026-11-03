@@ -5,5 +5,6 @@ mod deepseek;
 mod migration;
 mod read;
 mod registry;
+mod role_names;
 mod seed;
 mod two_axes;

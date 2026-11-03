@@ -44,7 +44,7 @@ async fn a_kept_session_is_resumed_by_the_next_run_of_its_role_path_provider_and
   give_back(db, "session-one").await.unwrap();
 
   for other in [
-    key("helper", "/checkouts/one", "claude-opus-5"),
+    key("builder", "/checkouts/one", "claude-opus-5"),
     key("worker", "/checkouts/two", "claude-opus-5"),
     key("worker", "/checkouts/one", "claude-sonnet-5"),
   ] {

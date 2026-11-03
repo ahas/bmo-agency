@@ -154,14 +154,14 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 ## A delegated task
 
 - **A task a supervisor hands off through `bmo/delegate`** (`docs/tools.md`, 「The delegate」) asks a slot of
-  the role its ask names — `delegator` where it names none — as the source `delegate`, keyed by a request of
-  its own, and waits in that role's line however long it takes.
-- **A task naming no role is the supervisor's double:** it holds a slot of the `delegator` role. The delegator
-  role is seeded with an empty order, so its lease carries the asking supervisor's provider, model and effort
-  as they stand when it is asked — the provider, model and effort its last turn went out on, else its order's
-  first — and it waits, never moves, while that provider has no quota. An order the owner sets on the role
-  stands over that, and the slot is then let in on that order like any run of the role. The delegator role's
-  cap counts every supervisor's double together.
+  the role its ask names — `doppelganger` where it names none — as the source `delegate`, keyed by a request
+  of its own, and waits in that role's line however long it takes.
+- **A task naming no role is the supervisor's double:** it holds a slot of the `doppelganger` role. The
+  doppelganger role is seeded with an empty order, so its lease carries the asking supervisor's provider,
+  model and effort as they stand when it is asked — the provider, model and effort its last turn went out on,
+  else its order's first — and it waits, never moves, while that provider has no quota. An order the owner
+  sets on the role stands over that, and the slot is then let in on that order like any run of the role. The
+  doppelganger role's cap counts every supervisor's double together.
 - **A task naming a role** holds a slot of that role and goes out on that role's own order, like any run of
   it, or on the asking supervisor's road where that role's order is empty.
 - **A double's own ask never waits on doubles.** Every delegated run is a double, and a double may delegate in

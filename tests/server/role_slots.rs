@@ -1,7 +1,7 @@
 //! The role slots (docs/role-slots.md): a role's runs are let in under its cap and no further, a slot given
-//! back lets the next in, a run whose provider has no quota waits — never refused — and goes once quota comes
-//! back, an unknown role is an error, and a delegation naming no role is the supervisor's double: a slot of the
-//! delegator role on the supervisor's own provider and model.
+//! back lets the next in, a run whose provider has no quota waits — never refused — and goes once quota
+//! comes back, an unknown role is an error, and a delegation naming no role is the supervisor's double: a
+//! slot of the doppelganger role on the supervisor's own provider and model.
 
 use agency_server::order_run::dispatch::{self, Asked, DELEGATE, Wanted, acquire, enqueue, finish, used};
 use agency_server::places::Ground;
@@ -143,7 +143,7 @@ async fn a_slot_asked_under_a_role_the_store_does_not_hold_is_refused() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_delegator_slot() {
+async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppelganger_slot() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
@@ -159,7 +159,7 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_deleg
     )
     .await;
 
-  let fixed = dispatch::fixed_road(&ground.db, "delegator", Some("chat"))
+  let fixed = dispatch::fixed_road(&ground.db, "doppelganger", Some("chat"))
     .await
     .unwrap()
     .expect("the supervisor's own road");
@@ -175,7 +175,7 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_deleg
         request_key: format!("delegate:{key}"),
         owner: format!("delegate:{key}"),
         wanted: Wanted {
-          role: "delegator",
+          role: "doppelganger",
           path: Some("/scratch/chat"),
           fixed: Some(fixed.clone()),
         },
@@ -193,14 +193,14 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_deleg
   assert!(admitted(&ground, &doubles[1]).await);
   assert!(
     !admitted(&ground, &doubles[2]).await,
-    "the delegator role's cap of 2 counts every double"
+    "the doppelganger role's cap of 2 counts every double"
   );
-  assert_eq!(used(&ground.db, "delegator").await.unwrap(), 2);
-  assert_eq!(used(&ground.db, "helper").await.unwrap(), 0, "a double holds no helper slot");
+  assert_eq!(used(&ground.db, "doppelganger").await.unwrap(), 2);
+  assert_eq!(used(&ground.db, "builder").await.unwrap(), 0, "a double holds no builder slot");
 
   let running = dispatch::request(&ground.db, &doubles[0].token).await.unwrap().unwrap();
 
-  assert_eq!(running.role, "delegator");
+  assert_eq!(running.role, "doppelganger");
   assert_eq!((running.provider.as_str(), running.model.as_str()), ("deepseek", "deepseek-flash"));
 }
 
@@ -216,7 +216,7 @@ async fn a_double_waits_on_its_supervisors_provider_and_never_moves_to_the_roles
     request_key: "delegate:waits".into(),
     owner: "delegate:waits".into(),
     wanted: Wanted {
-      role: "delegator",
+      role: "doppelganger",
       path: Some("/scratch/chat"),
       fixed: Some(agency_server::order::Entry {
         provider: "deepseek".into(),
@@ -504,9 +504,9 @@ async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owne
   assert_eq!(used(&ground.db, "worker").await.unwrap(), 0, "its slot is free again");
 }
 
-// The delegator role is seeded with an empty order, so a delegation follows its supervisor; an order the owner
-// sets on the role stands over the supervisor's road, and a slot of a role with an empty order that no
-// supervisor asks has no road and is refused (docs/role-slots.md, 「A delegated task」).
+// The doppelganger role is seeded with an empty order, so a delegation follows its supervisor; an order the
+// owner sets on the role stands over the supervisor's road, and a slot of a role with an empty order that
+// no supervisor asks has no road and is refused (docs/role-slots.md, 「A delegated task」).
 #[tokio::test(flavor = "multi_thread")]
 async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_order() {
   let scratch = Scratch::new().await;
@@ -523,11 +523,11 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
     )
     .await;
 
-  let seeded_role = agency_server::agent_roles::named(&ground.db, "delegator").await.unwrap().unwrap();
+  let seeded_role = agency_server::agent_roles::named(&ground.db, "doppelganger").await.unwrap().unwrap();
 
   assert!(seeded_role.order.follows_supervisor(), "the double's order is seeded empty");
 
-  let followed = dispatch::fixed_road(&ground.db, "delegator", Some("chat"))
+  let followed = dispatch::fixed_road(&ground.db, "doppelganger", Some("chat"))
     .await
     .unwrap()
     .expect("the supervisor's road");
@@ -538,22 +538,22 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
     "a supervisor with no turn yet goes by its order's first"
   );
 
-  let nobody = dispatch::fixed_road(&ground.db, "delegator", None).await;
+  let nobody = dispatch::fixed_road(&ground.db, "doppelganger", None).await;
 
   assert!(
     nobody.is_err_and(|why| why.contains("no supervisor asked")),
     "an empty order needs its asker"
   );
 
-  // The entry a turn of the double goes out on, on any road, is the asking supervisor's for the provider; a run
-  // of a following role that names no supervisor is refused.
-  let entry = agency_server::order::row_entry(&ground.db, "delegator", "deepseek", Some("chat"))
+  // The entry a turn of the double goes out on, on any road, is the asking supervisor's for the provider; a
+  // run of a following role that names no supervisor is refused.
+  let entry = agency_server::order::row_entry(&ground.db, "doppelganger", "deepseek", Some("chat"))
     .await
     .unwrap();
 
   assert_eq!((entry.model.as_str(), entry.effort.as_deref()), ("deepseek-flash", Some("max")));
   assert!(
-    agency_server::order::row_entry(&ground.db, "delegator", "deepseek", None)
+    agency_server::order::row_entry(&ground.db, "doppelganger", "deepseek", None)
       .await
       .is_err_and(|why| why.contains("follows the supervisor")),
     "a following role's run names its supervisor"
@@ -562,22 +562,22 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
   scratch
     .run(
       r#"UPDATE "roles" SET "provider_order" = '[{"provider":"codex","model":"gpt-5.6-terra","effort":"high"}]'
-         WHERE "name" = 'delegator'"#,
+         WHERE "name" = 'doppelganger'"#,
       vec![],
     )
     .await;
 
   assert_eq!(
-    dispatch::fixed_road(&ground.db, "delegator", Some("chat")).await.unwrap(),
+    dispatch::fixed_road(&ground.db, "doppelganger", Some("chat")).await.unwrap(),
     None,
     "the owner's order stands over the supervisor's road: the slot walks the role's order"
   );
 }
 
-// Two doubles that each delegate again under the delegator role's cap of 2 would wait for each other with no
-// end: once delegated runs hold the whole cap, a double's ask is refused with why, while a supervisor's own ask,
-// an ask under a key already standing and an ask of a role whose slots a run of another source holds are not
-// (docs/role-slots.md, 「A delegated task」).
+// Two doubles that each delegate again under the doppelganger role's cap of 2 would wait for each other
+// with no end: once delegated runs hold the whole cap, a double's ask is refused with why, while a
+// supervisor's own ask, an ask under a key already standing and an ask of a role whose slots a run of
+// another source holds are not (docs/role-slots.md, 「A delegated task」).
 #[tokio::test(flavor = "multi_thread")]
 async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   let scratch = Scratch::new().await;
@@ -604,33 +604,33 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
     asked_by: Some("chat"),
     ..Asked::default()
   };
-  let first = enqueue(&ground.db, &delegation("first", "delegator"), DELEGATE, async |_, _| Ok(()))
+  let first = enqueue(&ground.db, &delegation("first", "doppelganger"), DELEGATE, async |_, _| Ok(()))
     .await
     .unwrap();
 
   assert!(admitted(&ground, &first).await);
   assert!(
-    dispatch::double_would_wait(&ground.db, "delegator", "delegate:again")
+    dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:again")
       .await
       .unwrap()
       .is_none(),
     "one double holds one of two slots: a double may ask"
   );
 
-  let second = enqueue(&ground.db, &delegation("second", "delegator"), DELEGATE, async |_, _| Ok(()))
+  let second = enqueue(&ground.db, &delegation("second", "doppelganger"), DELEGATE, async |_, _| Ok(()))
     .await
     .unwrap();
 
   assert!(admitted(&ground, &second).await);
 
-  let why = dispatch::double_would_wait(&ground.db, "delegator", "delegate:again")
+  let why = dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:again")
     .await
     .unwrap()
     .expect("both slots are doubles': a double's ask could wait on itself");
 
-  assert!(why.contains("delegator") && why.contains("2 of the 2"), "{why}");
+  assert!(why.contains("doppelganger") && why.contains("2 of the 2"), "{why}");
   assert!(
-    dispatch::double_would_wait(&ground.db, "delegator", "delegate:second")
+    dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:second")
       .await
       .unwrap()
       .is_none(),
@@ -639,18 +639,18 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
 
   // A role whose slots a job holds is waited on as the line says: that run ends of its own.
   scratch
-    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'helper'"#, vec![])
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'builder'"#, vec![])
     .await;
 
   let job = enqueue(
     &ground.db,
     &Asked {
       wanted: Wanted {
-        role: "helper",
+        role: "builder",
         path: Some("/checkouts/one"),
         fixed: Some(road.clone()),
       },
-      ..asked("helper", "job")
+      ..asked("builder", "job")
     },
     "job",
     async |_, _| Ok(()),
@@ -660,7 +660,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
 
   assert!(admitted(&ground, &job).await);
   assert!(
-    dispatch::double_would_wait(&ground.db, "helper", "delegate:helper")
+    dispatch::double_would_wait(&ground.db, "builder", "delegate:builder")
       .await
       .unwrap()
       .is_none()
@@ -668,11 +668,11 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
 
   // A closed role is waited on until the owner raises its cap.
   scratch
-    .run(r#"UPDATE "roles" SET "max_concurrent" = 0 WHERE "name" = 'delegator'"#, vec![])
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 0 WHERE "name" = 'doppelganger'"#, vec![])
     .await;
 
   assert!(
-    dispatch::double_would_wait(&ground.db, "delegator", "delegate:closed")
+    dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:closed")
       .await
       .unwrap()
       .is_none()

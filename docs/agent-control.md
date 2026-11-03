@@ -772,15 +772,15 @@ surface in the pane its run opens. The surface answers, in the provider's own te
 
 - **A supervisor may hand a task to a run of any role, with no item.** `delegate` names a one-line title,
   the instruction, with all the context it needs, an optional role and an optional folder
-  (`docs/tools.md`, 「The delegate」). The role is `delegator` where none is named; a role the store does not
+  (`docs/tools.md`, 「The delegate」). The role is `doppelganger` where none is named; a role the store does not
   hold is refused with its name, and nothing starts.
-- **A task naming no role is the supervisor's double:** a run of the `delegator` role, which holds a slot of
-  the delegator role and, its order being empty as seeded, goes out on the asking supervisor's own provider,
-  model and effort as they stand when it is asked; an order the owner sets on the role stands over that. A
-  task naming a role goes out on that role's own order, or on the supervisor's road where that order is
-  empty, and holds a slot of it (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line
-  however long that takes, and is never refused because every slot is taken, but for a double's own ask
-  where delegated runs hold the role's whole cap. Either runs with the supervisor's tools beside its role's
+- **A task naming no role is the supervisor's double:** a run of the `doppelganger` role, which holds a slot
+  of the doppelganger role and, its order being empty as seeded, goes out on the asking supervisor's own
+  provider, model and effort as they stand when it is asked; an order the owner sets on the role stands over
+  that. A task naming a role goes out on that role's own order, or on the supervisor's road where that order
+  is empty, and holds a slot of it (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line
+  however long that takes, and is never refused because every slot is taken, but for a double's own ask where
+  delegated runs hold the role's whole cap. Either runs with the supervisor's tools beside its role's
   (`docs/tools.md`, 「The delegate」).
 - **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
   on that provider and model where one is valid; a later delegation there within the cache lifetime goes on

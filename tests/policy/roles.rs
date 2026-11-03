@@ -1,6 +1,6 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the fourteen seeded roles with their
-//! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the supervisor
-//! bundles and the shape of a role's name.
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the twelve seeded roles with their
+//! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the
+//! supervisor bundles and the shape of a role's name.
 
 use std::collections::BTreeSet;
 
@@ -8,23 +8,21 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_fourteen_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_twelve_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
     names,
     [
       "worker",
-      "delegator",
-      "helper",
-      "video",
+      "doppelganger",
+      "producer",
       "builder",
       "verifier",
-      "digest",
       "scout",
       "screener",
-      "searcher",
-      "browser",
+      "voyager",
+      "seeker",
       "translator",
       "transliterator",
       "upkeep"
@@ -39,11 +37,10 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
 
   for (name, cap) in [
     ("worker", 3),
-    ("delegator", 2),
-    ("helper", 2),
+    ("doppelganger", 2),
+    ("producer", 2),
     ("builder", 8),
     ("verifier", 6),
-    ("digest", 6),
     ("scout", 12),
     ("screener", 12),
     ("upkeep", 1),
@@ -64,9 +61,9 @@ fn the_worker_goes_out_on_deepseeks_flash_model_first() {
 
 #[test]
 fn every_order_names_a_provider_once_and_every_role_names_its_line() {
-  let delegator = ROLES.roles.iter().find(|role| role.name == ROLES.delegate).unwrap();
+  let double = ROLES.roles.iter().find(|role| role.name == ROLES.delegate).unwrap();
 
-  assert!(delegator.order.is_empty(), "the double's order is empty, so it follows its supervisor");
+  assert!(double.order.is_empty(), "the double's order is empty, so it follows its supervisor");
 
   for role in &ROLES.roles {
     let providers: BTreeSet<&str> = role.order.iter().map(|entry| entry.provider.as_str()).collect();
@@ -99,7 +96,7 @@ fn only_the_co_worker_roles_are_callable_and_the_builder_is_the_orders_own_turn(
   let callable: Vec<&str> =
     ROLES.roles.iter().filter(|role| role.callable).map(|role| role.name.as_str()).collect();
 
-  assert_eq!(callable, ["verifier", "digest", "scout", "screener"]);
+  assert_eq!(callable, ["verifier", "scout", "screener"]);
 }
 
 #[test]
@@ -108,8 +105,8 @@ fn the_defaults_nothing_names_are_seeded_roles_and_each_bundle_a_role_gives_is_d
     assert!(ROLES.holds(role), "{role} is seeded");
   }
 
-  assert!(ROLES.default_role("delegator"));
-  assert!(!ROLES.default_role("helper"), "the helper is a role one names, and may go");
+  assert!(ROLES.default_role("doppelganger"));
+  assert!(!ROLES.default_role("producer"), "the producer is a role one names, and may go");
   assert_eq!(ROLES.supervisor, ["room.chat", "room.send", "web.read"]);
   assert!(ROLES.supervisor.contains(&ROLES.send));
   assert_eq!(ROLES.quota_share, 0.01);
@@ -134,7 +131,7 @@ fn a_roles_name_is_kebab_case() {
 }
 
 #[test]
-fn every_seeded_role_carries_a_label_a_screen_shows_where_its_pack_holds_no_word_for_its_code() {
+fn every_seeded_role_carries_the_label_a_log_keeps_of_it() {
   for role in &ROLES.roles {
     assert!(!role.label.trim().is_empty(), "{} carries no label", role.name);
     assert!(

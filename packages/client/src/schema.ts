@@ -518,7 +518,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The tasks an agent delegated, each with its title, stage, helper agent and start. */
+        /** The tasks an agent delegated, each with its title, stage, role and start. */
         get: operations["listDelegations"];
         put?: never;
         post?: never;
@@ -2294,7 +2294,7 @@ export interface components {
             title: string | null;
             askedBy: string | null;
             stage: components["schemas"]["DelegationStage"];
-            /** @description The helper agent its turn runs on; null before it is bound. */
+            /** @description The agent its turn runs on; null before it is bound. */
             agentName: string | null;
             role: string;
             /**
@@ -3843,7 +3843,7 @@ export interface components {
         SlotRequestAsk: {
             requestKey: string;
             owner: string;
-            /** @description the delegator where a delegation names none */
+            /** @description the doppelganger where a delegation names none */
             role?: string | null;
             source?: string | null;
             path?: string | null;

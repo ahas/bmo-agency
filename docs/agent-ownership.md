@@ -93,7 +93,7 @@ Beside its provider order, its cache warming per provider and its compaction thr
 - **Two supervisors' brains share nothing,** and two accounts never see each other's. What several
   supervisors need to know is written into each one's brain by the one that learnt it; no mark makes one
   supervisor's memory another's. A run of the search or browse line writes into the default answerer's
-  brain (`docs/agent-roles.md`, 「The searcher and the browser roles」).
+  brain (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
 - **The persona comes from the brain.** At a chat launch the supervisor's brain renders the layer named
   `persona`, and its placeholders are filled from the deployment's values (`docs/api.md`, 「Calls agency
   makes」); the lore and knowledge reach a turn only as the gates pick them.

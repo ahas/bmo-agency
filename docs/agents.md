@@ -16,11 +16,11 @@ program is spoken to is `docs/agent-control.md`.
   (`docs/supervisors.md`).
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
   tool bundles its runs are given, its provider order, the most of its runs that go at once, its session
-  policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the helper, the video
-  producer, the searcher, the browser, the translator, the transliterator and every co-worker — builder,
-  scout, screener, digest, verifier and any the owner adds — are roles.
+  policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the doppelganger, the
+  producer, the voyager, the seeker, the translator, the transliterator and every co-worker — builder,
+  scout, screener, verifier and any the owner adds — are roles.
 - **Nothing else is an agent.** No row stands for a worker, a runner or a gate: a job's worker is a run of
-  a role in a repository's checkout, a search is a run of the searcher role, and a co-worker is a run of a
+  a role in a repository's checkout, a search is a run of the voyager role, and a co-worker is a run of a
   co-worker role. No code lists the supervisors or the roles or answers a question about one by its name;
   every reader takes the row the work names and reads what it says.
 - **A repository is a place a run works in,** never an agent (`docs/repositories.md`). It keeps what is

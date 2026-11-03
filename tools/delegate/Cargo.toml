@@ -1,6 +1,6 @@
 [package]
 name = "delegate-tool"
-description = "Hands a chat agent's task to the helper on a co-worker seat, as a turn of the helper's own session with no time bound, and answers with the words it wrote and the files it created or changed."
+description = "Hands a supervisor's task to a run of a role, its own double where it names none, on a slot of that role with no time bound, and answers with the words it wrote and the files it created or changed."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,4 +1,4 @@
-# A supervisor hands a task to a run of a role — its own double, the delegator role, where it names none — on a
+# A supervisor hands a task to a run of a role — its own double, the doppelganger role, where it names none — on a
 # slot of that role with no time bound, and lists the tasks it has delegated (docs/tools.md, 「The delegate」;
 # docs/role-slots.md, 「A delegated task」). A delegation waits in the role's line and on the run as long as
 # they take, and is run with bmo use --async so its end wakes the supervisor.
