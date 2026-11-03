@@ -107,7 +107,7 @@ impl NodeService for Machine {
   }
 }
 
-// Checkouts w1 and w2 at work here, w3 idle, a repository's checkout at work on a node, and a chat agent
+// Checkouts w1 and w2 at work here, w3 idle, a repository's checkout at work on a node, and a supervisor
 // with a run open.
 async fn workers(scratch: &Scratch) {
   for name in ["w1", "w2", "w3"] {

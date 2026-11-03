@@ -11,12 +11,12 @@ pub struct QueueIdle {
   pub check_seconds: u64,
   /// The code the owner's notice carries.
   pub code: String,
-  /// What the chat agent is asked to do about it.
+  /// What the supervisor is asked to do about it.
   pub ask: String,
-  /// How long an approved item may wait on its own free worker before the chat agent is told of it, in
+  /// How long an approved item may wait on its own free worker before the supervisor is told of it, in
   /// seconds.
   pub launch_seconds: i64,
-  /// What the chat agent is told of such an item: `{item}`, `{title}` and `{worker}`.
+  /// What the supervisor is told of such an item: `{item}`, `{title}` and `{worker}`.
   pub launch_order: String,
 }
 

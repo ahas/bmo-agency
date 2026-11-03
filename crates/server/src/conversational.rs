@@ -1,7 +1,6 @@
-//! The conversational agents as their rows declare them (docs/agents.md, 「One runner」): the scope of each
-//! one's session, the shape of its turns, and which of them answers the rooms that name nobody. Every
-//! reader that needs to know how an agent talks, or who answers a room, asks here, so nothing chooses a
-//! path by an agent's name or by a kind of its own.
+//! The supervisors as their rows declare them (docs/supervisors.md, 「One runner」): the scope of each one's
+//! session and the shape of its turns. Every reader that needs to know how a supervisor talks asks here, so
+//! nothing chooses a path by a supervisor's name or by a kind of its own.
 
 use sea_orm::{ConnectionTrait, QueryResult};
 
@@ -62,33 +61,25 @@ impl Shape {
   }
 }
 
-/// A conversational agent's settings, as its row holds them.
+/// A supervisor's settings, as its row holds them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settings {
   pub scope: Scope,
   pub shape: Shape,
-  /// Whether it answers every room that names no answerer.
-  pub default_answerer: bool,
 }
 
 impl Settings {
-  /// The settings a row holds, or none where the row is no conversational agent's. A row an older writer
-  /// left with no settings is read by the kind it was written under, as the settling read every row
-  /// standing when the settings arrived.
+  /// The settings a row holds, or none where its scope is none the runner carries.
   pub fn of(row: &QueryResult) -> Result<Option<Self>, Refusal> {
-    let kind: String = row.try_get::<String>("", "kind").unwrap_or_else(|_| "chat".to_owned());
     let scope: Option<String> = row.try_get("", "session_scope")?;
     let shape: Option<String> = row.try_get("", "turn_shape")?;
-    let default_answerer: i64 = row.try_get("", "default_answerer")?;
 
-    Ok(Self::read(&kind, scope.as_deref(), shape.as_deref(), default_answerer))
+    Ok(Self::read(scope.as_deref(), shape.as_deref()))
   }
 
   /// The settings a row's columns hold, as `of` reads them, for a reader holding the columns themselves.
-  pub fn read(kind: &str, scope: Option<&str>, shape: Option<&str>, default_answerer: i64) -> Option<Self> {
-    let Some(scope) = scope.and_then(Scope::named) else {
-      return unsettled(kind);
-    };
+  pub fn read(scope: Option<&str>, shape: Option<&str>) -> Option<Self> {
+    let scope = scope.and_then(Scope::named)?;
 
     Some(Self {
       scope,
@@ -96,7 +87,6 @@ impl Settings {
         Scope::Agent => Shape::Window,
         Scope::Room => Shape::Pieces,
       }),
-      default_answerer: default_answerer != 0,
     })
   }
 
@@ -105,21 +95,7 @@ impl Settings {
     Self {
       scope: Scope::Room,
       shape: Shape::Pieces,
-      default_answerer: false,
     }
-  }
-}
-
-// The settings of a row an older writer left without them, by the kind it was written under: what the
-// settling gave every row of those kinds standing when the settings arrived.
-fn unsettled(kind: &str) -> Option<Settings> {
-  match kind {
-    "chat" => Some(Settings {
-      scope: Scope::Agent,
-      shape: Shape::Window,
-      default_answerer: true,
-    }),
-    _ => None,
   }
 }
 
@@ -133,7 +109,7 @@ pub async fn role_of(db: &impl ConnectionTrait, agent: &str) -> Result<Option<St
 pub async fn settings(db: &impl ConnectionTrait, agent: &str) -> Result<Option<Settings>, Refusal> {
   match one(
     db,
-    r#"SELECT 'chat' AS "kind", "session_scope", "turn_shape", "default_answerer" FROM "supervisors" WHERE "name" = $1"#,
+    r#"SELECT "session_scope", "turn_shape" FROM "supervisors" WHERE "name" = $1"#,
     vec![agent.into()],
   )
   .await?
@@ -153,71 +129,6 @@ pub async fn prompt_folder(db: &impl ConnectionTrait, agent: &str) -> Result<Opt
   }
 }
 
-/// The agent answering every room that names nobody, by its row. An archive whose rows were never settled
-/// names none, and that agent is then `own`, the deployment's own agent as its configuration names it.
-pub async fn default_answerer(db: &impl ConnectionTrait, own: &str) -> Result<String, Refusal> {
-  let row = one(
-    db,
-    r#"SELECT "name" FROM "supervisors" WHERE "default_answerer" <> 0 ORDER BY "name" LIMIT 1"#,
-    vec![],
-  )
-  .await?;
-
-  Ok(match row {
-    Some(row) => row.try_get("", "name")?,
-    None => own.to_owned(),
-  })
-}
-
-/// Whether an agent is the default answerer.
-pub async fn answers_unnamed(db: &impl ConnectionTrait, own: &str, agent: &str) -> Result<bool, Refusal> {
-  Ok(default_answerer(db, own).await? == agent)
-}
-
-/// The awake agents a room names among its answerers, by name.
-pub async fn named_answerers(db: &impl ConnectionTrait, chat_id: i64) -> Result<Vec<String>, Refusal> {
-  all(
-    db,
-    r#"SELECT "a"."name" FROM "room_answerers" "r" JOIN "supervisors" "a" ON "a"."name" = "r"."agent"
-       WHERE "r"."chat_id" = $1 ORDER BY "a"."name""#,
-    vec![chat_id.into()],
-  )
-  .await?
-  .iter()
-  .map(|row| row.try_get::<String>("", "name").map_err(Refusal::from))
-  .collect()
-}
-
-/// Who answers in a room: the agents it names, or the default answerer where it names nobody awake.
-pub async fn answerers(db: &impl ConnectionTrait, own: &str, chat_id: i64) -> Result<Vec<String>, Refusal> {
-  let named = named_answerers(db, chat_id).await?;
-
-  Ok(if named.is_empty() { vec![default_answerer(db, own).await?] } else { named })
-}
-
-/// Whether an agent answers in a room: a room that names it among its awake answerers, and for the default
-/// answerer every room that names nobody.
-pub async fn answers(
-  db: &impl ConnectionTrait,
-  own: &str,
-  agent: &str,
-  chat_id: i64,
-) -> Result<bool, Refusal> {
-  Ok(answerers(db, own, chat_id).await?.iter().any(|name| name == agent))
-}
-
-/// The agent that says the bot's own lines in a room: the default answerer
-/// where it answers there, and otherwise the first of the room's awake answerers by name.
-pub async fn voice_of(db: &impl ConnectionTrait, own: &str, chat_id: i64) -> Result<String, Refusal> {
-  let default = default_answerer(db, own).await?;
-  let named = named_answerers(db, chat_id).await?;
-
-  Ok(match named.first() {
-    Some(first) if !named.contains(&default) => first.clone(),
-    _ => default,
-  })
-}
-
 /// The awake conversational agents whose settings pass a test, by name in order.
 pub async fn agents_where(
   db: &impl ConnectionTrait,
@@ -225,8 +136,7 @@ pub async fn agents_where(
 ) -> Result<Vec<String>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT "name", 'chat' AS "kind", "session_scope", "turn_shape", "default_answerer" FROM "supervisors"
-       ORDER BY "name""#,
+    r#"SELECT "name", "session_scope", "turn_shape" FROM "supervisors" ORDER BY "name""#,
     vec![],
   )
   .await?;
@@ -239,14 +149,4 @@ pub async fn agents_where(
   }
 
   Ok(named)
-}
-
-/// Whether the default answerer keeps one session across its rooms (the `agent` scope).
-pub async fn one_session(db: &impl ConnectionTrait, own: &str) -> Result<bool, Refusal> {
-  one_session_of(db, &default_answerer(db, own).await?).await
-}
-
-/// Whether an agent keeps one session across its rooms (the `agent` scope).
-pub async fn one_session_of(db: &impl ConnectionTrait, agent: &str) -> Result<bool, Refusal> {
-  Ok(settings(db, agent).await?.is_some_and(|settings| settings.scope == Scope::Agent))
 }

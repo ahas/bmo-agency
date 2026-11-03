@@ -1,5 +1,5 @@
 //! Agency's procedures as resources, served by the `procedures` tool (docs/tools.md, 「The procedures」): one
-//! document each under the chat agent's procedures folder of the tree the tool is placed in, listed by name and
+//! document each under the supervisor's procedures folder of the tree the tool is placed in, listed by name and
 //! read held to the verbs the road of the turn's room performs, which agency's server asks the consumer that
 //! holds the rooms. A request reads its turn afresh from the session's record, and a turn a supervisor's reset
 //! overtook is listed none and refused its read.

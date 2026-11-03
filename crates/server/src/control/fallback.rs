@@ -1,5 +1,5 @@
 //! The fallback's view (docs/api.md, 「providers, models and model files」): the Claude accounts, the account in
-//! use and the chosen one, and the provider the chat agent stands on now with what it has used, its windows read
+//! use and the chosen one, and the provider the supervisor stands on now with what it has used, its windows read
 //! off agency's own keeping. What a caller may know of a
 //! credential is the path it is reached by, and of the OpenRouter key whether there is one. A gate's own
 //! options are its consumer's, kept beside its own judgement.
@@ -147,12 +147,20 @@ pub(super) async fn account_balance(windows: &Keeping, account: &Account) -> Res
   ))
 }
 
-/// The agent serving the chat now and what it has used: the provider its road answers on, the login
+/// The supervisor whose turn went out last and what it has used: the provider its road answers on, the login
 /// it walks to where the provider holds logins, that slot's two headline windows and its balance.
 pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Refused> {
   let db = judging.db;
-  let chat = crate::conversational::default_answerer(db, &policy::deployment::DEPLOYMENT.agent_key).await?;
-  let name = match crate::supervisors::named(db, &chat).await?.and_then(|held| held.last_mode) {
+  let latest = store::one(
+    db,
+    r#"SELECT "last_mode" FROM "supervisors" WHERE "last_mode" IS NOT NULL
+       ORDER BY "last_run_at" DESC NULLS LAST, "name" LIMIT 1"#,
+    vec![],
+  )
+  .await?
+  .map(|row| row.try_get::<String>("", "last_mode"))
+  .transpose()?;
+  let name = match latest {
     Some(provider) => provider,
     None => fallback_provider(db).await?.unwrap_or_else(|| "claude-code".to_owned()),
   };

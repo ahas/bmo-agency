@@ -1,5 +1,5 @@
 //! An ask on a run's clock has no moment it is due (docs/agent-control.md, 「A clock asks, it never cuts」):
-//! it stands until the chat agent's verdict or the run's end.
+//! it stands until the supervisor's verdict or the run's end.
 
 use sea_orm_migration::prelude::*;
 

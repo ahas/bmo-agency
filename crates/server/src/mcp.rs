@@ -127,7 +127,7 @@ where
 /// server was started for an agent, whose turn its items are filed and its stops asked for.
 pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
   let mut tools = vec![];
-  // A chat agent's own server launches nothing a room's words ask for unless the owner's gate lets it.
+  // A supervisor's own server launches nothing a room's words ask for unless the owner's gate lets it.
   let gated = agent.is_some();
 
   if let Some(agent) = agent.map(str::to_owned) {
@@ -195,7 +195,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
   tools
 }
 
-/// The owner's gate in front of a launch a chat agent's turn asks for (docs/launch-lines.md, 「The owner's
+/// The owner's gate in front of a launch a supervisor's turn asks for (docs/launch-lines.md, 「The owner's
 /// gate」): the room turn the agent's place carries now, checked with the account service the data root names;
 /// a refusal answers the tool with its sentence.
 pub async fn owners_gate(relation: &str, action: &str) -> Answer<()> {

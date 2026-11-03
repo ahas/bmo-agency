@@ -24,7 +24,7 @@ summarised or dropped, and a request stays exactly as firm or as tentative as it
   <<WAIT>>, error messages and log lines stay exactly as written, whatever block or
   span they stand in.
 - Names are never romanised or translated. A person's name and form of address (형) stay as written,
-  in Hangul; the chat agent's own Korean name is the one exception and is written in its English form,
+  in Hangul; the supervisor's own Korean name is the one exception and is written in its English form,
   its own English name.
 - Proper nouns and domain terms stay in their written language: room names, product and service
   names, and the names of the system's own parts and screens a reader has to match against the

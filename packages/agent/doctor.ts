@@ -8,13 +8,13 @@ import type { Archive } from "@agency/archive/archive";
 //
 // What the diagnosis may say is bounded by what was actually read where the run ended: how the
 // process finished, what the run was last seen doing, and what the program said back. A cause
-// nobody could read is said to be unknown, with where the whole account is, and never guessed at. The diagnosis is handed to the chat agent as an order to find and
+// nobody could read is said to be unknown, with where the whole account is, and never guessed at. The diagnosis is handed to the supervisor as an order to find and
 // fix the cause by the caller that holds the room; the composed line here is what is sent only when
-// the chat agent cannot answer that order.
+// the supervisor cannot answer that order.
 //
 // The same place remembers the failure, which is what the other half needs: the next run that
 // answers is known to be a recovery, and where the owner heard of the failure from the bot's own
-// line, the owner hears that the chat agent is back without having to ask.
+// line, the owner hears that the supervisor is back without having to ask.
 
 /** How a run ended, as whoever watched it could read it. Never inferred past what was seen. */
 export type RunEnding =
@@ -74,7 +74,7 @@ export function actionLine(action: LastAction): string {
   return fillMarks(words.action, { tool: action.tool, detail: action.detail === null ? "" : fillMarks(words.detail, { detail: action.detail }) });
 }
 
-/** What the run was last seen doing, read off its own log: the chat agent's own, or the worker's a job ran as. */
+/** What the run was last seen doing, read off its own log: the supervisor's own, or the worker's a job ran as. */
 export async function lastActionOf(archive: Archive, run: string, agent: string = deploymentNames().agentKey): Promise<LastAction | null> {
   const line = await archive.runs().lastAgentTool(agent, run);
 

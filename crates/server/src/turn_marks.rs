@@ -1,4 +1,4 @@
-//! The room turn each chat agent is carrying now (docs/api.md, 「assignments and jobs」): the room it answers
+//! The room turn each supervisor is carrying now (docs/api.md, 「assignments and jobs」): the room it answers
 //! and whether every new message in it is the owner's, as the receiver marked the turn. An item the agent files
 //! while it carries the turn is filed under that room, and as the owner's ask where the turn is privileged.
 

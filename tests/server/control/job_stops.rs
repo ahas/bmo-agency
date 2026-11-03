@@ -1,4 +1,4 @@
-//! A job stopped (docs/api.md, 「assignments and jobs」): the chat agent's stop only on a turn that is the owner's,
+//! A job stopped (docs/api.md, 「assignments and jobs」): the supervisor's stop only on a turn that is the owner's,
 //! refused for an agent carrying no turn and for anyone else's turn; a stop cutting the job's turn short and
 //! answering once that turn has ended, the job stopped with the stop's reason; and the repository's checkout
 //! read as held by the job while its turn goes on, and free, taking the next item, once the stop has answered.

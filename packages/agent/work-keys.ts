@@ -12,7 +12,7 @@ import type { GenerationValues } from "./generation-settings";
 import type { RunLine } from "./run-lines";
 import type { CodexChoice, DeploymentWork, FallbackRouteMode, WorkProfile } from "./work-profile";
 
-// The kinds of work a key names: the chat agent's own, the job worker's, a runner line's and a gate's.
+// The kinds of work a key names: the supervisor's own, the job worker's, a runner line's and a gate's.
 export type WorkKind = "bmo" | "worker" | "runner" | "gate";
 
 const kinds: readonly WorkKind[] = ["bmo", "worker", "runner", "gate"];

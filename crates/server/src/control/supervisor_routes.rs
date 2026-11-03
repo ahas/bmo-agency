@@ -82,7 +82,6 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "icon": ROLES.icon("supervisor"),
     "sessionScope": supervisor.session_scope,
     "turnShape": supervisor.turn_shape,
-    "defaultAnswerer": supervisor.default_answerer,
     "brainFolder": supervisor.brain_folder,
     "repository": supervisor.repository,
     "order": supervisor.order.entries,
@@ -96,7 +95,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "model": supervisor.last_model,
     "effort": supervisor.last_effort,
     "waitingFor": waiting_for,
-    "seeded": supervisor.builtin || supervisor.default_answerer,
+    "seeded": supervisor.builtin,
     "resetPoint": crate::supervisor_turn::overtaken::point(db, &supervisor.name).await,
   }))
 }
@@ -315,9 +314,9 @@ impl Route for SupervisorCreate {
     run(
       call.store(),
       r#"INSERT INTO "supervisors" ("name", "label", "owner_account", "icon", "brain_folder", "session_scope",
-           "turn_shape", "default_answerer", "repository", "provider_order", "quota_share", "warming", "fold_ratio",
-           "created_at", "updated_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, $11, $12, $13, $13)"#,
+           "turn_shape", "repository", "provider_order", "quota_share", "warming", "fold_ratio", "created_at",
+           "updated_at")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)"#,
       vec![
         name.clone().into(),
         label.clone().into(),
@@ -476,7 +475,7 @@ impl Route for SupervisorDelete {
     let supervisor = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
     let label = supervisor.label.clone().unwrap_or_else(|| name.clone());
 
-    if supervisor.builtin || supervisor.default_answerer {
+    if supervisor.builtin {
       let seeded = fill_marks(&words.seeded, &[("label", &label)]);
 
       return Err(Refused::new(StatusCode::CONFLICT, seeded).with_code("seeded"));

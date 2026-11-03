@@ -293,7 +293,7 @@ impl SessionHolder for Supervisor {
   }
 }
 
-/// The chat agent: the one session every room's rounds go on in, when its row gives it the agent scope.
+/// The supervisor: the one session every room's rounds go on in, when its row gives it the agent scope.
 struct Chat;
 
 impl SessionHolder for Chat {

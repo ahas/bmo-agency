@@ -2,7 +2,7 @@
 -- tiers and their mappings, the work keys' roads, the per-tier fold ratios, the co-worker pool's capacities,
 -- definitions and warming, the sessions kept per agent, the gate role and every global order and warming
 -- setting.
--- The chat agents are supervisors and the gates are retired: neither is a role. A role's cap is a whole
+-- The conversational agents are supervisors and the gates are retired: neither is a role. A role's cap is a whole
 -- number, one where none was set.
 DELETE FROM "roles" WHERE "name" IN ('chat', 'gate');
 UPDATE "roles" SET "max_concurrent" = 1 WHERE "max_concurrent" IS NULL;

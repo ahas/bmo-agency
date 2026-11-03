@@ -204,11 +204,11 @@
   server of its configuration among them, in every run of every supervisor, whoever wrote the turn's
   messages. The place's settings pass over the CLI's warning on the bypass mode, as every place's do, so
   the program comes up with no person to answer it. A line that names fewer servers than these leaves the
-  chat agent with no tool of its own: a configuration that drops the tool host drops sending and memory
+  supervisor with no tool of its own: a configuration that drops the tool host drops sending and memory
   with it. What is the owner's alone — approving, launching or finishing work, deploying, reading another
   room — is held by the session's own judgement under its rules and by the owner's gate in front of the
   actions that launch work (「The owner's gate」 below), not by a permission list. The chat stands as the
-  chat agent's resident program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
+  supervisor's resident program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
   session in place, on the same prefix its turns stand on. There is no separate fold line for the chat. It
   works in a folder whose name a release does not change — the deploy tree's link on dsh, the agent's own
   home `supervisor-homes/<agent>` on Claude Code, which names its records after the folder's real path — so
@@ -358,9 +358,9 @@
   login of the Claude road goes with it.
 - **A turn of the pieces shape** (agency's server's pieces turn): a turn of the supervisor's resident
   program, which stands on the chat line above as every supervisor's does (`docs/supervisors.md`, 「One
-  runner」) — the same permission mode and denied tools, the same configuration but for agency's own
-  plugin, which a pieces-shaped turn is not handed, so it files no item and launches no job and tells the
-  consult room what needs hands, the same mode and the same shell guard — with the system prompt its own
+  runner」) — the same permission mode and denied tools, the same configuration with agency's own
+  plugin among it, so it files items and launches jobs as every supervisor does, the same mode and the
+  same shell guard — with the system prompt its own
   settings compose (`docs/supervisors.md`, 「What a turn is given」) in place of the window shape's — one
   whole prompt given with `--system-prompt-file`, opening on the platform's harness opening — its own
   home, the session of the room the turn is for, resumed or opened under the id the turn names, and its
@@ -379,7 +379,7 @@
   record carries the labels and keeps the capabilities the session's caller named, so the web tools read
   what that caller told them; the record also names the supervisor — the agent whose row answers every room
   that names nobody — as the turn its brain tools run for, so a fact the run establishes is written into the
-  chat agent's brain while the run itself stays the runner's. The voyager role's bundles show it
+  supervisor's brain while the run itself stays the runner's. The voyager role's bundles show it
   bmo-explorer's `research` tool, which opens a branch through the research unit, and the research unit's
   `rulebook` reader where the record holds `web.rulebooks`; the line's `eye` namespace shows it `eye/see`,
   which looks at a picture by its address and answers a question about it. No native Claude Code subagent is
@@ -503,7 +503,7 @@
 
   | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
   |---|---|---|---|---|---|
-  | chat | a supervisor's resident program — every supervisor's turns | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency` (a pieces-shaped turn's holds none), `artifact` and `explorer` | the supervisor's chat configuration, strict |
+  | chat | a supervisor's resident program — every supervisor's turns | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency`, `artifact` and `explorer` | the supervisor's chat configuration, strict |
   | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
   | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |

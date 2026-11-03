@@ -80,9 +80,9 @@ tools_denied = [
 # to the capabilities that caller lets it keep (docs/api.md, 「sessions」). The research namespace shows a run
 # the research unit's rulebook reader where its record holds web.rulebooks. The eye namespace and the
 # room.tools capability its entries ask for give a run its look at a picture, eye/see. The brain tools it
-# holds are the chat agent's own memory (docs/agent-roles.md, 「The voyager and the seeker roles」): the
-# record names the chat agent, the default answerer, as the turn its brain tools write, so a run
-# establishes what it found in the same brain the chat agent reads.
+# holds are the supervisor's own memory (docs/agent-roles.md, 「The voyager and the seeker roles」): the
+# record names the supervisor, the default answerer, as the turn its brain tools write, so a run
+# establishes what it found in the same brain the supervisor reads.
 [search]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false

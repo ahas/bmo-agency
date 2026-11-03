@@ -645,7 +645,7 @@
         "tags": [
           "chat-documents"
         ],
-        "summary": "The chat agent's own documents the owner may keep, each as it stands now.",
+        "summary": "The supervisor's own documents the owner may keep, each as it stands now.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -6708,7 +6708,7 @@
           "version",
           "text"
         ],
-        "description": "ChatDocument: one of the chat agent's own documents, as it stands now."
+        "description": "ChatDocument: one of the supervisor's own documents, as it stands now."
       },
       "ChatDocumentChange": {
         "type": "object",
@@ -8469,7 +8469,7 @@
           "endedAt",
           "outcome"
         ],
-        "description": "Delegation: a task a chat agent delegated, as its seat stands."
+        "description": "Delegation: a task a supervisor delegated, as its seat stands."
       },
       "DelegationStage": {
         "type": "string",
@@ -10036,7 +10036,7 @@
           "queueName",
           "labels"
         ],
-        "description": "ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness\nplugin was started for, and the item's room and whether the owner asked it are agency's to read."
+        "description": "ItemFilingAsk: an item a supervisor files for the turn it carries now; the agent is the one its harness\nplugin was started for, and the item's room and whether the owner asked it are agency's to read."
       },
       "Job": {
         "type": "object",
@@ -10306,7 +10306,7 @@
           "agentName",
           "reason"
         ],
-        "description": "JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
+        "description": "JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
       },
       "RoadBlockPage": {
         "type": "object",
@@ -10706,13 +10706,17 @@
       "Settings": {
         "type": "object",
         "properties": {
-          "keepaliveStopped": {
-            "type": "boolean"
+          "researchSupervisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The supervisor a run of the search or browse line no supervisor delegated writes for, or null."
           },
           "downgradeReturn": true
         },
         "required": [
-          "keepaliveStopped",
+          "researchSupervisor",
           "downgradeReturn"
         ],
         "description": "Settings:"
@@ -10720,17 +10724,8 @@
       "SettingsAsk": {
         "type": "object",
         "properties": {
-          "keepaliveStopped": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "stopped": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+          "researchSupervisor": {
+            "description": "A supervisor the store holds, or null for none."
           }
         },
         "description": "The body that throws the warming switch."
@@ -11461,9 +11456,6 @@
           "turnShape": {
             "type": "string"
           },
-          "defaultAnswerer": {
-            "type": "boolean"
-          },
           "brainFolder": {
             "type": [
               "string",
@@ -11536,7 +11528,7 @@
           },
           "seeded": {
             "type": "boolean",
-            "description": "Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.",
+            "description": "Whether the deployment seeds it: its removal is refused 409 `seeded`.",
             "default": false
           },
           "resetPoint": {
@@ -11557,7 +11549,6 @@
           "icon",
           "sessionScope",
           "turnShape",
-          "defaultAnswerer",
           "brainFolder",
           "repository",
           "order",
@@ -13746,7 +13737,7 @@
           "queueName",
           "labels"
         ],
-        "description": "FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for."
+        "description": "FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for."
       },
       "StopJob": {
         "type": "object",
@@ -13775,7 +13766,7 @@
         "required": [
           "reason"
         ],
-        "description": "StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for."
+        "description": "StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for."
       }
     },
     "responses": {

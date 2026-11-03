@@ -10,7 +10,7 @@ capacity_most = 128
 
 # The tiers a co-worker is borrowed at, in the ladder's order, each with the places its pool offers on
 # every provider where nobody set any: the owner's Haiku-class 12 for the tiers that resolve to Haiku,
-# their Sonnet-class 6 for the rest. Supervisor is the chat agents' tier and Frontier the job worker's: the
+# their Sonnet-class 6 for the rest. Supervisor is the supervisors' tier and Frontier the job worker's: the
 # builder stage is the worker itself, so neither is ever a borrowed co-worker and neither has a limit
 # (docs/model-tiers.md, 「Common co-worker capacity」).
 [[coworker]]

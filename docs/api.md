@@ -130,12 +130,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
   which supervisor is the caller's to judge; agency writes the owner it is handed.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
-  `defaultAnswerer`, `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
+  `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
   order (below); `warming`, for each provider of its order whether its prefix is kept warm there;
   `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
-  provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds or the
-  default answerer, which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
+  provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds,
+  which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
   its last reset cut its turns off at (`docs/supervisors.md`, 「What the reset cuts off」), or null where it
   was never reset. The reset also publishes each move of the point as it makes it (「Events」), so a consumer
   that missed one reads the point again here or at `GET /supervisors/{supervisorName}/reset-point`. Whether a
@@ -164,7 +164,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   naming both is refused 400 `order` where the order's first entry is not that provider and model;
   `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none; and
   `foldRatio`, the first provider's declared default where none is given. The row is written as one added
-  on the console is: the `room` scope, the `pieces` shape, not the default answerer, warmed on each provider
+  on the console is: the `room` scope, the `pieces` shape, warmed on each provider
   of its order, the brain folder `agents/<name>`, and no prompt folder. The order is written whole at
   creation, its `quotaShare` beside it.
 - **A supervisor added on the console is added through the receiver,** which owns the rooms it answers: the
@@ -186,7 +186,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
-  - 409 `seeded` for a supervisor the deployment seeds or the default answerer, whatever `force` says;
+  - 409 `seeded` for a supervisor the deployment seeds, whatever `force` says;
   - 409 `running` for a supervisor a turn holds now, unless `force`, which ends it under the turn.
   - Its conversation is reset first (`docs/supervisors.md`, 「Starting it afresh」), each of the `rooms`
     named — a list of room numbers joined by commas — read as a room it shares, so the rooms keep their
@@ -898,8 +898,13 @@ yesterday to now where none is given.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/settings` | Agency's own switches: downgrade return. |
+| GET | `/settings` | Agency's own switches: the research supervisor and the downgrade return. |
 | PATCH | `/settings` | Change agency's switches. |
+
+- **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
+  where no supervisor delegated the run (`docs/agent-roles.md`, 「The voyager and the seeker roles」), or null
+  for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
+  `field`. `downgradeReturn` is always null.
 
 ### repositories, prefix-checks and room-holdings
 
@@ -1289,7 +1294,7 @@ Agency reaches upstreams through what their repositories publish: brain, graph, 
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`. These routes below it are called: as a job is stopped, the job service's lease
 is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
-receiver's `POST /instructions` is handed the report for the room's chat agent; after a
+receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's

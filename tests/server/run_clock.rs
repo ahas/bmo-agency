@@ -1,6 +1,6 @@
 //! A run held to a clock is asked about past it, never cut by it (docs/agent-control.md, 「A clock asks, it
 //! never cuts」): its clock read by its name and the unit it runs under, an ask opened and published past the
-//! clock, a keep holding it until its moment, the chat agent's cut cutting it, an ask with no verdict standing
+//! clock, a keep holding it until its moment, the supervisor's cut cutting it, an ask with no verdict standing
 //! for as long as the run goes, a verdict on a closed ask refused, and the run's end closing what stood open —
 //! on a store of the test's own.
 
@@ -79,7 +79,7 @@ async fn a_clocked_run_is_asked_about_kept_and_cut_on_the_chat_agents_verdict() 
   assert_eq!(watch.overtime(&overdue()).await, Overtime::AskAgainAt(until));
   assert_eq!(clock_of(db, "batch-unit").await.unwrap().kept_until, Some(until));
 
-  // The keep run out, the run is asked again, and cut on the verdict with the chat agent's reason.
+  // The keep run out, the run is asked again, and cut on the verdict with the supervisor's reason.
   scratch.run(r#"UPDATE "clock_asks" SET "kept_until" = 1"#, vec![]).await;
 
   assert!(matches!(watch.overtime(&overdue()).await, Overtime::AskAgainAt(_)));

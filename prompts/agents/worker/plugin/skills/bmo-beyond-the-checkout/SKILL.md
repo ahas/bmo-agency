@@ -18,10 +18,10 @@ description: "What a job owns and where it may write once the work reaches past 
 - **Host work no repository's service owns is not the job's**: a machine or OS setting, a network
   drive or a mount, a backup, the router, a package tied to no service.
   - It is named in the report, and in `--unfinished` as a strand opening with `비모 몫:` — which
-    hands it to the chat agent — with what exactly is to be done; never `하스 몫:`, by the trailer's rule that
+    hands it to the supervisor — with what exactly is to be done; never `하스 몫:`, by the trailer's rule that
     host work is never handed to the owner.
   - The rest of the item is finished around it.
-- **The owner's own word overrides this:** work the owner tells the chat agent to do by hand is the chat agent's, whatever service it
+- **The owner's own word overrides this:** work the owner tells the supervisor to do by hand is the supervisor's, whatever service it
   serves.
 
 ## Where a job writes
@@ -49,7 +49,7 @@ description: "What a job owns and where it may write once the work reaches past 
   is all you need, and that file's name is how you refer to it.
 - **The permission is bounded by the service it was given for.** Outside the checkout you go for
   your own repository's service and nothing else; a machine-level setting nobody's service owns
-  stays the chat agent's however near it sits to your work.
+  stays the supervisor's however near it sits to your work.
 - **The infrastructure repository is committed to in its own way:** a file the work leaves there is
   committed in that git repository, apart from your own commit.
 - **Your account of the work goes where a job's report goes.** Whether anything is also posted to

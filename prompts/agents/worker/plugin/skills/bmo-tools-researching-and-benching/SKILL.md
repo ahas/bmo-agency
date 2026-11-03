@@ -109,6 +109,6 @@ flowchart TD
 - **The job releases it before it reports:** the best configuration in place and its health read
   through its own checks, requests let through again, every ticket given back. The report says
   what was released and at what time.
-- **Work set aside for the bench is the chat agent's to resume.** A job never takes a hold off: the report names
+- **Work set aside for the bench is the supervisor's to resume.** A job never takes a hold off: the report names
   each item set aside for the bench as ready to start now, and a hold carrying the bench's item as
-  its condition is told to the chat agent by the bot when the item closes.
+  its condition is told to the supervisor by the bot when the item closes.

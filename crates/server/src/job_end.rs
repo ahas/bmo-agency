@@ -1,5 +1,5 @@
 //! A job's end reaching the room and its lease kept for the item's close or given back (docs/api.md,
-//! 「assignments and jobs」): the report a run left, queued in the room's chat agent through the receiver's
+//! 「assignments and jobs」): the report a run left, queued in the room's supervisor through the receiver's
 //! instruction route; the job service's lease on the item kept standing where the job ended, so the item
 //! stays leased until its close ends the lease, and given back where it was stopped, so the item is open
 //! again for a rerun. A run's end is written where the run ends, so neither the room's session being
@@ -60,7 +60,7 @@ pub fn keeps_lease(member: &Value) -> bool {
 
 /// A job's end delivered: its lease kept for the item's close where it ended, which the lease pass renews
 /// until the close ends it, or given back to the job service where it was stopped; and its report queued for
-/// the room's chat agent. Each call stands on its own, and a call that fails is said and never fails the job.
+/// the room's supervisor. Each call stands on its own, and a call that fails is said and never fails the job.
 pub async fn delivered(ground: &Ground, member: &Value) {
   if keeps_lease(member)
     && let Err(why) = run(
@@ -129,7 +129,7 @@ async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
   }
 }
 
-/// The job's report queued for the room's chat agent: an instruction that waits in the receiver for the
+/// The job's report queued for the room's supervisor: an instruction that waits in the receiver for the
 /// next turn, naming the item and carrying the report whole. No address is a deployment that carries no
 /// receiver, and then no room is told.
 async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
@@ -227,8 +227,8 @@ fn id_of(member: &Value) -> i64 {
   member["id"].as_i64().unwrap_or_default()
 }
 
-/// What the room's chat agent is told: an order carrying the item, the worker and the report, and asking
-/// for the briefing the chat agent's own manual describes; where the job ended holding a lease, the lease
+/// What the room's supervisor is told: an order carrying the item, the worker and the report, and asking
+/// for the briefing the supervisor's own manual describes; where the job ended holding a lease, the lease
 /// that still stands on the item for its close. A job that left no report says so.
 pub fn order(member: &Value) -> String {
   let item = member["itemId"].as_i64().unwrap_or_default();

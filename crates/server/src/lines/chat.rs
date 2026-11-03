@@ -51,7 +51,7 @@ const CLAUDE: &str = "claude-code";
 const SERVER: &str = "bmo";
 
 // The holder the harness plugins report and subscribe under. It is the line's own role, the same in
-// every chat agent that stands on it, and never an agent's name.
+// every supervisor that stands on it, and never an agent's name.
 const HARNESS: &str = "harness";
 
 /// The chat line's denied list (`policy/run-lines.toml`): the one restriction on a supervisor's program, which
@@ -307,14 +307,12 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// which leases an item from a queue, and the agency's own, which assigns a worker and launches the item's
 /// job. A hosted tool those namespaces do not show is reached with `bmo use`. The two plugins start as
 /// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
-/// that names neither leaves that server out. A turn of the pieces shape is handed no agency plugin: it
-/// files no item and launches nothing, and tells the consult room what needs hands (docs/launch-lines.md,
-/// 「A turn of the pieces shape」). Written on every composition, since this line is
+/// that names neither leaves that server out. Every supervisor's program is handed the same servers, whatever
+/// its shape (docs/supervisors.md, 「The bundles a supervisor holds」). Written on every composition, since this line is
 /// the one writer.
-pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str, pieces: bool) -> Result<PathBuf, Refusal> {
+pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join(format!("chat.{agent}.mcp.json"));
-  let text =
-    format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent, pieces))]).pretty());
+  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent))]).pretty());
 
   agent_host::disk::private_dir(&trees.agents)
     .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
@@ -332,7 +330,7 @@ pub struct Double {
 }
 
 /// The servers of `supervisor`'s double on a role line whose own configuration is `line_config`: the
-/// supervisor's chat configuration — one of the pieces shape carrying no agency plugin, as its own does — with each
+/// supervisor's chat configuration, with each
 /// server of the line's configuration the chat's holds none of beside it, written as
 /// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there.
 pub async fn double_of(
@@ -342,14 +340,12 @@ pub async fn double_of(
   line: &str,
   line_config: &std::path::Path,
 ) -> Result<Double, Refusal> {
-  let pieces = crate::supervisors::named(&ground.db, supervisor)
+  crate::supervisors::named(&ground.db, supervisor)
     .await
     .map_err(|why| fault(format!("the supervisor {supervisor} could not be read: {why}")))?
-    .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?
-    .turn_shape
-    == crate::conversational::Shape::Pieces.word();
+    .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?;
   let mut servers: indexmap::IndexMap<String, Ordered> =
-    harness_servers(ground, supervisor, pieces).entries().cloned().unwrap_or_default();
+    harness_servers(ground, supervisor).entries().cloned().unwrap_or_default();
   let read: Ordered = serde_json::from_str(
     &std::fs::read_to_string(line_config)
       .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
@@ -384,11 +380,11 @@ const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || e
 
 // The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
 // its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
-// under, and the agency's own binary on the same verb, which a turn of the pieces shape is not handed.
+// under, and the agency's own binary on the same verb.
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
-fn harness_servers(ground: &Ground, agent: &str, pieces: bool) -> Ordered {
+fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
   let env = ground.env();
   let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
@@ -539,7 +535,7 @@ fn harness_servers(ground: &Ground, agent: &str, pieces: bool) -> Ordered {
     servers.push(("artifact".to_owned(), Ordered::map(fields)));
   }
 
-  if let (false, Ok(server), Some(url)) = (pieces, std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+  if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
     // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
     let program = server
       .parent()
@@ -641,7 +637,7 @@ pub async fn chat_run(
     discipline,
     tool_discipline,
     documents,
-    servers: harness_servers(ground, agent, false)
+    servers: harness_servers(ground, agent)
       .entries()
       .into_iter()
       .flatten()
@@ -651,7 +647,7 @@ pub async fn chat_run(
   // Claude Code lists its own tools to the session, every one but the line's denied list.
   let system = parts.whole(&trees, &[CHAT_LINE.tools.listed.as_str()])?;
   let system_path = system_prompt_file(&trees, agent, &system)?;
-  let mcp = mcp_config(ground, &trees, agent, false)?;
+  let mcp = mcp_config(ground, &trees, agent)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   for (name, value) in &CLAUDE_CODE.launch.variables {
@@ -1343,7 +1339,7 @@ pub async fn compose_stand_in(
         compose_typed: RUN_LINES.composes_typed_lines(sent_run.line),
         shell_guard: worker.is_none(),
         sampling: None,
-        // The chat agent's and a gate's runs are asked as the role their work key names, where it names one.
+        // The supervisor's and a gate's runs are asked as the role their work key names, where it names one.
         role: policy::work_keys::WORK_KEYS
           .profile(&sent_run.agent)
           .and_then(|profile| profile.prefix_role.as_deref()),

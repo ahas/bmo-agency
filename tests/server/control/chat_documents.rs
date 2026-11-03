@@ -1,4 +1,4 @@
-//! The chat agent's own documents the owner keeps (docs/api.md, 「chat-documents」): each stands as its file
+//! The supervisor's own documents the owner keeps (docs/api.md, 「chat-documents」): each stands as its file
 //! until a text is saved, as the owner's text while one is, and as its file again after a reset.
 
 use serde_json::{Value, json};

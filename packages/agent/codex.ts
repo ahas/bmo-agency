@@ -262,7 +262,7 @@ function configRows(run: HarnessRun, shape: CodexShape): string[] {
       config("project_doc_fallback_filenames", ["CLAUDE.md"]),
     );
   } else {
-    // The chat agent and the gates are themselves: their complete system file replaces Codex's coding-agent
+    // The supervisor and the gates are themselves: their complete system file replaces Codex's coding-agent
     // prompt, and no project document from the directory they happen to stand in is appended.
     args.push(
       "--config",

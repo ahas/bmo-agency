@@ -1,5 +1,5 @@
 //! A job's end reaching the room, its lease kept for the item's close or given back (docs/api.md,
-//! 「assignments and jobs」): the order the room's chat agent is handed; an ended job's lease kept standing and
+//! 「assignments and jobs」): the order the room's supervisor is handed; an ended job's lease kept standing and
 //! renewed until the close moves the item to done, so the item never passes through open; and a stopped job's
 //! lease given back so the item is open for a rerun.
 

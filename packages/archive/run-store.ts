@@ -16,7 +16,7 @@ export interface NewRun {
   depth?: string | null;
   capMs?: number | null;
   // Who set it off: the console, or the chat whose session ran the launcher. A run launched
-  // with nobody named belongs to the chat it will report to, which is that chat's own chat agent.
+  // with nobody named belongs to the chat it will report to, which is that chat's own supervisor.
   startedBy?: string | null;
   // The conversational agent whose turn set it off, which its result is queued for; none where no
   // agent's turn did, and then the result goes to the room's voice.
@@ -246,7 +246,7 @@ export class RunStore {
   // version that agent's session runs on, and it is written again only when that version changes.
   //
   // Neither the count nor the bytes reaches a run that has not written its end. An agent's budget
-  // is shared by every run it makes — every room's turns are the one agent the chat agent answers as — so a
+  // is shared by every run it makes — every room's turns are the one agent the supervisor answers as — so a
   // run still going would otherwise lose its own opening lines to the rooms writing beside it, and
   // a reader asking for that run from its start would be handed a run that begins in the middle or
   // nothing at all. Such a run is neither counted nor taken, and what bounds it instead is the age:

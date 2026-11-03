@@ -3,7 +3,7 @@
 - The rulebook of the converter on the send path, read by no model. It sets what is valid in the
   Telegram Bot API's HTML parse mode, and what the markdown written in an answer becomes in that
   HTML.
-- One premise: **the chat agent writes markdown, and the bot's code makes the HTML.**
+- One premise: **the supervisor writes markdown, and the bot's code makes the HTML.**
   - When the writer writes tags directly, one missed escape gets the whole message refused and
     nothing is left in the room.
   - So the one place HTML is made is the converter, which also makes the same text as plain text

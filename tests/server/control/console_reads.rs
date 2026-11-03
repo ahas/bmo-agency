@@ -45,7 +45,7 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  supervisor(scratch.db(), "chat-agent", &[("default_answerer", 1i64.into())]).await;
+  supervisor(scratch.db(), "chat-agent", &[]).await;
   supervisor(
     scratch.db(),
     "seeded-one",

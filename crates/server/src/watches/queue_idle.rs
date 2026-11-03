@@ -1,7 +1,7 @@
 //! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): open work in the
 //! job service that a free worker could take, and no job started for the idle minutes, told to the owner once
 //! for each idle stretch through the receiver's owner notice; and an open item waiting a minute on its own
-//! free worker, told to the chat agent once for that item. The owner's switch silences both until the next
+//! free worker, told to the supervisor once for that item. The owner's switch silences both until the next
 //! job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,7 +24,7 @@ pub const TOLD_KEY: &str = "queue_idle_told";
 pub const MINUTES_KEY: &str = "queue_idle_minutes";
 /// The settings rows, one an item by its number, of when an item was first seen waiting on its own free worker.
 pub const SEEN_PREFIX: &str = "queue_item_waiting:";
-/// The settings rows, one an item by its number, of when the chat agent was told the item awaits a launch.
+/// The settings rows, one an item by its number, of when the supervisor was told the item awaits a launch.
 pub const LAUNCH_TOLD_PREFIX: &str = "queue_item_told:";
 
 /// An open item as the alarm reads it.
@@ -77,7 +77,7 @@ pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
     .collect()
 }
 
-/// The items the chat agent is to be told of at `now`: each awaiting a launch since `seen` names it for the
+/// The items the supervisor is to be told of at `now`: each awaiting a launch since `seen` names it for the
 /// launch seconds and more, not told yet, and the switch on.
 pub fn launches_due<'a>(
   standing: &'a Standing,
@@ -96,7 +96,7 @@ pub fn launches_due<'a>(
     .collect()
 }
 
-/// The instruction an item awaiting a launch is queued with for the chat agent, in the room the item was asked
+/// The instruction an item awaiting a launch is queued with for the supervisor, in the room the item was asked
 /// in, or the owner's private room for an item that names none.
 pub fn launch_instruction(item: &Open) -> Value {
   let number = item.id.to_string();
@@ -134,7 +134,7 @@ async fn marks(db: &DatabaseConnection, prefix: &str) -> Result<BTreeMap<i64, i6
   Ok(held)
 }
 
-/// The items awaiting a launch told to the chat agent once each, and the rows kept for them brought up to
+/// The items awaiting a launch told to the supervisor once each, and the rows kept for them brought up to
 /// date: a waiting item first seen now marked, one no longer waiting let go, and a told item that is no
 /// longer open let go.
 pub async fn tell_launches(
@@ -143,7 +143,7 @@ pub async fn tell_launches(
   standing: &Standing,
   now: i64,
 ) -> Result<(), String> {
-  // A deployment that carries no receiver has no chat agent to tell.
+  // A deployment that carries no receiver has no supervisor to tell.
   if address(vars, "BMO_RECEIVER_URL").is_none() {
     return Ok(());
   }
@@ -179,7 +179,7 @@ pub async fn tell_launches(
       .await
       .map_err(fault)?;
     println!(
-      "queue: item #{} waited on its free worker {} for a launch, told to the chat agent",
+      "queue: item #{} waited on its free worker {} for a launch, told to the supervisor",
       item.id,
       item.assignee.as_deref().unwrap_or_default()
     );

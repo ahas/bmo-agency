@@ -2,7 +2,7 @@
 // in one place and the same values the Rust tests read from the `test-support` crate. A test that
 // needs a second one of a kind names its own beside these.
 
-// The owner's user id, which is also the chat id of the owner's private chat with the chat agent.
+// The owner's user id, which is also the chat id of the owner's private chat with the supervisor.
 export const OWNER_ID = 42;
 // A group room's chat id.
 export const ROOM_ID = -100;

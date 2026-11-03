@@ -216,7 +216,7 @@ export function dshOverlay(run: HarnessRun, route: DshRoute = openRouterRoute): 
   }
 
   for (const id of quietRows) {
-    // A worker keeps the harness's instruction-file reader: unlike the chat agent and a gate it has no
+    // A worker keeps the harness's instruction-file reader: unlike the supervisor and a gate it has no
     // complete system-prompt file of its own, and the checkout's AGENTS.md/CLAUDE.md is where the
     // repository tells a coding agent how work is finished. The title call is scratch everywhere.
     if (run.line !== "worker" || id !== "agent-instructions") {

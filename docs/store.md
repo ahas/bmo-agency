@@ -19,8 +19,8 @@ seeds. The other crates and the server reach the store only through it.
   store — a room forgotten among them — reads them and no other service's beside them in one database.
 - **The tables, by what they keep:**
   - the supervisors: `supervisors`, one row a supervisor — its name, label, owner account, the words that
-    call it, its prompt and brain folders, its session scope, turn shape and whether it is the default
-    answerer, its provider order as a JSON list with its quota share, its warming per provider as a JSON
+    call it, its prompt and brain folders, its session scope and turn shape, whether the deployment seeds it,
+    its provider order as a JSON list with its quota share, its warming per provider as a JSON
     object, its compaction threshold, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
@@ -149,6 +149,8 @@ seeds. The other crates and the server reach the store only through it.
   - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
     stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
     highest number the store has dropped (`docs/api.md`, 「events」);
+  - the supervisor a run of the search or browse line writes for where no supervisor delegated it,
+    `research_supervisor` (`docs/api.md`, 「settings」);
   - a supervisor's reset point, `reset_point:*` (`docs/supervisors.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;

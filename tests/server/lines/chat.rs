@@ -14,14 +14,9 @@ use super::token::{PARAGRAPH, tool_host};
 use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 
-// The chat agent: the default answerer, its session kept across every room or in each room as the scope says.
+// A supervisor whose session is kept across every room or in each room as the scope says.
 async fn chat_agent(scratch: &Scratch, scope: &str) {
-  supervisor(
-    scratch.db(),
-    "chat-agent",
-    &[("session_scope", scope.into()), ("default_answerer", 1i64.into())],
-  )
-  .await;
+  supervisor(scratch.db(), "chat-agent", &[("session_scope", scope.into())]).await;
 }
 
 // The line's words for a program whose files stand where it is handed them.
@@ -383,7 +378,7 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
   let script = std::fs::read_to_string(trees.join("deploy/quiet")).unwrap();
   assert!(script.contains(" quiet"), "{script}");
   assert!(script.contains("grep -v ':chat:'"), "a chat turn is not spared: {script}");
-  // A job's close hands its commit over, and the chat agent puts it live through the hosted deploy tool.
+  // A job's close hands its commit over, and the supervisor puts it live through the hosted deploy tool.
   assert!(
     std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md"))
       .unwrap()
@@ -704,7 +699,7 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
-  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", false).unwrap();
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent").unwrap();
   let text = std::fs::read_to_string(&path).unwrap();
 
   // No token stands in the configuration by value: each server is handed the file it stands in, and the job
@@ -749,13 +744,14 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
 
   assert_eq!(String::from_utf8_lossy(&shell.stdout), "job-token-value");
 
-  // A supervisor's configuration carries the same servers but for agency's own plugin: it files no item
-  // and launches nothing.
-  let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent", true).unwrap();
+  // Another supervisor's configuration carries the same servers, agency's own plugin among them, under its
+  // own name.
+  let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent").unwrap();
   let config: serde_json::Value =
     serde_json::from_str(&std::fs::read_to_string(&supervisor).unwrap()).unwrap();
+  let agency = config["mcpServers"]["agency"]["args"].as_array().unwrap();
 
-  assert!(config["mcpServers"]["agency"].is_null(), "{config}");
+  assert!(agency.windows(2).any(|pair| pair == ["--agent", "supervisor-agent"]), "{config}");
   assert!(config["mcpServers"]["job"].is_object(), "{config}");
   assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
 }

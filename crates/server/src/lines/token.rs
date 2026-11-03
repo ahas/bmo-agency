@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use bmo_pocket_client::{Failure, Pocket, SessionRequest};
-use policy::deployment::DEPLOYMENT;
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
 use serde_json::{Map, Value, json};
@@ -222,15 +221,14 @@ pub async fn issue(
 
   variables.extend(line_variables(ground, line));
 
-  // A thrown-away session's place stands no agent row, so its calls name the agent its line's brain tools
-  // write for, the chat agent, as a run of the line does (docs/agent-roles.md, 「The voyager and the seeker
-  // roles」).
+  // A thrown-away session's place stands no agent row, so its calls name the supervisor its line's brain
+  // tools write for, the one agency's research setting names, as a run of the line no supervisor delegated
+  // does (docs/agent-roles.md, 「The voyager and the seeker roles」).
   if crate::apart_places::session_agent(&ground.roots.data, agent).is_some()
     && RUN_LINES.writes_agent_brain(line)
+    && let Some(supervisor) = research_supervisor(ground).await?
   {
-    let chat = crate::conversational::default_answerer(&ground.db, &DEPLOYMENT.agent_key).await?;
-
-    variables.insert("BMO_TURN_AGENT".to_owned(), chat);
+    variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
   let mut labels = Map::new();
@@ -462,13 +460,14 @@ pub async fn issue_for_run(
     variables.insert("BMO_TURN_AGENT".to_owned(), supervisor.clone());
   }
 
-  // A runner line's brain tools write the chat agent's brain, the agent whose row answers every room that
-  // names nobody: the record names that agent as the turn its tools run for, while the run itself stays the
-  // runner's (docs/agent-roles.md, 「The voyager and the seeker roles」).
-  if RUN_LINES.writes_agent_brain(line) {
-    let chat = crate::conversational::default_answerer(&ground.db, &DEPLOYMENT.agent_key).await?;
-
-    variables.insert("BMO_TURN_AGENT".to_owned(), chat);
+  // A runner line's brain tools write a supervisor's brain: the one that delegated the run, else the one
+  // agency's research setting names. The record names that supervisor as the turn its tools run for, while
+  // the run itself stays the runner's (docs/agent-roles.md, 「The voyager and the seeker roles」).
+  if RUN_LINES.writes_agent_brain(line)
+    && doubled.is_none()
+    && let Some(supervisor) = research_supervisor(ground).await?
+  {
+    variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
   let mut labels = Map::new();
@@ -585,3 +584,16 @@ pub fn record_checkout(ground: &Ground, place: &Path, cwd: &str) -> PathBuf {
     Some(node) => crate::watches::links::checkout_shadow(&ground.roots.data, &node, cwd),
   }
 }
+
+/// The supervisor a run of a line writing a supervisor's brain writes for where no supervisor delegated it:
+/// the one agency's `research_supervisor` setting names, none where it names none (docs/api.md, 「settings」).
+pub async fn research_supervisor(ground: &Ground) -> Result<Option<String>, Refusal> {
+  Ok(
+    crate::queue::settings::get(&ground.db, RESEARCH_SUPERVISOR)
+      .await?
+      .filter(|name| !name.trim().is_empty()),
+  )
+}
+
+/// The settings key the research supervisor stands under.
+pub const RESEARCH_SUPERVISOR: &str = "research_supervisor";

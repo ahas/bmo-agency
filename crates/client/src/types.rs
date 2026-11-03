@@ -512,7 +512,7 @@ pub enum DelegationStage {
   Ended,
 }
 
-/// Delegation: a task a chat agent delegated, as its seat stands.
+/// Delegation: a task a supervisor delegated, as its seat stands.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Delegation {
@@ -820,7 +820,7 @@ pub struct Balance {
   pub seen_at: i64,
 }
 
-/// ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness
+/// ItemFilingAsk: an item a supervisor files for the turn it carries now; the agent is the one its harness
 /// plugin was started for, and the item's room and whether the owner asked it are agency's to read.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -842,7 +842,7 @@ pub struct ItemFilingAsk {
   pub labels: std::collections::BTreeMap<String, String>,
 }
 
-/// FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for.
+/// FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileItem {
@@ -882,7 +882,7 @@ pub struct ItemFiled {
   pub labels: Value,
 }
 
-/// JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the
+/// JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the
 /// one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -895,7 +895,7 @@ pub struct JobStopAsk {
   pub reason: String,
 }
 
-/// StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for.
+/// StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StopJob {
@@ -1074,7 +1074,8 @@ pub struct Usage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-  pub keepalive_stopped: bool,
+  /// The supervisor a run of the search or browse line no supervisor delegated writes for, or null.
+  pub research_supervisor: Option<String>,
   pub downgrade_return: Value,
 }
 
@@ -1348,7 +1349,7 @@ pub struct PromptDocumentPage {
   pub more: bool,
 }
 
-/// ChatDocument: one of the chat agent's own documents, as it stands now.
+/// ChatDocument: one of the supervisor's own documents, as it stands now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatDocument {
@@ -1795,7 +1796,7 @@ pub struct AgentChange {
 }
 
 /// An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name
-/// alone; `route` on the supervisor key's road, a chat agent's alone.
+/// alone; `route` on the supervisor key's road, a supervisor's alone.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentModel {
@@ -2505,10 +2506,9 @@ pub struct RestAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsAsk {
+  /// A supervisor the store holds, or null for none.
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub keepalive_stopped: Option<bool>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub stopped: Option<bool>,
+  pub research_supervisor: Option<Value>,
 }
 
 /// The body that changes a supervisor's settings.
@@ -2713,7 +2713,6 @@ pub struct Supervisor {
   pub icon: Option<String>,
   pub session_scope: String,
   pub turn_shape: String,
-  pub default_answerer: bool,
   pub brain_folder: Option<String>,
   /// the repository its TODO items go to
   pub repository: Option<String>,
@@ -2733,7 +2732,7 @@ pub struct Supervisor {
   pub effort: Option<String>,
   /// why its turn waits where no provider of its order has quota, or null
   pub waiting_for: Option<String>,
-  /// Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.
+  /// Whether the deployment seeds it: its removal is refused 409 `seeded`.
   #[serde(default)]
   pub seeded: bool,
   /// The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.

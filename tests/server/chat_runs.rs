@@ -46,12 +46,7 @@ async fn a_chat_turn_s_run_carries_its_room_its_round_and_the_message_it_answers
   let machine = machine(home.path());
 
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
-  supervisor(
-    scratch.db(),
-    "chat-agent",
-    &[("session_scope", "room".into()), ("default_answerer", 1i64.into())],
-  )
-  .await;
+  supervisor(scratch.db(), "chat-agent", &[("session_scope", "room".into())]).await;
 
   let sessions = HerdrSessions::new(Places::new(ground(&scratch, &machine), Arc::default()));
   let session = sessions

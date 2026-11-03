@@ -2824,7 +2824,7 @@ them run a browser, and whose a place is.
   (`docs/api.md`, 「Events」): the reading, the memory each place holds with the job's run at work in it
   and the job and item its turn named, the largest processes with whose each is, and the jobs and the
   jobs with a browser as the room counts them. The consumer that holds the owner's chat tells it to the
-  chat agent as a fact.
+  supervisor as a fact.
 - **No job is launched while the disk is under its launch line,** since the room holds it; what to free
   is the supervisor's to find.
 - **herdr not answering is the same fact.** Every call herdr leaves unanswered for five seconds is

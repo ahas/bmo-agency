@@ -1,4 +1,4 @@
-# The handoff a chat agent's session going away is asked for before a fresh session replaces it
+# The handoff a supervisor's session going away is asked for before a fresh session replaces it
 # (docs/sessions.md, 「A restart hands the session over」): how long agency waits before asking again while
 # one is under way, and the reasons it names, each by what makes the session go. The ask itself waits for
 # the receiver's answer however long it takes.

@@ -54,6 +54,7 @@ mod m20261124_000001_stream_events;
 mod m20261125_000001_delegator_follows_supervisor;
 mod m20261126_000001_role_names;
 mod m20261127_000001_supervisor_settings;
+mod m20261128_000001_supervisors_alike;
 
 use sea_orm_migration::prelude::*;
 
@@ -186,6 +187,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261125_000001_delegator_follows_supervisor::Migration),
       Box::new(m20261126_000001_role_names::Migration),
       Box::new(m20261127_000001_supervisor_settings::Migration),
+      Box::new(m20261128_000001_supervisors_alike::Migration),
     ]
   }
 

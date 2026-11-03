@@ -184,13 +184,8 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
       vec![],
     )
     .await;
-  // The chat agent stands on DeepSeek now.
-  crate::support::rows::supervisor(
-    scratch.db(),
-    "chat-agent",
-    &[("default_answerer", 1i64.into()), ("last_mode", "deepseek".into())],
-  )
-  .await;
+  // The supervisor stands on DeepSeek now.
+  crate::support::rows::supervisor(scratch.db(), "chat-agent", &[("last_mode", "deepseek".into())]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let (status, fallback) = get(server.port, token, "/fallback").await;

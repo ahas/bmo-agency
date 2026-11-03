@@ -92,7 +92,7 @@ echoed = "{name}'s answer repeated what it was given, so it was not sent: {echoe
 empty = "{name}'s answer was empty."
 
 # A turn its guard cut short: why, what the session keeps in place of an answer, the line the room is told
-# under the chat agent's number, and the quiet instruction the chat agent is told in the owner's chat, with its kind and sort.
+# under the supervisor's number, and the quiet instruction the supervisor is told in the owner's chat, with its kind and sort.
 [cut]
 too_many_calls = "No answer came after {calls} tool calls."
 failing = "The {tool} tool failed {count} times in a row."

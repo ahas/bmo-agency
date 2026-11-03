@@ -133,7 +133,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The chat agent's own documents the owner may keep, each as it stands now. */
+        /** The supervisor's own documents the owner may keep, each as it stands now. */
         get: operations["listChatDocuments"];
         put?: never;
         post?: never;
@@ -1676,7 +1676,7 @@ export interface components {
             items: components["schemas"]["ChatDocument"][];
             more: boolean;
         };
-        /** @description ChatDocument: one of the chat agent's own documents, as it stands now. */
+        /** @description ChatDocument: one of the supervisor's own documents, as it stands now. */
         ChatDocument: {
             name: string;
             kind: string;
@@ -2270,7 +2270,7 @@ export interface components {
         DelegationPage: {
             items: components["schemas"]["Delegation"][];
         };
-        /** @description Delegation: a task a chat agent delegated, as its seat stands. */
+        /** @description Delegation: a task a supervisor delegated, as its seat stands. */
         Delegation: {
             token: string;
             title: string | null;
@@ -2756,7 +2756,7 @@ export interface components {
             labels: unknown;
         };
         /**
-         * @description ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness
+         * @description ItemFilingAsk: an item a supervisor files for the turn it carries now; the agent is the one its harness
          *     plugin was started for, and the item's room and whether the owner asked it are agency's to read.
          */
         ItemFilingAsk: {
@@ -2872,7 +2872,7 @@ export interface components {
             reason: string | null;
         };
         /**
-         * @description JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the
+         * @description JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the
          *     one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
          */
         JobStopAsk: {
@@ -3020,13 +3020,14 @@ export interface components {
         };
         /** @description Settings: */
         Settings: {
-            keepaliveStopped: boolean;
+            /** @description The supervisor a run of the search or browse line no supervisor delegated writes for, or null. */
+            researchSupervisor: string | null;
             downgradeReturn: unknown;
         };
         /** @description The body that throws the warming switch. */
         SettingsAsk: {
-            keepaliveStopped?: boolean | null;
-            stopped?: boolean | null;
+            /** @description A supervisor the store holds, or null for none. */
+            researchSupervisor?: unknown;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {
@@ -3268,7 +3269,6 @@ export interface components {
             icon: string | null;
             sessionScope: string;
             turnShape: string;
-            defaultAnswerer: boolean;
             brainFolder: string | null;
             /** @description the repository its TODO items go to */
             repository: string | null;
@@ -3297,7 +3297,7 @@ export interface components {
             /** @description why its turn waits where no provider of its order has quota, or null */
             waitingFor: string | null;
             /**
-             * @description Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.
+             * @description Whether the deployment seeds it: its removal is refused 409 `seeded`.
              * @default false
              */
             seeded: boolean;
@@ -3945,7 +3945,7 @@ export interface components {
             /** @description its thinking default, for a gateway road's member or a registration */
             thinking: boolean | null;
         };
-        /** @description FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for. */
+        /** @description FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for. */
         FileItem: {
             /** @description The item's name in the queue: a short English line. */
             title: string;
@@ -3973,7 +3973,7 @@ export interface components {
                 [key: string]: string;
             };
         };
-        /** @description StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for. */
+        /** @description StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for. */
         StopJob: {
             /**
              * Format: int64

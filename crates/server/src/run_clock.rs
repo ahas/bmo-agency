@@ -1,7 +1,7 @@
 //! A run held to a clock is asked about past it, never cut by it (docs/agent-control.md, 「A clock asks, it
 //! never cuts」). The clocked run is a row of `run_clocks` while it goes; past its clock an ask is a row of
 //! `clock_asks`, published as `clock-asked` for the consumer that queues the order in the owner's chat, and
-//! the run's door looks for the verdict on each pass for as long as the run goes. Only the chat agent's
+//! the run's door looks for the verdict on each pass for as long as the run goes. Only the supervisor's
 //! verdict cuts it. A run that ends while asked closes its ask as ended.
 
 use std::time::Duration;
@@ -25,7 +25,7 @@ fn seconds_ms(seconds: u64) -> i64 {
 }
 
 /// A run past its clock asked about (docs/api.md, 「Events」): the consumer holding the owner's chat queues
-/// the order for the chat agent.
+/// the order for the supervisor.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockAsked {
@@ -44,7 +44,7 @@ impl Event for ClockAsked {
   const NAME: &'static str = "overtime-request.created";
 }
 
-/// An ask settled: by the chat agent's verdict, or by its run ending while asked.
+/// An ask settled: by the supervisor's verdict, or by its run ending while asked.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockAskClosed {
@@ -269,7 +269,7 @@ pub struct Settled {
   pub kept_until: Option<i64>,
 }
 
-/// The chat agent's verdict on an ask, closing it: a keep holds for the minutes named, the run's own clock
+/// The supervisor's verdict on an ask, closing it: a keep holds for the minutes named, the run's own clock
 /// where none is, and never longer than the policy's longest keep; the run's door reads it on its next look.
 pub async fn settle(
   db: &DatabaseConnection,

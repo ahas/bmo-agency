@@ -1,4 +1,4 @@
-//! A job a chat agent stops (docs/api.md, 「assignments and jobs」): by its id or by its item, only for a turn
+//! A job a supervisor stops (docs/api.md, 「assignments and jobs」): by its id or by its item, only for a turn
 //! the receiver marked privileged, so whether the owner asked for the stop is agency's reading of the turn and
 //! never the model's word.
 

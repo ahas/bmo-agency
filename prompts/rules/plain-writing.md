@@ -1,7 +1,7 @@
 # Plain writing (writing that does not read as AI)
 
 - This rulebook lists the habits that make a text read as machine-written, and what to write in
-  their place. It holds for every text a person reads: the chat agent's answers, the documents of the archive,
+  their place. It holds for every text a person reads: the supervisor's answers, the documents of the archive,
   a page or a report written for the owner, and the stored documents of the brain.
 - It covers Korean and English alike. Most of the Korean habits are English patterns carried over
   as translationese, so a Korean reader finds them stranger still.

@@ -22,7 +22,6 @@ pub struct Supervisor {
   pub voice: Option<String>,
   pub session_scope: String,
   pub turn_shape: String,
-  pub default_answerer: bool,
   /// The repository its TODO items go to.
   pub repository: Option<String>,
   pub order: Order,
@@ -54,7 +53,6 @@ impl Supervisor {
       voice: row.try_get("", "voice")?,
       session_scope: row.try_get("", "session_scope")?,
       turn_shape: row.try_get("", "turn_shape")?,
-      default_answerer: row.try_get::<i64>("", "default_answerer")? != 0,
       repository: row.try_get("", "repository")?,
       order: Order::of_row(&order, row.try_get("", "quota_share")?),
       warming: serde_json::from_str(&warming).unwrap_or_default(),

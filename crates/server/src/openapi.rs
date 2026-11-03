@@ -229,7 +229,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/chat-documents",
     id: "listChatDocuments",
     tag: "chat-documents",
-    summary: "The chat agent's own documents the owner may keep, each as it stands now.",
+    summary: "The supervisor's own documents the owner may keep, each as it stands now.",
     params: &[],
     body: None,
     answers: &[(200, Some("ChatDocumentPage"), false)],

@@ -50,7 +50,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     r#"{"mcpServers":{"bmo":{"type":"http","url":"http://127.0.0.1:3290/mcp/bmo","headers":{"Authorization":"Bearer ${BMO_MCP_TOKEN}"}}}}"#,
   )
   .unwrap();
-  std::fs::write(home.join("system.md"), "You are the chat agent.\n").unwrap();
+  std::fs::write(home.join("system.md"), "You are the supervisor.\n").unwrap();
 
   ChatRun {
     line: "chat",
@@ -208,7 +208,7 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   );
   assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
 }
-// A store whose chat agent's provider order holds the stand-ins and Claude Code, each switched as the test says.
+// A store whose supervisor's provider order holds the stand-ins and Claude Code, each switched as the test says.
 async fn store_with(order: &[(&str, bool)]) -> Scratch {
   let scratch = Scratch::new().await;
   let entries: Vec<OrderEntry> = order

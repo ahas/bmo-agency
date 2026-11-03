@@ -31,14 +31,13 @@ role keeps no memory, reminder or watch of its own (`docs/agent-roles.md`).
 Beside its provider order, its cache warming per provider and its compaction threshold
 (`docs/supervisors.md`, 「What a supervisor row holds」):
 
-| Column | What it says | The seeded default answerer's | One added on the console |
+| Column | What it says | A supervisor of one session across its rooms | One added on the console |
 |---|---|---|---|
 | `voice` | the voice its words are spoken in, or none | the briefing voice it speaks in now | none |
 | `window_seconds` | how long a room it answered keeps it listening without a call, or none | the conversation window it has now | none |
 | `wake_words` | the words that call it, beside its label | the deployment's trigger keywords | its aliases |
 | `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
 | `turn_shape` | the shape of its turns: the window (`window`) or the pieces (`pieces`) | `window` | `pieces` |
-| `default_answerer` | whether it answers every room that names nobody | yes | no |
 | `prompts` | the folder under `prompts/agents/` a pieces-shaped turn's persona is read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 | `owner_account` | the id of the login account that owns it, or none | none | the one its registration names, or none |
 
@@ -75,7 +74,7 @@ Beside its provider order, its cache warming per provider and its compaction thr
 - **Every read names the supervisor too.** A turn reads its own supervisor's rows, and a reminder or
   watch wakes its own supervisor. Every room several supervisors share holds rows of each, and each
   sees only its own.
-- **An added supervisor's gate options are made when it stands,** copied from the default answerer's as
+- **An added supervisor's gate options are made when it stands,** copied from an existing supervisor's as
   they are then, so the gates run for it from its first turn and are tuned apart afterwards.
 
 ## Long-term memory
@@ -91,8 +90,8 @@ Beside its provider order, its cache warming per provider and its compaction thr
   rendered from the facts about them and is never a row of its own.
 - **Two supervisors' brains share nothing,** and two accounts never see each other's. What several
   supervisors need to know is written into each one's brain by the one that learnt it; no mark makes one
-  supervisor's memory another's. A run of the search or browse line writes into the default answerer's
-  brain (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
+  supervisor's memory another's. A run of the search or browse line writes into the brain of the
+  supervisor it runs for (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
 - **The persona comes from the brain.** At a chat launch the supervisor's brain renders the layer named
   `persona`, and its placeholders are filled from the deployment's values (`docs/api.md`, 「Calls agency
   makes」); the lore and knowledge reach a turn only as the gates pick them.

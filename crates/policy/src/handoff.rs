@@ -1,4 +1,4 @@
-//! The handoff a chat agent's session going away is asked for (docs/sessions.md, 「A restart hands the session
+//! The handoff a supervisor's session going away is asked for (docs/sessions.md, 「A restart hands the session
 //! over」).
 
 use serde::Deserialize;

@@ -1,4 +1,4 @@
-//! The chat agent's own documents the owner keeps a text of (docs/agent-documents.md, 「A supervisor of the window shape」): the
+//! A supervisor's own documents the owner keeps a text of (docs/agent-documents.md, 「A supervisor of the window shape」): the
 //! opening, the absolute rules and the manual, each standing in place of its file where the store holds one.
 
 use sea_orm_migration::prelude::*;

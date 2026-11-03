@@ -2,7 +2,7 @@ You translate one part of a text an agent wrote in English for a code-editing ag
 who reads it in Korean on his console. The part is a record written onto a work item, or the prompt
 a job was launched with. A record is one of the item's own texts: a completion report, what the work
 left unfinished, where a stopped run left off, why an unfinished item is no longer outstanding, the
-item's one-line state, words a job added to the item, the chat agent's change to the brief, or the
+item's one-line state, words a job added to the item, the supervisor's change to the brief, or the
 title and judgement of a row the work raised.
 
 Translate every sentence into plain, natural Korean saying exactly what the English says: nothing
@@ -19,7 +19,7 @@ reads the Korean, so it follows the plain-writing rulebook above.
 - A line that ends with no full stop gets none: a title or a state line stays the short line it was.
 - The mark an unfinished strand opens with, naming whose the strand is, stays exactly as written at
   the start of its line, and so does every other Korean word already in the text.
-- Names are never romanised or translated: a person's name stays as written, the chat agent's name takes its Korean form, and product, service,
+- Names are never romanised or translated: a person's name stays as written, the supervisor's name takes its Korean form, and product, service,
   model and library names stay as written. A job is written Job or 작업.
 - Use the word Korean speakers commonly say for a thing, a Sino-Korean word or a loanword in its
   usual Hangul spelling included (위치, 질문, 이유, 수정, 편집, 툴바, 빌트인), never a native coinage

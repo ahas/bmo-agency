@@ -132,7 +132,7 @@ async fn live(scratch: &Scratch) {
       "bmo".into(),
       "chat".into(),
       "chat".into(),
-      "Chat agent".into(),
+      "Supervisor".into(),
       "agent".into(),
       "window".into(),
       1i64.into(),
@@ -342,7 +342,16 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
   assert_eq!(entries[1]["thinking"], "on");
   assert_eq!(chat.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
   assert_eq!(chat.try_get::<f64>("", "quota_share").unwrap(), 0.01);
-  assert_eq!(chat.try_get::<i64>("", "default_answerer").unwrap(), 1);
+  // The row marked as answering the rooms that name none is the research supervisor once the mark goes.
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "settings" WHERE "key" = 'research_supervisor' AND "value" = 'bmo'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
   let warming: Value = serde_json::from_str(&chat.try_get::<String>("", "warming").unwrap()).unwrap();
   assert_eq!(warming["deepseek"], true);
 

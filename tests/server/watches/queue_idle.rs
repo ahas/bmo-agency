@@ -219,7 +219,7 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
 
   pass(db, &vars).await.unwrap();
 
-  // The item on its own free worker is first seen waiting; told to the chat agent once a minute has passed.
+  // The item on its own free worker is first seen waiting; told to the supervisor once a minute has passed.
   let instructed = |calls: &Calls| -> Vec<Value> {
     calls
       .lock()

@@ -17,7 +17,7 @@ before taking another, so merges stay small.
 List the bundle's lines with `bmo check korean <path prefix>`, each classed as a comment, test input, a console's word, a literal elsewhere, or a language no parser here reads.
 Then sort each literal by who reads it:
 
-1. **A person reads it** — a line in a room, an answer or a refusal the owner or the chat agent sees, a note
+1. **A person reads it** — a line in a room, an answer or a refusal the owner or the supervisor sees, a note
    in a run's log, a commit message the bot writes, a label on the console handed out of the bot. It
    goes to the bot's language pack.
 2. **Only an agent reads it** — a prompt, a tool's answer to a job, a usage line a job reads. It is

@@ -174,7 +174,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   runner」). The voyager answers a question by searching; the seeker visits and reads the sites and pages it
   is named.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
-  runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the default answerer's brain. The
+  runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on a supervisor's brain: the brain of the
+  supervisor that delegated the run, and for a run no supervisor delegated, the brain of the supervisor
+  agency's `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none. The
   line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
   establishes into the same brain the supervisor reads, while the run itself stays the role's.
 

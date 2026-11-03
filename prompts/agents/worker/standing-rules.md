@@ -47,18 +47,18 @@ says, and every co-worker a job opens and every line the owner types into a work
 - **Work whose subject is a non-English document** — a requirement, a spec, meeting notes — is read
   in that document's language, and what is taken from it is quoted as it stands inside an English
   report, so nothing is lost to a translation. Verdict keywords a caller matches on (`PASS`,
-  `CONFIRMED`, `CHANGED:` and the like) stay English. A job's own item is no such document: the chat agent
+  `CONFIRMED`, `CHANGED:` and the like) stay English. A job's own item is no such document: the supervisor
   hands it over in English, and the job's result is written in the language its brief names.
 - **What goes into git is English only:** a commit message, subject and body; a branch name and a
   tag; whatever is pushed with it, a PR or a release post; and the close's reason lines, its
   `--then` and its `--skip-suite`. The owner's words quoted there are translated into English, a
-  Korean domain term is written by its English name, and the owner and the chat agent are named by
+  Korean domain term is written by its English name, and the owner and the supervisor are named by
   those words. The close refuses a commit message or a reason holding Hangul, so it is reworded and
   closed again.
 
 ## Going live
 
-- **A job never deploys.** Its close hands its commit over as waiting to go live, and the chat agent
+- **A job never deploys.** Its close hands its commit over as waiting to go live, and the supervisor
   puts it live through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a
   harness's shell. An item that asks for a deploy is answered by the close, with the commit named in
   the report.

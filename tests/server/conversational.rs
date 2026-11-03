@@ -1,4 +1,4 @@
-//! A conversational agent's settings and prompt folder as its row holds them.
+//! A supervisor's settings and prompt folder as its row holds them.
 
 use agency_server::conversational::*;
 
@@ -6,20 +6,19 @@ use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 
 #[test]
-fn a_row_with_settings_is_read_by_them_whatever_its_kind() {
-  let read = Settings::read("worker", Some("agent"), Some("window"), 1).unwrap();
+fn a_row_is_read_by_its_scope_and_shape_and_its_scope_gives_the_shape_it_names_none_of() {
+  let read = Settings::read(Some("agent"), Some("window")).unwrap();
 
   assert_eq!(read.scope, Scope::Agent);
   assert_eq!(read.shape, Shape::Window);
-  assert!(read.default_answerer);
-  assert_eq!(Settings::read("chat", Some("room"), None, 0).unwrap().shape, Shape::Pieces);
+  assert_eq!(Settings::read(Some("room"), None).unwrap().shape, Shape::Pieces);
+  assert_eq!(Settings::read(Some("agent"), None).unwrap().shape, Shape::Window);
 }
 
 #[test]
-fn a_row_an_older_writer_left_is_read_by_its_kind() {
-  assert!(Settings::read("chat", None, None, 0).unwrap().default_answerer);
-  assert_eq!(Settings::read("worker", None, None, 0), None);
-  assert_eq!(Settings::read("worker", Some("elsewhere"), None, 0), None);
+fn a_row_with_no_scope_the_runner_carries_is_none() {
+  assert_eq!(Settings::read(None, None), None);
+  assert_eq!(Settings::read(Some("elsewhere"), None), None);
 }
 
 #[tokio::test]

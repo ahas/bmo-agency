@@ -1,4 +1,4 @@
-//! An item a chat agent files (docs/api.md, 「assignments and jobs」): raised in the job service under the room of
+//! An item a supervisor files (docs/api.md, 「assignments and jobs」): raised in the job service under the room of
 //! the turn the agent carries now, and marked as the owner's ask where that turn is privileged, so neither is the
 //! model's to write; the repository it names goes where a launch reads it, the item's `assigneeName`.
 

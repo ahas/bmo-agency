@@ -1320,7 +1320,7 @@ impl HerdrSessions {
     // Claude's, and the stand-in opens a session of its own.
     let stand_in_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
 
-    // A reset the owner asked of the chat agent's one session closes it before this turn opens a new one.
+    // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one.
     if sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
       keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
       sessions::settle_reset_agent(&db, agent).await.map_err(store_fault)?;

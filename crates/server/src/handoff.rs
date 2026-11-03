@@ -1,4 +1,4 @@
-//! The handoff a chat agent's session going away is asked for before a fresh session replaces it
+//! The handoff a supervisor's session going away is asked for before a fresh session replaces it
 //! (docs/sessions.md, 「A restart hands the session over」): the receiver's `POST /handoffs/{agentName}`,
 //! asked while the old program still stands in its pane and waited on up to the receiver's own bound and a
 //! margin; a handoff already under way waited on and asked again; anything else let go, the turn going on.

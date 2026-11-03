@@ -55,7 +55,7 @@ fn start(agent: &str, conversation: Conversation) -> Start {
 }
 
 async fn agents(scratch: &Scratch) {
-  supervisor(scratch.db(), "chat-agent", &[("default_answerer", 1i64.into())]).await;
+  supervisor(scratch.db(), "chat-agent", &[]).await;
   repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
 }
 

@@ -14,7 +14,7 @@ pub struct RunClock {
   pub kept_days: u64,
   /// The command a verdict is given with.
   pub verb: String,
-  /// Why a run cut on its clock failed: the chat agent's call.
+  /// Why a run cut on its clock failed: the supervisor's call.
   pub cut_by_agent: String,
 }
 

@@ -23,7 +23,7 @@ const root = scratchDir("bmo-resident-");
 const promptPath = join(root, "system.md");
 const settingsPath = join(root, "settings.json");
 
-writeFileSync(promptPath, "You are the chat agent.\n");
+writeFileSync(promptPath, "You are the supervisor.\n");
 writeFileSync(settingsPath, "{}\n");
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));

@@ -1,4 +1,4 @@
-//! The handoff a chat agent's session going away is asked for (docs/sessions.md, 「A restart hands the session
+//! The handoff a supervisor's session going away is asked for (docs/sessions.md, 「A restart hands the session
 //! over」), against a stand-in receiver: a turn that resumes its session asks nothing, one that replaces a
 //! session asks once and waits for the answer however long it takes, a handoff under way is waited on and
 //! asked again, and a receiver that refuses the connection is let go so the fresh session still opens.

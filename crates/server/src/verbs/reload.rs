@@ -30,7 +30,7 @@ const DOCUMENT_DIRS: [&str; 2] = ["prompts/rules", "prompts/agents"];
 // prompts.
 const HARNESS: &str = "harness.md";
 
-// The rulebooks and the chat agent's own documents a chat session is given as its system prompt.
+// The rulebooks and the supervisor's own documents a chat session is given as its system prompt.
 const CHAT_DOCUMENTS: [&str; 5] = [
   "rules/answer-content.md",
   "rules/answer-shape.md",

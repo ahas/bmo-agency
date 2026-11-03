@@ -1,4 +1,4 @@
-//! An item a chat agent files (docs/api.md, 「assignments and jobs」): its room the turn's, `asked-by=owner` stamped
+//! An item a supervisor files (docs/api.md, 「assignments and jobs」): its room the turn's, `asked-by=owner` stamped
 //! only where the turn is the owner's, any such label the call names let go, the repository it names written as
 //! its `assigneeName`, where a launch reads it, and no item for an agent carrying no turn.
 

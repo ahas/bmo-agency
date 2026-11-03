@@ -24,7 +24,7 @@ shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
 # itself.
 listed = "Claude Code's own, every one it lists to you"
 # The tools paragraph after the manual, composed at each launch for the program the session runs on
-# (docs/agent-documents.md, 「The chat agent」): {program} is the program's own tools, {servers} the servers
+# (docs/agent-documents.md, 「The supervisor」): {program} is the program's own tools, {servers} the servers
 # the line's MCP configuration hands the session, and {shown} the tool host's entries the line shows by name,
 # each as the program calls it.
 paragraph = "TOOLS: Your program's own tools are {program}. Your MCP servers are {servers}, and of the tool host's tools they show you {shown} by name. A tool shown to you by name is called as that tool, never through your shell or `bmo use`; only a hosted tool not shown to you is reached with `bmo use`, as the opening says, and a tool none of these names or lists does not exist here. What the turn does not already hold of a person, a room or a thing is looked up, never guessed: mcp__bmo__brain_list with its subject and type (a person: type person, key the person's id), or mcp__bmo__brain_similar with the question's own words; a document or a rule with mcp__gate__reference_search, then mcp__gate__reference_piece for the piece it names."
@@ -74,7 +74,7 @@ sending = "SENDING TOOLS ON THIS ROAD — {tools}. A sending tool this line does
 sending_none = "none"
 sending_handed = "On the room's own road, {key}, with via {key}: {tools}."
 
-# What the owner is told, by the chat agent in the owner's own chat, where a room's answer came off a lesser model than the session
+# What the owner is told, by the supervisor in the owner's own chat, where a room's answer came off a lesser model than the session
 # was launched on: {where} names the room and {model} the model it fell to.
 [downgrade]
 fact = "An answer {where} came off {model} instead of the model the session was launched on: the account's safeguard balked at that chat's context and put the run on a lesser model."
@@ -86,7 +86,7 @@ room = "in the room \"{title}\""
 # How long the notice may wait to be said before it is let go.
 ttl_minutes = 30
 
-# What the owner is told, by the chat agent in the owner's own chat, as a stand-in takes a run over: {label} names the stand-in now
+# What the owner is told, by the supervisor in the owner's own chat, as a stand-in takes a run over: {label} names the stand-in now
 # answering and {model} its model, {previous} the one that could not answer this run.
 [fallback]
 taken = "Claude is not answering, so a stand-in has taken over: you now answer through {label} on {model}."

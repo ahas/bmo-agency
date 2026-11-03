@@ -251,7 +251,7 @@ room = "room"
 generation = "══ generation {generation}"
 generation_opened = "══ generation {generation} · opened {at}"
 
-# The chat agent's verdict on a run past its clock, as `bmo-agency overtime` gives it
+# The supervisor's verdict on a run past its clock, as `bmo-agency overtime` gives it
 # (docs/agent-control.md, 「A clock asks, it never cuts」).
 [overtime]
 # How the verb is run, said where it was run otherwise.

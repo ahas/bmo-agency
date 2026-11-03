@@ -1,4 +1,4 @@
-//! The chat agent's verdict on a run past its clock, from a shell (docs/agent-control.md, 「A clock asks
+//! The supervisor's verdict on a run past its clock, from a shell (docs/agent-control.md, 「A clock asks
 //! before it cuts」): the asks still open, and keep or cut on one of them. The run's door reads the verdict
 //! on its next look, within seconds; the ask's closing is published for the consumer that queued its order.
 

@@ -86,7 +86,7 @@ export interface RunLogTarget {
   // rolling agent-log prune; every other agent keeps the existing lightweight log.
   jobId?: number | null;
   // Whether this agent's log keeps whole what each run was handed: every prompt uncut, and the
-  // system prompt once for each version of it. The agent decides it for itself — the chat agent does,
+  // system prompt once for each version of it. The agent decides it for itself — the supervisor does,
   // so its screen reads what the session was actually given; a gate's bulk input stays a preview.
   keepsLaunch?: boolean;
 }

@@ -137,7 +137,7 @@ export function rulebook(name: string): string {
   return `RULEBOOK prompts/rules/${name}.md:\n${readRequired(join(rulesDir, `${name}.md`))}`;
 }
 
-// The rulebook every agent that acts — the chat agent, the workers and their co-workers and the runners
+// The rulebook every agent that acts — the supervisor, the workers and their co-workers and the runners
 // — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is not
 // given it.
 export const selfPreservation = "self-preservation";

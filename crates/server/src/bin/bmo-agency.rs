@@ -1,7 +1,7 @@
 //! Agency's verbs from a shell (docs/api.md, and each verb's own document): the agents and their settings,
 //! an agent's status line and hooks, a job's live Claude runs and native co-worker calls, a batch on a
 //! pinned login, the work nodes, the workers' sessions and dev servers, the model catalogue, the documents
-//! reloaded, the chat agent's verdict on a run past its clock, a supervisor's room followed, and the agents'
+//! reloaded, the supervisor's verdict on a run past its clock, a supervisor's room followed, and the agents'
 //! documents composed. Each prints what it came to
 //! and ends with its own code; a refusal is said on the error stream.
 
@@ -170,7 +170,7 @@ enum Verb {
     #[arg(long)]
     now: bool,
   },
-  /// The chat agent's verdict on a run past its clock: the asks still open, or keep or cut on one.
+  /// The supervisor's verdict on a run past its clock: the asks still open, or keep or cut on one.
   Overtime {
     #[arg(long)]
     list: bool,

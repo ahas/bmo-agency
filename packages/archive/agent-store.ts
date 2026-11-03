@@ -6,7 +6,7 @@
 
 import declaredWorkers from "@agency/policy/workers.toml";
 
-import { conversationOf, defaultAnswerer } from "./conversational";
+import { conversationOf } from "./conversational";
 import type { Conversation, ConversationColumns } from "./conversational";
 import type { AgentProviderName as AgentMode } from "./provider-names";
 import type { ArchiveSql } from "./archive-sql";
@@ -56,11 +56,6 @@ const firstSupportSlot = (declaredWorkers as { first_support_slot: number }).fir
 export class AgentStore {
   constructor(private readonly sql: ArchiveSql) {}
 
-  // The supervisor answering every room that names nobody (docs/supervisors.md, 「One runner」).
-  async defaultAnswerer(): Promise<string> {
-    return await defaultAnswerer(this.sql);
-  }
-
   // How the one runner carries a supervisor, or null where no supervisor has the name.
   async conversationOf(name: string): Promise<Conversation | null> {
     const row = await this.supervisorRow(name);
@@ -68,14 +63,17 @@ export class AgentStore {
     return row === null ? null : conversationOf(row);
   }
 
-  // The name a room's chat runs under: the default answerer where it keeps one session across every room,
-  // the name itself otherwise.
+  // The name a room's chat runs under: the supervisor of one session across its rooms whose turn went into
+  // that room last, as the run ledger records it, the name itself otherwise.
   async canonicalAgent(name: string): Promise<string> {
     if (!/^chat:-?\d+$/.test(name)) return name;
 
-    const agent = await this.defaultAnswerer();
+    const row = await this.sql.get(
+      "SELECT r.agent AS agent FROM runs r JOIN supervisors s ON s.name = r.agent WHERE r.chat_id = ? AND s.session_scope = 'agent' ORDER BY r.id DESC LIMIT 1",
+      Number(name.slice("chat:".length)),
+    ) as { agent: string } | null;
 
-    return (await this.conversationOf(agent))?.scope === "agent" ? agent : name;
+    return row?.agent ?? name;
   }
 
   // A supervisor or a checkout by its name, or null where neither stands under it.
@@ -103,7 +101,7 @@ export class AgentStore {
   }
 
   private async supervisorRow(name: string): Promise<SupervisorRow | null> {
-    return await this.sql.get("SELECT name, label, herdr_label, session_scope, turn_shape, default_answerer FROM supervisors WHERE name = ?", name) as SupervisorRow | null;
+    return await this.sql.get("SELECT name, label, herdr_label, session_scope, turn_shape FROM supervisors WHERE name = ?", name) as SupervisorRow | null;
   }
 
   private async repository(name: string): Promise<RepositoryRow | null> {

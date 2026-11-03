@@ -66,7 +66,7 @@ pub trait Brain: Send + Sync {
   fn forget<'a>(&'a self, agent: &'a str) -> Asking<'a, ()>;
   /// The agent's brain taken whole or, for a preview, found and counted with nothing taken.
   fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset>;
-  /// The discipline a chat agent's system prompt carries: how it reads and writes its brain every turn.
+  /// The discipline a supervisor's system prompt carries: how it reads and writes its brain every turn.
   fn discipline(&self) -> Asking<'_, String>;
   /// The persona the agent's brain renders of the layers named, comma-separated.
   fn persona<'a>(&'a self, agent: &'a str, layers: &'a str) -> Asking<'a, Rendered>;

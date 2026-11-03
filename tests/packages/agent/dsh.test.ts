@@ -23,7 +23,7 @@ const realAgentsDir = process.env.BMO_AGENTS_DIR;
 
 beforeAll(() => {
   process.env.BMO_AGENTS_DIR = join(root, "agents");
-  writeFileSync(promptPath, "You are the chat agent.\nYou answer in one sentence.\n");
+  writeFileSync(promptPath, "You are the supervisor.\nYou answer in one sentence.\n");
   writeFileSync(rulesPath, "# Standing rules\n\n- When asked for the word, answer with exactly: KUMQUAT\n");
 });
 

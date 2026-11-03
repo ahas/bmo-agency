@@ -16,8 +16,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   whether the deployment seeds it.
 - **What it is told:** its own prompt folder, the documents its system prompt is composed from, and its
   brain folder, whose base persona its system prompt ends with (`docs/agent-documents.md`).
-- **How it converses:** its session scope, its turn shape and whether it is the default answerer, the one
-  that answers the rooms that name nobody (「One runner」 below).
+- **How it converses:** its session scope and its turn shape (「One runner」 below).
 - **Where it runs — its provider order:** the providers it runs on, in order, each with the model and the
   effort it runs on there, and the quota share below which a provider is passed over
   (`docs/provider-order.md`). Every supervisor carries its own; no order is shared with another supervisor
@@ -70,6 +69,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   search and page fetch (`docs/agent-roles.md`, 「The bundles」).
 - **The chat line itself holds `gate.translate`, `gate.reference`, `deploy` and the voice namespace,**
   whatever the supervisor, as `docs/launch-lines.md` declares.
+- **Every supervisor's program is handed the same servers,** whatever its scope and shape: the tool host's
+  namespaces, the job service's plugin and agency's own, so every supervisor reads the queue, files items,
+  assigns a worker and launches an item's job (`docs/launch-lines.md`, 「What a line's program is allowed,
+  by road」).
 - **Every tool acts as the supervisor whose turn calls it:** its memories, notes and reminders are its own,
   a send goes out under its own name into a room it answers and nowhere else, and an item it files goes to
   its own repository. The tool host's grant lock judges an acting call the same way for every supervisor.
@@ -80,10 +83,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   tool and script reads it for every call.
 - **Three things are asked before anything goes,** each refusing with a status code and one English
   sentence that names the supervisor: it answers the room — the room names it among the supervisors that
-  answer in it, or the room names none and it is the default answerer; its row holds `room.send`; and the
-  room's road carries the verb.
+  answer in it, or the room names none and the receiver's setting names it as the supervisor that answers
+  such rooms; its row holds `room.send`; and the room's road carries the verb.
 - **It is filed under the supervisor's own number and name** on a road that speaks for several speakers;
-  the default answerer is the road's own voice and names no speaker.
+  which supervisor is the road's own voice, naming no speaker, is the receiver's setting.
 - **Only a supervisor's own round sends.** A send anything else asks — a job, a role's run, a person at a
   shell, a script — goes out nowhere: the receiver hands its words to the room's supervisor as a quiet
   instruction, and that supervisor says them in its own turn or lets them go (the receiver's
@@ -108,18 +111,17 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     declares for a conversation」 below).
 - **What each row says:**
 
-  | Setting | What it says | The seeded default answerer | A supervisor added on the console |
+  | Setting | What it says | A supervisor of one session across its rooms | A supervisor added on the console |
   |---|---|---|---|
   | `session_scope` | `agent`: one session across every room it answers, each turn carrying its room's block; `room`: one session in each room | `agent` | `room` |
   | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: the platform's harness opening, the pieces role and its persona as its system prompt, its new words as its turn and no re-ask (「What a turn is given」 below) | `window` | `pieces` |
-  | `default_answerer` | whether it answers every room that names no supervisor | yes | no |
 
 - **The scope and the shape go together:** a turn of the window shape goes on in the one session of the
   `agent` scope, and one of the pieces shape in the session of its room.
-- **The default answerer** is the supervisor whose row says so. Which supervisors answer a room is the
-  room's: the receiver keeps each room's list of the supervisors that answer in it, and a room whose list is
-  empty is answered by the default answerer. The scope, the shape and the default answerer are settings of a
-  row; nothing else tells one supervisor from another.
+- **Every supervisor is the same kind.** The scope and the shape are settings of its row, and nothing else
+  tells one supervisor from another. Which supervisors answer a room is the room's: the receiver keeps
+  each room's list of the supervisors that answer in it, and the supervisor that answers a room whose list
+  is empty is a setting of the receiver's; agency holds neither.
 
 ### The session's scope
 
@@ -438,7 +440,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     no sweep of leftovers closes it, as none closes a head or a dev server.
 - **A failure says nothing in the supervisor's name,** but for one its engine ended. The turn ends
   failed with its reason, which the console shows on the turn's line. A turn cut short is told to the
-  room under the default answerer's number (「A turn that goes nowhere」 below).
+  room in the road's own voice (「A turn that goes nowhere」 below).
 - **A turn its engine ended with an error carries that error's kind on its ending,** `engineError` on
   `turn-ended` (`docs/api.md`, 「Events」), so the consumer holding the room leaves one line there under
   the supervisor's own number, in plain words chosen by the kind. The kind is the one the program's
@@ -473,8 +475,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   before it reaches it.
 - **What a cut does:**
   - the run is stopped, and the turn ends failed with the reason, as any failure does;
-  - the room is told in one short line under the default answerer's number, naming the supervisor and
-    the reason;
+  - the consumer holding the room tells it in one short line in the road's own voice, naming the
+    supervisor and the reason;
   - the words it took stay taken, that line with them: the turn is kept on its generation with the
     reason in place of an answer, so neither the room's next turn nor a restart asks them again;
   - the room's session opens a new generation, so the next turn opens a fresh harness session rather
@@ -482,8 +484,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the resident program still standing on the session the cut ended — the one the run went on in, or
     the one the room held where the cut came before any run — is taken down at once (「The program on an
     ended session」 above);
-  - the default answerer is told, by a quiet instruction naming the supervisor, the room, the reason and
-    the turn's log, and is asked only to file the malfunction where it keeps coming back.
+  - the consumer hands a quiet instruction naming the supervisor, the room, the reason and the turn's log
+    to the supervisor its own setting names, which is asked only to file the malfunction where it keeps
+    coming back.
 
 ## What a supervisor hands to a role
 
@@ -518,7 +521,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 ## Adding and removing a supervisor
 
 - **A supervisor is seeded by the deployment or added on the console.** A seeded one stands again at
-  every start, so it is never removed, and neither is the default answerer. One added on the console
+  every start, so it is never removed: its row says `seeded`. One added on the console
   answers the rooms the receiver names it in; the console asks the receiver, which writes the room of the
   console's own, the supervisor's number there and the room's list of the supervisors that answer in it,
   and asks agency's `POST /supervisors` for the supervisor's half (`docs/api.md`, 「supervisors」).
@@ -531,7 +534,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     is」); an add naming one provider and model is the order of that one entry;
   - the repository its items go to, where it names one, is a repository the store holds
     (`docs/repositories.md`).
-- **The row it writes:** the `room` scope, the `pieces` shape, not the default answerer, the label, the
+- **The row it writes:** the `room` scope, the `pieces` shape, the label, the
   supervisors policy's mark for one added on the console, the provider order it is added with, warmed on
   each of its providers, the repository, its owner, the brain folder `agents/<name>`, no prompt folder and
   not seeded. The owner changes the order on the supervisor's page like any supervisor's. Its gate options
@@ -542,8 +545,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   account key, or the deployment's where it names none (`docs/api.md`, 「Calls agency makes」). The
   supervisor stands whatever the brain answers: a brain that cannot be reached, or refuses, is logged, and
   no later step makes the brain in its place.
-- **`DELETE /supervisors/{supervisorName}` takes everything of its own,** and only of a supervisor neither
-  seeded nor the default answerer:
+- **`DELETE /supervisors/{supervisorName}` takes everything of its own,** and only of a supervisor the
+  deployment does not seed:
   - first a reset of its conversation, every room the caller names read as one it shares, so each keeps
     its record (「Starting it afresh」), and of its person range where the caller lets its brain go;
   - then in one write its settings, its base prompt choice, its session reset asks, its gate switches,

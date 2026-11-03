@@ -35,7 +35,7 @@ impl Route for RunClock {
   }
 }
 
-/// The asks open on runs past their clock, and the chat agent's verdict on one.
+/// The asks open on runs past their clock, and the supervisor's verdict on one.
 pub struct RunOvertime;
 
 impl Route for RunOvertime {

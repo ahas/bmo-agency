@@ -16,7 +16,7 @@ use crate::peers::PeerFault;
 use crate::peers::node::{Alert, Machine, Standing};
 use crate::places::Ground;
 
-/// A pressure on this machine, as agency publishes it for the consumer that tells the chat agent.
+/// A pressure on this machine, as agency publishes it for the consumer that tells the supervisor.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachinePressure {

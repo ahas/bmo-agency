@@ -65,7 +65,6 @@ use axum::http::{Method, StatusCode, header};
 use axum::response::{IntoResponse, Json, Response};
 use harness_providers::Machine;
 use policy::control_words::CONTROL_WORDS;
-use policy::deployment::DEPLOYMENT;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -243,8 +242,8 @@ pub(crate) async fn set_setting<C: ConnectionTrait>(db: &C, key: &str, value: &s
   Ok(settings::set(db, key, value).await?)
 }
 
-/// The agent a name stands for: a room's own conversational agent, named `chat:<room>`, is the default
-/// answerer once its one session stands.
+/// The agent a name stands for: a room's own conversational agent, named `chat:<room>`, is the supervisor of
+/// one session across its rooms whose turn went into that room last, as the run ledger records it.
 pub(crate) async fn canonical_agent<C: ConnectionTrait>(db: &C, name: &str) -> Result<String, Refused> {
   let room = name.strip_prefix("chat:").map(|room| room.strip_prefix('-').unwrap_or(room));
   let names_room =
@@ -254,14 +253,19 @@ pub(crate) async fn canonical_agent<C: ConnectionTrait>(db: &C, name: &str) -> R
     return Ok(name.to_owned());
   }
 
-  // A room's name from before the one session stands for the default answerer, where its session is one
-  // across its rooms.
-  let default = crate::conversational::default_answerer(db, &DEPLOYMENT.agent_key).await?;
-  let one_session = crate::conversational::settings(db, &default)
-    .await?
-    .is_some_and(|settings| settings.scope == crate::conversational::Scope::Agent);
+  let chat_id: i64 = name.trim_start_matches("chat:").parse().unwrap_or_default();
+  let latest = store::one(
+    db,
+    r#"SELECT "r"."agent" FROM "runs" AS "r" JOIN "supervisors" AS "s" ON "s"."name" = "r"."agent"
+       WHERE "r"."chat_id" = $1 AND "s"."session_scope" = 'agent' ORDER BY "r"."id" DESC LIMIT 1"#,
+    vec![chat_id.into()],
+  )
+  .await?;
 
-  Ok(if one_session { default } else { name.to_owned() })
+  Ok(match latest {
+    Some(row) => row.try_get("", "agent")?,
+    None => name.to_owned(),
+  })
 }
 
 /// One request a route answers, on agency's ground.

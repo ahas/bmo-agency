@@ -168,13 +168,13 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
 
-  bench.supervisor("chat-agent", "Chat agent").await;
+  bench.supervisor("chat-agent", "Supervisor").await;
   bench.supervisor("busy", "Busy supervisor").await;
 
-  // The chat agent's home with a bun head left in it, and a shell a rebuilt herdr left.
+  // The supervisor's home with a bun head left in it, and a shell a rebuilt herdr left.
   let bun_head = bench.bun_head("chat-agent");
   let (chat_home, _) =
-    herdr.workspace("Chat agent", json!({ "agent": "chat-agent" }), Some(&as_words(&bun_head)));
+    herdr.workspace("Supervisor", json!({ "agent": "chat-agent" }), Some(&as_words(&bun_head)));
 
   herdr.tab(&chat_home, None);
 
@@ -207,7 +207,7 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
       .iter()
       .find(|one| one.tokens.as_ref().is_some_and(|tokens| tokens["agent"] == "chat-agent"))
       .map(|one| (one.id == chat_home, one.label.clone())),
-    Some((false, "Chat agent".to_owned()))
+    Some((false, "Supervisor".to_owned()))
   );
   assert_eq!(herdr.commands_of("agent", "busy"), [busy_head]);
   assert!(herdr.commands_of("agent", "hacking-gate").is_empty());

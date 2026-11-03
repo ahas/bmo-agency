@@ -23,7 +23,7 @@ description: "How a job puts something in front of the owner: a decision that is
   options did not cover. Carry on with what that line says, whichever it is.
 - **Where he talks instead of choosing, it exits 3 and the question is still open.** He asked what
   an option means, objected, or said something else: what he said is printed with the call that
-  answers him. You answer, since you hold what the options were written out of and the chat agent does not.
+  answers him. You answer, since you hold what the options were written out of and the supervisor does not.
   - `~/.local/share/bmo/deploy/bin/bmo job ask --talk <질문 번호> --say '<답>'` puts your answer in his chat and waits on the
     same question again, coming back the same two ways. Answer plainly: what each option would do,
     what it costs, why you recommend yours.
@@ -48,7 +48,7 @@ description: "How a job puts something in front of the owner: a decision that is
   - `--replace <id>` rewrites it under its number as the design moves.
   - A long reading he studies — how something is built, a deep investigation — also takes
     `--narration <file>`: a script for the ear by the rules of a deep dive's, in
-    `~/.local/share/bmo-research/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat agent's
+    `~/.local/share/bmo-research/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the supervisor's
     voice and kept at the document's head as its 들으며 보세요 band.
   - The narration file is the written words, kept as the narration's transcript: names, acronyms and
     figures stand as you would write them. The voice unit derives the spoken words from it, the same
