@@ -495,6 +495,17 @@ pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
   }
 }
 
+/// Whether a turn's final answer is a tool call the model wrote in its text instead of making it: the
+/// `<tool_call>` block some models wrap one in, or the `<function=…>`/`<parameter=…>` lines of a template
+/// with no native call to put it in. Such an answer made no call, ran nothing, and is no report
+/// (docs/api.md, 「A job ends by itself as its turn ends」).
+pub fn text_tool_call(text: &str) -> bool {
+  let text = text.trim_start();
+
+  text.starts_with("<tool_call>")
+    || (text.starts_with("<function=") && (text.contains("<parameter=") || text.contains("</function>")))
+}
+
 /// Whether the record holds an answer of the run's own, not a co-worker's, written at or after `from`.
 pub fn answered_since(records: &[Value], from: usize) -> bool {
   records

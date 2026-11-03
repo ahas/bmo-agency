@@ -156,6 +156,36 @@ async fn a_turn_whose_road_stopped_answering_goes_out_again_on_the_next_road_and
   assert_eq!(roads[1]["reason"], "the login's window is full");
 }
 
+// A job carried with one turn its carrier answers `answer` with: the outcome and report that turn leaves.
+async fn ended_with(answer: &str) -> (Option<String>, String) {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", answer)]),
+    turns: vec![],
+  };
+  let (_, outcome, report, _) = carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  (outcome, report.unwrap_or_default())
+}
+
+/// an answer that is a tool call written as text is no report, and an ordinary answer still stands as one
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_written_as_a_tool_call_leaves_no_report_and_an_ordinary_answer_stands() {
+  let raw = "<tool_call><function=Read><parameter=file_path>/tmp/one</parameter></function></tool_call>";
+  let (outcome, report) = ended_with(raw).await;
+
+  assert_eq!(outcome.as_deref(), Some("failed"));
+  assert!(!report.contains("<tool_call>"), "the call's own text is no report: {report}");
+  assert!(report.contains("tool call written as text"), "{report}");
+
+  let (outcome, report) = ended_with("The work is done.").await;
+
+  assert_eq!(outcome, None);
+  assert_eq!(report, "The work is done.");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_job_goes_out_at_most_once_on_each_provider_and_then_ends_as_its_last_turn_did() {
   let scratch = Scratch::new().await;

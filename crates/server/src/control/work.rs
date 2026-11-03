@@ -1131,6 +1131,38 @@ async fn noted(ground: &Ground, id: i64, outcome: &str, why: Option<&str>) {
 
 type Ended = (String, Option<String>, Option<String>, Option<Spent>);
 
+// What a job's report says where its turn stopped on a tool call written as text.
+const TEXT_TOOL_CALL_REPORT: &str = "The turn stopped on a tool call written as text rather than made. The \
+  call did not run, so the job left no report. Check that the tool it called is offered to the run, then \
+  run the job again.";
+
+/// What a job's end takes from its turn's end: the outcome — none where the turn answered — and the report
+/// it leaves. An answer that is a tool call written as text is no report: the call never ran and the work
+/// never happened, so the job ends failed with a line saying so rather than an empty outcome holding the
+/// call's text (docs/api.md, 「A job ends by itself as its turn ends」).
+fn ended_by(
+  outcome: agent_session::Outcome,
+  answer: Option<String>,
+  reason: Option<String>,
+) -> (Option<String>, Option<String>) {
+  if matches!(outcome, agent_session::Outcome::Answered)
+    && answer.as_deref().is_some_and(crate::door::record::text_tool_call)
+  {
+    return (Some("failed".to_owned()), Some(TEXT_TOOL_CALL_REPORT.to_owned()));
+  }
+
+  let outcome = match outcome {
+    agent_session::Outcome::Answered => None,
+    other => Some(format!("{other:?}").to_lowercase()),
+  };
+  let report = match outcome {
+    None => answer,
+    Some(_) => answer.or(reason),
+  };
+
+  (outcome, report)
+}
+
 /// What carries one turn of a job on one road: the worker's session through the session contract, or a
 /// test's stand-in for it. A turn that could not be carried at all is its error; any turn that was is its
 /// end, however it ended.
@@ -1395,14 +1427,7 @@ pub async fn carry_job<C: Carrier>(
 
     spent = summed(spent, turn_spent(&end));
 
-    let outcome = match end.outcome {
-      agent_session::Outcome::Answered => None,
-      other => Some(format!("{other:?}").to_lowercase()),
-    };
-    let report = match outcome {
-      None => end.answer.clone(),
-      Some(_) => end.answer.clone().or_else(|| end.reason.clone()),
-    };
+    let (outcome, report) = ended_by(end.outcome, end.answer.clone(), end.reason.clone());
 
     // A job asked to stop goes out on no further road, whatever its turn came to.
     let stopped = match road_stopped(&end) {
@@ -1704,25 +1729,11 @@ async fn launched(
 
 // What a job's turn's end makes of the job, its run closed with it.
 async fn ended_of(ground: &Ground, ledger: i64, end: agent_session::TurnEnd) -> Ended {
-  let outcome = match end.outcome {
-    agent_session::Outcome::Answered => None,
-    other => Some(format!("{other:?}").to_lowercase()),
-  };
   let spent = turn_spent(&end);
+  let context = end.reply.as_ref().and_then(|reply| reply.context_tokens);
+  let (outcome, report) = ended_by(end.outcome, end.answer, end.reason);
 
-  closed(
-    ground,
-    ledger,
-    outcome.as_deref().unwrap_or("answered"),
-    end.reply.as_ref().and_then(|reply| reply.context_tokens),
-    spent,
-  )
-  .await;
-
-  let report = match outcome {
-    None => end.answer,
-    Some(_) => end.answer.or(end.reason),
-  };
+  closed(ground, ledger, outcome.as_deref().unwrap_or("answered"), context, spent).await;
 
   ("ended".to_owned(), outcome, report, spent)
 }

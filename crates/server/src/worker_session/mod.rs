@@ -183,6 +183,7 @@ pub async fn compose_at(
     &status_root(ground),
     Holds {
       tasks: true,
+      text_tool_call: true,
       wording: true,
       compose_typed: RUN_LINES.composes_typed_lines(LINE),
       shell_guard: false,

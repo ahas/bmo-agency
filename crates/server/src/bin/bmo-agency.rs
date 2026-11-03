@@ -110,6 +110,8 @@ enum Verb {
     #[arg(long)]
     hold_tasks: bool,
     #[arg(long)]
+    hold_text_tool_call: bool,
+    #[arg(long)]
     hold_wording: bool,
     #[arg(long)]
     compose_typed: bool,
@@ -469,6 +471,7 @@ async fn run(verb: Verb) -> ExitCode {
       kind,
       place,
       hold_tasks,
+      hold_text_tool_call,
       hold_wording,
       compose_typed,
     } => {
@@ -476,6 +479,7 @@ async fn run(verb: Verb) -> ExitCode {
         kind: kind.unwrap_or_default(),
         place: place.unwrap_or_default(),
         hold_tasks,
+        hold_text_tool_call,
         hold_wording,
         compose_typed,
       };

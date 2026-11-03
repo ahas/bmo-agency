@@ -421,12 +421,18 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       record otherwise — uses a term `WORDING.md` bans outside its quoted spans is answered with a
       block naming each term beside what to write, and the program writes the answer again in the
       same turn. For a job that answer is its report.
+    - **A line can hold a turn's end while its final answer is a tool call written as text.** Where the
+      place settings ask for it, a stop of a bot's run whose answer so far is a `<tool_call>` block, or a
+      `<function=…>` call with its parameters, is answered with a block saying the call was never made and
+      asking for a native tool call, then the report as ordinary text. A job whose turn still ends on such
+      text ends failed rather than leaving it as its report (docs/api.md, 「A job ends by itself as its
+      turn ends」).
     - The hold is bounded: three holds in a row with no turn's end between them, whatever each was
       held for, and the next stop
       is let through as it stands, so a program that will not settle its work cannot be kept turning
       for ever; what it left running is then the runner's to judge, as below. A person's turn is
       never held.
-    - The worker line asks for both holds; the chat line asks for neither, its answer being
+    - The worker line asks for all three holds; the chat line asks for none of them, its answer being
       held to the same words by the round (`answer-checks.md`, 「The banned words」).
   - **Outage retries.** A request that fails is written as the program's own words in the answer's
     place (「The session record and usage」), and the `StopFailure` hook follows it. That ends a

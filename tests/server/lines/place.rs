@@ -99,6 +99,7 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
     Path::new("/deploy"),
     Holds {
       tasks: true,
+      text_tool_call: true,
       wording: false,
       compose_typed: false,
       shell_guard: false,
@@ -113,7 +114,8 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
   assert_eq!(
     stop[1]["hooks"][0]["command"],
     format!(
-      "'/deploy/bin/bmo-agency' 'agent-status' 'stop' '--place' '{}' '--hold-tasks'",
+      "'/deploy/bin/bmo-agency' 'agent-status' 'stop' '--place' '{}' '--hold-tasks' \
+       '--hold-text-tool-call'",
       place.display()
     )
   );

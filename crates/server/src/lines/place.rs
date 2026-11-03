@@ -36,6 +36,7 @@ pub const FAILURE_KIND: &str = "failure";
 // runs, and while its final answer uses a banned word; the word the submit hook is started with where
 // its line composes a person's typed line, and how long the program gives that hook.
 const HOLD_TASKS: &str = "--hold-tasks";
+const HOLD_TEXT_TOOL_CALL: &str = "--hold-text-tool-call";
 const HOLD_WORDING: &str = "--hold-wording";
 const COMPOSE_TYPED: &str = "--compose-typed";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
@@ -156,6 +157,7 @@ pub fn place_of(data_root: &Path, agent: &str) -> PathBuf {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Holds {
   pub tasks: bool,
+  pub text_tool_call: bool,
   pub wording: bool,
   pub compose_typed: bool,
   /// Whether a shell command is read before it runs, and one that starts Claude Code refused
@@ -195,6 +197,10 @@ pub fn write_place_settings(
 
   if holds.tasks {
     stop_flags.push(HOLD_TASKS);
+  }
+
+  if holds.text_tool_call {
+    stop_flags.push(HOLD_TEXT_TOOL_CALL);
   }
 
   if holds.wording {

@@ -1150,7 +1150,10 @@ and the filing of an item.
   `heldFor` is null whenever a turn is out. A job on a pinned model never moves: it waits for its pin. A
   failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
-  the report. A turn that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
+  the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
+  block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
+  `ended`, outcome `failed`, with a report saying the turn stopped on a tool call written as text. A turn
+  that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
   or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
   session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
   is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
@@ -1241,7 +1244,7 @@ input, so `bmo` finds it from any directory.
 | Noun | Takes | Calls |
 |---|---|---|
 | `agent` (`agents`) | the agent flags `--help` prints: the providers' switches and the account order, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, the supervisors, roles and repositories with their orders, and a supervisor's gates | the store at the data root, and the service for what it must be told |
-| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
+| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
 | `coworker pool` | `reserve --role <role> --count <n>` or `release` | the store's role slots |
 | `coworker hook` | the hook's input on standard input | the store's role slots |

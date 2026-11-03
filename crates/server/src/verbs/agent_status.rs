@@ -3,8 +3,9 @@
 //! line's running totals, or a hook's word that a prompt was submitted, a turn ended or failed, or a
 //! session started. Each is written into the agent's place with the moment it came, and the status line is
 //! answered with the one line the program draws at the foot of its screen. Started with the hold flag, a
-//! turn's end is answered with a block while the turn's background work runs; started with the wording
-//! flag, while the turn's final answer uses a word `WORDING.md` bans. Started with the typed flag, a
+//! turn's end is answered with a block while the turn's background work runs; started with the text-call
+//! flag, while the turn's final answer is a tool call written as text; started with the wording flag,
+//! while the turn's final answer uses a word `WORDING.md` bans. Started with the typed flag, a
 //! person's submitted line is answered with the composition the service hands it. Started as the shell
 //! guard, it reads a shell command before it runs and refuses one that starts Claude Code (docs/agents.md,
 //! 「No print mode」).
@@ -24,7 +25,7 @@ use crate::door::place_run::{
   OpenHold, STOP_HOLDS, ends_turn, open_hold, person_submits, read_hooks, read_run, record_call,
   status_line, stop_hold,
 };
-use crate::door::record::{read_turn, turns_owed};
+use crate::door::record::{read_turn, text_tool_call, turns_owed};
 use crate::door::turn::program_login;
 use crate::lines::place::{FAILURE_KIND, SHELL_KIND};
 use crate::wording::{banned_terms_in, banned_terms_line, read_glossary};
@@ -37,6 +38,7 @@ pub struct Asked {
   pub kind: String,
   pub place: String,
   pub hold_tasks: bool,
+  pub hold_text_tool_call: bool,
   pub hold_wording: bool,
   pub compose_typed: bool,
 }
@@ -89,22 +91,47 @@ fn round_owes_more(place: &Path, kind: &str, payload: &Value) -> bool {
   owed.queued > 0 || ends < owed.owed
 }
 
-// A job's final answer is the report the owner reads, and it is held to the words the owner banned as the
-// deployment's own answers are: a stop whose answer so far uses one is held with the terms named, within
-// the holds a stop is given. The answer is the program's own last message where it hands one over, and the
-// turn's text read off the session record otherwise.
-fn wording_hold(place: &Path, payload: &Value, code_tree: &Path) -> Option<String> {
-  let OpenHold {
-    started_at, last, ..
-  } = open_hold(place, STOP_HOLDS)?;
+// A turn's answer so far: the program's own last message where it hands one over, and the turn's text
+// read off the session record otherwise.
+fn answer_so_far(payload: &Value, started_at: i64) -> String {
   let handed = payload.get("last_assistant_message").and_then(Value::as_str).unwrap_or_default();
-  let answer = if handed.is_empty() {
+
+  if handed.is_empty() {
     lines_since(payload, started_at)
       .map(|lines| read_turn(&lines, 0).text)
       .unwrap_or_default()
   } else {
     handed.to_owned()
-  };
+  }
+}
+
+// A job's final answer is the report the owner reads, and a tool call written as text is no report: the
+// call never ran and the work never happened. A stop whose answer so far is such text is held with what
+// to do instead, within the holds a stop is given, so the program makes the call and writes the report in
+// the same turn.
+fn text_tool_call_hold(place: &Path, payload: &Value) -> Option<String> {
+  let OpenHold { started_at, .. } = open_hold(place, STOP_HOLDS)?;
+
+  if !text_tool_call(&answer_so_far(payload, started_at)) {
+    return None;
+  }
+
+  Some(
+    "Not ended: this turn's final answer is a tool call written as text rather than a call made — the call \
+     never ran, and the answer would stand as the job's report. Make the call as a native tool call, do the \
+     work, and then write the report as ordinary text."
+      .to_owned(),
+  )
+}
+
+// A job's final answer is the report the owner reads, and it is held to the words the owner banned as the
+// deployment's own answers are: a stop whose answer so far uses one is held with the terms named, within
+// the holds a stop is given.
+fn wording_hold(place: &Path, payload: &Value, code_tree: &Path) -> Option<String> {
+  let OpenHold {
+    started_at, last, ..
+  } = open_hold(place, STOP_HOLDS)?;
+  let answer = answer_so_far(payload, started_at);
   let terms = banned_terms_in(&answer, &read_glossary(code_tree));
 
   if terms.is_empty() {
@@ -241,11 +268,17 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
   let tasks_held = (kind == "stop" && asked.hold_tasks)
     .then(|| stop_hold(place, &payload, STOP_HOLDS))
     .flatten();
-  let held = tasks_held.or_else(|| {
-    (kind == "stop" && asked.hold_wording)
-      .then(|| wording_hold(place, &payload, ground.code_tree))
-      .flatten()
-  });
+  let held = tasks_held
+    .or_else(|| {
+      (kind == "stop" && asked.hold_text_tool_call)
+        .then(|| text_tool_call_hold(place, &payload))
+        .flatten()
+    })
+    .or_else(|| {
+      (kind == "stop" && asked.hold_wording)
+        .then(|| wording_hold(place, &payload, ground.code_tree))
+        .flatten()
+    });
   let written = match &held {
     Some(reason) => {
       printed.push(json!({ "decision": "block", "reason": reason }).to_string());

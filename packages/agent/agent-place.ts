@@ -305,15 +305,16 @@ export async function statusAfterTurn(
 //
 // The command is the deployed tree's wherever one is set up, like a head's, so a program started from
 // a job's checkout and one started by the bot are handed the same settings. A line that asks for it has
-// its stop hook hold a turn's end while the turn's background work runs (`holdFlag`), or while the
-// turn's final answer uses a word the glossary bans (`wordingHoldFlag`). A line that composes its
+// its stop hook hold a turn's end while the turn's background work runs (`holdFlag`), while the
+// turn's final answer is a tool call written as text (`textToolCallHoldFlag`), or while the turn's
+// final answer uses a word the glossary bans (`wordingHoldFlag`). A line that composes its
 // typed lines has its submit hook hand a person's line that composition (`typedFlag`), given the
 // time the composing takes.
 export function writePlaceSettings(
   place: string,
   base: Record<string, unknown> = {},
   root: string = statusScriptRoot(),
-  policy: { holdForTasks?: boolean; holdForWording?: boolean; composeTyped?: boolean } = {},
+  policy: { holdForTasks?: boolean; holdForTextToolCall?: boolean; holdForWording?: boolean; composeTyped?: boolean } = {},
 ): string {
   const [binary, ...verb] = agentVerbs().statusLine;
   const call = (kind: string, ...flags: string[]) => [join(root, binary), ...verb, kind, "--place", place, ...flags].map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(" ");
@@ -321,7 +322,7 @@ export function writePlaceSettings(
     ? { type: "command", command: call("submit", typedFlag), timeout: typedHookSeconds }
     : { type: "command", command: call("submit") };
   const own: Record<string, unknown[]> = {
-    Stop: [{ hooks: [{ type: "command", command: call("stop", ...(policy.holdForTasks === true ? [holdFlag] : []), ...(policy.holdForWording === true ? [wordingHoldFlag] : [])) }] }],
+    Stop: [{ hooks: [{ type: "command", command: call("stop", ...(policy.holdForTasks === true ? [holdFlag] : []), ...(policy.holdForTextToolCall === true ? [textToolCallHoldFlag] : []), ...(policy.holdForWording === true ? [wordingHoldFlag] : [])) }] }],
     // A turn a failed request ended fires this in place of the stop, and the program reads nothing it answers.
     StopFailure: [{ hooks: [{ type: "command", command: call("failure") }] }],
     UserPromptSubmit: [{ hooks: [submit] }],
@@ -345,6 +346,10 @@ export function writePlaceSettings(
 
 // The word the stop hook is started with where its line asks for the hold.
 export const holdFlag = "--hold-tasks";
+
+// The word the stop hook is started with where its line holds a turn's final answer that is a tool call
+// written as text instead of a call made.
+export const textToolCallHoldFlag = "--hold-text-tool-call";
 
 // The word the stop hook is started with where its line holds a turn's final answer to the glossary.
 export const wordingHoldFlag = "--hold-wording";

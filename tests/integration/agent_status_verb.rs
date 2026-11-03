@@ -59,6 +59,7 @@ impl Hook {
       kind: kind.to_owned(),
       place: self.path().to_string_lossy().into_owned(),
       hold_tasks: flags.contains(&"--hold-tasks"),
+      hold_text_tool_call: flags.contains(&"--hold-text-tool-call"),
       hold_wording: flags.contains(&"--hold-wording"),
       compose_typed: flags.contains(&"--compose-typed"),
     };
@@ -187,6 +188,40 @@ async fn a_stop_whose_answer_uses_a_banned_word_is_answered_with_a_block_and_an_
   assert!(
     hook
       .call("stop", &["--hold-wording"], &json!({ "last_assistant_message": format!("{instead}.") }))
+      .await
+      .is_empty()
+  );
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+}
+
+/// a line that holds a text-form tool call has such an answer answered with a block, and an ordinary report passes
+#[tokio::test]
+async fn a_stop_whose_answer_is_a_tool_call_written_as_text_is_answered_with_a_block_and_a_report_passes() {
+  let hook = Hook::new();
+  let raw = "<tool_call><function=Read><parameter=file_path>/tmp/one</parameter></function></tool_call>";
+
+  begin_run(hook.path(), "worker-job-11", "job eleven", now() - 1_000, BTreeMap::new()).unwrap();
+
+  let handed = hook
+    .call(
+      "stop",
+      &["--hold-tasks", "--hold-text-tool-call"],
+      &json!({ "last_assistant_message": raw }),
+    )
+    .await;
+  let block: Value = serde_json::from_str(&handed[0]).unwrap();
+
+  assert_eq!(block["decision"], "block");
+  assert!(block["reason"].as_str().unwrap().contains("native tool call"), "{}", block["reason"]);
+  assert!(read_run(hook.path()).unwrap().ended_at.is_none(), "a held stop ends nothing");
+
+  assert!(
+    hook
+      .call(
+        "stop",
+        &["--hold-text-tool-call"],
+        &json!({ "last_assistant_message": "The work is done; the report stands." }),
+      )
       .await
       .is_empty()
   );
