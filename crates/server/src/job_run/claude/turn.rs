@@ -815,6 +815,7 @@ impl Attempting<'_, '_> {
         account: account.as_ref().map(|account| account.id.clone()),
         parent: work.unit.clone(),
         root: work.unit.as_deref().map(execution_root),
+        run: Some(work.name.clone()),
       },
       &mut watch,
     )
@@ -898,6 +899,7 @@ impl Attempting<'_, '_> {
         account: account.as_ref().map(|account| account.id.clone()),
         parent: work.unit.clone(),
         root: work.unit.as_deref().map(execution_root),
+        run: Some(work.name.clone()),
       },
       &mut watch,
     )

@@ -55,6 +55,10 @@ pub struct Apart<'a> {
   pub account: Option<String>,
   pub parent: Option<String>,
   pub root: Option<String>,
+  /// The run the pane's turn is, where the caller's turn is one of its own — a job's or another role's
+  /// work turn kept in flight under its run (docs/sessions.md, 「A restart hands the session over」); the
+  /// line and the session name it otherwise.
+  pub run: Option<String>,
 }
 
 /// A new session for a run, which a later run resumes only where the run's role keeps sessions.
@@ -229,6 +233,7 @@ impl Folding<'_> {
       account: self.account,
       parent: self.parent,
       root: self.root,
+      run: None,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
     let compacted = tail.look().into_iter().skip(from).any(|written| {
@@ -264,7 +269,10 @@ async fn run_on<W: Watch>(
   apart: Apart<'_>,
   watch: &mut W,
 ) -> Result<Ending, String> {
-  let name = format!("{}-{}", apart.line, apart.session.chars().take(8).collect::<String>());
+  let name = apart
+    .run
+    .clone()
+    .unwrap_or_else(|| format!("{}-{}", apart.line, apart.session.chars().take(8).collect::<String>()));
   let mut env = pane_environment(ground.env(), &apart.command, &name);
 
   if let Some(why) = launch_refusal(apart.line, &apart.command.args, &env) {

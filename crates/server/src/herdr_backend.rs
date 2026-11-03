@@ -2035,7 +2035,7 @@ impl HerdrSessions {
 
     self.ended(&turn.session, &run);
     crate::turn_marks::ended(&agent, &run);
-    crate::turn_pickup::forget(&self.ground().db, &run).await;
+    crate::turn_pickup::forget(&self.ground().db, &run, "its end reached its caller").await;
 
     // A turn cut because its session's slot was given back says so.
     let cut = self.cut.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&run);

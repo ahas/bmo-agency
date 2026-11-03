@@ -8,7 +8,9 @@
 //! turn on a Claude Code pane, which keeps no record of agency's, is read from the place's run, the hooks'
 //! calls and the session's transcript, a job's and a supervisor's double's alike; and a job's turn sent on
 //! a thrown-away session is kept in flight while it goes, whatever run the worker's own place holds, so the
-//! start after its process went away adopts the job from the row its launch wrote.
+//! start after its process went away adopts the job from the row its launch wrote; a job's turn in a pane
+//! of its own, which no place stands for, keeps its row through every periodic pass while its round goes
+//! on and is adopted at start through its execution's liveness row, ending with its round.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -843,6 +845,22 @@ async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends
   assert_eq!(job_state(&scratch, 43).await.0, "running", "the job goes on across the start");
   assert_eq!(slot_now(&ground, &held.token).await.state, "active");
 
+  // A sub-turn of the round ends, its stop kept from closing the run since the round still owes a turn, a
+  // word is submitted after it, and every pass runs again and again: the turn stays kept and the job running.
+  let mid = now_ms();
+
+  agency_server::door::place_run::record_call(&place.path, "stop", &payload, mid, true, None).unwrap();
+  agency_server::door::place_run::record_call(&place.path, "submit", &payload, mid + 1, false, None)
+    .unwrap();
+
+  for _ in 0..3 {
+    every_pass(&ground).await;
+    assert!(kept_now(&scratch, "job-43").await, "no pass lets go of a turn whose round goes on");
+  }
+
+  assert_eq!(job_state(&scratch, 43).await.0, "running");
+  assert!(agency_server::apart_places::is_apart_place(&data, &name));
+
   // The program answers and its hooks close the run: the job ends with the answer as its report.
   claude_code_answers(&place, &transcript, &payload, "The Claude Code job's report.");
 
@@ -1105,7 +1123,7 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
   claude_code_answers(&place, &transcript, &payload, "The relaunched job's report.");
 
   for _ in 0..80 {
-    if job_state(&scratch, 78).await.0 != "running" {
+    if job_state(&scratch, 78).await.0 != "running" && !kept_now(&scratch, "job-78").await {
       break;
     }
 
@@ -1124,4 +1142,223 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
 
 async fn kept_now(scratch: &Scratch, run: &str) -> bool {
   agency_server::turn_pickup::kept(scratch.db(), run).await
+}
+
+// Every pass that runs on a clock over what turns leave, run once: the executions' reconciliation, the
+// reap of dead turns, the reap of jobs left running, the run sweep, the jobs' leases and the slots' line.
+async fn every_pass(ground: &Ground) {
+  let running = agency_server::queue::running::Running::new(ground.db.clone(), &ground.machine(), None);
+
+  agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data).await.unwrap();
+  reap_dead(ground).await;
+  reap_stale(ground).await.unwrap();
+  agency_server::run_sweep::pass(ground).await.unwrap();
+  agency_server::job_leases::pass(&ground.db, ground.vars()).await.unwrap();
+  dispatch::reclaim_bound(&ground.db, &running).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_adopted_through_its_liveness()
+ {
+  use agency_server::herdr_backend::HerdrSessions;
+  use agency_server::places::Places;
+  use agent_session::{Apart, JobMark, Scope, Sessions, Start, Turn, TurnContext};
+
+  use crate::integration::common;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let line = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&line, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker", "/checkouts/worker", &[]).await;
+
+  let config = home.path().join("config");
+
+  std::fs::create_dir_all(config.join("herdr")).unwrap();
+
+  let herdr = common::herdr::HerdrModel::stand(config.join("herdr").join("herdr.sock"));
+  let at = |path: &std::path::Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("XDG_CONFIG_HOME".to_owned(), at(&config)),
+      ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
+  let places = Places::new(
+    Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr.socket.clone()))),
+    Arc::default(),
+  );
+  let ground = places.ground.clone();
+  let sessions = Arc::new(HerdrSessions::new(places));
+
+  // A job's turn as the job line sends it on Claude Code's own provider: a pane of its own, no place.
+  running_job(&scratch, 80, now_ms() - 20 * 60 * 1000).await;
+
+  let held = job_slot(&ground, 80, true).await;
+  let started = sessions
+    .start(Start {
+      agent: "worker".into(),
+      scope: Scope::Apart(Apart {
+        provider: "claude-code".into(),
+        model: "claude-sonnet-5".into(),
+        cwd: at(home.path()),
+        role: Some("worker".into()),
+        ..Apart::default()
+      }),
+    })
+    .await
+    .unwrap();
+  let turn = Turn {
+    session: started.id.clone(),
+    prompt: "work".into(),
+    context: TurnContext {
+      job: Some(JobMark {
+        job: 80,
+        item: Some(1),
+      }),
+      work: Some(job_work(&at(home.path()), "job-80")),
+      ..TurnContext::default()
+    },
+  };
+  let sending = sessions.clone();
+  let going = tokio::spawn(async move { sending.send_turn(turn).await });
+
+  for _ in 0..200 {
+    if sessions.turn_run(&started.id).is_some() || going.is_finished() {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+  }
+
+  assert!(!going.is_finished(), "the job's turn goes on");
+  assert!(kept_now(&scratch, "job-80").await, "the launch keeps the job's turn in flight");
+
+  // The pane as the door leaves it: the program in a pane of its own, the execution the run opened and its
+  // liveness row under the run's name, and the session's transcript with a first turn ended and a word
+  // still queued, so the round goes on.
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+  let identity = agent_host::identity::ProcessIdentity::of(program.id() as i32).unwrap();
+  let (_, pane) = herdr.workspace("a job", serde_json::Value::Null, Some(&["claude"]));
+  let began = now_ms() - 60_000;
+  let transcript = home.path().join("session-80.jsonl");
+
+  scratch
+    .run(
+      r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('own-80', $1)"#,
+      vec![
+        json!({ "id": "own-80", "agent": null, "line": "worker", "provider": "claude-code",
+                "parent": "job-80", "state": "running", "startedAt": began, "endedAt": null,
+                "paneId": pane, "panePath": true, "sessionId": "session-80" })
+        .to_string()
+        .into(),
+      ],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "turn_liveness" ("execution", "run", "line", "session", "phase", "pane", "program_pid",
+           "program_birth", "records", "opened_at", "written_at")
+         VALUES ('own-80', 'job-80', 'worker', 'session-80', 'working', $1, $2, $3, $4, $5, $5)"#,
+      vec![
+        pane.clone().into(),
+        i64::from(identity.pid).into(),
+        identity.birth.clone().into(),
+        json!([transcript]).to_string().into(),
+        began.into(),
+      ],
+    )
+    .await;
+  transcribe(
+    &transcript,
+    &[
+      json!({ "type": "user", "timestamp": stamp(began + 10), "message": { "content": "the work" } }),
+      json!({ "type": "assistant", "timestamp": stamp(began + 20),
+              "message": { "id": "m1", "content": [{ "type": "text", "text": "Started; a check runs." }] } }),
+      json!({ "type": "queue-operation", "operation": "enqueue", "timestamp": stamp(began + 30) }),
+      json!({ "type": "system", "subtype": "turn_duration", "timestamp": stamp(began + 40) }),
+    ],
+  );
+
+  // Every pass, again and again, leaves the turn of a round still going kept, and its job running.
+  for _ in 0..3 {
+    every_pass(&ground).await;
+    assert!(kept_now(&scratch, "job-80").await, "no pass lets go of a turn whose round goes on");
+  }
+
+  assert_eq!(job_state(&scratch, 80).await.0, "running");
+
+  // The process carrying it goes away; the next start adopts the job through its execution's liveness row.
+  going.abort();
+  let _ = going.await;
+
+  let row = in_flight_turns(&scratch).await.into_iter().find(|turn| turn.run == "job-80");
+
+  assert!(row.is_some(), "the launch's row outlives its process");
+  assert_eq!(
+    own_pane(scratch.db(), "job-80").await.map(|found| (found.execution, found.pane)),
+    Some(("own-80".to_owned(), Some(pane.clone())))
+  );
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+
+  for _ in 0..3 {
+    every_pass(&ground).await;
+    assert!(
+      kept_now(&scratch, "job-80").await,
+      "the adopted turn stays kept while its round goes on"
+    );
+  }
+
+  assert_eq!(job_state(&scratch, 80).await.0, "running", "the job goes on across the start");
+  assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  // The queued word is taken and answered, and the round ends: the job ends with its report.
+  let now = now_ms();
+
+  transcribe(
+    &transcript,
+    &[
+      json!({ "type": "queue-operation", "operation": "dequeue", "timestamp": stamp(now) }),
+      json!({ "type": "user", "timestamp": stamp(now + 1), "message": { "content": "the check ended" } }),
+      json!({ "type": "assistant", "timestamp": stamp(now + 2),
+              "message": { "id": "m2", "content": [{ "type": "text", "text": "The final report." }] } }),
+      json!({ "type": "system", "subtype": "turn_duration", "timestamp": stamp(now + 3) }),
+    ],
+  );
+
+  // The job's end is written as its turn's end is handed back, and the turn is let go after it.
+  for _ in 0..80 {
+    if job_state(&scratch, 80).await.0 != "running" && !kept_now(&scratch, "job-80").await {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  let (state, report) = job_state(&scratch, 80).await;
+
+  assert_eq!(state, "ended");
+  assert!(report.unwrap_or_default().contains("The final report."));
+  assert!(!kept_now(&scratch, "job-80").await);
+
+  for _ in 0..40 {
+    if !herdr.panes().iter().any(|one| one.id == pane) {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert!(
+    !herdr.panes().iter().any(|one| one.id == pane),
+    "the pane of its own is closed with the turn"
+  );
+
+  let _ = program.kill();
+  let _ = program.wait();
 }

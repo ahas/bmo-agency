@@ -24,7 +24,9 @@ use crate::door::inbox::{
   State, provider_named, read_turn_on, record_of, span_named, span_named_after, waiting_in_inbox,
 };
 use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
-use crate::door::record::{Reply, UsageSpent, answered_since, read_round, read_turn, turn_error};
+use crate::door::record::{
+  Reply, RoundState, UsageSpent, answered_since, read_round, read_turn, turn_closed_since, turn_error,
+};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
@@ -66,9 +68,13 @@ pub async fn keep(db: &sea_orm::DatabaseConnection, turn: &InFlight) {
   }
 }
 
-/// A turn whose end reached its caller, no longer kept.
-pub async fn forget(db: &sea_orm::DatabaseConnection, run: &str) {
-  let _ = settings::forget(db, &format!("{PREFIX}{run}")).await;
+/// A turn no longer kept, the run and why written to the log: its end reached its caller, was handed back,
+/// or nothing names it any more (docs/sessions.md, 「A restart hands the session over」).
+pub async fn forget(db: &sea_orm::DatabaseConnection, run: &str, why: &str) {
+  match settings::forget(db, &format!("{PREFIX}{run}")).await {
+    Ok(()) => println!("{run}: the turn is no longer kept in flight: {why}"),
+    Err(refusal) => eprintln!("{run}: the turn kept in flight was not let go ({why}): {}", refusal.detail),
+  }
 }
 
 // The runs of the turns this process carries now.
@@ -121,7 +127,7 @@ pub async fn in_flight(db: &sea_orm::DatabaseConnection) -> Result<Vec<InFlight>
     if let Some(text) = settings::get(db, &format!("{PREFIX}{run}")).await? {
       match serde_json::from_str::<InFlight>(&text) {
         Ok(turn) => turns.push(turn),
-        Err(_) => forget(db, &run).await,
+        Err(_) => forget(db, &run, "its kept row does not read").await,
       }
     }
   }
@@ -213,26 +219,103 @@ fn standing_on_hooks(place: &Place, turn: &InFlight) -> Standing {
   let lines = named("transcript_path")
     .and_then(|transcript| transcript_since(std::path::Path::new(&transcript), run.started_at))
     .unwrap_or_default();
-  let read = read_turn(&lines, 0);
-  let answered = answered_since(&lines, 0);
   let failure = latest_failure(&place.path, run.started_at).map(|failure| failure.failure());
 
+  Standing::Ended(came_of(&lines, &named("session_id").unwrap_or_default(), failure))
+}
+
+// How a Claude Code turn came out, read from its transcript's lines since it went in: its error, the
+// failure its place recorded, no answer, or its round's answer.
+fn came_of(lines: &[Value], session: &str, failure: Option<(String, Option<String>)>) -> Came {
+  let read = read_turn(lines, 0);
+  let answered = answered_since(lines, 0);
+
   if let Some((error, _)) = turn_error(&read, answered, failure) {
-    return Standing::Ended(Came::Failed(error));
+    return Came::Failed(error);
   }
 
   if !answered {
-    return Standing::Ended(Came::Failed(NO_ANSWER.to_owned()));
+    return Came::Failed(NO_ANSWER.to_owned());
   }
 
-  let mut reply = read.reply(&named("session_id").unwrap_or_default(), read.spend.clone());
-  let round = read_round(&lines).text;
+  let mut reply = read.reply(session, read.spend.clone());
+  let round = read_round(lines).text;
 
   if !round.is_empty() {
     reply.text = round;
   }
 
-  Standing::Ended(Came::Answered(Box::new(reply)))
+  Came::Answered(Box::new(reply))
+}
+
+/// A turn's pane of its own, which no place stands for — a role's turn on Claude Code's own provider, a
+/// job's among them: the execution its run opened, the pane and the program its liveness row names, the
+/// session's transcript it reads, and when the execution began.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OwnPane {
+  pub execution: String,
+  pub pane: Option<String>,
+  pub transcript: std::path::PathBuf,
+  pub session: String,
+  pub program: Option<crate::door::liveness::Program>,
+  pub started_at: i64,
+}
+
+/// The pane of its own a kept turn went out in, found through the open execution its run opened and that
+/// execution's liveness row; none where the run opened no such execution. The program is the one the row
+/// names, else the process whose command line carries the session.
+pub async fn own_pane(db: &sea_orm::DatabaseConnection, run: &str) -> Option<OwnPane> {
+  let row = one(
+    db,
+    r#"SELECT l."execution", l."pane", l."session", l."records", l."program_pid", l."program_birth",
+              e."body"
+       FROM "turn_liveness" l JOIN "agent_executions" e ON e."id" = l."execution"
+       WHERE l."run" = $1 AND (e."body"::jsonb)->>'endedAt' IS NULL
+         AND COALESCE((e."body"::jsonb)->'resident', 'null'::jsonb) = 'null'::jsonb
+       ORDER BY l."opened_at" DESC LIMIT 1"#,
+    vec![run.into()],
+  )
+  .await
+  .ok()
+  .flatten()?;
+  let text = |column: &str| row.try_get::<Option<String>>("", column).ok().flatten();
+  let records: Vec<String> = text("records").and_then(|records| serde_json::from_str(&records).ok())?;
+  let body: Value = text("body").and_then(|body| serde_json::from_str(&body).ok())?;
+  let session = text("session").unwrap_or_default();
+  let pid = row.try_get::<Option<i64>>("", "program_pid").ok().flatten();
+  let program = match pid.and_then(|pid| i32::try_from(pid).ok()) {
+    Some(pid) => Some(crate::door::liveness::Program {
+      pid,
+      birth: text("program_birth"),
+    }),
+    None => crate::door::liveness::program_of_session(&session),
+  };
+
+  Some(OwnPane {
+    execution: text("execution")?,
+    pane: text("pane"),
+    transcript: records.first().map(std::path::PathBuf::from)?,
+    session,
+    program,
+    started_at: body.get("startedAt").and_then(Value::as_i64).unwrap_or_default(),
+  })
+}
+
+/// Where a turn in a pane of its own stands, read from its session's transcript since its execution began:
+/// going while the round there is still working and its program stands; ended once the round has ended,
+/// its answer or its error read from it; ended failed where the program is gone with the round open.
+pub fn standing_in_pane(pane: &OwnPane) -> Standing {
+  let lines = transcript_since(&pane.transcript, pane.started_at).unwrap_or_default();
+  let round = read_round(&lines);
+
+  match round.state {
+    RoundState::Interrupted => Standing::Ended(Came::Failed("the turn was interrupted".to_owned())),
+    RoundState::Ended if turn_closed_since(&lines, 0) => {
+      Standing::Ended(came_of(&lines, &pane.session, None))
+    }
+    _ if pane.program.as_ref().is_some_and(crate::door::liveness::alive_here) => Standing::Going,
+    _ => Standing::Ended(Came::Failed(GONE.to_owned())),
+  }
 }
 
 // Why a turn whose end its program wrote with no answer ended.
@@ -288,10 +371,25 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   for turn in turns {
     let name = place_name_of(&turn);
     let place = Place::of(&ground.roots.data, &name);
+    let mut now = standing(&place, &turn);
+    // A turn no place names may have gone out in a pane of its own.
+    let pane = match now {
+      Standing::Lost => own_pane(&ground.db, &turn.run).await,
+      _ => None,
+    };
 
-    match standing(&place, &turn) {
-      Standing::Ended(came) => hand_back(ground, &place, &turn, came).await,
-      Standing::Lost if turn.job.is_some() => forget(&ground.db, &turn.run).await,
+    if let Some(pane) = &pane {
+      now = standing_in_pane(pane);
+    }
+
+    match now {
+      Standing::Ended(came) => {
+        hand_back(ground, &place, &turn, came).await;
+        close_pane(ground, pane.as_ref()).await;
+      }
+      Standing::Lost if turn.job.is_some() => {
+        forget(&ground.db, &turn.run, "nothing names it at start; its job is left to the reap").await
+      }
       Standing::Lost => hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned())).await,
       Standing::Going => {
         // The adopted turn stands as seen: the lease bound to its run is given back by its end, or by its
@@ -305,7 +403,7 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 
         let ground = ground.clone();
 
-        tokio::spawn(async move { attach(&ground, &name, place, turn).await });
+        tokio::spawn(async move { attach(&ground, &name, place, pane, turn).await });
       }
     }
   }
@@ -317,21 +415,31 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 // goes into it meanwhile, and handed back once the record says it ended; a program gone is a turn gone. A
 // cancellation of its run cuts it short with its surface's interrupt, as the door carrying a live turn
 // does, and the record's end of it is handed back as any other. A thrown-away session's place it was
-// carried in is ended once the end is handed back, its session ending with its turn.
-async fn attach(ground: &Ground, name: &str, place: Place, turn: InFlight) {
+// carried in is ended once the end is handed back, its session ending with its turn, and a pane of the
+// turn's own is closed, as the door closes it with its run.
+async fn attach(ground: &Ground, name: &str, place: Place, pane: Option<OwnPane>, turn: InFlight) {
   {
     let _held = hold(agent_lock_path(&ground.roots.data, name)).await;
 
-    waited(ground, &place, &turn).await;
+    waited(ground, &place, pane.as_ref(), &turn).await;
   }
+
+  close_pane(ground, pane.as_ref()).await;
 
   if crate::apart_places::is_apart_place(&ground.roots.data, name) {
     crate::apart_places::end(ground, name).await;
   }
 }
 
-// An adopted turn waited on until its end is handed back.
-async fn waited(ground: &Ground, place: &Place, turn: &InFlight) {
+// A pane of the turn's own closed once its end is handed back.
+async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
+  if let (Some(herdr), Some(pane)) = (&ground.herdr, pane.and_then(|pane| pane.pane.as_deref())) {
+    let _ = herdr.call("pane.close", json!({ "pane_id": pane }), None).await;
+  }
+}
+
+// An adopted turn waited on until its end is handed back: in its place, or in its pane of its own.
+async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &InFlight) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
   let mut cut = false;
@@ -339,7 +447,12 @@ async fn waited(ground: &Ground, place: &Place, turn: &InFlight) {
   own_rows(ground, &turn.run).await;
 
   loop {
-    match standing(place, turn) {
+    let now = match pane {
+      Some(pane) => standing_in_pane(pane),
+      None => standing(place, turn),
+    };
+
+    match now {
       Standing::Ended(came) => return hand_back(ground, place, turn, came).await,
       Standing::Lost => return hand_back(ground, place, turn, Came::Failed(LOST.to_owned())).await,
       Standing::Going => {}
@@ -347,7 +460,13 @@ async fn waited(ground: &Ground, place: &Place, turn: &InFlight) {
 
     if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {
       cut = true;
-      interrupt(ground, &turn.run).await;
+      interrupt(ground, &turn.run, pane).await;
+    }
+
+    // A pane of its own reads its program on every look above.
+    if pane.is_some() {
+      tokio::time::sleep(every).await;
+      continue;
     }
 
     // The program gone is the turn's end; read so on as many looks in a row as a pane gone is confirmed
@@ -362,9 +481,17 @@ async fn waited(ground: &Ground, place: &Place, turn: &InFlight) {
   }
 }
 
-// A kept turn cut short: its surface's interrupt typed into the pane of each open row it put in, at once.
-async fn interrupt(ground: &Ground, run: &str) {
+// A kept turn cut short: its surface's interrupt typed into the pane of each open row it put in, at once;
+// a role's turn in a pane of its own is told the stop words, as the door tells a run that is no chat round.
+async fn interrupt(ground: &Ground, run: &str, pane: Option<&OwnPane>) {
   let Some(herdr) = &ground.herdr else { return };
+
+  if let Some(pane) = pane.and_then(|pane| pane.pane.as_deref()) {
+    let words = &policy::run_stop::RUN_STOP.instruction;
+    let _ = herdr.call("agent.prompt", json!({ "target": pane, "text": words }), None).await;
+
+    return;
+  }
 
   for row in open_rows(ground, run).await {
     let directory = ground.roots.data.join("executions").join(row.id());
@@ -536,7 +663,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
     crate::control::work::job_turn_ended(ground, job, end).await;
   }
 
-  forget(db, &turn.run).await;
+  forget(db, &turn.run, "its end was handed back").await;
 }
 
 /// A turn whose program died with its run still open: closed with the moment and the reason, as the
@@ -561,7 +688,7 @@ pub async fn reap_dead(ground: &Ground) -> usize {
     };
 
     if run.ended_at.is_some() {
-      forget(&ground.db, &turn.run).await;
+      forget(&ground.db, &turn.run, "its place's run has ended").await;
       continue;
     }
 

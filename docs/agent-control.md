@@ -2049,12 +2049,14 @@ reads it.
   command line carries the run's session, looked for on each look until it is found. A program on a
   node is read by what the node's link last told of it.
 - **Its liveness row** is one row per turn in the store's `turn_liveness`, keyed by the turn's
-  execution (`docs/store.md`). It holds the turn's run, line and session, its phase, the pane, the
-  program's pid and birth, the record files the turn reads, what herdr last read the pane as and when,
-  the record's length and when it last grew, and when the place last took a status-line call and a hook
-  event. It is written as the turn opens, in the phase `standing` while its program is stood, `prompting`
-  as the words go in and `working` once they are seen taken; it is written again on each look where
-  something in it changed, and it is closed with the turn's ending and the reading the ending stood on.
+  execution (`docs/store.md`). It holds the turn's run — a role's work turn in a pane of its own goes
+  in under the run its runner names, and a run in a pane of its own that names none under its line and
+  session — its line and session, its phase, the pane, the program's pid and birth, the record files the
+  turn reads, what herdr last read the pane as and when, the record's length and when it last grew, and
+  when the place last took a status-line call and a hook event. It is written as the turn opens, in the
+  phase `standing` while its program is stood, `prompting` as the words go in and `working` once they are
+  seen taken; it is written again on each look where something in it changed, and it is closed with the
+  turn's ending and the reading the ending stood on.
 - **The program's own signals are its heartbeat:** its record growing, its status-line calls and its hook
   events. herdr's reading is the pane's, not the program's: it says what is drawn there, never that the
   program behind it can still answer.

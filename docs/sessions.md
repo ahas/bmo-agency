@@ -48,7 +48,8 @@ statements below about either are kept for a rollback to the road a deployment l
     through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
     gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a delegation's,
     a supervisor's double's and a research run's among them. A turn stops being kept only once its end
-    has reached its caller, or the pickup or the pass below has handed its end back;
+    has reached its caller, or the pickup or the pass below has handed its end back or found nothing that
+    names it; each removal is written to the log with the run and why;
   - a server that starts reads each turn the process before it left there, before it reads anything else
     that process left, in the place of the pane program that carries it — the agent's place, or, for a
     turn of a role's thrown-away session (a job's or a supervisor's double's among them), the place of
@@ -61,6 +62,14 @@ statements below about either are kept for a rollback to the road a deployment l
       closed, which they do once a stop or a failure ends the round, has ended, and its answer or its
       error is read from the session's own record, the transcript the hooks name, from the run's start;
       a run naming another turn, or one the program never took, does not name this one;
+    - on a Claude Code pane of the turn's own, which has no place — a role's turn on Claude Code's own
+      provider, a job's among them (`docs/agents.md`, 「A run in a pane of its own」) — through the
+      execution its run opened: the pane's turn goes in under the run's own name (`docs/launch-lines.md`),
+      so the turn's liveness row names the run, and that row holds the pane, the program and the session's
+      transcript. The turn is going while its program stands and the transcript's round from the row's
+      start is still working, has ended once that round has, its answer or its error read from it, and ends
+      failed where the program is gone with the round still open; the pane is closed once its end is handed
+      back;
   - a turn whose end its program has written is handed back through the path a live turn's end takes:
     what of its record the run log lacks is filed there with its end, its execution row and the place's
     run are closed, a chat turn's road, spend and ledger run are written, its end is published as

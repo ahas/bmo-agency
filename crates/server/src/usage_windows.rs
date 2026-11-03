@@ -150,6 +150,7 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
     account: None,
     parent: None,
     root: None,
+    run: None,
   };
   let ending = renewed(&ground.roots.data, &account, async {
     apart::run(ground, apart, &mut Quiet)
