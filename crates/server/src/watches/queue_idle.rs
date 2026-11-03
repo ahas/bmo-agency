@@ -2,7 +2,8 @@
 //! job service that a free worker could take, and no job started for the idle minutes, told to the owner once
 //! for each idle stretch through the receiver's owner notice; and an open item waiting a minute on its own
 //! free worker, told to the supervisor once for that item. The owner's switch silences both until the next
-//! job starts.
+//! job starts. A draft awaiting approval is told to the supervisor once too, in the room of whoever ordered
+//! it: its own room, else its parent's up the `raised-by` chain.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -26,6 +27,11 @@ pub const MINUTES_KEY: &str = "queue_idle_minutes";
 pub const SEEN_PREFIX: &str = "queue_item_waiting:";
 /// The settings rows, one an item by its number, of when the supervisor was told the item awaits a launch.
 pub const LAUNCH_TOLD_PREFIX: &str = "queue_item_told:";
+
+/// The settings rows, one an item by its number, of when the supervisor was told the draft awaits approval.
+pub const DRAFT_TOLD_PREFIX: &str = "queue_draft_told:";
+/// The label naming the item whose job raised an item, by its number.
+pub const RAISED_BY: &str = "raised-by";
 
 /// An open item as the alarm reads it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,6 +122,102 @@ pub fn launch_instruction(item: &Open) -> Value {
     "kind": format!("item-awaits-launch:{}", item.id),
     "summary": format!("Item #{} awaits a launch", item.id),
     "events": [format!("item-awaits-launch:#{}", item.id)],
+    "run": Value::Null,
+  })
+}
+
+/// A draft as the pass reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Draft {
+  pub id: i64,
+  pub title: String,
+  /// Who raised it: the item its `raised-by` label names, else its requester.
+  pub raised_by: Option<String>,
+  /// The item whose job raised it, where its `raised-by` label names one.
+  pub parent: Option<i64>,
+  /// The repository its work is in, its `assigneeName`.
+  pub repository: Option<String>,
+  pub brief: String,
+  /// The room it was asked in, where it names one itself.
+  pub room: Option<i64>,
+}
+
+/// The item an item's `raised-by` label names, by its number.
+pub fn parent_of(item: &Value) -> Option<i64> {
+  let label = &item["labels"][RAISED_BY];
+
+  label
+    .as_i64()
+    .or_else(|| label.as_str().and_then(|number| number.trim().trim_start_matches('#').parse().ok()))
+    .filter(|parent| *parent > 0)
+}
+
+/// A job service item read as a draft; none for a member that carries no number.
+pub fn draft_of(item: &Value) -> Option<Draft> {
+  let parent = parent_of(item);
+  let requester = item["requesterName"].as_str().map(str::trim).filter(|name| !name.is_empty());
+
+  Some(Draft {
+    id: item["id"].as_i64()?,
+    title: item["title"].as_str().unwrap_or_default().to_owned(),
+    raised_by: parent.map(|parent| format!("item #{parent}")).or(requester.map(str::to_owned)),
+    parent,
+    repository: item["assigneeName"].as_str().map(str::to_owned),
+    brief: item["brief"].as_str().unwrap_or_default().to_owned(),
+    room: room_of(item),
+  })
+}
+
+/// The drafts the supervisor is yet to be told of.
+pub fn drafts_due<'a>(drafts: &'a [Draft], told: &BTreeSet<i64>) -> Vec<&'a Draft> {
+  drafts.iter().filter(|draft| !told.contains(&draft.id)).collect()
+}
+
+/// The first lines of a brief the supervisor is told, blank ones left out, cut at the policy's characters.
+pub fn brief_head(brief: &str) -> String {
+  let head = brief
+    .lines()
+    .map(str::trim_end)
+    .filter(|line| !line.trim().is_empty())
+    .take(QUEUE_IDLE.draft_brief_lines)
+    .collect::<Vec<_>>()
+    .join("\n");
+
+  if head.chars().count() <= QUEUE_IDLE.draft_brief_chars {
+    return head;
+  }
+
+  let mut cut: String = head.chars().take(QUEUE_IDLE.draft_brief_chars).collect();
+
+  cut.push('…');
+  cut
+}
+
+/// The instruction a draft awaiting approval is queued with for the supervisor that ordered it, in `room`, or
+/// the owner's private room where none was found. It is an order under the sort `job`, as a job's own notices
+/// are, so it reaches the room's supervisor.
+pub fn approval_instruction(draft: &Draft, room: Option<i64>) -> Value {
+  let number = draft.id.to_string();
+  let brief = brief_head(&draft.brief);
+  let order = fill_marks(
+    &QUEUE_IDLE.draft_order,
+    &[
+      ("item", &number),
+      ("title", &draft.title),
+      ("raised_by", draft.raised_by.as_deref().unwrap_or("no one named")),
+      ("repository", draft.repository.as_deref().unwrap_or("none, host work")),
+      ("brief", if brief.is_empty() { "(no brief)" } else { &brief }),
+    ],
+  );
+
+  json!({
+    "room": room,
+    "said": { "order": order },
+    "agentName": Value::Null,
+    "sort": "job",
+    "kind": format!("item-awaits-approval:{}", draft.id),
+    "summary": format!("Item #{} awaits approval", draft.id),
+    "events": [format!("item-awaits-approval:#{}", draft.id)],
     "run": Value::Null,
   })
 }
@@ -320,6 +422,108 @@ async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>
   ))
 }
 
+// One item of the job service by its number; none where it answers that it holds no such item.
+async fn read_item(url: &str, token: &str, id: i64) -> Result<Option<Value>, String> {
+  let answer = reqwest::Client::new()
+    .get(format!("{url}/items/{id}"))
+    .bearer_auth(token)
+    .send()
+    .await
+    .map_err(|why| why.to_string())?;
+
+  if answer.status() == reqwest::StatusCode::NOT_FOUND {
+    return Ok(None);
+  }
+
+  if !answer.status().is_success() {
+    return Err(format!("the job service answered {} to /items/{id}", answer.status().as_u16()));
+  }
+
+  answer.json().await.map(Some).map_err(|why| why.to_string())
+}
+
+// The job service's drafts, every page of them.
+async fn drafts(url: &str, token: &str) -> Result<Vec<Draft>, String> {
+  let mut held = Vec::new();
+  let mut after: Option<String> = None;
+
+  loop {
+    let mut query = vec![("state", "draft"), ("limit", "500")];
+
+    if let Some(after) = &after {
+      query.push(("after", after));
+    }
+
+    let page = read_job(url, token, "/items", &query).await?;
+    let members = page["items"].as_array().cloned().unwrap_or_default();
+
+    held.extend(members.iter().filter_map(draft_of));
+
+    match members.last().and_then(|last| last["id"].as_i64()) {
+      Some(last) if page["more"] == true => after = Some(last.to_string()),
+      _ => return Ok(held),
+    }
+  }
+}
+
+// The room of the supervisor that ordered a draft: its own room, else the room of the item its `raised-by`
+// label names, followed up the chain while each names none of its own. None where the chain reaches no room,
+// an item the job service no longer holds, or an item already passed.
+async fn orderer_room(url: &str, token: &str, draft: &Draft) -> Result<Option<i64>, String> {
+  if draft.room.is_some() {
+    return Ok(draft.room);
+  }
+
+  let mut passed = BTreeSet::from([draft.id]);
+  let mut next = draft.parent;
+
+  while let Some(id) = next.filter(|id| passed.insert(*id)) {
+    let Some(item) = read_item(url, token, id).await? else { return Ok(None) };
+
+    if let Some(room) = room_of(&item) {
+      return Ok(Some(room));
+    }
+
+    next = parent_of(&item);
+  }
+
+  Ok(None)
+}
+
+/// Each draft awaiting approval told to the supervisor that ordered it, once: the told rows of items no longer
+/// a draft let go, and a row kept for each told now.
+pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
+  let (Some(url), Some(token), Some(_)) = (
+    address(vars, "BMO_JOB_URL"),
+    token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"),
+    address(vars, "BMO_RECEIVER_URL"),
+  ) else {
+    return Ok(());
+  };
+  let fault = |why: Refusal| why.detail;
+  let drafts = drafts(&url, &token).await?;
+  let standing: BTreeSet<i64> = drafts.iter().map(|draft| draft.id).collect();
+  let told = marks(db, DRAFT_TOLD_PREFIX).await.map_err(fault)?;
+
+  for id in told.keys().filter(|id| !standing.contains(id)) {
+    settings::forget(db, &format!("{DRAFT_TOLD_PREFIX}{id}")).await.map_err(fault)?;
+  }
+
+  let told: BTreeSet<i64> = told.into_keys().collect();
+
+  for draft in drafts_due(&drafts, &told) {
+    let room = orderer_room(&url, &token, draft).await?;
+
+    instruct(vars, &approval_instruction(draft, room)).await?;
+    settings::set(db, &format!("{DRAFT_TOLD_PREFIX}{}", draft.id), &crate::now_ms().to_string())
+      .await
+      .map_err(fault)?;
+    println!("queue: draft #{} awaits approval, told to the supervisor", draft.id);
+  }
+
+  Ok(())
+}
+
 /// The room an item was asked in: its `roomId`, else the room its `scope` names; none for an item that names
 /// neither, which the owner's private room answers for.
 pub fn room_of(item: &Value) -> Option<i64> {
@@ -353,8 +557,8 @@ async fn tell(vars: &BTreeMap<String, String>, body: &Value) -> Result<bool, Str
   }
 }
 
-/// One pass of the alarm: the queue read, each item awaiting a launch on its own free worker told to the chat
-/// agent once, and an idle queue told to the owner once, the moments kept.
+/// One pass of the alarm: the queue read, each item awaiting a launch on its own free worker and each draft
+/// awaiting approval told to the supervisor once, and an idle queue told to the owner once, the moments kept.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
   let Some(open) = open_items(vars).await? else { return Ok(()) };
   let standing = held(db, open).await.map_err(|why| why.detail)?;
@@ -362,6 +566,10 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
 
   if let Err(why) = tell_launches(db, vars, &standing, now).await {
     eprintln!("queue: an item awaiting a launch was not told: {why}");
+  }
+
+  if let Err(why) = tell_drafts(db, vars).await {
+    eprintln!("queue: a draft awaiting approval was not told: {why}");
   }
 
   if !idle(&standing, now) {

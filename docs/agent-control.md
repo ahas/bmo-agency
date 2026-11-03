@@ -2817,8 +2817,29 @@ them run a browser, and whose a place is.
   item: the moment it was first seen waiting and the moment it was told are kept by the item's number, the
   first let go once the item no longer waits to go, the second once the item is no longer open. It stands
   beside the idle stretch's notice and does not wait for the idle minutes.
-- **A switch silences both,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
-  it on again. A deployment that names no job service or no receiver tells nothing.
+- **A draft awaiting approval is told to the supervisor on its own.** In the same minute pass agency reads the
+  job service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for.
+  One the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each
+  draft not told yet agency queues one instruction through the receiver's `POST /instructions`, an order under
+  the sort `job` with the kind `item-awaits-approval:<item>` and the event `item-awaits-approval:#<item>`, in
+  the room the item was asked in — its `roomId`, else the room its `scope` names — and in the owner's private
+  room only where none is found. The order carries the item's number and title, who raised it (its `raised-by`
+  label, else its requester), its repository and the first lines of its brief (`policy/queue-idle.toml`,
+  `draft_brief_lines` and at most `draft_brief_chars`), and asks the supervisor to judge it by its manual:
+  approve it where the work is routine and it can judge it safe, the approval recorded as its own, or leave it
+  a draft and say in one line why the owner should decide. It is told once for each item: the moment it was
+  told is kept by the item's number and let go once the item is no longer a draft — approved, dropped or
+  merged — so neither a restart nor the next pass repeats it, and an item that left `draft` is told nothing
+  more.
+- **A derived item has its parent's orderer.** A draft that names no room of its own but carries the label
+  `raised-by=<item>` is told in the room of the item it names: that item's `roomId`, else its scope's room,
+  else, where that item is itself derived, its own parent's, followed up the chain. So a worker's follow-ups,
+  and follow-ups of follow-ups, are judged by the supervisor whose job raised them; only a chain that reaches
+  no room, or an item the job service no longer answers for, goes to the owner's private room.
+- **A switch silences the idle stretch's notice and the launch notice,** the settings row `queue_idle_alarm`
+  set to `off`; the next job that starts turns it on again. A draft awaiting approval is told whatever the
+  switch says, since it waits on a judgement rather than on a launch. A deployment that names no job service
+  or no receiver tells nothing.
 
 ### Pressure told as a fact
 

@@ -1051,7 +1051,8 @@ and the filing of an item.
     the owner's — and lose any `asked-by` the call names, so the job service's unattended labels open an item
     the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft
     until an approver approves it: the owner, or the supervisor itself where the deployment marks the chat's
-    caller an approver in the job service, for the routine work its own instructions let it judge;
+    caller an approver in the job service, for the routine work its own instructions let it judge; agency
+    tells the supervisor of each such draft once (「Calls agency makes」);
   - an agent carrying no turn now files no item: 409 `no-turn`.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
@@ -1311,8 +1312,12 @@ program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter 
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
 hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
-`open` and its port's `GET /items?open=1`, whose `approved` says which items are approved, are read, and
-an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
+`open`, `GET /items` with `state` `draft` and its port's `GET /items?open=1`, whose `approved` says which
+items are approved, are read, and an idle queue is told once through the receiver's `POST /owner/notices`
+with the code `queue-idle`, an item awaiting a launch once through `POST /instructions`, and a draft
+awaiting approval once through `POST /instructions` as an order under the sort `job` with the kind
+`item-awaits-approval:<item>` and the event `item-awaits-approval:#<item>`, its room found, for a draft
+naming none, by reading the item its `raised-by` label names with `GET /items/{itemId}`, up the chain
 (`docs/agent-control.md`, 「An idle queue is told to the owner」); and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
 `gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
@@ -1376,7 +1381,7 @@ Each surface is a crate of its own repository, declared in the workspace manifes
 stays outside the boundary.
 
 It calls no downstream but the job service's lease route and the receiver's instruction route: the lease
-renewed or, for a stopped job, returned, and the report handed over as a job ends, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
+renewed or, for a stopped job, returned, and the report handed over as a job ends, a supervisor told of an item awaiting its launch or its approval, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
 above for everything else.
 
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with

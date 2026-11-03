@@ -1,13 +1,15 @@
 //! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): approved work a
 //! free worker could take and no job started for the idle minutes, told to the owner once for each stretch
-//! through the receiver, and silenced by the owner's switch until the next job starts.
+//! through the receiver, and silenced by the owner's switch until the next job starts; and a draft awaiting
+//! approval told once to the supervisor that ordered it, in its room or its parent's up the `raised-by` chain.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use agency_server::watches::queue_idle::{
-  MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, awaiting_launch, idle, job_started,
-  launch_instruction, launches_due, notice, pass, room_of, waiting,
+  DRAFT_TOLD_PREFIX, Draft, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, approval_instruction,
+  awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started, launch_instruction, launches_due,
+  notice, pass, room_of, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -144,15 +146,116 @@ fn the_notice_carries_its_code_the_waiting_items_and_what_the_chat_agent_is_aske
   assert_eq!(said["ask"], QUEUE_IDLE.ask.as_str());
 }
 
-type Calls = Arc<Mutex<Vec<(String, Value)>>>;
+#[test]
+fn a_draft_names_who_raised_it_its_parent_and_its_own_room() {
+  let derived = draft_of(&json!({
+    "id": 2433, "title": "a follow-up", "state": "draft", "brief": "do it",
+    "labels": { "raised-by": "2432" }, "requesterName": "chat", "assigneeName": "w1",
+  }))
+  .unwrap();
 
-// The job service and the receiver in one: two queues, one paused, and the open items across them; every
-// call kept.
-async fn stand_in(State(calls): State<Calls>, uri: Uri, body: Bytes) -> impl IntoResponse {
-  calls
+  assert_eq!(
+    (
+      derived.parent,
+      derived.raised_by.as_deref(),
+      derived.room,
+      derived.repository.as_deref()
+    ),
+    (Some(2432), Some("item #2432"), None, Some("w1"))
+  );
+
+  let asked =
+    draft_of(&json!({ "id": 7, "title": "asked", "requesterName": "member", "roomId": 5 })).unwrap();
+
+  assert_eq!((asked.parent, asked.raised_by.as_deref(), asked.room), (None, Some("member"), Some(5)));
+  assert_eq!(draft_of(&json!({ "labels": { "raised-by": 12 } })), None, "a member with no number");
+  assert_eq!(
+    drafts_due(&[derived.clone(), asked], &BTreeSet::from([7])),
+    vec![&derived],
+    "a draft already told is not due"
+  );
+}
+
+#[test]
+fn a_draft_is_told_as_a_job_order_with_its_kind_event_and_the_start_of_its_brief() {
+  let brief = (1..=40).map(|line| format!("line {line}\n\n")).collect::<String>();
+  let draft = Draft {
+    id: 2434,
+    title: "a follow-up".to_owned(),
+    raised_by: Some("item #2432".to_owned()),
+    parent: Some(2432),
+    repository: Some("w1".to_owned()),
+    brief,
+    room: None,
+  };
+  let told = approval_instruction(&draft, Some(-9_000_000_000_003));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(told["sort"], "job");
+  assert_eq!(told["kind"], "item-awaits-approval:2434");
+  assert_eq!(told["events"], json!(["item-awaits-approval:#2434"]));
+  assert_eq!(told["room"], json!(-9_000_000_000_003_i64));
+  assert_eq!(approval_instruction(&draft, None)["room"], Value::Null, "the owner's private room");
+
+  for word in ["#2434", "a follow-up", "item #2432", "w1", "line 1", "job_item_update", "owner"] {
+    assert!(order.contains(word), "{order}");
+  }
+
+  let head = brief_head(&draft.brief);
+
+  assert_eq!(head.lines().count(), QUEUE_IDLE.draft_brief_lines, "{head}");
+  assert!(!head.contains("\n\n") && !order.contains("line 40"), "{order}");
+
+  let long = brief_head(&"x".repeat(QUEUE_IDLE.draft_brief_chars + 10));
+
+  assert_eq!(long.chars().count(), QUEUE_IDLE.draft_brief_chars + 1, "cut, with its mark");
+}
+
+type Calls = Arc<Mutex<Vec<(String, Value)>>>;
+type Drafts = Arc<Mutex<Vec<Value>>>;
+
+#[derive(Clone, Default)]
+struct Peers {
+  calls: Calls,
+  drafts: Drafts,
+}
+
+// The job service and the receiver in one: two queues, one paused, the open items across them, the drafts
+// a test sets and the parents the drafts name; every call kept.
+async fn stand_in(State(peers): State<Peers>, uri: Uri, body: Bytes) -> axum::response::Response {
+  peers
+    .calls
     .lock()
     .unwrap()
     .push((uri.path().to_owned(), serde_json::from_slice(&body).unwrap_or(Value::Null)));
+
+  if uri.path() == "/items" && uri.query().is_some_and(|query| query.contains("state=draft")) {
+    return axum::Json(json!({ "items": *peers.drafts.lock().unwrap(), "more": false })).into_response();
+  }
+
+  // The parents: 30 asked in a room, 31 raised by 30 and naming none, 33 and 34 raising each other.
+  match uri.path() {
+    "/items/30" => {
+      return axum::Json(json!({ "id": 30, "state": "done", "scope": "-9000000000007" })).into_response();
+    }
+    "/items/31" => {
+      return axum::Json(json!({ "id": 31, "state": "done", "labels": { "raised-by": "30" } }))
+        .into_response();
+    }
+    "/items/33" => {
+      return axum::Json(json!({ "id": 33, "state": "done", "labels": { "raised-by": "34" } }))
+        .into_response();
+    }
+    "/items/34" => {
+      return axum::Json(json!({ "id": 34, "state": "done", "labels": { "raised-by": "33" } }))
+        .into_response();
+    }
+    path if path.starts_with("/items/") => {
+      return (axum::http::StatusCode::NOT_FOUND, axum::Json(json!({ "code": "not-found" })))
+        .into_response();
+    }
+    _ => {}
+  }
 
   match uri.path() {
     "/queues" => axum::Json(json!({
@@ -169,31 +272,39 @@ async fn stand_in(State(calls): State<Calls>, uri: Uri, body: Bytes) -> impl Int
         { "id": 13, "title": "in a paused queue", "state": "open", "queueName": "later", "assigneeName": "w1" },
         { "id": 14, "title": "opened by its lane", "state": "open", "queueName": "todo", "assigneeName": "w1",
           "labels": { "lane": "pr-review" }, "scope": "-9000000000003" },
+        { "id": 15, "title": "the owner's own ask", "state": "open", "queueName": "later", "assigneeName": "w1",
+          "labels": { "asked-by": "owner" }, "scope": "-9000000000003" },
       ],
       "more": false,
     })),
     _ => axum::Json(json!({ "id": 1 })),
   }
+  .into_response()
+}
+
+async fn stand(peers: &Peers) -> BTreeMap<String, String> {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+  let app = axum::Router::new().fallback(stand_in).with_state(peers.clone());
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  [
+    ("BMO_JOB_URL".to_owned(), address.clone()),
+    ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
+    ("BMO_RECEIVER_URL".to_owned(), address.clone()),
+    ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
+  ]
+  .into()
 }
 
 #[tokio::test]
 async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
-  let calls: Calls = Arc::default();
-  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-  let address = format!("http://{}", listener.local_addr().unwrap());
-  let app = axum::Router::new().fallback(stand_in).with_state(calls.clone());
-
-  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-
-  let vars: BTreeMap<String, String> = [
-    ("BMO_JOB_URL".to_owned(), address.clone()),
-    ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
-    ("BMO_RECEIVER_URL".to_owned(), address.clone()),
-    ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
-  ]
-  .into();
+  let peers = Peers::default();
+  let calls = peers.calls.clone();
+  let vars = stand(&peers).await;
 
   repository(db, "w1", "/checkouts/w1", &[]).await;
   repository(db, "w2", "/checkouts/w2", &[]).await;
@@ -310,4 +421,110 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
 
   pass(db, &vars).await.unwrap();
   assert_eq!(told(&calls).len(), 2, "not yet the owner's minutes");
+}
+
+// The approval instructions the stand-in was handed, in the order they came.
+fn approvals(calls: &Calls) -> Vec<Value> {
+  calls
+    .lock()
+    .unwrap()
+    .iter()
+    .filter(|(path, body)| {
+      path == "/instructions"
+        && body["kind"].as_str().is_some_and(|kind| kind.starts_with("item-awaits-approval:"))
+    })
+    .map(|(_, body)| body.clone())
+    .collect()
+}
+
+#[tokio::test]
+async fn a_draft_is_told_once_to_the_supervisor_that_ordered_it_and_never_after_it_leaves_draft() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let peers = Peers::default();
+  let vars = stand(&peers).await;
+
+  *peers.drafts.lock().unwrap() = vec![
+    json!({ "id": 21, "title": "asked in a room", "state": "draft", "scope": "-9000000000005",
+            "requesterName": "member", "brief": "fix the thing" }),
+    json!({ "id": 22, "title": "a worker's follow-up", "state": "draft", "labels": { "raised-by": "30" },
+            "assigneeName": "w1", "brief": "the follow-up" }),
+    json!({ "id": 23, "title": "a follow-up of a follow-up", "state": "draft",
+            "labels": { "raised-by": "31" } }),
+    json!({ "id": 24, "title": "naming nothing", "state": "draft" }),
+    json!({ "id": 25, "title": "its parent gone", "state": "draft", "labels": { "raised-by": "32" } }),
+    json!({ "id": 26, "title": "a chain going round", "state": "draft", "labels": { "raised-by": "33" } }),
+  ];
+
+  pass(db, &vars).await.unwrap();
+
+  let told = approvals(&peers.calls);
+  let by_item: BTreeMap<String, (Value, Value)> = told
+    .iter()
+    .map(|body| (body["kind"].as_str().unwrap().to_owned(), (body["room"].clone(), body["sort"].clone())))
+    .collect();
+
+  assert_eq!(told.len(), 6, "each draft told once: {told:?}");
+  assert_eq!(
+    by_item,
+    BTreeMap::from([
+      ("item-awaits-approval:21".to_owned(), (json!(-9_000_000_000_005_i64), json!("job"))),
+      ("item-awaits-approval:22".to_owned(), (json!(-9_000_000_000_007_i64), json!("job"))),
+      ("item-awaits-approval:23".to_owned(), (json!(-9_000_000_000_007_i64), json!("job"))),
+      ("item-awaits-approval:24".to_owned(), (Value::Null, json!("job"))),
+      ("item-awaits-approval:25".to_owned(), (Value::Null, json!("job"))),
+      ("item-awaits-approval:26".to_owned(), (Value::Null, json!("job"))),
+    ]),
+    "its own room, else its parent's up the chain, else the owner's private room"
+  );
+  assert!(
+    told
+      .iter()
+      .all(|body| body["events"][0].as_str().unwrap().starts_with("item-awaits-approval:#"))
+  );
+
+  // The next pass, as after a restart, tells none of them again while they stay drafts.
+  pass(db, &vars).await.unwrap();
+  assert_eq!(approvals(&peers.calls).len(), 6, "told once");
+
+  // An approved draft leaves `draft`: its row let go, and it is told nothing more.
+  peers.drafts.lock().unwrap().retain(|draft| draft["id"] != 21);
+  pass(db, &vars).await.unwrap();
+  assert_eq!(approvals(&peers.calls).len(), 6, "an item that left draft is told nothing");
+
+  let rows = |key: String| async move { agency_server::queue::settings::get(db, &key).await.unwrap() };
+
+  assert_eq!(rows(format!("{DRAFT_TOLD_PREFIX}21")).await, None, "its row let go");
+  assert!(rows(format!("{DRAFT_TOLD_PREFIX}22")).await.is_some(), "a standing draft's row kept");
+
+  // A new draft is told on the next pass.
+  peers
+    .drafts
+    .lock()
+    .unwrap()
+    .push(json!({ "id": 27, "title": "a new one", "state": "draft", "roomId": 9 }));
+  pass(db, &vars).await.unwrap();
+
+  let told = approvals(&peers.calls);
+
+  assert_eq!(told.len(), 7);
+  assert_eq!((&told[6]["kind"], &told[6]["room"]), (&json!("item-awaits-approval:27"), &json!(9)));
+}
+
+#[tokio::test]
+async fn an_item_the_owner_asked_for_opens_at_once_and_is_never_told_for_approval() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let peers = Peers::default();
+  let vars = stand(&peers).await;
+
+  // The open items the stand-in serves carry one the owner's ask opened; no draft stands.
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  assert!(approvals(&peers.calls).is_empty(), "{:?}", approvals(&peers.calls));
+  assert!(
+    peers.calls.lock().unwrap().iter().any(|(path, _)| path == "/items"),
+    "the pass read the job service"
+  );
 }
