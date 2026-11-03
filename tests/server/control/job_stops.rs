@@ -1,7 +1,8 @@
 //! A job stopped (docs/api.md, 「assignments and jobs」): the supervisor's stop only on a turn that is the owner's,
 //! refused for an agent carrying no turn and for anyone else's turn; a stop cutting the job's turn short and
 //! answering once that turn has ended, the job stopped with the stop's reason; and the repository's checkout
-//! read as held by the job while its turn goes on, and free, taking the next item, once the stop has answered.
+//! read as held by the job while its turn goes on, and free, taking the next item, once the stop has answered;
+//! and the job's slot given back with its stop, so the next job of its role is let in.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ use agency_server::control::{Front, router};
 use agency_server::door::execution::cancelled;
 use agency_server::lines::place::Place;
 use agency_server::now_ms;
+use agency_server::order_run::dispatch;
 use agency_server::places::Ground;
 use agency_server::turn_marks::{self, Mark};
 use agency_server::turn_pickup::{InFlight, at_start, keep};
@@ -20,6 +22,7 @@ use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
+use crate::support::grounds::{deepseek_balance, job_slot, seeded, slot_now};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -271,4 +274,56 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
 
   assert_eq!(status, 201, "{assignment}");
   assert_eq!(assignment["workerName"], "worker-a", "{assignment}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_stopped_through_the_route_gives_its_slot_back_and_the_next_waiting_job_is_let_in() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let port = front(ground.clone()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
+    .await;
+  running(&scratch, "worker-a", 9, 44, Some("job-9")).await;
+
+  // The job holds the worker role's one slot, its lease bound to its run, and the next job waits for it.
+  let held = job_slot(&ground, 9, true).await;
+  let next = job_slot(&ground, 10, false).await;
+
+  assert_eq!(held.child_id.as_deref(), Some("job-9"));
+
+  let (status, stopped) = call(
+    port,
+    reqwest::Method::PATCH,
+    "/jobs/9",
+    Some(json!({ "state": "stopped", "report": "Stopped for the line." })),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{stopped}");
+  assert_eq!(stopped["state"], "stopped");
+
+  // The job's end gave its slot back as its owner's, with the reason the end carries.
+  let given = slot_now(&ground, &held.token).await;
+
+  assert_eq!(
+    (given.state.as_str(), given.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_OWNER)),
+    "{given:?}"
+  );
+  assert!(
+    given.outcome.as_deref().is_some_and(|why| why.contains("Stopped for the line.")),
+    "{given:?}"
+  );
+
+  // The next waiting job of the role is let in at its next ask.
+  assert!(
+    dispatch::acquire(&ground, &slot_now(&ground, &next.token).await)
+      .await
+      .unwrap()
+      .is_some()
+  );
 }

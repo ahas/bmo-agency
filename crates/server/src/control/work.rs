@@ -945,6 +945,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     eprintln!("job {id}: its end was not written: {why}");
   }
 
+  crate::job_end::slot_given_back(&ground.db, id, &ending(&state, outcome.as_deref())).await;
+
   if let Ok((member, _)) = job(&ground.db, id).await {
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
 
@@ -954,6 +956,14 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
 
     crate::job_end::delivered(ground, &member).await;
     publish(ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
+  }
+}
+
+// The reason a job's end gives its slot back with: its state and, where it names one, its outcome.
+fn ending(state: &str, outcome: Option<&str>) -> String {
+  match outcome.filter(|outcome| !outcome.is_empty() && *outcome != state) {
+    Some(outcome) => format!("{state}, {outcome}"),
+    None => state.to_owned(),
   }
 }
 
@@ -1066,6 +1076,8 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
     }
 
     noted(ground, id, "stopped", Some("the agency process that ran it went away (a restart)")).await;
+    crate::job_end::slot_given_back(&ground.db, id, "stopped: the agency process that ran it went away")
+      .await;
 
     if let Some(assignment) = row.try_get::<Option<i64>>("", "assignment_id").ok().flatten()
       && assignment > 0
@@ -1958,6 +1970,7 @@ pub async fn stop_job(
     vec![reason.into(), now.into(), id.into()],
   )
   .await?;
+  crate::job_end::slot_given_back(db, id, &format!("stopped: {reason}")).await;
   release(db, member["assignmentId"].as_i64().unwrap_or_default()).await?;
 
   if let Some(name) = &run_name {
@@ -2071,9 +2084,10 @@ impl Route for ChangeJob {
       db,
       r#"UPDATE "jobs" SET "state" = $1, "outcome" = COALESCE($2, "outcome"),
               "report" = COALESCE($3, "report"), "ended_at" = $4 WHERE "id" = $5"#,
-      vec![wanted.into(), outcome.into(), report.into(), now.into(), id.into()],
+      vec![wanted.into(), outcome.clone().into(), report.into(), now.into(), id.into()],
     )
     .await?;
+    crate::job_end::slot_given_back(db, id, &ending(wanted, outcome.as_deref())).await;
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
     run(db, r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#, vec![now.into(), assignment_id.into()]).await?;
 

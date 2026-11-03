@@ -1,5 +1,6 @@
-//! A job's end reaching the room and its lease kept for the item's close or given back (docs/api.md,
-//! 「assignments and jobs」): the report a run left, queued in the room's supervisor through the receiver's
+//! A job's end giving back its slot, reaching the room, and its lease kept for the item's close or given back
+//! (docs/api.md, 「assignments and jobs」): the slot every request of the job's run held, given back whatever
+//! its lease is bound to; the report a run left, queued in the room's supervisor through the receiver's
 //! instruction route; the job service's lease on the item kept standing where the job ended, so the item
 //! stays leased until its close ends the lease, and given back where it was stopped, so the item is open
 //! again for a rerun. A run's end is written where the run ends, so neither the room's session being
@@ -11,9 +12,11 @@
 
 use std::collections::BTreeMap;
 
+use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use store::run;
 
+use crate::order_run::dispatch;
 use crate::places::Ground;
 
 fn setting<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str> {
@@ -51,6 +54,31 @@ pub(crate) fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option
 
   setting(vars, variable).map(|url| url.trim_end_matches('/').to_owned())
 }
+
+/// The slot a job's run holds given back as the job's end is written (docs/role-slots.md, 「The line」): every
+/// request asked under the job's owner given back as that owner's release gives it back, kept with the reason
+/// the end carries, whatever its lease is bound to. Every write of a job's end calls it, so no ended job keeps
+/// a slot of its role; a request its holder already gave back is left as it stands, and a store that would
+/// not take it is said and never fails the end. The job's own session is started for each turn and ended with
+/// it, so no role session is left for this release to end.
+pub async fn slot_given_back(db: &DatabaseConnection, id: i64, why: &str) {
+  let owner = format!("{}{id}", dispatch::JOB_OWNER);
+  let why: String = format!("its job ended: {}", why.trim()).chars().take(REASON_CHARS).collect();
+
+  match dispatch::release_owner_for(db, &owner, &why).await {
+    Ok(done) if done.released + done.cancelled + done.reservations > 0 => {
+      println!(
+        "job {id}: its slot given back with its end: {} let in, {} waiting, {} reservations",
+        done.released, done.cancelled, done.reservations
+      );
+    }
+    Ok(_) => {}
+    Err(fault) => eprintln!("job {id}: its slot was not given back with its end: {fault}"),
+  }
+}
+
+// The most characters of an end's reason a given-back request keeps, within what the line keeps of one.
+const REASON_CHARS: usize = 400;
 
 /// Whether a job's end keeps its item's lease standing for the item's close: a job that ended, holding a
 /// lease. A stopped job's item is open again for a rerun.

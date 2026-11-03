@@ -162,8 +162,8 @@ const LOST: &str = "agency restarted while the turn went, and no record its prog
 const GONE: &str = "the pane program went away while the turn was picked up after agency restarted";
 
 /// Every turn the process before this one left in flight, read at start: handed back where it ended, attached
-/// to where it goes on, ended as lost where nothing names it. A job's lost turn is left to the pass that
-/// ends a job left running.
+/// to where it goes on, the lease bound to its run then standing as seen, ended as lost where nothing names
+/// it. A job's lost turn is left to the pass that ends a job left running.
 pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   let turns = in_flight(&ground.db).await?;
   let count = turns.len();
@@ -176,6 +176,12 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
       Standing::Lost if turn.job.is_some() => forget(&ground.db, &turn.run).await,
       Standing::Lost => hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned())).await,
       Standing::Going => {
+        // The adopted turn stands as seen: the lease bound to its run is given back by its end, or by its
+        // program found gone, and never waits on a sight of it this process would not have.
+        if let Err(why) = crate::order_run::dispatch::seen_standing(&ground.db, &turn.run).await {
+          eprintln!("{}: the lease bound to the adopted turn was not marked seen: {why}", turn.run);
+        }
+
         let ground = ground.clone();
 
         tokio::spawn(async move { attach(&ground, place, turn).await });

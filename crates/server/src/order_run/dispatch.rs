@@ -1349,11 +1349,41 @@ pub async fn reclaim_bound(
   }
 
   let children: Vec<String> = leases.iter().map(|(_, child, _)| child.clone()).collect();
-  let Some(standing) = running.answered(&children).await.map_err(|why| why.detail)? else {
+  let Some(mut standing) = running.answered(&children).await.map_err(|why| why.detail)? else {
     return Ok(0);
   };
 
+  standing.extend(kept_among(db, &children).await);
+
   release_ended(db, &leases, &standing).await
+}
+
+// The children that are a turn kept in flight under their name: a turn this process carries, or one the
+// process before left open that this one adopted, stands while it is kept.
+async fn kept_among(db: &DatabaseConnection, children: &[String]) -> Vec<String> {
+  let mut kept = vec![];
+
+  for child in children {
+    if crate::turn_pickup::kept(db, child).await {
+      kept.push(child.clone());
+    }
+  }
+
+  kept
+}
+
+/// The leases bound to a run, by its name, marked seen standing: a turn the process before left open and this
+/// one adopts stands as seen the moment it is adopted, so its end, or its program found gone, gives its lease
+/// back (docs/role-slots.md, 「The line」). How many were marked.
+pub async fn seen_standing(db: &DatabaseConnection, child: &str) -> Result<u64, Fault> {
+  run(
+    db,
+    r#"UPDATE "role_slot_requests" SET "child_seen" = 1
+       WHERE "state" = 'active' AND "child_id" = $1 AND "child_id" IS DISTINCT FROM "session""#,
+    vec![child.into()],
+  )
+  .await
+  .map_err(faulted)
 }
 
 /// An active lease bound to the role session a start laid on it opened, whether or not it was bound before, the
@@ -1454,7 +1484,16 @@ pub struct OwnerReleased {
 /// active one released, each reservation released; the role sessions its active leases were bound to named
 /// for the caller to end.
 pub async fn release_owner(db: &DatabaseConnection, owner: &str) -> Result<OwnerReleased, Fault> {
-  let why = "its owner gave back everything it held";
+  release_owner_for(db, owner, "its owner gave back everything it held").await
+}
+
+/// Everything an owner holds given back as `release_owner` gives it back, each request and reservation kept
+/// with the reason its owner gave, such as the end of the job whose run the owner is.
+pub async fn release_owner_for(
+  db: &DatabaseConnection,
+  owner: &str,
+  why: &str,
+) -> Result<OwnerReleased, Fault> {
   let mut done = OwnerReleased::default();
 
   for held in held_reservations(db, Some(owner)).await? {

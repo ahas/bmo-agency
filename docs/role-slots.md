@@ -91,6 +91,11 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   runs sessions one after another on one slot — a first answer, its rounds, a review — starts the next
   session on the slot before it ends the one before; ending the session the lease is still bound to gives
   the lease back.
+- **A lease a job's run holds is given back when that job ends,** whatever the lease is bound to and however
+  the job ended: its turn's end, its stop (`docs/api.md`, 「assignments and jobs」) or its reap as a job whose
+  process went away. Every write of a job's end gives back every request asked under the job's owner, as
+  that owner's release gives it back (「An owner's release」), with the reason the end carries, so a job that
+  has ended never keeps a slot of its role.
 - **An admitted lease bound to nothing is given back only by its holder or its owner:** the line reads no end
   of a run that never named itself, so such a lease stands until its holder finishes it or its owner's release
   gives it back, however long that is.
@@ -100,10 +105,13 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
     since a role session is held in memory from its start to its end and a restart ends every one. A
     session the lease has moved off ends without touching the lease;
   - a lease bound to a unit, a pane or an execution, once the line's pass has seen that run standing and then
-    sees no systemd unit, herdr pane or open execution holding it. A run not yet seen standing is never read
-    as ended, however long it takes to come up. The pass reads from the server's start and each minute after;
-    it is a reading, not a bound on any lease;
-  - the token holder's release, or the owner's.
+    sees no systemd unit, herdr pane, open execution or turn kept in flight under its name holding it. A run
+    not yet seen standing is never read as ended, however long it takes to come up. The pass reads from the
+    server's start and each minute after; it is a reading, not a bound on any lease;
+  - a lease bound to a turn the process before left open, its program still going, which the server that
+    starts next adopts (`docs/sessions.md`, 「A restart hands the session over」): the turn stands as seen the
+    moment it is adopted, so its end, or its program found gone, gives the lease back;
+  - the token holder's release, or the owner's, the end of the job whose run holds it among them.
 - **An active lease is never taken away for its age:** only these ends give one back, and a native call's the
   evidence its own process ended (「Native co-worker slots」).
 - **An admission answers what the request is now:** `waiting` while it waits in the line, `active` once let

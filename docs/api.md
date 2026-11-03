@@ -985,7 +985,7 @@ yesterday to now where none is given.
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
 | POST | `/jobs` | Run an item as its assignment's role in its repository: the harness hands over the item's content and the lease it holds, and agency launches the run once a slot of the role and a checkout are free; never refused for quota, it waits. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
-| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released. |
+| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released and its slot given back. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, the repository it names as its `assigneeName`, and `asked-by=owner` where every message of that turn is the owner's. |
@@ -1069,9 +1069,10 @@ and the filing of an item.
     the cancellation the turn's door reads in the run's program, which puts the stop words in — commit,
     report, exit — and leaves the turn to end on them, a turn picked up across a restart included;
   - the answer waits for that turn to end, however long its own ending takes. The turn's end writes the job
-    `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, returns its lease
-    and tells its room, so its slot and its checkout take the next launch as soon as the stop answers;
-  - a job no turn carries is written so at once.
+    `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, gives its slot
+    back, returns its lease and tells its room, so its slot and its checkout take the next launch as soon as
+    the stop answers;
+  - a job no turn carries is written so at once, its assignment released and its slot given back alike.
   A job's end never writes over a job already ended or stopped.
 
 - **A job that ends keeps its item's lease for the item's close.** A job written `ended` — its run
@@ -1100,8 +1101,9 @@ and the filing of an item.
 - **A job whose turn goes on across agency's restart ends as its turn does.** Its turn is kept in flight
   while it goes, and the server that starts next picks it up (「sessions」 above): a turn whose program's
   record holds its end, or comes to hold it, ends the job `ended` with the turn's answer as its report,
-  as its launch would have, its run closed, its assignment released, its lease kept for the item's close and
-  its end told to the room. The pass below leaves a job whose turn is kept in flight to it.
+  as its launch would have, its run closed, its assignment released, its slot given back, its lease kept for
+  the item's close and its end told to the room. The pass below leaves a job whose turn is kept in flight to
+  it.
 - **A job left running with no live execution ends as stopped on the pass.** The process that ran it can
   go away with agency's own restart before the run writes its end, on a program that keeps no record the
   next server can read it from. On start, after the turns in flight are picked up, and on the reconcile
@@ -1109,8 +1111,8 @@ and the filing of an item.
   is read against the records the store already keeps: an open execution row of its run's on its role's line begun at the job's start is a live
   execution, and an open run in the ledger is a live run. A job with neither — or whose run is already
   closed — ends as `stopped` with a report saying the process that ran it went away, its open run is closed,
-  its assignment released, and its lease returned and its report told to the room through the same delivery
-  as any other end. A job younger than the launch window is left for the next pass, and one whose checkout
+  its assignment released, its slot given back, and its lease returned and its report told to the room
+  through the same delivery as any other end. A job younger than the launch window is left for the next pass, and one whose checkout
   stands on another machine is left, since its execution is no record this machine keeps. A job with a live
   execution is left running, and so is one this process is still carrying — waiting for a road, or between
   one road and the next.
@@ -1159,7 +1161,10 @@ and the filing of an item.
   each summed over the models that answered it, and `tokenCount`, the four together. `usage` is null, and
   `tokenCount` 0, until the turn ends and where its road reported no figures.
 - **A job's end releases its assignment, its slot and its checkout,** whichever way it ended, so the next
-  job can take them. A `running` assignment whose job has ended is released as the assignments are next read.
+  job can take them. Its slot is every request asked under the job's owner, `job-<id>`, given back as that
+  owner's release gives it back, whatever its lease is bound to (`docs/role-slots.md`, 「The line」); no
+  write of a job's end leaves it standing. A `running` assignment whose job has ended is released as the
+  assignments are next read.
 
 ### session-work and session-loads
 

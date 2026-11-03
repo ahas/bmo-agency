@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use agency_server::Service;
 use agency_server::config::Config;
+use agency_server::order_run::dispatch;
 use agency_server::places::Ground;
 use agency_server::seeds::deployment;
 use cache_siren::{Balance, Slot};
@@ -128,4 +129,35 @@ pub async fn set_provider_order(db: &DatabaseConnection, order: &[OrderEntry]) -
   }
 
   Ok(())
+}
+
+/// A slot of the worker role asked for a job's run, as its launch asks it: under the job's owner, its request
+/// key and its checkout's path. Let in and bound to the job's run where `let_in`, and left waiting otherwise.
+pub async fn job_slot(ground: &Ground, job: i64, let_in: bool) -> dispatch::Request {
+  let asked = dispatch::Asked {
+    request_key: format!("job-{job}-1"),
+    owner: format!("{}{job}", dispatch::JOB_OWNER),
+    wanted: dispatch::Wanted {
+      role: "worker",
+      path: Some("/checkouts/worker"),
+      fixed: None,
+    },
+    ..dispatch::Asked::default()
+  };
+  let held = dispatch::enqueue(&ground.db, &asked, dispatch::JOB, async |_, _| Ok(())).await.unwrap();
+
+  if !let_in {
+    assert!(dispatch::acquire(ground, &held).await.unwrap().is_none(), "the job's slot waits");
+
+    return dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+  }
+
+  let admitted = dispatch::acquire(ground, &held).await.unwrap().expect("the job's slot is let in");
+
+  dispatch::bind(&ground.db, &admitted, &format!("job-{job}")).await.unwrap()
+}
+
+/// A slot request as the line holds it now: its state, who gave it back and why.
+pub async fn slot_now(ground: &Ground, token: &str) -> dispatch::Request {
+  dispatch::request(&ground.db, token).await.unwrap().unwrap()
 }

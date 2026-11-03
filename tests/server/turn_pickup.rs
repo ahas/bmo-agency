@@ -1,7 +1,8 @@
 //! A turn in flight across agency's own restart, picked up again (docs/sessions.md, 「A restart hands the
 //! session over」): a job whose turn ended in its program's record after the process that sent it went away
 //! ends with its report rather than stopped, a chat turn's end reaches its caller under its own id with its
-//! run closed, a turn its program is still working on is waited on, and one no record names ends failed.
+//! run closed, a turn its program is still working on is waited on, and one no record names ends failed; a
+//! job's turn adopted at start stands as seen, its slot kept while it goes and given back as it ends.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,11 +13,13 @@ use agency_server::control::work::reap_stale;
 use agency_server::herdr_backend::TurnEnded;
 use agency_server::lines::place::Place;
 use agency_server::now_ms;
+use agency_server::order_run::dispatch;
 use agency_server::places::Ground;
 use agency_server::turn_pickup::*;
 use harness_providers::Machine;
 use serde_json::json;
 
+use crate::support::grounds::{deepseek_balance, job_slot, seeded, slot_now};
 use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
@@ -394,4 +397,77 @@ async fn a_turn_whose_program_died_is_closed_and_its_room_freed() {
   assert_eq!(end.session, "agent-dead@worker");
   assert!(matches!(end.end.outcome, agent_session::Outcome::Failed));
   assert!(end.end.reason.unwrap_or_default().contains("died silent"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_back_when_the_turn_ends() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = Arc::new(seeded(scratch.db(), home.path()).await);
+  let worker = Place::of(&ground.roots.data, "worker-a");
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+  let identity = agent_host::identity::ProcessIdentity::of(program.id() as i32).unwrap();
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "run_name", "room_id", "state", "started_at", "prompt")
+         VALUES (31, 1, 0, 'harness', 0, 'worker-a', 'job-31', 7, 'running', $1, 'adopted')"#,
+      vec![(now_ms() - 60_000).into()],
+    )
+    .await;
+
+  // The process before held the job's slot, bound to its run, and left its turn going in the program.
+  let held = job_slot(&ground, 31, true).await;
+
+  std::fs::create_dir_all(&worker.path).unwrap();
+  std::fs::write(
+    worker.path.join("running.json"),
+    json!({ "identity": "one", "pid": identity.pid, "birth": identity.birth, "loop": identity,
+            "starts": 1, "startedAt": now_ms(), "recent": [] })
+    .to_string(),
+  )
+  .unwrap();
+  keep(scratch.db(), &in_flight("job-31", "worker-a", 51, Some(7), None, Some(31))).await;
+  started(&worker, "j", "job-31");
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+
+  // Adopted, its run stands as seen, and the job keeps its slot while the turn goes on.
+  let leases = dispatch::bound_leases(&ground.db).await.unwrap();
+
+  assert_eq!(leases, vec![(held.token.clone(), "job-31".to_owned(), true)]);
+  assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  // The turn ends in the program's record: the job ends with it and its slot is given back.
+  answered(&worker, "j", "The adopted job's report.");
+
+  let mut given = slot_now(&ground, &held.token).await;
+
+  for _ in 0..80 {
+    if given.state != "active" {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+    given = slot_now(&ground, &held.token).await;
+  }
+
+  assert_eq!(
+    (given.state.as_str(), given.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_OWNER)),
+    "{given:?}"
+  );
+
+  let job = store::one(scratch.db(), r#"SELECT "state" FROM "jobs" WHERE "id" = 31"#, vec![])
+    .await
+    .unwrap()
+    .unwrap();
+
+  assert_eq!(job.try_get::<String>("", "state").unwrap(), "ended");
+
+  let _ = program.kill();
+  let _ = program.wait();
 }

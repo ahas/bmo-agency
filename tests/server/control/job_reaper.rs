@@ -1,6 +1,7 @@
 //! A job left running with no live execution behind it (docs/api.md, 「assignments and jobs」): the reaper
 //! reads the executions and runs the store already keeps, ends the job as stopped with why, closes its run,
-//! releases its assignment, and leaves a job a live execution or another machine still stands behind.
+//! releases its assignment, gives its slot back, and leaves a job a live execution or another machine still
+//! stands behind.
 
 use std::collections::HashMap;
 
@@ -8,9 +9,11 @@ use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work::reap_stale;
 use agency_server::now_ms;
+use agency_server::order_run::dispatch;
 use agency_server::places::Ground;
 use harness_providers::Machine;
 
+use crate::support::grounds::{deepseek_balance, job_slot, seeded, slot_now};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -161,4 +164,54 @@ async fn a_job_with_no_live_execution_is_stopped_and_a_live_one_is_left() {
   assert_eq!(assignment(20).await.try_get::<String>("", "state").unwrap(), "running");
   assert_eq!(assignment(30).await.try_get::<String>("", "state").unwrap(), "running");
   assert_eq!(assignment(40).await.try_get::<String>("", "state").unwrap(), "running");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_reaped_as_stale_gives_its_slot_back_and_its_waiting_ask_is_cancelled() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let old = now_ms() - 20 * 60 * 1000;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
+    .await;
+  repository(scratch.db(), "bmo-cli", "/checkouts/bmo-cli", &[]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "run_name", "room_id", "state", "started_at", "prompt")
+         VALUES (21, 1, 0, 'harness', 0, 'bmo-cli', 'job-21', 7, 'running', $1, 'one'),
+                (22, 2, 0, 'harness', 0, 'bmo-cli', NULL, 7, 'starting', $1, 'two')"#,
+      vec![old.into()],
+    )
+    .await;
+
+  // The first job holds the role's one slot, bound to a run no pass ever sees standing; the second waits.
+  let held = job_slot(&ground, 21, true).await;
+  let waiting = job_slot(&ground, 22, false).await;
+
+  assert_eq!(reap_stale(&ground).await.unwrap(), 2);
+
+  let given = slot_now(&ground, &held.token).await;
+
+  assert_eq!(
+    (given.state.as_str(), given.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_OWNER)),
+    "{given:?}"
+  );
+  assert!(given.outcome.as_deref().is_some_and(|why| why.contains("went away")), "{given:?}");
+
+  let cancelled = slot_now(&ground, &waiting.token).await;
+
+  assert_eq!(
+    cancelled.state, "cancelled",
+    "a reaped job's waiting ask leaves the line: {cancelled:?}"
+  );
+  assert_eq!(
+    dispatch::used(&ground.db, "worker").await.unwrap(),
+    0,
+    "no slot of the role stays taken"
+  );
 }
