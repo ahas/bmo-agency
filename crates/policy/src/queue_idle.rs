@@ -18,6 +18,13 @@ pub struct QueueIdle {
   pub launch_seconds: i64,
   /// What the supervisor is told of such an item: `{item}`, `{title}` and `{worker}`.
   pub launch_order: String,
+  /// How many of a draft's brief's first lines the supervisor is told.
+  pub draft_brief_lines: usize,
+  /// The most characters of those lines the supervisor is told.
+  pub draft_brief_chars: usize,
+  /// What the supervisor is told of a draft awaiting approval: `{item}`, `{title}`, `{raised_by}`,
+  /// `{repository}` and `{brief}`.
+  pub draft_order: String,
 }
 
 crate::part!(pub QUEUE_IDLE: QueueIdle = "queue-idle.toml");
