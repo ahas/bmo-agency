@@ -154,7 +154,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The producer is a role whose items make videos.** Its runs work in the video repository's checkout,
   where its projects and its studio live; its line is the worker line, and its role prompt, seeded from
   `prompts/roles/producer.md`, stands first in every run: what the studio is (the video-shotcraft
-  skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes out and the studio's
+  skill bundle driving Remotion, rendering on the card under the card arbiter's ticket), how an item is made, how the file goes out and the studio's
   licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the render and the
   checks.
 - **Its bundles:** `queue.read` for its items, `web.read` for the pages and assets an item names, and
