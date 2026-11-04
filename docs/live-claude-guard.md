@@ -240,7 +240,7 @@
   relative paths after a `cd` into it. A path is matched at a boundary, so a support
   worktree whose path begins with its base's is never read as the base, and `~` and `$HOME` spellings
   count.
-- **What it refuses with:** whose checkout it is, and `bmo-agency borrow <repository>` by the deploy tree's
+- **What it refuses with:** whose checkout it is, and `bmo job borrow <repository>` by the deploy tree's
   path, which lends the job a free checkout of that repository.
 - **When it cannot tell:** a job whose row or repository it cannot read, or a store that holds no loans yet,
   refuses nothing. The job's own checkout is also what the shell's verb refusals

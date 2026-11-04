@@ -2438,82 +2438,17 @@ all three, and if any holds it, take it as alive.**
 
 ### What the sweep tells about work that is open
 
-The dead-job sweep, once a minute, tells the supervisor three things about the work it walks, each as a fact and
+The dead-job sweep, once a minute, tells the supervisor two things about the work it walks, each as a fact and
 none of them as an order. What to do about any of them is the supervisor's. The chat receiver's clock runs it,
 agency's server's.
 
 - **A job circling.** An open job re-invoked past the runaway ceiling inside a process that never exits.
   It is held to the count and to no clock, and told once per job.
-- **A job gone quiet.** An open job whose last activity is five minutes old. A job's last activity is
-  the newest line it wrote to the agent log: the runner writes each piece of the stream as it arrives —
-  every stretch of thinking or text, every tool call, every tool result — and each line carries the job.
-  A job that has written nothing yet is quiet from its launch. The fact carries what the last line was,
-  so a job waiting on a long tool call reads apart from one that stopped in its own turn. A job
-  somebody asked to stop is winding down and is not watched. A job carrying a wait mark (below) is
-  judged by the mark first.
-- **A tool call still running is judged by its own processes.** Where a job's last line is a tool
-  call with no result after it, the watch also reads the processes under the job's own program that
-  were started since that call: the command and everything it spawned. Each pass keeps what it read
-  of them; a process it had not seen before, or one whose CPU time grew since the last pass, is the
-  job working at that pass, and the job's quiet is counted from the later of its last line and the
-  last pass that found it working. A long test run or build is never told while it works.
-  - The job's program is the resident program its open execution row names, believed only while the
-    process is still the one the row recorded. A job whose program cannot be found or read is judged
-    by its last line alone.
-  - What a pass read is a settings row keyed by the job, replaced while the same tool call stands,
-    and removed once the job's last line is no longer that call or the job is no longer open.
-- **Told once per state of one tool call.** The quiet is told once for the job's last line, and again
-  for that line only when its state changes: a command that was idle when told and later worked and
-  stopped is told once more, as a command whose processes stopped. A new line re-arms it, so a job
-  that moves and then stands again is told again. The fact carries `command` beside `lastLine` — how
-  many of the call's processes stand and when they were last found working — and the account says the
-  command is still running with its processes idle, rather than that the job did nothing.
 - **A repository standing idle.** A repository none of whose checkouts holds a job while its own queue holds
   work, for five minutes. It is told once for the stretch; the record goes when a job takes one of its
   checkouts or its queue empties, and a later stretch is told again. The owner's pause is not a stall and is
   never counted as one, and neither is a machine short of room (「Room on the machine」 below).
 - A stage of a managed co-work is left to the co-work runner, which watches its own stages.
-
-### A job's own mark on a long wait
-
-A job that is about to stand still on purpose — a unit it waits on, another process, a long training,
-judging or checking run — says so before it goes quiet, and the quiet watch reads what it said instead
-of asking the supervisor to go and look.
-
-- **The mark belongs to the running job of one item** and is one per job; a new mark replaces the old.
-  It holds what is waited on in the job's own words, the one thing whose life says the wait is still
-  going on — a user unit by name, or a process by pid — and the moment the job expects it to be over.
-  It is a settings row keyed by the job, so setting one never moves the store's shape.
-- **`bmo-agency wait` is the verb.** A job names its item, what it waits on, the target and the
-  expected end (a length such as `40m` or `2h`, or a clock time), and clears the mark with `--clear`
-  when the wait is over. A command handed after `--` is run under a mark whose target is the verb's own
-  process, which clears it the moment the command ends, whatever its exit. A mark is refused for an item
-  with no running job, a target that is not alive when marked, and an end that is not in the future.
-- **The code believes the target, never the job.** Once a minute the sweep asks each mark's target:
-  a unit is alive while systemd reads it active, activating, deactivating or reloading, and a pid while
-  the process exists. The mark mutes the quiet watch while its target lives and its end has not come;
-  past its end it still stands and the watch tells of it once (below), and nothing ends the job's wait
-  for it. A probe that could not be asked leaves it standing. A mark whose job is no longer open is
-  removed.
-- **A target that ends releases the mark by itself.** The sweep writes down when it first found the
-  target gone; the mark no longer shows as a wait, and the job's next line removes it. A job that forgot
-  to clear it is covered by this without doing anything.
-- **What the quiet watch does with it:**
-  - While the mark stands, a quiet job is not told of at all.
-  - Once the target has gone, the job's quiet is counted from the later of its last line and the moment
-    the target was found gone, so the tool call that was waiting has the ordinary five minutes to come
-    back. Past that, the supervisor is told what the job was waiting on, that it ended and when, and how long the
-    job has stood since.
-  - Past the expected end with the target still alive and the job quiet for five minutes, the supervisor is told
-    once what the job was waiting on, that the time it gave has passed and that the target has not ended.
-  - Either fact carries the mark as `wait`, beside the ordinary `lastLine`.
-- **Where the mark is shown.** The running report writes it on the job's line, and the console's TODO panel
-  under the item it is a run of: what is waited on, the target, and the end, or that the end has
-  passed. A mark whose target has gone is not shown.
-- **The deployment's own wait is shown in the same places.** While a backlog deployment holds its window
-  waiting for jobs to end (the deploy unit's `deploy.md`), each job it is waiting on carries "the deployment
-  is waiting on this job" — on its line in the running report and under its item in the panel — so a paused queue reads as
-  waiting on named work rather than as stopped.
 
 ## What works and what does not per harness
 
@@ -2878,7 +2813,7 @@ with the session.
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
-| A job's question asked | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
+| A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |

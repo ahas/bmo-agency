@@ -125,6 +125,11 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
         json!({ "id": 6, "scope": "-900", "text": "on its own", "choices": [] }),
       ),
       event(
+        22,
+        "question.created",
+        json!({ "id": 7, "itemId": 81, "text": "put by its asker", "choices": ["a", "b"], "toldByAsker": true }),
+      ),
+      event(
         23,
         "question.due",
         json!({ "id": 6, "scope": "-900", "text": "on its own", "choices": [] }),

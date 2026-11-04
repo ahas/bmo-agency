@@ -346,13 +346,15 @@
   repository names is not guarded by this.
 - **The job guard refuses the write,** from the file tools and from the shell alike, and the
   refusal names whose checkout it is and the verb that borrows one.
-- **Borrowing:** `bmo-agency borrow <repository>`, run inside a job, takes a free checkout of that
-  repository for the rest of the job — a support worktree first, put on the job's item branch, the base
-  checkout where the repository has no support checkout free — and prints its path.
-  While the job lives the borrowed checkout reads held everywhere a held checkout is read, and
-  nothing is launched into it. The job closes it the way that repository closes a job.
-- **When the job ends the loan ends.** Whatever it left open in a borrowed support worktree is
-  committed onto its branch, as any parking is, and the job's report names it.
+- **Borrowing:** `bmo job borrow <repository>`, run inside a job, takes a free checkout of that
+  repository for the rest of the job — a support worktree first, the base checkout where the repository
+  has no support checkout free, on the job's own machine — and prints its path. It is an assignment held in
+  the job's name (`docs/api.md`, 「assignments and jobs」), so the borrowed checkout reads held everywhere a
+  held checkout is read, and nothing is launched into it. The job commits, pushes and closes there the way
+  that repository closes a job. A job's own repository is refused, and so is a repository whose every
+  checkout is at work: it says so, and asks nothing to wait.
+- **When the job ends the loan ends.** The next read of the assignments releases one its job no longer runs
+  under, whichever way the job ended. What it left open stays in the checkout, for its report to name.
 - **Why:** a stopped job parks everything open in its checkout as its own, so a write from any
   other job would leave with it. With every job in a checkout of its own, what is open in a checkout
   is its holder's, and parking needs to sort nothing.

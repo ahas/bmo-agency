@@ -142,8 +142,13 @@ async fn checkouts_named(
   Ok(Some(serde_json::to_string(&checkouts).unwrap_or_else(|_| "[]".to_owned())))
 }
 
-/// A running assignment whose job has ended is released before anything reads them. A held one stands
-/// until its job starts or its harness releases it: no clock lets a hold go.
+/// What opens the holder's name of an assignment a job took for itself, the job's number after it: a checkout it
+/// borrowed from another repository.
+pub const JOB_HOLDER: &str = "job:";
+
+/// A running assignment whose job has ended is released before anything reads them, and so is one a job borrowed
+/// that no longer runs. Any other held one stands until its job starts or its harness releases it: no clock lets
+/// a hold go.
 async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
   let now = now_ms();
   run(
@@ -154,6 +159,18 @@ async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> 
          AND NOT EXISTS (SELECT 1 FROM "jobs" j
                WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
     vec![now.into()],
+  )
+  .await?;
+  // A checkout a job borrowed is lent for as long as that job runs (docs/worker-slots.md, 「A job writes only in
+  // its own checkout」).
+  run(
+    db,
+    r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
+       WHERE a."state" = 'held'
+         AND a."holder_name" LIKE $2
+         AND NOT EXISTS (SELECT 1 FROM "jobs" j
+               WHERE $3 || j."id"::text = a."holder_name" AND j."state" IN ('starting', 'running'))"#,
+    vec![now.into(), format!("{JOB_HOLDER}%").into(), JOB_HOLDER.into()],
   )
   .await?;
 

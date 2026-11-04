@@ -6,6 +6,7 @@
 
 pub mod agent_status;
 pub mod agents;
+pub mod borrow;
 pub mod claude_batch;
 pub mod claude_token;
 pub mod coworker_pool;

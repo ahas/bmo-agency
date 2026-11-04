@@ -88,7 +88,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
   let roots = Roots {
     data: trees.path().join("data"),
     deploy: trees.path().join("agency/deploy"),
-    shared_deploy: trees.path().join("shared/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
     agents: trees.path().join("agents"),
     home: trees.path().to_path_buf(),
     mcp_port: 3290,
@@ -135,7 +135,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
   assert_eq!(spec.herdr.session.as_deref(), Some("node-session"));
   assert_eq!(spec.push.len(), 1);
   assert!(spec.pull.iter().any(|landing| landing.pull.remote == "/home/tester/work/graph"));
-  assert_eq!(spec.deploy, roots.shared_deploy, "the home bridge runs the CLI's tree, not agency's");
+  assert_eq!(spec.deploy, roots.cli_deploy, "the home bridge runs the CLI's tree, not agency's");
 
   let agency_bin = roots.deploy.join("bin").display().to_string();
   let on_node = rewrite(&agency_bin, spec.rewrite.iter().map(|(from, to)| (from.as_str(), to.as_str())));

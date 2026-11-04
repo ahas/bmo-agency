@@ -4,7 +4,8 @@
 
 use std::path::Path;
 
-use agency_server::queue::workers::{BUILTIN_WORKER, repository_of, support_name, workers};
+use agency_server::queue::workers::{BUILTIN_WORKER, Worker, repository_of, support_name, workers};
+use agency_server::verbs::borrow::candidates;
 
 use crate::support::scratch::Scratch;
 
@@ -59,4 +60,34 @@ async fn a_repositorys_support_worktrees_follow_its_count_and_its_node_checkouts
 
     assert_eq!(repository.name, "infra", "{checkout} is a checkout of infra");
   }
+}
+
+fn checkout(name: &str, support_of: Option<&str>, node: Option<&str>) -> Worker {
+  Worker {
+    name: name.to_owned(),
+    label: name.to_owned(),
+    cwd: format!("/work/{name}"),
+    builtin: false,
+    support_count: 0,
+    support_of: support_of.map(str::to_owned),
+    support_slot: support_of.map(|_| 2),
+    node: node.map(str::to_owned),
+  }
+}
+
+#[test]
+fn a_borrow_takes_a_support_worktree_first_the_base_last_and_only_on_its_own_machine() {
+  let known = [
+    checkout("other", None, None),
+    checkout("other-w2", Some("other"), None),
+    checkout("other-n1", Some("other"), Some("n1")),
+    checkout("elsewhere", None, None),
+  ];
+  let names = |node: Option<&str>| -> Vec<String> {
+    candidates(&known, "other", node).iter().map(|checkout| checkout.name.clone()).collect()
+  };
+
+  assert_eq!(names(None), ["other-w2", "other"]);
+  assert_eq!(names(Some("n1")), ["other-n1"]);
+  assert!(candidates(&known, "nobody", None).is_empty());
 }

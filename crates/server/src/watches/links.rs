@@ -73,9 +73,8 @@ pub struct Roots {
   pub data: PathBuf,
   /// The deploy tree's link; the release a process reads its code from is `Ground::code_root`'s.
   pub deploy: PathBuf,
-  /// The deploy tree of the services agency shares the data root with, whose CLI and scripts the home
-  /// bridge runs for a node (docs/work-nodes.md, 「The link」).
-  pub shared_deploy: PathBuf,
+  /// The CLI's own deploy tree, whose `bmo` the home bridge runs for a node (docs/work-nodes.md, 「The link」).
+  pub cli_deploy: PathBuf,
   pub agents: PathBuf,
   pub home: PathBuf,
   pub mcp_port: u16,
@@ -98,7 +97,7 @@ impl Roots {
     Self {
       data: machine.data_root().to_path_buf(),
       deploy,
-      shared_deploy: shared.join("deploy"),
+      cli_deploy: home.join(".local").join("share").join("bmo-cli").join("deploy"),
       agents: machine.var("BMO_AGENTS_DIR").map_or_else(|| shared.join("agents"), PathBuf::from),
       mcp_port: machine
         .var("BMO_MCP_HOST_PORT")
@@ -475,7 +474,7 @@ pub async fn spec(
     },
     ports: vec![roots.mcp_port],
     bridge: here.join("bridge.sock"),
-    deploy: roots.shared_deploy.clone(),
+    deploy: roots.cli_deploy.clone(),
     control: here.join("control.sock"),
     push: agents
       .iter()

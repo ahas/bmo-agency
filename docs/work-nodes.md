@@ -101,10 +101,10 @@ side of a remote agent, the rotation, and what a dropped node does.
   - the tool host's port, forwarded to the node's loopback, so the program's MCP tools reach the one
     host here;
   - the home bridge's socket, forwarded to a socket named for that connection under the node's data
-    root, which the node's bridge points at. What a node asks of the bridge — the CLI's `bin/bmo` and
-    a script under `scripts/` — is the CLI's, not agency's, so the bridge runs it out of the deploy
-    tree of the services agency shares the data root with, `$HOME/.local/share/bmo/deploy`, never out
-    of agency's own (`docs/agent-control.md`, 「The job's release」);
+    root, which the node's bridge points at. What a node asks of the bridge — the CLI's `bin/bmo` — is the CLI's, not
+    agency's, so the bridge runs it out of the CLI's own deploy tree, `$HOME/.local/share/bmo-cli/deploy`,
+    never out of agency's (`docs/agent-control.md`, 「The job's release」), and that `bmo` hands each command
+    to the unit carrying it;
   - the mirror, spoken with a serve program started at the far end.
 - **The far end makes sure of what stands on the node** whether a link holds it or not: the agent host
   of the node's data root, which the heads there ask, and the herdr session, each started apart from

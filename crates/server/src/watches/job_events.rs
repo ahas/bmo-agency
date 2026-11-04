@@ -142,6 +142,12 @@ async fn told(
     }
     "question.created" => {
       let Some(id) = data["id"].as_i64() else { return Ok(()) };
+
+      // An asker that tells of its question itself has already put it, or closed it unsent.
+      if data["toldByAsker"].as_bool().unwrap_or(false) {
+        return Ok(());
+      }
+
       let orderer = match data["itemId"].as_i64() {
         Some(item) => service.orderer_of_id(item).await?.1,
         None => Orderer {

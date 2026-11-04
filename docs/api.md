@@ -1049,6 +1049,9 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
   to come free. An assignment naming none takes a free checkout of any repository.
+- **A job's own loan of a checkout is an assignment held in its name,** its `holderName` `job:<jobId>`
+  (`docs/worker-slots.md`, 「A job writes only in its own checkout」). No job starts on it, and any read of the
+  assignments releases it once that job no longer runs.
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
@@ -1328,6 +1331,7 @@ input, so `bmo` finds it from any directory.
 | `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
+| `job borrow` | `<repository>` | the store's jobs and repositories, and `POST /assignments` under the job's name (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
 | `machine memory` | `--runtime <runtime>` and `--unit <unit>`, each repeatable, and `--json` | the machine's proc root |

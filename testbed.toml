@@ -97,6 +97,17 @@ units = ["deploy/*.service"]
 # item again (docs/sessions.md, 「A restart hands the session over」).
 quiet = "sh deploy/quiet"
 
+# The verbs' binary, linked into `.local/bin` under the home directory beside `bmo`, which serves the nouns it
+# declares from there (bmo-cli's docs/api.md, 「The unit command」).
+[[deploy.step]]
+id = "link-command"
+phase = "before-flip"
+command = '''
+set -eu
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$HOME/.local/share/bmo-agency/deploy/bin/bmo-agency" "$HOME/.local/bin/bmo-agency"
+'''
+
 # The worker plugin is the skills repository's worker bundle, placed over the copy the release carries by
 # that repository's own placer (docs/launch-lines.md, the skills handed over as a plugin directory): from
 # the skills checkout beside agency's in the workspace the checkout stands in, or the one BMO_SKILLS_DIR

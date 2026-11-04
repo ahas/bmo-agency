@@ -12,6 +12,7 @@ use axum::http::StatusCode;
 use harness_providers::ARCHIVE_PROVIDERS;
 use serde_json::{Value, json};
 
+use crate::support::binary;
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
@@ -466,4 +467,95 @@ async fn a_job_carries_its_instruction_whole_into_its_prompt_and_a_step_s_line()
     "In `services/area`, reading docs/area.md: A refused call names the field it lacks. Checked by \
      `cargo test --test area`."
   );
+}
+
+#[tokio::test]
+async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+  let other = home.path().join("other").to_string_lossy().into_owned();
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  repository(scratch.db(), "other", &other, &[]).await;
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // The job runs from here on: one standing as the server starts, with no run behind it, is reaped.
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (7, 41, 'harness', 'helper', 'running', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "run_name", "token_count", "started_at", "prompt")
+         VALUES (3, 41, 1, 'harness', 7, 'helper', 'running', 'job-3', 0, 0, 'work')"#,
+      vec![],
+    )
+    .await;
+
+  let borrow = |run: Option<&str>, repository: &str| {
+    let mut command = std::process::Command::new(binary::built("agency-server", "bmo-agency"));
+
+    command
+      .env_clear()
+      .env("PATH", std::env::var("PATH").unwrap_or_default())
+      .env("HOME", home.path())
+      .env("BMO_DATA_DIR", &data)
+      .env("BMO_ARCHIVE_URL", scratch.address())
+      .env("AGENCY_CONTROL_PORT", port.to_string())
+      .env("AGENCY_CONTROL_TOKEN", token)
+      .args(["job", "borrow", repository]);
+
+    if let Some(run) = run {
+      command.env("BMO_RUN_NAME", run);
+    }
+
+    let output = command.output().unwrap();
+
+    (
+      output.status.code(),
+      String::from_utf8_lossy(&output.stdout).into_owned(),
+      String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+  };
+  let (code, _, said) = borrow(None, "other");
+
+  assert_eq!(code, Some(1), "outside a job: {said}");
+
+  let (code, _, said) = borrow(Some("job-3"), "helper");
+
+  assert_eq!(code, Some(1), "its own repository: {said}");
+  assert!(said.contains("own repository"), "{said}");
+
+  let (code, out, said) = borrow(Some("job-3"), "other");
+
+  assert_eq!(code, Some(0), "{said}");
+  assert!(out.contains(&other), "it prints where the checkout stands: {out}");
+
+  let (code, out, said) = borrow(Some("job-3"), "other");
+
+  assert_eq!(code, Some(0), "{said}");
+  assert!(out.contains("already has"), "asked twice, the same checkout: {out}");
+
+  let ask = json!({ "itemId": 50, "holderName": "harness", "assigneeName": "other", "item": { "id": 50 } });
+  let (status, refused) = post(port, token, "/assignments", ask.clone()).await;
+
+  assert_eq!(
+    (status, refused["code"].as_str()),
+    (422, Some("no-worker-free")),
+    "held while the job runs"
+  );
+
+  scratch.run(r#"UPDATE "jobs" SET "state" = 'ended' WHERE "id" = 3"#, vec![]).await;
+
+  let (status, taken) = post(port, token, "/assignments", ask).await;
+
+  assert_eq!(status, 201, "the loan ended with the job: {taken}");
 }
