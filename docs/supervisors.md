@@ -511,6 +511,16 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **An unknown role is an error:** an ask naming a role the store does not hold is refused with the name
   and starts nothing.
 
+## What it hands another BMO
+
+- **A line to another person's BMO, and a chat into that person's room** (`docs/relays.md`): a turn calls
+  `bmo/relay` or `bmo/chat`, and agency carries the line into the receiving BMO's own session as a turn.
+- **The receiving BMO answers it as another agent's word, never its person's:** the line's prompt names the
+  sender, the turn is never privileged whatever the sender's turn held, and the receiving BMO may refuse it,
+  which is recorded and reported to the sender.
+- **Both sides read the record:** `GET /relays?agent=<name>` answers the lines the supervisor sent or
+  received, and the receiving supervisor's own session keeps the turn and its answer.
+
 ## The rooms it has spoken in
 
 - **Which rooms a supervisor answers is the receiver's,** which keeps each room's list of the supervisors

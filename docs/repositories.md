@@ -58,7 +58,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 
 - **A job is one run of an item in a repository.** The item names the repository its work belongs to and
   may name the role it runs as; where it names none, the role is `worker` (`policy/roles.toml`). Any role the
-  store holds may be named, free choice, and the run holds that role's prompt, bundles, order and cap.
+  store holds may be named, free choice, and the run holds that role's prompt, bundles, order and cap. An
+  item whose work changes a repository's code names `coder`; one that names no role stays `worker`
+  (`docs/agent-roles.md`, 「The coder role」).
 - **A job goes out when two things are free:** a slot of its role (`docs/role-slots.md`) and a checkout of
   its repository (`docs/worker-slots.md`, 「The queue with support checkouts」). Jobs on three repositories
   whose role is capped at two run two at a time, each in its own repository's checkout on the role's

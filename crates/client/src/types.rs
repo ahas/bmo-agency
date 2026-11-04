@@ -3495,3 +3495,45 @@ pub struct ProviderModels {
   /// the moment of a stale read in epoch seconds, or null
   pub stale_read_at: Option<f64>,
 }
+
+/// RelayAsk: one BMO hands another person's BMO a line, or opens a chat into that person's room.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayAsk {
+  /// the sending BMO's name
+  pub from: String,
+  /// the receiving BMO's name
+  pub to: String,
+  pub text: String,
+  /// the room the line is said in
+  pub room: i64,
+  /// the receiving person's account id, where the sender names one
+  pub person: Option<i64>,
+}
+
+/// Relay: one line handed to another person's BMO, and what came of it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Relay {
+  pub id: i64,
+  pub from: String,
+  pub to: String,
+  pub room: i64,
+  /// `relay`, a line handed over, or `chat`, a chat opened
+  pub kind: String,
+  pub line: String,
+  /// `delivered`, `refused` or `failed`
+  pub state: String,
+  pub answer: Option<String>,
+  pub reason: Option<String>,
+  /// epoch milliseconds
+  pub created_at: i64,
+}
+
+/// RelayPage: the relays one BMO sent or received, the latest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayPage {
+  pub items: Vec<Relay>,
+  pub more: bool,
+}

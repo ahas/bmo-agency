@@ -1318,6 +1318,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/relays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The relays one BMO sent or received, the latest first. */
+        get: operations["listRelays"];
+        put?: never;
+        /** Hand a line from one BMO to another person's BMO, recorded for both sides; a line the receiving BMO will not take is refused and the sender told. */
+        post: operations["createRelay"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open a chat into another person's room and hand it a line, answered with the receiving BMO's answer; a refusal is reported to the sender. */
+        post: operations["createChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/supervisors/{supervisorName}/settings": {
         parameters: {
             query?: never;
@@ -3460,6 +3495,50 @@ export interface components {
              * @description epoch milliseconds, or null where it was never reset
              */
             resetPoint: number | null;
+        };
+        /** @description Relay: one line handed to another person's BMO, and what came of it. */
+        Relay: {
+            /** Format: int64 */
+            id: number;
+            from: string;
+            to: string;
+            /** Format: int64 */
+            room: number;
+            /** @description `relay`, a line handed over, or `chat`, a chat opened */
+            kind: string;
+            line: string;
+            /** @description `delivered`, `refused` or `failed` */
+            state: string;
+            answer: string | null;
+            reason: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            createdAt: number;
+        };
+        /** @description RelayAsk: one BMO hands another person's BMO a line, or opens a chat into that person's room. */
+        RelayAsk: {
+            /** @description the sending BMO's name */
+            from: string;
+            /** @description the receiving BMO's name */
+            to: string;
+            text: string;
+            /**
+             * Format: int64
+             * @description the room the line is said in
+             */
+            room: number;
+            /**
+             * Format: int64
+             * @description the receiving person's account id, where the sender names one
+             */
+            person: number | null;
+        };
+        /** @description RelayPage: the relays one BMO sent or received, the latest first. */
+        RelayPage: {
+            items: components["schemas"]["Relay"][];
+            more: boolean;
         };
         /** @description SupervisorSettings: a supervisor as its settings page shows it. */
         SupervisorSettings: {
@@ -7200,6 +7279,87 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listRelays: {
+        parameters: {
+            query: {
+                agent: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelayPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createRelay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelayAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Relay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelayAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Relay"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getSupervisorSettings: {

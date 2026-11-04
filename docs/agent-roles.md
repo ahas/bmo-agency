@@ -15,8 +15,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the doppelganger, the producer, the voyager, the seeker, the translator, the transliterator
-  and every co-worker are roles alike.** Nothing tells a co-worker role from any other
+- **The workers, the coder, the doppelganger, the producer, the voyager, the seeker, the translator, the
+  transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
   role but what its row says.
 
 ## What a role row holds
@@ -73,9 +73,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   for it, and an add or a change refuses an empty one. It is the English word a log keeps of the role, and
   agency's API answers it with the row.
 - **A screen shows a role by its name alone,** the kebab-case key agency holds it under — `worker`,
-  `doppelganger`, `voyager`, `seeker`, `producer` and every other — on every screen that names one: never
-  the row's label and never a word translated from the name. A role the owner adds is shown by its name
-  from its first listing.
+  `coder`, `doppelganger`, `voyager`, `seeker`, `producer` and every other — on every screen that names
+  one: never the row's label and never a word translated from the name. A role the owner adds is shown by
+  its name from its first listing.
 
 ## The roles the policy seeds
 
@@ -95,6 +95,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | Role | Label | Line | Bundles | Cap | Prompt | Description | Sessions | Co-worker |
   |---|---|---|---|---|---|---|---|---|
   | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | policy | keep | no |
+  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read` | 3 | `coder.md` | policy | keep | no |
   | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read` | 2 | `doppelganger.md` | policy | keep | no |
   | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `producer.md` | policy | keep | no |
   | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | definition | definition | keep | no |
@@ -124,6 +125,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The role a job runs as where its item names none.** Its run works in a repository's checkout, on what
   the repository hands it — its prefix documents, the prompt that stands before the job's and its rules
   (`docs/repositories.md`) — under the worker line's standing rules.
+- **It keeps the job whole:** the brief and its notes, the work order and its tasks, the checkout and the
+  branch, the checks the repository declares, the close and the report. The coding passes are not its own
+  (「The coder role」 below).
 - **It carries no prompt:** a job's run opens on the harness opening and the worker line's rules, with
   what its repository hands it after them.
 - **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
@@ -131,6 +135,27 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   the voyager's and the seeker's alone.
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
   job」), and its run holds that role's prompt, bundles, order and cap in the same repository's checkout.
+
+## The coder role
+
+- **The role a coding job runs as.** Its run works in the same repository's checkout, on what the
+  repository hands it, and holds the coding work the item asks for: the code, its design, its tests, the
+  documents that cover it, and the commit. The item, the close and the report stay the job's, as on the
+  worker line.
+- **Its line is the worker line,** and its prompt, seeded from `prompts/roles/coder.md`, stands first in
+  every run after the harness opening, before the line's standing rules and the repository's own.
+- **Its coding skills are the worker line's:** `ahas-code-design-patterns` first where a structure is under
+  question, `ahas-code-refactoring` second, `ahas-code-clean` third and last, `ahas-code-test-writing`
+  before a test is written or changed, `ahas-docs-git` and `bmo-docs-conventions` for the documents and the
+  commit, and `ahas-ux-design-rules` for a screen. Its prompt names them.
+- **Its bundles are the worker's:** `graph.read`, `queue.read` and `web.read`.
+- **Its order is seeded empty,** so a run of it a supervisor asks goes out on that supervisor's own provider,
+  model and effort until the owner sets an order on the row. No provider order is declared for it, and every
+  other role's order stands as it was.
+- **Its cap is `3`, the worker's,** so a repository's coding jobs run as many at once as its jobs did.
+- **Which jobs name it:** an item whose work changes a repository's code names `coder`; one whose work is
+  not code names `worker`, and an item naming no role stays `worker` (`docs/repositories.md`, 「A job」).
+  An item already raised keeps the role it named, so every existing job runs as it did.
 
 ## The doppelganger role
 
@@ -225,7 +250,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 ## Which role a run holds
 
-- **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」).
+- **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」);
+  an item whose work changes a repository's code names `coder` (「The coder role」).
 - **A delegated task:** the role the ask names, `doppelganger` where it names none (`docs/tools.md`, 「The
   delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).

@@ -37,11 +37,11 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   let server = standing::stand_server(home.path(), &data, &scratch.address(), TOKEN);
   let port = server.port;
 
-  // The seeded roles stand in the store, the doppelganger among them with its cap, the translator's prompt
-  // its file's text.
+  // The seeded roles stand in the store, the doppelganger among them with its cap, the coder beside the
+  // worker on the worker line, and the translator's prompt its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 12, "{listing}");
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 13, "{listing}");
   assert_eq!(role(&listing, "doppelganger").unwrap()["maxConcurrent"], 2);
   // The double's order is seeded empty: its road follows the supervisor that asks it, which a screen shows.
   assert_eq!(role(&listing, "doppelganger").unwrap()["order"], json!([]));
@@ -53,6 +53,29 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(role(&listing, "worker").unwrap()["order"][0]["model"], "deepseek-flash");
   assert_eq!(role(&listing, "scout").unwrap()["callable"], true);
   assert_eq!(role(&listing, "producer").unwrap()["callable"], false);
+
+  // The coder is seeded beside the worker, on the worker line, with the same bundles and cap and no order
+  // of its own: its road follows the supervisor that asks it until the owner sets one.
+  let coder = role(&listing, "coder").unwrap();
+
+  assert_eq!((&coder["line"], &coder["maxConcurrent"]), (&json!("worker"), &json!(3)), "{coder}");
+  assert_eq!(
+    coder["bundles"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|bundle| bundle["name"].as_str().unwrap())
+      .collect::<Vec<_>>(),
+    ["graph.read", "queue.read", "web.read"],
+    "{coder}"
+  );
+  assert_eq!(coder["order"], json!([]), "{coder}");
+  assert_eq!(coder["followsSupervisor"], true, "{coder}");
+  assert_eq!(coder["sessions"], "keep", "{coder}");
+
+  let coder_prompt =
+    std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/coder.md")).unwrap();
+  assert_eq!(coder["prompt"], coder_prompt);
 
   let translator =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/translator.md")).unwrap();
@@ -80,7 +103,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 12);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 13);
 
   // A role added, its bundles once each.
   let (status, added) = ask(

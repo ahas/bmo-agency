@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the twelve seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the thirteen seeded roles with their
 //! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,13 +8,14 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_twelve_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_thirteen_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
     names,
     [
       "worker",
+      "coder",
       "doppelganger",
       "producer",
       "builder",
@@ -37,6 +38,7 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
 
   for (name, cap) in [
     ("worker", 3),
+    ("coder", 3),
     ("doppelganger", 2),
     ("producer", 2),
     ("builder", 8),
@@ -61,18 +63,22 @@ fn the_worker_goes_out_on_deepseeks_flash_model_first() {
 
 #[test]
 fn every_order_names_a_provider_once_and_every_role_names_its_line() {
-  let double = ROLES.roles.iter().find(|role| role.name == ROLES.delegate).unwrap();
+  let follows: Vec<&str> = ROLES
+    .roles
+    .iter()
+    .filter(|role| role.order.is_empty())
+    .map(|role| role.name.as_str())
+    .collect();
 
-  assert!(double.order.is_empty(), "the double's order is empty, so it follows its supervisor");
+  assert_eq!(
+    follows,
+    ["coder", "doppelganger"],
+    "the roles whose road follows the supervisor that asks them"
+  );
 
   for role in &ROLES.roles {
     let providers: BTreeSet<&str> = role.order.iter().map(|entry| entry.provider.as_str()).collect();
 
-    assert!(
-      !role.order.is_empty() || role.name == ROLES.delegate,
-      "{} names an order; only the supervisor's double follows its supervisor",
-      role.name
-    );
     assert_eq!(providers.len(), role.order.len(), "{} names a provider twice", role.name);
     assert!(
       ["worker", "search", "browse", "translate"].contains(&role.line.as_str()),

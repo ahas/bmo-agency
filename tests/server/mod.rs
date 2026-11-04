@@ -1,6 +1,7 @@
 //! The server's tests: its ground, each piece asked as a handler or a later part of the server asks it.
 
 mod pin_model;
+mod relays;
 
 mod agent_fold;
 mod agent_roles;

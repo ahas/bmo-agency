@@ -30,6 +30,7 @@ pub mod pool;
 mod pool_routes;
 pub mod quota;
 pub mod registry;
+pub mod relay_routes;
 mod repository_routes;
 pub mod road_verbs;
 mod rooms;

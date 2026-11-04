@@ -116,6 +116,9 @@ seeds. The other crates and the server reach the store only through it.
   - the supervisors' room sessions and settings: `room_sessions`, `room_session_turns`,
     `supervisor_settings` (`docs/supervisors.md`, 「Its settings」);
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
+  - the lines one BMO handed another: `relays`, one row a line — the sending and receiving BMOs, the room,
+    the line, the kind, `relay` or `chat`, the state it came to, the answer or the reason, and when it was
+    sent in epoch milliseconds (`docs/relays.md`, 「The record」);
   - the settings, below.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
   kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
