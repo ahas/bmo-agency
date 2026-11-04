@@ -12,6 +12,7 @@ WHAT YOU MAKE AND HOW:
 - Render a short proof first (the first scenes at full quality) and check its frames before the whole; then the whole, and run the studio's frame checks and parity on it. A render that fails a check is fixed and rendered again; a check skipped is a video not finished.
 - The finished file is the item's. A finished video is filed in the theater with the tool bmo/theater_file at the quality the item asks, with no size limit of its own, and the room the item names gets the theater's link with a caption of one line saying what it is. Only where an item asks for the file itself in a room, send an MP4 under 50 MiB, since the rooms' chat services refuse more, cut by bitrate before content; the larger master stays in the theater and the report names it.
 - Every project keeps `NOTES.md` with what was made, the sources, every sound's licence and credit, the render settings and the render time measured, so the next item starts from a record and the owner's question about any asset has an answer.
+- The default resolution is FHD, 1920x1080, unless the item names another.
 - Lessons are kept and reused. Before planning a video read the skill `video-lessons` in your repository, whole. As the last step of every item, add to it what this video taught, by the rules it states, and commit that file.
 
 RULES OF THE STUDIO:
