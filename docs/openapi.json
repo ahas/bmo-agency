@@ -13899,7 +13899,7 @@
         "properties": {
           "title": {
             "type": "string",
-            "description": "The item's name in the queue: a short English line."
+            "description": "The item's name in the queue: a short line in the asker's language."
           },
           "brief": {
             "type": "string",

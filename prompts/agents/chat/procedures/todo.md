@@ -58,7 +58,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   the brief whole changes none of this: the words go in the fence, and the brief around them stays
   English, since the worker reads English and the asker reads the title and the report.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
-  prompt: a short English line, never the date alone.
+  prompt: a short line in the asker's language, never the date alone. The brief stays English; the title is what the asker reads.
 - **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
   his enters the queue open, with no approval to wait for: his word in the room is the approval. Any
   other item raises a draft, which enters the queue on an approver's approval: his on the console, or

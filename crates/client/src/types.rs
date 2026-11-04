@@ -886,7 +886,7 @@ pub struct ItemFilingAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileItem {
-  /// The item's name in the queue: a short English line.
+  /// The item's name in the queue: a short line in the asker's language.
   pub title: String,
   /// The run's whole instruction, in English.
   pub brief: String,
