@@ -118,11 +118,15 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
   | Setting | What it says | A supervisor of one session across its rooms | A supervisor added on the console |
   |---|---|---|---|
-  | `session_scope` | `agent`: one session across every room it answers, each turn carrying its room's block; `room`: one session in each room | `agent` | `room` |
-  | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: the platform's harness opening, the pieces role and its persona as its system prompt, its new words as its turn and no re-ask (「What a turn is given」 below) | `window` | `pieces` |
+  | `session_scope` | `agent`: one session across every room it answers, each turn carrying its room's block; `room`: one session in each room | `agent` | `room`, or the scope its call names |
+  | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: the platform's harness opening, the pieces role and its persona as its system prompt, its new words as its turn and no re-ask (「What a turn is given」 below) | `window` | `pieces`, or the shape its scope carries |
 
 - **The scope and the shape go together:** a turn of the window shape goes on in the one session of the
-  `agent` scope, and one of the pieces shape in the session of its room.
+  `agent` scope, and one of the pieces shape in the session of its room. A call that names a scope writes
+  the shape that goes with it: `agent` with `window`, `room` with `pieces`.
+- **A supervisor added for a person names `agent` in its call,** so one session carries every room that
+  person's supervisor answers, each turn carrying its room's block. A call that names no scope keeps the
+  console's `room`, as every console add has.
 - **Every supervisor is the same kind.** The scope and the shape are settings of its row, and nothing else
   tells one supervisor from another. Which supervisors answer a room is the room's: the receiver keeps
   each room's list of the supervisors that answer in it, and the supervisor that answers a room whose list
@@ -540,12 +544,16 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     holds — on the registry's provider, an offered registration (`docs/provider-order.md`, 「What an order
     is」); an add naming one provider and model is the order of that one entry;
   - the repository its items go to, where it names one, is a repository the store holds
-    (`docs/repositories.md`).
-- **The row it writes:** the `room` scope, the `pieces` shape, the label, the
+    (`docs/repositories.md`);
+  - the session scope is `agent` or `room` where it names one, and the console's `room` where it names
+    none.
+- **The row it writes:** the scope it names, or `room` where it names none, with the shape its scope
+  carries (`window` with `agent`, `pieces` with `room`), the label, the
   supervisors policy's mark for one added on the console, the provider order it is added with, warmed on
   each of its providers, the repository, its owner, the brain folder `agents/<name>`, no prompt folder and
-  not seeded. The owner changes the order on the supervisor's page like any supervisor's. Its gate options
-  are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and its
+  not seeded. A `PATCH /supervisors/{supervisorName}` naming `sessionScope` changes the scope and its
+  shape together; one naming none leaves both as they stand. The owner changes the order on the
+  supervisor's page like any supervisor's. Its gate options are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and its
   place and program are stood by its first turn.
 - **Then its brain is made.** Once the row is written, the brain is asked whether it keeps a brain
   under the supervisor's name, and to make one where it keeps none, filed under its owner's id as the

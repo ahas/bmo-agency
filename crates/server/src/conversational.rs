@@ -26,7 +26,8 @@ pub enum Shape {
 }
 
 impl Scope {
-  fn named(word: &str) -> Option<Self> {
+  /// The scope a row's word or a call's word names, or none where it names neither.
+  pub fn named(word: &str) -> Option<Self> {
     match word {
       "agent" => Some(Self::Agent),
       "room" => Some(Self::Room),
@@ -39,6 +40,15 @@ impl Scope {
     match self {
       Self::Agent => "agent",
       Self::Room => "room",
+    }
+  }
+
+  /// The shape a turn goes in under this scope: the window's with one session across its rooms, the
+  /// pieces' with one session in each.
+  pub fn shape(self) -> Shape {
+    match self {
+      Self::Agent => Shape::Window,
+      Self::Room => Shape::Pieces,
     }
   }
 }
@@ -83,19 +93,23 @@ impl Settings {
 
     Some(Self {
       scope,
-      shape: shape.and_then(Shape::named).unwrap_or(match scope {
-        Scope::Agent => Shape::Window,
-        Scope::Room => Shape::Pieces,
-      }),
+      shape: shape.and_then(Shape::named).unwrap_or(scope.shape()),
     })
   }
 
-  /// The settings a supervisor registered through `POST /supervisors` is given.
-  pub fn console_added() -> Self {
+  /// The settings a scope carries with it: the window's turns with one session across its rooms, the
+  /// pieces' with one session in each.
+  pub fn of_scope(scope: Scope) -> Self {
     Self {
-      scope: Scope::Room,
-      shape: Shape::Pieces,
+      scope,
+      shape: scope.shape(),
     }
+  }
+
+  /// The settings a supervisor registered through `POST /supervisors` is given where the call names no
+  /// scope: the console's own room scope.
+  pub fn console_added() -> Self {
+    Self::of_scope(Scope::Room)
   }
 }
 

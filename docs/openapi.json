@@ -11840,6 +11840,13 @@
             ],
             "format": "int64"
           },
+          "sessionScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.\nLeft out, the console's own `room` scope stands."
+          },
           "foldRatio": {
             "type": [
               "number",
@@ -12234,6 +12241,13 @@
               "string",
               "null"
             ]
+          },
+          "sessionScope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.\nLeft out, the scope and the shape it holds stand unchanged."
           },
           "gates": {
             "type": [

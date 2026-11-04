@@ -297,3 +297,103 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   assert_eq!(post(port, token, "/runs", json!({ "agent": "helper" })).await.0, 400);
   assert_eq!(get(port, token, &read).await.0, 200);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_supervisors_session_scope_is_the_one_its_add_or_change_names_and_the_consoles_room_otherwise() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let add = |name: &str| {
+    json!({
+      "name": name,
+      "label": name,
+      "provider": "claude-code",
+      "model": "m",
+      "repository": "helper",
+    })
+  };
+
+  // A call naming `agent` gives one session across every room the supervisor answers, with the window's
+  // turns.
+  let mut one = add("one-per-person");
+  one["sessionScope"] = json!("agent");
+
+  let (status, added) = post(port, token, "/supervisors", one).await;
+
+  assert_eq!(status, 201, "{added}");
+  assert_eq!(added["supervisor"]["sessionScope"], "agent", "{added}");
+  assert_eq!(added["supervisor"]["turnShape"], "window", "{added}");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'one-per-person'
+           AND "session_scope" = 'agent' AND "turn_shape" = 'window'"#,
+        vec![],
+      )
+      .await,
+    1
+  );
+
+  // A call naming no scope keeps the console's own: one session in each room, with the pieces' turns.
+  let (status, held) = post(port, token, "/supervisors", add("one-per-room")).await;
+
+  assert_eq!(status, 201, "{held}");
+  assert_eq!(held["supervisor"]["sessionScope"], "room", "{held}");
+  assert_eq!(held["supervisor"]["turnShape"], "pieces", "{held}");
+
+  // A change naming the scope moves the scope and the shape together.
+  let (status, changed) =
+    patch(port, token, "/supervisors/one-per-person", json!({ "sessionScope": "room" })).await;
+
+  assert_eq!(status, 200, "{changed}");
+  assert_eq!(changed["sessionScope"], "room", "{changed}");
+  assert_eq!(changed["turnShape"], "pieces", "{changed}");
+
+  // A change naming none leaves both as they stand, another field beside them changed.
+  let (status, kept) =
+    patch(port, token, "/supervisors/one-per-person", json!({ "label": "Renamed" })).await;
+
+  assert_eq!(status, 200, "{kept}");
+  assert_eq!(kept["label"], "Renamed", "{kept}");
+  assert_eq!(
+    (kept["sessionScope"].clone(), kept["turnShape"].clone()),
+    (json!("room"), json!("pieces")),
+    "{kept}"
+  );
+
+  // A scope that is neither is refused by its field, and nothing of it is written.
+  let mut nowhere = add("no-scope");
+  nowhere["sessionScope"] = json!("elsewhere");
+
+  let (status, refused) = post(port, token, "/supervisors", nowhere).await;
+
+  assert_eq!((status, refused["field"].as_str()), (400, Some("sessionScope")), "{refused}");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'no-scope'"#, vec![])
+      .await,
+    0
+  );
+
+  let (status, refused) =
+    patch(port, token, "/supervisors/one-per-person", json!({ "sessionScope": "elsewhere" })).await;
+
+  assert_eq!((status, refused["field"].as_str()), (400, Some("sessionScope")), "{refused}");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "supervisors" WHERE "name" = 'one-per-person'
+           AND "session_scope" = 'room' AND "turn_shape" = 'pieces'"#,
+        vec![],
+      )
+      .await,
+    1
+  );
+}

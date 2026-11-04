@@ -24,7 +24,7 @@ use super::sessions::asked_by;
 use super::supervisor_removal::{Left, remove};
 use super::supervisor_reset::{reset_whole, rooms_named, to_its_end};
 use super::{Call, Refused, Route, answer, set_setting, setting};
-use crate::conversational::Settings as Conversation;
+use crate::conversational::{Scope, Settings as Conversation};
 use crate::now_ms;
 use crate::order::{self, Order};
 use crate::peers::brain::{Brain, Made};
@@ -47,6 +47,18 @@ fn bad(field: &str, error: impl Into<String>) -> Refused {
 
 fn not_found(name: &str) -> Refused {
   Refused::new(StatusCode::NOT_FOUND, format!("There is no supervisor {name}."))
+}
+
+// The session scope a body names: none where it names none, so the caller's own default stands, or the
+// scope its word names, refused by the field where the word is no scope a supervisor carries.
+fn session_scope_of(body: &Value) -> Result<Option<Scope>, Refused> {
+  match body.get("sessionScope") {
+    None => Ok(None),
+    Some(Value::String(word)) => Scope::named(word)
+      .map(Some)
+      .ok_or_else(|| bad("sessionScope", CONTROL_WORDS.supervisor_roster.scope.as_str())),
+    Some(_) => Err(bad("sessionScope", CONTROL_WORDS.supervisor_roster.scope.as_str())),
+  }
 }
 
 /// The gates a supervisor's turn passes, once each with the first part it stands in, with its own switch, on
@@ -301,6 +313,7 @@ impl Route for SupervisorCreate {
     }
 
     let order = registered_order(call.ground(), &body).await?;
+    let scope = session_scope_of(&body)?;
     let repository = repository_of(call.store(), &body).await?.flatten();
     let owner = match body.get("ownerAccount") {
       None | Some(Value::Null) => None,
@@ -309,7 +322,7 @@ impl Route for SupervisorCreate {
       }
     };
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or_else(|| order.default_fold_ratio());
-    let conversation = Conversation::console_added();
+    let conversation = scope.map_or_else(Conversation::console_added, Conversation::of_scope);
     let warming: BTreeMap<&str, bool> =
       order.entries.iter().map(|entry| (entry.provider.as_str(), true)).collect();
     let now = now_ms();
@@ -379,6 +392,11 @@ impl Route for SupervisorChange {
     let name = call.param("supervisorName").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let held = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
+    let scope = session_scope_of(&body)?;
+    let (session_scope, turn_shape) = scope.map_or_else(
+      || (held.session_scope.clone(), held.turn_shape.clone()),
+      |scope| (scope.word().to_owned(), scope.shape().word().to_owned()),
+    );
     let order = order_of(call.ground(), &body).await?.unwrap_or(held.order.clone());
     let active = match body.get("active") {
       None => held.order.forced.clone(),
@@ -453,7 +471,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider_order" = $3, "quota_share" = $4, "warming" = $5,
            "fold_ratio" = $6, "repository" = $7, "voice" = $8, "updated_at" = $9, "active_provider" = $10,
-           "active_model" = $11, "card_rank" = $12
+           "active_model" = $11, "card_rank" = $12, "session_scope" = $13, "turn_shape" = $14
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -468,6 +486,8 @@ impl Route for SupervisorChange {
         active.as_ref().map(|active| active.provider.clone()).into(),
         active.as_ref().map(|active| active.model.clone()).into(),
         card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
+        session_scope.into(),
+        turn_shape.into(),
       ],
     )
     .await?;

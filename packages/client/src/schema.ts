@@ -3421,6 +3421,11 @@ export interface components {
             repository?: string | null;
             /** Format: int64 */
             ownerAccount?: number | null;
+            /**
+             * @description The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.
+             *     Left out, the console's own `room` scope stands.
+             */
+            sessionScope?: string | null;
             /** Format: double */
             foldRatio?: number | null;
         };
@@ -3546,6 +3551,11 @@ export interface components {
              */
             cardRank?: number | null;
             repository?: string | null;
+            /**
+             * @description The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.
+             *     Left out, the scope and the shape it holds stand unchanged.
+             */
+            sessionScope?: string | null;
             gates?: {
                 [key: string]: boolean;
             } | null;

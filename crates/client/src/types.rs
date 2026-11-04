@@ -2870,6 +2870,10 @@ pub struct SupervisorAsk {
   pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub owner_account: Option<i64>,
+  /// The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.
+  /// Left out, the console's own `room` scope stands.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_scope: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub fold_ratio: Option<f64>,
 }
@@ -2904,6 +2908,10 @@ pub struct SupervisorChange {
   pub card_rank: Option<Option<u32>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub repository: Option<String>,
+  /// The scope of its sessions: `agent`, one session across every room it answers, or `room`, one in each.
+  /// Left out, the scope and the shape it holds stand unchanged.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_scope: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub gates: Option<BTreeMap<String, bool>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

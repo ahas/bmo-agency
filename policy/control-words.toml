@@ -266,11 +266,13 @@ engine_switching = "The {engine} engine is being switched to {entry}; try again 
 unit_failed = "The run unit could not be made: {why}"
 node_unread = "The node's name could not be read."
 
-# A supervisor registered: a name out of its shape or already an agent's, and no label.
+# A supervisor registered: a name out of its shape or already an agent's, no label, and a session scope
+# that is neither agent nor room.
 [supervisor_roster]
 name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, 40 characters at most."
 name_taken = "The name {name} is already another agent's."
 label = "Enter a label."
+scope = "A session scope is agent, one session across every room it answers, or room, one session in each room."
 
 # A supervisor's reset: one naming no supervisor or no range, an {agent} that is no supervisor or whose
 # folder is the brain root, and the reason a room session it ended is recorded under.

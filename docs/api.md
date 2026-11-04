@@ -121,7 +121,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
 | PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
 | POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
-| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, forced provider, warming, threshold, gates, sampling or voice. |
+| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, forced provider, warming, threshold, session scope, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
@@ -163,11 +163,16 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `name-taken` where one holds it; `label`, given; the order, either `order` with its `quotaShare`, judged as
   an order is (below), or `provider` and `model`, an order of that one entry at the default share — a body
   naming both is refused 400 `order` where the order's first entry is not that provider and model;
-  `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none; and
-  `foldRatio`, the first provider's declared default where none is given. The row is written as one added
-  on the console is: the `room` scope, the `pieces` shape, warmed on each provider
-  of its order, the brain folder `agents/<name>`, and no prompt folder. The order is written whole at
-  creation, its `quotaShare` beside it.
+  `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none;
+  `sessionScope`, `agent` for one session across every room it answers or `room` for one in each, the
+  console's `room` where none is named; and `foldRatio`, the first provider's declared default where none is
+  given. The row is written as one added on the console is: the scope the call names, or the `room` scope
+  where it names none, with the shape its scope carries (`window` with `agent`, `pieces` with `room`),
+  warmed on each provider of its order, the brain folder `agents/<name>`, and no prompt folder. The order is
+  written whole at creation, its `quotaShare` beside it.
+- **`PATCH /supervisors/{supervisorName}` takes `sessionScope` beside its other fields.** A change naming
+  `agent` or `room` writes that scope with the shape it carries; a change naming none leaves the scope and
+  the shape the row holds as they stand. The next turn reads the row, so the change takes effect there.
 - **A supervisor added on the console is added through the receiver,** which owns the rooms it answers: the
   console asks the receiver, the receiver writes the console's room, the supervisor's number there and the
   room's `supervisors` list, and asks `POST /supervisors` for the supervisor's half. Agency holds no room's

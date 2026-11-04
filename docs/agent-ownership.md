@@ -36,8 +36,8 @@ Beside its provider order, its cache warming per provider and its compaction thr
 | `voice` | the voice its words are spoken in, or none | the briefing voice it speaks in now | none |
 | `window_seconds` | how long a room it answered keeps it listening without a call, or none | the conversation window it has now | none |
 | `wake_words` | the words that call it, beside its label | the deployment's trigger keywords | its aliases |
-| `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
-| `turn_shape` | the shape of its turns: the window (`window`) or the pieces (`pieces`) | `window` | `pieces` |
+| `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room`, or the scope its call names |
+| `turn_shape` | the shape of its turns: the window (`window`) or the pieces (`pieces`) | `window` | `pieces`, or the shape its scope carries |
 | `prompts` | the folder under `prompts/agents/` a pieces-shaped turn's persona is read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 | `owner_account` | the id of the login account that owns it, or none | none | the one its registration names, or none |
 

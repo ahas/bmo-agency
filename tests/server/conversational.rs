@@ -16,6 +16,34 @@ fn a_row_is_read_by_its_scope_and_shape_and_its_scope_gives_the_shape_it_names_n
 }
 
 #[test]
+fn a_scope_carries_its_shape_and_the_console_defaults_to_room_and_pieces() {
+  assert_eq!(
+    Settings::of_scope(Scope::Agent),
+    Settings {
+      scope: Scope::Agent,
+      shape: Shape::Window,
+    }
+  );
+  assert_eq!(
+    Settings::of_scope(Scope::Room),
+    Settings {
+      scope: Scope::Room,
+      shape: Shape::Pieces,
+    }
+  );
+  assert_eq!(
+    Settings::console_added(),
+    Settings {
+      scope: Scope::Room,
+      shape: Shape::Pieces,
+    }
+  );
+  assert_eq!(Scope::named("agent"), Some(Scope::Agent));
+  assert_eq!(Scope::named("room"), Some(Scope::Room));
+  assert_eq!(Scope::named("elsewhere"), None);
+}
+
+#[test]
 fn a_row_with_no_scope_the_runner_carries_is_none() {
   assert_eq!(Settings::read(None, None), None);
   assert_eq!(Settings::read(Some("elsewhere"), None), None);

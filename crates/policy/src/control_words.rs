@@ -287,6 +287,7 @@ pub struct SupervisorRosterWords {
   pub name: String,
   pub name_taken: String,
   pub label: String,
+  pub scope: String,
 }
 
 /// A supervisor's reset.
