@@ -28,6 +28,7 @@ mod supervisor_turn {
 }
 mod config;
 mod control {
+  mod access;
   mod account_routes;
   mod agent_roles;
   mod base_prompts;

@@ -62,6 +62,21 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 - No path carries a version. A gateway mounts the service under `/api/agency/` and passes the path on
   unchanged.
 
+### Who a caller acts for
+
+- **The console names the signed-in person on a call** with `Owner-Key`, the account's user id, and
+  `Owner-Role`, `administrator` or `member`, the same headers it sets on every call it relays.
+- **A caller carrying no key is the deployment's own** — a unit, a tool, a job, the shell — and keeps every
+  route's present behaviour. `Owner-Role: administrator` is the owner and keeps every access.
+- **A member's access to agent management is the console's.** On the routes of the five kinds — the
+  supervisors, the roles, the repositories, the registered models and the model files, the paths under
+  `/supervisors`, `/roles`, `/repositories`, `/models` and `/model-catalogue` — agency asks the account
+  service for that person's console sections, with the person's own headers, and goes on only where the
+  `agents` section allows it: a `GET` or `HEAD` needs its read, and every other method its write. A refusal is
+  403 `forbidden` with one sentence naming what was asked; a permission that could not be read because the
+  account service did not answer is 503 `access-unchecked`, so no access is guessed. Agency keeps no
+  permission of its own: the console's is the only one.
+
 ## Routes by resource
 
 ### health
@@ -1414,8 +1429,13 @@ of its own, or to the owner through `POST /owner/notices` with the codes `job-qu
 kind, event and code); the orderer is found by reading the item and the items it was raised from with `GET
 /items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
-`gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
-must reach it; agency keeps no client of these units and no store of their rows.
+`gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). For a control call
+on agent management that carries a signed-in person's headers, the web's account service is asked for that
+person's console sections with `GET /users/{user}/sections` (「Who a caller acts for」 above), reached at
+`WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE` names, else from the web unit's `env/web.env`
+under the data root as the owner's gate reaches it (`docs/launch-lines.md`, 「The owner's gate」). Each is the
+documented route of the unit that holds what must reach it; agency keeps no client of these units and no
+store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

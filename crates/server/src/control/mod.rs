@@ -512,6 +512,14 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     params,
   };
 
+  let method = route.method();
+
+  if let Some(ask) = crate::access::asked(&call, &method, route.path())
+    && let Err(refused) = crate::access::check(ask).await
+  {
+    return refused.into_response();
+  }
+
   match route.answer(call).await {
     Ok(response) => response,
     Err(refused) => refused.into_response(),
