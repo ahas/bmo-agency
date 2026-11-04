@@ -1,9 +1,8 @@
 //! The agents the bot runs and their settings, as a shell reads and changes them (docs/agent-control.md):
 //! the provider order and, inside its Claude Code entry, the order of the Claude accounts; the accounts
-//! themselves; the registered models; a work key's road and login; the job workers the owner owns —
-//! added, changed, set to rest, placed on a node, given a checkout on one, and removed; an agent's own
-//! thinking, effort and gates; and the listing of every agent. Each change is the one the console makes,
-//! refused in the same sentence.
+//! themselves; the registered models; a work key's road and login; a repository's support checkout count;
+//! an agent's own thinking, effort and gates; and the listing of every agent. Each change is the one the
+//! console makes, refused in the same sentence.
 //!
 //! Called with none of the order and account flags, both orders and the registered models print above
 //! whatever else the verb does. A refusal is said on the error stream and ends the verb with 1; a call
@@ -16,6 +15,7 @@ use harness_providers::{ARCHIVE_PROVIDERS, Machine};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::verb_words::VERB_WORDS;
+use policy::workers::WORKERS;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -28,6 +28,7 @@ use crate::control::claude_account_changes::{
 use crate::control::claude_accounts::{self, CredentialKind, EndpointModels, Judging, accounts};
 use crate::control::harness::{provider_enabled, set_provider_enabled};
 use crate::control::registry::{self, registrations};
+use crate::now_ms;
 use crate::places::Ground;
 use crate::text::grouped;
 use store::all;
@@ -136,6 +137,7 @@ pub struct AgentsArgs {
   pub downgrade_heal: Option<String>,
   #[arg(long)]
   pub keepalive: Option<String>,
+  /// A repository's support checkout count, with `--set` naming the repository.
   #[arg(long)]
   pub support: Option<String>,
   #[arg(long)]
@@ -279,6 +281,10 @@ pub async fn agents(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, VerbEr
 
   if args.account_add.is_some() || args.account_set.is_some() || args.account_remove.is_some() {
     return account_change(&stand.ground.db, args).await;
+  }
+
+  if args.support.is_some() {
+    return repository_support(&stand.ground.db, args).await;
   }
 
   let mut said = Said {
@@ -708,6 +714,46 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
 
     said.line(format!("account {} ({}) removed", held.id, held.name));
   }
+
+  Ok(said)
+}
+
+/// A support count as the verb takes it: a whole number from zero to the most a repository may have.
+fn support_count(value: Option<&str>) -> Option<i64> {
+  let value = value?;
+  let count = value.trim().parse::<i64>().ok()?;
+
+  (0..=WORKERS.support_most).contains(&count).then_some(count)
+}
+
+// A repository's support checkout count (docs/worker-slots.md, 「The base checkout and the support
+// checkouts」): the one setting a name and a count change, and no other field of the row.
+async fn repository_support(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Said, VerbError> {
+  let mut said = Said::default();
+  let Some(name) = args.set.as_deref() else {
+    return Ok(said.misread(VERB_WORDS.agents.support_usage.clone()));
+  };
+  let Some(count) = support_count(args.support.as_deref()) else {
+    let most = WORKERS.support_most.to_string();
+
+    return Ok(said.refused(fill_marks(&VERB_WORDS.agents.support_count, &[("most", &most)])));
+  };
+
+  if crate::repositories::named(db, name).await?.is_none() {
+    return Ok(said.refused(fill_marks(&VERB_WORDS.agents.no_repository, &[("name", name)])));
+  }
+
+  store::run(
+    db,
+    r#"UPDATE "repositories" SET "support_count" = $2, "updated_at" = $3 WHERE "name" = $1"#,
+    vec![name.to_owned().into(), count.into(), now_ms().into()],
+  )
+  .await?;
+
+  said.line(format!(
+    "repository {name}: {count} support checkout{}",
+    if count == 1 { "" } else { "s" }
+  ));
 
   Ok(said)
 }

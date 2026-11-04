@@ -7,6 +7,7 @@
 pub(crate) mod common;
 
 mod agent_status_verb;
+mod agents_verb;
 mod claude_logins;
 mod dev_model_verbs;
 mod door_guard;
