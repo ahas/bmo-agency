@@ -26,6 +26,15 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
   assert!(RUN_LINES.capabilities("gate").is_empty());
 }
 
+// A job's pane has nobody to answer the CLI's own question tool, and the session contract cannot carry
+// the option it would pick: a job asks the owner through bmo job ask instead (docs/launch-lines.md).
+#[test]
+fn the_worker_line_keeps_out_the_cli_s_own_question_tool() {
+  let worker = RUN_LINES.line("worker").expect("the worker line is declared");
+
+  assert!(worker.tools_denied.iter().any(|tool| tool == "AskUserQuestion"));
+}
+
 #[test]
 fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name() {
   assert!(RUN_LINES.shows("worker", "worker/graph_impact"));
