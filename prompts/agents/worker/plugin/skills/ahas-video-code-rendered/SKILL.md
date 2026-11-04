@@ -69,6 +69,16 @@ A lead writes the treatment, the engine and a guide for scene authors, then give
 - Tag the stream BT.709 and name the colour range. Very fine grain is expensive to encode; set the rate by looking at the file size.
 - Rendering on this platform takes a card ticket where the producer's rule says so; see `ahas-video-shotcraft`.
 
+## The way of working, in order
+
+1. Lead writes the treatment, then measures the audio.
+2. Lead builds the engine and `docs/ENGINE.md`; the timeline stays the lead's.
+3. Subagents take one scene each, in parallel, and check by opening their own stills and sheets.
+4. Lead watches the whole film by sheets and clips, and writes a named revision: what changed, why.
+5. At least two such revisions before the final render, with motion blur.
+
+`mexicat/pdoom-video` is MIT: its engine and tools may start a project, with its licence kept in that project. Its song, lyrics, scenes and designs are not part of that.
+
 ## Rights
 
 Music, footage and images need a licence you can name, recorded in `NOTES.md`. Do not download music from a video site; an original track made here (or one the owner licensed) is the road. Do not draw a character from a show, a meme's drawing or another video's design, even from memory: design your own. Name a product only where the brief does.
