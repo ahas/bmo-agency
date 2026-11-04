@@ -221,7 +221,8 @@ statements below about either are kept for a rollback to the road a deployment l
     declares — 0.5 for DeepSeek and OpenRouter — and 0.85 where that provider declares none;
   - **a session's state carries the context its last turn left,** `context` with `carried` and `window`,
     read off that turn's answer and held while agency's process stands, and let go as the session folds
-    or ends; a session no turn has ended on since then carries none, and the next turn's end fills it;
+    or ends; a fold that did not happen leaves it as it stood; a session no turn has ended on since then
+    carries none, and the next turn's end fills it;
   - **a session whose agent's resident program carries its own turns** — dsh's, one session across the
     agent's rooms, read alike by the agent's own session and each of its rooms' — carries instead what the program's record says of its last answer: `carried` the
     `used` that answer's context names, or where it names none, as dsh writes it only on a turn of
@@ -238,7 +239,8 @@ statements below about either are kept for a rollback to the road a deployment l
     compaction threshold (its `compaction-basic` row's `thresholdRatio`), and dsh compacts inside the turn
     that would carry its context past that share. The session's state says so, `foldsItself` true, and a
     consumer makes no fold call for it; a change of the fold ratio changes the program's command, which
-    stands the program again on the same session. Every other session's `foldsItself` is false;
+    stands the program again on the same session. Every other session's `foldsItself` is false, and the
+    fold route refuses a supervisor's session across rooms whose `foldsItself` is true;
   - the session's state names the supervisor or the role it runs for, so a consumer whose own settings
     are kept per supervisor, the receiver's draft questions among them, reads the same row the fold ratio
     was read from.
@@ -258,9 +260,15 @@ statements below about either are kept for a rollback to the road a deployment l
 - Nothing is launched beside a compaction: what the session has read and not yet kept it writes into
   its brain itself, as the brain's discipline asks (`docs/agent-ownership.md`, 「Who writes long-term
   memory」).
-- The session id is unchanged and the compacted session keeps its memory of the chat. A fold is given
-  the time the policy names (`policy/chat-health.toml`), and what the session is asked and told
-  around it stands there too, read by agency's server.
+- The session id is unchanged and the compacted session keeps its memory of the chat. A fold has no
+  clock: it lasts until the program's record says how it came out (`docs/agent-control.md`, 「The order
+  for putting in one turn and waiting for it to end」).
+- **A supervisor's session across rooms folds in the program standing on it.** The fold word goes into
+  that program on the command it stands on, with no room's block, no lead and no road walked, so nothing
+  of it restarts the program or moves the session. The fold route answers once the word has come out:
+  success only where the record holds the compacted marker, and a fault with the program's own words
+  otherwise. A session whose program stands on another session than the one its supervisor keeps, or
+  whose supervisor has no program standing, is a fault too, and nothing is typed.
 - Compaction runs detached after the reply has been sent, never in the path a chat is waiting on; a
   message that arrives mid-compaction is answered as soon as the compaction finishes. A compaction
   failure leaves the session running as it was.

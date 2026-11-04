@@ -11,7 +11,6 @@ use std::sync::LazyLock;
 use harness_providers::claude_code::ClaudeCode;
 use policy::door_words::DOOR_WORDS;
 use regex::Regex;
-use serde_json::Value;
 
 use super::held::{self, MODE, scope_of};
 use super::records::{self, note_spend, record};
@@ -20,7 +19,7 @@ use super::{Composed, account_named, compose};
 use crate::Refusal;
 use crate::control::claude_accounts::SEED_ACCOUNT;
 use crate::control::harness::provider_enabled;
-use crate::door::record::Tail;
+use crate::door::record::{Tail, command_words, compacted_since};
 use crate::door::turn::{Ending, Quiet, put};
 use crate::lines::standing::worker_prefix_digest;
 use crate::lines::worker::{configured, worker_run};
@@ -201,15 +200,9 @@ async fn folded(
   let mut tail = Tail::new(record_of(ground, &turn.env, &turn.cwd, session));
   let from = tail.count();
   let ending = put(ground, &turn, &mut Quiet).await.map_err(fault)?;
-  let written: Vec<Value> = tail.look().into_iter().skip(from).collect();
-  let compacted = written.iter().any(|line| {
-    line.get("type").and_then(Value::as_str) == Some("system")
-      && line.get("subtype").and_then(Value::as_str) == Some("compact_boundary")
-  });
-  let thin = written.iter().any(|line| {
-    TOO_SHORT
-      .is_match(&line.pointer("/message/content").map_or_else(|| "\"\"".to_owned(), Value::to_string))
-  });
+  let written = tail.look();
+  let compacted = compacted_since(&written, from);
+  let thin = command_words(&written, from).is_some_and(|said| TOO_SHORT.is_match(&said.text));
   let (spend, answered_by) = match &ending {
     Ending::Answered { reply, .. } => (reply.spend.clone(), reply.account.clone()),
     _ => (vec![], None),
@@ -222,10 +215,7 @@ async fn folded(
   } else if thin {
     (Folded::TooShort, String::new())
   } else {
-    let detail = match &ending {
-      Ending::Answered { .. } => "the fold word left no compacted marker".to_owned(),
-      other => format!("the fold turn ended {}", other.word()),
-    };
+    let detail = format!("the fold turn ended {}: {}", ending.word(), ending.detail());
 
     (
       if matches!(ending, Ending::Blocked { .. } | Ending::Stopped { .. }) {

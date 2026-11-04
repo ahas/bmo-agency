@@ -1884,8 +1884,8 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
 
 - **A prompt received but not started ends on its record.** Neither a job's turn nor a chat round has a
   time limit. A run that never showed `working` after the prompt went in and sits `idle` with no answer
-  ends `silent` once its record closes a turn after the prompt, or, for a command of the program's own,
-  once its record has grown past it; until then it is waited on.
+  ends `silent` once its record closes a turn after the prompt; until then it is waited on. A command of
+  the program's own ends on its own words instead (「How a command of the program's own ends」).
 
 ### A first interactive run stops at the trust-this-folder check
 
@@ -2009,9 +2009,9 @@ The measured, fixed order.
 4. Wait for `idle` or `done` after seeing `working` once. The measured state order is `idle` → `working`
    → `idle`. **Without also seeing `working`**, the `idle` before the prompt went in is read as finished.
    A turn back at rest that was never seen working and wrote no answer is over once its record closes a
-   turn after the prompt, or, for a command of the program's own, once its record has grown past the
-   prompt; it ends as silent. Until then it is waited on, or until its program is gone (「Telling that a
-   turn's program is gone」 below).
+   turn after the prompt; it ends as silent. Until then it is waited on, or until its program is gone
+   (「Telling that a turn's program is gone」 below). A command of the program's own is not read this way
+   (「How a command of the program's own ends」 below).
    - **A turn the program ended on its own error is over by its record, whatever the pane shows.** A full
      window comes back as an error the program writes in the answer's place, followed by the line a turn
      ends with, and the program then stands `blocked` at its own choice of what to do next (measured:
@@ -2036,6 +2036,33 @@ The measured, fixed order.
    and leave the program standing for the next turn. The status line's reading after the turn is waited
    for until it is written or the program is no longer alive; the program makes it about a second after
    the turn's end.
+
+### How a command of the program's own ends
+
+A command put in as a turn, the fold word among them, closes no turn. Measured on Claude Code 2.1.318 with
+`/compact` typed into a standing program on a throwaway session:
+
+| It came to | The pane reads | The record, after the word | Hooks |
+|---|---|---|---|
+| Compacted | `working`, then `idle` | The compacted marker (`compact_boundary`), the summary, the command's lines, and its words as a `user` line in `<local-command-stdout>` | `PreCompact`, `SessionStart`, `PostCompact` |
+| Too little to fold | `idle` throughout | The command's lines, and its words as a `system` line (`local_command`) in `<local-command-stdout>` | `PreCompact` |
+| The request failed | `working`, then `idle`, through the program's own retries | The command's lines, and its words as a `system` line in `<local-command-stderr>` | `PreCompact`, `StopFailure` |
+| Cut with Escape | `working`, then `idle` | The `<local-command-caveat>` line alone, and the word stands back in the input box | `PreCompact` |
+
+No outcome writes `turn_duration` or an answer, and none fires `Stop`. So:
+
+- **A command is over when its record holds its words,** however the pane reads, or when its failure hook
+  has fired. Neither the end line nor the status line's next reading is waited for.
+- **A command that writes no words is over at rest:** seen `working` or with its caveat line written, then
+  read at rest on two looks in a row with the record unchanged between them. A pane still reading `idle`
+  right after the word went in, with neither, is waited on. The looks pace it; no clock ends it.
+- **What it comes to:** words in `<local-command-stderr>`, or a failure hook, end the turn `errored` on the
+  program's own words. A fold word with no compacted marker in the record also ends `errored` on what the
+  program said, since a `/compact` the CLI declines is a failed compaction. Other words end it `answered`
+  with those words as its text, and a command that wrote none ends `silent`.
+- **A command cut short leaves the program stood again.** The word back in the input box would take the next
+  turn's words as its arguments, so the program is ended and its loop starts it on the same session with
+  the box empty.
 
 ### Telling that a turn's program is gone
 

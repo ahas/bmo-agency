@@ -44,9 +44,9 @@ use super::place_run::{
   read_hooks, read_run, run_variables, status_after_turn, status_file,
 };
 use super::record::{
-  ChildReader, ModelSpend, Reply, ReplyWindow, RoundState, Tail, answered_since, ended_on_error,
-  ends_on_turn_end, last_activity, prompted_since, read_round, read_turn, status_figures,
-  turn_closed_since, turn_error, turns_owed, word_written_down,
+  ChildReader, ModelSpend, Reply, ReplyWindow, RoundState, Tail, answered_since, command_closing_since,
+  command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity, prompted_since,
+  read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed, word_written_down,
 };
 use super::stand::{Interrupt, interrupt_program, person_turn_done, stand_resident, stood_again};
 use crate::control::claude_accounts;
@@ -55,6 +55,7 @@ use crate::now_ms;
 use crate::places::Ground;
 use crate::places::home::{Home, METADATA_SOURCE, short_title};
 use crate::places::trust::{Trust, config_file, trust_folder};
+use crate::worker_session::fold::FOLD_WORD;
 
 /// What the typed lead says about the words pasted after it, where the caller says nothing else: a
 /// job's and an upkeep turn's are the owner's own words.
@@ -712,6 +713,12 @@ impl<W: Watch> Door<'_, W> {
     }
   }
 
+  // A command cut short stands back in the program's input box, where the next turn's words would become its
+  // arguments: the program is ended, and its loop starts it on the same session with the box empty.
+  async fn clear_command(&self, pane: &str) {
+    self.interrupt(pane, &Interrupt::EndProgram).await;
+  }
+
   // Whether the place's run is marked as handed words the bot put in; a pane of the turn's own has no
   // place.
   fn hand(&self, handed: bool) {
@@ -904,6 +911,56 @@ impl<W: Watch> Door<'_, W> {
     let records = self.lines();
 
     read_round(records.get(from..).unwrap_or_default()).state
+  }
+}
+
+// What a command of the program's own came to, out of its own words (docs/agent-control.md, 「How a command of
+// the program's own ends」).
+async fn command_ended<W: Watch>(
+  door: &mut Door<'_, W>,
+  pane: &str,
+  records: &[Value],
+  from: usize,
+  read: &super::record::TurnRead,
+  failure: Option<(String, Option<String>)>,
+) -> Ending {
+  let turn = door.turn;
+  let said = command_words(records, from);
+
+  // Said as its error, or ended by a failure its hook reported, whichever came first.
+  if let Some((error, kind)) = said.as_ref().filter(|said| said.error).map_or_else(
+    || failure.clone(),
+    |said| Some((said.text.clone(), failure.clone().and_then(|(_, kind)| kind))),
+  ) {
+    return Ending::Errored { error, kind };
+  }
+
+  let Some(said) = said else {
+    door.clear_command(pane).await;
+
+    let shown = door.screen(pane).await;
+    let screen = door.kept_screen(&DOOR_WORDS.screens.silent, shown).await;
+
+    return Ending::Silent { screen };
+  };
+
+  // A fold word the program answered without folding is a failed compaction, whatever words it chose.
+  if turn.prompt == FOLD_WORD && !compacted_since(records, from) {
+    return Ending::Errored {
+      error: said.text,
+      kind: None,
+    };
+  }
+
+  door.close("exited").await;
+
+  let mut reply = read.reply(&turn.session, read.spend.clone());
+
+  reply.text = said.text;
+
+  Ending::Answered {
+    reply: Box::new(reply),
+    records: records.len(),
   }
 }
 
@@ -1449,8 +1506,10 @@ async fn watch_turn<W: Watch>(
   let mut worked = matches!(taken, Submit::Working);
   // When the caller's overtime policy is asked next; none once it asks nothing.
   let mut ask_at = turn.clock.map(|clock| now_ms() + clock.as_millis() as i64);
-  // A command of the program's own writes no answer; it is over once its record has grown past it.
-  let command = turn.prompt.starts_with('/');
+  // A command of the program's own writes no answer and closes no turn: its own words in the record are its
+  // end, and one that writes none is over at rest, its record still between two looks.
+  let mut command = turn.prompt.starts_with('/');
+  let mut rested_at: Option<usize> = None;
   let mut answer_from = from;
   // The moment since which a failed request's end is this turn's, moved with the words owed after a
   // refusal.
@@ -1500,6 +1559,10 @@ async fn watch_turn<W: Watch>(
             && status_of(door.herdr, pane, GoneConfirm::default()).await.is("working")
           {
             tokio::time::sleep(every).await;
+          }
+
+          if command {
+            door.clear_command(pane).await;
           }
         }
       }
@@ -1556,6 +1619,7 @@ async fn watch_turn<W: Watch>(
       turn_closed_since(&records, answer_from)
         || ended_on_error(&records, answer_from)
         || door.failure_since(failed_from).is_some()
+        || (command && command_words(&records, answer_from).is_some())
     };
 
     if matches!(peer, Peer::Gone(_)) {
@@ -1647,6 +1711,30 @@ async fn watch_turn<W: Watch>(
 
     door.questions.look(door.herdr, pane, &now, door.watch).await;
 
+    // Words led by a slash the program took for a prompt answer as any prompt does, and are read as one.
+    command = command && !answered_since(&door.lines(), answer_from);
+
+    if command {
+      let records = door.lines();
+
+      if command_words(&records, answer_from).is_some() {
+        break;
+      }
+
+      if now.at_rest() && (worked || command_closing_since(&records, answer_from)) {
+        if rested_at == Some(records.len()) {
+          break;
+        }
+
+        rested_at = Some(records.len());
+      } else {
+        rested_at = None;
+      }
+
+      tokio::time::sleep(every).await;
+      continue;
+    }
+
     // Words owed after a refusal the screen could not carry go in once the run is back at rest, and the
     // turn goes on: what it does with them is still this turn's work.
     if now.at_rest()
@@ -1677,13 +1765,9 @@ async fn watch_turn<W: Watch>(
     }
 
     // Back at rest never seen working and with no answer: over once the record closes a turn after the
-    // prompt, or, for a command of the program's own, once the record has grown past it.
-    if now.at_rest() && !worked {
-      let records = door.lines();
-
-      if turn_closed_since(&records, answer_from) || (command && records.len() > answer_from) {
-        break;
-      }
+    // prompt.
+    if now.at_rest() && !worked && turn_closed_since(&door.lines(), answer_from) {
+      break;
     }
 
     // Only while it is working: a word pushed at an agent that has not started is one the turn's own
@@ -1731,7 +1815,7 @@ async fn watch_turn<W: Watch>(
   // nothing of an answer was written, a program gone or a silent peer is the turn's ending.
   let mut lost_after_rest: Option<(Lost, String)> = None;
 
-  if worked || answered_since(&door.lines(), answer_from) {
+  if !command && (worked || answered_since(&door.lines(), answer_from)) {
     loop {
       if turn_closed_since(&door.lines(), answer_from)
         || door.round_state(answer_from) == RoundState::Interrupted
@@ -1842,6 +1926,10 @@ async fn watch_turn<W: Watch>(
   let answered = answered_since(&records, from);
   let read = read_turn(&records, from);
   let failure = door.failure_since(failed_from).map(|failure| failure.failure());
+
+  if command {
+    return Ok(command_ended(door, pane, &records, from, &read, failure).await);
+  }
 
   if let Some((error, kind)) = turn_error(&read, answered, failure) {
     if answered {

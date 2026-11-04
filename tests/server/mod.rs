@@ -2,6 +2,7 @@
 
 mod pin_model;
 
+mod agent_fold;
 mod agent_roles;
 mod apart_session;
 mod cards;

@@ -14,11 +14,10 @@ use harness_providers::claude_code::ClaudeCode;
 use herdr::Herdr;
 use policy::door_words::DOOR_WORDS;
 use policy::resident_turn::RESIDENT_TURN;
-use serde_json::Value;
 
 use super::execution::{Identity, execution_root, own_unit};
 use super::guard::launch_refusal;
-use super::record::{Reply, Tail};
+use super::record::{Reply, Tail, compacted_since};
 use super::surface::interrupt_of;
 use super::turn::{Ending, Quiet, Seat, Timings, Turn, Watch, put};
 use crate::apart_sessions;
@@ -236,10 +235,7 @@ impl Folding<'_> {
       run: None,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
-    let compacted = tail.look().into_iter().skip(from).any(|written| {
-      written.get("type").and_then(Value::as_str) == Some("system")
-        && written.get("subtype").and_then(Value::as_str) == Some("compact_boundary")
-    });
+    let compacted = compacted_since(&tail.look(), from);
 
     // Whatever a consumer sent the session to hold is folded away once the fold reached it, or may have.
     if compacted || ended.is_ok() {
