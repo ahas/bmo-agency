@@ -31,8 +31,9 @@ description: "How a job makes a video with the video-shotcraft studio (Remotion)
   model, never under a card hold.
 - After the whole render, run the studio's frame checks and its parity script, and look at the frames the
   checks flag with the platform's eye. A video that fails a check is not finished.
-- The file that goes to a room is an MP4 under 50 MiB; a larger master stays in the project folder, named
-  in the report.
+- A finished video is filed in the theater with `bmo/theater_file` at the quality the item asks, with no size
+  limit of its own, and the room gets the theater's link. Only where an item asks for the file itself in a room is
+  an MP4 under 50 MiB sent, since the rooms' chat services refuse more.
 
 ## What the studio's own files say of licences
 
