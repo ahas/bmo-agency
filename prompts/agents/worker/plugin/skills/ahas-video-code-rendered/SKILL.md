@@ -103,6 +103,10 @@ Quality comes from this pipeline as much as from the way of working, and Remotio
 
 The stages should be a reusable command, not a memory of one film: one subcommand per stage, each runnable alone and resumed from what it produced; the stage prompts as files that name no film; every film's settings in its own project folder, so a new film touches no tool file. The producer's repository keeps one (`tools/produce.py` in video-app, stated in `docs/production.md`): treatment, timing, voice audition, takes and fitting, one author per scene, contact-sheet review, revisions, the sentence check, the brightness measurement, the render, the partial re-render and join, and filing. A stage that needs an agent opens a role's session through the agency's own road rather than starting a program by hand; where no such road is open it hands the filled prompt to the running agent as a step.
 
+## Rights
+
+Music, footage and images need a licence you can name, recorded in `NOTES.md`. Do not download music from a video site; an original track made here (or one the owner licensed) is the road. Do not draw a character from a show, a meme's drawing or another video's design, even from memory: design your own. Name a product only where the brief does.
+
 ## Checking the result
 
 Duration equals the audio's, the streams are as asked, and a one-frame-per-4-s sheet of the whole film has been looked at. Measure the mean light of consecutive frames and report the largest step and the counts over 8, 12, 20 and 40; a jump at a cut is a fault. Report where the file is, how long the render took, and whatever of the treatment you could not do.
