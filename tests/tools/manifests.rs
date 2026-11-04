@@ -30,7 +30,7 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   folders.sort();
 
-  assert_eq!(folders, ["delegate", "procedures", "worker_ask"]);
+  assert_eq!(folders, ["delegate", "procedures", "relay", "worker_ask"]);
 
   for folder in &folders {
     let manifest = read(&tools().join(folder).join("tool.toml"));
@@ -125,4 +125,40 @@ fn the_delegations_entry_is_declared_as_its_tool_answers_it() {
 
   assert!(schema.get("required").is_none());
   assert_eq!(schema["properties"].as_object().unwrap().keys().collect::<Vec<_>>(), ["ended"]);
+}
+
+#[test]
+fn the_relay_entries_are_declared_as_its_tool_answers_them() {
+  let folder = tools().join("relay");
+  let manifest = read(&folder.join("tool.toml"));
+  let entries = manifest["entry"].as_array().unwrap();
+
+  assert_eq!(entries.len(), 2);
+
+  let relay = &entries[0];
+
+  assert_eq!(text(relay, &["namespace"]), relay_tool::NAMESPACE);
+  assert_eq!(text(relay, &["name"]), relay_tool::NAME);
+  assert_eq!(text(relay, &["title"]), relay_tool::TITLE);
+  assert_eq!(text(relay, &["description"]), relay_tool::DESCRIPTION);
+  assert_eq!(words(&relay["capabilities"]), relay_tool::CAPABILITIES);
+
+  let schema: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(folder.join(text(relay, &["input"]))).unwrap()).unwrap();
+
+  assert_eq!(schema["required"], serde_json::json!(["to", "text"]));
+  assert!(schema["properties"].get("from").is_none(), "the sender is never typed");
+
+  let chat = &entries[1];
+
+  assert_eq!(text(chat, &["namespace"]), relay_tool::NAMESPACE);
+  assert_eq!(text(chat, &["name"]), relay_tool::CHAT_NAME);
+  assert_eq!(text(chat, &["title"]), relay_tool::CHAT_TITLE);
+  assert_eq!(text(chat, &["description"]), relay_tool::CHAT_DESCRIPTION);
+  assert_eq!(words(&chat["capabilities"]), relay_tool::CAPABILITIES);
+
+  let schema: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(folder.join(text(chat, &["input"]))).unwrap()).unwrap();
+
+  assert_eq!(schema["required"], serde_json::json!(["to", "text", "room"]));
 }

@@ -228,6 +228,28 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   answer for the person range or null. 400 for a body naming no range, and for a supervisor whose brain
   folder is the brain's root.
 
+### relays
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/relays` | Hand a line from one BMO to another person's BMO, recorded for both sides. |
+| POST | `/chats` | Open a chat into another person's room and hand it a line, answered with that BMO's answer. |
+| GET | `/relays` | The relays one BMO sent or received, the latest first. |
+
+- **A relay is one BMO's word to another** (`docs/relays.md`). The body is `from`, the sending BMO;
+  `to`, the receiving BMO; `text`, the line; `room`, the room it is said in; and `person`, the receiving
+  person's account id where the sender names one. The receiving BMO's own session is started or taken up and
+  the line goes into it as a turn, marked as another BMO's word and never privileged.
+- **The answer is the record,** `{ "relay": Relay, "answer": <the receiving BMO's answer or null> }`, 201
+  where the line was taken. A receiving BMO that answers the refusal marker is answered 409 `relay-refused`, a
+  BMO in a turn 409 `relay-busy`, and a turn that failed 422 `relay-failed`; each is also recorded with the
+  state it came to. An unknown receiving BMO is 404 `unknown-supervisor`, an unknown sender 422
+  `unknown-sender`, a line to itself 409 `relay-to-self`, and a `person` that is not the receiving BMO's
+  account 422 `person-mismatch`.
+- **`GET /relays`** takes `agent`, the BMO's name, and an optional `limit`, and answers `items`, the relays it
+  sent or received, the latest first: `id`, `from`, `to`, `room`, `kind`, `line`, `state`, `answer`,
+  `reason` and `createdAt`.
+
 ### roles
 
 | Method | Path | Does |

@@ -20,6 +20,7 @@ members = [
   "crates/server",
   "tools/delegate",
   "tools/procedures",
+  "tools/relay",
   "tools/worker_ask",
 ]
 resolver = "3"
@@ -117,6 +118,7 @@ node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
 delegate-tool = { path = "tools/delegate" }
 procedures-tool = { path = "tools/procedures" }
+relay-tool = { path = "tools/relay" }
 worker-ask-tool = { path = "tools/worker_ask" }
 regex.workspace = true
 reqwest.workspace = true

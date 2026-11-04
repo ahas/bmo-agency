@@ -57,6 +57,7 @@ mod m20261127_000001_supervisor_settings;
 mod m20261128_000001_supervisors_alike;
 mod m20261129_000001_chosen_roads;
 mod m20261130_000001_supervisor_card_rank;
+mod m20261201_000001_relays;
 
 use sea_orm_migration::prelude::*;
 
@@ -80,7 +81,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 51] = [
+pub const OWN_TABLES: [&str; 52] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -132,6 +133,7 @@ pub const OWN_TABLES: [&str; 51] = [
   "session_loads",
   "turn_liveness",
   "stream_events",
+  "relays",
 ];
 
 pub struct Migrator;
@@ -195,6 +197,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261128_000001_supervisors_alike::Migration),
       Box::new(m20261129_000001_chosen_roads::Migration),
       Box::new(m20261130_000001_supervisor_card_rank::Migration),
+      Box::new(m20261201_000001_relays::Migration),
     ]
   }
 

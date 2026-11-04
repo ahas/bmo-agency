@@ -3,8 +3,8 @@
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
-to a run of the worker role, and let a supervisor delegate a task to a run of any role and read what it has
-delegated. A tool that
+to a run of the worker role, let a supervisor delegate a task to a run of any role and read what it has
+delegated, and let one BMO hand a line to another person's BMO and open a chat into that person's room. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
 ## A tool's folder
@@ -172,3 +172,17 @@ belongs to no one service is a repository of its own, not a folder here.
   list.
 - **A task worth keeping and reviewing is still a queue item,** filed with `file_item`; the delegate files
   nothing of the task.
+
+## The relay
+
+- **`tools/relay`** declares `bmo/relay` and `bmo/chat` to a session holding `room.tools`: one BMO hands a
+  line to another person's BMO, and opens a chat into that person's room (`docs/relays.md`).
+- **The sender is the calling turn's agent,** read from the record afresh; a call standing in no agent's turn
+  is refused, so a person or a program outside a BMO's turn speaks in no BMO's name.
+- **`bmo/relay`** takes the other BMO's name, the line, and the room the line is said in, the turn's own room
+  where none is named; an optional `person` names the receiving person's account. **`bmo/chat`** takes the
+  same and opens the chat at once, its room the person's room and named. Each answers the record it wrote and,
+  for a chat, the receiving BMO's answer; a refusal or a failure is a failed call that names the receiving BMO.
+- **It reaches agency's control port as every tool of agency's does,** the address and token from its own
+  environment or the server's env file under the data root, and it reaches no other unit. A call waits for the
+  receiving BMO's turn to end, however long it takes: no timeout of the tool's own cuts it.

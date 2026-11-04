@@ -188,6 +188,9 @@
       "name": "supervisors"
     },
     {
+      "name": "relays"
+    },
+    {
       "name": "roles"
     },
     {
@@ -5389,6 +5392,153 @@
             }
           }
         ]
+      }
+    },
+    "/relays": {
+      "post": {
+        "operationId": "createRelay",
+        "tags": [
+          "relays"
+        ],
+        "summary": "Hand a line from one BMO to another person's BMO, recorded for both sides; a line the receiving BMO will not take is refused and the sender told.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Relay"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found",
+          "conflict"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayAsk"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listRelays",
+        "tags": [
+          "relays"
+        ],
+        "summary": "The relays one BMO sent or received, the latest first.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelayPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the BMO's name"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/chats": {
+      "post": {
+        "operationId": "createChat",
+        "tags": [
+          "relays"
+        ],
+        "summary": "Open a chat into another person's room and hand it a line, answered with the receiving BMO's answer; a refusal is reported to the sender.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Relay"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found",
+          "conflict"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayAsk"
+              }
+            }
+          }
+        }
       }
     },
     "/supervisors/{supervisorName}/settings": {
@@ -11936,6 +12086,122 @@
           "resetPoint"
         ],
         "description": "SupervisorResetPoint: a supervisor's reset point alone."
+      },
+      "Relay": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "room": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`relay`, a line handed over, or `chat`, a chat opened"
+          },
+          "line": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`delivered`, `refused` or `failed`"
+          },
+          "answer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "to",
+          "room",
+          "kind",
+          "line",
+          "state",
+          "answer",
+          "reason",
+          "createdAt"
+        ],
+        "description": "Relay: one line handed to another person's BMO, and what came of it."
+      },
+      "RelayAsk": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "the sending BMO's name"
+          },
+          "to": {
+            "type": "string",
+            "description": "the receiving BMO's name"
+          },
+          "text": {
+            "type": "string"
+          },
+          "room": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the room the line is said in"
+          },
+          "person": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "the receiving person's account id, where the sender names one"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "text",
+          "room",
+          "person"
+        ],
+        "description": "RelayAsk: one BMO hands another person's BMO a line, or opens a chat into that person's room."
+      },
+      "RelayPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Relay"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "RelayPage: the relays one BMO sent or received, the latest first."
       },
       "SupervisorSettings": {
         "type": "object",

@@ -65,6 +65,7 @@ pub mod peers;
 pub mod places;
 pub mod queue;
 pub mod readiness;
+pub mod relays;
 pub mod repositories;
 pub mod rest;
 pub mod road;
