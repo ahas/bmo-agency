@@ -2198,6 +2198,14 @@ altogether.
 a person even in that mode and that no permission rule can allow. In a pane nobody answers, such a
 question used to stand until somebody attached to herdr and answered it.
 
+**The CLI's own question tool is not one of these questions.** `AskUserQuestion` asks a person to pick
+one of several options, and the session contract's question state has no shape for that answer: on a
+role's run the state carries a permission question or a screen the reading does not know, and it is
+answered by allowing, leaving or refusing it, none of which chooses an option. A worker's pane has
+nobody to pick one either, so the worker line disallows the tool (`docs/launch-lines.md`, 「Worker
+line」). A job that needs the owner to decide between options asks through `bmo job ask`, and the job
+service's questions carry it to him.
+
 - **What asks, measured on 2.1.274.**
   - A removal whose target the CLI cannot resolve statically. The one met in practice: `rm` or `rmdir`
     whose target starts with an unguarded variable followed by a slash (`$S/*.md`, `${S}/`), or holds a

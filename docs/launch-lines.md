@@ -227,7 +227,11 @@
   disallowed too — `Monitor`, `ScheduleWakeup` and the session cron tools `CronCreate`, `CronDelete`
   and `CronList` — because a job has no later: its turn's end is its answer, and a run those tools
   keep re-invoking never reaches its own ending, so nothing it wrote is recorded and the unit burns a
-  model run on every re-invocation until somebody stops it. The claude.ai account's connectors — Gmail, Google Calendar,
+  model run on every re-invocation until somebody stops it. The CLI's own question tool,
+  `AskUserQuestion`, is disallowed as well: it stops the pane on a choice among options, a job's pane
+  has nobody to pick one, and the session contract's question has no shape for that answer
+  (`docs/agent-control.md`, 「A confirmation in the middle of a turn」). A job puts a decision that is
+  the owner's to `bmo job ask`, which waits on his answer. The claude.ai account's connectors — Gmail, Google Calendar,
   Google Drive, Claude Docs and whatever else the login has connected — are not loaded at all:
   the worker settings set the CLI's `disableClaudeAiConnectors` to `true`. To turn them back on,
   set that key to `false` in `prompts/agents/worker/settings.json` and let the commit go live; it

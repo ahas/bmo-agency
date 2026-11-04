@@ -494,7 +494,9 @@ pub enum Aside {
   Refused,
 }
 
-/// A question a turn's program stopped on, put to the turn's caller: its id and what it asks.
+/// A question a turn's program stopped on at the door, put to the turn's caller: its id and what it
+/// asks. A choice among options is no part of this shape, which is why the program's own question tool
+/// is kept off the worker line (`docs/launch-lines.md`, 「Worker line」).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Question {
   pub id: String,

@@ -330,6 +330,14 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 | POST | `/session-reset` | Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. |
 
+**A question in the middle of a turn carries what the screen shows, never a choice among options.** A
+turn whose program holds the pane at a permission question, or at another screen the reading does not
+know, carries the question on the session's state and publishes it as `question.created`;
+`POST /sessions/{sessionId}/answers` answers it with `allow`, `leave` or `refuse` (`Answer`), the
+question's `Asks` naming a permission question or an unknown screen. The CLI's own question tool puts
+a choice among options, which that shape cannot answer; no run on the worker line is shown it, and a
+job asks the owner through the job service's question (`docs/launch-lines.md`, 「Worker line」).
+
 A job's run is a role's run at its checkout. A session is started at one scope — `agent` or `room` for a
 supervisor, `role` for a role's run, or `conversation` — and the scope says what is kept. Its id names its
 owner and the scope: the supervisor's name alone for its session, `<supervisor>@<room>` for a room's, and a
