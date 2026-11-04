@@ -13,7 +13,7 @@ description: "How a job puts something in front of the owner: a decision that is
   and no reading of the code. Everything else the work settles itself and writes under 정한 것: a
   question about something you could have looked up is worse than never asking.
 - **The command:**
-  `~/.local/share/bmo/deploy/bin/bmo job ask --todo <id> --question '<무엇을 정할지>' --option '<하나>' --option '<다른 하나>' --recommend <추천 번호> --why '<왜 네가 못 정하는지 한 줄>'`.
+  `bmo job ask --todo <id> --question '<무엇을 정할지>' --option '<하나>' --option '<다른 하나>' --recommend <추천 번호> --why '<왜 네가 못 정하는지 한 줄>'`.
   - Two or more options, the recommendation one of them by its number.
 - **It is put in his own chat**, the only chat an answer can be given in.
 - **The command does not return until it is answered: your own run is what waits,** holding its
@@ -24,7 +24,7 @@ description: "How a job puts something in front of the owner: a decision that is
 - **Where he talks instead of choosing, it exits 3 and the question is still open.** He asked what
   an option means, objected, or said something else: what he said is printed with the call that
   answers him. You answer, since you hold what the options were written out of and the supervisor does not.
-  - `~/.local/share/bmo/deploy/bin/bmo job ask --talk <질문 번호> --say '<답>'` puts your answer in his chat and waits on the
+  - `bmo job ask --talk <질문 번호> --say '<답>'` puts your answer in his chat and waits on the
     same question again, coming back the same two ways. Answer plainly: what each option would do,
     what it costs, why you recommend yours.
   - Where the talk changes the choice, the same call puts it again with `--option` for every option
@@ -42,7 +42,7 @@ description: "How a job puts something in front of the owner: a decision that is
 ## A document for him to read
 
 - **It goes into the deployment's own 아카이브 and nowhere else.** Write it as markdown in your scratch folder
-  and file it with `~/.local/share/bmo/deploy/bin/bmo archive doc --title '<제목>' --body <file>`,
+  and file it with `bmo archive doc --title '<제목>' --body <file>`,
   or an HTML page with `--html <file>`.
   - With no `--chat` and no `--by` it is his own.
   - `--replace <id>` rewrites it under its number as the design moves.

@@ -98,7 +98,7 @@ flowchart TD
 - **It is reported only once its voice is ready.** `archive-doc` launches the narration and returns
   before it is spoken. Wait, marked as the `bmo-marking-a-wait` skill says, until the document keeps its
   sound: an attachment of media `audio` on the document, read with
-  `~/.local/share/bmo/deploy/bin/bmo query`. Where the narration's run failed, launch it again
+  `bmo query`. Where the narration's run failed, launch it again
   with `bmo voice brief --chat <the room> --by <your item> --document <id>`, the narration on its
   standard input from its file. Only then does the document's address go into the report.
 
