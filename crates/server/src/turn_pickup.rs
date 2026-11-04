@@ -9,10 +9,11 @@
 //! attached to and waited on with the program held, its thrown-away session's place kept until its end is
 //! handed back and ended then, and a turn nothing names is ended as lost.
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use agent_session::{SessionId, TurnEnd};
+use agent_session::{Apart, SessionId, TurnEnd};
 use policy::resident_turn::RESIDENT_TURN;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,8 @@ use crate::door::inbox::{
 };
 use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
 use crate::door::record::{
-  Reply, RoundState, UsageSpent, answered_since, read_round, read_turn, turn_closed_since, turn_error,
+  CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, read_round, read_turn,
+  turn_closed_since, turn_error,
 };
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
@@ -250,7 +252,7 @@ fn came_of(lines: &[Value], session: &str, failure: Option<(String, Option<Strin
 
 /// A turn's pane of its own, which no place stands for — a role's turn on Claude Code's own provider, a
 /// job's among them: the execution its run opened, the pane and the program its liveness row names, the
-/// session's transcript it reads, and when the execution began.
+/// session's transcript it reads, when the execution began, and the road and folder the row names.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OwnPane {
   pub execution: String,
@@ -259,6 +261,12 @@ pub struct OwnPane {
   pub session: String,
   pub program: Option<crate::door::liveness::Program>,
   pub started_at: i64,
+  pub provider: String,
+  pub model: String,
+  pub effort: Option<String>,
+  pub role: Option<String>,
+  pub line: Option<String>,
+  pub cwd: Option<String>,
 }
 
 /// The pane of its own a kept turn went out in, found through the open execution its run opened and that
@@ -291,14 +299,70 @@ pub async fn own_pane(db: &sea_orm::DatabaseConnection, run: &str) -> Option<Own
     None => crate::door::liveness::program_of_session(&session),
   };
 
+  let named = |key: &str| body.get(key).and_then(Value::as_str).map(str::to_owned);
+
   Some(OwnPane {
     execution: text("execution")?,
     pane: text("pane"),
     transcript: records.first().map(std::path::PathBuf::from)?,
     session,
-    program,
+    program: program.clone(),
     started_at: body.get("startedAt").and_then(Value::as_i64).unwrap_or_default(),
+    provider: named("provider").unwrap_or_default(),
+    model: named("model").unwrap_or_default(),
+    effort: named("effort"),
+    role: named("role"),
+    line: named("line"),
+    cwd: program.and_then(|program| program_cwd(program.pid)),
   })
+}
+
+// The folder a program stands in, as its own process names it.
+fn program_cwd(pid: i32) -> Option<String> {
+  std::fs::read_link(format!("/proc/{pid}/cwd"))
+    .ok()
+    .map(|path| path.to_string_lossy().into_owned())
+}
+
+// A thrown-away session's scope, remembered so its state answers by id while its picked-up turn goes on
+// (docs/sessions.md, 「A restart hands the session over」): the provider, model and folder its execution row
+// names, and the role, line and folder the row and its program hold.
+async fn carried_apart(ground: &Ground, turn: &InFlight, place: &Place, pane: Option<&OwnPane>) {
+  let session = SessionId(turn.session.clone());
+
+  if !crate::herdr_backend::is_apart(&session) {
+    return;
+  }
+
+  let scope = match pane {
+    Some(pane) => Some(Apart {
+      provider: pane.provider.clone(),
+      model: pane.model.clone(),
+      effort: pane.effort.clone(),
+      cwd: pane.cwd.clone().unwrap_or_default(),
+      role: pane.role.clone(),
+      line: pane.line.clone(),
+      ..Apart::default()
+    }),
+    None => {
+      let cwd = place.running().and_then(|running| program_cwd(running.pid));
+      let row = open_rows(ground, &turn.run).await.into_iter().next();
+
+      row.map(|row| Apart {
+        provider: row.text("provider").unwrap_or_default().to_owned(),
+        model: row.text("model").unwrap_or_default().to_owned(),
+        effort: row.text("effort").map(str::to_owned),
+        cwd: cwd.unwrap_or_default(),
+        role: row.text("role").map(str::to_owned),
+        line: row.text("line").map(str::to_owned),
+        ..Apart::default()
+      })
+    }
+  };
+
+  if let Some(scope) = scope {
+    crate::herdr_backend::remember_carried(ground, session, turn.agent.clone(), scope);
+  }
 }
 
 /// Where a turn in a pane of its own stands, read from its session's transcript since its execution began:
@@ -360,6 +424,225 @@ const LOST: &str = "agency restarted while the turn went, and no record its prog
 // Why a turn whose program went away while it was attached to ended.
 const GONE: &str = "the pane program went away while the turn was picked up after agency restarted";
 
+// What a picked-up turn's log says where it begins to follow the turn, and where it cannot.
+const FOLLOWS: &str = "The turn was picked up again after agency restarted. Its log follows it from here.";
+const CANNOT_FOLLOW: &str = "The turn was picked up again after agency restarted, and its log cannot follow it: \
+                             the record its program writes holds nothing this process can read.";
+const NOTED: &str = "The turn was picked up again after agency restarted.";
+
+// Whether the line saying where the log stands with a picked-up turn is written yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Said {
+  Nothing,
+  Follows,
+  Cannot,
+}
+
+/// A picked-up turn's record read into its run log while the turn goes on (docs/sessions.md, 「A restart
+/// hands the session over」): what the process before this one filed is passed over, and each look files
+/// what the record gained since, so a screen following the log follows the turn rather than standing at the
+/// line the restart left. Where no record this process can read names the turn, the log says so instead.
+struct Following {
+  log: RunLog,
+  source: String,
+  // A Claude Code pane's transcript, read as it grows, and how many of its lines are filed.
+  tail: Option<Tail>,
+  fed: usize,
+  // A dsh pane's record, and how many of the turn's progress and answer lines are filed.
+  place: Option<PathBuf>,
+  place_fed: usize,
+  said: Said,
+}
+
+impl Following {
+  /// The writer of a picked-up turn's lines, armed on the record this look names where one names it.
+  async fn of(ground: &Ground, turn: &InFlight, place: &Place, pane: Option<&OwnPane>) -> Self {
+    let mut following = Self {
+      log: RunLog::new(Target {
+        agent: turn.agent.clone(),
+        run: turn.run.clone(),
+        chat_id: turn.chat_id,
+        job_id: turn.job,
+      }),
+      source: String::new(),
+      tail: None,
+      fed: 0,
+      place: None,
+      place_fed: 0,
+      said: Said::Nothing,
+    };
+
+    following.arm(ground, turn, place, pane).await;
+
+    following
+  }
+
+  // Arms the reader on the record this look names, where one names it and no reader stands yet.
+  async fn arm(&mut self, ground: &Ground, turn: &InFlight, place: &Place, pane: Option<&OwnPane>) {
+    if self.tail.is_some() || self.place.is_some() {
+      return;
+    }
+
+    if let Some(pane) = pane {
+      self.source = CLAUDE_CODE.to_owned();
+
+      let (tail, fed) = reading(ground, turn, &pane.transcript, pane.started_at).await;
+
+      self.tail = Some(tail);
+      self.fed = fed;
+
+      return;
+    }
+
+    let (_, records) = record_of(&place.path);
+
+    if let Some(span) = span_named(&records, &turn.run) {
+      self.source = provider_named(&records[span]).unwrap_or_default();
+      self.place = Some(place.path.clone());
+      self.place_fed = filed(ground, turn).await;
+
+      return;
+    }
+
+    // A Claude Code pane in a place keeps its turn in the session's transcript its hooks name, not in the
+    // place's own record.
+    if let Some((transcript, since)) = claude_place(place, turn) {
+      self.source = CLAUDE_CODE.to_owned();
+
+      let (tail, fed) = reading(ground, turn, &transcript, since).await;
+
+      self.tail = Some(tail);
+      self.fed = fed;
+    }
+  }
+
+  /// Files what the turn's record gained since the last look, saying once where the log stands with it.
+  async fn feed(&mut self, ground: &Ground, turn: &InFlight, place: &Place, pane: Option<&OwnPane>) {
+    self.arm(ground, turn, place, pane).await;
+
+    let armed = self.tail.is_some() || self.place.is_some();
+    let say = match (armed, self.said) {
+      (true, Said::Nothing | Said::Cannot) => Some((FOLLOWS, Said::Follows)),
+      (false, Said::Nothing) => Some((CANNOT_FOLLOW, Said::Cannot)),
+      _ => None,
+    };
+
+    if let Some((line, said)) = say {
+      self.log.write(&ground.db, Line::note(line)).await;
+      self.said = said;
+    }
+
+    if let Some(tail) = &mut self.tail {
+      tail.look();
+
+      let raw = tail.raw();
+
+      // A record replaced under the reader is read again from where its newest filed line stands.
+      if raw.len() < self.fed {
+        self.fed = newest_source(ground, turn)
+          .await
+          .and_then(|newest| resumed_at(&tail.look(), &newest))
+          .unwrap_or(0);
+      }
+
+      if raw.len() > self.fed {
+        self.log.feed(&ground.db, &raw[self.fed..], &self.source).await;
+        self.fed = raw.len();
+      }
+
+      return;
+    }
+
+    let Some(path) = &self.place else { return };
+    let (written, records) = record_of(path);
+    let Some(span) = span_named(&records, &turn.run) else { return };
+    let mut seen = 0usize;
+    let mut fresh = vec![];
+
+    for (line, record) in written[span.clone()].iter().zip(&records[span]) {
+      if matches!(record.get("kind").and_then(Value::as_str), Some("progress" | "answer")) {
+        if seen >= self.place_fed {
+          fresh.push(line.clone());
+        }
+
+        seen += 1;
+      }
+    }
+
+    if !fresh.is_empty() {
+      self.log.feed(&ground.db, &fresh, &self.source).await;
+      self.place_fed += fresh.len();
+    }
+  }
+}
+
+// A transcript read from the line the run's log last took out of it, else from the turn's beginning: the
+// transcript as it stands now, and how many of its lines are filed.
+async fn reading(ground: &Ground, turn: &InFlight, transcript: &Path, since: i64) -> (Tail, usize) {
+  let mut tail = Tail::new(transcript);
+  let records = tail.look();
+  let fed = match newest_source(ground, turn).await {
+    Some(newest) => resumed_at(&records, &newest).unwrap_or_else(|| first_since(&records, since)),
+    None => first_since(&records, since),
+  };
+
+  (tail, fed.min(records.len()))
+}
+
+// The newest line of the run's log that came out of its program's record, by the id the record carried: where
+// a transcript's lines are filed again, they begin after the record that id names.
+async fn newest_source(ground: &Ground, turn: &InFlight) -> Option<String> {
+  one(
+    &ground.db,
+    r#"SELECT "source_id" FROM "agent_log"
+       WHERE "agent" = $1 AND "run" = $2 AND "source_id" IS NOT NULL
+       ORDER BY "id" DESC LIMIT 1"#,
+    vec![turn.agent.clone().into(), turn.run.clone().into()],
+  )
+  .await
+  .ok()
+  .flatten()
+  .and_then(|row| row.try_get::<Option<String>>("", "source_id").ok().flatten())
+}
+
+// Where the records after the one a filed line came from begin, or none where the record no longer names it.
+fn resumed_at(records: &[Value], newest: &str) -> Option<usize> {
+  let at = records.iter().rposition(|record| {
+    record.pointer("/message/id").and_then(Value::as_str) == Some(newest)
+      || record.get("uuid").and_then(Value::as_str) == Some(newest)
+  })?;
+
+  Some(at + 1)
+}
+
+// Where a transcript's records from a moment on begin.
+fn first_since(records: &[Value], since: i64) -> usize {
+  records
+    .iter()
+    .position(|record| {
+      record
+        .get("timestamp")
+        .and_then(Value::as_str)
+        .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+        .is_some_and(|at| at.timestamp_millis() >= since)
+    })
+    .unwrap_or(records.len())
+}
+
+// The transcript a Claude Code pane in a place writes its turn into, and when that run began, where the
+// place's run is the turn's and its hooks name the session's transcript.
+fn claude_place(place: &Place, turn: &InFlight) -> Option<(PathBuf, i64)> {
+  let run =
+    read_run(&place.path).filter(|run| !run.person && run.name.as_deref() == Some(turn.run.as_str()))?;
+  let hooks = read_hooks(&place.path, run.started_at);
+  let transcript = hooks
+    .iter()
+    .rev()
+    .find_map(|hook| hook.payload.get("transcript_path").and_then(Value::as_str))?;
+
+  Some((PathBuf::from(transcript), run.started_at))
+}
+
 /// Every turn the process before this one left in flight, read at start from the place its program carries
 /// it in: handed back where it ended, attached to where it goes on, the lease bound to its run then standing
 /// as seen and its open execution rows kept as this process's own, ended as lost where nothing names it. A
@@ -384,13 +667,16 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 
     match now {
       Standing::Ended(came) => {
-        hand_back(ground, &place, &turn, came).await;
+        let mut following = Following::of(ground, &turn, &place, pane.as_ref()).await;
+
+        following.feed(ground, &turn, &place, pane.as_ref()).await;
+        hand_back(ground, &place, &turn, came, true).await;
         close_pane(ground, pane.as_ref()).await;
       }
       Standing::Lost if turn.job.is_some() => {
         forget(&ground.db, &turn.run, "nothing names it at start; its job is left to the reap").await
       }
-      Standing::Lost => hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned())).await,
+      Standing::Lost => hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned()), false).await,
       Standing::Going => {
         // The adopted turn stands as seen: the lease bound to its run is given back by its end, or by its
         // program found gone, and never waits on a sight of it this process would not have.
@@ -400,6 +686,7 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 
         // Its rows are this process's from now, before any pass of the executions reads their collector.
         own_rows(ground, &turn.run).await;
+        carried_apart(ground, &turn, &place, pane.as_ref()).await;
 
         let ground = ground.clone();
 
@@ -438,11 +725,13 @@ async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
   }
 }
 
-// An adopted turn waited on until its end is handed back: in its place, or in its pane of its own.
+// An adopted turn waited on until its end is handed back: in its place, or in its pane of its own. Its
+// record is read into the run log on every look, so the log follows the turn as a live one's would.
 async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &InFlight) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
   let mut cut = false;
+  let mut following = Following::of(ground, turn, place, pane).await;
 
   own_rows(ground, &turn.run).await;
 
@@ -453,10 +742,20 @@ async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &I
     };
 
     match now {
-      Standing::Ended(came) => return hand_back(ground, place, turn, came).await,
-      Standing::Lost => return hand_back(ground, place, turn, Came::Failed(LOST.to_owned())).await,
+      Standing::Ended(came) => {
+        following.feed(ground, turn, place, pane).await;
+
+        return hand_back(ground, place, turn, came, true).await;
+      }
+      Standing::Lost => {
+        following.feed(ground, turn, place, pane).await;
+
+        return hand_back(ground, place, turn, Came::Failed(LOST.to_owned()), true).await;
+      }
       Standing::Going => {}
     }
+
+    following.feed(ground, turn, place, pane).await;
 
     if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {
       cut = true;
@@ -474,7 +773,9 @@ async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &I
     unseen = if place.program_alive().is_some() { 0 } else { unseen + 1 };
 
     if unseen >= RESIDENT_TURN.gone_looks {
-      return hand_back(ground, place, turn, Came::Failed(GONE.to_owned())).await;
+      following.feed(ground, turn, place, pane).await;
+
+      return hand_back(ground, place, turn, Came::Failed(GONE.to_owned()), true).await;
     }
 
     tokio::time::sleep(every).await;
@@ -566,7 +867,7 @@ async fn filed(ground: &Ground, turn: &InFlight) -> usize {
 /// lacks filed there with the end, its execution row and its place's run closed, its road and spend
 /// published for a chat turn and its run in the ledger closed, its end published as `turn.ended` under its
 /// turn's id, a job ended with it, and the turn no longer kept.
-pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Came) {
+pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Came, noted: bool) {
   let db = &ground.db;
   let (written, records) = record_of(&place.path);
   let rows = open_rows(ground, &turn.run).await;
@@ -605,7 +906,10 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
 
   let answered = matches!(came, Came::Answered(_));
 
-  log.write(db, Line::note("The turn was picked up again after agency restarted.")).await;
+  if !noted {
+    log.write(db, Line::note(NOTED)).await;
+  }
+
   log
     .write(
       db,
@@ -624,6 +928,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
   close_rows(ground, &turn.run, answered).await;
 
   let _ = end_run(&place.path, now_ms());
+  crate::herdr_backend::forget_carried(ground, &SessionId(turn.session.clone()));
 
   let (mut end, spent) = match &came {
     Came::Answered(reply) => (TurnEnd::answered(&turn.run, reply.text.clone()), spent_of(&reply.spend)),
@@ -715,7 +1020,7 @@ pub async fn reap_dead(ground: &Ground) -> usize {
     );
 
     crate::door::place_run::end_run(&place.path, now_ms()).ok();
-    hand_back(ground, &place, &turn, Came::Failed(reason)).await;
+    hand_back(ground, &place, &turn, Came::Failed(reason), false).await;
     closed += 1;
   }
 

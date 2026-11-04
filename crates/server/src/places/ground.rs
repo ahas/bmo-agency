@@ -5,8 +5,9 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use agent_session::{Apart, SessionId};
 use cache_siren::Keeping;
 use harness_providers::Machine;
 use herdr::Herdr;
@@ -244,6 +245,10 @@ pub struct Ground {
   pub roots: Roots,
   pub herdr: Option<Herdr>,
   pub source: PathBuf,
+  /// The thrown-away sessions a pickup carries across this process's start, by their id: each stands until
+  /// its turn's end is handed back, and its state answers by id meanwhile (docs/sessions.md, 「A restart
+  /// hands the session over」).
+  pub carried: Arc<Mutex<BTreeMap<SessionId, (String, Apart)>>>,
   vars: BTreeMap<String, String>,
   env: BTreeMap<String, String>,
 }
@@ -296,6 +301,7 @@ impl Ground {
       roots: Roots::of_machine(machine, trees.deploy_link(&home)),
       herdr,
       source: trees.source_root(),
+      carried: Arc::default(),
       vars: machine.vars().map(|(name, value)| (name.to_owned(), value.to_owned())).collect(),
       env: machine
         .every_var()

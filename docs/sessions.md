@@ -79,6 +79,10 @@ statements below about either are kept for a rollback to the road a deployment l
     holds the place's program, so no turn of its own goes in meanwhile, waits on what the program writes
     down, and hands the end back once it is written; a program that goes away meanwhile ends the turn
     failed;
+  - a picked-up turn is logged as it goes: what its program's record gained is filed into its run log as a
+    live turn's is, so a screen following the log follows the picked-up turn rather than standing at the
+    last line the process before wrote; a line marks where the log takes the turn up, and where no record
+    this process can read names the turn, the log says so on a line of its own instead of standing still;
   - a job's turn picked up this way keeps everything its running job holds until the job ends: the job
     stays `running`, so its checkout reads as held and its slot as taken, its item's lease
     is kept on the harness's behalf as every running job's is, and no launch notice is told for its item
@@ -90,7 +94,8 @@ statements below about either are kept for a rollback to the road a deployment l
     before any place that process left is taken down (`docs/agent-control.md`, 「Telling that a turn's
     program is gone」).
   The progress read of a turn picked up this way answers `unknown-turn`; its caller reads its end on the
-  event stream.
+  event stream. The state of a thrown-away session a picked-up turn still runs on is read by its id while
+  the turn goes on, from the execution row the turn left, and the session ends with the turn as any other.
 - **A program is stood afresh only between turns** (`docs/launch-lines.md`, 「What is fixed」). A
   program whose command changed while one of its turns works — a deployment that moved its line, its
   prompt or its environment — is left standing until the record says that turn ended: the turn that

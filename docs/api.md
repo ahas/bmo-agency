@@ -429,7 +429,9 @@ carrying a turn in flight, a job's among them: that turn is picked up from the s
 session ends with it (`docs/sessions.md`, 「A restart hands the session over」). Before it takes one down it
 writes to its log what it found there — the program the place records, whether that process is alive, and
 what the pane's head was last answered — after closing the liveness rows that process left open and picking
-up the turns it left in flight. The kept session it answered on stays for the next run of its key.
+up the turns it left in flight. A thrown-away session one of those turns still runs on answers its state by
+its id while that turn goes on, and ends with it. The kept session it answered on stays for the next run of
+its key.
 
 A turn's context may name `round`, the receiver's name for the round of the room the turn belongs to,
 which the turn's run keeps (「runs」 below).

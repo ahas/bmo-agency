@@ -922,7 +922,12 @@ impl Route for SessionState {
     let (agent, scope) = match backend.held_scope(&session).await {
       Ok((_, Scope::Worker)) => return Ok(faulted(retired(&id))),
       Ok(held) => held,
-      Err(fault) => return Ok(faulted(fault)),
+      // A thrown-away session carrying a picked-up turn stands until that turn ends, and its state is read
+      // by id meanwhile (docs/sessions.md, 「A restart hands the session over」).
+      Err(fault) => match backend.carried_scope(&session) {
+        Some((agent, apart)) => (agent, Scope::Apart(apart)),
+        None => return Ok(faulted(fault)),
+      },
     };
 
     Ok(match backend.read_state(&session, model.as_deref()).await {

@@ -74,6 +74,31 @@ const APART: &str = "run";
 // What a conversation the caller opened is told apart by in its id, after its agent.
 const CONVERSATION: &str = "conversation";
 
+/// Remembers a thrown-away session a picked-up turn still runs on, with the scope its execution row names, so
+/// its state answers by id until that turn's end is handed back.
+pub fn remember_carried(ground: &Ground, session: SessionId, agent: String, scope: Apart) {
+  ground
+    .carried
+    .lock()
+    .unwrap_or_else(std::sync::PoisonError::into_inner)
+    .insert(session, (agent, scope));
+}
+
+/// Lets go of a carried thrown-away session as its turn ends.
+pub fn forget_carried(ground: &Ground, session: &SessionId) {
+  ground.carried.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(session);
+}
+
+// The scope a carried thrown-away session stands on, where the pickup adopted its turn.
+fn carried_scope_of(ground: &Ground, id: &SessionId) -> Option<(String, Apart)> {
+  ground
+    .carried
+    .lock()
+    .unwrap_or_else(std::sync::PoisonError::into_inner)
+    .get(id)
+    .cloned()
+}
+
 /// A turn put into a session began: the session, its id, and the run it goes out as.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -702,6 +727,13 @@ impl HerdrSessions {
   // whose id a numbered scope names.
   pub async fn held_scope(&self, session: &SessionId) -> Result<(String, Scope), Fault> {
     self.scope_held(session)
+  }
+
+  /// The scope a thrown-away session the pickup carries stands on, where this process adopted its turn: its
+  /// state is read by id until that turn's end is handed back (docs/sessions.md, 「A restart hands the session
+  /// over」).
+  pub fn carried_scope(&self, session: &SessionId) -> Option<(String, Apart)> {
+    carried_scope_of(self.ground(), session)
   }
 
   fn ground(&self) -> &Ground {
@@ -2550,7 +2582,16 @@ impl Sessions for HerdrSessions {
   }
 
   async fn read_state(&self, session: &SessionId, model: Option<&str>) -> Result<State, Fault> {
-    let (agent, scope) = self.scope_held(session)?;
+    // A thrown-away session does not outlive the process that started it, but one carrying a picked-up turn
+    // stands until that turn ends: its state answers by id meanwhile (docs/sessions.md, 「A restart hands the
+    // session over」).
+    let (agent, scope) = match self.scope_held(session) {
+      Ok(held) => held,
+      Err(fault) => match carried_scope_of(self.ground(), session) {
+        Some((agent, scope)) => (agent, Scope::Apart(scope)),
+        None => return Err(fault),
+      },
+    };
 
     self.admitted(&agent, &scope).await?;
 

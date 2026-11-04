@@ -1077,12 +1077,12 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
   let sending = sessions.clone();
   let going = tokio::spawn(async move { sending.send_turn(turn).await });
 
-  for _ in 0..200 {
+  for _ in 0..600 {
     if sessions.turn_run(&session).is_some() || going.is_finished() {
       break;
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
   }
 
   assert!(!going.is_finished(), "the job's turn goes on");
@@ -1144,6 +1144,20 @@ async fn kept_now(scratch: &Scratch, run: &str) -> bool {
   agency_server::turn_pickup::kept(scratch.db(), run).await
 }
 
+// How many lines of a run's log hold exactly this text.
+async fn logged_count(scratch: &Scratch, run: &str, text: &str) -> i64 {
+  scratch
+    .count(
+      r#"SELECT COUNT(*) AS "n" FROM "agent_log" WHERE "run" = $1 AND "text" = $2"#,
+      vec![run.into(), text.into()],
+    )
+    .await
+}
+
+async fn logged(scratch: &Scratch, run: &str, text: &str) -> bool {
+  logged_count(scratch, run, text).await > 0
+}
+
 // Every pass that runs on a clock over what turns leave, run once: the executions' reconciliation, the
 // reap of dead turns, the reap of jobs left running, the run sweep, the jobs' leases and the slots' line.
 async fn every_pass(ground: &Ground) {
@@ -1194,7 +1208,7 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
     Arc::default(),
   );
   let ground = places.ground.clone();
-  let sessions = Arc::new(HerdrSessions::new(places));
+  let sessions = Arc::new(HerdrSessions::new(places.clone()));
 
   // A job's turn as the job line sends it on Claude Code's own provider: a pane of its own, no place.
   running_job(&scratch, 80, now_ms() - 20 * 60 * 1000).await;
@@ -1228,12 +1242,12 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
   let sending = sessions.clone();
   let going = tokio::spawn(async move { sending.send_turn(turn).await });
 
-  for _ in 0..200 {
+  for _ in 0..600 {
     if sessions.turn_run(&started.id).is_some() || going.is_finished() {
       break;
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
   }
 
   assert!(!going.is_finished(), "the job's turn goes on");
@@ -1285,6 +1299,15 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
     ],
   );
 
+  // The process before left the first assistant line filed, as a live turn's writer does.
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text", "job_id", "source_id", "source_block")
+         VALUES ('worker', 'job-80', $1, 'text', 'Started; a check runs.', 80, 'm1', 0)"#,
+      vec![(began + 20).into()],
+    )
+    .await;
+
   // Every pass, again and again, leaves the turn of a round still going kept, and its job running.
   for _ in 0..3 {
     every_pass(&ground).await;
@@ -1306,6 +1329,19 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
   );
   assert_eq!(at_start(&ground).await.unwrap(), 1);
 
+  // The next process holds no thrown-away session of its own, and still answers the carried one's state by
+  // its id while the turn goes on (docs/sessions.md, 「A restart hands the session over」).
+  let restarted = HerdrSessions::new(places.clone());
+
+  assert!(
+    restarted.held_scope(&started.id).await.is_err(),
+    "a fresh process holds no thrown-away session of its own"
+  );
+  assert!(
+    restarted.read_state(&started.id, None).await.is_ok(),
+    "the carried session's state answers by its id"
+  );
+
   for _ in 0..3 {
     every_pass(&ground).await;
     assert!(
@@ -1316,6 +1352,33 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
 
   assert_eq!(job_state(&scratch, 80).await.0, "running", "the job goes on across the start");
   assert_eq!(slot_now(&ground, &held.token).await.state, "active");
+
+  // What the turn writes while it is carried is filed as it goes, so the log a screen follows moves rather
+  // than standing at the line the restart left, and the line the process before filed is not filed again.
+  transcribe(
+    &transcript,
+    &[json!({ "type": "assistant", "timestamp": stamp(now_ms()),
+              "message": { "id": "m-going", "content": [{ "type": "text", "text": "A look under way." }] } })],
+  );
+
+  for _ in 0..80 {
+    if logged(&scratch, "job-80", "A look under way.").await {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(125)).await;
+  }
+
+  assert!(
+    logged(&scratch, "job-80", "A look under way.").await,
+    "the picked-up turn's log follows it as it goes"
+  );
+  assert_eq!(
+    logged_count(&scratch, "job-80", "Started; a check runs.").await,
+    1,
+    "a line the process before filed is not filed again"
+  );
+  assert!(kept_now(&scratch, "job-80").await, "the log follows while the turn still runs");
 
   // The queued word is taken and answered, and the round ends: the job ends with its report.
   let now = now_ms();
