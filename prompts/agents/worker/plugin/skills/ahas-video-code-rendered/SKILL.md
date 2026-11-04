@@ -17,6 +17,7 @@ The method drawn from the open source of a widely seen music video made by a cod
 4. **Timing is measured, not guessed.** Beats, downbeats, sections, onsets and envelopes come from analysing the actual audio into a JSON file; word timings come from alignment against the actual narration. Scenes read that data, and find a line by its content, never by a hard-coded second.
 5. **One scene, one module, one idea.** A scene owns its look; a timeline file owns the edit. Scene authors never touch the timeline or the engine.
 6. **Revisions are named and specific,** each listing what changed and why, from watching: "this flash is too evident, carry the hit with a zoom punch", "this transition is a cut, make the line continue across it".
+7. **The work is finished before the owner hears of it.** Anything that needs the owner's decision is raised at the end, in the report, never as a question in a pane or a stop in the middle of the run.
 
 ## The treatment (write it first, in the project folder)
 
@@ -24,7 +25,7 @@ The method drawn from the open source of a widely seen music video made by a cod
 - **Tone, in words you can test a frame against:** what it is and what it is not.
 - **The forbidden list:** the generic looks, by name. For anything about AI: no neon purple and cyan, no glowing brains, no code rain, no lens-flare soup, no particle nebulae, no stock imagery, no mascots unless the brief asks. If a frame could be anyone's, it fails.
 - **Palette:** a few named values and one signal colour that alone may glow. One rare accent owned by one moment. Light and dark plates alternate for rhythm.
-- **Type:** two or three families with a stated role each. Proper kerning and typographic punctuation. Swiss-grid discipline, asymmetry, negative space, hairlines and small annotations beside big display type.
+- **Type:** two or three families with a stated role each. Proper kerning and typographic punctuation. Swiss-grid discipline, asymmetry, negative space, hairlines and small annotations beside big display type. Type is part of a composed picture: never one giant word filling the frame, and never a run of big words one after another.
 - **Motifs:** a few things that recur and change, so the film builds: one number that climbs, one mark that returns, one template that escalates at each return.
 - **Humour or gravity by detail:** deadpan captions, tiny footnotes, a form stamped. Detail is what makes it look authored.
 
@@ -36,12 +37,20 @@ The method drawn from the open source of a widely seen music video made by a cod
 - One clear focal action per shot and a silhouette that reads at thumbnail size. Shots of 1.4 to 4 seconds, unless holding is the point. A gesture needs 0.4 s to read, a reaction 0.3 s, a reveal 0.8 s.
 - Something happens in every shot, and something answers every action.
 - Flashes are rare: carry most hits with a zoom punch or a colour fringe and keep the frame's blacks.
+- **Light moves only with what is lit.** No full-screen colour flips and no flash on the beat. Measure the mean light of consecutive frames and keep the steps at the cuts small: a cut that jumps the picture's light hurts the eye more than a hard cut.
 
 ## Words on screen
 
 - Each line is integrated graphically and differently from the last: typed, stamped, plotted, drawn along a curve. Words are part of the image, not subtitles laid over it.
 - Synced per word to its measured start. Anticipation is allowed; highlighting never runs ahead of the voice.
 - Inside the title-safe area, and readable.
+- A foreign proper name is written in the Latin spelling the brief gives, while the voice says the language's own reading. Check every caption and every painted name.
+
+## Sound and voice
+
+- **The narration is bright, not gloomy.** Audition the voice for mood before the first take: measure a few sentences' median pitch, pitch range, level, voiced share and pace, and choose the voice, style and seed first. A gloomy read is not fixed after the fact.
+- **A tone change on the same sentences keeps each take's length.** Choose the seed closest to the old take's length, then fit it with a pitch-preserving speed change inside about eight percent, so the measured timing and the picture are reused. A fitted take that breaks off between sentences is a failed take.
+- Keep the narration's level under control and the music ducked under it. A sound change re-mixes the sound file, never the picture.
 
 ## The review loop
 
@@ -67,7 +76,8 @@ A lead writes the treatment, the engine and a guide for scene authors, then give
 - Offline, in headless Chrome, with the app taking a time and returning a frame; raw frames streamed to one ffmpeg, in order, by several browsers rendering chunks.
 - **Motion blur:** average sub-frames over a short shutter (a fifth of the frame time works), adaptively, more where the picture is still changing. Then a fast whip leaves a streak rather than stepped copies. This alone lifts the look far above a plain Remotion render. Grain and post come after the average.
 - Tag the stream BT.709 and name the colour range. Very fine grain is expensive to encode; set the rate by looking at the file size.
-- Rendering on this platform takes a card ticket: the final render goes through the `command` form of the repository's `tools/render-on-card.py`, piece by piece, with the sound laid under the join. Its `docs/rendering.md` states the form. A renderer that starts the card on its own, outside that tool, stands beside the model services with no ticket.
+- **A change renders in whole pieces.** Render again only the pieces that changed, copy every untouched stretch from the master without encoding, join without encoding and lay the film's sound under it. Check the frame count, each seam and the untouched packets' hashes. Never render the whole film again for a sound change or a few shots.
+- Rendering on this platform takes a card ticket where the producer's rule says so; see `ahas-video-shotcraft`.
 
 ## The way of working, in order
 
@@ -76,6 +86,7 @@ A lead writes the treatment, the engine and a guide for scene authors, then give
 3. Subagents take one scene each, in parallel, and check by opening their own stills and sheets.
 4. Lead watches the whole film by sheets and clips, and writes a named revision: what changed, why.
 5. At least two such revisions before the final render, with motion blur.
+6. Fix what the check found, render only the changed pieces, and raise anything for the owner in the final report.
 
 `mexicat/pdoom-video` is MIT: its engine and tools may start a project, with its licence kept in that project. Its song, lyrics, scenes and designs are not part of that.
 
@@ -88,10 +99,10 @@ Quality comes from this pipeline as much as from the way of working, and Remotio
 - **Post:** bloom on the signal colour alone, halation, grain, vignette, after the sub-frame average.
 - **Render:** 60 fps, adaptive sub-frames per tile over a 0.2 shutter, x264 CRF 16, BT.709, several headless Chromes in chunks to one ffmpeg, on the GPU. Port the Chrome flags to the machine.
 
-## Rights
+## The pipeline as a command
 
-Music, footage and images need a licence you can name, recorded in `NOTES.md`. Do not download music from a video site; an original track made here (or one the owner licensed) is the road. Do not draw a character from a show, a meme's drawing or another video's design, even from memory: design your own. Name a product only where the brief does.
+The stages should be a reusable command, not a memory of one film: one subcommand per stage, each runnable alone and resumed from what it produced; the stage prompts as files that name no film; every film's settings in its own project folder, so a new film touches no tool file. The producer's repository keeps one (`tools/produce.py` in video-app, stated in `docs/production.md`): treatment, timing, voice audition, takes and fitting, one author per scene, contact-sheet review, revisions, the sentence check, the brightness measurement, the render, the partial re-render and join, and filing. A stage that needs an agent opens a role's session through the agency's own road rather than starting a program by hand; where no such road is open it hands the filled prompt to the running agent as a step.
 
 ## Checking the result
 
-Duration equals the audio's, the streams are as asked, and a one-frame-per-4-s sheet of the whole film has been looked at. Report where the file is, how long the render took, and whatever of the treatment you could not do.
+Duration equals the audio's, the streams are as asked, and a one-frame-per-4-s sheet of the whole film has been looked at. Measure the mean light of consecutive frames and report the largest step and the counts over 8, 12, 20 and 40; a jump at a cut is a fault. Report where the file is, how long the render took, and whatever of the treatment you could not do.
