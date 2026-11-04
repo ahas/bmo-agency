@@ -79,6 +79,15 @@ A lead writes the treatment, the engine and a guide for scene authors, then give
 
 `mexicat/pdoom-video` is MIT: its engine and tools may start a project, with its licence kept in that project. Its song, lyrics, scenes and designs are not part of that.
 
+## The pipeline
+
+Quality comes from this pipeline as much as from the way of working, and Remotion does not give it:
+
+- **Timing:** forced alignment of the known text against the voice, cross-checked with Whisper; stems, beats, downbeats, onsets and envelopes from the track (`analysis/`, run with uv).
+- **Picture:** a WebGL app in TypeScript and three.js, run with bun and Vite, drawing into linear HDR targets, through shaders, GPU line batches and real kerned type. Screens are textures on objects, not DOM slides.
+- **Post:** bloom on the signal colour alone, halation, grain, vignette, after the sub-frame average.
+- **Render:** 60 fps, adaptive sub-frames per tile over a 0.2 shutter, x264 CRF 16, BT.709, several headless Chromes in chunks to one ffmpeg, on the GPU. Port the Chrome flags to the machine.
+
 ## Rights
 
 Music, footage and images need a licence you can name, recorded in `NOTES.md`. Do not download music from a video site; an original track made here (or one the owner licensed) is the road. Do not draw a character from a show, a meme's drawing or another video's design, even from memory: design your own. Name a product only where the brief does.
