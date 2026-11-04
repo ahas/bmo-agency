@@ -44,6 +44,11 @@ struct Arrangement {
   keys: Vec<(String, Vec<String>)>,
   ends_when_asked: bool,
   refuses_prompts: bool,
+  // What the agent in each pane is doing, for a test that plays the program; none of it answered until a test
+  // says, so a herdr that reads no agent stands silent.
+  agents: Vec<(String, String)>,
+  // The words typed into panes rather than put as a prompt.
+  typed: Vec<(String, String)>,
 }
 
 impl Arrangement {
@@ -215,6 +220,22 @@ impl Arrangement {
 
         json!({ "type": "ok" })
       }
+      "pane.send_text" => {
+        let pane = text("pane_id");
+
+        if !self.panes.iter().any(|one| one.id == pane) {
+          return Value::Null;
+        }
+
+        self.typed.push((pane, text("text")));
+        json!({ "type": "ok" })
+      }
+      "agent.list" if !self.agents.is_empty() => json!({
+        "agents": self.agents.iter().map(|(pane, status)| json!({ "pane_id": pane, "agent_status": status })).collect::<Vec<_>>(),
+      }),
+      "pane.list" if !self.agents.is_empty() => json!({
+        "panes": self.panes.iter().map(|pane| json!({ "pane_id": pane.id })).collect::<Vec<_>>(),
+      }),
       "pane.send_keys" => {
         let keys: Vec<String> = params
           .get("keys")
@@ -394,6 +415,19 @@ impl HerdrModel {
   /// A pane carrying a run's token.
   pub fn carry(&self, pane: &str, run: &str) {
     self.call("pane.report_metadata", json!({ "pane_id": pane, "tokens": { "run": run } }));
+  }
+
+  /// What the agent in a pane is doing, as a test playing the program says.
+  pub fn agent_status(&self, pane: &str, status: &str) {
+    let mut held = self.held.lock().unwrap();
+
+    held.agents.retain(|(one, _)| one != pane);
+    held.agents.push((pane.to_owned(), status.to_owned()));
+  }
+
+  /// The words typed into panes rather than put as a prompt, each with its pane.
+  pub fn typed(&self) -> Vec<(String, String)> {
+    self.held.lock().unwrap().typed.clone()
   }
 
   /// The words put into panes, each with its pane.

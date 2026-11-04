@@ -579,6 +579,65 @@ fn is_turn_end(record: &Value) -> bool {
   kind(record) == Some("system") && text_of(record, "subtype") == Some("turn_duration")
 }
 
+/// The words a command of the program's own wrote back, and whether it wrote them as its error.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandWords {
+  pub text: String,
+  pub error: bool,
+}
+
+static COMMAND_WORDS: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(r"(?s)^\s*<local-command-(stdout|stderr)>(.*)</local-command-(?:stdout|stderr)>\s*$")
+    .expect("a pattern")
+});
+static COLOURS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*m").expect("a pattern"));
+
+// The words a line of the main conversation holds as plain text: a user line's message, a system line's own.
+fn plain_words(record: &Value) -> Option<&str> {
+  if is_true(record, "isSidechain") {
+    return None;
+  }
+
+  match kind(record)? {
+    "user" => record.pointer("/message/content")?.as_str(),
+    "system" => text_of(record, "content"),
+    _ => None,
+  }
+}
+
+/// What a command of the program's own said back after `from`: the program writes its words once the command
+/// is over, on a user or a system line by the outcome (docs/agent-control.md, 「How a command of the program's
+/// own ends」).
+pub fn command_words(records: &[Value], from: usize) -> Option<CommandWords> {
+  records.get(from..).unwrap_or_default().iter().find_map(|record| {
+    let said = COMMAND_WORDS.captures(plain_words(record)?)?;
+
+    Some(CommandWords {
+      text: COLOURS.replace_all(said[2].trim(), "").into_owned(),
+      error: &said[1] == "stderr",
+    })
+  })
+}
+
+/// Whether the program has written the line that opens a command's own lines after `from`, which it does once
+/// the command has stopped running, whether or not any words follow.
+pub fn command_closing_since(records: &[Value], from: usize) -> bool {
+  records
+    .get(from..)
+    .unwrap_or_default()
+    .iter()
+    .any(|record| plain_words(record).is_some_and(|said| said.starts_with("<local-command-caveat>")))
+}
+
+/// Whether the record holds the compacted marker the fold word leaves, after `from`.
+pub fn compacted_since(records: &[Value], from: usize) -> bool {
+  records
+    .get(from..)
+    .unwrap_or_default()
+    .iter()
+    .any(|record| kind(record) == Some("system") && text_of(record, "subtype") == Some("compact_boundary"))
+}
+
 /// Whether the record holds a word pushed at `from`: queued by a working turn, or submitted straight as
 /// a prompt by a program at rest.
 pub fn word_written_down(records: &[Value], from: usize) -> bool {

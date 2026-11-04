@@ -656,3 +656,62 @@ fn what_a_run_spent_is_published_row_by_row_under_each_rows_login_and_nothing_wh
   );
   assert_eq!(UsageSpent::of("worker", None, 100, &spend[2..], |_| String::new()), None);
 }
+
+// The lines a command of the program's own writes, as Claude Code 2.1.318 was measured to write them.
+#[test]
+fn a_command_s_words_are_read_off_its_user_or_system_line_and_its_error_apart() {
+  let lines = |said: Value| vec![json!({ "type": "user", "message": { "content": "/compact" } }), said];
+  let compacted = lines(json!({ "type": "user", "message": { "content":
+    "<local-command-stdout>\u{1b}[2mCompacted (ctrl+o to see full summary)\u{1b}[22m\n\u{1b}[2mPreCompact completed\u{1b}[22m</local-command-stdout>" } }));
+  let thin = lines(json!({ "type": "system", "subtype": "local_command",
+    "content": "<local-command-stdout>Not enough messages to compact.</local-command-stdout>" }));
+  let failed = lines(json!({ "type": "system", "subtype": "local_command",
+    "content": "<local-command-stderr>Error during compaction: API Error</local-command-stderr>" }));
+
+  assert_eq!(
+    command_words(&compacted, 0),
+    Some(CommandWords {
+      text: "Compacted (ctrl+o to see full summary)\nPreCompact completed".to_owned(),
+      error: false
+    })
+  );
+  assert_eq!(
+    command_words(&thin, 0),
+    Some(CommandWords {
+      text: "Not enough messages to compact.".to_owned(),
+      error: false
+    })
+  );
+  assert_eq!(
+    command_words(&failed, 0),
+    Some(CommandWords {
+      text: "Error during compaction: API Error".to_owned(),
+      error: true
+    })
+  );
+  assert_eq!(command_words(&failed, 2), None, "only what follows the point named");
+  assert_eq!(
+    command_words(
+      &[
+        json!({ "type": "user", "message": { "content": "a person quoting <local-command-stdout>x</local-command-stdout>" } })
+      ],
+      0
+    ),
+    None,
+    "only a line that is nothing but the command's words"
+  );
+}
+
+#[test]
+fn a_command_s_closing_and_the_compacted_marker_are_read_after_the_point_named() {
+  let caveat = json!({ "type": "user", "isMeta": true, "message": { "content": "<local-command-caveat>Run directly.</local-command-caveat>" } });
+  let boundary =
+    json!({ "type": "system", "subtype": "compact_boundary", "content": "Conversation compacted" });
+  let word = json!({ "type": "user", "message": { "content": "/compact" } });
+
+  assert!(!command_closing_since(std::slice::from_ref(&word), 0));
+  assert!(command_closing_since(&[word.clone(), caveat.clone()], 0));
+  assert!(!command_closing_since(&[caveat, word.clone()], 1));
+  assert!(compacted_since(&[word.clone(), boundary.clone()], 0));
+  assert!(!compacted_since(&[boundary, word], 1));
+}

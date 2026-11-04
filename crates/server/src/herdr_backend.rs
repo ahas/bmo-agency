@@ -18,6 +18,7 @@
 //! the run its turn carries, which its door takes at its next look at the working program.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -46,7 +47,7 @@ use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, TASK_LOCKED, TURN_AGENT, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
-use crate::lines::pieces::{SupervisorTurn, compose, lost_session, registration_named};
+use crate::lines::pieces::{ComposedTurn, SupervisorTurn, compose, lost_session, registration_named};
 use crate::places::gate_places;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_ledger;
@@ -681,6 +682,11 @@ impl HerdrSessions {
   // The context a session's last turn left it with, where one read it.
   fn left_of(&self, session: &SessionId) -> Option<Context> {
     self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).get(session).copied()
+  }
+
+  // What a session's last turn left, no longer what it carries once it has folded or ended.
+  fn forget_left(&self, session: &SessionId) {
+    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(session);
   }
 
   fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
@@ -2394,6 +2400,106 @@ impl HerdrSessions {
     }
   }
 
+  // An agent's session across rooms folded in the program standing on it (docs/sessions.md, 「Session
+  // compaction」): the fold word put in on the command that program stands on, so that nothing of the turn
+  // restarts it or moves the session, under the lock every turn of that program holds. An inbox program takes
+  // no command and folds itself.
+  async fn fold_resident(&self, agent: &str, session: &SessionId) -> Result<(), Fault> {
+    let ground = self.ground();
+    let supervisor = crate::supervisors::named(&ground.db, agent)
+      .await
+      .map_err(|why| store_fault(why.into()))?;
+    let (provider, model) = supervisor
+      .as_ref()
+      .and_then(road_of)
+      .unwrap_or_else(|| (CHAT_PROVIDER.to_owned(), None));
+
+    if let Some(refused) = folds_itself(session, crate::chat_stand_in::inbox_declared(&provider)) {
+      return Err(refused);
+    }
+
+    let Some(held) = agent_session(&ground.db, agent).await.map_err(store_fault)? else {
+      return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
+    };
+    let Some(standing) = crate::lines::place::Place::of(&ground.roots.data, agent).program() else {
+      return Err(fault(FaultKind::Refused, format!("{session} has no program standing to fold it")));
+    };
+
+    if crate::door::endpoint::session_named(&standing.command.args) != Some(held.as_str()) {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{session}: its program stands on another session than {held}"),
+      ));
+    }
+
+    let began = now_ms();
+    let mut command = standing.command;
+
+    // The token its place handed it is the place's own to keep: the program is known by the command without it.
+    command.env.remove(crate::lines::token::TOKEN_VARIABLE);
+
+    let composed = ComposedTurn {
+      system_path: PathBuf::new(),
+      command,
+      session: held.clone(),
+      prompt: crate::worker_session::fold::FOLD_WORD.to_owned(),
+      model: model.unwrap_or_default(),
+      effort: None,
+      placement: None,
+      window: None,
+      account: None,
+      began,
+      run_env: None,
+      given: None,
+    };
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: format!("bmo-fold-{agent}-{began}"),
+      chat_id: None,
+      job_id: None,
+    });
+    let came = run_turn(
+      ground,
+      agent,
+      crate::lines::chat::LINE,
+      &provider,
+      &composed,
+      None,
+      &mut log,
+      false,
+      None,
+      None,
+    )
+    .await;
+    let told = |ground: &Ground| {
+      ground.events.publish(crate::worker_session::told::SessionFolded {
+        session: held.clone(),
+      });
+    };
+
+    match came {
+      Ok(_) => {
+        println!("compact {agent} {held}: compacted");
+        told(ground);
+        self.forget_left(session);
+
+        Ok(())
+      }
+      Err(no) => {
+        // Only a fold whose end could not be read may have reached the session.
+        if matches!(no, NoAnswer::Failed(_) | NoAnswer::Cut(_)) {
+          told(ground);
+        }
+
+        let (reason, _) = failure_of(no);
+
+        eprintln!("compact {agent} {held}: failed — {reason}");
+
+        Err(fault(FaultKind::Refused, format!("{session} could not be folded: {reason}")))
+      }
+    }
+  }
+
   // A worker's latest session record, the one a fold or a reading of its state goes by.
   async fn latest_worker(&self, worker: &str) -> Result<Option<records::WorkerSession>, Fault> {
     Ok(records::sessions(&self.ground().db, worker).await.map_err(store_fault)?.pop())
@@ -2633,14 +2739,7 @@ impl Sessions for HerdrSessions {
         let held = crate::supervisors::named(&ground.db, &agent)
           .await
           .map_err(|why| store_fault(why.into()))?;
-        let road = held.as_ref().and_then(|held| {
-          held
-            .last_mode
-            .clone()
-            .filter(|mode| !mode.is_empty())
-            .map(|mode| (mode, held.last_model.clone()))
-            .or_else(|| held.order.first().map(|entry| (entry.provider.clone(), Some(entry.model.clone()))))
-        });
+        let road = held.as_ref().and_then(road_of);
 
         if let Some((provider, model)) =
           road.filter(|(provider, _)| crate::chat_stand_in::inbox_declared(provider))
@@ -2782,9 +2881,6 @@ impl Sessions for HerdrSessions {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
 
-    // What its last turn left is no longer what it carries.
-    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(session);
-
     match &scope {
       Scope::Room(room) => {
         let chat_id = room_number(room)?;
@@ -2814,19 +2910,21 @@ impl Sessions for HerdrSessions {
         };
 
         hand_over(ground, &self.places.kept.reset, &pinned.speaker, chat_id, due).await;
+        self.forget_left(session);
         Ok(())
       }
-      Scope::Agent => Err(fault(
-        FaultKind::Refused,
-        format!("{session} is carried past its window by its program inside its own turns"),
-      )),
+      Scope::Agent => self.fold_resident(&agent, session).await,
       Scope::Worker => {
         let (Some(row), Some(held)) = (row, self.latest_worker(&agent).await?) else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
 
         match fold(ground, &row, &held.model, &held.account, &held.session_id).await {
-          Folded::Compacted | Folded::TooShort => Ok(()),
+          Folded::Compacted => {
+            self.forget_left(session);
+            Ok(())
+          }
+          Folded::TooShort => Ok(()),
           Folded::Busy => Err(fault(FaultKind::Busy, format!("a job holds {agent}'s checkout"))),
           Folded::Failed => Err(fault(FaultKind::Refused, format!("{session} could not be folded"))),
         }
@@ -2851,8 +2949,7 @@ impl Sessions for HerdrSessions {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
 
-    // What its last turn left is no longer what it carries.
-    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(session);
+    self.forget_left(session);
 
     let ground = self.ground();
 
@@ -2963,6 +3060,33 @@ impl Sessions for HerdrSessions {
 
     Ok(sessions)
   }
+}
+
+/// The refusal of a fold of a session across rooms whose program takes no command and folds itself, none where
+/// the word reaches the program.
+pub fn folds_itself(session: &SessionId, inbox: bool) -> Option<Fault> {
+  inbox.then(|| {
+    fault(
+      FaultKind::Refused,
+      format!("{session} is carried past its window by its program inside its own turns"),
+    )
+  })
+}
+
+// The road a supervisor's session across rooms stands on: the provider its last answer went out on, else its
+// order's first, with the model it names.
+fn road_of(supervisor: &crate::supervisors::Supervisor) -> Option<(String, Option<String>)> {
+  supervisor
+    .last_mode
+    .clone()
+    .filter(|mode| !mode.is_empty())
+    .map(|mode| (mode, supervisor.last_model.clone()))
+    .or_else(|| {
+      supervisor
+        .order
+        .first()
+        .map(|entry| (entry.provider.clone(), Some(entry.model.clone())))
+    })
 }
 
 // A turn across rooms as the chat line launches it: the room's block, the road and the base persona its
