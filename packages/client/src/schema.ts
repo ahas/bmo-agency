@@ -4033,7 +4033,7 @@ export interface components {
         };
         /** @description FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for. */
         FileItem: {
-            /** @description The item's name in the queue: a short English line. */
+            /** @description The item's name in the queue: a short line in the asker's language. */
             title: string;
             /** @description The run's whole instruction, in English. */
             brief: string;
