@@ -2,7 +2,7 @@
 name: "ahas-video-shotcraft"
 bundle: worker
 version: "1.0.0"
-description: "How a job makes a video with the video-shotcraft studio (Remotion): where the studio stands, how it is set up on a machine, how a render is run on CPU, what is checked before the file goes out, and the licence lines the studio's own files draw. Use before the first step of any item that produces a video or edits one."
+description: "How a job makes a video with the video-shotcraft studio (Remotion): where the studio stands, how it is set up on a machine, how a render takes the card, what is checked before the file goes out, and the licence lines the studio's own files draw. Use before the first step of any item that produces a video or edits one."
 ---
 
 # Making a video with the studio
@@ -25,10 +25,19 @@ description: "How a job makes a video with the video-shotcraft studio (Remotion)
 
 - A project is one folder an item under the worker's repository: the brief, the beat sheet, the captured
   pages and pictures, the composition, the renders and `NOTES.md`.
-- Render the first scenes first as a proof at full quality, check its frames, then render the whole:
-  `npx remotion render <entry> <composition> <out.mp4>` from the template or the project, with
-  `--concurrency` set to what the machine has free. Rendering is CPU work: never on a node that serves a
-  model, never under a card hold.
+- Render the first scenes first as a proof at full quality, check its frames, then render the whole. A render
+  of any length runs from the project's folder through the repository's `tools/render-on-card.py`:
+  `python3 <repository>/tools/render-on-card.py <entry> <composition> <out.mp4>`, with `--frames <first>-<last>` for a
+  proof, `--props <file>`, `--muted`, `--crf <n>`, `--audio-bitrate <rate>`, and any further Remotion flag after `--`.
+- That command takes a ticket from this machine's card arbiter under the occupant `render`, with no key, and waits for
+  its turn however long that takes: the model services give way, and a claimant that takes the card stops the render,
+  which goes on from its last finished piece once the card is back. It renders with Chrome on the card, gives the ticket
+  back whatever ends it, and renders on CPU only where the machine has no card. A card that is taken is waited for, never
+  rendered around. Never run `remotion render` yourself: the studio's template and a project's config may set ANGLE, which
+  stands on the card with no ticket beside the model services.
+- Its exit code says how it ended: `0` the file is written, `1` a step failed, `3` the node has no place for the occupant,
+  which is reported and never worked around, 128 plus the signal for a stop. The repository's `docs/rendering.md` is the
+  whole of it.
 - After the whole render, run the studio's frame checks and its parity script, and look at the frames the
   checks flag with the platform's eye. A video that fails a check is not finished.
 - A finished video is filed in the theater with `bmo/theater_file` at the quality the item asks, with no size

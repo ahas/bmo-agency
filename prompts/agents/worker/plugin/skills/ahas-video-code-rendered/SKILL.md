@@ -67,7 +67,7 @@ A lead writes the treatment, the engine and a guide for scene authors, then give
 - Offline, in headless Chrome, with the app taking a time and returning a frame; raw frames streamed to one ffmpeg, in order, by several browsers rendering chunks.
 - **Motion blur:** average sub-frames over a short shutter (a fifth of the frame time works), adaptively, more where the picture is still changing. Then a fast whip leaves a streak rather than stepped copies. This alone lifts the look far above a plain Remotion render. Grain and post come after the average.
 - Tag the stream BT.709 and name the colour range. Very fine grain is expensive to encode; set the rate by looking at the file size.
-- Rendering on this platform takes a card ticket where the producer's rule says so; see `ahas-video-shotcraft`.
+- Rendering on this platform takes a card ticket: the final render goes through the `command` form of the repository's `tools/render-on-card.py`, piece by piece, with the sound laid under the join. Its `docs/rendering.md` states the form. A renderer that starts the card on its own, outside that tool, stands beside the model services with no ticket.
 
 ## The way of working, in order
 
