@@ -90,6 +90,19 @@ order = [
   { provider = "openrouter", model = "google/gemma-4-31b-it:free" },
 ]
 
+# The coder: the coding work of a job's item, on the worker line with the coding skills the line carries
+# (docs/agent-roles.md, 「The coder role」). Its order is seeded empty, so a run of it a supervisor asks
+# follows that supervisor until the owner sets one; no provider order is declared for it here.
+[[roles]]
+name = "coder"
+label = "Coder"
+description = "Holds the coding work of a job's item: the code, its design and its tests, in the item's repository under the worker line's rules."
+line = "worker"
+prompt = "coder.md"
+max_concurrent = 3
+bundles = ["graph.read", "queue.read", "web.read"]
+order = []
+
 # The supervisor's double: a delegation naming no role runs as it. Its order is empty, so its runs go out on
 # the asking supervisor's own provider, model and effort until the owner sets an order on it
 # (docs/role-slots.md, 「A delegated task」).

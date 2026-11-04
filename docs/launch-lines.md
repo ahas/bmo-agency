@@ -215,8 +215,8 @@
   the program's own record of its session is taken up again after a restart or a deploy (docs/sessions.md,
   「A restart hands the session over」). A turn that finds no pane to stand the program in, herdr down, fails
   as a transport failure and is run in no other shape.
-- **Worker line**: the line the `worker` role names and every role that names it — the doppelganger,
-  the producer, the builder, every co-worker and upkeep (`docs/agent-roles.md`, 「The roles
+- **Worker line**: the line the `worker` role names and every role that names it — the coder, the
+  doppelganger, the producer, the builder, every co-worker and upkeep (`docs/agent-roles.md`, 「The roles
   the policy seeds」). A run on it goes out on the model, effort and thinking its role's order names for the
   provider the run goes out on (`docs/provider-order.md`), or a job's on its repository's pinned model
   (`docs/repositories.md`, 「A pinned model」), in
