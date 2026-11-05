@@ -37,7 +37,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   like any other.
 - **A repository is added, changed and removed on the console's repository tab** or through the repository
   routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), with no restart; a removal is refused while a job holds one of
-  its checkouts.
+  its checkouts. From a shell it is `bmo repository remove <name>`, which asks the same route and prints what
+  it removed or refused; the checkout and the deploy tree on disk stand as they were.
 - **A repository keeps no log of its own.** It is a place, so what ran in it is its jobs' runs, each with its
   own log; its jobs are listed by repository, newest first, and a screen shows the log of its job going, else
   of its latest.

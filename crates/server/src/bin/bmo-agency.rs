@@ -24,7 +24,7 @@ use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
   Answer, VerbError, agent_status, borrow, claude_token, code_tree, coworker_pool, deploy_link,
-  live_claude, node_pane, supervisor_follow, turns,
+  live_claude, node_pane, repository, supervisor_follow, turns,
 };
 use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
@@ -35,7 +35,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 24] = [
+pub const NOUNS: [&str; 25] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -57,6 +57,7 @@ pub const NOUNS: [&str; 24] = [
   "claude batch",
   "live-claude",
   "job borrow\thome",
+  "repository\thome",
   "run list\thome",
   "run stop\thome",
   "machine memory",
@@ -128,6 +129,11 @@ enum Verb {
   Job {
     #[command(subcommand)]
     what: JobVerb,
+  },
+  /// The repositories' registrations: one taken away through the server's own route.
+  Repository {
+    #[command(subcommand)]
+    what: RepositoryVerb,
   },
   /// A job's native co-worker calls held to the common pool.
   Coworker {
@@ -244,6 +250,12 @@ enum Verb {
 enum JobVerb {
   /// A free checkout of another repository, held for the rest of this job, and where it stands.
   Borrow { repository: String },
+}
+
+#[derive(Subcommand)]
+enum RepositoryVerb {
+  /// Remove a repository's registration, refused while a job holds one of its checkouts.
+  Remove { name: String },
 }
 
 #[derive(Subcommand)]
@@ -512,6 +524,9 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::Job {
       what: JobVerb::Borrow { repository },
     } => ended(borrow::run(&data_root, &repository).await.map(Answer::from)),
+    Verb::Repository {
+      what: RepositoryVerb::Remove { name },
+    } => ended(repository::run(&name).await),
     Verb::Coworker { what } => ended(coworker(&data_root, what).await),
     Verb::Claude {
       what: ClaudeVerb::Batch(asked),

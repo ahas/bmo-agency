@@ -58,6 +58,7 @@ mod control {
   mod own_llm;
   mod pane_death;
   mod registry;
+  mod repository_removal;
   mod resources;
   mod room_session_reads;
   mod run_launch;

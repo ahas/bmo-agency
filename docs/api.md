@@ -1354,6 +1354,7 @@ input, so `bmo` finds it from any directory.
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
 | `job borrow` | `<repository>` | the store's jobs and repositories, and `POST /assignments` under the job's name (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
+| `repository` | `remove <name>` | the service's `DELETE /repositories/{repositoryName}` route, refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
 | `machine memory` | `--runtime <runtime>` and `--unit <unit>`, each repeatable, and `--json` | the machine's proc root |

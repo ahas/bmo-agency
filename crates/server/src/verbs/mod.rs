@@ -18,6 +18,7 @@ pub mod node_pane;
 pub mod overtime;
 pub mod process_memory;
 pub mod reload;
+pub mod repository;
 pub mod run_list;
 pub mod run_stop;
 pub mod supervisor_follow;
