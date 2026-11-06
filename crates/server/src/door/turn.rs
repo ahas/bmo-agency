@@ -231,6 +231,17 @@ pub trait Watch {
   fn stopping(&mut self) -> bool {
     false
   }
+
+  /// The clock the turn's tool calls are held to, where its caller keeps one: a job's turn does, and no
+  /// other turn does.
+  fn tool_clock(&self) -> Option<super::tool_clock::ToolClock> {
+    None
+  }
+
+  /// The longest the turn may go before it is cut and its caller told, where its caller keeps such a bound.
+  fn turn_clock(&self) -> Option<Duration> {
+    None
+  }
 }
 
 /// A caller with nothing to say and nothing to keep.
@@ -1332,6 +1343,12 @@ async fn watch_turn<W: Watch>(
   let turn = door.turn;
   let timings = turn.timings.clone();
   let every = timings.poll;
+  // The clock the caller keeps on the turn: the run's own, else the bound its caller sets. A job's turn
+  // carries the bound that cuts it and releases its item; every other turn's clock only asks.
+  let clock = turn.clock.or_else(|| door.watch.turn_clock());
+  let tool_policy = door.watch.tool_clock();
+  let stop_bound_ms = tool_policy.as_ref().map(|clock| clock.stop_bound_ms);
+  let mut tools = tool_policy.map(super::tool_clock::Watch::new);
   // Where this turn's own lines begin in the record, read again as the prompt goes in: a program
   // started again for this turn writes lines of its own on the way up.
   let mut from = opened_from;
@@ -1510,7 +1527,7 @@ async fn watch_turn<W: Watch>(
 
   let mut worked = matches!(taken, Submit::Working);
   // When the caller's overtime policy is asked next; none once it asks nothing.
-  let mut ask_at = turn.clock.map(|clock| now_ms() + clock.as_millis() as i64);
+  let mut ask_at = clock.map(|clock| now_ms() + clock.as_millis() as i64);
   // A command of the program's own writes no answer and closes no turn: its own words in the record are its
   // end, and one that writes none is over at rest, its record still between two looks.
   let mut command = turn.prompt.starts_with('/');
@@ -1520,14 +1537,68 @@ async fn watch_turn<W: Watch>(
   // refusal.
   let mut failed_from = prompted_at;
   let mut stop_asked = false;
+  let mut stop_seen_at: Option<i64> = None;
+  let mut stop_cut = false;
   let mut silent_since: Option<i64> = None;
 
   loop {
+    // A job's tool calls, read off the record as it goes: each start with its pid and summary, a
+    // still-running line past its threshold, each end with its duration and outcome, and a call that has
+    // stopped burning processor time cut so it cannot hold the turn for ever.
+    let program = door.program.as_ref().map(|program| program.pid);
+
+    if let (Some(watching), Some(program)) = (tools.as_mut(), program) {
+      let records = door.lines();
+      let said = watching.look(&turn.name, &records, from, program, now_ms()).await;
+
+      for line in said {
+        println!("{line}");
+        door.watch.note(&line).await;
+      }
+    }
+
     // Stopped from outside while the turn was running. A job is asked to end its work and waited on
-    // until it has, however long its ending takes; a chat round has no work of its own to wind down and
-    // is cut short at once. A pane of the turn's own is closed with the turn, which ends its program.
+    // until it has; a chat round has no work of its own to wind down and is cut short at once. A pane of
+    // the turn's own is closed with the turn, which ends its program.
     if door.watch.stopping() || door.cancelled().await {
+      let now = now_ms();
+      let seen = *stop_seen_at.get_or_insert(now);
       let asks_first = turn.line != "chat";
+
+      // A call blocked on a read or a write cannot take the stop's words; its processes are cut so the
+      // words are read at the next boundary. A call still burning processor time is left to the bound.
+      if !stop_cut {
+        let program = door.program.as_ref().map(|program| program.pid);
+
+        if let (Some(watching), Some(program)) = (tools.as_mut(), program) {
+          stop_cut = true;
+
+          let records = door.lines();
+          let said = watching.cut_for_stop(&turn.name, &records, from, program, now).await;
+
+          for line in said {
+            println!("{line}");
+            door.watch.note(&line).await;
+          }
+        }
+      }
+
+      // Past the stop's bound the turn is ended by the surface's interrupt, whatever the program is
+      // doing: an item and the queue behind it are not held by a turn that will not end.
+      if stop_bound_ms.is_some_and(|bound| now - seen >= bound) {
+        let said =
+          format!("{}: the stop was not ended within its bound, so the turn is interrupted", turn.name);
+
+        println!("{said}");
+        door.watch.note(&said).await;
+        door.interrupt(pane, &turn.interrupt).await;
+        *ending = End::Cancelled;
+
+        let shown = door.screen(pane).await;
+        let screen = door.kept_screen(&DOOR_WORDS.screens.stopped, shown).await;
+
+        return Ok(Ending::Stopped { screen });
+      }
 
       if door.standing.is_some() && !stop_asked {
         stop_asked = true;
@@ -1581,7 +1652,7 @@ async fn watch_turn<W: Watch>(
     }
 
     // Past its clock the caller's policy is asked, and only its verdict cuts the turn.
-    if let (Some(at), Some(clock)) = (ask_at, turn.clock)
+    if let (Some(at), Some(clock)) = (ask_at, clock)
       && now_ms() >= at
     {
       let activity = last_activity(&door.lines(), from);

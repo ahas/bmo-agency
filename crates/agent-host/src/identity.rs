@@ -19,6 +19,49 @@ fn stat_fields(pid: i32) -> Option<Vec<String>> {
   Some(rest.split(' ').map(str::to_owned).collect())
 }
 
+/// A process as the kernel's own stat line names it: whether it still runs, its parent, the processor time
+/// it has burned and when it began, in clock ticks since boot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProcessStat {
+  /// Its state letter, `Z` for a process that has ended and is not reaped yet.
+  pub state: String,
+  pub ppid: i32,
+  /// The processor time it has burned itself, in clock ticks.
+  pub cpu: u64,
+  pub birth: String,
+}
+
+/// The process `pid` as the kernel's stat line names it, or none where there is no such process. The
+/// kernel's stat file is a pseudo-file of one fixed shape, and no library here reads that shape.
+pub fn process_stat(pid: i32) -> Option<ProcessStat> {
+  let fields = stat_fields(pid)?;
+
+  Some(ProcessStat {
+    state: fields.first()?.clone(),
+    ppid: fields.get(1)?.parse().ok()?,
+    cpu: fields.get(11)?.parse::<u64>().ok()? + fields.get(12)?.parse::<u64>().ok()?,
+    birth: fields.get(19)?.clone(),
+  })
+}
+
+/// When the machine began, in milliseconds since the epoch: the kernel's `btime` line of `/proc/stat`.
+pub fn boot_ms() -> Option<i64> {
+  fs::read_to_string("/proc/stat")
+    .ok()?
+    .lines()
+    .find_map(|line| line.strip_prefix("btime ").and_then(|seconds| seconds.trim().parse().ok()))
+    .map(|seconds: i64| seconds.saturating_mul(1_000))
+}
+
+/// The kernel's clock ticks in a second.
+pub fn clock_ticks() -> i64 {
+  // SAFETY: sysconf has no preconditions.
+  match unsafe { libc::sysconf(libc::_SC_CLK_TCK) } {
+    asked if asked > 0 => asked,
+    _ => 100,
+  }
+}
+
 /// Whether any member of the process group `group` still runs. A zombie counts as ended: it runs
 /// nothing, and reaping it is its new parent's business.
 pub fn group_running(group: i32) -> bool {
@@ -38,25 +81,16 @@ pub fn group_running(group: i32) -> bool {
 
 /// A process's start time, field 22 of its stat line, or none where there is no such process.
 pub fn process_birth(pid: i32) -> Option<String> {
-  stat_fields(pid)?.get(19).cloned()
+  Some(process_stat(pid)?.birth)
 }
 
 /// When a process began, in milliseconds since the epoch: the machine's boot time and the process's
 /// start in clock ticks after it. The boot time is kept to the second, so the answer may fall up to a
 /// second early and never late.
 pub fn process_started_ms(pid: i32) -> Option<i64> {
-  let boot: i64 = fs::read_to_string("/proc/stat")
-    .ok()?
-    .lines()
-    .find_map(|line| line.strip_prefix("btime ").and_then(|seconds| seconds.trim().parse().ok()))?;
   let ticks: i64 = process_birth(pid)?.parse().ok()?;
-  // SAFETY: sysconf has no preconditions.
-  let per_second = match unsafe { libc::sysconf(libc::_SC_CLK_TCK) } {
-    asked if asked > 0 => asked,
-    _ => 100,
-  };
 
-  Some(boot * 1000 + ticks * 1000 / per_second)
+  Some(boot_ms()? + ticks.saturating_mul(1_000) / clock_ticks())
 }
 
 impl ProcessIdentity {

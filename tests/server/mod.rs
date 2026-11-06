@@ -46,6 +46,7 @@ mod control {
   mod gate_kinds;
   mod harness;
   mod item_filings;
+  mod job_cut;
   mod job_end;
   mod job_log;
   mod job_notes;
@@ -88,6 +89,7 @@ mod door {
   mod record;
   mod rollout;
   mod stand;
+  mod tool_clock;
   mod turn;
 }
 mod events;

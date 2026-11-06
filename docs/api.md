@@ -1145,8 +1145,10 @@ service.
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
     the cancellation the turn's door reads in the run's program, which puts the stop words in — commit,
-    report, exit — and leaves the turn to end on them, a turn picked up across a restart included;
-  - the answer waits for that turn to end, however long its own ending takes. The turn's end writes the job
+    report, exit — and leaves the turn to end on them, a turn picked up across a restart included. A tool
+    call blocked on a read or a write is stopped on the stop, so the words are read at the next boundary,
+    and a turn that has not ended within the stop's bound is interrupted and ends stopped;
+  - the answer waits for that turn to end. The turn's end writes the job
     `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, gives its slot
     back, returns its lease and tells its room, so its slot and its checkout take the next launch as soon as
     the stop answers;
@@ -1255,9 +1257,12 @@ service.
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
   `ended`, outcome `failed`, with a report saying the turn stopped on a tool call written as text. A turn
   that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
-  or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
-  session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
-  is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
+  or `reprepared`) and the reason the turn gave as the report. A turn cut at the job's own bound — the
+  backstop for a turn its tool clock cannot see — ends it `stopped`, outcome `stopped`, with the bound's
+  reason as the report, and its lease is given back so the item is open for a rerun. A launch that never
+  reached its turn — no session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the
+  report. Every end that is not an answer is also written as a note into the job's log, so the job's lines
+  say why it ended.
 - **A job's turn is a run of the ledger.** As the turn goes out, the job's runner opens a run under the
   job's run name, its role, its repository and its room, and the job carries it as `runId`; as the turn
   ends the run is closed with how it ended, the tokens its context held and what it spent. A job answers

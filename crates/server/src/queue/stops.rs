@@ -42,6 +42,8 @@ fn job_stop_key(job_id: i64) -> String {
 /// A job marked stopped with the reason, before its unit is asked: whoever closes its record closes it as
 /// stopped, the sweep after a restart included (docs/api.md, 「Workers」, a job's stop mark).
 pub async fn mark_job_stopped(db: &DatabaseConnection, job_id: i64, why: &str) -> Result<(), Refusal> {
+  println!("job {job_id}: stop queued: {}", why.trim());
+
   settings::set(db, &job_stop_key(job_id), why).await
 }
 

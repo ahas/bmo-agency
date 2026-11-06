@@ -18,6 +18,8 @@
 //! instead of the worker line, whole, in a pane of its own, its variables the run's record variables
 //! (docs/api.md, 「sessions」).
 
+use std::time::Duration;
+
 use agent_session::{
   self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, SessionId, TurnEnd,
   WentOut, WorkParts,
@@ -34,7 +36,8 @@ use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
-use crate::door::turn::{Ending, Turn, Watch, put};
+use crate::door::tool_clock::ToolClock;
+use crate::door::turn::{Ending, Overrun, Overtime, Turn, Watch, put};
 use crate::keepalive::logins;
 use crate::lines::Trees;
 use crate::lines::claude::{self, Command, Runs, Session, command_env};
@@ -798,6 +801,7 @@ impl Attempting<'_, '_> {
       run: &work.name,
       questions: self.asked.questions,
       shown: self.shown,
+      job: self.asked.job,
     };
     let ending = apart::run(
       ground,
@@ -882,6 +886,7 @@ impl Attempting<'_, '_> {
       run: &work.name,
       questions: self.asked.questions,
       shown: self.shown,
+      job: self.asked.job,
     };
     let ending = apart::run(
       ground,
@@ -1069,11 +1074,14 @@ impl Attempting<'_, '_> {
       run: &work.name,
       questions: self.asked.questions,
       shown: self.shown,
+      job: self.asked.job,
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {
       Ending::Blocked { .. } => Err(Failure::Person),
       Ending::Untrusted { folder, config, .. } => Err(Failure::Untrusted { folder, config }),
+      // A job's turn cut at its bound was marked stopped before the interrupt, so its item is released.
+      Ending::Overran { .. } => Err(Failure::Stopped),
       Ending::Answered { reply, .. } => {
         noted(ground, worker, work.unit.as_deref().unwrap_or(&work.name), &reply)
           .await
@@ -1178,11 +1186,48 @@ struct WorkWatch<'w> {
   run: &'w str,
   questions: &'w Questions,
   shown: &'w dyn Shows,
+  /// The job the turn is of; none for a thrown-away session's turn, which keeps no clock.
+  job: Option<JobMark>,
 }
 
 impl Watch for WorkWatch<'_> {
   async fn note(&mut self, text: &str) {
     self.log.write(&self.ground.db, Line::note(text)).await;
+  }
+
+  fn tool_clock(&self) -> Option<ToolClock> {
+    self.job.map(|_| ToolClock::from(&policy::tool_clock::TOOL_CLOCK.call))
+  }
+
+  fn turn_clock(&self) -> Option<Duration> {
+    use policy::tool_clock::TOOL_CLOCK;
+
+    self.job.map(|_| Duration::from_secs(TOOL_CLOCK.turn.bound_minutes.saturating_mul(60)))
+  }
+
+  // A job's turn past its bound is cut, not asked about: it holds an item and the queue behind it, so a
+  // turn that will not end is marked stopped at once and the door interrupts it. A job that ends on a
+  // stop mark gives its item's lease back, so the item is open for a rerun.
+  async fn overtime(&mut self, asked: &Overrun) -> Overtime {
+    let Some(job) = self.job else { return Overtime::NotAsked };
+    use policy::tool_clock::TOOL_CLOCK;
+
+    let minutes = (asked.bound_ms / 60_000).max(1);
+    let why = policy::fill_marks(&TOOL_CLOCK.turn.cut, &[("minutes", &minutes.to_string())]);
+
+    if let Err(refused) = crate::queue::stops::mark_job_stopped(&self.ground.db, job.job, &why).await {
+      eprintln!(
+        "{}: job {} was not marked stopped at its turn's bound: {}",
+        self.run, job.job, refused.detail
+      );
+    }
+
+    println!(
+      "{}: the turn passed its {minutes}-minute bound, so job {} is marked stopped and the turn is cut",
+      self.run, job.job
+    );
+
+    Overtime::Cut
   }
 
   async fn record(&mut self, lines: &[String]) {

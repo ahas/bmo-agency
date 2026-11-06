@@ -993,6 +993,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (Some(why), ended) => {
       let spent = ended.ok().flatten().and_then(|(_, _, _, spent)| spent);
 
+      println!("job {id}: stop consumed: {}", why.trim());
+
       ("stopped".to_owned(), Some("stopped".to_owned()), Some(why), spent)
     }
     (None, Ok(Some(end))) => end,
@@ -1000,6 +1002,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (None, Err(why)) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
   let now = now_ms();
+
+  println!("job {id}: ended {state}, outcome {}", outcome.as_deref().unwrap_or("answered"));
 
   if let Some(outcome) = &outcome {
     noted(ground, id, outcome, report.as_deref()).await;
@@ -1913,6 +1917,10 @@ async fn launched(
 ) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
+  let item = member["itemId"].as_i64().unwrap_or_default();
+
+  println!("job {id}: starting on worker {worker_name} for item {item}");
+
   let role = role_of_job(ground, id).await;
   let room = member["roomId"].as_i64().unwrap_or(0);
   let title = prompt.lines().next().unwrap_or_default().trim_start_matches("# ").to_owned();
@@ -2192,6 +2200,7 @@ pub async fn stop_job(
   }
 
   // No turn carries it: the stop is written here, as the turn's end would have written it.
+  println!("job {id}: stop consumed: no turn carried it: {}", reason.trim());
   let _ = crate::queue::stops::clear_job_stop(db, id).await;
   let now = now_ms();
 
