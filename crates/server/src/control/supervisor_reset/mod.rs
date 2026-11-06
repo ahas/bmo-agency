@@ -347,6 +347,21 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
     vec![]
   };
   let rows = rows::delete(db, &picks).await?;
+
+  // The conversation range ends the sessions it takes, and the holds they took go with them (docs/api.md,
+  // 「assignments and jobs」).
+  if asked.takes(Range::Conversation) {
+    let mut holders = vec![asked.agent.clone()];
+
+    holders.extend(ended.iter().map(|chat_id| format!("{}@{chat_id}", asked.agent)));
+
+    for holder in holders {
+      if let Err(why) = crate::control::work::release_held(db, &holder).await {
+        eprintln!("{}: the holds the reset ended were not released: {}", asked.agent, why.error);
+      }
+    }
+  }
+
   let at = now_ms() / 1000;
 
   // What it remembers is the brain's to take: everything it holds under the supervisor's scope, so nothing

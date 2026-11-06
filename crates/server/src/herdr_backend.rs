@@ -3009,6 +3009,21 @@ impl Sessions for HerdrSessions {
       }
     }
 
+    // A hold the session took for a turn that never started its job ends with the session (docs/api.md,
+    // 「assignments and jobs」): a hold is never for a clock, so only an observed end lets it go. A room
+    // session's harness may have named the agent itself rather than the session's id.
+    let mut holders = vec![session.0.as_str()];
+
+    if matches!(scope, Scope::Room(_)) && agent.as_str() != session.0.as_str() {
+      holders.push(agent.as_str());
+    }
+
+    for holder in holders {
+      if let Err(why) = crate::control::work::release_held(&ground.db, holder).await {
+        eprintln!("{session}: the holds it took were not released: {}", why.error);
+      }
+    }
+
     self.outputs.forget(session);
 
     Ok(())

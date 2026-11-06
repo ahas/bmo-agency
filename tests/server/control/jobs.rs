@@ -40,6 +40,18 @@ async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
+async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .json(&body)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
 fn item() -> Value {
   json!({ "title": "A harmless item", "brief": "Answer that nothing is to be done.", "notes": [] })
 }
@@ -558,4 +570,103 @@ async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
   let (status, taken) = post(port, token, "/assignments", ask).await;
 
   assert_eq!(status, 201, "the loan ended with the job: {taken}");
+}
+
+// A job a harness ends with nothing to say frees its worker as surely as one that left a report: the end
+// releases its assignment, and the repository's checkout is held again for the next item.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_that_ends_with_no_report_frees_its_worker() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (7, 41, 'harness', 'helper', 'running', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "token_count", "started_at", "prompt")
+         VALUES (3, 41, 1, 'harness', 7, 'helper', 'running', 0, $1, '# A harmless item')"#,
+      vec![agency_server::now_ms().into()],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let (status, ended) = patch(port, token, "/jobs/3", json!({ "state": "ended" })).await;
+
+  assert_eq!(status, 200, "{ended}");
+  assert_eq!((ended["state"].as_str(), ended["outcome"].as_str()), (Some("ended"), None), "{ended}");
+  assert_eq!(ended["report"], Value::Null, "the end carried no report: {ended}");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "assignments" WHERE "id" = 7 AND "state" = 'released'"#, vec![])
+      .await,
+    1,
+    "the end released the assignment"
+  );
+  assigned(port, token, 42).await;
+}
+
+// A session's end gives back the holds it took for turns that never started their jobs, and leaves a job's
+// own assignment standing for that job's end.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_session_s_end_frees_the_holds_it_took_and_leaves_a_running_job_s() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  crate::support::rows::supervisor(scratch.db(), "supervisor-a", &[("session_id", "s-1".into())]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (7, 41, 'supervisor-a', 'helper', 'held', 0, 0),
+                (8, 42, 'supervisor-a', 'helper', 'held', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "token_count", "started_at", "prompt")
+         VALUES (3, 42, 1, 'supervisor-a', 8, 'helper', 'running', 0, $1, '# A harmless item')"#,
+      vec![agency_server::now_ms().into()],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let answer = reqwest::Client::new()
+    .delete(format!("http://127.0.0.1:{port}/sessions/supervisor-a"))
+    .bearer_auth(token)
+    .send()
+    .await
+    .unwrap();
+
+  assert_eq!(answer.status().as_u16(), 204);
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "assignments" WHERE "id" = 7 AND "state" = 'released'"#, vec![])
+      .await,
+    1,
+    "the session's own hold ended with it"
+  );
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "assignments" WHERE "id" = 8 AND "state" = 'held'"#, vec![])
+      .await,
+    1,
+    "a running job's assignment is left to that job's end"
+  );
 }

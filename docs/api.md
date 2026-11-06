@@ -1040,7 +1040,7 @@ yesterday to now where none is given.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/assignments` | Assignments, by holder, repository or state. |
-| POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, or the harness releases it; no clock ends a hold. |
+| POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, the harness releases it, or the session its holder names ends; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment. |
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
@@ -1071,6 +1071,11 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
   to come free. An assignment naming none takes a free checkout of any repository.
+- **A hold named for a session ends with it.** An assignment held under a session's id, or under the agent's
+  own name where it keeps one session across its rooms, is released when that session ends — by its end
+  route, by a supervisor reset that takes it, or by a turn its guard cut — unless a `starting` or `running`
+  job owns it. So a hold a turn took and never started its job for does not outlive the session. An
+  assignment a job runs on is the job's: its end releases it.
 - **A job's own loan of a checkout is an assignment held in its name,** its `holderName` `job:<jobId>`
   (`docs/worker-slots.md`, 「A job writes only in its own checkout」). No job starts on it, and any read of the
   assignments releases it once that job no longer runs.

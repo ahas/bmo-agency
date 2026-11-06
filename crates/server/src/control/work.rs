@@ -177,16 +177,34 @@ async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> 
   Ok(())
 }
 
-/// That an assignment's job has ended: the worker it held is free.
+/// That an assignment's job has ended: the worker it held is free, whichever state the hold stood in and
+/// however the job ended (docs/api.md, 「assignments and jobs」).
 async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result<(), Refused> {
   run(
     db,
-    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#,
+    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" IN ('held', 'running')"#,
     vec![now_ms().into(), assignment_id.into()],
   )
   .await?;
 
   Ok(())
+}
+
+/// A session ended: every hold it took that no running job owns is released, so a worker held for a turn
+/// that never started its job does not stay held once that turn's session is gone (docs/api.md,
+/// 「assignments and jobs」). An assignment a job owns is left to that job's own end.
+pub async fn release_held(db: &sea_orm::DatabaseConnection, holder: &str) -> Result<u64, Refused> {
+  Ok(
+    run(
+      db,
+      r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
+         WHERE a."state" = 'held' AND a."holder_name" = $2
+           AND NOT EXISTS (SELECT 1 FROM "jobs" j
+                 WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
+      vec![now_ms().into(), holder.into()],
+    )
+    .await?,
+  )
 }
 
 // The most repository names a refusal lists before it points at `GET /repositories` instead.
@@ -2260,7 +2278,10 @@ impl Route for ChangeJob {
     .await?;
     crate::job_end::slot_given_back(db, id, &ending(wanted, outcome.as_deref())).await;
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
-    run(db, r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#, vec![now.into(), assignment_id.into()]).await?;
+
+    if let Err(why) = release(db, assignment_id).await {
+      eprintln!("job {id}: its assignment {assignment_id} was not released: {}", why.error);
+    }
 
     let (member, _) = job(db, id).await?;
 
