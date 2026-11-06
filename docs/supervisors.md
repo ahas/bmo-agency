@@ -491,9 +491,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the resident program still standing on the session the cut ended — the one the run went on in, or
     the one the room held where the cut came before any run — is taken down at once (「The program on an
     ended session」 above);
-  - the consumer hands a quiet instruction naming the supervisor, the room, the reason and the turn's log
-    to the supervisor its own setting names, which is asked only to file the malfunction where it keeps
-    coming back.
+  - the consumer hands a quiet instruction naming the supervisor, its agent name, the room and chat, the
+    reason and the turn's log to the supervisor its own setting names; the chat manual asks nothing for
+    one cut and says where a repeated one is filed.
 
 ## What a supervisor hands to a role
 

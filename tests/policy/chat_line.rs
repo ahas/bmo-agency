@@ -1,3 +1,4 @@
+use crate::support::wording::assert_no_instruction;
 use policy::chat_line::*;
 use policy::run_lines::RUN_LINES;
 
@@ -8,6 +9,12 @@ fn reads_its_lines() {
   assert!(CHAT_LINE.room.mark.contains("{title}"));
   assert_eq!(CHAT_LINE.persona.default_tone, "bmo");
   assert_eq!(CHAT_LINE.persona.base_layer, "persona");
+}
+
+#[test]
+fn an_absent_server_is_a_fact_without_an_instruction() {
+  assert!(CHAT_LINE.tools.absent.contains("{server}") && CHAT_LINE.tools.absent.contains("{why}"));
+  assert_no_instruction(&CHAT_LINE.tools.absent);
 }
 
 // A supervisor's one restriction is the chat line's denied list: the CLI's web tools, the tools that bring a

@@ -92,7 +92,9 @@ echoed = "{name}'s answer repeated what it was given, so it was not sent: {echoe
 empty = "{name}'s answer was empty."
 
 # A turn its guard cut short: why, what the session keeps in place of an answer, the line the room is told
-# under the supervisor's number, and the quiet instruction the supervisor is told in the owner's chat, with its kind and sort.
+# under the supervisor's number, and the data the quiet instruction to the owner's chat carries, with its
+# kind and sort. The instruction carries no order: what a cut asks stands in the supervisor's manual
+# (prompts/agents/chat/manual.md, 「A SUPERVISOR'S CUT TURN」).
 [cut]
 too_many_calls = "No answer came after {calls} tool calls."
 failing = "The {tool} tool failed {count} times in a row."
@@ -101,9 +103,8 @@ mark = "[turn cut]"
 notice = "{name}'s turn was cut short. {reason} From the next message it answers on a new session."
 instruction = [
   "{name} ({agent}), a supervisor, had its turn in the room {room} ({chat}) cut short by its turn guard: {reason}",
-  "Its run was stopped; the words it was answering stay taken, the room was told in one line under your number, and its session in that room opens afresh with its next turn there.",
+  "Its run was stopped; the words it was answering stay taken, and the room was told in one line under its number; its session in that room opens afresh with its next turn there.",
   "The turn's log is the run {run}.",
-  "Nothing is asked of you for one cut. Where the same supervisor keeps being cut, file the malfunction on the TODO with that log as its record. Do not announce this instruction itself.",
 ]
 kind = "supervisor-cut:{agent}:{chat}"
 sort = "supervisor_cut"

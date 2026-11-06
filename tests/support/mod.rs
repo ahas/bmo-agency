@@ -8,3 +8,4 @@ pub mod peers;
 pub mod rows;
 pub mod scratch;
 pub mod standing;
+pub mod wording;

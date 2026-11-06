@@ -22,6 +22,7 @@ use tokio::net::TcpListener;
 
 use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
+use crate::support::wording::assert_no_instruction;
 
 fn open(id: i64, assignee: Option<&str>) -> Open {
   Open {
@@ -130,7 +131,7 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
 }
 
 #[test]
-fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_the_three_calls() {
+fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_its_data() {
   let told = launch_instruction(&open(2265, Some("w1")), &room(None));
   let order = told["said"]["order"].as_str().unwrap();
 
@@ -146,25 +147,23 @@ fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_the_three_calls() 
   );
 
   let anyone = launch_instruction(&open(2269, None), &room(None));
+  let anyone = anyone["said"]["order"].as_str().unwrap();
 
-  assert!(
-    anyone["said"]["order"]
-      .as_str()
-      .unwrap()
-      .contains(&policy::job_notices::JOB_NOTICES.any_worker),
-    "{anyone}"
-  );
+  assert!(anyone.contains(&policy::job_notices::JOB_NOTICES.any_worker), "{anyone}");
   assert_eq!(room_of(&json!({ "roomId": 5, "scope": "-7" })), Some(5));
   assert_eq!(room_of(&json!({ "scope": "" })), None);
   assert_eq!(told["events"], json!(["item-awaits-launch:#2265"]));
 
-  for word in ["#2265", "w1", "job_lease_next", "assign_worker", "run_job", "why not"] {
+  for word in ["#2265", "item 2265", "w1"] {
     assert!(order.contains(word), "{order}");
   }
+
+  assert_no_instruction(order);
+  assert_no_instruction(anyone);
 }
 
 #[test]
-fn the_notice_carries_its_code_the_waiting_items_and_what_the_chat_agent_is_asked() {
+fn the_notice_carries_its_code_the_waiting_items_and_its_marker() {
   let said = notice(&standing(vec![open(1, Some("w1")), open(2, Some("w2"))], &["w1"]));
 
   assert_eq!(said["code"], QUEUE_IDLE.code.as_str());
@@ -172,6 +171,7 @@ fn the_notice_carries_its_code_the_waiting_items_and_what_the_chat_agent_is_aske
   assert_eq!(said["freeWorkers"], json!(["w1"]));
   assert_eq!(said["idleMinutes"], 5);
   assert_eq!(said["ask"], QUEUE_IDLE.ask.as_str());
+  assert_no_instruction(&QUEUE_IDLE.ask);
 }
 
 #[test]
@@ -229,9 +229,11 @@ fn a_draft_is_told_as_a_job_order_with_its_kind_event_and_the_start_of_its_brief
     "the owner's private room"
   );
 
-  for word in ["#2434", "a follow-up", "item #2432", "w1", "line 1", "job_item_update", "owner"] {
+  for word in ["#2434", "a follow-up", "item #2432", "w1", "line 1"] {
     assert!(order.contains(word), "{order}");
   }
+
+  assert_no_instruction(order);
 
   let head = brief_head(&draft.brief);
 

@@ -29,8 +29,10 @@ listed = "Claude Code's own, every one it lists to you"
 # each as the program calls it.
 paragraph = "TOOLS: Your program's own tools are {program}. Your MCP servers are {servers}, and of the tool host's tools they show you {shown} by name. A tool shown to you by name is called as that tool, never through your shell or `bmo use`; only a hosted tool not shown to you is reached with `bmo use`, as the opening says, and a tool none of these names or lists does not exist here. What the turn does not already hold of a person, a room or a thing is looked up, never guessed: mcp__bmo__brain_list with its subject and type (a person: type person, key the person's id), or mcp__bmo__brain_similar with the question's own words; a document or a rule with mcp__gate__reference_search, then mcp__gate__reference_piece for the piece it names."
 # The fact a chat session is told of a server its program did not attach (docs/agent-control.md, 「dsh's
-# providers: OpenRouter and DeepSeek」): {server} is the server and {why} what kept it out.
-absent = "The {server} server is absent from this session: {why}. Its tools are not among yours; reach any of them with `bmo use`, as the opening says. Nothing needs saying in the room."
+# providers: OpenRouter and DeepSeek」): {server} is the server and {why} what kept it out. The fact carries
+# no instruction; the tools paragraph above says how a hosted tool is reached, and the session's own rules
+# say nothing of it is spoken in a room.
+absent = "The {server} server is absent from this session: {why}."
 absent_summary = "The {server} server is absent from the session"
 # What kept a tool host namespace out where nothing but the host's own account says so.
 unreached = "the tool host saw no client of this session reach it"

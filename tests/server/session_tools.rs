@@ -8,6 +8,8 @@ use agency_server::lines::place::stderr_file;
 use agency_server::session_tools::*;
 use serde_json::json;
 
+use crate::support::wording::assert_no_instruction;
+
 // What dsh's launcher writes when two clients of a standing session did not activate, as measured.
 const FAILED_START: &str = "dsh: warning: 2 entries did not activate
 mcp-bmo (@deepseek-ai/dsh-mcp-client): Error: mcp-client(bmo): initial connection or tool synchronization failed
@@ -84,12 +86,10 @@ fn an_absent_server_is_one_fact_for_the_session_in_the_turns_room_of_its_own_kin
 
   let fact = body["said"]["fact"].as_str().unwrap();
 
-  // How `bmo use` finds and calls a tool is the harness opening's; the fact only points at it.
-  assert!(
-    fact.contains("web") && fact.contains("it would not open") && fact.contains("with `bmo use`"),
-    "{fact}"
-  );
-  assert!(!fact.contains("--describe"), "{fact}");
+  // The fact names the server and why; how a hosted tool is reached is the tools paragraph's.
+  assert!(fact.contains("web") && fact.contains("it would not open"), "{fact}");
+  assert!(!fact.contains("bmo use"), "{fact}");
+  assert_no_instruction(fact);
 }
 
 #[test]

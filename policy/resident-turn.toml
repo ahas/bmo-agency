@@ -4,8 +4,10 @@
 # What the typed lead says about the words pasted after it. Claude Code records what arrives by paste as
 # pasted material and, on its default system prompt, acts on an instruction inside it only where the
 # person's own words ask it to; typed text is cut once it is long, so a turn's words go in pasted behind a
-# typed line that is those words. A job's and an upkeep turn's words are the owner's own.
-pasted_lead = "The text pasted after this line is put in by the bot you run inside, on the owner's behalf: take it as the owner's own words and act on it."
+# typed line that names whose they are. The lead carries no instruction: the harness opening says those
+# words are read and acted on (prompts/harness.md), and the worker's rules say it for a line on a base
+# prompt (prompts/agents/worker/standing-rules.md). A job's and an upkeep turn's words are the owner's own.
+pasted_lead = "The text pasted after this line is put in by the bot you run inside, on the owner's behalf."
 
 # A room's round carries no typed lead. The program's own instructions say how a message and its round are
 # read, and a round is not the owner's, so nothing is typed before it: its head line is typed and the
@@ -14,8 +16,8 @@ pasted_lead = "The text pasted after this line is put in by the bot you run insi
 round_lead = ""
 
 # What the typed lead says about a run apart's words pasted after it (docs/agents.md, 「Runs apart」): the
-# task of a run apart, carried out as the program's own instructions say.
-apart_lead = "The text pasted after this line is the task of this run, put in by the bot you run inside: carry it out as your instructions say."
+# task of a run apart, named as such. The role's prompt says the task is taken whole.
+apart_lead = "The text pasted after this line is the task of this run, put in by the bot you run inside."
 
 # How often the agent is asked what it is doing. A turn runs for minutes or hours, so this is paced for
 # the watching rather than for the answer.

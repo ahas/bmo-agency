@@ -244,9 +244,10 @@ fn id_of(member: &Value) -> i64 {
   member["id"].as_i64().unwrap_or_default()
 }
 
-/// What the room's supervisor is told: an order carrying the item, the worker and the report, and asking
-/// for the briefing the supervisor's own manual describes; where the job ended holding a lease, the lease
-/// that still stands on the item for its close. A job that left no report says so.
+/// What the room's supervisor is told: an order carrying the item, the worker, the state and the report;
+/// where the job ended holding a lease, the lease that still stands on the item. The order carries no
+/// instruction: the supervisor's manual says how to relay an end and close its item. A job that left no
+/// report says so.
 pub fn order(member: &Value) -> String {
   let item = member["itemId"].as_i64().unwrap_or_default();
   let worker = member["workerName"].as_str().unwrap_or_default();
@@ -261,20 +262,14 @@ pub fn order(member: &Value) -> String {
     (state, None) => state.to_owned(),
   };
   let mut text = format!(
-    "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}\n\n\
-     Relay its end in a few lines in this room, in the asker's language: the outcome, the commit or \
-     artefact it left, and one line of what it left out, then what the report could not say. The report \
-     stays whole on the item; never paste it into the room.",
+    "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}",
     report.unwrap_or("The run left no report; its end is all there is to tell.")
   );
 
   if keeps_lease(member) {
     let lease = member["leaseId"].as_i64().unwrap_or_default();
 
-    text.push_str(&format!(
-      "\n\nThe item stays leased under lease {lease} until its close: write its final report and set it \
-       done, which ends the lease; where it is not to close, give lease {lease} back so it is open again."
-    ));
+    text.push_str(&format!("\n\nThe item stays leased under lease {lease}: it is not closed."));
   }
 
   text

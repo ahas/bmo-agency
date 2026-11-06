@@ -23,6 +23,7 @@ use tokio::net::TcpListener;
 
 use crate::support::scratch::Scratch;
 use crate::support::standing;
+use crate::support::wording::assert_no_instruction;
 
 fn member(report: Option<&str>, outcome: Option<&str>) -> Value {
   json!({
@@ -47,9 +48,17 @@ fn the_order_carries_the_item_the_worker_and_the_report_whole() {
   assert!(said.contains("worker bmo-agency"));
   assert!(said.contains("The change landed in commit abc123."));
   assert!(said.contains("What is left: a deploy."));
-  // The room is told the job's end in a few lines; the report stays whole on the item.
-  assert!(said.contains("Relay its end in a few lines in this room"));
-  assert!(said.contains("never paste it into the room"));
+  assert!(said.contains("Its report, as the run left it:"));
+  assert_no_instruction(&said);
+}
+
+#[test]
+fn the_lease_line_names_the_lease_and_asks_nothing() {
+  let said = order(&member(Some("The work is done."), None));
+
+  assert!(said.contains("lease 64"), "the order names the lease its close ends: {said}");
+  assert!(said.contains("not closed"));
+  assert_no_instruction(&said);
 }
 
 #[test]

@@ -3,12 +3,16 @@
 //! and a failed job told to the owner as well where its orderer is another room.
 
 use agency_server::job_end::delivered_with;
-use agency_server::job_notices::{failed, owner_hears_failure, question_due, tell_waiting};
+use agency_server::job_notices::{
+  awaits_close, closed, failed, model_refused, moved, owner_hears_failure, paused, question, question_due,
+  tell_waiting, unlaunchable, waiting,
+};
 use agency_server::queue::orderer::Orderer;
 use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
 use crate::support::peers::{item, stand};
+use crate::support::wording::assert_no_instruction;
 
 fn member(item: i64, outcome: Option<&str>, room: Option<i64>) -> Value {
   json!({
@@ -119,6 +123,45 @@ fn a_failure_is_the_owner_s_only_for_failed_or_blocked_in_another_room() {
   assert!(!owner_hears_failure(&member(1, None, None), &room));
   assert!(!owner_hears_failure(&member(1, Some("failed"), None), &Orderer::default()));
   assert_eq!(failed(&member(1, Some("failed"), None), Some(-1))["jobId"], 77);
+}
+
+#[test]
+fn every_queue_order_carries_its_data_and_no_instruction() {
+  let orderer = Orderer {
+    room: Some(-1),
+    requester: None,
+  };
+  let item = json!({ "id": 12, "title": "Fix it", "state": "held" });
+
+  let notices = [
+    (paused(12, "Fix it", "todo", &orderer), &["#12", "Fix it", "todo"][..]),
+    (unlaunchable(12, "Fix it", "w9", &orderer), &["#12", "Fix it", "w9"][..]),
+    (
+      model_refused(12, "Fix it", "nowhere/x", "unknown model", &orderer),
+      &["#12", "Fix it", "nowhere/x", "unknown model"][..],
+    ),
+    (moved(&item, 34, "w1", &orderer), &["#12", "Fix it", "held", "34", "w1"][..]),
+    (closed(&item, "member", &orderer), &["#12", "Fix it", "member"][..]),
+    (
+      question(
+        &json!({ "id": 55, "itemId": 12, "text": "Which one?", "choices": ["a", "b"] }),
+        &orderer,
+      ),
+      &["#55", "#12", "Which one?", "a / b"][..],
+    ),
+    (waiting(12, "w1", "no quota", &orderer), &["#12", "w1", "no quota"][..]),
+    (awaits_close(12, 64, &orderer), &["#12", "64"][..]),
+  ];
+
+  for (notice, data) in notices {
+    let order = notice["said"]["order"].as_str().unwrap();
+
+    for value in data {
+      assert!(order.contains(value), "{value} in {order}");
+    }
+
+    assert_no_instruction(order);
+  }
 }
 
 #[test]

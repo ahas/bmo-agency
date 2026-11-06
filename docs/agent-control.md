@@ -615,8 +615,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     it started says nothing), and every server whose client dsh's error stream says did not activate. Each
     absent server is one fact queued for the session in the turn's room through the receiver's
     `POST /instructions`, of the kind `session-tools:<server>`, saying the server is absent from this
-    session, why, and that its tools are reached with `bmo use`; and one line of the turn's run log. The
-    session goes on; nothing fails for it. One look is taken per program started.
+    session and why, with no instruction; the tools paragraph says how a hosted tool is reached, and the
+    session's own rules say nothing of it is spoken in a room. The fact costs one line of the turn's run
+    log. The session goes on; nothing fails for it. One look is taken per program started.
   - **The overlay is the route.** Before the program is stood, agency composes the same dsh overlay a
     headless run on the road takes: the prompt, the tool rows and sandbox above, and the provider's API
     as dsh's one route with the model and, where the agent chose one, its reasoning level. The key is
@@ -1983,11 +1984,12 @@ The measured, fixed order.
    - **Why a lead at all.** Claude Code records whatever arrives by paste as pasted material, and on its
      default system prompt does not act on an instruction inside a paste unless the person's own words
      ask it to (measured: a job's prompt put in by paste alone was read and answered with a question
-     back). A job's, an upkeep turn's and a run apart's words carry a typed lead that says whose they are
-     and asks that they be acted on. A room's round carries none: its typed line is the head line naming
-     the run, and the program's own instructions say how a round is read. Measured with the lead gone, a
-     round pasted behind the head line alone was still acted on: the program ran the shell command the
-     round gave and answered as it asked.
+     back). A job's, an upkeep turn's and a run apart's words carry a typed lead that names whose they
+     are; the harness opening, `prompts/harness.md`, says such words are read and acted on, and a line on
+     a base prompt has it from the worker's standing rules. A room's round carries none: its typed line
+     is the head line naming the run, and the program's own instructions say how a round is read.
+     Measured with the lead gone, a round pasted behind the head line alone was still acted on: the
+     program ran the shell command the round gave and answered as it asked.
    - **Why the paste.** Typed text is cut: 37,548 characters sent with `pane.send_text` reached the
      program as their last 430 (measured). The same text pasted after a typed lead reached it whole,
      38,929 characters with the lead, and was acted on. A 10,582-character prompt pastes in about 415ms.
@@ -2796,10 +2798,11 @@ them run a browser, and whose a place is.
   queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
   of the receiver with the code `queue-idle`: the waiting items by number, title, repository and role,
-  the idle minutes and when the last job started, and that the supervisor launches the next item or says
-  why it does not. The receiver hands it to the supervisor in the owner's private chat, which
-  voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
-  was told is kept, and nothing more is said until a job starts again.
+  the idle minutes, when the last job started, and the short marker `The queue is idle.`; the
+  supervisor's manual says to launch the next item or say why none can. The receiver hands it to the
+  supervisor in the owner's private chat, which voices it (the receiver's `docs/voiced-notices.md`). It is
+  told once for each idle stretch: the moment it was told is kept, and nothing more is said until a job
+  starts again.
 - **A switch silences the idle stretch's notice and the launch notice,** the settings row `queue_idle_alarm`
   set to `off`; the next job that starts turns it on again. Every other notice of 「An item's change is told
   to its orderer」 is told whatever the switch says, since each waits on a judgement rather than on a launch.
@@ -2826,8 +2829,9 @@ with the session.
   `job` in the orderer's room (null for the owner's private room), with a `kind` of its row and the item's or
   the question's number, so a newer notice of the same kind replaces one still pending there, and one event
   of its row, `<event>:#<number>`. An owner notice is `POST /owner/notices` with its code and its fields
-  beside it. The words of every order stand in `policy/job-notices.toml`, beside the launch and draft orders
-  of `policy/queue-idle.toml`.
+  beside it. The data of every order stands in `policy/job-notices.toml`, beside the launch and draft orders
+  of `policy/queue-idle.toml`: an order carries that data and a short marker, never an instruction, and
+  what each kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」).
 - **Told once for each transition.** Each notice keeps a mark in agency's settings table, keyed by the item,
   the job or the question and, where one transition can come again, by the state it reached; the mark is let
   go once the item, the job or the question has moved on, so neither a restart nor the next pass repeats a
@@ -2858,42 +2862,45 @@ with the session.
 | An idle queue | the owner | owner notice (「An idle queue is told to the owner」) | code `queue-idle` |
 
 - **An item that could go is told to its orderer on its own.** Where an open item waits to go, and it is
-  still waiting a minute after agency first saw it so, agency queues one instruction for its orderer: the
-  item awaits a launch, so lease it (`job_lease_next`), run it (`run_job`), or say in one line why not. The
-  moment it was first seen waiting and the moment it was told are kept by the item's number, the first let go
-  once the item no longer waits to go, the second once the item is no longer open. It stands beside the idle
-  stretch's notice and does not wait for the idle minutes.
+  still waiting a minute after agency first saw it so, agency queues one instruction for its orderer
+  naming the item, its title and its worker; the supervisor's manual says to launch it or say in one line
+  why not. The moment it was first seen waiting and the moment it was told are kept by the item's number,
+  the first let go once the item no longer waits to go, the second once the item is no longer open. It
+  stands beside the idle stretch's notice and does not wait for the idle minutes.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
-  agency holds never awaits a launch and would sit for good: its orderer is told once to correct its
-  `assigneeName`, the mark let go once the item is no longer open or names a checkout agency holds. An item
-  whose launch is refused for its `model` label, a provider or model agency does not hold
-  (`docs/repositories.md`, 「A model an item names」), is told to its orderer once for that label, to correct
-  the label or set it to `auto`; the mark keeps the label told, so the same label refused again is not told
-  again and another one is, and it is let go once a job of the item is launched.
+  agency holds never awaits a launch and would sit for good: its orderer is told once what it names, the
+  mark let go once the item is no longer open or names a checkout agency holds. An item whose launch is
+  refused for its `model` label, a provider or model agency does not hold
+  (`docs/repositories.md`, 「A model an item names」), is told to its orderer once for that label, with the
+  refusal's reason; the mark keeps the label told, so the same label refused again is not told again and
+  another one is, and it is let go once a job of the item is launched. The supervisor's manual says what
+  to correct, and when to say in one line why it stays.
 - **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job
   service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for. One
   the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each draft
   not told yet agency queues one instruction for its orderer. The order carries the item's number and title,
   who raised it (its parent item, else its requester), its repository and the first lines of its brief
-  (`policy/queue-idle.toml`, `draft_brief_lines` and at most `draft_brief_chars`), and asks the supervisor to
-  judge it by its manual: approve it where the work is routine and it can judge it safe, the approval
+  (`policy/queue-idle.toml`, `draft_brief_lines` and at most `draft_brief_chars`); the supervisor's manual
+  says to judge it there: approve it where the work is routine and it can judge it safe, the approval
   recorded as its own, or leave it a draft and say in one line why the owner should decide. The mark is let
   go once the item is no longer a draft — approved, dropped or merged.
 - **An item moved under a running job is told from the lease pass.** Where the pass renewing a running job's
   lease finds the lease gone and the item not open — held, dropped, merged, or leased by another holder — it
   takes no lease and tells the orderer once for that job and that state: the job runs on an item that moved,
-  so the supervisor puts a stop to the owner or relays it. A merge names the carrying item, whose orderer is
-  told too where it answers another room. The marks are let go once the job is no longer running.
+  and the supervisor's manual says to put a stop to the owner where the work is no longer wanted, else to
+  say the job runs on. A merge names the carrying item, whose orderer is told too where it answers another
+  room. The marks are let go once the job is no longer running.
 - **An item closed by somebody else is told to its orderer.** An `item.changed` event whose item stands
   `done`, moved there from another state, by a `changedBy` that is neither the requester of the item the
   orderer was found on nor a supervisor agency holds, is told once to the orderer, so the asker hears of work
   closed out of its sight.
 - **A job's question goes to the owner through its orderer.** A `question.created` event is told to the
-  orderer of the question's item, else to the room its `scope` names: put the question to the owner in his
-  own chat and never answer it for him. The instruction's id the receiver answers is kept by the question,
-  and a settling reply (`reply.created` whose `settles` holds) withdraws it with the receiver's
+  orderer of the question's item, else to the room its `scope` names: the order carries the question, its
+  item and its choices, and the supervisor's manual says to put it to the owner in his own chat and never
+  answer it for him. The instruction's id the receiver answers is kept by the question, and a settling
+  reply (`reply.created` whose `settles` holds) withdraws it with the receiver's
   `DELETE /instructions/{id}`; a withdrawn instruction already handed is no refusal. A `question.due` event,
   the question still open past its due time, is an owner notice `job-question-due` with the question, its
   item, its text and its choices, since only the owner can answer it; it is told once for the question.

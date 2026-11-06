@@ -102,9 +102,9 @@ describe("a standing worker's turns", () => {
       expect(herdr.asked.filter((one) => ((one.params.root ?? {}) as { command?: string[] }).command?.some((part) => part.endsWith(PANE_HEAD)) === true)).toHaveLength(1);
       expect(herdr.asked.some((one) => ((one.params.root ?? {}) as { command?: string[] }).command?.includes("--session-id") === true)).toBe(false);
       expect(herdr.asked.some((one) => one.method === "pane.close")).toBe(false);
-      // The prompt's first line is typed and names the run, and says the words pasted after it are the
-      // owner's; the job's own words are the paste (「The order for putting in one turn」).
-      expect(String(herdr.asked.find((one) => one.method === "pane.send_text")?.params.text)).toMatch(/^\[bmo-job-1 · #1 work · \d\d:\d\d\] The text pasted after this line .*owner's own words.* $/);
+      // The prompt's first line is typed and names the run, and says whose words the paste is; the job's
+      // own words are the paste (「The order for putting in one turn」).
+      expect(String(herdr.asked.find((one) => one.method === "pane.send_text")?.params.text)).toMatch(/^\[bmo-job-1 · #1 work · \d\d:\d\d\] The text pasted after this line .*on the owner's behalf\. $/);
       expect(String(herdr.asked.find((one) => one.method === "agent.prompt")?.params.text)).toBe("the work");
 
       const pid = readRunning(place)?.pid;

@@ -99,7 +99,7 @@ pub fn absent(
   absent
 }
 
-/// The instruction a session in a room is told of an absent server by.
+/// The instruction a session in a room is told of an absent server by: the fact of it, with no instruction.
 pub fn absent_instruction(agent: &str, room: i64, server: &str, why: &str) -> serde_json::Value {
   json!({
     "agentName": agent,
