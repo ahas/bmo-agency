@@ -130,7 +130,7 @@ enum Verb {
     #[command(subcommand)]
     what: JobVerb,
   },
-  /// The repositories' registrations: one taken away through the server's own route.
+  /// The repositories' registrations: one added or taken away through the server's own routes.
   Repository {
     #[command(subcommand)]
     what: RepositoryVerb,
@@ -254,6 +254,16 @@ enum JobVerb {
 
 #[derive(Subcommand)]
 enum RepositoryVerb {
+  /// Add a repository's registration, refused where its name is taken.
+  Add {
+    name: String,
+    /// The base checkout the repository works in.
+    #[arg(long)]
+    path: String,
+    /// What the console and the agent list show it by, where it is shown by another name.
+    #[arg(long)]
+    label: Option<String>,
+  },
   /// Remove a repository's registration, refused while a job holds one of its checkouts.
   Remove { name: String },
 }
@@ -524,9 +534,12 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::Job {
       what: JobVerb::Borrow { repository },
     } => ended(borrow::run(&data_root, &repository).await.map(Answer::from)),
-    Verb::Repository {
-      what: RepositoryVerb::Remove { name },
-    } => ended(repository::run(&name).await),
+    Verb::Repository { what } => match what {
+      RepositoryVerb::Add { name, path, label } => {
+        ended(repository::add(&name, &path, label.as_deref()).await)
+      }
+      RepositoryVerb::Remove { name } => ended(repository::run(&name).await),
+    },
     Verb::Coworker { what } => ended(coworker(&data_root, what).await),
     Verb::Claude {
       what: ClaudeVerb::Batch(asked),
