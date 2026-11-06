@@ -1065,6 +1065,10 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   the job's end reads the mark — written `stopped` with outcome `stopped`, its lease given back so the
   item is open for a rerun. The bound is generous, since the call clock is what catches a hang; it is a
   backstop for a turn the call clock cannot see.
+- **A turn picked up across a restart is held to the same clock.** The turn `turn_pickup` attaches to
+  reads its calls from the record its program writes and holds them to the same call clock, stop and
+  bound. A blocked call is cut there as it is in the door, and a turn past its bound is marked stopped
+  and cut, so its item and assignment are released and the queue behind it moves.
 
 ### What standing costs
 
