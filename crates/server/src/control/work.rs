@@ -207,6 +207,31 @@ pub async fn release_held(db: &sea_orm::DatabaseConnection, holder: &str) -> Res
   )
 }
 
+/// The newest hold an ask already stands in: a `held` assignment for the same item and holder, as its
+/// routes answer it (docs/api.md, 「assignments and jobs」).
+async fn standing_hold(
+  db: &sea_orm::DatabaseConnection,
+  item_id: i64,
+  holder: &str,
+) -> Result<Option<Value>, Refused> {
+  let row = one(
+    db,
+    r#"SELECT "id" FROM "assignments"
+       WHERE "item_id" = $1 AND "holder_name" = $2 AND "state" = 'held'
+       ORDER BY "id" DESC LIMIT 1"#,
+    vec![item_id.into(), holder.into()],
+  )
+  .await?;
+
+  match row {
+    Some(row) => {
+      let id: i64 = row.try_get("", "id")?;
+      Ok(Some(assignment(db, id).await?))
+    }
+    None => Ok(None),
+  }
+}
+
 // The most repository names a refusal lists before it points at `GET /repositories` instead.
 const NAMES_LISTED: usize = 12;
 
@@ -282,6 +307,24 @@ impl Route for CreateAssignment {
       && !checkouts.iter().any(|checkout| checkout.name == assignee)
     {
       return Err(unknown_repository(db, assignee).await?);
+    }
+
+    // An ask for the same item by the same holder answers the hold it already stands in, so a lost answer
+    // read again is no busy worker; an ask naming another worker or role replaces that hold (docs/api.md,
+    // 「assignments and jobs」).
+    if let Some(standing) = standing_hold(db, item_id, &holder).await? {
+      let same_worker = assignee.is_none_or(|assignee| standing["workerName"].as_str() == Some(assignee));
+      let same_role = named.is_none_or(|role| standing["roleName"].as_str() == Some(role));
+
+      if same_worker && same_role {
+        return Ok(answer(StatusCode::OK, standing));
+      }
+
+      let standing_id = standing["id"].as_i64().unwrap_or_default();
+
+      if let Err(why) = release(db, standing_id).await {
+        eprintln!("assignment {standing_id} was not released before its replacement: {}", why.error);
+      }
     }
 
     for checkout in checkouts {

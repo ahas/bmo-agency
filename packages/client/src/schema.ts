@@ -4153,6 +4153,11 @@ export interface components {
             /** @description Why, in a short line: the job's report. */
             reason: string;
         };
+        /** @description The body that releases an assignment the harness will not run. */
+        ReleaseWorker: {
+            /** Format: int64 */
+            assignmentId: number;
+        };
     };
     responses: {
         /** @description bad-request */
@@ -6564,6 +6569,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
             /** @description Answered. */
             201: {
                 headers: {

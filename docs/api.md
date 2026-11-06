@@ -9,7 +9,7 @@ consumer's, decided above this boundary and handed in; agency supplies, carries 
 none of it.
 
 `docs/openapi.json` is the machine contract: every route's parameters, bodies, answers and codes, the
-events, the three tools of the harness plugin, and the removed and moved-out members. It is generated from
+events, the tools of the harness plugin, and the removed and moved-out members. It is generated from
 the service's own types by `bmo-agency openapi`, and a test fails where the committed document differs
 from what the code generates. This document states what the routes are for and how the pieces fit; where
 a field's exact shape matters, the OpenAPI document is the one to read.
@@ -1071,6 +1071,10 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
   to come free. An assignment naming none takes a free checkout of any repository.
+- **An ask for the same item by the same holder answers its standing hold,** 200 with that assignment
+  instead of `no-worker-free`, so a lost answer asked again is no busy worker. An ask naming another worker
+  or role releases the standing hold first. A hold the harness will not run is released by
+  `PATCH /assignments/{assignmentId}` with `state` `released`, which is the harness's `release_worker`.
 - **A hold named for a session ends with it.** An assignment held under a session's id, or under the agent's
   own name where it keeps one session across its rooms, is released when that session ends — by its end
   route, by a supervisor reset that takes it, or by a turn its guard cut — unless a `starting` or `running`
@@ -1382,6 +1386,8 @@ tool is a thin call of one route through the agency's own client.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
 - `assign_worker` calls `POST /assignments`, naming the repository and the role.
+- `release_worker` calls `PATCH /assignments/{assignmentId}` with `state` `released`, giving back a hold the
+  harness will not run.
 - `run_job` calls `POST /jobs`.
 
 ## The clients

@@ -616,6 +616,74 @@ async fn a_job_that_ends_with_no_report_frees_its_worker() {
   assigned(port, token, 42).await;
 }
 
+// An ask for the same item by the same holder answers the hold it already stands in, so a lost answer
+// asked again is no busy worker and opens no second hold.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_assign_for_the_same_item_and_holder_answers_the_standing_hold() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let ask = json!({ "itemId": 41, "holderName": "harness", "assigneeName": "helper", "item": item() });
+  let (status, first) = post(port, token, "/assignments", ask.clone()).await;
+
+  assert_eq!(status, 201, "{first}");
+
+  let (status, again) = post(port, token, "/assignments", ask).await;
+
+  assert_eq!(status, 200, "the standing hold is answered: {again}");
+  assert_eq!(again["id"], first["id"]);
+  assert_eq!(again["state"], "held");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "assignments" WHERE "item_id" = 41 AND "state" = 'held'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
+
+  // The hold still owns its worker: another item waits for it.
+  let (status, refused) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 42, "holderName": "harness", "assigneeName": "helper", "item": item() }),
+  )
+  .await;
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
+}
+
+// A hold given back frees the worker for the next item.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_release_frees_the_worker_for_the_next_item() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let assignment = assigned(port, token, 41).await;
+  let (status, released) =
+    patch(port, token, &format!("/assignments/{assignment}"), json!({ "state": "released" })).await;
+
+  assert_eq!(status, 200, "{released}");
+  assert_eq!(released["state"], "released", "{released}");
+  assigned(port, token, 42).await;
+}
+
 // A session's end gives back the holds it took for turns that never started their jobs, and leaves a job's
 // own assignment standing for that job's end.
 #[tokio::test(flavor = "multi_thread")]
