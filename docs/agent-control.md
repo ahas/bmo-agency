@@ -660,7 +660,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
 - **Where a run starts.** The first line of every prompt the bot puts in names the run: its run
   name, what it is — the room, the job and its item, a keepalive — and the time it went in. On a
   Claude Code program that line is the typed lead, followed by the words saying the paste after it
-  is the run's instruction (「The order for putting in one turn and waiting for it to end」). The
+  is this turn's words to be taken as instructions (「The order for putting in one turn and waiting
+  for it to end」). The
   transcript holds it at the head of that turn, and the screen draws the whole prompt, first line
   included, rather than a paste marker (measured, a 42-line prompt).
 - **Where a run ends** is the program's own end of the turn on its screen, and the status line
@@ -1981,7 +1982,10 @@ The measured, fixed order.
    - **Why the lead.** Claude Code records whatever arrives by paste as pasted material, and on its
      default system prompt does not act on an instruction inside a paste unless the person's own words
      ask it to (measured: a job's prompt put in by paste alone was read and answered with a question
-     back). The lead is those words: it names the run and says the paste is the instruction.
+     back). The lead is those words: it says the paste is this turn's words from the bot, and asks it be
+     taken as instructions. It explains nothing more, because what a round is and how it is answered
+     stand in the program's own instructions, and the lead is the shortest line that makes the paste
+     acted on at all.
    - **Why the paste.** Typed text is cut: 37,548 characters sent with `pane.send_text` reached the
      program as their last 430 (measured). The same text pasted after a typed lead reached it whole,
      38,929 characters with the lead, and was acted on. A 10,582-character prompt pastes in about 415ms.
@@ -1995,7 +1999,10 @@ The measured, fixed order.
      word, which is read as a command only when it stands alone.
    - **What the lead grants follows whose words they are.** A job's and an upkeep turn's lead says the
      paste is the owner's own words. A room's round is not the owner's, so the chat's lead only says
-     the paste is the round and grants nothing beyond what the chat's own instructions give it.
+     the paste is this turn's words from the bot, to be taken as instructions, and grants nothing beyond
+     what the chat's own instructions give it. It names no round and carries no explanation of rounds,
+     questions or notes; those belong to the program's own instructions, so the typed line stops at
+     naming this turn's words and asking that they be acted on.
 3. See that the prompt was submitted, not only pasted. A prompt `agent.prompt` accepted can still stand in
    the input box unsent, and a program at rest with words in its box looks exactly like one that finished,
    so without this look the turn would wait on a program that was never told anything. Submitted is the

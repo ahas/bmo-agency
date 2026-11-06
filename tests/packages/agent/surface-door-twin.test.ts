@@ -16,6 +16,7 @@ import { ExecutionStopped } from "@agency/agent/pane-process";
 import { installProviderSettings } from "@agency/agent/provider-order";
 import { readProgram, readRunning, residentCommand } from "@agency/agent/resident-pane";
 import { headCommand } from "@agency/agent/units";
+import { roundLead } from "@agency/agent/worker-pane";
 import { Archive } from "@agency/archive/archive";
 import { crateBinary } from "@agency/test-support/cargo";
 import { codeRoot } from "@agency/support/roots";
@@ -274,7 +275,7 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
       { mode: "registered", text: "done" },
       { mode: "registered", text: "done" },
     ]);
-    expect(seen.put.some((one) => one.method === "pane.send_text" && String(one.params.text).includes("The text pasted after this line is this round"))).toBe(true);
+    expect(seen.put.some((one) => one.method === "pane.send_text" && String(one.params.text).includes(roundLead))).toBe(true);
   }, 90_000);
 
   test("a turn that wrote the program's own error is that error", async () => {
