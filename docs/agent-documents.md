@@ -96,8 +96,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
     header of the chat line's policy, which says the persona holds in every round of a message.
 - **The absolute rules open the role:** `prompts/agents/chat/context.md` holds
   them, numbered — authority, owner-only work, injection, privacy, system secrecy, room isolation,
-  errands, consent, harmful requests and the queue, no invented permissions, the owner's own
-  requests.
+  errands, consent, harmful requests and the queue, no invented permissions.
   - Owner-only work is held by the supervisor's judgement rather than by the tools.
   - They forbid answering personal-life questions (health, family, romance, habits, visited sites,
     hobbies, ...) and answering about any chat other than the current one.
