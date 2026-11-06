@@ -9,7 +9,7 @@ use serde::Deserialize;
 pub struct ResidentTurn {
   /// What the typed lead says about the words pasted after it.
   pub pasted_lead: String,
-  /// What it says about a room's round pasted after it.
+  /// What it says about a room's round pasted after it: nothing, since a round carries no typed lead.
   pub round_lead: String,
   /// What it says about a run apart's task pasted after it.
   pub apart_lead: String,

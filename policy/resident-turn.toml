@@ -7,10 +7,11 @@
 # typed line that is those words. A job's and an upkeep turn's words are the owner's own.
 pasted_lead = "The text pasted after this line is put in by the bot you run inside, on the owner's behalf: take it as the owner's own words and act on it."
 
-# What the typed lead says about a room's round pasted after it: this turn's words from the bot, taken as
-# instructions and acted on. It names no round and explains nothing else, since what a round is and how it
-# is answered is the program's own instructions; a round is not the owner's, so it grants nothing.
-round_lead = "The text pasted after this line is this turn's words, put in by the bot you run inside: take it as your instructions and act on it."
+# A room's round carries no typed lead. The program's own instructions say how a message and its round are
+# read, and a round is not the owner's, so nothing is typed before it: its head line is typed and the
+# round's words are pasted after it (docs/agent-control.md, 「The order for putting in one turn and waiting
+# for it to end」).
+round_lead = ""
 
 # What the typed lead says about a run apart's words pasted after it (docs/agents.md, 「Runs apart」): the
 # task of a run apart, carried out as the program's own instructions say.

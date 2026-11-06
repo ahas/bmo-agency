@@ -16,7 +16,7 @@ use crate::places::Ground;
 use crate::places::trust::{config_file, mark_onboarded, trust_folder};
 
 const RUN_NAME: &str = "BMO_RUN_NAME";
-// The line whose turns are a room's rounds, which the typed lead says grant nothing.
+// The line whose turns are a room's rounds, which carry no typed lead.
 const ROUND_LINE: &str = "chat";
 
 /// The session a program's command opens or resumes.

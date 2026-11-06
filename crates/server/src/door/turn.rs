@@ -133,6 +133,8 @@ pub struct Turn {
   pub line: String,
   /// The provider the turn goes out on, for its execution row.
   pub provider: String,
+  /// What is typed before the words pasted after it: a job's and an upkeep turn's vouch for the words,
+  /// and a room's round names nothing, since its words are pasted behind the head line alone.
   pub lead: String,
   /// Whether the run trusts the directory it works in, which a caller says of its place.
   pub trusts_folder: bool,
@@ -1424,7 +1426,10 @@ async fn watch_turn<W: Watch>(
     let sent = if turn.prompt.starts_with('/') {
       prompt(door.herdr, pane, &turn.prompt).await
     } else if door.standing.is_some() {
-      let lead = format!("{} {}", run_header(&turn.name, &turn.title, prompted_at), turn.lead);
+      // A resident program's turn is typed behind the line naming the run. A round's lead is nothing, so
+      // the head line is the whole of what is typed before its words are pasted.
+      let header = run_header(&turn.name, &turn.title, prompted_at);
+      let lead = if turn.lead.is_empty() { header } else { format!("{header} {}", turn.lead) };
 
       prompt_with_lead(door.herdr, pane, &lead, &turn.prompt).await
     } else {

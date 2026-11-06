@@ -659,11 +659,12 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   conversation, which runs across many of them.
 - **Where a run starts.** The first line of every prompt the bot puts in names the run: its run
   name, what it is — the room, the job and its item, a keepalive — and the time it went in. On a
-  Claude Code program that line is the typed lead, followed by the words saying the paste after it
-  is this turn's words to be taken as instructions (「The order for putting in one turn and waiting
-  for it to end」). The
-  transcript holds it at the head of that turn, and the screen draws the whole prompt, first line
-  included, rather than a paste marker (measured, a 42-line prompt).
+  Claude Code program that line is typed with `pane.send_text`, and the turn's words are pasted after
+  it (「The order for putting in one turn and waiting for it to end」). A job's, an upkeep turn's and a
+  run apart's words are pasted behind a typed lead that vouches for them; a room's round is pasted
+  behind the head line alone, with no lead. The transcript holds it at the head of that turn, and the
+  screen draws the whole prompt, first line included, rather than a paste marker (measured, a 42-line
+  prompt).
 - **Where a run ends** is the program's own end of the turn on its screen, and the status line
   turning to rest. A run that spans more than one turn of the program — a word handed over after
   the model's last tool call opens a turn of its own — ends with the last of them: the end of a turn
@@ -1977,15 +1978,16 @@ The measured, fixed order.
      or after the moment the loop started it. Claude Code runs the status line once its prompt footer
      is drawn, about 200ms after `SessionStart` (measured over 34 starts). The wait goes on until that
      call is written.
-2. Put the prompt in as two pieces of one message: a lead line typed with `pane.send_text`, then the
-   prompt itself with `agent.prompt` — no `wait` object — which pastes it after the lead and submits both.
-   - **Why the lead.** Claude Code records whatever arrives by paste as pasted material, and on its
+2. Put the prompt in as two pieces of one message: the line typed with `pane.send_text`, then the
+   prompt itself with `agent.prompt` — no `wait` object — which pastes it after that line and submits both.
+   - **Why a lead at all.** Claude Code records whatever arrives by paste as pasted material, and on its
      default system prompt does not act on an instruction inside a paste unless the person's own words
      ask it to (measured: a job's prompt put in by paste alone was read and answered with a question
-     back). The lead is those words: it says the paste is this turn's words from the bot, and asks it be
-     taken as instructions. It explains nothing more, because what a round is and how it is answered
-     stand in the program's own instructions, and the lead is the shortest line that makes the paste
-     acted on at all.
+     back). A job's, an upkeep turn's and a run apart's words carry a typed lead that says whose they are
+     and asks that they be acted on. A room's round carries none: its typed line is the head line naming
+     the run, and the program's own instructions say how a round is read. Measured with the lead gone, a
+     round pasted behind the head line alone was still acted on: the program ran the shell command the
+     round gave and answered as it asked.
    - **Why the paste.** Typed text is cut: 37,548 characters sent with `pane.send_text` reached the
      program as their last 430 (measured). The same text pasted after a typed lead reached it whole,
      38,929 characters with the lead, and was acted on. A 10,582-character prompt pastes in about 415ms.
@@ -1993,16 +1995,15 @@ The measured, fixed order.
      stage's prompt makes that line hundreds of kilobytes. The socket takes about 214KB at once and
      keeps none of the rest, so the client writes the remainder each time the socket drains; herdr
      waits for the line's end and, left short, gives up with `timed out reading api request` while the
-     lead typed before it stands alone in the box (measured).
+     typed line before it stands alone in the box (measured).
    - Every word the bot puts into a Claude Code program goes in this way — a job's stop request and
      the words handed in mid-turn included — except a command of the program's own, such as the fold
      word, which is read as a command only when it stands alone.
    - **What the lead grants follows whose words they are.** A job's and an upkeep turn's lead says the
-     paste is the owner's own words. A room's round is not the owner's, so the chat's lead only says
-     the paste is this turn's words from the bot, to be taken as instructions, and grants nothing beyond
-     what the chat's own instructions give it. It names no round and carries no explanation of rounds,
-     questions or notes; those belong to the program's own instructions, so the typed line stops at
-     naming this turn's words and asking that they be acted on.
+     paste is the owner's own words. A run apart's lead says the paste is the run's task. A room's round
+     has no lead at all: a round is not the owner's, it grants nothing, and what a round is and how it is
+     answered stand in the program's own instructions. Nothing is typed before a round but the head line
+     naming the run.
 3. See that the prompt was submitted, not only pasted. A prompt `agent.prompt` accepted can still stand in
    the input box unsent, and a program at rest with words in its box looks exactly like one that finished,
    so without this look the turn would wait on a program that was never told anything. Submitted is the
@@ -2197,7 +2198,8 @@ altogether.
 - **A prompt refused twice is never a question.** The second refusal ends the round as `unsubmitted`
   — its words never became a turn — and never as waiting on a person: nothing on the screen asks
   anybody anything, and an item held for an answer nobody is asked for stays held. A resident
-  program is started again with its box empty on the way out, since the typed lead is still in it.
+  program is started again with its box empty on the way out, since the typed line — a lead, or a
+  round's head line — is still in it.
   The note on the run's log names what the call answered, so the cause is read there rather than
   guessed from the screen.
 - **One reset and one retry per round, never a loop.** The same wedge met again after the reset is the

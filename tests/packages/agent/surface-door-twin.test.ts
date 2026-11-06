@@ -16,7 +16,6 @@ import { ExecutionStopped } from "@agency/agent/pane-process";
 import { installProviderSettings } from "@agency/agent/provider-order";
 import { readProgram, readRunning, residentCommand } from "@agency/agent/resident-pane";
 import { headCommand } from "@agency/agent/units";
-import { roundLead } from "@agency/agent/worker-pane";
 import { Archive } from "@agency/archive/archive";
 import { crateBinary } from "@agency/test-support/cargo";
 import { codeRoot } from "@agency/support/roots";
@@ -259,7 +258,7 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
   const run = (staged: Staged, overrides: Partial<HarnessRun> = {}) => harnessRun({ model: "qwen-test", effort: "high", cwd: staged.cwd, ...overrides });
   const herdr = (): HerdrOptions => ({ projects: cliProjectsRoot(registered), answer: async () => [answerRecord({ text: "done", input: 5 })] });
 
-  test("a round opens a session of its own behind the round's lead, and a word goes on in the session the program stands on", async () => {
+  test("a round opens a session of its own behind the run's head line alone, and a word goes on in the session the program stands on", async () => {
     const continued = "5b1d5a1c-0000-4000-8000-0000000000e1";
     const seen = await twin(
       "road",
@@ -275,7 +274,13 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
       { mode: "registered", text: "done" },
       { mode: "registered", text: "done" },
     ]);
-    expect(seen.put.some((one) => one.method === "pane.send_text" && String(one.params.text).includes(roundLead))).toBe(true);
+    const roundTyped = seen.put
+      .filter((one) => one.method === "pane.send_text" && String(one.params.text).startsWith("[chat:20 ·"))
+      .map((one) => String(one.params.text));
+
+    expect(roundTyped).toHaveLength(1);
+    expect(roundTyped[0]).toBe("[chat:20 · a talk · <clock>] ");
+    expect(roundTyped[0]).not.toContain("The text pasted after this line");
   }, 90_000);
 
   test("a turn that wrote the program's own error is that error", async () => {

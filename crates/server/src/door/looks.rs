@@ -136,11 +136,15 @@ pub async fn send_keys(herdr: &Herdr, pane: &str, keys: &[&str]) -> Result<Value
 /// Words put into a Claude Code program as one message: the lead typed, then the words pasted after it
 /// and submitted with it. The program records what arrives by paste as pasted material and acts on an
 /// instruction inside it only where the person's own words ask it to, and typed text is cut once it is
-/// long, so the words go in pasted behind a typed line that vouches for them.
+/// long, so the words go in pasted behind a typed line that vouches for them. A round's lead is nothing,
+/// and its head line alone is typed before the paste.
 pub async fn prompt_with_lead(herdr: &Herdr, pane: &str, lead: &str, text: &str) -> Result<Value, Fault> {
-  herdr
-    .call("pane.send_text", json!({ "pane_id": pane, "text": format!("{lead} ") }), None)
-    .await?;
+  if !lead.is_empty() {
+    herdr
+      .call("pane.send_text", json!({ "pane_id": pane, "text": format!("{lead} ") }), None)
+      .await?;
+  }
+
   herdr.call("agent.prompt", json!({ "target": pane, "text": text }), None).await
 }
 

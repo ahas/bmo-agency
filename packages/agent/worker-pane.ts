@@ -144,16 +144,18 @@ export function runHeader(name: string, title: string, at: number): string {
 // person's own words ask it to; typed text is cut once it is long, so the words go in pasted behind a
 // typed line that is those words (docs/agent-control.md, 「The order for putting in one turn」).
 export const pastedLead: string = declaredTurn.pasted_lead;
-// What it says about a room's round pasted after it: a round grants nothing, and is answered as the
-// program's instructions for a round say.
+// What it says about a room's round pasted after it: nothing. The program's own instructions say how a
+// round is read, and a round grants nothing, so its head line alone is typed before the paste.
 export const roundLead: string = declaredTurn.round_lead;
 
 // Words put into a Claude Code program as one message: the lead typed, then the words pasted after it
-// and submitted with it.
+// and submitted with it. A round's lead is nothing, and its head line alone is typed before the paste.
 export async function promptWithLead(pane: string, lead: string, text: string, where: { socket?: string }): Promise<HerdrAnswer<unknown>> {
-  const typed = await herdrCall("pane.send_text", { pane_id: pane, text: `${lead} ` }, where);
+  if (lead !== "") {
+    const typed = await herdrCall("pane.send_text", { pane_id: pane, text: `${lead} ` }, where);
 
-  if (!typed.ok) return typed;
+    if (!typed.ok) return typed;
+  }
 
   return herdrCall("agent.prompt", { target: pane, text }, where);
 }
@@ -901,9 +903,14 @@ export async function runTurnInPane(options: {
       turnProgram = resident === null ? null : programAlive(resident.place);
       from = Math.max(from, lines(path).length);
       if (execution.resident !== undefined && execution.resident !== null) execution.resident.from = from;
+      const header = runHeader(options.name, options.title, promptedAt);
+      // A round's lead is nothing, so its typed line is the head line alone; any other turn's lead
+      // follows the head line where the program stands, and is the whole of the typed line where it does
+      // not.
+      const typed = resident === null ? lead : lead === "" ? header : `${header} ${lead}`;
       const sent = options.prompt.startsWith("/")
         ? await herdrCall("agent.prompt", { target: pane, text: options.prompt }, where)
-        : await promptWithLead(pane, resident === null ? lead : `${runHeader(options.name, options.title, promptedAt)} ${lead}`, options.prompt, where);
+        : await promptWithLead(pane, typed, options.prompt, where);
 
       if (!sent.ok) {
         // Nothing of the turn went in, and a program that will not take the words stands in a state
