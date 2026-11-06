@@ -106,6 +106,9 @@ pub struct ChatRun {
   /// Whether the run thinks: the deployment's own choice, or yes.
   pub thinking: bool,
   pub system_path: PathBuf,
+  /// The SHA-256 of the system prompt as composed, which the next turn compares against the one its session
+  /// was last sent with (docs/supervisors.md, 「A session in each room」).
+  pub system_hash: String,
   /// What the chat's system prompt was composed of, where the run is the chat's, so a road on another
   /// program composes it with that program's tools named; none for a run handed its prompt whole.
   pub system_parts: Option<SystemParts>,
@@ -646,6 +649,7 @@ pub async fn chat_run(
   };
   // Claude Code lists its own tools to the session, every one but the line's denied list.
   let system = parts.whole(&trees, &[CHAT_LINE.tools.listed.as_str()])?;
+  let system_hash = format!("{:x}", Sha256::digest(system.as_bytes()));
   let system_path = system_prompt_file(&trees, agent, &system)?;
   let mcp = mcp_config(ground, &trees, agent)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
@@ -678,6 +682,7 @@ pub async fn chat_run(
     reasoning,
     thinking,
     system_path,
+    system_hash,
     system_parts: Some(parts),
     room: launch.room.clone(),
     tools_shown: CHAT_LINE.tools.shown.clone(),
@@ -885,6 +890,7 @@ pub fn gate_run(
     },
     thinking,
     system_path,
+    system_hash: digest,
     system_parts: None,
     room: RoomContext {
       chat_id: 0,

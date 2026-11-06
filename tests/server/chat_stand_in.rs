@@ -22,6 +22,7 @@ use agency_server::supervisor_turn::run::NoAnswer;
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use sea_orm::DatabaseConnection;
+use sha2::{Digest, Sha256};
 
 use crate::support::scratch::Scratch;
 
@@ -50,7 +51,9 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     r#"{"mcpServers":{"bmo":{"type":"http","url":"http://127.0.0.1:3290/mcp/bmo","headers":{"Authorization":"Bearer ${BMO_MCP_TOKEN}"}}}}"#,
   )
   .unwrap();
-  std::fs::write(home.join("system.md"), "You are the supervisor.\n").unwrap();
+  let system = "You are the supervisor.\n";
+  std::fs::write(home.join("system.md"), system).unwrap();
+  let system_hash = format!("{:x}", Sha256::digest(system.as_bytes()));
 
   ChatRun {
     line: "chat",
@@ -61,6 +64,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     reasoning: Reasoning::default(),
     thinking: true,
     system_path: home.join("system.md"),
+    system_hash,
     system_parts: None,
     room: RoomContext {
       chat_id: -5,

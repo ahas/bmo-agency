@@ -19,6 +19,8 @@ pub struct Reasons {
   pub lost: String,
   /// A fresh session replacing the one the agent had.
   pub replaced: String,
+  /// The documents the session's prompt is composed from changed.
+  pub moved: String,
 }
 
 crate::part!(pub HANDOFF: Handoff = "handoff.toml");

@@ -326,8 +326,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   name; an empty or oversized text is refused 400. **A reset** takes no text and lets the file stand
   again.
 - **The chat line reads them afresh at every launch,** so a save reaches the next turn with no
-  restart, and a turn keeps its conversation under the changed system prompt as any change of it does
-  (`docs/agent-documents.md`, 「A supervisor of the window shape」).
+  restart; a save that changes the composed prompt hands the session over, as a changed document does
+  (`docs/supervisors.md`, 「A session in each room」).
 
 ### document-moves
 

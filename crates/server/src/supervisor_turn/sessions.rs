@@ -160,6 +160,36 @@ pub async fn mark_system(
   session_of(&row)
 }
 
+/// The hash of the system prompt the agent's one session across rooms was last sent with, or none where none
+/// was recorded.
+pub async fn agent_system_hash(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
+  Ok(
+    one(db, r#"SELECT "system_hash" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()])
+      .await?
+      .and_then(|row| row.try_get::<Option<String>>("", "system_hash").ok().flatten()),
+  )
+}
+
+/// The hash of the system prompt the agent's one session across rooms is sent with, kept on its row for the
+/// next turn to compare against.
+pub async fn mark_agent_system(db: &impl ConnectionTrait, agent: &str, hash: &str) -> Result<(), Refusal> {
+  run(
+    db,
+    r#"UPDATE "supervisors" SET "system_hash" = $2 WHERE "name" = $1"#,
+    vec![agent.into(), hash.into()],
+  )
+  .await
+  .map(drop)
+  .map_err(Refusal::from)
+}
+
+/// Whether a session the agent already had reads a prompt that moved: it holds a session, and the prompt
+/// composed for this turn is not the one its last turn was sent with. A session whose prompt was never
+/// recorded hands over once, since what it read cannot be known.
+pub fn prompt_moved(held: bool, recorded: Option<&str>, hash: &str) -> bool {
+  held && recorded != Some(hash)
+}
+
 /// What runs on the words not yet taken have spent so far, written as a run goes so a restart keeps it.
 pub async fn mark_spent(
   db: &DatabaseConnection,

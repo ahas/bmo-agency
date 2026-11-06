@@ -56,7 +56,7 @@ use crate::run_log::{RunLog, Target};
 use crate::session_output::{OutputWatch, Outputs};
 use crate::session_questions::Questions;
 use crate::supervisor_turn::guard::{Spent, spent_out};
-use crate::supervisor_turn::handoff::{Due, Speaker, hand_over};
+use crate::supervisor_turn::handoff::{Due, Speaker, Why, hand_over};
 use crate::supervisor_turn::overtaken;
 use crate::supervisor_turn::run::{NoAnswer, Reply, Tally, let_go, run_turn};
 use crate::supervisor_turn::sessions::{self, Harness, Kept, RoomSession, harness_road};
@@ -967,12 +967,13 @@ impl HerdrSessions {
     agent: &str,
     room: Option<i64>,
     resuming: bool,
+    kept: bool,
     reason: &str,
   ) {
     let ground = self.ground();
     let standing = crate::lines::place::Place::of(&ground.roots.data, agent).program_alive().is_some();
 
-    if !crate::handoff::replaces(false, resuming, standing) {
+    if !crate::handoff::replaces(kept, resuming, standing) {
       return;
     }
 
@@ -1064,21 +1065,53 @@ impl HerdrSessions {
     }
 
     let hash = format!("{:x}", Sha256::digest(system.as_bytes()));
+    let moved = sessions::prompt_moved(session.harness.is_some(), session.system_hash.as_deref(), &hash);
+
+    drop(keeping);
+
+    if moved {
+      // The documents the session's prompt is composed from moved: the old session writes its handoff note
+      // in one more turn, and the turn below answers on the generation that opens with it, composed afresh
+      // from the new documents (docs/supervisors.md, 「A session in each room」).
+      let due = Due {
+        provider,
+        model: model.clone(),
+        system: system.clone(),
+        generation: generation_of(&settings),
+        session: session.harness.as_ref().map(|harness| harness.id.clone()).unwrap_or_default(),
+        placement: session.harness.as_ref().and_then(|harness| harness.placement.clone()),
+        ratio: 1.0,
+        why: Why::Documents,
+      };
+
+      hand_over(ground, hold, &pinned.speaker, chat_id, due).await;
+      session = sessions::session(&db, agent, chat_id)
+        .await
+        .map_err(store_fault)?
+        .ok_or_else(|| fault(FaultKind::Unknown, "the room session to hand over is gone"))?;
+
+      // A handoff that wrote nothing leaves the old generation in place; the turn still opens on a fresh
+      // one, so it reads the documents that moved.
+      if session.harness.is_some() {
+        session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
+      }
+    }
+
+    let changed =
+      moved || (session.system_hash.is_some() && session.system_hash.as_deref() != Some(hash.as_str()));
 
     if session.system_hash.as_deref() != Some(hash.as_str()) {
-      let changed = session.system_hash.is_some();
-
       session = sessions::mark_system(&db, agent, chat_id, &hash).await.map_err(store_fault)?;
+    }
 
-      if changed {
-        log.write(&db, Line::note(SUPERVISOR_RUNNER.log.system_changed.clone())).await;
+    if changed {
+      log.write(&db, Line::note(SUPERVISOR_RUNNER.log.system_changed.clone())).await;
 
-        if let Some(session) = id_of(agent, &Scope::Room(chat_id.to_string())) {
-          ground.events.publish(SystemPromptChanged {
-            session: session.0,
-            run: run.to_owned(),
-          });
-        }
+      if let Some(session) = id_of(agent, &Scope::Room(chat_id.to_string())) {
+        ground.events.publish(SystemPromptChanged {
+          session: session.0,
+          run: run.to_owned(),
+        });
       }
     }
 
@@ -1090,14 +1123,22 @@ impl HerdrSessions {
     };
     let generation = generation_of(&settings);
 
-    drop(keeping);
-
     let started = Instant::now();
 
-    // A fresh generation in place of one the supervisor's program still stands on asks for its handoff first.
-    self
-      .handed_off(&mut log, agent, Some(chat_id), session.harness.is_some(), &HANDOFF.reasons.replaced)
-      .await;
+    // A fresh generation in place of one the supervisor's program still stands on asks for its handoff first;
+    // a prompt that moved already wrote one above.
+    if !moved {
+      self
+        .handed_off(
+          &mut log,
+          agent,
+          Some(chat_id),
+          session.harness.is_some(),
+          false,
+          &HANDOFF.reasons.replaced,
+        )
+        .await;
+    }
 
     let mut asked = self
       .room_run(
@@ -1123,7 +1164,9 @@ impl HerdrSessions {
       && lost_session(said)
     {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
-      self.handed_off(&mut log, agent, Some(chat_id), false, &HANDOFF.reasons.lost).await;
+      self
+        .handed_off(&mut log, agent, Some(chat_id), false, false, &HANDOFF.reasons.lost)
+        .await;
       asked = self
         .room_run(
           &mut log,
@@ -1238,6 +1281,7 @@ impl HerdrSessions {
         session: reply.session_id.clone(),
         placement,
         ratio,
+        why: Why::Limit,
       };
       let (ground, hold, speaker) = (self.places.ground.clone(), hold.clone(), pinned.speaker);
 
@@ -1393,7 +1437,7 @@ impl HerdrSessions {
     // The agent's key walked first: a stand-in that answers carries the turn, and Claude Code's session
     // stays as it stands for its next turn. The run is the chat line's; the fallback walk and roads are
     // the one mechanism every line crosses over on (docs/cache-fallback.md).
-    let line_run = match crate::lines::chat::chat_run(
+    let mut line_run = match crate::lines::chat::chat_run(
       ground,
       &ground.machine(),
       &launch_of(agent, room, context, stand_in_resume),
@@ -1405,6 +1449,32 @@ impl HerdrSessions {
       Ok(line_run) => line_run,
       Err(why) => return Ok(Came::Failed(why.detail, None)),
     };
+    let hash = line_run.system_hash.clone();
+    let recorded = sessions::agent_system_hash(&db, agent).await.map_err(store_fault)?;
+    let moved = sessions::prompt_moved(held.is_some(), recorded.as_deref(), &hash);
+
+    if moved {
+      // The documents the prompt is composed from moved under a session the agent already had: the standing
+      // program read the old prompt, so the session is let go and asked for its handoff, and this answer goes
+      // out on a fresh session composed from the new documents (docs/supervisors.md, 「A session in each
+      // room」).
+      keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+      held = None;
+      line_run.resume = None;
+      log.write(&db, Line::note(SUPERVISOR_RUNNER.log.system_changed.clone())).await;
+
+      if let Some(session) = id_of(agent, &Scope::Agent) {
+        ground.events.publish(SystemPromptChanged {
+          session: session.0,
+          run: run.to_owned(),
+        });
+      }
+
+      self.handed_off(&mut log, agent, None, false, true, &HANDOFF.reasons.moved).await;
+    }
+
+    sessions::mark_agent_system(&db, agent, &hash).await.map_err(store_fault)?;
+
     let stood_in =
       stand_in_turn(ground, &mut log, &line_run, agent, &context.answers, began, Some(shown)).await;
     let on_claude = matches!(stood_in, Ok(None));
@@ -1413,7 +1483,11 @@ impl HerdrSessions {
       Err(no) => Err(no),
       Ok(None) => {
         // A fresh session in place of one the agent's program still stands on asks for its handoff first.
-        self.handed_off(&mut log, agent, None, held.is_some(), &HANDOFF.reasons.replaced).await;
+        if !moved {
+          self
+            .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
+            .await;
+        }
 
         let mut asked =
           self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
@@ -1423,7 +1497,7 @@ impl HerdrSessions {
           && lost_session(said)
         {
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
-          self.handed_off(&mut log, agent, None, false, &HANDOFF.reasons.lost).await;
+          self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
           asked = self
             .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
             .await;
@@ -2907,6 +2981,7 @@ impl Sessions for HerdrSessions {
           session: harness.id,
           placement: harness.placement,
           ratio: 1.0,
+          why: Why::Limit,
         };
 
         hand_over(ground, &self.places.kept.reset, &pinned.speaker, chat_id, due).await;
