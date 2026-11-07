@@ -20,13 +20,6 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   and `git log --oneline -<n>` before any log; bound a read whose size you cannot say in advance
   (`head`, `-m`) rather than finding out by receiving it; and never chain reads into one command —
   such compounds are the largest answers a job's session receives.
-- **A change is checked with one call, `bmo check`,** both while it is written and when
-  its touched tests are run: the quick checks (`bmo check quick` runs them alone), the static steps
-  the change reaches, `cargo check` on the crates it marks and the tests it touches, every step run to
-  its end, the whole output in one log and a line per step printed with what failed. It reads the
-  change since the branch left the main branch, the working tree and untracked files with it, unless
-  `--since` or the files given say otherwise. It is waited on until it ends, and read its log only
-  where what it printed does not say enough. The whole suite stays the close's.
 - **What would fill your session with what you do not need goes to one `scout`** through the Agent
   tool: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
   open. A log is read first through what `bmo check` printed or `bmo test log`,

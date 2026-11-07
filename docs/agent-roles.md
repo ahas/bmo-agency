@@ -144,10 +144,12 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   worker line.
 - **Its line is the worker line,** and its prompt, seeded from `prompts/roles/coder.md`, stands first in
   every run after the harness opening, before the line's standing rules and the repository's own.
-- **Its coding skills are the worker line's:** `ahas-code-design-patterns` first where a structure is under
-  question, `ahas-code-refactoring` second, `ahas-code-clean` third and last, `ahas-code-test-writing`
-  before a test is written or changed, `ahas-docs-git` and `bmo-docs-conventions` for the documents and the
-  commit, and `ahas-ux-design-rules` for a screen. Its prompt names them.
+- **Its coding skills are its own bundle's,** the `coder` bundle placed at `prompts/agents/coder/plugin/`:
+  `ahas-code-design-patterns` first where a structure is under question, `ahas-code-refactoring` second,
+  `ahas-code-clean` third and last, `ahas-code-test-writing` before a test is written or changed,
+  `ahas-docs-git` and `bmo-docs-conventions` for the documents and the commit, and `ahas-ux-design-rules`
+  for a screen. Its prompt names them; the worker's run carries the `worker` bundle, which holds none of
+  them.
 - **Its bundles are the worker's:** `graph.read`, `queue.read` and `web.read`.
 - **Its order is seeded empty,** so a run of it a supervisor asks goes out on that supervisor's own provider,
   model and effort until the owner sets an order on the row. No provider order is declared for it, and every
