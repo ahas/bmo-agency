@@ -597,7 +597,8 @@ fn the_role_says_nothing_the_opening_says_and_nothing_no_longer_true() {
   let turn = section(&system, "THE TURN AND THE ROOM");
   for said in [
     "a room's round carries a room's words",
-    "it ends with the process's last answer",
+    "it ends with the process's answer",
+    "<<SEND>> from any round that may send",
     "\"Quiet instruction from the system\" block, closed by END OF QUIET INSTRUCTION",
     "It ends once carried out",
     "A line the owner types into your pane",
