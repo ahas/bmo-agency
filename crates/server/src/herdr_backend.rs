@@ -33,6 +33,7 @@ use policy::fill_marks;
 use policy::gate_places::GATE_PLACES;
 use policy::handoff::HANDOFF;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
+use sea_orm::TransactionTrait;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -263,17 +264,28 @@ pub async fn keep_agent_session(
   agent: &str,
   kept: Option<(&str, i64)>,
 ) -> Result<(), Refusal> {
+  let let_go = kept.is_none();
   let (session, chat_id) =
     kept.map_or((None, None), |(session, chat_id)| (Some(session.to_owned()), Some(chat_id)));
+  let transaction = db.begin().await?;
 
   written(
-    db,
+    &transaction,
     r#"UPDATE "supervisors" SET "session_id" = $2, "chat_id" = COALESCE($3, "chat_id") WHERE "name" = $1"#,
     vec![agent.into(), session.into(), chat_id.into()],
   )
   .await
-  .map(|_| ())
-  .map_err(Refusal::from)
+  .map(drop)
+  .map_err(Refusal::from)?;
+
+  // A session let go takes nothing it had loaded into the one that replaces it.
+  if let_go {
+    sessions::forget_loads(&transaction, agent).await?;
+  }
+
+  transaction.commit().await?;
+
+  Ok(())
 }
 
 /// The session contract over herdr, on the places the server stands.

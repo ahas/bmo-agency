@@ -38,6 +38,19 @@ pub fn harness_road(provider: &str, model: &str) -> String {
   format!("{provider}::{model}")
 }
 
+/// The id a supervisor's session in a room goes by to the receiver.
+pub fn room_session_id(agent: &str, chat_id: i64) -> String {
+  format!("{agent}@{chat_id}")
+}
+
+/// Forget the documents a session had loaded: a generation that opens reads nothing of the one it replaces.
+pub async fn forget_loads(db: &impl ConnectionTrait, session: &str) -> Result<(), Refusal> {
+  run(db, r#"DELETE FROM "session_loads" WHERE "session_id" = $1"#, vec![session.into()])
+    .await
+    .map(drop)
+    .map_err(Refusal::from)
+}
+
 fn session_of(row: &QueryResult) -> Result<RoomSession, Refusal> {
   let id: Option<String> = row.try_get("", "harness_session")?;
   let road: Option<String> = row.try_get("", "harness_road")?;
@@ -102,8 +115,9 @@ pub async fn open_generation(
   agent: &str,
   chat_id: i64,
 ) -> Result<RoomSession, Refusal> {
+  let transaction = db.begin().await?;
   let row = one(
-    db,
+    &transaction,
     "INSERT INTO room_sessions (agent, chat_id, generation, opened_at) VALUES ($1, $2, 1, $3)
      ON CONFLICT (agent, chat_id) DO UPDATE SET generation = room_sessions.generation + 1, opened_at = excluded.opened_at,
        harness_session = NULL, harness_road = NULL, placement = NULL, handoff_note = NULL,
@@ -113,6 +127,9 @@ pub async fn open_generation(
   )
   .await?
   .ok_or_else(|| fault("the room session was not written"))?;
+
+  forget_loads(&transaction, &room_session_id(agent, chat_id)).await?;
+  transaction.commit().await?;
 
   session_of(&row)
 }
@@ -125,8 +142,9 @@ pub async fn hand_over(
   chat_id: i64,
   note: &str,
 ) -> Result<RoomSession, Refusal> {
+  let transaction = db.begin().await?;
   let row = one(
-    db,
+    &transaction,
     "UPDATE room_sessions SET generation = generation + 1, opened_at = $1, harness_session = NULL,
        harness_road = NULL, placement = NULL, handoff_note = $2, spent_calls = 0, spent_ms = 0
      WHERE agent = $3 AND chat_id = $4 RETURNING *",
@@ -134,6 +152,9 @@ pub async fn hand_over(
   )
   .await?
   .ok_or_else(|| fault("the room session to hand over is gone"))?;
+
+  forget_loads(&transaction, &room_session_id(agent, chat_id)).await?;
+  transaction.commit().await?;
 
   session_of(&row)
 }

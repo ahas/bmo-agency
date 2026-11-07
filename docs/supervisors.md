@@ -208,6 +208,12 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     its registration no longer has;
   - the held one no longer there to resume: its program keeps no record of it, which the turn says in
     the program's own words before anything is stood. That turn is asked again once on a fresh session.
+- **A generation that opens holds nothing read.** The documents the ended session had loaded are
+  forgotten as the new generation opens, before its first turn is composed. They stand under the session
+  id the receiver names the session by: the agent's name where one session serves every room, and
+  `<agent>@<room>` where the room keeps its own. A session that goes on in the one it held keeps what it
+  loaded — a plain turn, a return to another room by the one session across rooms, and the same session
+  resumed after agency's own restart or a deployment.
 - **What each turn was given and how it answered is kept,** generation by generation, in the room
   session turns table: the user turn exactly as it went out and the answer as the run wrote it. The
   follow pane and the console read it; no run is built from it.
