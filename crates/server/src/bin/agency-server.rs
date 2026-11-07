@@ -169,7 +169,7 @@ async fn serve(args: Args) -> Result<(), String> {
 
   // A role session is held in memory from its start to its end, so none of the process before stands: every
   // lease bound to one is given back as ended with it (docs/role-slots.md, 「The line」).
-  match agency_server::order_run::dispatch::release_every_session(&ground.db).await {
+  match agency_server::order_run::dispatch::release_every_session(&ground.db, &ground.events).await {
     Ok(0) => {}
     Ok(released) => {
       println!("agency: {released} slot leases bound to the role sessions of the process before given back")
@@ -180,6 +180,7 @@ async fn serve(args: Args) -> Result<(), String> {
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
+    ground.events.clone(),
     agency_server::queue::running::Running::new(ground.db.clone(), &ground.machine(), watch.clone()),
   ));
 
@@ -235,7 +236,7 @@ fn clocks(ground: &Arc<Ground>) {
     })
     .await
   });
-  tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
+  tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone(), ground.events.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_card_demands(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));

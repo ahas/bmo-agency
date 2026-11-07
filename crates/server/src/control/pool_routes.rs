@@ -11,7 +11,6 @@ use axum::response::{IntoResponse, Response};
 use bmo_chat::{ErrorCode, WireError};
 use policy::roles::ROLES;
 use serde_json::{Value, json};
-use store::run;
 
 use super::{Call, Refused, Route, answer, whole};
 use crate::agent_roles;
@@ -165,7 +164,7 @@ impl Route for SlotAsk {
       title: optional(&body, "title"),
       asked_by,
     };
-    let request = dispatch::enqueue(call.store(), &asked, source, async |_, _| Ok(()))
+    let request = dispatch::enqueue(call.store(), call.events(), &asked, source, async |_, _| Ok(()))
       .await
       .map_err(refused)?;
 
@@ -193,7 +192,8 @@ impl Route for SlotMove {
     match body.get("state").and_then(Value::as_str) {
       Some("bound") => {
         let child = text(&body, "childId")?;
-        let mut bound = bind(call.store(), &held, child).await.map_err(refused)?;
+        let agent = optional(&body, "agentName");
+        let mut bound = bind(call.store(), call.events(), &held, child, agent).await.map_err(refused)?;
 
         // A child naming a role session agency holds binds the lease to that session, which it ends with.
         let holds_session = match call.sessions() {
@@ -206,24 +206,13 @@ impl Route for SlotMove {
           bound.session = Some(child.to_owned());
         }
 
-        // The run the slot's child is, kept where the binding names it.
-        if let Some(agent) = optional(&body, "agentName") {
-          run(
-            call.store(),
-            r#"UPDATE "role_slot_requests" SET "agent" = $1 WHERE "token" = $2"#,
-            vec![agent.into(), token.clone().into()],
-          )
-          .await?;
-          bound.agent_name = Some(agent.to_owned());
-        }
-
         Ok(answer(StatusCode::OK, shown(bound)?))
       }
       Some("finished") => {
         let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
         let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
         let session = bound_session(&held).filter(|_| held.state == "active");
-        let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
+        let held = finish(call.store(), call.events(), &token, outcome, cancel).await.map_err(refused)?;
 
         // The role session the lease was bound to ends with it, a turn running in it cut first; the
         // ending is carried on after the answer.
@@ -311,7 +300,7 @@ impl Route for SlotReserve {
         .and_then(whole)
         .ok_or_else(|| bad("count (a whole number) is required"))?,
     };
-    let reservation = dispatch::reserve(call.store(), &seats).await.map_err(refused)?;
+    let reservation = dispatch::reserve(call.store(), call.events(), &seats).await.map_err(refused)?;
     let slots = dispatch::seats(call.store(), &reservation.token).await.map_err(refused)?;
 
     Ok(answer(
@@ -334,7 +323,9 @@ impl Route for SlotReservationRelease {
     let body = call.body().await?;
     let token = call.param("token").unwrap_or_default().to_owned();
     let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
-    let held = release_reservation(call.store(), &token, outcome).await.map_err(refused)?;
+    let held = release_reservation(call.store(), call.events(), &token, outcome)
+      .await
+      .map_err(refused)?;
 
     Ok(answer(StatusCode::OK, json!({ "held": held })))
   }
@@ -396,7 +387,7 @@ impl Route for SlotOwnerRelease {
       .map(|owner| owner.trim().to_owned())
       .filter(|owner| !owner.is_empty())
       .ok_or_else(|| bad("owner is required"))?;
-    let done = dispatch::release_owner(call.store(), &owner).await.map_err(refused)?;
+    let done = dispatch::release_owner(call.store(), call.events(), &owner).await.map_err(refused)?;
     let ending = end_bound(call.sessions(), done.sessions.clone(), &owner);
 
     Ok(answer(

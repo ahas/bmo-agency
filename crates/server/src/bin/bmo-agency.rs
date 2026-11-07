@@ -679,7 +679,7 @@ async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Ans
   let Some(caller) = coworker_pool::hook_caller(parent) else {
     return Err(failed("the CLI this command was run from could not be identified"));
   };
-  let db = agency_server::verbs::store(data_root).await?;
+  let service = agency_server::verbs::service(data_root).await?;
 
   match action.as_deref() {
     Some("reserve") => {
@@ -698,9 +698,13 @@ async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Ans
         return Err(failed("reserve needs --role <role> and --count <n>"));
       };
 
-      coworker_pool::reserve(&db, &caller, &role, count).await.map(Answer::from)
+      coworker_pool::reserve(&service.db, &service.events, &caller, &role, count)
+        .await
+        .map(Answer::from)
     }
-    Some("release") => coworker_pool::release(&db, &caller).await.map(Answer::from),
+    Some("release") => {
+      coworker_pool::release(&service.db, &service.events, &caller).await.map(Answer::from)
+    }
     _ => Err(failed(coworker_pool::USAGE)),
   }
 }

@@ -1041,7 +1041,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     eprintln!("job {id}: its end was not written: {why}");
   }
 
-  crate::job_end::slot_given_back(&ground.db, id, &ending(&state, outcome.as_deref())).await;
+  crate::job_end::slot_given_back(&ground.db, &ground.events, id, &ending(&state, outcome.as_deref()))
+    .await;
 
   if let Ok((member, _)) = job(&ground.db, id).await {
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
@@ -1172,8 +1173,13 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
     }
 
     noted(ground, id, "stopped", Some("the agency process that ran it went away (a restart)")).await;
-    crate::job_end::slot_given_back(&ground.db, id, "stopped: the agency process that ran it went away")
-      .await;
+    crate::job_end::slot_given_back(
+      &ground.db,
+      &ground.events,
+      id,
+      "stopped: the agency process that ran it went away",
+    )
+    .await;
 
     if let Some(assignment) = row.try_get::<Option<i64>>("", "assignment_id").ok().flatten()
       && assignment > 0
@@ -1745,12 +1751,13 @@ impl OnSession<'_> {
       title: Some(self.title),
       ..dispatch::Asked::default()
     };
-    let mut held = dispatch::enqueue(&ground.db, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
+    let mut held =
+      dispatch::enqueue(&ground.db, &ground.events, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
     let mut told = false;
 
     loop {
       if let Some(let_in) = dispatch::acquire(ground, &held).await? {
-        return Ok(Some(dispatch::bind(&ground.db, &let_in, self.name).await?));
+        return Ok(Some(dispatch::bind(&ground.db, &ground.events, &let_in, self.name, None).await?));
       }
 
       // Not let in at its first ask: the wait is told to the item's orderer once.
@@ -1760,7 +1767,8 @@ impl OnSession<'_> {
       }
 
       if called_off(ground, id).await {
-        dispatch::finish(&ground.db, &held.token, "cancelled: the job was stopped", true).await?;
+        dispatch::finish(&ground.db, &ground.events, &held.token, "cancelled: the job was stopped", true)
+          .await?;
 
         return Ok(None);
       }
@@ -1792,7 +1800,7 @@ impl Carrier for OnSession<'_> {
       Err(why) => format!("failed: {why}"),
     };
 
-    if let Err(why) = dispatch::finish(&ground.db, &lease.token, &outcome, false).await {
+    if let Err(why) = dispatch::finish(&ground.db, &ground.events, &lease.token, &outcome, false).await {
       eprintln!("job {id}: its slot was not given back: {why}");
     }
 
@@ -2220,7 +2228,7 @@ pub async fn stop_job(
     vec![reason.into(), now.into(), id.into()],
   )
   .await?;
-  crate::job_end::slot_given_back(db, id, &format!("stopped: {reason}")).await;
+  crate::job_end::slot_given_back(db, &ground.events, id, &format!("stopped: {reason}")).await;
   release(db, member["assignmentId"].as_i64().unwrap_or_default()).await?;
 
   if let Some(name) = &run_name {
@@ -2337,7 +2345,7 @@ impl Route for ChangeJob {
       vec![wanted.into(), outcome.clone().into(), report.into(), now.into(), id.into()],
     )
     .await?;
-    crate::job_end::slot_given_back(db, id, &ending(wanted, outcome.as_deref())).await;
+    crate::job_end::slot_given_back(db, call.events(), id, &ending(wanted, outcome.as_deref())).await;
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
 
     if let Err(why) = release(db, assignment_id).await {

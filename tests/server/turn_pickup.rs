@@ -1168,7 +1168,7 @@ async fn every_pass(ground: &Ground) {
   reap_stale(ground).await.unwrap();
   agency_server::run_sweep::pass(ground).await.unwrap();
   agency_server::job_leases::pass(&ground.db, ground.vars()).await.unwrap();
-  dispatch::reclaim_bound(&ground.db, &running).await.unwrap();
+  dispatch::reclaim_bound(&ground.db, &ground.events, &running).await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]

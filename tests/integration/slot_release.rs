@@ -64,7 +64,9 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
     },
     ..Asked::default()
   };
-  let held = dispatch::enqueue(&line.db, &asked, "search", async |_, _| Ok(())).await.unwrap();
+  let held = dispatch::enqueue(&line.db, &line.events, &asked, "search", async |_, _| Ok(()))
+    .await
+    .unwrap();
   let held = dispatch::acquire(&line, &held).await.unwrap().expect("let in");
 
   // The sessions, over a herdr of the test's own.
@@ -102,7 +104,9 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
     .await
     .unwrap();
 
-  dispatch::bind_session(&line.db, &held.token, &started.id.0).await.unwrap();
+  dispatch::bind_session(&line.db, &line.events, &held.token, &started.id.0)
+    .await
+    .unwrap();
 
   // A round's turn running in it.
   let turn = Turn {
@@ -135,7 +139,7 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
   );
 
   // The owner gives back what it holds: the lease at once, as the owner's, and the session bound to it named.
-  let done = dispatch::release_owner(&line.db, "research:9").await.unwrap();
+  let done = dispatch::release_owner(&line.db, &line.events, "research:9").await.unwrap();
   let given = dispatch::request(&line.db, &held.token).await.unwrap().unwrap();
 
   assert_eq!(done.sessions, vec![started.id.0.clone()]);

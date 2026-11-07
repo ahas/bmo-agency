@@ -678,7 +678,7 @@ impl Route for SessionStart {
         // The slot the start names is bound to the session it opened, where it is bound to nothing yet, so
         // the lease ends with the session (docs/role-slots.md, 「The line」).
         if let Some(token) = slot_named(&body) {
-          crate::order_run::dispatch::bind_session(call.store(), &token, &session.id.0)
+          crate::order_run::dispatch::bind_session(call.store(), call.events(), &token, &session.id.0)
             .await
             .map_err(Refused::failed)?;
         }

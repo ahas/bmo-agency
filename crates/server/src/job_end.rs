@@ -58,11 +58,11 @@ pub(crate) fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option
 /// a slot of its role; a request its holder already gave back is left as it stands, and a store that would
 /// not take it is said and never fails the end. The job's own session is started for each turn and ended with
 /// it, so no role session is left for this release to end.
-pub async fn slot_given_back(db: &DatabaseConnection, id: i64, why: &str) {
+pub async fn slot_given_back(db: &DatabaseConnection, events: &crate::events::Bus, id: i64, why: &str) {
   let owner = format!("{}{id}", dispatch::JOB_OWNER);
   let why: String = format!("its job ended: {}", why.trim()).chars().take(REASON_CHARS).collect();
 
-  match dispatch::release_owner_for(db, &owner, &why).await {
+  match dispatch::release_owner_for(db, events, &owner, &why).await {
     Ok(done) if done.released + done.cancelled + done.reservations > 0 => {
       println!(
         "job {id}: its slot given back with its end: {} let in, {} waiting, {} reservations",

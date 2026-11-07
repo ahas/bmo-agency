@@ -174,6 +174,7 @@ mod seeds;
 mod session_output;
 mod session_questions;
 mod session_tools;
+mod slot_events;
 mod translate;
 mod turn_pickup;
 mod turn_pickup_clocks;

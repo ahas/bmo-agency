@@ -446,7 +446,11 @@ impl Route for RoleChange {
     )
     .await?;
 
-    dispatch::promote_role(call.store(), &name, now_ms()).await.map_err(Refused::failed)?;
+    let promoted = dispatch::promote_role(call.store(), &name, now_ms()).await.map_err(Refused::failed)?;
+
+    for request in &promoted {
+      dispatch::announce(call.events(), request);
+    }
 
     let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
 

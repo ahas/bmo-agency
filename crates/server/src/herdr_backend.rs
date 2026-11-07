@@ -3088,6 +3088,7 @@ impl Sessions for HerdrSessions {
         // A lease bound to the session ends with it (docs/role-slots.md, 「The line」).
         if let Err(why) = crate::order_run::dispatch::release_sessions(
           &ground.db,
+          &ground.events,
           std::slice::from_ref(&session.0),
           "its role session ended",
         )

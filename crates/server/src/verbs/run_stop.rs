@@ -254,7 +254,7 @@ async fn stop_job(ground: &Ground, job: &JobRow, why: &str) -> Result<bool, Verb
     vec![now_ms().into(), job.id.into()],
   )
   .await?;
-  crate::job_end::slot_given_back(&ground.db, job.id, &format!("stopped: {why}")).await;
+  crate::job_end::slot_given_back(&ground.db, &ground.events, job.id, &format!("stopped: {why}")).await;
 
   Ok(!stopped)
 }

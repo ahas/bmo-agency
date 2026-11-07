@@ -16,6 +16,7 @@ use super::VerbError;
 use crate::agent_roles::{self, AgentRole};
 use crate::control::harness::named;
 use crate::control::pool::NATIVE_PROVIDER;
+use crate::events::Bus;
 use crate::now_ms;
 use crate::order::Entry;
 use crate::order_run::dispatch::{
@@ -251,6 +252,7 @@ pub enum Admission {
 /// once it stands, so a stopped hook can end it.
 pub async fn admit(
   db: &DatabaseConnection,
+  events: &Bus,
   input: &HookInput,
   on: Option<&str>,
   waiter: &ProcessMark,
@@ -299,7 +301,7 @@ pub async fn admit(
     }
   };
 
-  reclaim_native(db).await?;
+  reclaim_native(db, events).await?;
 
   // A call of a CLI that reserved this role is counted under that reservation's owner, which is what lets it
   // take a held slot instead of waiting in the line.
@@ -319,7 +321,7 @@ pub async fn admit(
   };
   let role = role.name.as_str();
   let row = (session.clone(), tool_use_id.clone(), waiter.clone(), owner.clone());
-  let held = match dispatch::enqueue(db, &asked, NATIVE, async move |unit, held| {
+  let held = match dispatch::enqueue(db, events, &asked, NATIVE, async move |unit, held| {
     run(
       unit,
       r#"INSERT INTO "role_slot_native" ("token","session","tool_use_id","waiter_pid","waiter_start","owner_pid","owner_start")
@@ -353,10 +355,10 @@ pub async fn admit(
       return Ok(ended(role));
     };
 
-    if acquire_inside(db, &current).await?.is_some() {
+    if acquire_inside(db, events, &current).await?.is_some() {
       let admitted = request(db, &held.token).await?.ok_or("the slot request let in is gone")?;
 
-      bind(db, &admitted, tool_use_id).await?;
+      bind(db, events, &admitted, tool_use_id, None).await?;
 
       return Ok(Admission::Allowed { token: held.token });
     }
@@ -366,7 +368,7 @@ pub async fn admit(
     }
 
     if reclaimed.elapsed() >= RECLAIM_EVERY {
-      reclaim_native(db).await?;
+      reclaim_native(db, events).await?;
       reclaimed = tokio::time::Instant::now();
     }
 
@@ -381,8 +383,10 @@ fn ended(role: &str) -> Admission {
 }
 
 /// A waiting request whose hook is being stopped, ended so it never stands at the head of its line.
-pub async fn cancel(db: &DatabaseConnection, token: &str) -> Result<(), String> {
-  finish(db, token, "native call's waiting hook was stopped", true).await.map(drop)
+pub async fn cancel(db: &DatabaseConnection, events: &Bus, token: &str) -> Result<(), String> {
+  finish(db, events, token, "native call's waiting hook was stopped", true)
+    .await
+    .map(drop)
 }
 
 async fn token_of(
@@ -404,7 +408,7 @@ async fn token_of(
 
 /// The place a call held given back once the call returned, failed or its background child stopped; a call
 /// that went on as a background child keeps its place until that child stops.
-pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(), String> {
+pub async fn give_back(db: &DatabaseConnection, events: &Bus, input: &HookInput) -> Result<(), String> {
   match input {
     HookInput::Pre { .. } => Err("a call about to be made gives nothing back".into()),
     HookInput::Post {
@@ -437,13 +441,13 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
         }
       }
 
-      finish(db, &token, "native call returned", false).await.map(drop)
+      finish(db, events, &token, "native call returned", false).await.map(drop)
     }
     HookInput::Failure {
       session,
       tool_use_id,
     } => match token_of(db, session, tool_use_id).await? {
-      Some(token) => finish(db, &token, "native call failed", false).await.map(drop),
+      Some(token) => finish(db, events, &token, "native call failed", false).await.map(drop),
       None => Ok(()),
     },
     HookInput::Stop { agent_id } => {
@@ -458,7 +462,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
       if let Some(row) = row {
         let token: String = row.try_get("", "token").map_err(|why| why.to_string())?;
 
-        return finish(db, &token, "native co-worker stopped", false).await.map(drop);
+        return finish(db, events, &token, "native co-worker stopped", false).await.map(drop);
       }
 
       run(
@@ -477,6 +481,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
 /// held and how many still wait.
 pub async fn reserve(
   db: &DatabaseConnection,
+  events: &Bus,
   owner: &ProcessMark,
   role: &str,
   count: i64,
@@ -501,7 +506,7 @@ pub async fn reserve(
     role,
     count,
   };
-  let held = dispatch::reserve(db, &seats).await.map_err(failed)?;
+  let held = dispatch::reserve(db, events, &seats).await.map_err(failed)?;
 
   run(
     db,
@@ -533,7 +538,11 @@ pub async fn reserve(
 }
 
 /// Every reservation one CLI holds given back; the line saying how many.
-pub async fn release(db: &DatabaseConnection, owner: &ProcessMark) -> Result<Vec<String>, VerbError> {
+pub async fn release(
+  db: &DatabaseConnection,
+  events: &Bus,
+  owner: &ProcessMark,
+) -> Result<Vec<String>, VerbError> {
   let failed = |why: String| VerbError::Ended {
     code: 1,
     said: format!("coworker-pool: {why}"),
@@ -541,7 +550,10 @@ pub async fn release(db: &DatabaseConnection, owner: &ProcessMark) -> Result<Vec
   let mut given = 0;
 
   for held in held_reservations(db, Some(&cli_owner(owner))).await.map_err(failed)? {
-    if release_reservation(db, &held.token, "released by the job").await.map_err(failed)? {
+    if release_reservation(db, events, &held.token, "released by the job")
+      .await
+      .map_err(failed)?
+    {
       given += 1;
     }
   }
@@ -575,13 +587,15 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
   use tokio::signal::unix::{SignalKind, signal};
 
   let input = hook_input(text)?;
-  let db = super::store(data_root).await.map_err(|why| why.to_string())?;
+  let service = super::service(data_root).await.map_err(|why| why.to_string())?;
+  let db = &service.db;
+  let events = &service.events;
   let master = MasterAddress::of_process()?.map(Master::new);
 
   if !matches!(input, HookInput::Pre { .. }) {
-    give_back(&db, &input).await?;
+    give_back(db, events, &input).await?;
 
-    return returned_card(&db, master.as_ref(), data_root, &input).await;
+    return returned_card(db, master.as_ref(), data_root, &input).await;
   }
 
   // A run on a provider that lends no co-workers has none apart from itself, so its call takes no place
@@ -605,7 +619,7 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
   let mut terminate = signal(SignalKind::terminate()).map_err(|why| why.to_string())?;
   let mut heard = |token: &str| *waiting.borrow_mut() = Some(token.to_owned());
   let admitted = tokio::select! {
-    admitted = admit(&db, &input, on, &waiter, &owner, &mut heard) => Some(admitted?),
+    admitted = admit(db, events, &input, on, &waiter, &owner, &mut heard) => Some(admitted?),
     _ = interrupt.recv() => None,
     _ = terminate.recv() => None,
   };
@@ -613,19 +627,19 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
   let Some(admitted) = admitted else {
     let token = waiting.borrow().clone();
 
-    return stopped(&db, token).await;
+    return stopped(db, events, token).await;
   };
 
   // A seat on a registration whose engine the arbiter stands waits for its card, asked within the demand
   // its caller's turn holds, however long that takes (docs/own-llm.md, 「An engine the arbiter stands」).
   if let Admission::Allowed { token } = &admitted
-    && let Some(seat) = request(&db, token).await.map_err(|why| why.to_string())?
+    && let Some(seat) = request(db, token).await.map_err(|why| why.to_string())?
   {
     let caller = std::env::var(crate::lines::place::PLACE_VARIABLE).ok().and_then(|place| {
       std::path::Path::new(&place).file_name().map(|name| name.to_string_lossy().into_owned())
     });
     let carded = tokio::select! {
-      carded = crate::cards::native_card(&db, master.as_ref(), &seat, caller.as_deref()) => Some(carded),
+      carded = crate::cards::native_card(db, master.as_ref(), &seat, caller.as_deref()) => Some(carded),
       _ = interrupt.recv() => None,
       _ = terminate.recv() => None,
     };
@@ -633,12 +647,12 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
     match carded {
       Some(Ok(_)) => {}
       Some(Err(why)) => {
-        finish(&db, token, "native call found no card", true).await?;
+        finish(db, events, token, "native call found no card", true).await?;
 
         return Ok(vec![refusal(&format!("The co-worker gate refused this: {}", why.detail))]);
       }
       None => {
-        finish(&db, token, "native call's waiting hook was stopped", true).await?;
+        finish(db, events, token, "native call's waiting hook was stopped", true).await?;
 
         return Err("stopped while waiting for a card".into());
       }
@@ -714,9 +728,13 @@ async fn returned_card(
 }
 
 // A hook stopped while it waited: its request ended, and the hook's blocking exit.
-async fn stopped(db: &DatabaseConnection, token: Option<String>) -> Result<Vec<String>, String> {
+async fn stopped(
+  db: &DatabaseConnection,
+  events: &Bus,
+  token: Option<String>,
+) -> Result<Vec<String>, String> {
   if let Some(token) = token {
-    cancel(db, &token).await?;
+    cancel(db, events, &token).await?;
   }
 
   Err("stopped while waiting for a place".into())

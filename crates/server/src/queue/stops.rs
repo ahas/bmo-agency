@@ -77,6 +77,7 @@ pub enum RunStop {
 #[derive(Clone)]
 pub struct Stops {
   db: DatabaseConnection,
+  events: crate::events::Bus,
   herdr: Option<Herdr>,
   held: Option<herdr::picture::Watch>,
   executions: PathBuf,
@@ -111,6 +112,7 @@ impl Stops {
 
     Self {
       db: ground.db.clone(),
+      events: ground.events.clone(),
       herdr: ground.herdr.clone(),
       held: held.clone(),
       executions: ground.roots.data.join("executions"),
@@ -449,7 +451,7 @@ impl Stops {
 
     for run in runs {
       if let Some(request) = &run.pool_request {
-        crate::order_run::dispatch::finish(&self.db, request, why, true).await?;
+        crate::order_run::dispatch::finish(&self.db, &self.events, request, why, true).await?;
       }
     }
 

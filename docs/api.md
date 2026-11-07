@@ -1355,6 +1355,13 @@ Agency publishes one stream, `GET /events`. The kinds are:
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
 
+- **`slot-request.changed`** carries one slot request's change (「slots, reservations and places」 above) as
+  one object: `token`, `source` and `state` — `waiting`, `reserved`, `active`, `released` or `cancelled`;
+  `role` and `owner`; `askedBy` and `title` where the ask named them; `provider`, `model`, `childId`,
+  `agentName` and `outcome` as far as they are set; and `enqueuedAt`, with `leasedAt` and `endedAt` once
+  they are set. It is published when an ask opens a waiting request, when the line lets a request in, raises
+  a reserved slot or binds a lease to its run, when a request is given back by its holder, its owner, a job's
+  end or the line on evidence its run ended, and when a reservation's seats are raised or given back.
 - **`supervisor-reset.created`** carries a supervisor's reset (`docs/supervisors.md`, 「Starting it afresh」) in
   two shapes: each move of its reset point, `agent` and `point` in epoch milliseconds, so the rooms' owner lets
   go what waited for its turns; and the reset once agency's part is taken, `agent`, `ranges`, `alone` and

@@ -144,7 +144,9 @@ pub async fn job_slot(ground: &Ground, job: i64, let_in: bool) -> dispatch::Requ
     },
     ..dispatch::Asked::default()
   };
-  let held = dispatch::enqueue(&ground.db, &asked, dispatch::JOB, async |_, _| Ok(())).await.unwrap();
+  let held = dispatch::enqueue(&ground.db, &ground.events, &asked, dispatch::JOB, async |_, _| Ok(()))
+    .await
+    .unwrap();
 
   if !let_in {
     assert!(dispatch::acquire(ground, &held).await.unwrap().is_none(), "the job's slot waits");
@@ -154,7 +156,9 @@ pub async fn job_slot(ground: &Ground, job: i64, let_in: bool) -> dispatch::Requ
 
   let admitted = dispatch::acquire(ground, &held).await.unwrap().expect("the job's slot is let in");
 
-  dispatch::bind(&ground.db, &admitted, &format!("job-{job}")).await.unwrap()
+  dispatch::bind(&ground.db, &ground.events, &admitted, &format!("job-{job}"), None)
+    .await
+    .unwrap()
 }
 
 /// A slot request as the line holds it now: its state, who gave it back and why.

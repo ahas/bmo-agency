@@ -24,7 +24,9 @@ fn asked<'a>(role: &'a str, key: &str) -> Asked<'a> {
 }
 
 async fn ask(ground: &Ground, role: &str, key: &str) -> dispatch::Request {
-  enqueue(&ground.db, &asked(role, key), "job", async |_, _| Ok(())).await.unwrap()
+  enqueue(&ground.db, &ground.events, &asked(role, key), "job", async |_, _| Ok(()))
+    .await
+    .unwrap()
 }
 
 async fn admitted(ground: &Ground, held: &dispatch::Request) -> bool {
@@ -60,7 +62,7 @@ async fn a_roles_runs_are_let_in_up_to_its_cap_and_the_next_waits_for_a_slot_giv
   assert_eq!(let_in.model, "deepseek-flash");
   assert_eq!(let_in.capacity, 3, "the cap is the lease's snapshot");
 
-  assert!(finish(&ground.db, &held[0].token, "done", false).await.unwrap());
+  assert!(finish(&ground.db, &ground.events, &held[0].token, "done", false).await.unwrap());
   assert!(admitted(&ground, &held[3]).await, "a slot given back lets the next in");
 }
 
@@ -131,8 +133,14 @@ async fn a_slot_asked_under_a_role_the_store_does_not_hold_is_refused() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
-  let refused =
-    enqueue(&ground.db, &asked("general-purpose", "unknown"), "native", async |_, _| Ok(())).await;
+  let refused = enqueue(
+    &ground.db,
+    &ground.events,
+    &asked("general-purpose", "unknown"),
+    "native",
+    async |_, _| Ok(()),
+  )
+  .await;
 
   assert!(refused.is_err_and(|why| why.contains("No role named general-purpose")));
   assert_eq!(
@@ -183,7 +191,11 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppe
         ..Asked::default()
       };
 
-      held.push(enqueue(&ground.db, &delegation, DELEGATE, async |_, _| Ok(())).await.unwrap());
+      held.push(
+        enqueue(&ground.db, &ground.events, &delegation, DELEGATE, async |_, _| Ok(()))
+          .await
+          .unwrap(),
+      );
     }
 
     held
@@ -228,7 +240,9 @@ async fn a_double_waits_on_its_supervisors_provider_and_never_moves_to_the_roles
     },
     ..Asked::default()
   };
-  let held = enqueue(&ground.db, &delegation, DELEGATE, async |_, _| Ok(())).await.unwrap();
+  let held = enqueue(&ground.db, &ground.events, &delegation, DELEGATE, async |_, _| Ok(()))
+    .await
+    .unwrap();
 
   assert!(!admitted(&ground, &held).await, "its supervisor's provider has no quota: it waits");
 
@@ -247,9 +261,10 @@ async fn a_request_key_answers_its_standing_request_and_is_spent_once_the_reques
 
   assert_eq!(again.token, first.token, "asked again while it stands, the key answers its request");
 
-  assert!(finish(&ground.db, &first.token, "done", false).await.unwrap());
+  assert!(finish(&ground.db, &ground.events, &first.token, "done", false).await.unwrap());
 
-  let spent = enqueue(&ground.db, &asked("worker", "again"), "job", async |_, _| Ok(())).await;
+  let spent =
+    enqueue(&ground.db, &ground.events, &asked("worker", "again"), "job", async |_, _| Ok(())).await;
 
   assert!(spent.is_err(), "a key whose request was given back opens nothing: {spent:?}");
   assert_ne!(
@@ -272,8 +287,10 @@ async fn a_bound_lease_is_given_back_only_once_its_child_was_seen_standing_and_t
   assert!(admitted(&ground, &held).await);
   dispatch::bind(
     &ground.db,
+    &ground.events,
     &dispatch::request(&ground.db, &held.token).await.unwrap().unwrap(),
     "unit-one",
+    None,
   )
   .await
   .unwrap();
@@ -285,18 +302,21 @@ async fn a_bound_lease_is_given_back_only_once_its_child_was_seen_standing_and_t
   let leases = dispatch::bound_leases(&ground.db).await.unwrap();
 
   assert_eq!(leases, vec![(held.token.clone(), "unit-one".to_owned(), false)]);
-  assert_eq!(dispatch::release_ended(&ground.db, &leases, &nothing).await.unwrap(), 0);
+  assert_eq!(dispatch::release_ended(&ground.db, &ground.events, &leases, &nothing).await.unwrap(), 0);
   assert_eq!(dispatch::request(&ground.db, &held.token).await.unwrap().unwrap().state, "active");
 
   // Seen standing, then gone: given back, as the line's on evidence its run ended.
   let leases = dispatch::bound_leases(&ground.db).await.unwrap();
 
-  assert_eq!(dispatch::release_ended(&ground.db, &leases, &standing).await.unwrap(), 0);
+  assert_eq!(
+    dispatch::release_ended(&ground.db, &ground.events, &leases, &standing).await.unwrap(),
+    0
+  );
 
   let leases = dispatch::bound_leases(&ground.db).await.unwrap();
 
   assert!(leases[0].2, "marked seen");
-  assert_eq!(dispatch::release_ended(&ground.db, &leases, &nothing).await.unwrap(), 1);
+  assert_eq!(dispatch::release_ended(&ground.db, &ground.events, &leases, &nothing).await.unwrap(), 1);
 
   let ended = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
 
@@ -317,11 +337,15 @@ async fn a_lease_bound_to_a_role_session_ends_with_that_session() {
   let held = ask(&ground, "worker", "session").await;
 
   assert!(admitted(&ground, &held).await);
-  dispatch::bind_session(&ground.db, &held.token, "worker@run:7").await.unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "worker@run:7")
+    .await
+    .unwrap();
 
   // A later binding naming the run keeps the lease on its session and the name as the run's.
   let now = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
-  let bound = dispatch::bind(&ground.db, &now, "research-7-review").await.unwrap();
+  let bound = dispatch::bind(&ground.db, &ground.events, &now, "research-7-review", None)
+    .await
+    .unwrap();
 
   assert_eq!(bound.child_id.as_deref(), Some("worker@run:7"));
   assert_eq!(bound.session.as_deref(), Some("worker@run:7"));
@@ -331,7 +355,7 @@ async fn a_lease_bound_to_a_role_session_ends_with_that_session() {
   assert!(dispatch::bound_leases(&ground.db).await.unwrap().is_empty());
 
   assert_eq!(
-    dispatch::release_sessions(&ground.db, &["worker@run:7".to_owned()], "ended")
+    dispatch::release_sessions(&ground.db, &ground.events, &["worker@run:7".to_owned()], "ended")
       .await
       .unwrap(),
     1
@@ -362,14 +386,16 @@ async fn an_owner_s_release_gives_back_everything_it_holds_and_nothing_of_anothe
   first.owner = "restarting".to_owned();
   second.owner = "restarting".to_owned();
 
-  let first = enqueue(&ground.db, &first, "job", async |_, _| Ok(())).await.unwrap();
-  let second = enqueue(&ground.db, &second, "job", async |_, _| Ok(())).await.unwrap();
+  let first = enqueue(&ground.db, &ground.events, &first, "job", async |_, _| Ok(())).await.unwrap();
+  let second = enqueue(&ground.db, &ground.events, &second, "job", async |_, _| Ok(())).await.unwrap();
   let other = ask(&ground, "worker", "other").await;
 
   assert!(admitted(&ground, &first).await);
-  dispatch::bind_session(&ground.db, &first.token, "worker@run:9").await.unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &first.token, "worker@run:9")
+    .await
+    .unwrap();
 
-  let done = dispatch::release_owner(&ground.db, "restarting").await.unwrap();
+  let done = dispatch::release_owner(&ground.db, &ground.events, "restarting").await.unwrap();
 
   assert_eq!((done.released, done.cancelled), (1, 1));
   assert_eq!(done.sessions, vec!["worker@run:9".to_owned()]);
@@ -417,13 +443,19 @@ async fn a_slot_carries_three_sessions_in_turn_and_is_given_back_with_the_last()
   assert!(admitted(&ground, &held).await);
 
   // The first answer's session, a run named on it by a binding.
-  dispatch::bind_session(&ground.db, &held.token, "worker@run:1").await.unwrap();
-  dispatch::bind(&ground.db, &read(&held.token).await, "research-1-answer").await.unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "worker@run:1")
+    .await
+    .unwrap();
+  dispatch::bind(&ground.db, &ground.events, &read(&held.token).await, "research-1-answer", None)
+    .await
+    .unwrap();
   assert_eq!(read(&held.token).await.agent_name.as_deref(), Some("research-1-answer"));
 
   // The round's session starts on the slot before the first ends: the lease moves onto it, and the first
   // session's end no longer gives it back.
-  dispatch::bind_session(&ground.db, &held.token, "worker@run:2").await.unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "worker@run:2")
+    .await
+    .unwrap();
 
   let moved = read(&held.token).await;
 
@@ -433,16 +465,18 @@ async fn a_slot_carries_three_sessions_in_turn_and_is_given_back_with_the_last()
     "the run named on the session before stays with it"
   );
   assert_eq!(
-    dispatch::release_sessions(&ground.db, &["worker@run:1".to_owned()], "ended")
+    dispatch::release_sessions(&ground.db, &ground.events, &["worker@run:1".to_owned()], "ended")
       .await
       .unwrap(),
     0
   );
 
   // The review's session, the same way.
-  dispatch::bind_session(&ground.db, &held.token, "worker@run:3").await.unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "worker@run:3")
+    .await
+    .unwrap();
   assert_eq!(
-    dispatch::release_sessions(&ground.db, &["worker@run:2".to_owned()], "ended")
+    dispatch::release_sessions(&ground.db, &ground.events, &["worker@run:2".to_owned()], "ended")
       .await
       .unwrap(),
     0
@@ -450,13 +484,17 @@ async fn a_slot_carries_three_sessions_in_turn_and_is_given_back_with_the_last()
   assert_eq!(read(&held.token).await.state, "active", "still held across three sessions");
 
   // Starting the same session again keeps what is named on it.
-  dispatch::bind(&ground.db, &read(&held.token).await, "research-1-review").await.unwrap();
-  dispatch::bind_session(&ground.db, &held.token, "worker@run:3").await.unwrap();
+  dispatch::bind(&ground.db, &ground.events, &read(&held.token).await, "research-1-review", None)
+    .await
+    .unwrap();
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "worker@run:3")
+    .await
+    .unwrap();
   assert_eq!(read(&held.token).await.agent_name.as_deref(), Some("research-1-review"));
 
   // The last session's end gives the lease back.
   assert_eq!(
-    dispatch::release_sessions(&ground.db, &["worker@run:3".to_owned()], "ended")
+    dispatch::release_sessions(&ground.db, &ground.events, &["worker@run:3".to_owned()], "ended")
       .await
       .unwrap(),
     1
@@ -482,7 +520,7 @@ async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owne
 
   lone.owner = "research:185".to_owned();
 
-  let held = enqueue(&ground.db, &lone, "search", async |_, _| Ok(())).await.unwrap();
+  let held = enqueue(&ground.db, &ground.events, &lone, "search", async |_, _| Ok(())).await.unwrap();
 
   assert!(admitted(&ground, &held).await);
 
@@ -490,7 +528,7 @@ async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owne
   assert!(dispatch::bound_leases(&ground.db).await.unwrap().is_empty());
   assert_eq!(dispatch::request(&ground.db, &held.token).await.unwrap().unwrap().state, "active");
 
-  let done = dispatch::release_owner(&ground.db, "research:185").await.unwrap();
+  let done = dispatch::release_owner(&ground.db, &ground.events, "research:185").await.unwrap();
 
   assert_eq!((done.released, done.cancelled), (1, 0));
   assert!(done.sessions.is_empty(), "no session was bound to it");
@@ -604,9 +642,15 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
     asked_by: Some("chat"),
     ..Asked::default()
   };
-  let first = enqueue(&ground.db, &delegation("first", "doppelganger"), DELEGATE, async |_, _| Ok(()))
-    .await
-    .unwrap();
+  let first = enqueue(
+    &ground.db,
+    &ground.events,
+    &delegation("first", "doppelganger"),
+    DELEGATE,
+    async |_, _| Ok(()),
+  )
+  .await
+  .unwrap();
 
   assert!(admitted(&ground, &first).await);
   assert!(
@@ -617,9 +661,15 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
     "one double holds one of two slots: a double may ask"
   );
 
-  let second = enqueue(&ground.db, &delegation("second", "doppelganger"), DELEGATE, async |_, _| Ok(()))
-    .await
-    .unwrap();
+  let second = enqueue(
+    &ground.db,
+    &ground.events,
+    &delegation("second", "doppelganger"),
+    DELEGATE,
+    async |_, _| Ok(()),
+  )
+  .await
+  .unwrap();
 
   assert!(admitted(&ground, &second).await);
 
@@ -644,6 +694,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
 
   let job = enqueue(
     &ground.db,
+    &ground.events,
     &Asked {
       wanted: Wanted {
         role: "builder",

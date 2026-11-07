@@ -120,6 +120,8 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **An admission answers what the request is now:** `waiting` while it waits in the line, `active` once let
   in, and `released` or `cancelled` once given back, with who gave it back and why. A caller asks again only
   while it waits; a request given back by anyone stays given back.
+- **Every change of a request is published** as `slot-request.changed` (`docs/api.md`, 「Events」): its token,
+  source and state, with the fields of its lease as far as they are set.
 
 ## An owner's release
 

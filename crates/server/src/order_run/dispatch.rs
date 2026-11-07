@@ -12,6 +12,7 @@ use serde::Serialize;
 use store::{all, one, run};
 
 use crate::agent_roles::{self, AgentRole};
+use crate::events::{Bus, Event};
 use crate::order::Entry;
 use crate::places::Ground;
 use crate::road::{self, Ask, Row};
@@ -115,6 +116,72 @@ impl Request {
   pub fn fixed(&self) -> bool {
     !self.provider.is_empty() && self.state == "waiting"
   }
+}
+
+/// The event published as a slot request changes (docs/api.md, 「Events」): the request's token, its source and
+/// its state, and its lease's fields as far as they are set.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequestChanged {
+  pub token: String,
+  pub source: String,
+  pub state: String,
+  pub role: String,
+  pub owner: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub asked_by: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub child_id: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub agent_name: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub outcome: Option<String>,
+  pub enqueued_at: i64,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub leased_at: Option<i64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub ended_at: Option<i64>,
+}
+
+impl Event for SlotRequestChanged {
+  const NAME: &'static str = "slot-request.changed";
+}
+
+impl SlotRequestChanged {
+  /// The change one request is published as.
+  pub fn of(request: &Request) -> Self {
+    let some = |value: &Option<String>| value.clone().filter(|value| !value.is_empty());
+    let kept = |value: &str| (!value.is_empty()).then(|| value.to_owned());
+
+    Self {
+      token: request.token.clone(),
+      source: request.source.clone(),
+      state: request.state.clone(),
+      role: request.role.clone(),
+      owner: request.owner.clone(),
+      asked_by: some(&request.asked_by),
+      title: some(&request.title),
+      provider: kept(&request.provider),
+      model: kept(&request.model),
+      child_id: some(&request.child_id),
+      agent_name: some(&request.agent_name),
+      outcome: some(&request.outcome),
+      enqueued_at: request.enqueued_at,
+      leased_at: request.leased_at,
+      ended_at: request.ended_at,
+    }
+  }
+}
+
+/// One request's change published on the bus (docs/api.md, 「Events」).
+pub fn announce(events: &Bus, request: &Request) {
+  events.publish(SlotRequestChanged::of(request));
 }
 
 fn optional_text(stored: String) -> Option<String> {
@@ -340,6 +407,7 @@ pub async fn role_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<AgentRole
 /// leaves a request nobody owns.
 pub async fn enqueue(
   db: &DatabaseConnection,
+  events: &Bus,
   asked: &Asked<'_>,
   source: &str,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
@@ -434,6 +502,11 @@ pub async fn enqueue(
   retain(&written, &held).await?;
   written.commit().await.map_err(faulted)?;
 
+  // A request asked again under its key stands as it did, and is not a change.
+  if opened == 1 {
+    announce(events, &held);
+  }
+
   Ok(held)
 }
 
@@ -479,16 +552,28 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
   let role = role_of(&ground.db, &held.role).await?;
   let road = road_of(ground, held, &role).await?;
   let written = ground.db.begin().await.map_err(faulted)?;
-  let admitted = admission(&written, &held.token, &role, road, crate::now_ms()).await?;
+  let (admitted, changed) = admission(&written, &held.token, &role, road, crate::now_ms()).await?;
 
   written.commit().await.map_err(faulted)?;
+
+  for request in &changed {
+    announce(&ground.events, request);
+  }
+
+  if let Some(request) = &admitted {
+    announce(&ground.events, request);
+  }
 
   Ok(admitted)
 }
 
 /// A native call's request let in as `acquire` lets one in, on the road its caller fixed with no quota asked of
 /// it: a native co-worker stands inside its caller's program, which already goes out on that road.
-pub async fn acquire_inside(db: &DatabaseConnection, held: &Request) -> Result<Option<Request>, Fault> {
+pub async fn acquire_inside(
+  db: &DatabaseConnection,
+  events: &Bus,
+  held: &Request,
+) -> Result<Option<Request>, Fault> {
   if held.state == "released" || held.state == "cancelled" {
     return Ok(None);
   }
@@ -510,9 +595,17 @@ pub async fn acquire_inside(db: &DatabaseConnection, held: &Request) -> Result<O
     answer_tokens: None,
   };
   let written = db.begin().await.map_err(faulted)?;
-  let admitted = admission(&written, &held.token, &role, Ok(entry), crate::now_ms()).await?;
+  let (admitted, changed) = admission(&written, &held.token, &role, Ok(entry), crate::now_ms()).await?;
 
   written.commit().await.map_err(faulted)?;
+
+  for request in &changed {
+    announce(events, request);
+  }
+
+  if let Some(request) = &admitted {
+    announce(events, request);
+  }
 
   Ok(admitted)
 }
@@ -546,16 +639,16 @@ async fn admission<C: ConnectionTrait>(
   role: &AgentRole,
   road: Result<Entry, String>,
   now: i64,
-) -> Result<Option<Request>, Fault> {
-  let Some(held) = request(db, token).await? else { return Ok(None) };
+) -> Result<(Option<Request>, Vec<Request>), Fault> {
+  let Some(held) = request(db, token).await? else { return Ok((None, vec![])) };
 
   if held.state == "active" {
-    return Ok(Some(held));
+    return Ok((Some(held), vec![]));
   }
 
   // A reserved slot is let in by its reservation, never taken as a lease by whoever holds its token.
   if held.state != "waiting" || held.reservation.is_some() {
-    return Ok(None);
+    return Ok((None, vec![]));
   }
 
   let since = ask(db, token).await?;
@@ -582,12 +675,12 @@ async fn admission<C: ConnectionTrait>(
       .await
       .map_err(faulted)?;
 
-      return Ok(None);
+      return Ok((None, vec![]));
     }
   };
 
   if place_taken(db, held.place_key.as_deref()).await? {
-    return Ok(None);
+    return Ok((None, vec![]));
   }
 
   // A slot its own owner holds reserved in this role is the request's place: the reservation's slot is given
@@ -602,33 +695,43 @@ async fn admission<C: ConnectionTrait>(
   .await
   .map_err(faulted)?;
 
+  let mut changed = vec![];
+
   if let Some(seat) = seat {
     let seat: String = seat.try_get("", "token").map_err(faulted)?;
 
-    end_seat(db, &seat, "released", &format!("taken by {token}"), now).await?;
+    if let Some(ended) = end_seat(db, &seat, "released", &format!("taken by {token}"), now).await? {
+      changed.push(ended);
+    }
 
-    return admit(db, token, &entry, role.max_concurrent, now).await;
+    let admitted = admit(db, token, &entry, role.max_concurrent, now).await?;
+
+    return Ok((admitted, changed));
   }
 
   if held.yielding && foreground_waits(db, &held.role, since).await? {
-    return Ok(None);
+    return Ok((None, changed));
   }
 
   let inherits = match in_the_way(db, &held.role, held.sequence, since).await? {
     None => None,
     Some((first, Some(_), owner)) if owner == held.owner => Some(first),
-    Some(_) => return Ok(None),
+    Some(_) => return Ok((None, changed)),
   };
 
   if used(db, &held.role).await? >= role.max_concurrent {
-    return Ok(None);
+    return Ok((None, changed));
   }
 
-  if let Some(first) = inherits {
-    end_seat(db, &first, "cancelled", &format!("turn given to {token}"), now).await?;
+  if let Some(first) = inherits
+    && let Some(ended) = end_seat(db, &first, "cancelled", &format!("turn given to {token}"), now).await?
+  {
+    changed.push(ended);
   }
 
-  admit(db, token, &entry, role.max_concurrent, now).await
+  let admitted = admit(db, token, &entry, role.max_concurrent, now).await?;
+
+  Ok((admitted, changed))
 }
 
 // Whether an active request already stands in this place.
@@ -803,8 +906,8 @@ async fn end_seat<C: ConnectionTrait>(
   state: &str,
   outcome: &str,
   now: i64,
-) -> Result<(), Fault> {
-  run(
+) -> Result<Option<Request>, Fault> {
+  let changed = run(
     db,
     r#"UPDATE "role_slot_requests" SET "state" = $1, "ended_at" = $2, "outcome" = $3, "ended_by" = $5
        WHERE "token" = $4 AND "state" IN ('waiting', 'reserved')"#,
@@ -818,13 +921,24 @@ async fn end_seat<C: ConnectionTrait>(
     ],
   )
   .await
-  .map_err(faulted)
-  .map(drop)
+  .map_err(faulted)?;
+
+  if changed != 1 {
+    return Ok(None);
+  }
+
+  request(db, token).await
 }
 
 /// The run a launch carries a slot's lease into, written once: a lease no longer active, or bound to another
-/// run, refuses it.
-pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Result<Request, Fault> {
+/// run, refuses it. The run's name is kept where the caller names one.
+pub async fn bind(
+  db: &DatabaseConnection,
+  events: &Bus,
+  held: &Request,
+  child_id: &str,
+  agent_name: Option<&str>,
+) -> Result<Request, Fault> {
   let clean = text(child_id, "slot child identity", 500)?;
   let written = db.begin().await.map_err(faulted)?;
   let now = request(&written, &held.token).await?.ok_or("Unknown slot lease")?;
@@ -837,10 +951,18 @@ pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Re
     // A lease bound to the role session a start laid on it stays bound to it; the child a later binding names
     // is kept as the run it is.
     if now.session.is_some() && now.session == now.child_id {
+      let naming = match agent_name {
+        Some(_) => r#"UPDATE "role_slot_requests" SET "agent" = $1 WHERE "token" = $2"#,
+        None => r#"UPDATE "role_slot_requests" SET "agent" = COALESCE("agent", $1) WHERE "token" = $2"#,
+      };
+
       run(
         &written,
-        r#"UPDATE "role_slot_requests" SET "agent" = COALESCE("agent", $1) WHERE "token" = $2"#,
-        vec![clean.into(), held.token.clone().into()],
+        naming,
+        vec![
+          agent_name.map(str::to_owned).unwrap_or_else(|| clean.clone()).into(),
+          held.token.clone().into(),
+        ],
       )
       .await
       .map_err(faulted)?;
@@ -848,6 +970,7 @@ pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Re
       let bound = request(&written, &held.token).await?.ok_or("Unknown slot lease")?;
 
       written.commit().await.map_err(faulted)?;
+      announce(events, &bound);
 
       return Ok(bound);
     }
@@ -857,8 +980,13 @@ pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Re
 
   run(
     &written,
-    r#"UPDATE "role_slot_requests" SET "child_id" = COALESCE("child_id", $1) WHERE "token" = $2 AND "state" = 'active'"#,
-    vec![clean.into(), held.token.clone().into()],
+    r#"UPDATE "role_slot_requests" SET "child_id" = COALESCE("child_id", $1), "agent" = COALESCE($3, "agent")
+       WHERE "token" = $2 AND "state" = 'active'"#,
+    vec![
+      clean.into(),
+      held.token.clone().into(),
+      agent_name.map(str::to_owned).into(),
+    ],
   )
   .await
   .map_err(faulted)?;
@@ -866,6 +994,7 @@ pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Re
   let bound = request(&written, &held.token).await?.ok_or("Unknown slot lease")?;
 
   written.commit().await.map_err(faulted)?;
+  announce(events, &bound);
 
   Ok(bound)
 }
@@ -873,6 +1002,7 @@ pub async fn bind(db: &DatabaseConnection, held: &Request, child_id: &str) -> Re
 /// A launch held to the lease it was let in on: the same owner and role, bound to the run it starts.
 pub async fn require(
   db: &DatabaseConnection,
+  events: &Bus,
   token: Option<&str>,
   owner: &str,
   role: &str,
@@ -886,23 +1016,25 @@ pub async fn require(
     return Err("The launch does not match its slot".to_owned());
   }
 
-  bind(db, &held, child_id).await
+  bind(db, events, &held, child_id, None).await
 }
 
 /// One lease ended with what it came to — released, or cancelled where it never ran — and the reserved slots
 /// of its role let in where room has come; whether it was still held.
 pub async fn finish(
   db: &DatabaseConnection,
+  events: &Bus,
   token: &str,
   outcome: &str,
   cancel: bool,
 ) -> Result<bool, Fault> {
-  finish_by(db, token, outcome, cancel, BY_HOLDER).await
+  finish_by(db, events, token, outcome, cancel, BY_HOLDER).await
 }
 
 /// One lease ended as `finish` ends it, kept with who gave it back.
 pub async fn finish_by(
   db: &DatabaseConnection,
+  events: &Bus,
   token: &str,
   outcome: &str,
   cancel: bool,
@@ -932,19 +1064,34 @@ pub async fn finish_by(
     return Ok(false);
   }
 
-  if let Some(held) = request(&written, token).await? {
-    promote_role(&written, &held.role, now).await?;
-  }
+  let ended = request(&written, token).await?;
+  let promoted = match &ended {
+    Some(held) => promote_role(&written, &held.role, now).await?,
+    None => vec![],
+  };
 
   written.commit().await.map_err(faulted)?;
+
+  if let Some(ended) = &ended {
+    announce(events, ended);
+  }
+
+  for request in &promoted {
+    announce(events, request);
+  }
 
   Ok(true)
 }
 
 /// Waiting slots a stopped order waited on given back, each cancelled with why.
-pub async fn cancel_waiting(db: &DatabaseConnection, requests: &[String], why: &str) -> Result<(), Fault> {
+pub async fn cancel_waiting(
+  db: &DatabaseConnection,
+  events: &Bus,
+  requests: &[String],
+  why: &str,
+) -> Result<(), Fault> {
   for request in requests {
-    finish(db, request, why, true).await?;
+    finish(db, events, request, why, true).await?;
   }
 
   Ok(())
@@ -953,10 +1100,10 @@ pub async fn cancel_waiting(db: &DatabaseConnection, requests: &[String], why: &
 /// One role's reserved slots let in, in the line's order, while none stands in the way of the next and the
 /// role's cap has room. The pass is an ask of every such slot waiting in the role, its standing reservation
 /// being its owner asking.
-pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> Result<i64, Fault> {
+pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> Result<Vec<Request>, Fault> {
   let Some(cap) = agent_roles::named(db, role).await.map_err(faulted)?.map(|role| role.max_concurrent)
   else {
-    return Ok(0);
+    return Ok(vec![]);
   };
   let seats = all(
     db,
@@ -979,7 +1126,7 @@ pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> R
   .await
   .map_err(faulted)?;
 
-  let mut promoted = 0;
+  let mut promoted = vec![];
 
   for seat in seats {
     let token: String = seat.try_get("", "token").map_err(faulted)?;
@@ -990,15 +1137,20 @@ pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> R
       break;
     }
 
-    run(
+    let changed = run(
       db,
       r#"UPDATE "role_slot_requests" SET "state" = 'reserved', "leased_at" = $1, "capacity" = $3
          WHERE "token" = $2 AND "state" = 'waiting'"#,
-      vec![now.into(), token.into(), cap.into()],
+      vec![now.into(), token.clone().into(), cap.into()],
     )
     .await
     .map_err(faulted)?;
-    promoted += 1;
+
+    if changed == 1
+      && let Some(request) = request(db, &token).await?
+    {
+      promoted.push(request);
+    }
   }
 
   Ok(promoted)
@@ -1006,7 +1158,7 @@ pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> R
 
 /// The line's own pass (docs/role-slots.md, 「Reserving slots」): every role's reserved slots let in where its
 /// cap has room.
-pub async fn promote_reservations<C: ConnectionTrait>(db: &C, now: i64) -> Result<i64, Fault> {
+pub async fn promote_reservations<C: ConnectionTrait>(db: &C, now: i64) -> Result<Vec<Request>, Fault> {
   let roles = all(
     db,
     r#"SELECT DISTINCT "role" FROM "role_slot_requests" WHERE "state" = 'waiting' AND "reservation" IS NOT NULL"#,
@@ -1014,12 +1166,12 @@ pub async fn promote_reservations<C: ConnectionTrait>(db: &C, now: i64) -> Resul
   )
   .await
   .map_err(faulted)?;
-  let mut promoted = 0;
+  let mut promoted = vec![];
 
   for row in roles {
     let role: String = row.try_get("", "role").map_err(faulted)?;
 
-    promoted += promote_role(db, &role, now).await?;
+    promoted.extend(promote_role(db, &role, now).await?);
   }
 
   Ok(promoted)
@@ -1037,7 +1189,11 @@ pub struct Seats<'a> {
 
 /// Slots of a role held for an owner. Asked again with the same key, only its live slots move to the new
 /// count — more join the line behind whoever stands in it, fewer give up the youngest first.
-pub async fn reserve(db: &DatabaseConnection, seats: &Seats<'_>) -> Result<Reservation, Fault> {
+pub async fn reserve(
+  db: &DatabaseConnection,
+  events: &Bus,
+  seats: &Seats<'_>,
+) -> Result<Reservation, Fault> {
   if !KEY.is_match(&seats.reservation_key) || !KEY.is_match(&seats.owner) {
     return Err("Invalid slot reservation identity".to_owned());
   }
@@ -1098,8 +1254,11 @@ pub async fn reserve(db: &DatabaseConnection, seats: &Seats<'_>) -> Result<Reser
   .map_err(faulted)?
   .unwrap_or(0);
   let live_count = i64::try_from(live.len()).unwrap_or(i64::MAX);
+  let mut made_keys = vec![];
 
   for seat in (made + 1)..=(made + count - live_count) {
+    let key = format!("{}:seat-{seat}", held.reservation_key);
+
     run(
       &written,
       r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "provider", "model",
@@ -1107,7 +1266,7 @@ pub async fn reserve(db: &DatabaseConnection, seats: &Seats<'_>) -> Result<Reser
          VALUES ($1, $2, $3, $4, $5, '', '', '', $6, 'waiting', $7, $8)"#,
       vec![
         uuid::Uuid::new_v4().to_string().into(),
-        format!("{}:seat-{seat}", held.reservation_key).into(),
+        key.clone().into(),
         held.owner.clone().into(),
         held.source.clone().into(),
         held.role.clone().into(),
@@ -1118,19 +1277,44 @@ pub async fn reserve(db: &DatabaseConnection, seats: &Seats<'_>) -> Result<Reser
     )
     .await
     .map_err(faulted)?;
+    made_keys.push(key);
   }
+
+  let mut ended = vec![];
 
   for seat in live.iter().skip(usize::try_from(count).unwrap_or(0)) {
     let state = if seat.state == "reserved" { "released" } else { "cancelled" };
 
-    end_seat(&written, &seat.token, state, "reservation lowered", now).await?;
+    if let Some(request) = end_seat(&written, &seat.token, state, "reservation lowered", now).await? {
+      ended.push(request);
+    }
   }
 
-  promote_role(&written, &held.role, now).await?;
-
+  let promoted = promote_role(&written, &held.role, now).await?;
   let reserved = reservation_by_token(&written, &held.token).await?;
 
   written.commit().await.map_err(faulted)?;
+
+  let promoted_tokens: std::collections::HashSet<&str> =
+    promoted.iter().map(|request| request.token.as_str()).collect();
+
+  for key in made_keys {
+    if let Some(row) =
+      one(db, r#"SELECT * FROM "role_slot_requests" WHERE "request_key" = $1"#, vec![key.into()])
+        .await
+        .map_err(faulted)?
+    {
+      let request = request_of(&row)?;
+
+      if !promoted_tokens.contains(request.token.as_str()) {
+        announce(events, &request);
+      }
+    }
+  }
+
+  for request in promoted.iter().chain(ended.iter()) {
+    announce(events, request);
+  }
 
   Ok(reserved)
 }
@@ -1182,15 +1366,17 @@ pub async fn seats(db: &DatabaseConnection, token: &str) -> Result<Vec<Request>,
 /// still held.
 pub async fn release_reservation(
   db: &DatabaseConnection,
+  events: &Bus,
   token: &str,
   outcome: &str,
 ) -> Result<bool, Fault> {
-  release_reservation_by(db, token, outcome, BY_HOLDER).await
+  release_reservation_by(db, events, token, outcome, BY_HOLDER).await
 }
 
 /// A reservation given back as `release_reservation` gives it back, its slots kept with who gave them back.
 pub async fn release_reservation_by(
   db: &DatabaseConnection,
+  events: &Bus,
   token: &str,
   outcome: &str,
   by: &str,
@@ -1214,11 +1400,15 @@ pub async fn release_reservation_by(
   }
 
   let held = reservation_by_token(&written, token).await?;
+  let mut ended = vec![];
 
   for seat in live_seats(&written, token).await? {
     let state = if seat.state == "reserved" { "released" } else { "cancelled" };
 
-    end_seat(&written, &seat.token, state, &clean, now).await?;
+    if let Some(request) = end_seat(&written, &seat.token, state, &clean, now).await? {
+      ended.push(request);
+    }
+
     run(
       &written,
       r#"UPDATE "role_slot_requests" SET "ended_by" = $1 WHERE "token" = $2"#,
@@ -1228,8 +1418,13 @@ pub async fn release_reservation_by(
     .map_err(faulted)?;
   }
 
-  promote_role(&written, &held.role, now).await?;
+  let promoted = promote_role(&written, &held.role, now).await?;
+
   written.commit().await.map_err(faulted)?;
+
+  for request in ended.iter().chain(promoted.iter()) {
+    announce(events, request);
+  }
 
   Ok(true)
 }
@@ -1307,6 +1502,7 @@ pub async fn bound_leases(db: &DatabaseConnection) -> Result<Vec<(String, String
 /// however long it takes to come up. How many were given back.
 pub async fn release_ended(
   db: &DatabaseConnection,
+  events: &Bus,
   leases: &[(String, String, bool)],
   standing: &std::collections::HashSet<String>,
 ) -> Result<i64, Fault> {
@@ -1327,7 +1523,9 @@ pub async fn release_ended(
       continue;
     }
 
-    if *seen && finish_by(db, token, "its launched child no longer stands", false, BY_RUN_ENDED).await? {
+    if *seen
+      && finish_by(db, events, token, "its launched child no longer stands", false, BY_RUN_ENDED).await?
+    {
       released += 1;
     }
   }
@@ -1340,6 +1538,7 @@ pub async fn release_ended(
 /// apart.
 pub async fn reclaim_bound(
   db: &DatabaseConnection,
+  events: &Bus,
   running: &crate::queue::running::Running,
 ) -> Result<i64, Fault> {
   let leases = bound_leases(db).await?;
@@ -1355,7 +1554,7 @@ pub async fn reclaim_bound(
 
   standing.extend(kept_among(db, &children).await);
 
-  release_ended(db, &leases, &standing).await
+  release_ended(db, events, &leases, &standing).await
 }
 
 // The children that are a turn kept in flight under their name: a turn this process carries, or one the
@@ -1390,8 +1589,13 @@ pub async fn seen_standing(db: &DatabaseConnection, child: &str) -> Result<u64, 
 /// session kept beside it, so the lease ends with that session and no longer with the one it was bound to
 /// (docs/role-slots.md, 「The line」). The run name a binding named stays only while the lease stays on the same
 /// session; a lease moved onto another forgets it, and its child is read afresh.
-pub async fn bind_session(db: &DatabaseConnection, token: &str, session: &str) -> Result<(), Fault> {
-  run(
+pub async fn bind_session(
+  db: &DatabaseConnection,
+  events: &Bus,
+  token: &str,
+  session: &str,
+) -> Result<(), Fault> {
+  let changed = run(
     db,
     r#"UPDATE "role_slot_requests"
        SET "agent" = CASE WHEN "child_id" = $1 AND "session" = $1 THEN "agent" END,
@@ -1402,6 +1606,12 @@ pub async fn bind_session(db: &DatabaseConnection, token: &str, session: &str) -
   )
   .await
   .map_err(faulted)?;
+
+  if changed == 1
+    && let Some(request) = request(db, token).await?
+  {
+    announce(events, &request);
+  }
 
   Ok(())
 }
@@ -1422,6 +1632,7 @@ pub async fn bound_to_session(db: &DatabaseConnection, token: &str) -> Result<()
 /// Every active lease bound to one of these role sessions given back, as ended with its session; how many.
 pub async fn release_sessions(
   db: &DatabaseConnection,
+  events: &Bus,
   sessions: &[String],
   why: &str,
 ) -> Result<i64, Fault> {
@@ -1440,7 +1651,7 @@ pub async fn release_sessions(
     for row in rows {
       let token: String = row.try_get("", "token").map_err(faulted)?;
 
-      if finish_by(db, &token, why, false, BY_RUN_ENDED).await? {
+      if finish_by(db, events, &token, why, false, BY_RUN_ENDED).await? {
         released += 1;
       }
     }
@@ -1451,7 +1662,7 @@ pub async fn release_sessions(
 
 /// Every active lease bound to a role session given back: what a start of the process finds, since a role
 /// session is held in memory from its start to its end and no session of the process before stands.
-pub async fn release_every_session(db: &DatabaseConnection) -> Result<i64, Fault> {
+pub async fn release_every_session(db: &DatabaseConnection, events: &Bus) -> Result<i64, Fault> {
   let rows = all(
     db,
     r#"SELECT DISTINCT "session" FROM "role_slot_requests"
@@ -1466,7 +1677,8 @@ pub async fn release_every_session(db: &DatabaseConnection) -> Result<i64, Fault
     .collect::<Result<_, _>>()
     .map_err(faulted)?;
 
-  release_sessions(db, &sessions, "its role session ended with the agency process that held it").await
+  release_sessions(db, events, &sessions, "its role session ended with the agency process that held it")
+    .await
 }
 
 /// What an owner's release gave back (docs/role-slots.md, 「An owner's release」).
@@ -1483,21 +1695,26 @@ pub struct OwnerReleased {
 /// Everything an owner holds given back as its owner's: each waiting or reserved request cancelled, each
 /// active one released, each reservation released; the role sessions its active leases were bound to named
 /// for the caller to end.
-pub async fn release_owner(db: &DatabaseConnection, owner: &str) -> Result<OwnerReleased, Fault> {
-  release_owner_for(db, owner, "its owner gave back everything it held").await
+pub async fn release_owner(
+  db: &DatabaseConnection,
+  events: &Bus,
+  owner: &str,
+) -> Result<OwnerReleased, Fault> {
+  release_owner_for(db, events, owner, "its owner gave back everything it held").await
 }
 
 /// Everything an owner holds given back as `release_owner` gives it back, each request and reservation kept
 /// with the reason its owner gave, such as the end of the job whose run the owner is.
 pub async fn release_owner_for(
   db: &DatabaseConnection,
+  events: &Bus,
   owner: &str,
   why: &str,
 ) -> Result<OwnerReleased, Fault> {
   let mut done = OwnerReleased::default();
 
   for held in held_reservations(db, Some(owner)).await? {
-    if release_reservation_by(db, &held.token, why, BY_OWNER).await? {
+    if release_reservation_by(db, events, &held.token, why, BY_OWNER).await? {
       done.reservations += 1;
     }
   }
@@ -1521,7 +1738,7 @@ pub async fn release_owner_for(
       done.sessions.push(session);
     }
 
-    if finish_by(db, &held.token, why, !active, BY_OWNER).await? {
+    if finish_by(db, events, &held.token, why, !active, BY_OWNER).await? {
       if active {
         done.released += 1;
       } else {
@@ -1538,7 +1755,7 @@ const STOP_MARK_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Every native request whose waiter, while it waits, or whose caller, once let in, is gone, ended; and every
 /// native reservation whose CLI is gone given back.
-pub async fn reclaim_native(db: &DatabaseConnection) -> Result<i64, Fault> {
+pub async fn reclaim_native(db: &DatabaseConnection, events: &Bus) -> Result<i64, Fault> {
   let now = crate::now_ms();
   let rows = all(
     db,
@@ -1572,7 +1789,7 @@ pub async fn reclaim_native(db: &DatabaseConnection) -> Result<i64, Fault> {
       "native call's caller process ended"
     };
 
-    if finish_by(db, &token, outcome, waiting, BY_RUN_ENDED).await? {
+    if finish_by(db, events, &token, outcome, waiting, BY_RUN_ENDED).await? {
       reclaimed += 1;
     }
   }
@@ -1595,7 +1812,9 @@ pub async fn reclaim_native(db: &DatabaseConnection) -> Result<i64, Fault> {
       continue;
     }
 
-    if release_reservation_by(db, &token, "the CLI that reserved these slots ended", BY_RUN_ENDED).await? {
+    if release_reservation_by(db, events, &token, "the CLI that reserved these slots ended", BY_RUN_ENDED)
+      .await?
+    {
       reclaimed += 1;
     }
   }

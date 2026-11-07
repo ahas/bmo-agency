@@ -12,8 +12,9 @@ use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 
-use super::dispatch::{promote_reservations, reclaim_bound, reclaim_native};
+use super::dispatch::{announce, promote_reservations, reclaim_bound, reclaim_native};
 use crate::clock::every;
+use crate::events::Bus;
 use crate::now_ms;
 use crate::places::Ground;
 use crate::queue::leftovers::sweep_everywhere;
@@ -31,13 +32,17 @@ pub const LEFTOVERS_PASS: Duration = Duration::from_secs(10 * 60);
 
 /// The line's clock: a reservation's slot at the head of its role's line let into room given back, and a
 /// native call whose caller ended giving back the slot another run may be waiting for.
-pub async fn keep_pool(db: DatabaseConnection) {
+pub async fn keep_pool(db: DatabaseConnection, events: Bus) {
   every("role slots", Duration::ZERO, POOL_PASS, move || {
     let db = db.clone();
+    let events = events.clone();
 
     async move {
-      promote_reservations(&db, now_ms()).await?;
-      reclaim_native(&db).await?;
+      for request in promote_reservations(&db, now_ms()).await? {
+        announce(&events, &request);
+      }
+
+      reclaim_native(&db, &events).await?;
 
       Ok(())
     }
@@ -48,13 +53,14 @@ pub async fn keep_pool(db: DatabaseConnection) {
 /// The bound leases' clock, from the process's start: a lease whose launched child was seen standing and has
 /// ended — its unit, its pane and every open execution naming it gone — given back, so a turn whose release
 /// never came does not hold its place for good.
-pub async fn keep_bound(db: DatabaseConnection, running: Running) {
+pub async fn keep_bound(db: DatabaseConnection, events: Bus, running: Running) {
   every("role slot bound leases", Duration::ZERO, BOUND_PASS, move || {
     let db = db.clone();
+    let events = events.clone();
     let running = running.clone();
 
     async move {
-      let released = reclaim_bound(&db, &running).await?;
+      let released = reclaim_bound(&db, &events, &running).await?;
 
       if released > 0 {
         println!("role slots: {released} lease(s) whose launched child ended given back");
