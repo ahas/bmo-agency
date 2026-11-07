@@ -119,7 +119,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   | Setting | What it says | A supervisor of one session across its rooms | A supervisor added on the console |
   |---|---|---|---|
   | `session_scope` | `agent`: one session across every room it answers, each turn carrying its room's block; `room`: one session in each room | `agent` | `room` |
-  | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: the platform's harness opening, the pieces role and its persona as its system prompt, its new words as its turn and no re-ask (「What a turn is given」 below) | `window` | `pieces` |
+  | `turn_shape` | `window`: the chat documents as its system prompt (`bmo-window.md`); `pieces`: the platform's harness opening, the pieces role and its persona as its system prompt (「What a turn is given」 below). Either shape's round runs the receiver's draft process, the same questions, review and revision (`drafting.md`) | `window` | `pieces` |
 
 - **The scope and the shape go together:** a turn of the window shape goes on in the one session of the
   `agent` scope, and one of the pieces shape in the session of its room.
@@ -182,7 +182,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     role, path, provider and model (`docs/sessions.md`, 「A role's session」).
 - **Each turn goes on in that session.** The supervisor's program stands on the room's session — the one
   it stood on, or the same program started again on this room's in the same pane where it stood on another
-  room's — and the turn's prompt is its new words alone: the program keeps the conversation, so the turn
+  room's — and the turn's prompt is the round the receiver composes: its new words with the room's block, the
+  reference and the draft process's question, never the conversation again. The program keeps that, so the turn
   goes on from the one before and the engine computes only what is new (「The session's scope」 above).
 - **One turn at a time in the supervisor's program.** Turns of two rooms take the supervisor's own lock in
   turn, since they go into one program.
@@ -417,8 +418,11 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     the system, the absolute rules, the frame with its tools, the turn, and the rulebook on another
     agent's words, in that order (`policy/supervisors.toml`, `pieces_role`; `prompts/agents/pieces/`).
   - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`.
-- **Its turn** is its new words alone, as the session it goes on in keeps the conversation (「A session in
-  each room」 above).
+- **Its turn** is the round the receiver composes, the same for either shape: its new words, the room's block
+  and the draft process's first question, as the session it goes on in keeps the conversation (「A session in
+  each room」 above). The round then runs that process to its end — its questions, its review and a revision a
+  rejection asks for — as a turn of the window shape does; the shape changes the system prompt and the session
+  scope, never the rounds (`drafting.md`).
 
 ## What a turn shows
 
