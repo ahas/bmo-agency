@@ -89,10 +89,10 @@ statements below about either are kept for a rollback to the road a deployment l
     (`docs/api.md`, 「assignments and jobs」);
   - a picked-up job's turn is held to the same clocks as a live one (`docs/agent-control.md`, 「A job
     turn's tool calls are held to a clock」): its calls are read from the record its program writes, a
-    call that stops making progress is cut and the failed result handed to the model, a stop cuts a
-    blocked call, and a turn past its bound is cut with its item marked stopped, so the item's lease is
-    given back and its assignment released; the turn's tool lines are kept in the run's log and the
-    unit's own;
+    call that stops making progress is cut and the failed result handed to the model, a call with no
+    process of its own is cut by words put into the turn, a stop cuts a blocked call, and a turn past
+    its bound is cut with its item marked stopped, so the item's lease is given back and its assignment
+    released; the turn's tool lines are kept in the run's log and the unit's own;
   - a turn nothing in its place names is ended failed for its caller, and a job's is left to the pass that
     ends a job left running.
   - every turn's liveness row the process before it left open is closed first, with the ending

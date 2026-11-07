@@ -19,6 +19,14 @@ pub struct CallClock {
   pub stall_seconds: u64,
   /// How often the call's process tree is read.
   pub look_seconds: u64,
+  /// How long a call with no process of its own may run before it is cut.
+  pub in_process_seconds: u64,
+  /// After such a call is cut, how long it may still stand unanswered before the turn is ended.
+  pub in_process_grace_seconds: u64,
+  /// The words put into the working turn when such a call is cut.
+  pub in_process_cut: String,
+  /// Why a job's turn was cut at the grace after a cut call did not take the words.
+  pub in_process_grace_cut: String,
   /// When the first still-running line is written for a call.
   pub log_after_seconds: u64,
   /// How often the still-running line is repeated.

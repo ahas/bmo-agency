@@ -14,6 +14,25 @@ stall_seconds = 300
 # How often the call's process tree is read.
 look_seconds = 10
 
+# How long a call with no process of its own may run before it is cut. A call that waits inside the
+# program on a socket or a pipe leaves nothing in the tree to read, so nothing says whether it is
+# working. A job's program reads this bound as its MCP idle window, and aborts a silent call inside
+# itself, handing the model a failed result; a call that window does not cover is cut by words put into
+# the working turn, and the program ends the waiting call and hands the model a failed result.
+in_process_seconds = 300
+
+# After such a call is cut, how long it may still stand unanswered before the turn is ended at a bound of
+# its own, so a program that cannot take the words does not hold its item.
+in_process_grace_seconds = 120
+
+# The words put into the working turn when a call with no process of its own is cut. `{tool}` is the
+# call's tool and summary, `{seconds}` its age at the cut.
+in_process_cut = "The tool call {tool} did not complete: it was cut after {seconds} seconds with no process of its own and no answer. Nothing it would have returned is coming. Go on with the work without its result, and call a tool again only where the work cannot go on without one."
+
+# Why a job's turn was cut at the bound after a cut call did not take the words. `{tool}` is the call and
+# `{seconds}` the grace it was given.
+in_process_grace_cut = "cut at its bound after a tool call did not take its cut: the job's turn held its item without ending, so its item is released for a rerun"
+
 # When the first still-running line is written for a call, and how often it is repeated.
 log_after_seconds = 30
 still_every_seconds = 60

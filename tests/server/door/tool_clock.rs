@@ -68,6 +68,10 @@ fn clock(min_ms: i64, stall_ms: i64, stop_stall_ms: i64) -> ToolClock {
     min_ms,
     stall_ms,
     look_ms: 20,
+    in_process_ms: 400,
+    in_process_grace_ms: 2_000,
+    in_process_cut: "The tool call {tool} was cut after {seconds} seconds; go on without it.".to_owned(),
+    in_process_grace_cut: "cut at its bound after a tool call did not take its cut".to_owned(),
     log_after_ms: 100,
     still_every_ms: 100,
     stop_stall_ms,
@@ -190,6 +194,59 @@ async fn a_call_that_keeps_burning_processor_is_not_cut() {
     "a working call is left to finish: {said:?}"
   );
   assert!(said.iter().any(|line| line.contains("still running")), "it is still reported: {said:?}");
+}
+
+// A call waiting inside the program with no process of its own: the program has no children, so its
+// call owns no tree. Past the call's own bound it is cut, and the words that end it are handed out.
+#[tokio::test]
+async fn a_call_with_no_process_of_its_own_is_cut_at_its_in_process_bound() {
+  let program = Program::spawn("exec sleep 100000");
+  let mut watch = ToolWatch::new(clock(300, 400, 100));
+  let began = agency_server::now_ms();
+  let mut records = vec![json!({
+    "type": "assistant", "timestamp": stamp(began),
+    "message": { "content": [
+      { "type": "tool_use", "id": "t1", "name": "WebFetch", "input": { "url": "https://example.invalid/" } }
+    ] }
+  })];
+  let mut said = vec![];
+  let mut cut = None;
+
+  for step in 0..40 {
+    let now = began + step * 100;
+
+    said.extend(watch.look("job-41", &records, 0, program.pid, now).await);
+
+    if let Some(found) = watch.take_in_process_cut() {
+      cut = Some((now, found));
+
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
+
+  let (at, cut) = cut.unwrap_or_else(|| panic!("the in-process call was cut: {said:?}"));
+
+  assert!(at - began <= 1_500, "the cut is bounded: {}ms", at - began);
+  assert!(
+    said
+      .iter()
+      .any(|line| line.contains("cut after") && line.contains("no process of its own")),
+    "the cut line says the call had no process: {said:?}"
+  );
+  assert!(cut.words.contains("WebFetch"), "the words name the call: {}", cut.words);
+  assert!(watch.in_process_cut_still(), "the call stands until its result is written");
+
+  // The program takes the words and answers the call, so the clock lets it go.
+  records.push(answered("t1", at + 100, true));
+  said.extend(watch.look("job-41", &records, 0, program.pid, at + 100).await);
+
+  assert!(!watch.in_process_cut_still(), "the answered call is let go");
+  assert!(
+    said.iter().any(|line| line.contains("ended pid=-") && line.contains("failed")),
+    "the end is written with the call's outcome: {said:?}"
+  );
 }
 
 #[tokio::test]
@@ -337,6 +394,10 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
       min_ms: 400,
       stall_ms: 500,
       look_ms: 20,
+      in_process_ms: 400,
+      in_process_grace_ms: 2_000,
+      in_process_cut: "The tool call {tool} was cut after {seconds} seconds; go on without it.".to_owned(),
+      in_process_grace_cut: "cut at its bound after a tool call did not take its cut".to_owned(),
       log_after_ms: 100,
       still_every_ms: 100,
       stop_stall_ms: 100,
@@ -431,4 +492,195 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
   assert!(wrote(&notes, "tool Bash started pid="), "the start line: {:?}", notes.lock().unwrap());
   assert!(wrote(&notes, "still running"), "the still-running line: {:?}", notes.lock().unwrap());
   assert!(wrote(&notes, "cut after"), "the cut line: {:?}", notes.lock().unwrap());
+}
+
+// A job's turn whose program waits on a call with no process of its own: the door cuts the call at its
+// own bound, puts the words into the working turn, and the model is handed the call's result and answers.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let config = home.path().join("config");
+  let cwd = home.path().join("work");
+  std::fs::create_dir_all(&cwd).unwrap();
+  std::fs::create_dir_all(config.join("herdr")).unwrap();
+
+  let herdr_model = HerdrModel::stand(config.join("herdr").join("herdr.sock"));
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("XDG_CONFIG_HOME".to_owned(), at(&config)),
+      ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
+  let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr_model.socket.clone())));
+  let session = "session-cut-2";
+  let record = ClaudeCode::records_under(&config, &cwd, session).swap_remove(0);
+  append(&record, &[]);
+
+  let command = vec!["bash".to_owned(), "-c".to_owned(), "the work".to_owned()];
+  // The program has no child of its own, so the call it makes owns no process.
+  let program = Program::spawn_args(&["bash", "-c", "while :; do :; done", "--session-id", session]);
+
+  let turn = Turn {
+    name: "job-42".into(),
+    title: "the work".into(),
+    seat: Seat::Own(herdr::Herdr::there(herdr_model.socket.clone())),
+    cwd: at(&cwd),
+    command: command.clone(),
+    env: BTreeMap::from([
+      ("CLAUDE_CONFIG_DIR".to_owned(), at(&config)),
+      ("HOME".to_owned(), at(home.path())),
+    ]),
+    prompt: "the work".into(),
+    session: session.into(),
+    identity: Identity {
+      agent: None,
+      root: None,
+      parent: None,
+      role: Some("worker".into()),
+      model: Some("claude-sonnet-5".into()),
+      effort: None,
+    },
+    line: "worker".into(),
+    provider: "claude-code".into(),
+    lead: String::new(),
+    trusts_folder: true,
+    clock: None,
+    interrupt: Interrupt::Keys(vec!["escape".into()]),
+    timings: Timings {
+      poll: Duration::from_millis(30),
+      redraw: Duration::from_millis(500),
+      submit: Duration::from_secs(5),
+      gone: GoneConfirm::default(),
+    },
+  };
+  let notes = Arc::new(Mutex::new(Vec::new()));
+  let watch = Notes(
+    notes.clone(),
+    ToolClock {
+      min_ms: 400,
+      stall_ms: 500,
+      look_ms: 20,
+      in_process_ms: 400,
+      in_process_grace_ms: 5_000,
+      in_process_cut: "The tool call {tool} was cut after {seconds} seconds; go on without it.".to_owned(),
+      in_process_grace_cut: "cut at its bound after a tool call did not take its cut".to_owned(),
+      log_after_ms: 100,
+      still_every_ms: 100,
+      stop_stall_ms: 100,
+      stop_bound_ms: 5_000,
+    },
+  );
+
+  let herdr_for_writer = herdr_model.clone();
+  let record_for_writer = record.clone();
+  let command_for_writer = command.clone();
+  let writing = tokio::spawn(async move {
+    let mut pane = None;
+
+    for _ in 0..400 {
+      pane = herdr_for_writer
+        .panes()
+        .into_iter()
+        .find(|pane| pane.command.as_ref() == Some(&command_for_writer))
+        .map(|pane| pane.id);
+
+      if pane.is_some() {
+        break;
+      }
+
+      tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let pane = pane.expect("the door's pane");
+
+    herdr_for_writer.agent_status(&pane, "idle");
+
+    for _ in 0..400 {
+      if !herdr_for_writer.prompts().is_empty() {
+        break;
+      }
+
+      tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    herdr_for_writer.agent_status(&pane, "working");
+    append(&record_for_writer, &[handed("the work")]);
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    append(
+      &record_for_writer,
+      &[json!({ "type": "assistant", "message": { "content": [
+        { "type": "tool_use", "id": "t1", "name": "WebFetch", "input": { "url": "https://example.invalid/" } }
+      ] } })],
+    );
+
+    // The call has no process to signal, so the door cuts it by putting words into the turn.
+    let mut cut = false;
+
+    for _ in 0..600 {
+      if herdr_for_writer.prompts().iter().any(|(_, text)| text.contains("go on without it")) {
+        cut = true;
+
+        break;
+      }
+
+      tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+
+    assert!(cut, "the door put the cut's words into the working turn");
+
+    // The program ends the waiting call on them and hands the model its result.
+    append(
+      &record_for_writer,
+      &[
+        json!({ "type": "user", "message": { "content": [
+          { "type": "tool_result", "tool_use_id": "t1", "is_error": true, "content": "cut" }
+        ] } }),
+        answer("the call was cut and the work went on"),
+        turn_end(),
+      ],
+    );
+    herdr_for_writer.agent_status(&pane, "idle");
+  });
+
+  let checking = record.clone();
+  let ended = tokio::time::timeout(Duration::from_secs(20), async {
+    let mut watch = watch;
+
+    agency_server::door::turn::put(&ground, &turn, &mut watch).await
+  })
+  .await
+  .unwrap_or_else(|_| {
+    panic!(
+      "the turn ends within its bound; notes: {:?}; writer finished: {}; record:\n{}",
+      notes.lock().unwrap(),
+      writing.is_finished(),
+      std::fs::read_to_string(&checking).unwrap_or_default()
+    )
+  })
+  .expect("the turn is put in and ended");
+
+  writing.await.unwrap();
+  drop(program);
+
+  assert!(
+    matches!(ended, Ending::Answered { .. }),
+    "the model answered after the in-process call was cut: {ended:?}"
+  );
+  assert!(
+    wrote(&notes, "tool WebFetch started pid=-"),
+    "the start line: {:?}",
+    notes.lock().unwrap()
+  );
+  assert!(wrote(&notes, "cut after"), "the cut line: {:?}", notes.lock().unwrap());
+  assert!(
+    wrote(&notes, "no process of its own"),
+    "the cut names the missing process: {:?}",
+    notes.lock().unwrap()
+  );
 }

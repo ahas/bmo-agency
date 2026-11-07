@@ -31,7 +31,8 @@ use crate::door::record::{
   CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, read_round, read_turn,
   turn_closed_since, turn_error,
 };
-use crate::door::tool_clock::{ToolClock, Watch as ToolWatch};
+use crate::door::tool_clock::{InProcessCut, ToolClock, Watch as ToolWatch};
+use crate::door::turn::takes_words_mid_turn;
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
@@ -745,6 +746,9 @@ pub async fn waited(
   let mut cut = false;
   let mut stop_seen_at: Option<i64> = None;
   let stop_bound_ms = turn.job.map(|_| clock.stop_bound_ms);
+  let grace_ms = clock.in_process_grace_ms;
+  let grace_cut = clock.in_process_grace_cut.clone();
+  let mut in_process_cut: Option<InProcessCut> = None;
   let mut tools = turn.job.map(|_| ToolWatch::new(clock));
   let mut following = Following::of(ground, turn, place, pane).await;
 
@@ -789,6 +793,65 @@ pub async fn waited(
 
     if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
       watch_tools(ground, turn, records, program, watch, &mut following.log, now).await;
+    }
+
+    // A call with no process of its own is cut by words put into the working turn, as the door cuts one:
+    // the program ends the waiting call on them and hands the model a failed result. A program that does
+    // not take them is ended at the cut's grace.
+    if let Some(watch) = tools.as_mut() {
+      let provider = pane
+        .map(|pane| pane.provider.as_str())
+        .filter(|provider| !provider.is_empty())
+        .unwrap_or("claude-code");
+      let target = pane
+        .and_then(|pane| pane.pane.clone())
+        .or_else(|| place.running().and_then(|running| running.pane_id));
+
+      while let Some(cut) = watch.take_in_process_cut() {
+        let said = format!("{}: the call {} was cut, its words put into the turn", turn.run, cut.tool);
+
+        println!("{said}");
+        following.log.write(&ground.db, Line::note(&said)).await;
+
+        if takes_words_mid_turn(provider) {
+          if let (Some(herdr), Some(target)) = (&ground.herdr, target.as_deref()) {
+            let _ = herdr.call("agent.prompt", json!({ "target": target, "text": cut.words }), None).await;
+          }
+        } else {
+          surface_interrupt(ground, &turn.run, pane).await;
+        }
+
+        if in_process_cut.is_none() {
+          in_process_cut = Some(cut);
+        }
+      }
+
+      if !watch.in_process_cut_still() {
+        in_process_cut = None;
+      }
+    }
+
+    if let Some(cut) = &in_process_cut
+      && tools.as_ref().is_some_and(|watch| watch.in_process_cut_still())
+      && now - cut.at >= grace_ms
+    {
+      let why = fill_marks(&grace_cut, &[("tool", &cut.tool), ("seconds", &cut.seconds.to_string())]);
+
+      if let Some(job) = turn.job
+        && let Err(refused) = crate::queue::stops::mark_job_stopped(&ground.db, job, &why).await
+      {
+        eprintln!(
+          "{}: job {job} was not marked stopped at a cut call's grace: {}",
+          turn.run, refused.detail
+        );
+      }
+
+      println!("{}: {}", turn.run, why);
+      following.log.write(&ground.db, Line::note(&why)).await;
+      surface_interrupt(ground, &turn.run, pane).await;
+      following.feed(ground, turn, place, pane).await;
+
+      return hand_back(ground, place, turn, Came::Failed(why), true).await;
     }
 
     if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {

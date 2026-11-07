@@ -95,6 +95,8 @@ pub struct Launch {
   pub variables: BTreeMap<String, String>,
   /// The variables the program reads a login off.
   pub login_variables: Vec<String>,
+  /// The variable the program reads its MCP tool idle window from, in milliseconds.
+  pub mcp_idle_timeout: String,
   /// What the program writes itself into a session's conversation.
   pub own_words: Vec<String>,
   /// The program's tools whose calls wait long.

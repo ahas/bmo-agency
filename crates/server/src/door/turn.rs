@@ -242,6 +242,16 @@ pub trait Watch {
   fn turn_clock(&self) -> Option<Duration> {
     None
   }
+
+  /// A call that held no process of its own did not take its cut within the grace: the reason a caller
+  /// marks its job stopped by, where it keeps one; none where the turn is only stopped.
+  fn held_by_processless_call(
+    &mut self,
+    _tool: &str,
+    _seconds: u64,
+  ) -> impl Future<Output = Option<String>> + Send {
+    async { None }
+  }
 }
 
 /// A caller with nothing to say and nothing to keep.
@@ -1327,7 +1337,7 @@ async fn open_pane(herdr: &Herdr, name: &str, label: &str, turn: &Turn) -> Resul
 }
 
 // Whether the provider's standing program takes words put in while a turn works into that turn.
-fn takes_words_mid_turn(provider: &str) -> bool {
+pub(crate) fn takes_words_mid_turn(provider: &str) -> bool {
   harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())
     .is_some_and(|resident| resident.words_mid_turn)
@@ -1348,6 +1358,7 @@ async fn watch_turn<W: Watch>(
   let clock = turn.clock.or_else(|| door.watch.turn_clock());
   let tool_policy = door.watch.tool_clock();
   let stop_bound_ms = tool_policy.as_ref().map(|clock| clock.stop_bound_ms);
+  let in_process_grace_ms = tool_policy.as_ref().map_or(i64::MAX, |clock| clock.in_process_grace_ms);
   let mut tools = tool_policy.map(super::tool_clock::Watch::new);
   // Where this turn's own lines begin in the record, read again as the prompt goes in: a program
   // started again for this turn writes lines of its own on the way up.
@@ -1539,6 +1550,7 @@ async fn watch_turn<W: Watch>(
   let mut stop_asked = false;
   let mut stop_seen_at: Option<i64> = None;
   let mut stop_cut = false;
+  let mut in_process_cut: Option<super::tool_clock::InProcessCut> = None;
   let mut silent_since: Option<i64> = None;
 
   loop {
@@ -1554,6 +1566,37 @@ async fn watch_turn<W: Watch>(
       for line in said {
         println!("{line}");
         door.watch.note(&line).await;
+      }
+
+      // A call with no process of its own is cut by words put into the working turn: the program ends the
+      // waiting call on them and hands the model a failed result, and the turn goes on.
+      while let Some(cut) = watching.take_in_process_cut() {
+        let said = format!("{}: the call {} was cut, its words put into the turn", turn.name, cut.tool);
+
+        println!("{said}");
+        door.watch.note(&said).await;
+
+        if takes_words_mid_turn(&turn.provider) {
+          if let Err(fault) = prompt_with_lead(door.herdr, pane, &turn.lead, &cut.words).await {
+            let said = format!(
+              "{}: the call {}'s cut words did not go in: {}: {}",
+              turn.name, cut.tool, fault.code, fault.message
+            );
+
+            println!("{said}");
+            door.watch.note(&said).await;
+          }
+        } else {
+          door.interrupt(pane, &turn.interrupt).await;
+        }
+
+        if in_process_cut.is_none() {
+          in_process_cut = Some(cut);
+        }
+      }
+
+      if !watching.in_process_cut_still() {
+        in_process_cut = None;
       }
     }
 
@@ -1649,6 +1692,34 @@ async fn watch_turn<W: Watch>(
       let screen = door.kept_screen(&DOOR_WORDS.screens.stopped, shown).await;
 
       return Ok(Ending::Stopped { screen });
+    }
+
+    // A call cut with no process of its own whose words the program did not take within its grace: the
+    // turn is ended there, so a program that cannot take the words does not hold its item to its bound.
+    if let Some(cut) = &in_process_cut
+      && tools.as_ref().is_some_and(|watching| watching.in_process_cut_still())
+      && now_ms() - cut.at >= in_process_grace_ms
+    {
+      let why = door.watch.held_by_processless_call(&cut.tool, cut.seconds).await;
+      let said = match &why {
+        Some(reason) => format!("{}: {reason}", turn.name),
+        None => format!(
+          "{}: the call {} did not take its cut within {}s, so the turn is stopped",
+          turn.name,
+          cut.tool,
+          in_process_grace_ms / 1_000
+        ),
+      };
+
+      println!("{said}");
+      door.watch.note(&said).await;
+      door.interrupt(pane, &turn.interrupt).await;
+      *ending = End::Cancelled;
+
+      let shown = door.screen(pane).await;
+      let screen = door.kept_screen(&said, shown).await;
+
+      return Ok(if why.is_some() { Ending::Overran { screen } } else { Ending::Stopped { screen } });
     }
 
     // Past its clock the caller's policy is asked, and only its verdict cuts the turn.

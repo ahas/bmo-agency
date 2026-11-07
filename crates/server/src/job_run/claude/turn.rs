@@ -291,7 +291,20 @@ pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobM
   turn.env.insert(TURN_AGENT.to_owned(), agent.to_owned());
 
   if job.is_some() {
+    use policy::providers::claude_code::CLAUDE_CODE;
+    use policy::tool_clock::TOOL_CLOCK;
+
     turn.env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
+
+    // A call that waits inside the program on a socket sends no response; the program's own MCP idle
+    // window is the call clock's in-process bound, and at it the program aborts the call and hands the
+    // model a failed result (docs/agent-control.md, 「A job turn's tool calls are held to a clock」). A
+    // value the caller set stands.
+    let seconds = TOOL_CLOCK.call.in_process_seconds.max(TOOL_CLOCK.call.min_seconds);
+    turn
+      .env
+      .entry(CLAUDE_CODE.launch.mcp_idle_timeout.clone())
+      .or_insert_with(|| seconds.saturating_mul(1_000).to_string());
   } else {
     turn.env.remove(TASK_LOCKED);
   }
@@ -1203,6 +1216,32 @@ impl Watch for WorkWatch<'_> {
     use policy::tool_clock::TOOL_CLOCK;
 
     self.job.map(|_| Duration::from_secs(TOOL_CLOCK.turn.bound_minutes.saturating_mul(60)))
+  }
+
+  // A call with no process of its own that did not take its cut within the grace: the job is marked
+  // stopped with the reason, so its item is released for a rerun, and the door cuts the turn.
+  async fn held_by_processless_call(&mut self, tool: &str, seconds: u64) -> Option<String> {
+    let job = self.job?;
+    use policy::tool_clock::TOOL_CLOCK;
+
+    let why = policy::fill_marks(
+      &TOOL_CLOCK.call.in_process_grace_cut,
+      &[("tool", tool), ("seconds", &seconds.to_string())],
+    );
+
+    if let Err(refused) = crate::queue::stops::mark_job_stopped(&self.ground.db, job.job, &why).await {
+      eprintln!(
+        "{}: job {} was not marked stopped at a cut call's grace: {}",
+        self.run, job.job, refused.detail
+      );
+    }
+
+    println!(
+      "{}: the call {tool} did not take its cut, so job {} is marked stopped and the turn is ended",
+      self.run, job.job
+    );
+
+    Some(why)
   }
 
   // A job's turn past its bound is cut, not asked about: it holds an item and the queue behind it, so a

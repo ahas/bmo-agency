@@ -9,11 +9,16 @@
 //! a call with no processor time behind it is stopped the same way, so the stop's words can be read at the
 //! next boundary instead of waiting behind a blocked read.
 //!
+//! A call that holds no process of its own waits inside the program — on a socket, on a pipe — and leaves
+//! nothing in the tree to read. Past a bound of its own it is cut too, but not by a signal: words are put
+//! into the working turn saying the call did not complete, and the program ends the waiting call and hands
+//! the model a failed result. A program that does not take the words ends the turn at the grace.
+//!
 //! The lines this writes go to the run's log and to the unit's own log, so a hang is readable while it is
 //! happening: the call's start with its pid and a one-line summary, a still-running line past a threshold,
 //! and its end with its duration and outcome.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::Duration;
 
 use agent_host::identity::{ProcessStat, boot_ms, clock_ticks, process_stat};
@@ -33,6 +38,10 @@ pub struct ToolClock {
   pub min_ms: i64,
   pub stall_ms: i64,
   pub look_ms: i64,
+  pub in_process_ms: i64,
+  pub in_process_grace_ms: i64,
+  pub in_process_cut: String,
+  pub in_process_grace_cut: String,
   pub log_after_ms: i64,
   pub still_every_ms: i64,
   pub stop_stall_ms: i64,
@@ -47,6 +56,10 @@ impl From<&CallClock> for ToolClock {
       min_ms: ms(call.min_seconds),
       stall_ms: ms(call.stall_seconds),
       look_ms: ms(call.look_seconds),
+      in_process_ms: ms(call.in_process_seconds),
+      in_process_grace_ms: ms(call.in_process_grace_seconds),
+      in_process_cut: call.in_process_cut.clone(),
+      in_process_grace_cut: call.in_process_grace_cut.clone(),
       log_after_ms: ms(call.log_after_seconds),
       still_every_ms: ms(call.still_every_seconds),
       stop_stall_ms: ms(call.stop_stall_seconds),
@@ -112,6 +125,9 @@ struct Call {
   started_said: bool,
   still_said_at: i64,
   cut: bool,
+  // A call cut while it held no process of its own: its words are put into the turn, and a program that
+  // does not take them ends the turn at the grace.
+  in_process: bool,
 }
 
 impl Call {
@@ -124,12 +140,24 @@ impl Call {
   }
 }
 
+/// A call cut while it had no process of its own: the words to put into the working turn, and what the
+/// call was. A program that takes the words ends the waiting call and hands the model a failed result;
+/// one that does not is ended at the grace.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InProcessCut {
+  pub tool: String,
+  pub at: i64,
+  pub seconds: u64,
+  pub words: String,
+}
+
 /// A turn's tool calls watched over a turn.
 #[derive(Debug)]
 pub struct Watch {
   clock: ToolClock,
   calls: BTreeMap<String, Call>,
   last_look: i64,
+  in_process: VecDeque<InProcessCut>,
 }
 
 impl Watch {
@@ -138,7 +166,18 @@ impl Watch {
       clock,
       calls: BTreeMap::new(),
       last_look: i64::MIN / 2,
+      in_process: VecDeque::new(),
     }
+  }
+
+  /// A call just cut because it held no process of its own, whose words are yet to go into the turn.
+  pub fn take_in_process_cut(&mut self) -> Option<InProcessCut> {
+    self.in_process.pop_front()
+  }
+
+  /// Whether a call cut with no process of its own still stands unanswered, so the words did not end it.
+  pub fn in_process_cut_still(&self) -> bool {
+    self.calls.values().any(|call| call.in_process)
   }
 
   /// Watch the record once: what began, what ended, what is still going, and what has stopped making
@@ -235,7 +274,11 @@ impl Watch {
       let Some(call) = self.calls.get_mut(&used.id) else { continue };
       let elapsed = now - call.started_at;
 
-      if !call.started_said && (call.pids.is_empty() && elapsed < 2_000) {
+      // A call with no process yet may have one on its way, so its start waits a moment — no longer than
+      // its own bound, since a call that never gets one is cut there.
+      let waiting_for_process = call.pids.is_empty() && elapsed < 2_000.min(self.clock.in_process_ms);
+
+      if !call.started_said && waiting_for_process {
         continue;
       }
 
@@ -245,19 +288,46 @@ impl Watch {
         lines.push(start_line(name, &used.name, &call.summary, call.pids.first(), elapsed));
       }
 
-      if !call.cut
-        && !call.pids.is_empty()
-        && elapsed >= self.clock.min_ms
-        && now - call.last_progress_at >= self.clock.stall_ms
-      {
+      // A call with no process of its own has nothing in the tree to read, so it is held to a bound of its
+      // own; one that owns a tree is cut when that tree burns no processor time.
+      let in_process = call.pids.is_empty();
+      let due = if in_process {
+        elapsed >= self.clock.in_process_ms.max(self.clock.min_ms)
+      } else {
+        elapsed >= self.clock.min_ms && now - call.last_progress_at >= self.clock.stall_ms
+      };
+
+      if !call.cut && due {
         call.cut = true;
-        cutting.push(call.clone());
-        lines.push(format!(
-          "{name}: tool {} cut after {:.0}s with no progress: pid={}",
-          call.words(),
-          elapsed as f64 / 1_000.0,
-          call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-        ));
+        call.in_process = in_process;
+
+        if in_process {
+          let seconds = u64::try_from(elapsed.max(0) / 1_000).unwrap_or_default();
+          let words = policy::fill_marks(
+            &self.clock.in_process_cut,
+            &[("tool", &call.words()), ("seconds", &seconds.to_string())],
+          );
+
+          self.in_process.push_back(InProcessCut {
+            tool: call.words(),
+            at: now,
+            seconds,
+            words,
+          });
+          lines.push(format!(
+            "{name}: tool {} cut after {:.0}s with no process of its own and no answer",
+            call.words(),
+            elapsed as f64 / 1_000.0,
+          ));
+        } else {
+          cutting.push(call.clone());
+          lines.push(format!(
+            "{name}: tool {} cut after {:.0}s with no progress: pid={}",
+            call.words(),
+            elapsed as f64 / 1_000.0,
+            call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
+          ));
+        }
       } else if call.started_said
         && elapsed >= self.clock.log_after_ms
         && now - call.still_said_at >= self.clock.still_every_ms

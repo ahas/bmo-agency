@@ -33,6 +33,8 @@ use agent_session::{
   WentOut, WorkParts,
 };
 use harness_providers::Machine;
+use policy::providers::claude_code::CLAUDE_CODE;
+use policy::tool_clock::TOOL_CLOCK;
 use serde_json::json;
 
 use crate::support::scratch::Scratch;
@@ -165,6 +167,16 @@ fn a_job_turn_carries_its_variables_its_agent_its_jobs_marker_its_work_key_and_i
   );
   assert_eq!(turn.env[TURN_AGENT], "worker-a");
   assert_eq!(turn.env[TASK_LOCKED], "1");
+  let idle = TOOL_CLOCK
+    .call
+    .in_process_seconds
+    .max(TOOL_CLOCK.call.min_seconds)
+    .saturating_mul(1_000);
+  assert_eq!(
+    turn.env[&CLAUDE_CODE.launch.mcp_idle_timeout],
+    idle.to_string(),
+    "a job's program reads the call clock's in-process bound as its MCP idle window"
+  );
   assert_eq!(turn.identity.parent.as_deref(), Some("bmo-task-41"));
   assert_eq!(
     turn.identity.root.as_deref(),
@@ -175,6 +187,10 @@ fn a_job_turn_carries_its_variables_its_agent_its_jobs_marker_its_work_key_and_i
   let research = with_work(composed(), "worker-a", &work(Resume::Fresh), None);
 
   assert!(!research.env.contains_key(TASK_LOCKED), "a turn with no job works for none");
+  assert!(
+    !research.env.contains_key(&CLAUDE_CODE.launch.mcp_idle_timeout),
+    "a turn with no job keeps no call clock, so it sets no idle window"
+  );
 }
 
 #[test]

@@ -1052,6 +1052,16 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   program's tool then answers the model with a failed result, and the turn goes on — the call is cut, not
   the turn. A call that keeps burning processor time, a build or a test among them, is never touched
   however long it runs.
+- **A call with no process of its own is cut too.** A call that waits inside the program — an HTTP call
+  to an MCP server, a read or a write on a pipe — leaves nothing in the program's tree to read, so
+  nothing says whether it works. A job's turn gives the program the call clock's own bound as its MCP
+  idle window (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`, named by the provider's policy): a call that sends
+  no response and no progress notification for it is aborted inside the program, which hands the model a
+  failed result and goes on. A call the program's own idle window does not cover is cut by the door past
+  the same bound: words are put into the working turn saying the call did not complete and to go on
+  without its result, and the program ends the waiting call and hands the model a failed result. A
+  program that does not take the words within the cut's grace is ended at a bound of its own, and a job
+  is marked stopped there as it is at its turn's bound, so its item is released for a rerun.
 - **The lines are kept.** Each call's start is written with its pid and a one-line summary, a
   still-running line past its threshold and every interval after it, and its end with its duration and
   outcome. A cut is written as it happens. The lines go to the run's log and the unit's own log, so a
@@ -1067,8 +1077,9 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   backstop for a turn the call clock cannot see.
 - **A turn picked up across a restart is held to the same clock.** The turn `turn_pickup` attaches to
   reads its calls from the record its program writes and holds them to the same call clock, stop and
-  bound. A blocked call is cut there as it is in the door, and a turn past its bound is marked stopped
-  and cut, so its item and assignment are released and the queue behind it moves.
+  bound. A blocked call is cut there as it is in the door, a call with no process of its own is cut by
+  the same words put into the turn, and a turn past its bound is marked stopped and cut, so its item and
+  assignment are released and the queue behind it moves.
 
 ### What standing costs
 
