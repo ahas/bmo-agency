@@ -41,9 +41,10 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   prompt is its harness.
 - **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's.
 - **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
-  the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
-  path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker line's
-  prefix — the rules its line hands after the harness opening in its whole system prompt
+  the trailer every job is held to, with the path of the worker plugin's skills and the path of
+  `plain-writing.md` filled in as the deployment shows them, the graph text standing before it in the
+  composition, which stands in the worker line's prefix — the rules its line hands after the harness
+  opening in its whole system prompt
   (`docs/launch-lines.md`) — so a session pays for it once rather than on every turn; and `handoff.md` in
   a repository's prompt folder, the instruction a run there writes its own handoff note by, where the
   repository holds one. A repository's definition route answers all three (`docs/api.md`,

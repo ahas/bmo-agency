@@ -249,8 +249,9 @@
   `prompts/agents/worker/standing-rules.md`, then the rulebook against destroying the system, then the
   repository's own rules where the run works in a repository's checkout and the repository names a
   document of its own, `prompts/agents/<folder>/own-rules.md` from the prompt folder its row names (a
-  co-work branch in a standing checkout takes none), then the report trailer every job is held to,
-  `prompts/agents/worker/trailer.md` filled in as the deployment shows it (a co-work branch takes none),
+  co-work branch in a standing checkout takes none), then the report trailer every job is held to, the
+  graph text followed by `prompts/agents/worker/trailer.md` filled in as the deployment shows it (a co-work
+  branch takes none),
   then the documents the repository names as its prefix documents (`docs/worker-bench.md`, 「Prefix
   documents」; `docs/repositories.md`, 「What a run in a repository is handed」). A run whose path is no
   repository's is handed nothing of a repository. The trailer stands in the whole prompt, the
