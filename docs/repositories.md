@@ -122,5 +122,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   folder where it names none; a repository's checkout may be named only in the owner's turn, and the run is
   then handed that repository's own (`docs/tools.md`, 「The worker ask」). It takes a slot of the worker role,
   and a repository's checkout like a job, and waits for both however long it takes.
-- **A person typing into a run's pane** speaks to that run while it stands; between runs nothing of the
-  repository stands to be spoken to.
+- **A person typing into a run's pane** speaks to that run while it stands.
+- **A word said to the worker** goes by the repository, `POST /repositories/{repositoryName}/words`: into the
+  job's turn going in one of its checkouts where the provider takes it, and otherwise a turn of its own on
+  the session the worker role keeps at the checkout, under the checkout's lock and the worker-words clock
+  (`docs/agent-control.md`, 「Words said to a worker」). It is the owner's alone, and the words and their
+  answer stand in the worker's log.

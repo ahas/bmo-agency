@@ -300,6 +300,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sessions/{sessionId}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say words to a run's session, offered to the turn it is working. */
+        post: operations["createSessionsWords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/repositories/{repositoryName}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say words to a repository's worker, offered to the job's turn going there or carried in a turn of its own. */
+        post: operations["createRepositoryWords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/{sessionId}/answers": {
         parameters: {
             query?: never;
@@ -2022,6 +2056,38 @@ export interface components {
         /** @description The body that pushes words into a working turn. */
         TurnWords: {
             words: string;
+        };
+        /** @description What became of words said to a run or a worker. */
+        WordsSent: {
+            said: components["schemas"]["WordsSaid"];
+            sessionId?: string | null;
+            run?: string | null;
+            /** Format: int64 */
+            turnId?: number | null;
+            /** Format: int64 */
+            jobId?: number | null;
+            reason?: string | null;
+        };
+        /**
+         * @description One of the values the API accepts.
+         * @enum {string}
+         */
+        WordsSaid: "delivered" | "waiting" | "refused" | "started";
+        /** @description The body that says words to a run's session, or to a repository's worker. */
+        WordsAsk: {
+            /** @default  */
+            words: string;
+            /** @description Who says them: `owner`, or the supervisor that asked for the run. */
+            by?: string | null;
+            files?: components["schemas"]["WordFile"][];
+            /** @description The checkout of the repository the words are said to, where one is named. */
+            worker?: string | null;
+        };
+        /** @description One file said with the words, as its bytes stand base64-encoded. */
+        WordFile: {
+            name: string;
+            type?: string | null;
+            data: string;
         };
         /** @description Answer: */
         Answer: {
@@ -4196,6 +4262,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description forbidden */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description gone */
         Gone: {
             headers: {
@@ -4259,8 +4334,26 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-word-road */
+        NoWordRoad: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-worker-free */
         NoWorkerFree: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-a-run */
+        NotARun: {
             headers: {
                 [name: string]: unknown;
             };
@@ -4993,6 +5086,73 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    createSessionsWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WordsAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WordsSent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            410: components["responses"]["Gone"];
+            413: components["responses"]["TooLarge"];
+            422: components["responses"]["NotARun"];
+        };
+    };
+    createRepositoryWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repositoryName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WordsAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WordsSent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["TooLarge"];
+            503: components["responses"]["NoWordRoad"];
         };
     };
     createSessionsAnswers: {
@@ -6043,8 +6203,8 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["UnknownRepository"];
             409: components["responses"]["NoTurn"];
-            422: components["responses"]["UnknownRepository"];
             502: components["responses"]["UpstreamFailed"];
         };
     };
@@ -6589,7 +6749,8 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            422: components["responses"]["UnknownRepository"];
+            404: components["responses"]["UnknownRepository"];
+            422: components["responses"]["NoWorkerFree"];
         };
     };
     readAssignmentsByAssignmentId: {

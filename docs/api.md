@@ -348,6 +348,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/sessions/{sessionId}/turns/{turnId}` | A turn and what it has written so far. |
 | PATCH | `/sessions/{sessionId}/turns/{turnId}` | Interrupt a turn. |
 | POST | `/sessions/{sessionId}/turns/{turnId}/inputs` | Push words into a working turn. |
+| POST | `/sessions/{sessionId}/words` | Say words to a run's session, offered to the turn it is working. |
 | POST | `/sessions/{sessionId}/answers` | Answer a question a turn asked. |
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 | POST | `/session-reset` | Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. |
@@ -446,9 +447,10 @@ the turn's own, every part optional: `name`, the run's name, one agency gives wh
 what a person watching reads over the run, the role's name where none is named; `chat`, the room its run's
 lines stand under, none where it names none; `unit`, the unit it runs under; `resume`, which session it goes
 on — `{ "kind": "auto" }` where it names none, `{ "kind": "fresh" }`, or `{ "kind": "session", "id": … }`
-(`docs/sessions.md`, 「A role's session」); `hearsWords`, whether words pushed into the turn reach it, false
-where it names none; and `variables`, what its program is started with beside its own. A turn's road is its
-session's: a turn body naming `provider`, `model`, `mapping`, `workKey` or `tier` is refused 400.
+(`docs/sessions.md`, 「A role's session」); `hearsWords`, whether words pushed into the turn reach it, true
+where it names none, so every run stands to be spoken to unless its caller says otherwise; and `variables`,
+what its program is started with beside its own. A turn's road is its session's: a turn body naming
+`provider`, `model`, `mapping`, `workKey` or `tier` is refused 400.
 
 Each turn of a role's session goes out in a pane of its own, on the session the role gives it: the one kept
 for the role at the path on the provider and model where the role keeps sessions and it is valid, a new one
@@ -514,6 +516,32 @@ progress read answers the turn named while it runs, and the session's last turn 
 interrupt and the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
 carries no turn of that id. A session's turn that has ended keeps what it wrote until the session's next
 turn begins.
+
+**Words said to a run.** `POST /sessions/{sessionId}/words` hands a paragraph, and any files with it, to a
+role's run by its session's id (`docs/agent-control.md`, 「Words that arrive while a turn is working」). Its
+body is `WordsAsk`: `words` (`text` accepted as its older name), `by`, and `files`, each `name`, `type` and
+`data`, the bytes base64-encoded; the files are written where the run's program can read them and named
+before the words as said. The answer is `WordsSent`: `said` — `delivered`, `waiting`, `refused` or `started` —
+with the `sessionId`, `run` and `turnId` it went into or takes, `jobId` where the run is a job's, and
+`reason`, why it did not go in, where it did not.
+
+- **Who may say:** the owner, `by` naming `owner` or nothing, and the supervisor that asked for the run, the
+  `askedBy` of the slot it runs on or the supervisor whose double it is. Any other name is refused 403
+  `not-the-sender`; the control port's own bearer is what stands behind a name.
+- **A run's session is a role's, never a supervisor's or a room's:** any other scope's session is refused 422
+  `not-a-run`. A room's words go by the room's own push (`POST /sessions/{sessionId}/turns/{turnId}/inputs`).
+- **The words are offered to the turn the run carries now,** and taken only where its provider declares it
+  takes words mid-turn (`docs/agent-control.md`, 「Words that arrive while a turn is working」). A turn that
+  ends before it took them answers them refused, and agency keeps nothing: they belong to whoever said them,
+  which may say them again as a turn.
+- **A run whose provider takes no words mid-turn** answers them refused, with `reason` naming the provider;
+  they are not kept for a later turn, since a run's next turn is its caller's to send.
+- **A session that stands with no turn working** answers 409 `no-turn`; **one whose run has ended** answers
+  410 `run-ended`; **an id no run stands on** answers 404 `unknown-session`.
+- **The run's record says what was sent and what became of it:** a `prompt` line named `word` under the
+  run, and a `note` line under it saying what became of them. A job's report ends with the same words, read
+  off its run's log, so what a job was told mid-turn stands beside its answer (`docs/run-records.md`, 「The
+  run ledger」).
 
 **A running turn says what it waits for.** `waiting` is null while nothing holds the turn back, and while
 the turn waits before its program is put to work it names the wait, typed: `for`, what it waits for —
@@ -647,7 +675,7 @@ out and the paths the call changed.
 | DELETE | `/slot-requests` | An owner's release: every request, reservation and bound role session the owner holds given back. |
 | GET | `/slot-requests/{token}` | One slot request. |
 | PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
-| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role and start. |
+| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role, start and session. |
 | GET | `/reservations` | Held slot reservations. |
 | POST | `/reservations` | Reserve slots of a role for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
@@ -737,8 +765,9 @@ delegate」), narrowed to one asking supervisor by `askedBy`: the ones still wai
 they were asked, then the latest ended, newest first, `ended` of them (10 where it names none). Each is
 `token`; `title`; `askedBy`; `role`; `stage`, `waiting` while its slot waits, `running` once it is let in, and
 `ended` once it is finished or cancelled; `provider` and `model` it runs on; `askedAt`, `runningSince` and
-`endedAt` in epoch milliseconds, each null until it comes; and `outcome`, what it came to once ended. A count
-that is no whole number from 0 is refused 400.
+`endedAt` in epoch milliseconds, each null until it comes; `session`, the run's session while it runs, to
+which the asking supervisor says more with `POST /sessions/{sessionId}/words`, null until it starts and once
+it ends; and `outcome`, what it came to once ended. A count that is no whole number from 0 is refused 400.
 
 A reservation is asked under a role, an owner, a key and a count, and answers its token and the requests that
 stand for its slots; reserving again with the same key changes only the count (`docs/role-slots.md`,
@@ -979,6 +1008,7 @@ yesterday to now where none is given.
 | GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer, handoff, the callable roles. |
 | GET | `/repositories/{repositoryName}/workbench` | The repository's workbench and scratch folders. |
 | DELETE | `/repositories/{repositoryName}/servers` | End the job servers a job of the repository left running. |
+| POST | `/repositories/{repositoryName}/words` | Say words to a repository's worker, into its job's turn or a turn of its own. |
 | POST | `/prefix-checks` | Which of these files are in the prefix of a run at a repository's path. |
 | GET | `/room-holdings/{roomId}` | What the agency holds of a room. |
 | DELETE | `/room-holdings/{roomId}` | Let a room's data go; `dryRun` says what would go. |
@@ -1020,6 +1050,29 @@ yesterday to now where none is given.
   sampling each judged first, and a refusal of any of them leaves the repository as it stood.
 - **A removal** answers 204, and is refused 409 while a job holds one of its checkouts; 404 for a repository
   the store does not hold.
+
+**Words said to a repository's worker.** `POST /repositories/{repositoryName}/words` hands a paragraph, and
+any files with it, to the worker of a repository (`docs/agent-control.md`, 「Words said to a worker」). Its
+body is the sessions road's `WordsAsk`, and `worker` may name one of the repository's checkouts; the answer is
+the same `WordsSent`, its `said` `started` where a turn of the worker's own was begun rather than taken.
+
+- **The owner's alone:** any `by` but `owner`, or none, is refused 403 `not-the-sender`.
+- **A job's turn going in one of the repository's checkouts** takes the words where its provider declares it
+  takes words mid-turn, as the sessions road does; the answer names its `sessionId`, `run`, `turnId` and
+  `jobId`, and its report and log keep them.
+- **Where no turn works there** the words are carried in a turn of the worker's own on the session its role
+  keeps at the checkout, under the checkout's own lock and the clock `policy/worker-words.toml` names, and the
+  answer is `started` before that turn ends; its answer, or what ended it, stands under the word's run in the
+  worker's log.
+- **The checkout the words go to** is `worker` where it names one of the repository's, else the checkout of the
+  job going in the repository, else its base. A checkout on a work node is refused 409 `worker-on-node` where
+  no turn of its own can stand here; a turn already working at it makes the words wait, answered `refused`.
+- **A repository the store does not hold** answers 404 `unknown-repository`, and a worker no checkout of it
+  is 422 `unknown-worker`. A file over the bound in `policy/worker-words.toml` is refused 413 `too-large`.
+
+`bmo-agency run say <target> --words <text> [--file <path>]… [--by <name>]` reaches both roads from a shell,
+its target `session:<sessionId>`, `repository:<name>` or `worker:<checkout>`; its `by` is `BMO_TURN_AGENT`
+where the shell stands in an agent's program, else the owner.
 
 ### nodes
 

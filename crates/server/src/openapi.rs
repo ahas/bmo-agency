@@ -483,6 +483,40 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "POST",
+    path: "/sessions/{sessionId}/words",
+    id: "createSessionsWords",
+    tag: "sessions",
+    summary: "Say words to a run's session, offered to the turn it is working.",
+    params: &[Param {
+      name: "sessionId",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "",
+    }],
+    body: Some("WordsAsk"),
+    answers: &[(201, Some("WordsSent"), false)],
+    codes: &["bad-request", "forbidden", "not-found", "gone", "conflict", "not-a-run", "too-large"],
+  },
+  Operation {
+    method: "POST",
+    path: "/repositories/{repositoryName}/words",
+    id: "createRepositoryWords",
+    tag: "repositories",
+    summary: "Say words to a repository's worker, offered to the job's turn going there or carried in a turn of its own.",
+    params: &[Param {
+      name: "repositoryName",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "",
+    }],
+    body: Some("WordsAsk"),
+    answers: &[(201, Some("WordsSent"), false)],
+    codes: &["bad-request", "forbidden", "not-found", "conflict", "too-large", "no-word-road"],
+  },
+  Operation {
+    method: "POST",
     path: "/sessions/{sessionId}/answers",
     id: "createSessionsAnswers",
     tag: "sessions",
@@ -2763,6 +2797,10 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "TurnSend" => g.subschema_for::<TurnSend>(),
     "TurnInterrupt" => g.subschema_for::<TurnInterrupt>(),
     "TurnWords" => g.subschema_for::<TurnWords>(),
+    "WordsAsk" => g.subschema_for::<WordsAsk>(),
+    "WordFile" => g.subschema_for::<WordFile>(),
+    "WordsSent" => g.subschema_for::<WordsSent>(),
+    "WordsSaid" => g.subschema_for::<WordsSaid>(),
     "AnswerAsk" => g.subschema_for::<AnswerAsk>(),
     "FoldAsk" => g.subschema_for::<FoldAsk>(),
     "RunOpen" => g.subschema_for::<RunOpen>(),
@@ -2871,19 +2909,23 @@ fn status_of(code: &str) -> u16 {
     "bad-request" => 400,
     "unauthorized" => 401,
     "forbidden" => 403,
-    "no-route" | "not-found" | "no-job" => 404,
+    "no-route" | "not-found" | "no-job" | "unknown-session" | "unknown-repository" | "unknown-worker" => {
+      404
+    }
+    "not-the-sender" => 403,
     "conflict"
     | "name-taken"
     | "seeded"
     | "running"
     | "no-turn"
     | "not-owner"
+    | "worker-on-node"
     | "double-waits-on-doubles" => 409,
-    "gone" => 410,
+    "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" => 500,
     "upstream-failed" => 502,
-    "not-ready" | "no-login-open" => 503,
+    "not-ready" | "no-login-open" | "no-word-road" => 503,
     _ => 422,
   }
 }

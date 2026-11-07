@@ -27,7 +27,7 @@ order = 5
 namespace = "bmo"
 name = "delegations"
 title = "List my delegations"
-description = "List the tasks you delegated: each one's title, its stage (waiting for a slot, running, ended), its role, the provider and model it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended."
+description = "List the tasks you delegated: each one's title, its stage (waiting for a slot, running, ended), its role, the provider and model it runs on, its session while it runs — which you say more to with `bmo-agency run say session:<id>` — when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended."
 input = "delegations.json"
 hints = { read_only = true }
 capabilities = ["room.tools"]

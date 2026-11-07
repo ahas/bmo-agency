@@ -181,7 +181,11 @@ async fn a_role_sessions_turn_goes_out_on_the_sessions_road_with_the_parts_it_na
   .await;
 
   assert_eq!(least.resume, Resume::Auto);
-  assert_eq!((least.title.as_str(), least.chat, least.hears_words), ("worker", 0, false));
+  assert_eq!(
+    (least.title.as_str(), least.chat, least.hears_words),
+    ("worker", 0, true),
+    "a run stands to be spoken to where its caller names no hearing"
+  );
   assert!(least.name.starts_with("worker-") && least.variables.is_empty() && least.unit.is_none());
 
   assert!(

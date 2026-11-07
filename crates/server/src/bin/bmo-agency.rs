@@ -19,6 +19,7 @@ use agency_server::verbs::overtime::{self, OvertimeAsked};
 use agency_server::verbs::process_memory::{self, MemoryArgs};
 use agency_server::verbs::reload::{self, TreeRedeploy};
 use agency_server::verbs::run_list::{self, ListArgs};
+use agency_server::verbs::run_say::{self, SayArgs};
 use agency_server::verbs::run_stop::{self, StopArgs};
 use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
@@ -35,7 +36,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 25] = [
+pub const NOUNS: [&str; 26] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -59,6 +60,7 @@ pub const NOUNS: [&str; 25] = [
   "job borrow\thome",
   "repository\thome",
   "run list\thome",
+  "run say\thome",
   "run stop\thome",
   "machine memory",
 ];
@@ -351,6 +353,9 @@ enum SupervisorVerb {
 enum RunVerb {
   /// What is running and what is waiting on this machine now, with what each row is stopped by.
   List(ListArgs),
+  /// Words said to a run or to a repository's worker: offered to the turn going now, or carried in a turn
+  /// of the worker's own.
+  Say(SayArgs),
   /// A run stopped by its target, or what is running listed with every target first.
   Stop(StopArgs),
 }
@@ -587,6 +592,7 @@ async fn run(verb: Verb) -> ExitCode {
     }),
     Verb::Run { what } => ended(match what {
       RunVerb::List(asked) => run_list::run_list(&data_root, &asked).await,
+      RunVerb::Say(asked) => run_say::run_say(&asked).await,
       RunVerb::Stop(asked) => run_stop::run_stop(&data_root, &asked).await,
     }),
     Verb::Machine { what } => ended(match what {

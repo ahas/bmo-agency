@@ -14,6 +14,9 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   role's program outside a slot.
 - **A supervisor's turn takes none.** A supervisor is no role; its turns are bounded by its one program
   (`docs/supervisors.md`, 「Where a supervisor's turn runs」).
+- **A word's turn on a worker's own session takes none.** It is a turn spoken to a worker, not a run of
+  work: it takes the checkout's agent lock, one turn at a time with a job's, and the worker-words clock
+  (`docs/agent-control.md`, 「Words said to a worker」).
 - **A slot is asked under a role the store holds,** and is refused 422 under any other: an unknown role is
   an error, never a run on some default.
 - **A slot's source and owner are the caller's.** A slot is asked under the source label its caller sends —

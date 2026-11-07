@@ -1,43 +1,32 @@
-# A word said to a worker (docs/agent-control.md, 「The keepalive ping goes into the same program as the
-# turns」): its clocks, what its turn is called, and the lines written under it in the worker's log. The
-# words a worker is told them in are its consumer's (docs/api.md, 「Hooks」, the worker's words).
+# A word said to a worker (docs/agent-control.md, 「Words said to a worker」): the clock its own turn
+# carries, what that turn is called, what one word may carry, and the lines written under it in the
+# worker's log.
 
-# How long a word's turn on the worker's session is given before it is asked about past its clock. It is
-# longer than the keepalive's ping, which wants nothing back, and shorter than a job, which has a whole
-# item to do.
+# How long a word's turn on the worker's session is given before it is cut, so a program that never
+# answers holds the worker no longer than this.
 answer_minutes = 10
 
-# How often the words still waiting for a worker are offered again: a word is offered the moment it is
-# said, so this carries a word whose pane was busy with a ping, a fold or a job that ended without it.
-tick_seconds = 5
+# What one word may carry: its text in UTF-16 units, the files said with it, and the most bytes one file
+# holds. The console's own box is cut at the same count of files and a larger file, so a word it sends over
+# these is refused as too large before anything is written.
+most_words = 1000000
+most_files = 10
+most_file_bytes = 8388608
 
-# How long a word held by a pane waiting on a person's answer is left before it is offered again; a word
-# said meanwhile is offered at once all the same.
-person_wait_seconds = 60
-
-# What a person watching herdr reads over a word's turn, and what the clock's ask says the run is doing.
-# `{worker}` is filled in.
+# What a person watching herdr reads over a word's turn. `{worker}` is filled in.
 title = "Words said to {worker}"
-what = "a turn answering words said straight to worker {worker}"
-
-# The work key a word's clock is kept under.
-work_key = "worker-words"
 
 # The line written under a word for what held it, once for each reason.
 [held]
-person = "The pane is stopped on a question waiting for a person's answer, so the words did not go in. They go in once it is answered."
-untrusted = "The folder-trust question would not clear, so the words did not go in. They are offered again."
-unsubmitted = "The words did not become a turn from the input box, so they are offered again."
-stopped = "The turn was stopped before the words went in. They are offered again."
-disabled = "Claude Code is switched off, so the words did not go in. They go in once it is on."
-lost = "The CLI lost the session, so the words go in again on a fresh one."
-resting = "No login may carry the turn now, so the words did not go in. They go in once the rest is over."
-job_waiting = "The running job is waiting on a person's answer, so the words did not go in. They go in once it is answered."
-in_job = "Taken into the running job's turn."
-pinned = "The worker is pinned to {provider}, and no run on that pin carries words, so the words wait."
+person = "The pane is stopped on a question waiting for a person's answer, so the words did not go in."
+untrusted = "The folder-trust question would not clear, so the words did not go in."
+unsubmitted = "The words did not become a turn from the input box, so they did not go in."
+stopped = "The turn was stopped before the words went in."
+disabled = "Claude Code is switched off, so the words did not go in."
+lost = "The CLI lost the session before the words went in."
+resting = "No login may carry the turn now, so the words did not go in."
+pinned = "The worker is pinned to {provider}, and no turn on that pin carries words, so the words did not go in."
 
-# The line written under the last word a turn took where it wrote no answer. `{clock}` is the clock in
-# minutes and `{cut}` whose call the cut was.
+# The line written under the last word a turn took where it wrote no answer.
 [ended]
 silent = "The worker ended its turn without an answer."
-cut = "The turn was cut past its {clock}-minute clock: {cut}."

@@ -1,4 +1,5 @@
-//! A word said to a worker: its clocks, what its turn is called, and the lines written under it.
+//! A word said to a worker: the clock its own turn carries, what that turn is called, what one word may
+//! carry, and the lines written under it.
 
 use serde::Deserialize;
 
@@ -6,13 +7,12 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub struct WorkerWords {
   pub answer_minutes: u64,
-  pub tick_seconds: u64,
-  pub person_wait_seconds: u64,
+  /// The most UTF-16 units one word may hold.
+  pub most_words: usize,
+  pub most_files: usize,
+  pub most_file_bytes: usize,
   /// With `{worker}`.
   pub title: String,
-  /// With `{worker}`.
-  pub what: String,
-  pub work_key: String,
   pub held: Held,
   pub ended: Ended,
 }
@@ -28,8 +28,6 @@ pub struct Held {
   pub disabled: String,
   pub lost: String,
   pub resting: String,
-  pub job_waiting: String,
-  pub in_job: String,
   /// With `{provider}`.
   pub pinned: String,
 }
@@ -39,8 +37,6 @@ pub struct Held {
 #[serde(deny_unknown_fields)]
 pub struct Ended {
   pub silent: String,
-  /// With `{clock}` and `{cut}`.
-  pub cut: String,
 }
 
 crate::part!(pub WORKER_WORDS: WorkerWords = "worker-words.toml");

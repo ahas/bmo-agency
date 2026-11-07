@@ -95,6 +95,9 @@
       "name": "sessions"
     },
     {
+      "name": "repositories"
+    },
+    {
       "name": "turn-contexts"
     },
     {
@@ -153,9 +156,6 @@
     },
     {
       "name": "settings"
-    },
-    {
-      "name": "repositories"
     },
     {
       "name": "prefix-checks"
@@ -1273,6 +1273,154 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TurnWords"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{sessionId}/words": {
+      "post": {
+        "operationId": "createSessionsWords",
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Say words to a run's session, offered to the turn it is working.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordsSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotARun"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "gone",
+          "conflict",
+          "not-a-run",
+          "too-large"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WordsAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repositories/{repositoryName}/words": {
+      "post": {
+        "operationId": "createRepositoryWords",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Say words to a repository's worker, offered to the job's turn going there or carried in a turn of its own.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordsSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "503": {
+            "$ref": "#/components/responses/NoWordRoad"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "conflict",
+          "too-large",
+          "no-word-road"
+        ],
+        "parameters": [
+          {
+            "name": "repositoryName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WordsAsk"
               }
             }
           }
@@ -3143,7 +3291,7 @@
           "409": {
             "$ref": "#/components/responses/NoTurn"
           },
-          "422": {
+          "404": {
             "$ref": "#/components/responses/UnknownRepository"
           },
           "502": {
@@ -4066,8 +4214,11 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
-          "422": {
+          "404": {
             "$ref": "#/components/responses/UnknownRepository"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoWorkerFree"
           }
         },
         "x-codes": [
@@ -7781,6 +7932,115 @@
           "words"
         ],
         "description": "The body that pushes words into a working turn."
+      },
+      "WordsSent": {
+        "type": "object",
+        "properties": {
+          "said": {
+            "$ref": "#/components/schemas/WordsSaid"
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "turnId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "said"
+        ],
+        "description": "What became of words said to a run or a worker."
+      },
+      "WordsSaid": {
+        "type": "string",
+        "enum": [
+          "delivered",
+          "waiting",
+          "refused",
+          "started"
+        ],
+        "description": "One of the values the API accepts."
+      },
+      "WordsAsk": {
+        "type": "object",
+        "properties": {
+          "words": {
+            "type": "string",
+            "default": ""
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who says them: `owner`, or the supervisor that asked for the run."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WordFile"
+            }
+          },
+          "worker": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The checkout of the repository the words are said to, where one is named."
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "description": "The body that says words to a run's session, or to a repository's worker."
+      },
+      "WordFile": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "data"
+        ],
+        "description": "One file said with the words, as its bytes stand base64-encoded."
       },
       "Answer": {
         "type": "object",
@@ -14314,6 +14574,16 @@
           }
         }
       },
+      "Forbidden": {
+        "description": "forbidden",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "Gone": {
         "description": "gone",
         "content": {
@@ -14384,8 +14654,28 @@
           }
         }
       },
+      "NoWordRoad": {
+        "description": "no-word-road",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoWorkerFree": {
         "description": "no-worker-free",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotARun": {
+        "description": "not-a-run",
         "content": {
           "application/json": {
             "schema": {

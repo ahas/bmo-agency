@@ -178,6 +178,7 @@ mod translate;
 mod turn_pickup;
 mod turn_pickup_clocks;
 mod usage_balances;
+mod words;
 
 mod run_log {
   mod codex;

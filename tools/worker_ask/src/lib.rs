@@ -309,7 +309,7 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
           "name": run,
           "title": format!("asked by {asker}"),
           "chat": Turn::of(session).chat.unwrap_or_default(),
-          "hearsWords": false,
+          "hearsWords": true,
           "variables": {},
         }),
       )

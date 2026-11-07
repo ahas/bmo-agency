@@ -47,6 +47,7 @@ pub mod supervisor_settings;
 pub mod translation_runs;
 pub mod typed_line;
 mod walk_reads;
+pub mod words;
 pub mod work;
 mod worker_runtime;
 mod workers_routes;

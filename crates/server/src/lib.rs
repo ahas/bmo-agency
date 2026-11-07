@@ -100,6 +100,7 @@ pub mod watches {
   pub mod queue_idle;
 }
 pub mod wording;
+pub mod words;
 pub mod worker_session;
 
 use std::path::Path;

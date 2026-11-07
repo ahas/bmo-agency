@@ -101,6 +101,9 @@ about a message is not agency's: the judgement records belong to the units that 
   turn goes out: its role the job's role, its unit the job's run name, the one its log lines are written
   under, and its room the job's. It is closed as the turn ends, with how it ended, the tokens its context
   carried and what it spent, as a chat turn's is, and the job keeps the run and the same four figures.
+- **A job's report ends with the words said into its turn while it ran,** read off its run's log lines named
+  `word`, each with what became of it (`docs/agent-control.md`, 「Words that arrive while a turn is
+  working」), so what a job was told mid-run stands beside what it came to.
 - **A run whose turn has ended without closing it is closed as `cut`.** A turn can end with nothing left to
   close its run: a job ended or stopped from outside while its turn went, its turn then lost to agency's
   restart, or a chat turn whose process went away before a server picked turns up again. A pass at agency's

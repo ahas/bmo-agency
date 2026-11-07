@@ -726,8 +726,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   program and no session of a role stands to be shown or typed into.
 - **A person speaks to a run while its pane stands.** A line typed into a run's program is a person's turn
   of that program (「Runs and sessions in one pane」), answered in the run's folder under its line and
-  tools, recorded in the session's own record, and sent to no room; between runs nothing of a repository
-  stands to be spoken to (`docs/repositories.md`, 「The words said to a repository」).
+  tools, recorded in the session's own record, and sent to no room. Between runs a word said to the
+  worker stands a turn of its own on the session the worker role keeps there (`docs/repositories.md`, 「The
+  words said to a repository」; 「Words said to a worker」).
 - **A run's folder is trusted before its program comes up,** on the login the run goes out on
   (「A first interactive run stops at the trust-this-folder check」).
 - **What a later run reads of an earlier one is the session its role keeps,** resumed at the same path on
@@ -933,6 +934,44 @@ The owner's words:
     end beside a program at rest has nothing still to come.
 - **A surface that takes no words mid-turn** keeps the buffer: the batch waits there and the next
   round carries it.
+- **A run's turn takes them by the same door.** A delegated double, a job's run, a co-work branch and every
+  other role's run stand as a session, and words said to one go through the session push the room's do
+  (`POST /sessions/{sessionId}/words`, `docs/api.md`, 「sessions」). The owner, and the supervisor that asked
+  for the run, may say them; nobody else. A role's turn hears them unless its caller said otherwise, so a
+  delegated run hears them as a job's does. A native co-worker a job's own CLI stands inside that job's
+  program is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
+- **A run that has ended takes none.** Its session goes with its run, so a word said to it is answered
+  refused as ended and nothing stands to receive it. A run whose session still stands but carries no turn
+  refuses them as no turn: its next turn is its caller's to send, and agency holds nothing for it.
+- **A provider that takes no words mid-turn refuses them.** Agency keeps no buffer of a run's beyond its
+  answer, so the words belong to whoever said them, which may say them again as a turn of the run's own. An
+  offer the turn ends before taking is answered refused the same way.
+- **What was said and what became of it stand in the run's record:** a `prompt` line named `word` under the
+  run holding the words as said, and a `note` line under it saying whether the turn took them, whether it
+  waited on a person, or why they did not go in. A job's report ends with the same, read off its log, so a
+  person reading what the job came to also reads what it was told while it ran.
+
+### Words said to a worker
+
+- **A word to a worker is said by its repository,** `POST /repositories/{repositoryName}/words`
+  (`docs/api.md`, 「repositories, prefix-checks and room-holdings」). It is the owner's alone.
+- **Where a job's turn works in one of the repository's checkouts,** the word goes into it at its next look,
+  as a room's batch does, and the job's log and report keep it.
+- **Where no turn works there, the word is carried in a turn of its own** on the session the worker role
+  keeps at the checkout: the worker line's program, on the model the worker role's order names on Claude Code
+  (the repository's pin where it pins one), on a session its role keeps there resumed while valid and opened
+  afresh otherwise, one turn at a time with a job's, under the checkout's agent lock. Its clock is
+  `policy/worker-words.toml`'s, and a turn that passes it is cut.
+- **The words are written into the worker's log the moment they are said,** under a run of their own, so they
+  stand on the screen whether or not a turn has reached them yet. The answer, or what ended the turn, stands
+  under them, and what held them is written once for each reason the policy names. The route answers
+  `started` before that turn ends.
+- **A worker pinned to another provider keeps them unsaid:** no turn on that pin carries words from this
+  machine, and the line written under them says the pin. A worker whose checkout is on a work node is refused,
+  since no turn of its own stands here.
+- **Words said while the word's own turn works go into it** at its next look, as any working turn's do.
+- **The command:** `bmo-agency run say <target> --words <text> [--file <path>]…`, its target
+  `session:<sessionId>`, `repository:<name>` or `worker:<checkout>` (`docs/api.md`, the same section).
 
 ### Stopping, falling back and standing up again
 

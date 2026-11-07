@@ -580,6 +580,8 @@ impl Route for Delegations {
         "runningSince": seat.leased_at,
         "endedAt": seat.ended_at,
         "outcome": seat.outcome,
+        // The session the run's turn goes into, which its asking supervisor says words to while it runs.
+        "session": seat.session,
       }));
     }
 

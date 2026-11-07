@@ -20,6 +20,7 @@ pub mod process_memory;
 pub mod reload;
 pub mod repository;
 pub mod run_list;
+pub mod run_say;
 pub mod run_stop;
 pub mod supervisor_follow;
 pub mod supervisor_reset;

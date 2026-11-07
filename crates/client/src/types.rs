@@ -2130,6 +2130,63 @@ pub struct TurnWords {
   pub words: String,
 }
 
+/// One of the values the API accepts.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum WordsSaid {
+  #[serde(rename = "delivered")]
+  Delivered,
+  #[serde(rename = "waiting")]
+  Waiting,
+  #[default]
+  #[serde(rename = "refused")]
+  Refused,
+  #[serde(rename = "started")]
+  Started,
+}
+
+/// One file said with the words, as its bytes stand base64-encoded.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WordFile {
+  pub name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
+  pub kind: Option<String>,
+  pub data: String,
+}
+
+/// The body that says words to a run's session, or to a repository's worker.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WordsAsk {
+  #[serde(default, alias = "text")]
+  pub words: String,
+  /// Who says them: `owner`, or the supervisor that asked for the run.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub by: Option<String>,
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub files: Vec<WordFile>,
+  /// The checkout of the repository the words are said to, where one is named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub worker: Option<String>,
+}
+
+/// What became of words said to a run or a worker.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WordsSent {
+  pub said: WordsSaid,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub run: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub turn_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub job_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub reason: Option<String>,
+}
+
 /// The body that answers a question a turn stands on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

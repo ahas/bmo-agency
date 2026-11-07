@@ -99,7 +99,8 @@ belongs to no one service is a repository of its own, not a folder here.
   (`docs/provider-order.md`), and on the session kept for the worker role at that folder on that provider
   and model where one is valid (`docs/sessions.md`, 「A role's session」).
 - **It waits for the run to end,** however long the run takes: no bound of its own and no timeout on its
-  wait for agency's answer.
+  wait for agency's answer. Its run hears words while its turn works, as every run's does, though the call
+  that started it is held; a supervisor that wants to say more while it runs delegates the task instead.
 - **Its answer** is the run's answer text and the paths of the files the run created or changed in the
   folder, read from the run's recorded edit diffs. The run is logged like any other, so the console shows it.
 - **It refuses only what cannot be asked at all:** a folder on no machine the worker role can run on and a
@@ -164,12 +165,18 @@ belongs to no one service is a repository of its own, not a folder here.
 - **Its stage stands on its slot** (`docs/api.md`, 「slots, reservations and places」): the slot is asked with
   the title and the asking supervisor. A delegation is waiting while its slot waits in the line, running once
   its slot is let in and bound to its run, and ended once the slot is finished, with what it came to.
+- **A delegated run hears words while its turn works.** It is started with `hearsWords` true, so the
+  supervisor that asked for it may say more into the turn it is working, as the owner may say to any run;
+  the run's record and, where it is a job's, its report keep what was said (`docs/agent-control.md`, 「Words
+  that arrive while a turn is working」). The supervisor's own call is held by the run, so it speaks from
+  another turn or a shell, with `bmo-agency run say session:<id> --words …` on the session its delegations
+  list gives.
 - **`bmo/delegations` lists the asking supervisor's delegations,** declared by the same tool to a session
-  holding `room.tools`: each one's title, stage, role, the provider and model it runs on, when it was asked
-  and, once ended, what it came to, the ones still waiting or running first and then the latest ended,
-  newest first. It reads agency's `GET /delegations` for the supervisor the asking turn is, so a supervisor
-  sees its own delegations and no other's, and it takes no argument but an optional count of ended ones to
-  list.
+  holding `room.tools`: each one's title, stage, role, the provider and model it runs on, its session while
+  it runs, when it was asked and, once ended, what it came to, the ones still waiting or running first and
+  then the latest ended, newest first. It reads agency's `GET /delegations` for the supervisor the asking
+  turn is, so a supervisor sees its own delegations and no other's, and it takes no argument but an optional
+  count of ended ones to list.
 - **A task worth keeping and reviewing is still a queue item,** filed with `file_item`; the delegate files
   nothing of the task.
 

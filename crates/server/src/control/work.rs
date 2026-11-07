@@ -1001,6 +1001,15 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (None, Ok(None)) => return,
     (None, Err(why)) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
+  // What was said into the job's turn while it ran stands in its report, read off its run's own log.
+  let report = match crate::words::with_words(&ground.db, id, report.clone()).await {
+    Ok(report) => report,
+    Err(why) => {
+      eprintln!("job {id}: the words said into its turn were not added to its report: {}", why.detail);
+
+      report
+    }
+  };
   let now = now_ms();
 
   println!("job {id}: ended {state}, outcome {}", outcome.as_deref().unwrap_or("answered"));

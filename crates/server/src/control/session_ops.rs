@@ -177,7 +177,10 @@ pub async fn work_of(
     unit: asked.unit,
     user: asked.user,
     work_key: role,
-    hears_words: asked.hears_words.unwrap_or(false),
+    // A run stands to be spoken to: its turn hears words pushed into it where its provider takes them,
+    // and a caller that wants none says so (docs/agent-control.md, 「Words that arrive while a turn is
+    // working」).
+    hears_words: asked.hears_words.unwrap_or(true),
     variables: asked.variables.unwrap_or_default(),
   }
 }

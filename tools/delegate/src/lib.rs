@@ -26,7 +26,7 @@ pub const CAPABILITIES: &[&str] = &["room.tools"];
 /// The entry that lists the asking supervisor's delegations.
 pub const LIST_NAME: &str = "delegations";
 pub const LIST_TITLE: &str = "List my delegations";
-pub const LIST_DESCRIPTION: &str = "List the tasks you delegated: each one's title, its stage (waiting for a slot, running, ended), its role, the provider and model it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended.";
+pub const LIST_DESCRIPTION: &str = "List the tasks you delegated: each one's title, its stage (waiting for a slot, running, ended), its role, the provider and model it runs on, its session while it runs — which you say more to with `bmo-agency run say session:<id>` — when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended.";
 
 /// The source a delegated task's slot is asked under (docs/role-slots.md, 「A delegated task」).
 pub const SOURCE: &str = "delegate";
@@ -443,7 +443,9 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     "name": run,
     "title": format!("delegated by {asker}: {title}"),
     "chat": turn.chat.unwrap_or_default(),
-    "hearsWords": false,
+    // The supervisor may say more into the run while its turn works, and reads its session in the
+    // delegation listing to do it.
+    "hearsWords": true,
     "variables": asking_turn(session),
   });
   let before = files(&folder);
@@ -683,8 +685,10 @@ fn listed(item: &Value) -> String {
     _ => String::new(),
   };
   let asked = item.get("askedAt").and_then(Value::as_i64).map_or_else(|| "?".to_owned(), moment);
+  // A run's session is what words are said to while its turn works.
+  let session = text("session").map_or_else(String::new, |id| format!(" — session {id}"));
 
-  format!("- {title} — {stage} — {role}{road} — asked {asked}")
+  format!("- {title} — {stage} — {role}{road}{session} — asked {asked}")
 }
 
 // A moment in epoch milliseconds as a UTC time a reader takes in at a glance.

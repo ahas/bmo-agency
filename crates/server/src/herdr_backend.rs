@@ -787,6 +787,15 @@ impl HerdrSessions {
       .map(|running| running.run.clone())
   }
 
+  /// The turn a session carries now: its id and the run it goes out as, none while it carries no turn.
+  pub fn turn_going(&self, session: &SessionId) -> Option<(i64, String)> {
+    self
+      .going()
+      .get(session)
+      .and_then(|runs| runs.first())
+      .map(|running| (running.turn, running.run.clone()))
+  }
+
   /// A role session ended under whatever turn it carries, as giving back the slot it is bound to ends it
   /// (docs/role-slots.md, 「The line」): each turn running in it cut, ending `stopped` with the reason given,
   /// waited for until it has ended — on its end, never on a span — and the session then ended.
