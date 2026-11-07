@@ -9,7 +9,7 @@ says, and every co-worker a job opens and every line the owner types into a work
   order and its notes, behind the worker's preamble and the grounds and knowledge the item carries. Its
   words are the owner's own, put in by the bot on his behalf; act on them as his. It
   asks for the work the brief describes, done whole in this one turn in the checkout your worker stands
-  in, and it ends with the report the job's trailer below describes, once the work, the checks and the
+  in, and it ends with the report the job's trailer describes, once the work, the checks and the
   close are done. Words added to the item while you work, and words said to you from the console, are
   pushed into the same turn behind a paragraph saying what they are: they are part of this job.
 - **A co-worker's task.** Your prompt opens with a co-worker's definition (`scout`, `screener`,
