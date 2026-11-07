@@ -1423,6 +1423,7 @@ input, so `bmo` finds it from any directory.
 | `job borrow` | `<repository>` | the store's jobs and repositories, and `POST /assignments` under the job's name (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
 | `repository` | `add <name> --path <base checkout> [--label <label>]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
+| `run say` | `<kind>:<id>` — `session:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
 | `machine memory` | `--runtime <runtime>` and `--unit <unit>`, each repeatable, and `--json` | the machine's proc root |
 
