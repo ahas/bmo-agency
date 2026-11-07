@@ -44,3 +44,10 @@ the way anybody's do, and nothing stops two agents answering each other but each
 - **Record what was settled.** Add it to your own item: what was agreed, with whom, and the other
   item's number. The order, the merge or the hold is carried out with the queue's own verbs by
   whichever of you may make that move.
+
+## When you need what another supervisor holds
+
+- **Ask it in the consult room.** Where a task needs what another supervisor holds — a prompt, a check,
+  a fact, a judgement — say it there with your consult tool, by name, and say what you need it for.
+- **The other answers it there,** in its own words, as one supervisor answering another; what it gives
+  is used for the task it was asked for.
