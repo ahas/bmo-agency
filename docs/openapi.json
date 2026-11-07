@@ -4040,6 +4040,16 @@
         ],
         "summary": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
         "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Assignment"
+                }
+              }
+            }
+          },
           "201": {
             "description": "Answered.",
             "content": {
@@ -14248,6 +14258,19 @@
           "reason"
         ],
         "description": "StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for."
+      },
+      "ReleaseWorker": {
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "assignmentId"
+        ],
+        "description": "The body that releases an assignment the harness will not run."
       }
     },
     "responses": {
@@ -14533,6 +14556,17 @@
         "$ref": "#/components/schemas/Assignment"
       },
       "route": "POST /assignments"
+    },
+    {
+      "name": "release_worker",
+      "description": "Release an assignment the harness will not run, by its id: the worker it held is free for the next item. A hold also ends when its job ends or when the session that took it ends.",
+      "input": {
+        "$ref": "#/components/schemas/ReleaseWorker"
+      },
+      "output": {
+        "$ref": "#/components/schemas/Assignment"
+      },
+      "route": "PATCH /assignments/{assignmentId}"
     },
     {
       "name": "run_job",

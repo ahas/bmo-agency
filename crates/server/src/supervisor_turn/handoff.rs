@@ -37,8 +37,18 @@ impl Speaker {
   }
 }
 
-/// A turn that ended at or past the handoff mark: the session it answered in and what its runs are built from,
-/// so the handoff turn after it goes out on the very session and prompt.
+/// Why a session hands over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Why {
+  /// The turn's context reached the session's handoff mark.
+  Limit,
+  /// The documents the session's prompt is composed from changed.
+  Documents,
+}
+
+/// A turn that ended at or past the handoff mark, or a session whose prompt documents moved: the session it
+/// answered in and what its runs are built from, so the handoff turn after it goes out on the very session
+/// and prompt.
 pub struct Due {
   pub provider: &'static dyn harness_providers::Provider,
   /// The model the turn it hands over ran on, which the handoff turn goes out on.
@@ -47,8 +57,9 @@ pub struct Due {
   pub generation: IndexMap<String, Value>,
   pub session: String,
   pub placement: Option<String>,
-  /// The share of the window the turn's context reached.
+  /// The share of the window the turn's context reached, where the handoff mark is why it hands over.
   pub ratio: f64,
+  pub why: Why,
 }
 
 // What the handoff turn spent is the supervisor's own: its last answer written and its usage published.
@@ -151,12 +162,19 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, supervisor: &Speaker, 
   )
   .await;
 
+  let opening = match due.why {
+    Why::Limit => {
+      fill_marks(&SUPERVISOR_RUNNER.log.handoff_start, &[("name", name), ("percent", &percent)])
+    }
+    Why::Documents => fill_marks(&SUPERVISOR_RUNNER.log.handoff_documents, &[("name", name)]),
+  };
+
   log
     .write(
       &db,
       Line {
         kind: "start",
-        text: fill_marks(&SUPERVISOR_RUNNER.log.handoff_start, &[("name", name), ("percent", &percent)]),
+        text: opening,
         ..Line::default()
       },
     )

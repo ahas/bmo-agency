@@ -188,26 +188,32 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   turn, since they go into one program.
 - **The system prompt is handed to the harness as a file,** composed for each turn (「What a turn is
   given」 below). It is the same bytes from one turn to the next until what it is composed of changes.
-- **A changed system prompt keeps the conversation,** as any Claude session goes on under a changed
-  system prompt:
+- **A changed system prompt hands the session over,** since the program standing in the pane read the old
+  prompt when it started and a resume keeps it:
   - whether it changed is read off the prompt actually sent: the SHA-256 of the system prompt against
-    the hash the session row keeps from its last turn;
-  - the turn resumes the same session under the new prompt, so nothing of the conversation is dropped
-    or summarised;
-  - the engine's saved state of the old prompt is not carried over: a state is found by the tokens at
-    its start (`docs/work-nodes.md`), so none saved under the old prompt is loaded for the new one,
-    the engine reads the conversation whole once, and the disk budget removes the old state in its
-    turn;
-  - the session row keeps when it happened, and the turn's log carries a line saying the system prompt
-    changed, which the console shows;
-  - a session's first turn records the hash it was sent with and is no change.
+    the hash the session keeps from its last turn — a room's session row, or the supervisor's row where
+    one session serves every room;
+  - the session writes its handoff note in one more turn, as it does at its handoff mark (「Its limit」
+    below), or, where the receiver holds the room, the receiver asks it for the note; a new generation
+    opens with that note ahead of the turn's words;
+  - the turn that answers is composed from the new documents, and the conversation goes on from the note;
+  - a supervisor whose documents did not change keeps its session, its hash still matching;
+  - a session whose prompt was never recorded hands over once, since what it read cannot be known;
+  - the turn's log carries a line saying the system prompt changed, which the console shows.
 - **A new generation is a new harness session,** opened by the turn that finds:
   - no session held in the room yet;
   - a reset of the session asked for in the room and not yet carried out (「Clearing it」 below);
+  - a prompt whose documents moved since its last turn (「A changed system prompt」 above);
   - the held one opened on another provider or model than its order gives the turn now, or on a place
     its registration no longer has;
   - the held one no longer there to resume: its program keeps no record of it, which the turn says in
     the program's own words before anything is stood. That turn is asked again once on a fresh session.
+- **A generation that opens holds nothing read.** The documents the ended session had loaded are
+  forgotten as the new generation opens, before its first turn is composed. They stand under the session
+  id the receiver names the session by: the agent's name where one session serves every room, and
+  `<agent>@<room>` where the room keeps its own. A session that goes on in the one it held keeps what it
+  loaded — a plain turn, a return to another room by the one session across rooms, and the same session
+  resumed after agency's own restart or a deployment.
 - **What each turn was given and how it answered is kept,** generation by generation, in the room
   session turns table: the user turn exactly as it went out and the answer as the run wrote it. The
   follow pane and the console read it; no run is built from it.

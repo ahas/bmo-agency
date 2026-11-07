@@ -18,7 +18,7 @@ pub struct Tool {
 pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is asked to end first, and the answer is the job once its turn has ended, stopped, however long that takes.";
 
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 4] = [
+pub const TOOLS: [Tool; 5] = [
   Tool {
     name: "file_item",
     description: "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
@@ -39,6 +39,13 @@ pub const TOOLS: [Tool; 4] = [
     input: "AssignWorker",
     output: "Assignment",
     route: "POST /assignments",
+  },
+  Tool {
+    name: "release_worker",
+    description: "Release an assignment the harness will not run, by its id: the worker it held is free for the next item. A hold also ends when its job ends or when the session that took it ends.",
+    input: "ReleaseWorker",
+    output: "Assignment",
+    route: "PATCH /assignments/{assignmentId}",
   },
   Tool {
     name: "run_job",

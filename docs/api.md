@@ -9,7 +9,7 @@ consumer's, decided above this boundary and handed in; agency supplies, carries 
 none of it.
 
 `docs/openapi.json` is the machine contract: every route's parameters, bodies, answers and codes, the
-events, the three tools of the harness plugin, and the removed and moved-out members. It is generated from
+events, the tools of the harness plugin, and the removed and moved-out members. It is generated from
 the service's own types by `bmo-agency openapi`, and a test fails where the committed document differs
 from what the code generates. This document states what the routes are for and how the pieces fit; where
 a field's exact shape matters, the OpenAPI document is the one to read.
@@ -326,8 +326,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   name; an empty or oversized text is refused 400. **A reset** takes no text and lets the file stand
   again.
 - **The chat line reads them afresh at every launch,** so a save reaches the next turn with no
-  restart, and a turn keeps its conversation under the changed system prompt as any change of it does
-  (`docs/agent-documents.md`, 「A supervisor of the window shape」).
+  restart; a save that changes the composed prompt hands the session over, as a changed document does
+  (`docs/supervisors.md`, 「A session in each room」).
 
 ### document-moves
 
@@ -1040,7 +1040,7 @@ yesterday to now where none is given.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/assignments` | Assignments, by holder, repository or state. |
-| POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, or the harness releases it; no clock ends a hold. |
+| POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, the harness releases it, or the session its holder names ends; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment. |
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
@@ -1071,6 +1071,15 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
   to come free. An assignment naming none takes a free checkout of any repository.
+- **An ask for the same item by the same holder answers its standing hold,** 200 with that assignment
+  instead of `no-worker-free`, so a lost answer asked again is no busy worker. An ask naming another worker
+  or role releases the standing hold first. A hold the harness will not run is released by
+  `PATCH /assignments/{assignmentId}` with `state` `released`, which is the harness's `release_worker`.
+- **A hold named for a session ends with it.** An assignment held under a session's id, or under the agent's
+  own name where it keeps one session across its rooms, is released when that session ends — by its end
+  route, by a supervisor reset that takes it, or by a turn its guard cut — unless a `starting` or `running`
+  job owns it. So a hold a turn took and never started its job for does not outlive the session. An
+  assignment a job runs on is the job's: its end releases it.
 - **A job's own loan of a checkout is an assignment held in its name,** its `holderName` `job:<jobId>`
   (`docs/worker-slots.md`, 「A job writes only in its own checkout」). No job starts on it, and any read of the
   assignments releases it once that job no longer runs.
@@ -1136,8 +1145,10 @@ service.
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
     the cancellation the turn's door reads in the run's program, which puts the stop words in — commit,
-    report, exit — and leaves the turn to end on them, a turn picked up across a restart included;
-  - the answer waits for that turn to end, however long its own ending takes. The turn's end writes the job
+    report, exit — and leaves the turn to end on them, a turn picked up across a restart included. A tool
+    call blocked on a read or a write is stopped on the stop, so the words are read at the next boundary,
+    and a turn that has not ended within the stop's bound is interrupted and ends stopped;
+  - the answer waits for that turn to end. The turn's end writes the job
     `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, gives its slot
     back, returns its lease and tells its room, so its slot and its checkout take the next launch as soon as
     the stop answers;
@@ -1246,9 +1257,12 @@ service.
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
   `ended`, outcome `failed`, with a report saying the turn stopped on a tool call written as text. A turn
   that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
-  or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
-  session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
-  is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
+  or `reprepared`) and the reason the turn gave as the report. A turn cut at the job's own bound — the
+  backstop for a turn its tool clock cannot see — ends it `stopped`, outcome `stopped`, with the bound's
+  reason as the report, and its lease is given back so the item is open for a rerun. A launch that never
+  reached its turn — no session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the
+  report. Every end that is not an answer is also written as a note into the job's log, so the job's lines
+  say why it ended.
 - **A job's turn is a run of the ledger.** As the turn goes out, the job's runner opens a run under the
   job's run name, its role, its repository and its room, and the job carries it as `runId`; as the turn
   ends the run is closed with how it ended, the tokens its context held and what it spent. A job answers
@@ -1377,6 +1391,8 @@ tool is a thin call of one route through the agency's own client.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
 - `assign_worker` calls `POST /assignments`, naming the repository and the role.
+- `release_worker` calls `PATCH /assignments/{assignmentId}` with `state` `released`, giving back a hold the
+  harness will not run.
 - `run_job` calls `POST /jobs`.
 
 ## The clients

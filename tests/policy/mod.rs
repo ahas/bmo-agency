@@ -37,6 +37,7 @@ mod seeds;
 mod span_words;
 mod supervisor_runner;
 mod supervisors;
+mod tool_clock;
 mod verb_words;
 mod work_keys;
 mod worker_words;

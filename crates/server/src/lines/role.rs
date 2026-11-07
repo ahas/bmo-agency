@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use agent_session::{Apart, Mapping};
 use policy::chat_line::CHAT_LINE;
+use sha2::{Digest, Sha256};
 
 use super::Trees;
 use super::chat::{ChatRun, RoomContext};
@@ -133,6 +134,10 @@ impl RoleLine {
   /// The run the line makes of a turn: no room's block and no persona, the line's tools and configuration, and
   /// the worker line whole where the run is on it.
   pub fn run(self, turned: Turned) -> ChatRun {
+    let system_hash = std::fs::read_to_string(&self.system_path)
+      .map(|text| format!("{:x}", Sha256::digest(text.as_bytes())))
+      .unwrap_or_default();
+
     ChatRun {
       line: self.line,
       agent: turned.place,
@@ -142,6 +147,7 @@ impl RoleLine {
       reasoning: self.reasoning,
       thinking: self.thinking,
       system_path: self.system_path,
+      system_hash,
       system_parts: None,
       room: RoomContext {
         chat_id: 0,

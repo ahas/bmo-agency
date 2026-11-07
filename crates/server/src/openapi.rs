@@ -1660,7 +1660,7 @@ pub const OPERATIONS: &[Operation] = &[
     summary: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
     params: &[],
     body: Some("AssignWorker"),
-    answers: &[(201, Some("Assignment"), false)],
+    answers: &[(200, Some("Assignment"), false), (201, Some("Assignment"), false)],
     codes: &["bad-request", "unknown-repository", "no-worker-free"],
   },
   Operation {
@@ -2740,6 +2740,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "SessionWork" => g.subschema_for::<SessionWork>(),
     "SessionLoads" => g.subschema_for::<SessionLoads>(),
     "AssignWorker" => g.subschema_for::<AssignWorker>(),
+    "ReleaseWorker" => g.subschema_for::<ReleaseWorker>(),
     "AssignmentChange" => g.subschema_for::<AssignmentChange>(),
     "RunJob" => g.subschema_for::<RunJob>(),
     "JobChange" => g.subschema_for::<JobChange>(),

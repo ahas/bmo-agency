@@ -941,8 +941,9 @@ The owner's words:
   - Claude Code's is Escape: the turn stops within seconds and the session stays usable (measured),
     and the reader closes the row as a stop.
   - A job's stop asks and waits: the words to commit, report and exit go in, and the turn is left to
-    end on them however long its ending takes; no interrupt follows them. A chat round has no work of
-    its own to wind down and is interrupted at once.
+    end on them. A tool call that has stopped making progress is stopped on the stop, so the words are
+    read at the next boundary; a turn that has not ended within its stop bound is interrupted and ends
+    stopped. A chat round has no work of its own to wind down and is interrupted at once.
   - A surface with no measured interrupt ends the program, and the loop starts it again on the same
     session.
   - A stop never closes a supervisor's resident pane; a run's own pane closes once its run has ended.
@@ -998,7 +999,9 @@ flowchart TD
 ```
 
 - **No run is cut on a clock.** A run ends when it finishes, when it fails on its own or when somebody
-  stops it. A clock on a run only says when to ask about it.
+  stops it. A clock on a run only says when to ask about it. A job's turn is the one run with a hard
+  bound of its own, below: it holds an item and the queue behind it, and a turn the tool clock cannot
+  reach must still not hold them for ever.
 - **Which runs carry a clock.** A role's run, a chat round, a keepalive ping and a fold carry none. A
   voice run carries ten minutes for the speaking of its line, on this machine's card or a node; past it
   the clock asks.
@@ -1034,6 +1037,38 @@ flowchart TD
   which is what its room or the owner hears.
 - **What waits behind a clocked run waits for its end.** A run is never cut for its clock, so whatever
   waits behind one — a voice node's asker — waits until the run ends, however long that is.
+
+### A job turn's tool calls are held to a clock
+
+A job's turn runs a program whose tool calls the turn's collector reads off the record. A tool that blocks
+on a read or a write nothing will answer would otherwise hold the turn for ever, and no stop reaches a
+turn held inside a call, so the call is held to a clock of its own (`policy/tool-clock.toml`).
+
+- **What a call owns.** A call's own processes are the part of the turn program's process tree that began
+  with the call, less the processes that stood before it: a shell the program started for the call and
+  everything under it. A call's progress is the processor time its tree has burned since it was last read.
+- **A call that has stopped making progress is stopped.** Past the call's minimum, a tree that burns no
+  processor time for its stall is signalled: its processes get a polite end and then the kill. The
+  program's tool then answers the model with a failed result, and the turn goes on — the call is cut, not
+  the turn. A call that keeps burning processor time, a build or a test among them, is never touched
+  however long it runs.
+- **The lines are kept.** Each call's start is written with its pid and a one-line summary, a
+  still-running line past its threshold and every interval after it, and its end with its duration and
+  outcome. A cut is written as it happens. The lines go to the run's log and the unit's own log, so a
+  hang is readable while it is happening and after it.
+- **A stop cuts a blocked call.** A call that has burned no processor time for the stop's stall is
+  stopped when the stop is read, so the stop words — commit, report, exit — are read at the next
+  boundary. A turn that has not ended within the stop's bound is ended by the surface's interrupt as a
+  stop, so the item and the queue behind it are not held by a turn that will not end.
+- **A job's turn has a hard bound.** A job's turn past its bound is cut and its item released: the door
+  writes the job's stop mark with the bound's reason and interrupts the turn, the turn ends stopped, and
+  the job's end reads the mark — written `stopped` with outcome `stopped`, its lease given back so the
+  item is open for a rerun. The bound is generous, since the call clock is what catches a hang; it is a
+  backstop for a turn the call clock cannot see.
+- **A turn picked up across a restart is held to the same clock.** The turn `turn_pickup` attaches to
+  reads its calls from the record its program writes and holds them to the same call clock, stop and
+  bound. A blocked call is cut there as it is in the door, and a turn past its bound is marked stopped
+  and cut, so its item and assignment are released and the queue behind it moves.
 
 ### What standing costs
 
@@ -1699,16 +1734,17 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     under it: the coordinator ends on its own once the turn has. Behind the collector the stop keeps a
     reach of its own for one event: where the collector is gone while the turn's row is still open, the
     stop interrupts a chat turn's program itself by its surface's interrupt, and leaves a job's turn to
-    end on the stop words already in, the reconciliation closing its row on the program's record. The row a resident turn
+    end on the stop words already in — its blocked call cut, and the turn ended by the interrupt at the
+    stop's bound — the reconciliation closing its row on the program's record. The row a resident turn
     opens says it is one, and names the program's record and the process the program was, which
     is what its collector and the reconciliation both close it on.
   - **A job stopped through agency's routes** — `PATCH /jobs/{jobId}`, and the supervisor's `stop_job`
     on the owner's word (`docs/api.md`, 「assignments and jobs」) — is the same cancellation of the job's
     run, read by the door carrying its turn or by the pass that picked the turn up across a restart, each
-    of which puts the stop words in and waits for the turn to end on them. The route answers once the
-    turn has ended, however long that takes,
-    so the job's checkout reads free, and takes the next launch, only when its run's program no longer
-    carries the turn.
+    of which puts the stop words in and waits for the turn to end on them, a blocked call cut and the
+    turn ended by the interrupt at the stop's bound. The route answers once the turn has ended, so the
+    job's checkout reads free, and takes the next launch, only when its run's program no longer carries
+    the turn.
   - **A work order** is named by its item, and the item's stop is its stop (the job unit's
     `work-orders.md`, 「The owner stops an item now」): it reaches every run the order holds, each by the reach that run's own kind
     has. A skipped or folded branch is stopped the same way.

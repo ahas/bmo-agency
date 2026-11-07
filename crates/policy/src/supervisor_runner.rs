@@ -51,6 +51,7 @@ pub struct Log {
   pub system_changed: String,
   pub carried: String,
   pub handoff_start: String,
+  pub handoff_documents: String,
   pub no_handoff: String,
   pub handed_over: String,
   pub waits: String,

@@ -87,6 +87,12 @@ statements below about either are kept for a rollback to the road a deployment l
     stays `running`, so its checkout reads as held and its slot as taken, its item's lease
     is kept on the harness's behalf as every running job's is, and no launch notice is told for its item
     (`docs/api.md`, 「assignments and jobs」);
+  - a picked-up job's turn is held to the same clocks as a live one (`docs/agent-control.md`, 「A job
+    turn's tool calls are held to a clock」): its calls are read from the record its program writes, a
+    call that stops making progress is cut and the failed result handed to the model, a stop cuts a
+    blocked call, and a turn past its bound is cut with its item marked stopped, so the item's lease is
+    given back and its assignment released; the turn's tool lines are kept in the run's log and the
+    unit's own;
   - a turn nothing in its place names is ended failed for its caller, and a job's is left to the pass that
     ends a job left running.
   - every turn's liveness row the process before it left open is closed first, with the ending
@@ -160,7 +166,9 @@ statements below about either are kept for a rollback to the road a deployment l
   the files it is given by their place:
   - a document that is part of a chat session's system prompt marks every awake conversational
     agent's prompt as moved (`prompt_changed_at`, one `prefix_moves` row per file), and is not
-    announced;
+    announced: the next turn composes the prompt afresh, and a session whose composed prompt differs
+    from the one it was last sent hands itself over (`docs/supervisors.md`, 「A session in each
+    room」);
   - a document a chat turn carries is neither marked nor announced: the next turn carries its text;
   - every other document is handed to the running server (`POST /documents/reload`), which publishes
     `documents-moved` with the paths and whether the notice is due at once (`docs/api.md`);
@@ -178,9 +186,11 @@ statements below about either are kept for a rollback to the road a deployment l
   notice is due at once rather than after the hour.
 - A document that ships with the code — a rulebook under `prompts/rules/`, an agent document under
   `prompts/agents/`, or the platform's harness opening `prompts/harness.md`, which is part of the chat
-  session's system prompt and of a role's prefix — is read out of the deploy tree, so it is told by the deployment that puts it
-  live, through the deploy tree's own reload; the same command run from a checkout refuses such a
-  document (`deploy.md`, 「What goes live with the documents」).
+  session's system prompt and of a role's prefix — is read out of the deploy tree: the next turn of every
+  supervisor composes its prompt from the tree as it now stands, and a session whose composed prompt
+  differs from the one it was last sent hands itself over (`docs/supervisors.md`, 「A session in each
+  room」). The reload verb refuses such a document from a checkout, since the tree a checkout reads is not
+  the one the service runs (`deploy.md`, 「What goes live with the documents」).
 - Agency holds no lore and keeps no persona of its own. The base persona a chat session's system prompt
   ends with is the base layer of the agent's own brain, the layer named `persona`, rendered by the brain
   and read through its client once at each launch, with its placeholders filled from the deployment's

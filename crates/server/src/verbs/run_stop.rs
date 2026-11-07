@@ -250,7 +250,7 @@ async fn stop_job(ground: &Ground, job: &JobRow, why: &str) -> Result<bool, Verb
   store::run(
     &ground.db,
     r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1
-       WHERE "id" = (SELECT "assignment_id" FROM "jobs" WHERE "id" = $2) AND "state" = 'running'"#,
+       WHERE "id" = (SELECT "assignment_id" FROM "jobs" WHERE "id" = $2) AND "state" IN ('held', 'running')"#,
     vec![now_ms().into(), job.id.into()],
   )
   .await?;

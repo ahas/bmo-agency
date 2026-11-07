@@ -177,16 +177,59 @@ async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> 
   Ok(())
 }
 
-/// That an assignment's job has ended: the worker it held is free.
+/// That an assignment's job has ended: the worker it held is free, whichever state the hold stood in and
+/// however the job ended (docs/api.md, 「assignments and jobs」).
 async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result<(), Refused> {
   run(
     db,
-    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#,
+    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" IN ('held', 'running')"#,
     vec![now_ms().into(), assignment_id.into()],
   )
   .await?;
 
   Ok(())
+}
+
+/// A session ended: every hold it took that no running job owns is released, so a worker held for a turn
+/// that never started its job does not stay held once that turn's session is gone (docs/api.md,
+/// 「assignments and jobs」). An assignment a job owns is left to that job's own end.
+pub async fn release_held(db: &sea_orm::DatabaseConnection, holder: &str) -> Result<u64, Refused> {
+  Ok(
+    run(
+      db,
+      r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
+         WHERE a."state" = 'held' AND a."holder_name" = $2
+           AND NOT EXISTS (SELECT 1 FROM "jobs" j
+                 WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
+      vec![now_ms().into(), holder.into()],
+    )
+    .await?,
+  )
+}
+
+/// The newest hold an ask already stands in: a `held` assignment for the same item and holder, as its
+/// routes answer it (docs/api.md, 「assignments and jobs」).
+async fn standing_hold(
+  db: &sea_orm::DatabaseConnection,
+  item_id: i64,
+  holder: &str,
+) -> Result<Option<Value>, Refused> {
+  let row = one(
+    db,
+    r#"SELECT "id" FROM "assignments"
+       WHERE "item_id" = $1 AND "holder_name" = $2 AND "state" = 'held'
+       ORDER BY "id" DESC LIMIT 1"#,
+    vec![item_id.into(), holder.into()],
+  )
+  .await?;
+
+  match row {
+    Some(row) => {
+      let id: i64 = row.try_get("", "id")?;
+      Ok(Some(assignment(db, id).await?))
+    }
+    None => Ok(None),
+  }
 }
 
 // The most repository names a refusal lists before it points at `GET /repositories` instead.
@@ -264,6 +307,24 @@ impl Route for CreateAssignment {
       && !checkouts.iter().any(|checkout| checkout.name == assignee)
     {
       return Err(unknown_repository(db, assignee).await?);
+    }
+
+    // An ask for the same item by the same holder answers the hold it already stands in, so a lost answer
+    // read again is no busy worker; an ask naming another worker or role replaces that hold (docs/api.md,
+    // 「assignments and jobs」).
+    if let Some(standing) = standing_hold(db, item_id, &holder).await? {
+      let same_worker = assignee.is_none_or(|assignee| standing["workerName"].as_str() == Some(assignee));
+      let same_role = named.is_none_or(|role| standing["roleName"].as_str() == Some(role));
+
+      if same_worker && same_role {
+        return Ok(answer(StatusCode::OK, standing));
+      }
+
+      let standing_id = standing["id"].as_i64().unwrap_or_default();
+
+      if let Err(why) = release(db, standing_id).await {
+        eprintln!("assignment {standing_id} was not released before its replacement: {}", why.error);
+      }
     }
 
     for checkout in checkouts {
@@ -932,6 +993,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (Some(why), ended) => {
       let spent = ended.ok().flatten().and_then(|(_, _, _, spent)| spent);
 
+      println!("job {id}: stop consumed: {}", why.trim());
+
       ("stopped".to_owned(), Some("stopped".to_owned()), Some(why), spent)
     }
     (None, Ok(Some(end))) => end,
@@ -939,6 +1002,8 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (None, Err(why)) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
   let now = now_ms();
+
+  println!("job {id}: ended {state}, outcome {}", outcome.as_deref().unwrap_or("answered"));
 
   if let Some(outcome) = &outcome {
     noted(ground, id, outcome, report.as_deref()).await;
@@ -1852,6 +1917,10 @@ async fn launched(
 ) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
+  let item = member["itemId"].as_i64().unwrap_or_default();
+
+  println!("job {id}: starting on worker {worker_name} for item {item}");
+
   let role = role_of_job(ground, id).await;
   let room = member["roomId"].as_i64().unwrap_or(0);
   let title = prompt.lines().next().unwrap_or_default().trim_start_matches("# ").to_owned();
@@ -2131,6 +2200,7 @@ pub async fn stop_job(
   }
 
   // No turn carries it: the stop is written here, as the turn's end would have written it.
+  println!("job {id}: stop consumed: no turn carried it: {}", reason.trim());
   let _ = crate::queue::stops::clear_job_stop(db, id).await;
   let now = now_ms();
 
@@ -2260,7 +2330,10 @@ impl Route for ChangeJob {
     .await?;
     crate::job_end::slot_given_back(db, id, &ending(wanted, outcome.as_deref())).await;
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
-    run(db, r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#, vec![now.into(), assignment_id.into()]).await?;
+
+    if let Err(why) = release(db, assignment_id).await {
+      eprintln!("job {id}: its assignment {assignment_id} was not released: {}", why.error);
+    }
 
     let (member, _) = job(db, id).await?;
 

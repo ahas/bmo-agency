@@ -5,7 +5,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 `job_item_update`, `job_item`, `job_items`, `job_note_add`, `job_notes`, `job_report`,
 `job_work_order`, `job_tasks`, `job_queues`, `job_lease_next`, `job_lease_renew`,
 `job_lease_release`, `job_question_ask`, `job_question` and `job_replies`; and the agency's own:
-`file_item`, `stop_job`, `assign_worker` and `run_job`.
+`file_item`, `stop_job`, `assign_worker`, `release_worker` and `run_job`.
 
 ## The queue
 
@@ -184,8 +184,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
    the content you read: `title`, `brief`, `workOrder`,
    `notes`, `labels` and `scope`, the room the item was filed from. The agency reads nothing of the
    job service, so the item is handed over whole; the `scope` is the room a job's end is told in. It
-   answers the assignment and the worker it holds; the hold stands until the job starts and ends, or
-   until you release it, and no clock lets it go: release one you will not run.
+   answers the assignment and the worker it holds. The hold stands until the job ends or until you give it
+   back with `release_worker`; no clock lets it go, so release one you will not run. Asking
+   `assign_worker` again for the same item and holder answers the standing hold instead of refusing
+   `no-worker-free`, so a lost answer is not a lost worker: take the assignment id it answers and launch
+   that one.
 2. **`run_job`** with `assignmentId`, `itemId`, `leaseId`, `holderName` `harness` and the same
    `item`, `scope` among it. It launches the worker's session on the item and the lease, and answers
    the job; as the job ends, the agency tells the room its report, and keeps the item's lease standing
@@ -202,10 +205,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 - **A refusal is read, not worked around.** The service says which item, holder, lease or worker is
   wrong. Choose again from what it says.
-- **Never call `run_job` twice for one assignment or one lease.** One launch per item at a time. Your
-  tools hold no release of an assignment: where a launch cannot go ahead, give the lease back
-  with `job_lease_release` and let the hold run out; do not leave the item leased with no run and
-  forget it.
+- **Never call `run_job` twice for one assignment or one lease.** One launch per item at a time. A hold
+  ends when its job ends or when you give it back. Where a launch cannot go ahead and you will not run
+  it, give the assignment back with `release_worker` and the lease back with `job_lease_release`; do not
+  leave the item leased with no run and forget it.
 - **The item's work is the worker's.** You choose the item, the worker and the launch; you do not
   edit its checkout or do its work yourself beyond a line or two (LONG WORK).
 

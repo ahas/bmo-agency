@@ -44,6 +44,7 @@ pub mod span_words;
 pub mod supervisor_runner;
 pub mod supervisors;
 pub mod tiers;
+pub mod tool_clock;
 pub mod verb_words;
 pub mod work_keys;
 pub mod worker_words;

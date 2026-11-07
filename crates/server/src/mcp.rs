@@ -6,8 +6,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bmo_agency_client::{
-  AgencyClient, Answer, ApiError, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled,
-  ItemFilingAsk, Job, JobStopAsk, RunJob, STOP_JOB, StopJob,
+  AgencyClient, Answer, ApiError, AssignWorker, Assignment, AssignmentChange, AssignmentState,
+  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobStopAsk, ReleaseWorker, RunJob, STOP_JOB,
+  StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -177,6 +178,18 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
       "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
       "POST /assignments",
       |client, body| async move { client.create_assignments(&body).await },
+    ),
+    tool::<ReleaseWorker, Assignment, _, _>(
+      "release_worker",
+      "Release an assignment the harness will not run, by its id: the worker it held is free for the next item. A hold also ends when its job ends or when the session that took it ends.",
+      "PATCH /assignments/{assignmentId}",
+      |client, ask: ReleaseWorker| async move {
+        let change = AssignmentChange {
+          state: Some(AssignmentState::Released),
+        };
+
+        client.change_assignments_by_assignment_id(ask.assignment_id, &change).await
+      },
     ),
     tool::<RunJob, Job, _, _>(
       "run_job",

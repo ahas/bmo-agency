@@ -14,8 +14,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use agent_session::{Apart, SessionId, TurnEnd};
+use policy::fill_marks;
 use policy::resident_turn::RESIDENT_TURN;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
+use policy::tool_clock::TOOL_CLOCK;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use store::{all, one};
@@ -29,6 +31,7 @@ use crate::door::record::{
   CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, read_round, read_turn,
   turn_closed_since, turn_error,
 };
+use crate::door::tool_clock::{ToolClock, Watch as ToolWatch};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
@@ -708,7 +711,7 @@ async fn attach(ground: &Ground, name: &str, place: Place, pane: Option<OwnPane>
   {
     let _held = hold(agent_lock_path(&ground.roots.data, name)).await;
 
-    waited(ground, &place, pane.as_ref(), &turn).await;
+    waited(ground, &place, pane.as_ref(), &turn, ToolClock::from(&TOOL_CLOCK.call)).await;
   }
 
   close_pane(ground, pane.as_ref()).await;
@@ -726,22 +729,35 @@ async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
 }
 
 // An adopted turn waited on until its end is handed back: in its place, or in its pane of its own. Its
-// record is read into the run log on every look, so the log follows the turn as a live one's would.
-async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &InFlight) {
+// record is read into the run log on every look, so the log follows the turn as a live one's would. A
+// job's turn is held to the same tool clock and turn bound as a door's: a blocked call is cut so the turn
+// can go on, a stop cuts it so the stop's words can be read, and a turn past its bound is cut and its item
+// released.
+pub async fn waited(
+  ground: &Ground,
+  place: &Place,
+  pane: Option<&OwnPane>,
+  turn: &InFlight,
+  clock: ToolClock,
+) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
   let mut cut = false;
+  let mut stop_seen_at: Option<i64> = None;
+  let stop_bound_ms = turn.job.map(|_| clock.stop_bound_ms);
+  let mut tools = turn.job.map(|_| ToolWatch::new(clock));
   let mut following = Following::of(ground, turn, place, pane).await;
 
   own_rows(ground, &turn.run).await;
 
   loop {
-    let now = match pane {
+    let now = now_ms();
+    let standing = match pane {
       Some(pane) => standing_in_pane(pane),
       None => standing(place, turn),
     };
 
-    match now {
+    match standing {
       Standing::Ended(came) => {
         following.feed(ground, turn, place, pane).await;
 
@@ -755,11 +771,49 @@ async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &I
       Standing::Going => {}
     }
 
+    // A job's turn past its bound is cut and its item released, as the door cuts a live one: the stop
+    // mark is written first, so the end of the turn reads it and the job ends stopped.
+    if let Some(why) = over_bound(ground, turn, now).await {
+      // The turn's program is cut short as the door cuts one past its bound, so it does not go on
+      // working a job whose item and queue have been released.
+      surface_interrupt(ground, &turn.run, pane).await;
+      following.feed(ground, turn, place, pane).await;
+
+      return hand_back(ground, place, turn, Came::Failed(why), true).await;
+    }
+
     following.feed(ground, turn, place, pane).await;
+
+    let records = following.tail.as_mut().map(Tail::look);
+    let program = tool_program(place, pane);
+
+    if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
+      watch_tools(ground, turn, records, program, watch, &mut following.log, now).await;
+    }
 
     if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {
       cut = true;
+      stop_seen_at = Some(now);
+
+      if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
+        cut_tools(ground, turn, records, program, watch, &mut following.log, now).await;
+      }
+
       interrupt(ground, &turn.run, pane).await;
+    } else if let (Some(seen), Some(bound)) = (stop_seen_at, stop_bound_ms)
+      && now - seen >= bound
+    {
+      // Past the stop's bound the surface's own interrupt ends the turn, and its end is handed back as a
+      // stop. A job's stop mark was already written before the cancellation.
+      surface_interrupt(ground, &turn.run, pane).await;
+      following.feed(ground, turn, place, pane).await;
+
+      let why =
+        format!("{}: the stop was not ended within its bound, so the turn is interrupted", turn.run);
+
+      println!("{why}");
+
+      return hand_back(ground, place, turn, Came::Failed(why), true).await;
     }
 
     // A pane of its own reads its program on every look above.
@@ -780,6 +834,110 @@ async fn waited(ground: &Ground, place: &Place, pane: Option<&OwnPane>, turn: &I
 
     tokio::time::sleep(every).await;
   }
+}
+
+/// The program whose process tree a picked-up turn's calls are read in: the pane's own program where the
+/// turn went out in a pane of its own, the place's standing program otherwise.
+fn tool_program(place: &Place, pane: Option<&OwnPane>) -> Option<i32> {
+  pane
+    .and_then(|pane| pane.program.as_ref())
+    .map(|program| program.pid)
+    .or_else(|| place.program_alive().map(|running| running.pid))
+}
+
+/// A picked-up turn's calls watched once, its lines kept as a live turn's are: the unit's log and the run's
+/// log. `records` is the turn program's transcript as it stands.
+pub async fn watch_tools(
+  ground: &Ground,
+  turn: &InFlight,
+  records: &[Value],
+  program: Option<i32>,
+  watch: &mut ToolWatch,
+  log: &mut RunLog,
+  now: i64,
+) -> Vec<String> {
+  let Some(program) = program else { return vec![] };
+  let lines = watch.look(&turn.run, records, 0, program, now).await;
+
+  for line in &lines {
+    println!("{line}");
+    log.write(&ground.db, Line::note(line)).await;
+  }
+
+  lines
+}
+
+/// A stop on a picked-up turn: a call that is making no progress is cut so the stop's words can be read at
+/// the next boundary.
+pub async fn cut_tools(
+  ground: &Ground,
+  turn: &InFlight,
+  records: &[Value],
+  program: Option<i32>,
+  watch: &mut ToolWatch,
+  log: &mut RunLog,
+  now: i64,
+) -> Vec<String> {
+  let Some(program) = program else { return vec![] };
+  let lines = watch.cut_for_stop(&turn.run, records, 0, program, now).await;
+
+  for line in &lines {
+    println!("{line}");
+    log.write(&ground.db, Line::note(line)).await;
+  }
+
+  lines
+}
+
+/// A job's turn past the clock's bound: the job marked stopped with the reason, so the turn's end reads it
+/// and the job ends stopped with its item's lease given back. None for a turn within its bound or one that
+/// is no job's.
+pub async fn over_bound(ground: &Ground, turn: &InFlight, now: i64) -> Option<String> {
+  let job = turn.job?;
+  let bound_ms = i64::try_from(TOOL_CLOCK.turn.bound_minutes)
+    .unwrap_or(i64::MAX / 60_000)
+    .saturating_mul(60_000);
+
+  if now.saturating_sub(turn.started_at) < bound_ms {
+    return None;
+  }
+
+  let minutes = (bound_ms / 60_000).max(1);
+  let why = fill_marks(&TOOL_CLOCK.turn.cut, &[("minutes", &minutes.to_string())]);
+
+  if let Err(refused) = crate::queue::stops::mark_job_stopped(&ground.db, job, &why).await {
+    eprintln!("{}: job {job} was not marked stopped at its turn's bound: {}", turn.run, refused.detail);
+  }
+
+  println!(
+    "{}: the turn passed its {minutes}-minute bound, so job {job} is marked stopped and the turn is cut",
+    turn.run
+  );
+
+  Some(why)
+}
+
+// A picked-up turn ended by the surface's own interrupt: the keys its provider cuts a turn with, typed into
+// the pane its execution row names.
+async fn surface_interrupt(ground: &Ground, run: &str, pane: Option<&OwnPane>) {
+  let Some(herdr) = &ground.herdr else { return };
+  let Some(keys) = harness_providers::provider("claude-code")
+    .and_then(|provider| provider.declared().resident.as_ref())
+    .map(|resident| resident.interrupt.clone())
+  else {
+    return;
+  };
+  let target = match pane.and_then(|pane| pane.pane.clone()) {
+    Some(pane) => Some(pane),
+    None => open_rows(ground, run)
+      .await
+      .into_iter()
+      .next()
+      .and_then(|row| row.text("paneId").map(str::to_owned)),
+  };
+  let Some(target) = target else { return };
+
+  let _ = herdr.call("pane.send_keys", json!({ "pane_id": target, "keys": keys }), None).await;
 }
 
 // A kept turn cut short: its surface's interrupt typed into the pane of each open row it put in, at once;

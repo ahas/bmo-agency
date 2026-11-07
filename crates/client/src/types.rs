@@ -1770,6 +1770,13 @@ pub struct AssignWorker {
   pub role_name: Option<String>,
 }
 
+/// The body that releases an assignment the harness will not run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReleaseWorker {
+  pub assignment_id: i64,
+}
+
 /// The body that releases an assignment.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
