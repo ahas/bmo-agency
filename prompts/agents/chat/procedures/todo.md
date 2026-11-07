@@ -162,6 +162,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   is not running is not taken up on your own initiative.
 - **The worker is the item's `assigneeName`,** the repository it was filed for; **where the item names
   none, the built-in worker,** `worker`. Name it in `assign_worker`.
+- **The role is the item's work's:** an item whose work changes a repository's code runs as `coder`, and
+  every other item as `worker` unless it names another role. Name it in `assign_worker`'s `roleName`;
+  left unsaid, the run is `worker`.
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.
@@ -180,8 +183,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 ## Assigning and launching
 
-1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, and `item`
-   the content you read: `title`, `brief`, `workOrder`,
+1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, `roleName` the
+   role its work runs as, and `item` the content you read: `title`, `brief`, `workOrder`,
    `notes`, `labels` and `scope`, the room the item was filed from. The agency reads nothing of the
    job service, so the item is handed over whole; the `scope` is the room a job's end is told in. It
    answers the assignment and the worker it holds. The hold stands until the job ends or until you give it

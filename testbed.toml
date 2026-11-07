@@ -125,6 +125,32 @@ cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-ski
 "$target/release/bmo-skills" place --bundle worker --into prompts/agents/worker/plugin --from "$skills"
 '''
 
+# The coder's and the producer's own bundles, each into its role's plugin directory: a run of the role
+# hands its directory to Claude Code, and every other run carries the worker's.
+[[deploy.step]]
+id = "place-coder-skills"
+phase = "before-flip"
+command = '''
+set -eu
+common="$(git rev-parse --path-format=absolute --git-common-dir)"
+skills="${BMO_SKILLS_DIR:-$(dirname "$common")/../../resources/skills}"
+target="${BMO_CARGO_TARGET_DIR:-$HOME/.local/share/bmo/cargo-target}"
+cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-skills --target-dir "$target"
+"$target/release/bmo-skills" place --bundle coder --into prompts/agents/coder/plugin --from "$skills"
+'''
+
+[[deploy.step]]
+id = "place-producer-skills"
+phase = "before-flip"
+command = '''
+set -eu
+common="$(git rev-parse --path-format=absolute --git-common-dir)"
+skills="${BMO_SKILLS_DIR:-$(dirname "$common")/../../resources/skills}"
+target="${BMO_CARGO_TARGET_DIR:-$HOME/.local/share/bmo/cargo-target}"
+cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-skills --target-dir "$target"
+"$target/release/bmo-skills" place --bundle producer --into prompts/agents/producer/plugin --from "$skills"
+'''
+
 # Each tool is placed in its folder's .placed/, the folder the tool host reads (docs/tools.md, 「A tool's
 # folder」): the executable the release's bin/ holds, its manifest and the schemas beside it.
 [[deploy.step]]

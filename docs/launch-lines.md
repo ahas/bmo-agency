@@ -276,9 +276,11 @@
   machine's own CLAUDE.md, which every checkout under the home directory would walk up to, is named
   in the worker settings' `claudeMdExcludes`, the user scope this machine
   registers its own skills, Claude Code subagent definitions and MCP servers in is shut off on the
-  line, and in its place the line hands over the skills as a plugin directory — the skills
-  repository's `worker` bundle, `prompts/agents/worker/plugin/` of the release, which every deployment
-  places afresh with that repository's own placer (`bmo-skills place --bundle worker`) from the skills
+  line, and in its place the line hands over the skills as a plugin directory — the role's bundle: the
+  skills repository's `worker` bundle at `prompts/agents/worker/plugin/` of the release for every run but
+  the coder's and the producer's, the `coder` bundle at `prompts/agents/coder/plugin/` for the coder, and
+  the `producer` bundle at `prompts/agents/producer/plugin/` for the producer, each placed afresh with
+  that repository's own placer (`bmo-skills place --bundle worker|coder|producer`) from the skills
   checkout that stands beside agency's in its workspace, or the one `BMO_SKILLS_DIR` names, before the
   deploy tree flips, so a skill the skills repository gains reaches the next job after the next
   deployment; the copy a checkout of this repository carries stands for a tree no deployment placed — the

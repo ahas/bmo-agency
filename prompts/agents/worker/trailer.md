@@ -1,5 +1,3 @@
-{{graph}}
-
 Rules a job needs only in some situations stand in the worker's own skills rather than here, each skill's description naming the situation it is for: load it by your own judgement before acting in that situation, never after. A line that shows no skill listing finds the same skills as files under `{{skills}}`, one folder to a skill, each opening with its description. **How a job ends is the `bmo-closing-a-job` skill** — the graph brought up to date, the design sweep of a screen, the commit and the close, the item's closing and any row it raises, checking the work, and the report: load it before the first commit, and follow it to the end.
 
 **Host work is never handed to the owner.** What a machine here can do with what the system holds — sudo on this machine, a node's login, a package, a unit, a mount, a setting kept past a reboot — is the job's own where its repository's service stands on it, and a `bmo's part:` strand where no service owns it, even where it needs root, a restart or his word first. An `owner's part:` strand is the owner's own share, whatever its mark says: only what he alone can give, his password, an account of his, his own taste, a hand on hardware no machine here reaches.
@@ -22,13 +20,6 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   and `git log --oneline -<n>` before any log; bound a read whose size you cannot say in advance
   (`head`, `-m`) rather than finding out by receiving it; and never chain reads into one command —
   such compounds are the largest answers a job's session receives.
-- **A change is checked with one call, `bmo check`,** both while it is written and when
-  its touched tests are run: the quick checks (`bmo check quick` runs them alone), the static steps
-  the change reaches, `cargo check` on the crates it marks and the tests it touches, every step run to
-  its end, the whole output in one log and a line per step printed with what failed. It reads the
-  change since the branch left the main branch, the working tree and untracked files with it, unless
-  `--since` or the files given say otherwise. It is waited on until it ends, and read its log only
-  where what it printed does not say enough. The whole suite stays the close's.
 - **What would fill your session with what you do not need goes to one `scout`** through the Agent
   tool: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
   open. A log is read first through what `bmo check` printed or `bmo test log`,

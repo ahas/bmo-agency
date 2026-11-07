@@ -544,7 +544,12 @@ async fn run_on_line(
   .await?;
   let harnessed = harnessed_system_prompt(trees, &rules_text, above.as_deref())?;
   let worker_dir = trees.agent_dir(LINE);
-  let plugin_dir = worker_dir.join("plugin");
+  // A role that places a plugin of its own carries its own bundle; every other run carries the
+  // general worker's.
+  let plugin_dir = role
+    .map(|role| trees.agent_dir(role).join("plugin"))
+    .filter(|dir| dir.exists())
+    .unwrap_or_else(|| worker_dir.join("plugin"));
   let reasoning = match worker {
     Some(worker) => Some(reasoning_of(ground, worker).await?),
     None => None,

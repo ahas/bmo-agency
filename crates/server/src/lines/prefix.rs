@@ -263,8 +263,13 @@ const PREFIX_FILES: [&str; 11] = [
 
 // Directories everything under which shapes the prompt: the settings and skills a run is shown, and the
 // co-worker definitions.
-const PREFIX_DIRS: [&str; 3] =
-  [".claude/", "prompts/agents/worker/plugin/", "prompts/agents/worker/coworkers/"];
+const PREFIX_DIRS: [&str; 5] = [
+  ".claude/",
+  "prompts/agents/worker/plugin/",
+  "prompts/agents/coder/plugin/",
+  "prompts/agents/producer/plugin/",
+  "prompts/agents/worker/coworkers/",
+];
 
 static OWN_RULES: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"^prompts/agents/[^/]+/own-rules\.md$").expect("the own rules path"));
