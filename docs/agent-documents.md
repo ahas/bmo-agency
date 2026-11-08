@@ -107,7 +107,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
-  approval, the worker's run and its close, host work, the fast track, images, a line for the voice,
+  approval, the worker's run and its close, host work, the fast track, images read and drawn, a line
+  for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
   of the agent's tools,
   the draft process, the answer rules, promises, and a turn past its clock. It says how a message of each kind reaches the
