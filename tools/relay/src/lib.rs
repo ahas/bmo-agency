@@ -11,9 +11,9 @@ pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "relay";
 pub const CHAT_NAME: &str = "chat";
 pub const TITLE: &str = "Relay to another person's BMO";
-pub const DESCRIPTION: &str = "Hand a line to another person's BMO, recorded for both sides: the receiving BMO answers it as another agent's word, never its person's, and may refuse it. The line is said in the room the call names, or the turn's own room where none is named.";
+pub const DESCRIPTION: &str = "Hand a line to another person's BMO, recorded for both sides: the receiving BMO answers it as another agent's word, never its person's, and may refuse it. The line is said in the room the call names, or the turn's own room where none is named. This is no way to another supervisor of your own person: a request or a question to one is said in a room it answers, by the name that wakes it.";
 pub const CHAT_TITLE: &str = "Open a chat with another person";
-pub const CHAT_DESCRIPTION: &str = "Open a chat into another person's room and hand it a line, answered with the receiving BMO's answer; a refusal is reported to you. The room must be named.";
+pub const CHAT_DESCRIPTION: &str = "Open a chat into another person's room and hand it a line, answered with the receiving BMO's answer; a refusal is reported to you. The room must be named. This is for another person's BMO, never for another supervisor of your own person: that one is met in a room it answers.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
 
 const DEFAULT_CONTROL_PORT: u16 = 3220;
