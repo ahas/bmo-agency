@@ -10,6 +10,9 @@ own person's, and may refuse it. What was sent and what came of it is kept for b
   (`text`) and the room it is said in (`room`), which is the turn's own room where the call names none. The
   receiving BMO takes the line on its own session, and its answer is the record's answer. Where the receiving
   BMO will not take it, the call fails and says which BMO refused.
+- **Two supervisors of one person never relay to each other.** Their line is said in a room one of them
+  answers, by the name that wakes the other, and the answer is a reply under it; the relay refuses such a line
+  `relay-to-supervisor`. A relay is one person's BMO to another person's.
 - **`bmo/chat` opens a chat into that person's room.** It names the other BMO, the line and the room, which is
   that person's room and must be named. The chat opens at once: the receiving BMO's session is started or
   taken up there, the line goes into it, and the call answers with that BMO's answer. A refusal is reported to
