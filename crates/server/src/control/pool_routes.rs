@@ -468,6 +468,7 @@ impl Route for Slots {
             "model": request.model,
             "source": request.source,
             "since": request.leased_at,
+            "agent": request.seat,
             "runName": request.agent_name.clone().or(going),
             "session": session,
             "jobId": dispatch::job_of(request),

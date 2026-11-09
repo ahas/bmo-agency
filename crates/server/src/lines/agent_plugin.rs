@@ -1,8 +1,8 @@
-//! The plugin an agent that names its own skills is handed (docs/role-agents.md, 「What a run reads off its
-//! agent」): a folder of its own under the agents root, holding the manifest of its role's plugin and the
-//! skills it names alone, each copied from the first of the release's plugins that carries it. It is written
-//! whole whenever what it should hold differs from what it holds, so a release that moved a skill's text and
-//! an agent whose list changed both reach the next run.
+//! The plugin a run is handed where its agent or its role names skills (docs/role-agents.md, 「What a run
+//! reads off its agent」): a folder of the list's own under the agents root, holding the manifest of the role's
+//! plugin and the skills named alone, each copied from the first of the release's plugins that carries it.
+//! It is written whole whenever what it should hold differs from what it holds, so a release that moved a
+//! skill's text and a list that changed both reach the next run.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -78,12 +78,36 @@ fn copy_skill(from: &Path, to: &Path) -> Result<(), Refusal> {
   Ok(())
 }
 
-/// The plugin folder of the agent `agent`, holding `skills` alone under the manifest of `base`, its role's
+/// Whose list of skills a plugin is placed for: an agent's own, or its role's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Whose<'a> {
+  Agent(&'a str),
+  Role(&'a str),
+}
+
+impl Whose<'_> {
+  // The folder the list's plugin stands in, under the agents root.
+  fn home(self, trees: &Trees) -> PathBuf {
+    match self {
+      Self::Agent(agent) => trees.agents.join("role-agents").join(agent),
+      Self::Role(role) => trees.agents.join("role-skills").join(role),
+    }
+  }
+
+  fn said(self) -> String {
+    match self {
+      Self::Agent(agent) => format!("the agent {agent}"),
+      Self::Role(role) => format!("the role {role}"),
+    }
+  }
+}
+
+/// The plugin folder of a list of skills, holding `skills` alone under the manifest of `base`, the role's
 /// plugin: each skill from `base` where it carries it, else from the first other plugin of the release that
 /// does. A skill no plugin of the release carries is left out, and said. The folder stands under the agents
 /// root at the same path run after run, so the command a run goes out on names it the same way every time.
-pub fn placed(trees: &Trees, base: &Path, agent: &str, skills: &[String]) -> Result<PathBuf, Refusal> {
-  let home = trees.agents.join("role-agents").join(agent);
+pub fn placed(trees: &Trees, base: &Path, whose: Whose<'_>, skills: &[String]) -> Result<PathBuf, Refusal> {
+  let home = whose.home(trees);
   let target = home.join("plugin");
   let manifest = base.join(".claude-plugin").join("plugin.json");
   let mut sources: Vec<(String, PathBuf)> = vec![];
@@ -101,7 +125,8 @@ pub fn placed(trees: &Trees, base: &Path, agent: &str, skills: &[String]) -> Res
     match found {
       Some(folder) => sources.push((skill.clone(), folder)),
       None => eprintln!(
-        "agency: the agent {agent} names the skill {skill}, which no plugin of this release carries"
+        "agency: {} names the skill {skill}, which no plugin of this release carries",
+        whose.said()
       ),
     }
   }
@@ -223,7 +248,7 @@ mod tests {
 
     let base = trees.agent_dir("coder").join("plugin");
     let names = ["clean", "closing", "gone", "clean"].map(str::to_owned);
-    let placed_at = placed(&trees, &base, "coder-03", &names).unwrap();
+    let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &names).unwrap();
 
     assert_eq!(placed_at, root.path().join("agents/role-agents/coder-03/plugin"));
     // Its role's own text of a skill stands before another plugin's, and a skill nothing carries is left out.
@@ -241,6 +266,26 @@ mod tests {
   }
 
   #[test]
+  fn a_roles_list_stands_in_a_folder_of_its_own_beside_an_agents() {
+    let root = Scratch::new("role");
+    let trees = trees(root.path());
+
+    manifest(root.path(), "coder");
+    skill(root.path(), "coder", "clean", "clean");
+    skill(root.path(), "coder", "design", "design");
+
+    let base = trees.agent_dir("coder").join("plugin");
+    let of_role = placed(&trees, &base, Whose::Role("coder"), &["design".to_owned()]).unwrap();
+    let of_agent = placed(&trees, &base, Whose::Agent("coder"), &["clean".to_owned()]).unwrap();
+
+    assert_eq!(of_role, root.path().join("agents/role-skills/coder/plugin"));
+    assert_eq!(of_agent, root.path().join("agents/role-agents/coder/plugin"));
+    // A role and an agent of the same name keep each its own list.
+    assert!(of_role.join("skills/design").is_dir() && !of_role.join("skills/clean").exists());
+    assert!(of_agent.join("skills/clean").is_dir() && !of_agent.join("skills/design").exists());
+  }
+
+  #[test]
   fn an_agents_plugin_is_written_again_only_when_what_it_should_hold_moved() {
     let root = Scratch::new("moved");
     let trees = trees(root.path());
@@ -249,21 +294,21 @@ mod tests {
     skill(root.path(), "coder", "clean", "first");
 
     let base = trees.agent_dir("coder").join("plugin");
-    let placed_at = placed(&trees, &base, "coder-03", &["clean".to_owned()]).unwrap();
+    let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
 
     // A file of the run's own left in the folder stands while nothing moved.
     std::fs::write(placed_at.join("kept"), "x").unwrap();
-    placed(&trees, &base, "coder-03", &["clean".to_owned()]).unwrap();
+    placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
     assert!(placed_at.join("kept").exists());
 
     // The release's text of the skill moved, so the folder is written whole again.
     skill(root.path(), "coder", "clean", "second");
-    placed(&trees, &base, "coder-03", &["clean".to_owned()]).unwrap();
+    placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
     assert!(!placed_at.join("kept").exists());
     assert_eq!(std::fs::read_to_string(placed_at.join("skills/clean/SKILL.md")).unwrap(), "second");
 
     // A list that names none leaves a plugin that carries no skill.
-    placed(&trees, &base, "coder-03", &[]).unwrap();
+    placed(&trees, &base, Whose::Agent("coder-03"), &[]).unwrap();
     assert!(placed_at.join("skills").is_dir());
     assert!(!placed_at.join("skills/clean").exists());
   }

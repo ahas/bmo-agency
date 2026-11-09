@@ -379,6 +379,13 @@ async fn sessions_on_one_slot(port: u16, token: &str, entry: &Value) {
 
   assert_eq!(read["session"], json!(first), "{read}");
   assert_eq!(read["runName"], Value::Null, "no turn runs and no run is named: {read}");
+  // The run names the agent of its role it was let in on, which a screen tells the run's seat by.
+  assert!(
+    read["agent"]
+      .as_str()
+      .is_some_and(|agent| agent.starts_with(read["role"].as_str().unwrap())),
+    "{read}"
+  );
 
   // The next session starts on the slot before the first ends.
   let (status, second) = call(port, token, reqwest::Method::POST, "/sessions", Some(start(&slot))).await;

@@ -43,8 +43,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
     「Co-workers」); an agent added with none named may not be;
   - **what it lays over its role's preset,** each none where the role's own stands: `prompt`, which then
     stands in place of the role's prompt; `bundles`, which then are the bundles its runs are given in place
-    of the role's; and `skills`, the names of the skills its runs carry in place of the role's bundle of
-    them.
+    of the role's; and `skills`, the names of the skills its runs carry in place of the role's.
 - **A role's preset is the default of every agent of it.** A run reads its agent first and its role for
   whatever the agent leaves unset, so an agent that sets nothing runs exactly as its role says.
 
@@ -60,13 +59,15 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **Its bundles:** the agent's `bundles` are the bundles the run's token is issued with and its session's
   record carries, in the place of the role's (`docs/agent-roles.md`, 「Where the role is read」); the line's
   own capabilities stand whatever the agent names.
-- **Its skills,** on the worker line: an agent that names skills is handed a plugin of its own, a folder
-  under the agents root, `role-agents/<agent>/plugin`, holding the manifest of its role's plugin and the
-  named skills alone — each from its role's plugin where that carries it, else from the first other plugin
-  of the release that does. The folder is written whole whenever what it should hold differs from what it
-  holds — the agent's list changed, or a release moved a skill's text — and stands at the same path run
-  after run. A named skill no plugin of the release carries any longer is left out and said in the log. A
-  list that names none hands the run a plugin with no skill.
+- **Its skills,** on the worker line: the agent's `skills` where it names them, else its role's `skills`
+  where the role names them, else the whole plugin the release places for the role. A list is handed as a
+  plugin of its own, a folder under the agents root — `role-agents/<agent>/plugin` for an agent's list and
+  `role-skills/<role>/plugin` for a role's — holding the manifest of the role's plugin and the named skills
+  alone, each from the role's plugin where that carries it, else from the first other plugin of the release
+  that does. The folder is written whole whenever what it should hold differs from what it holds — the list
+  changed, or a release moved a skill's text — and stands at the same path run after run. A named skill no
+  plugin of the release carries any longer is left out and said in the log. A list that names none hands
+  the run a plugin with no skill.
 - **Its sessions:** the agent's `sessions` says whether the run resumes the session the last answered run
   left at its key and keeps its own (`docs/sessions.md`, 「A role's session」).
 - **Its compaction threshold:** the agent's `foldRatio`, where it sets one, is the share a run's kept

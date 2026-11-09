@@ -3027,6 +3027,10 @@ pub struct Role {
   pub prompt: Option<String>,
   pub description: Option<String>,
   pub bundles: Vec<RoleBundle>,
+  /// the skills its runs carry, or null where it names none and its runs carry the whole plugin the release
+  /// places for it
+  #[serde(default)]
+  pub skills: Option<Vec<String>>,
   pub line: String,
   /// its agents, in the order a run looks for a free one
   #[serde(default)]
@@ -3045,12 +3049,16 @@ pub struct Role {
   pub waiting_for: Option<String>,
 }
 
-/// RoleList: every role, every bundle a role may give and every line a role may name.
+/// RoleList: every role, every bundle a role may give, every skill a role or an agent may name and every line
+/// a role may name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleList {
   pub roles: Vec<Role>,
   pub bundles: Vec<RoleBundle>,
+  /// the name of every skill a plugin of the release carries
+  #[serde(default)]
+  pub skills: Vec<String>,
   pub lines: Vec<String>,
 }
 
@@ -3066,9 +3074,12 @@ pub struct RoleAsk {
   pub prompt: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub description: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub skills: Option<Vec<String>>,
 }
 
-/// RoleChange: the fields a change of a role names; a prompt or a description given as null clears it.
+/// RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
+/// it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleChange {
@@ -3082,6 +3093,8 @@ pub struct RoleChange {
   pub prompt: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub description: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub skills: Option<Option<Vec<String>>>,
 }
 
 /// RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
@@ -3587,6 +3600,9 @@ pub struct SlotRun {
   pub source: String,
   /// epoch milliseconds
   pub since: Option<i64>,
+  /// the agent of the role it was let in on, or null where none is named
+  #[serde(default)]
+  pub agent: Option<String>,
   /// the run a binding named since the slot's last start; else, for a slot bound to a role session, the run
   /// name of that session's running turn, null while none runs; else the child it is bound to, null until bound
   pub run_name: Option<String>,

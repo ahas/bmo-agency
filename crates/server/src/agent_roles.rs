@@ -15,6 +15,9 @@ pub struct AgentRole {
   pub label: String,
   /// The bundles it gives, each one the policy declares.
   pub bundles: Vec<String>,
+  /// The skills its runs carry on the worker line, where it names them; none leaves its runs the whole plugin
+  /// the release places for it.
+  pub skills: Option<Vec<String>>,
   /// The most of its runs that go at once.
   pub max_concurrent: i64,
   /// The prompt its runs open with after the harness opening, where it carries one.
@@ -39,12 +42,16 @@ pub struct AgentRole {
 impl AgentRole {
   pub fn of(row: &QueryResult) -> Result<Self, Fault> {
     let bundles: String = row.try_get("", "bundles")?;
+    let skills: Option<String> = row.try_get("", "skills")?;
     let order: String = row.try_get("", "provider_order")?;
 
     Ok(Self {
       name: row.try_get("", "name")?,
       label: row.try_get("", "label")?,
       bundles: serde_json::from_str(&bundles).map_err(|error| Fault::new(error.to_string()))?,
+      skills: skills
+        .map(|held| serde_json::from_str(&held).map_err(|error| Fault::new(error.to_string())))
+        .transpose()?,
       max_concurrent: row.try_get("", "max_concurrent")?,
       prompt: row.try_get("", "prompt")?,
       description: row.try_get("", "description")?,

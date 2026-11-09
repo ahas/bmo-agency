@@ -30,6 +30,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its description,** one paragraph saying what the role is for and when to call it, which is what a
     run that may call co-workers is shown of the role (「Co-workers」 below);
   - **its bundles,** the function bundles its runs are given, each one the policy declares;
+  - **its skills,** the names of the skills its runs carry on the worker line, or none set, which leaves its
+    runs the whole plugin the release places for the role (`docs/role-agents.md`, 「What a run reads off its
+    agent」);
   - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
     the translate line (`docs/launch-lines.md`);
 - **A role holds no road, no cap, no sessions setting, no compaction threshold and no word on being called.**

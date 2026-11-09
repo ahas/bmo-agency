@@ -169,11 +169,54 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(changed["bundles"].as_array().unwrap().len(), 2);
   assert_eq!(changed["prompt"], Value::Null);
 
+  // A role names the skills its runs carry among those a plugin of the release carries, each once, and null
+  // leaves its runs the whole plugin the release places for it again.
+  let carried: Vec<String> = listing["skills"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|skill| skill.as_str().unwrap().to_owned())
+    .collect();
+
+  assert!(carried.len() >= 2, "the release carries skills a role may name: {listing}");
+  assert_eq!(changed["skills"], Value::Null, "a role added with none sets none");
+
+  let (status, skilled) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/roles/reviewer",
+    Some(json!({ "skills": [carried[1], carried[0], carried[1]] })),
+  )
+  .await;
+  assert_eq!(status, 200, "{skilled}");
+  assert_eq!(skilled["skills"], json!([carried[1], carried[0]]));
+  assert_eq!(skilled["label"], "Checker of work", "a change of the skills leaves every other field");
+
+  let (_, relabelled) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/roles/reviewer",
+    Some(json!({ "description": "Checks work." })),
+  )
+  .await;
+  assert_eq!(
+    relabelled["skills"],
+    json!([carried[1], carried[0]]),
+    "a change that names no skills keeps them"
+  );
+
+  let (status, cleared) =
+    ask(reqwest::Method::PATCH, port, "/roles/reviewer", Some(json!({ "skills": null }))).await;
+  assert_eq!((status, &cleared["skills"]), (200, &Value::Null), "{cleared}");
+
   for body in [
     json!({ "sessions": "fresh" }),
     json!({ "foldRatio": 0.5 }),
     json!({ "callable": true }),
     json!({ "bundles": ["web.nothing"] }),
+    json!({ "skills": ["no-such-skill"] }),
+    json!({ "skills": "clean" }),
+    json!({ "skills": [3] }),
     json!({ "maxConcurrent": 5 }),
     json!({ "active": { "provider": "claude-code", "model": "claude-opus-5" } }),
     json!({ "order": [] }),

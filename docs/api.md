@@ -270,7 +270,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **A role is answered with every field of its row:** `name`; `code`, its kebab-case word, which is its name
   and what a screen shows the role by (`docs/agent-roles.md`, 「A role's label」); `label`, the English word a
   log keeps; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code` (the
-  name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `agents`, its agents in the
+  name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `skills`, the names of the skills
+  its runs carry, or null where it sets none and its runs carry the whole plugin the release places for it;
+  `line`; `agents`, its agents in the
   order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
   them are switched on; `followsSupervisor`, true while none of its agents names a road,
   so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A delegated task」)
@@ -278,18 +280,20 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
   agents' roads can answer now or none names a road, and `waitingFor`, why its runs wait, or null, null too
   while it follows the supervisor.
-- **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
-  bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
+- **`GET /roles` answers `roles`, `bundles`, `skills` and `lines`:** every role in the order a screen lists
+  them, every bundle the policy declares with its `name`, `code` and `label`, the name of every skill a
+  plugin of the release carries, which a role or an agent may name, and every line agency carries a role may
   name.
-- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt` and `description`, and
+- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description` and `skills`, and
   answers 201 with the role, which holds no agent yet. It is refused 422 `unprocessable-entity`, with one
   English sentence and nothing written, for a name out of the roles policy's pattern or past its length or
   already held; an empty label or one past the policy's length; a bundle the policy does not declare; a line
-  agency does not carry; a prompt or description that is not text;
+  agency does not carry; a prompt or description that is not text; `skills` that is not a list of names or
+  names a skill no plugin of the release carries;
   and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions`, `foldRatio` or `callable`, none of which
   a role holds: each is its agent's (「role agents」 below).
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
-  `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
+  `POST` judges it; a `prompt`, a `description` or `skills` given as null clears it. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
   under.
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
@@ -762,7 +766,8 @@ delegated task」). An ask whose request key already names a request is answered
 
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
 `runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch
-milliseconds; `session`, the role session it is bound to, or null; `runName`, the run a binding named where one
+milliseconds; `agent`, the agent of the role it was let in on (`docs/role-agents.md`), or null where none is
+named; `session`, the role session it is bound to, or null; `runName`, the run a binding named where one
 did since the slot's last start, else for a slot bound to a role session the run name of that session's
 running turn, null while no turn runs, and for any other slot the child it is bound to, null until bound;
 `jobId`, the job whose run it is where its source is `job`, else null; and `title`. A screen opens a tile's

@@ -2,6 +2,7 @@
 //! docs/api.md, 「roles」): each a row of the store with its own provider order, cap, sessions setting,
 //! compaction threshold and bundles. A field is judged before anything is written.
 
+use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use axum::http::{Method, StatusCode};
@@ -16,6 +17,7 @@ use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
 use crate::agent_roles::{self, AgentRole};
+use crate::lines::{Trees, agent_plugin};
 use crate::now_ms;
 use crate::order;
 use crate::order_run::dispatch;
@@ -120,6 +122,7 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "prompt": role.prompt,
     "description": role.description,
     "bundles": role.bundles.iter().map(|bundle| bundle_view(bundle)).collect::<Vec<_>>(),
+    "skills": role.skills,
     "line": role.line,
     "agents": role.agents,
     "maxConcurrent": role.max_concurrent,
@@ -139,6 +142,8 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
 struct Fields {
   label: Option<String>,
   bundles: Option<Vec<String>>,
+  /// The skills named, `Some(None)` where the body clears them.
+  skills: Option<Option<Vec<String>>>,
   line: Option<String>,
   prompt: Option<Option<String>>,
   description: Option<Option<String>>,
@@ -161,8 +166,8 @@ fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused
 }
 
 impl Fields {
-  // The fields a body names, judged.
-  fn of(body: &Value) -> Result<Self, Refused> {
+  // The fields a body names, judged; `carried` names every skill a plugin of the release carries.
+  fn of(body: &Value, carried: &BTreeSet<String>) -> Result<Self, Refused> {
     let words = &CONTROL_WORDS.agent_roles;
     let mut fields = Self::default();
 
@@ -193,6 +198,40 @@ impl Fields {
       fields.bundles = Some(given);
     }
 
+    if let Some(skills) = body.get("skills") {
+      fields.skills = Some(match skills {
+        Value::Null => None,
+        Value::Array(list) => {
+          let mut named: Vec<String> = Vec::with_capacity(list.len());
+
+          for one in list {
+            let Some(name) = one.as_str().map(str::trim).filter(|name| !name.is_empty()) else {
+              return Err(unprocessable(
+                "skills: A role's skills are a list of skill names, or null for none set.",
+              ));
+            };
+
+            if !carried.contains(name) {
+              return Err(unprocessable(format!(
+                "skills: {name} is no skill a plugin of this release carries."
+              )));
+            }
+
+            if !named.iter().any(|held| held == name) {
+              named.push(name.to_owned());
+            }
+          }
+
+          Some(named)
+        }
+        _ => {
+          return Err(unprocessable(
+            "skills: A role's skills are a list of skill names, or null for none set.",
+          ));
+        }
+      });
+    }
+
     if let Some(line) = body.get("line") {
       match line.as_str().filter(|line| role_lines().iter().any(|one| one == line)) {
         Some(line) => fields.line = Some(line.to_owned()),
@@ -219,6 +258,11 @@ impl Fields {
 
     Ok(fields)
   }
+}
+
+// A list of names as its column keeps it: a JSON list, or none.
+fn listed(names: Option<&[String]>) -> Result<Option<String>, Refused> {
+  names.map(|names| serde_json::to_string(names).map_err(Refused::failed)).transpose()
 }
 
 /// How many runs of a role go or wait now.
@@ -253,9 +297,11 @@ impl Route for RoleList {
 
     let bundles: Vec<Value> = ROLES.bundles.iter().map(|bundle| bundle_view(&bundle.name)).collect();
 
+    let skills = agent_plugin::carried(&Trees::of(call.ground()));
+
     Ok(answer(
       StatusCode::OK,
-      json!({ "roles": roles, "bundles": bundles, "lines": role_lines() }),
+      json!({ "roles": roles, "bundles": bundles, "skills": skills, "lines": role_lines() }),
     ))
   }
 }
@@ -299,7 +345,7 @@ impl Route for RoleCreate {
       return Err(unprocessable(fill_marks(&words.taken, &[("name", &name)])));
     }
 
-    let fields = Fields::of(&body)?;
+    let fields = Fields::of(&body, &agent_plugin::carried(&Trees::of(call.ground())))?;
     let label = fields.label.clone().ok_or_else(|| unprocessable(label_refusal()))?;
     let bundles = fields.bundles.clone().ok_or_else(|| unprocessable(bundles_refusal()))?;
     let line = fields.line.clone().ok_or_else(|| unprocessable(line_refusal()))?;
@@ -308,9 +354,10 @@ impl Route for RoleCreate {
     run(
       call.store(),
       r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable")
+           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable",
+           "skills")
          VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "roles"), $6, $6, $7, $8, $9, $10,
-           $11, $12, $13)"#,
+           $11, $12, $13, $14)"#,
       vec![
         name.clone().into(),
         label.into(),
@@ -325,6 +372,7 @@ impl Route for RoleCreate {
         ROLES.quota_share.into(),
         fields.fold_ratio.unwrap_or(order::DEFAULT_FOLD_RATIO).into(),
         i64::from(fields.callable.unwrap_or(false)).into(),
+        listed(fields.skills.flatten().as_deref())?.into(),
       ],
     )
     .await?;
@@ -351,12 +399,12 @@ impl Route for RoleChange {
     let Some(held) = agent_roles::named(call.store(), &name).await? else {
       return Err(unknown(&name));
     };
-    let fields = Fields::of(&body)?;
+    let fields = Fields::of(&body, &agent_plugin::carried(&Trees::of(call.ground())))?;
 
     run(
       call.store(),
       r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "prompt" = $3, "updated_at" = $4, "sessions" = $6,
-           "description" = $7, "line" = $8, "fold_ratio" = $9, "callable" = $10
+           "description" = $7, "line" = $8, "fold_ratio" = $9, "callable" = $10, "skills" = $11
          WHERE "name" = $5"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
@@ -371,6 +419,7 @@ impl Route for RoleChange {
         fields.line.unwrap_or(held.line).into(),
         fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
         i64::from(fields.callable.unwrap_or(held.callable)).into(),
+        listed(fields.skills.unwrap_or(held.skills).as_deref())?.into(),
       ],
     )
     .await?;

@@ -24,7 +24,7 @@ seeds. The other crates and the server reach the store only through it.
     object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
-    the bundles it gives as a JSON list, its line, what its declaration gave the agents it was seeded with —
+    the bundles it gives as a JSON list, the skills its runs carry as a JSON list or none, its line, what its declaration gave the agents it was seeded with —
     a road list, a count, a sessions setting, a compaction threshold and a callability, which nothing reads
     once its agents stand — the place a screen lists it at, and when it was made and last changed in epoch milliseconds
     — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a

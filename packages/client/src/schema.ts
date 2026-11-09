@@ -3758,10 +3758,18 @@ export interface components {
             sampling?: unknown;
             voice?: string | null;
         };
-        /** @description RoleList: every role, every bundle a role may give and every line a role may name. */
+        /**
+         * @description RoleList: every role, every bundle a role may give, every skill a role or an agent may name and every line
+         *     a role may name.
+         */
         RoleList: {
             roles: components["schemas"]["Role"][];
             bundles: components["schemas"]["RoleBundle"][];
+            /**
+             * @description the name of every skill a plugin of the release carries
+             * @default []
+             */
+            skills: string[];
             lines: string[];
         };
         /** @description Role: one role as its row holds it, and what stands of it now. */
@@ -3772,6 +3780,12 @@ export interface components {
             prompt: string | null;
             description: string | null;
             bundles: components["schemas"]["RoleBundle"][];
+            /**
+             * @description the skills its runs carry, or null where it names none and its runs carry the whole plugin the release
+             *     places for it
+             * @default null
+             */
+            skills: string[] | null;
             line: string;
             /**
              * @description its agents, in the order a run looks for a free one
@@ -3873,14 +3887,19 @@ export interface components {
             line: string;
             prompt?: string | null;
             description?: string | null;
+            skills?: string[] | null;
         };
-        /** @description RoleChange: the fields a change of a role names; a prompt or a description given as null clears it. */
+        /**
+         * @description RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
+         *     it.
+         */
         RoleChange: {
             label?: string | null;
             bundles?: string[] | null;
             line?: string | null;
             prompt?: string | null;
             description?: string | null;
+            skills?: string[] | null;
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -4133,6 +4152,11 @@ export interface components {
              * @description epoch milliseconds
              */
             since: number | null;
+            /**
+             * @description the agent of the role it was let in on, or null where none is named
+             * @default null
+             */
+            agent: string | null;
             /**
              * @description the run a binding named since the slot's last start; else, for a slot bound to a role session, the run
              *     name of that session's running turn, null while none runs; else the child it is bound to, null until bound

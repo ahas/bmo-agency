@@ -68,7 +68,7 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
 
   let roles = columns("roles").await;
   assert_eq!(
-    roles[roles.len() - 9..],
+    roles[roles.len() - 10..],
     [
       "sessions",
       "description",
@@ -78,7 +78,8 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
       "fold_ratio",
       "callable",
       "active_provider",
-      "active_model"
+      "active_model",
+      "skills"
     ]
   );
   let accounts = columns("claude_accounts").await;

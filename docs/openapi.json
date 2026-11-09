@@ -13051,6 +13051,14 @@
               "$ref": "#/components/schemas/RoleBundle"
             }
           },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "the name of every skill a plugin of the release carries",
+            "default": []
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -13061,9 +13069,10 @@
         "required": [
           "roles",
           "bundles",
+          "skills",
           "lines"
         ],
-        "description": "RoleList: every role, every bundle a role may give and every line a role may name."
+        "description": "RoleList: every role, every bundle a role may give, every skill a role or an agent may name and every line\na role may name."
       },
       "Role": {
         "type": "object",
@@ -13094,6 +13103,17 @@
             "items": {
               "$ref": "#/components/schemas/RoleBundle"
             }
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "the skills its runs carry, or null where it names none and its runs carry the whole plugin the release\nplaces for it",
+            "default": null
           },
           "line": {
             "type": "string"
@@ -13145,6 +13165,7 @@
           "prompt",
           "description",
           "bundles",
+          "skills",
           "line",
           "agents",
           "maxConcurrent",
@@ -13348,6 +13369,15 @@
               "string",
               "null"
             ]
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -13393,9 +13423,18 @@
               "string",
               "null"
             ]
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "description": "RoleChange: the fields a change of a role names; a prompt or a description given as null clears it."
+        "description": "RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears\nit."
       },
       "RoleSessionPage": {
         "type": "object",
@@ -14317,6 +14356,14 @@
             "format": "int64",
             "description": "epoch milliseconds"
           },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the agent of the role it was let in on, or null where none is named",
+            "default": null
+          },
           "runName": {
             "type": [
               "string",
@@ -14354,6 +14401,7 @@
           "model",
           "source",
           "since",
+          "agent",
           "runName",
           "session",
           "jobId",

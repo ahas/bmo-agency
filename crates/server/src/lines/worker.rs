@@ -15,6 +15,7 @@ use serde::Serialize;
 use serde::ser::SerializeMap;
 use sha2::{Digest, Sha256};
 
+use super::agent_plugin::Whose;
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
@@ -550,17 +551,31 @@ async fn run_on_line(
   let harnessed = harnessed_system_prompt(trees, &rules_text, above.as_deref())?;
   let worker_dir = trees.agent_dir(LINE);
   // A role that places a plugin of its own carries its own bundle; every other run carries the
-  // general worker's. An agent that names its own skills carries those alone, in a plugin of its own
-  // (docs/role-agents.md, 「What a run reads off its agent」).
+  // general worker's. A run whose agent names skills carries those alone, else the ones its role names, each
+  // in a plugin of the list's own (docs/role-agents.md, 「What a run reads off its agent」).
   let role_plugin = role
     .map(|role| trees.agent_dir(role).join("plugin"))
     .filter(|dir| dir.exists())
     .unwrap_or_else(|| worker_dir.join("plugin"));
   let seat = crate::role_agents::seated_at(&ground.db, role, Some(cwd)).await?;
-  let plugin_dir = match seat.as_ref().and_then(|agent| agent.skills.as_ref().map(|skills| (agent, skills)))
-  {
-    Some((agent, skills)) => super::agent_plugin::placed(trees, &role_plugin, &agent.name, skills)?,
-    None => role_plugin,
+  let role_skills = match role {
+    Some(role) => crate::agent_roles::named(&ground.db, role)
+      .await
+      .map_err(|why| fault(why.to_string()))?
+      .and_then(|held| held.skills.map(|skills| (held.name, skills))),
+    None => None,
+  };
+  let plugin_dir = match (
+    seat.as_ref().and_then(|agent| agent.skills.as_ref().map(|skills| (agent, skills))),
+    role_skills.as_ref(),
+  ) {
+    (Some((agent, skills)), _) => {
+      super::agent_plugin::placed(trees, &role_plugin, Whose::Agent(&agent.name), skills)?
+    }
+    (None, Some((role, skills))) => {
+      super::agent_plugin::placed(trees, &role_plugin, Whose::Role(role), skills)?
+    }
+    (None, None) => role_plugin,
   };
   let reasoning = match worker {
     Some(worker) => Some(reasoning_of(ground, worker).await?),
