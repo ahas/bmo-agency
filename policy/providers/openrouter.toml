@@ -100,3 +100,7 @@ pass_seconds = 300
 fresh_passes = 6
 currency = "USD"
 top_up = "buy OpenRouter credits at https://openrouter.ai/settings/credits"
+# The second address, asked with the same key, which states the day's allowance of free-model requests.
+requests_url = "https://openrouter.ai/api/v1/key"
+requests_url_env = "BMO_OPENROUTER_REQUESTS_URL"
+requests_scope = "free-models"

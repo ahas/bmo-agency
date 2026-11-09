@@ -23,6 +23,15 @@ pub struct Balance {
   pub currency: Option<String>,
   /// Where a person tops a spent balance up, as the sentence a closed road says it in.
   pub top_up: String,
+  /// The second address, where the provider states a request allowance beside its balance, and the
+  /// variable a test names a stand-in's address in.
+  #[serde(default)]
+  pub requests_url: Option<String>,
+  #[serde(default)]
+  pub requests_url_env: Option<String>,
+  /// What the allowance covers, as a kebab-case word a screen words it by; none where it covers every request.
+  #[serde(default)]
+  pub requests_scope: Option<String>,
 }
 
 impl Balance {
@@ -33,6 +42,25 @@ impl Balance {
       .map(String::as_str)
       .filter(|named| !named.is_empty())
       .unwrap_or(&self.url)
+  }
+
+  /// The second address asked on a machine, where the provider declares one: the stand-in's its
+  /// environment names, or the provider's own.
+  pub fn requests_url_on<'a>(
+    &'a self,
+    vars: &'a std::collections::BTreeMap<String, String>,
+  ) -> Option<&'a str> {
+    let declared = self.requests_url.as_deref()?;
+
+    Some(
+      self
+        .requests_url_env
+        .as_ref()
+        .and_then(|name| vars.get(name))
+        .map(String::as_str)
+        .filter(|named| !named.is_empty())
+        .unwrap_or(declared),
+    )
   }
 }
 

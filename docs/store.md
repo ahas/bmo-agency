@@ -59,8 +59,9 @@ seeds. The other crates and the server reach the store only through it.
     `account` (empty on a provider that holds no logins of agency's) and its `name` together naming it,
     the fraction used, when it resets in epoch seconds or none, when it was seen, its length in minutes
     or none and its limit's name or none (`docs/usage-windows.md`); and `usage_balances`, one row a
-    slot's balance — its `mode` and `account` naming it, its `amount`, its `currency` and when it was
-    seen (`docs/usage-windows.md`, 「Balances」);
+    slot's balance — its `mode` and `account` naming it, its `amount`, its `currency`, when it was
+    seen, and the request allowance read with it, used, ceiling, left and what it covers, each none where its
+    provider states none (`docs/usage-windows.md`, 「Balances」);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — what it is bound to, the
     role session among it, whether the line has seen its bound run standing, and who gave it back —;
     `role_slot_reservations`;

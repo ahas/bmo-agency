@@ -20,6 +20,21 @@ use crate::windows::{Keeping, Slot};
 pub struct Balance {
   pub amount: f64,
   pub currency: String,
+  /// The request allowance read with it, where its provider states one.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub requests: Option<Requests>,
+}
+
+/// A request allowance as a provider states it: how many requests of the day are used, the day's ceiling
+/// and how many are left, and what the allowance covers where the provider declares it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Requests {
+  pub used: i64,
+  pub limit: i64,
+  pub left: i64,
+  #[serde(default)]
+  pub scope: Option<String>,
 }
 
 /// A balance as the keeping holds it: the balance, and when it was seen.
@@ -37,6 +52,8 @@ pub struct BalanceAsk {
   pub account: String,
   pub url: String,
   pub key: Result<String, String>,
+  /// The second address, asked with the same key for the request allowance, where the provider declares one.
+  pub requests_url: Option<String>,
 }
 
 /// The accounts asked being answered.
@@ -54,6 +71,10 @@ pub trait BalanceSource: Send + Sync {
   fn asks(&self) -> Asking<'_>;
   /// The balance an answer states, or why it states none.
   fn balance_of(&self, answer: &Value) -> Result<Balance, String>;
+  /// The request allowance the second address's answer states, or none.
+  fn requests_of(&self, _answer: &Value) -> Option<Requests> {
+    None
+  }
 }
 
 /// The reader on the clock: its source, the client it asks on, and each account's failure as last said.
@@ -72,7 +93,8 @@ impl BalanceReader {
     }
   }
 
-  async fn ask(&self, url: &str, key: &str) -> Result<Balance, String> {
+  // One address asked with the key, answered with what it states as JSON.
+  async fn answer_of(&self, url: &str, key: &str) -> Result<Value, String> {
     // The ask waits for its answer; its end is the answer, or the connection refused or broken.
     let answer = self
       .http
@@ -86,15 +108,26 @@ impl BalanceReader {
       return Err(format!("HTTP {}", answer.status().as_u16()));
     }
 
-    let read: Value = answer.json().await.map_err(|_| "the answer is not JSON".to_owned())?;
+    answer.json().await.map_err(|_| "the answer is not JSON".to_owned())
+  }
 
-    self.source.balance_of(&read)
+  // The balance asked, and the request allowance after it where a second address is declared: one that
+  // cannot be read leaves the balance with none.
+  async fn ask(&self, ask: &BalanceAsk, key: &str) -> Result<Balance, String> {
+    let mut balance = self.source.balance_of(&self.answer_of(&ask.url, key).await?)?;
+
+    if let Some(url) = &ask.requests_url {
+      balance.requests =
+        self.answer_of(url, key).await.ok().and_then(|answer| self.source.requests_of(&answer));
+    }
+
+    Ok(balance)
   }
 
   // One account asked and its balance kept; why not where it was not.
   async fn read(&self, keeping: &Keeping, ask: &BalanceAsk, now_ms: i64) -> Result<Balance, String> {
     let key = ask.key.as_deref().map_err(|why| why.to_owned())?;
-    let balance = self.ask(&ask.url, key).await?;
+    let balance = self.ask(ask, key).await?;
     let slot = Slot {
       mode: self.source.mode(),
       account: &ask.account,

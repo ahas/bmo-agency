@@ -16,6 +16,16 @@ pub struct Balance {
   pub currency: String,
 }
 
+/// A request allowance as a provider's answer states it: how many requests of the day are used, the day's
+/// ceiling and how many are left, and what the allowance covers where the provider declares it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Requests {
+  pub used: i64,
+  pub limit: i64,
+  pub left: i64,
+  pub scope: Option<String>,
+}
+
 /// How one provider's balance is read.
 pub trait OffersBalance: Sync {
   /// What its policy file declares of the reading.
@@ -34,6 +44,19 @@ pub trait OffersBalance: Sync {
       machine.every_var().map(|(name, value)| (name.to_owned(), value.to_owned())).collect();
 
     self.declared().url_on(&vars).to_owned()
+  }
+
+  /// The second address asked on this machine, where the provider declares one for a request allowance.
+  fn requests_url(&self, machine: &Machine) -> Option<String> {
+    let vars: BTreeMap<String, String> =
+      machine.every_var().map(|(name, value)| (name.to_owned(), value.to_owned())).collect();
+
+    self.declared().requests_url_on(&vars).map(str::to_owned)
+  }
+
+  /// The request allowance the second address's answer states, or none.
+  fn requests(&self, _answer: &Value) -> Option<Requests> {
+    None
   }
 
   /// Whether an endpoint account whose base address is `endpoint` is one of this provider's: its address

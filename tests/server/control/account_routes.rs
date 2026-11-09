@@ -178,9 +178,11 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
     .await;
   scratch
     .run(
-      r#"INSERT INTO "usage_balances" ("mode", "account", "amount", "currency", "seen_at")
-         VALUES ('deepseek', '', 12.5, 'CNY', 1800000000),
-                ('deepseek', 'paid', 3, 'CNY', 1800000060)"#,
+      r#"INSERT INTO "usage_balances"
+           ("mode", "account", "amount", "currency", "seen_at", "requests_used", "requests_limit", "requests_left",
+            "requests_scope")
+         VALUES ('deepseek', '', 12.5, 'CNY', 1800000000, 12, 50, 38, 'some-requests'),
+                ('deepseek', 'paid', 3, 'CNY', 1800000060, NULL, NULL, NULL, NULL)"#,
       vec![],
     )
     .await;
@@ -203,10 +205,31 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
       assert_eq!(road["reasonCode"], "openrouter-key-unusable", "{road}");
     }
   }
+  // A provider's quota carries its balance whole: the amount, its currency, when it was seen and the request
+  // allowance read with it.
+  let quota = &providers["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .find(|road| road["name"] == "deepseek")
+    .unwrap()["quota"];
+
+  assert_eq!(
+    (&quota["balance"], &quota["currency"], &quota["balanceSeenAt"], &quota["requests"]),
+    (
+      &json!(12.5),
+      &json!("CNY"),
+      &json!(1800000000),
+      &json!({ "used": 12, "limit": 50, "left": 38, "scope": "some-requests" })
+    )
+  );
   assert_eq!(fallback["active"]["session"], Value::Null);
   assert_eq!(
     fallback["active"]["balance"],
-    json!({ "amount": 12.5, "currency": "CNY", "seenAt": 1800000000 })
+    json!({
+      "amount": 12.5, "currency": "CNY", "seenAt": 1800000000,
+      "requests": { "used": 12, "limit": 50, "left": 38, "scope": "some-requests" }
+    })
   );
 
   let of = |listed: &Value, id: &str| {
@@ -224,7 +247,7 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
 
   assert_eq!(
     of(&listed["items"], "paid")["balance"],
-    json!({ "amount": 3.0, "currency": "CNY", "seenAt": 1800000060 })
+    json!({ "amount": 3.0, "currency": "CNY", "seenAt": 1800000060, "requests": null })
   );
   assert_eq!(of(&listed["items"], "login-a")["balance"], Value::Null);
 }

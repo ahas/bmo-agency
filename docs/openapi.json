@@ -9432,6 +9432,32 @@
             "format": "double",
             "description": "What its balance reader last read, for a provider that keeps a balance, or null."
           },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The currency the balance is in, or null."
+          },
+          "balanceSeenAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the balance was seen, in epoch seconds, or null."
+          },
+          "requests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Requests"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The request allowance read with the balance, or null where the provider states none."
+          },
           "resetsAt": {
             "type": [
               "integer",
@@ -9446,9 +9472,43 @@
           "left",
           "window",
           "balance",
+          "currency",
+          "balanceSeenAt",
+          "requests",
           "resetsAt"
         ],
         "description": "ProviderQuota: what a provider has left as an order reads it at the default share."
+      },
+      "Requests": {
+        "type": "object",
+        "properties": {
+          "used": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "left": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the allowance covers, a kebab-case word a screen words it by, or null where it covers every request."
+          }
+        },
+        "required": [
+          "used",
+          "limit",
+          "left",
+          "scope"
+        ],
+        "description": "A request allowance as a provider states it (docs/usage-windows.md, 「Balances」): how many requests of the\nday are used, the day's ceiling and how many are left."
       },
       "ProviderChange": {
         "type": "object",
@@ -10195,12 +10255,24 @@
             "type": "integer",
             "format": "int64",
             "description": "epoch seconds"
+          },
+          "requests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Requests"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The request allowance read with it, or null where the provider states none."
           }
         },
         "required": [
           "amount",
           "currency",
-          "seenAt"
+          "seenAt",
+          "requests"
         ],
         "description": "What a paid account has left, as its balance reader last read it (docs/usage-windows.md, 「Balances」)."
       },

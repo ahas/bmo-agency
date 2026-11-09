@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock, Weak};
 
 use std::time::Duration;
 
-use cache_siren::balance::{Asking, Balance, BalanceAsk, BalanceReader, BalanceSource};
+use cache_siren::balance::{Asking, Balance, BalanceAsk, BalanceReader, BalanceSource, Requests};
 use cache_siren::claude::{ClaudeAccounts, Login, Logins, Renewals};
 use cache_siren::codex::CodexReader;
 use cache_siren::{Keeping, Reader, Slot, Window};
@@ -201,6 +201,7 @@ impl BalanceSource for ProviderBalances {
   fn asks(&self) -> Asking<'_> {
     Box::pin(async move {
       let url = self.offers.url(&self.machine);
+      let requests_url = self.offers.requests_url(&self.machine);
       let mut asks = Vec::new();
 
       if self.provider.missing(&self.machine).is_none() {
@@ -208,6 +209,7 @@ impl BalanceSource for ProviderBalances {
           account: String::new(),
           url: url.clone(),
           key: self.offers.key(&self.machine),
+          requests_url: requests_url.clone(),
         });
       }
 
@@ -223,6 +225,7 @@ impl BalanceSource for ProviderBalances {
             account: account.id.clone(),
             url: url.clone(),
             key: key_in_file(key_file),
+            requests_url: requests_url.clone(),
           });
         }
       }
@@ -235,6 +238,16 @@ impl BalanceSource for ProviderBalances {
     self.offers.read(answer).map(|read| Balance {
       amount: read.amount,
       currency: read.currency,
+      requests: None,
+    })
+  }
+
+  fn requests_of(&self, answer: &Value) -> Option<Requests> {
+    self.offers.requests(answer).map(|read| Requests {
+      used: read.used,
+      limit: read.limit,
+      left: read.left,
+      scope: read.scope,
     })
   }
 }

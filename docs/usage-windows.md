@@ -129,6 +129,16 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
     its `currency` the currency.
   - **OpenRouter:** a GET of `https://openrouter.ai/api/v1/credits` with the key in its key variable as a
     bearer token; the answer's total credits less its total usage is the amount, in US dollars.
+- **A balance carries a request allowance where its provider states one:** how many requests of the day
+  are used, the day's ceiling and how many are left, and what the allowance covers where the provider
+  declares it, a kebab-case word a screen words it by. The provider declares a second address for it, asked
+  with the same key right after the balance, and what its answer states; the allowance is kept in the
+  slot beside the amount and replaced with it. A second address that cannot be read, or an answer that
+  states none, keeps the amount with no allowance, and a provider that declares no second address is
+  asked once.
+  - **OpenRouter:** a GET of `https://openrouter.ai/api/v1/key`; the answer's `free_model_daily_requests`
+    is the allowance of its free models for the UTC day, its `used`, its `limit` and its `remaining`, and
+    what it covers is declared `free-models`.
 - **Who is asked:** the provider's own road where the provider can answer on this machine, and every
   endpoint account whose base address stands on the same origin as the provider's balance address, with
   the account's own key file, its balance kept under the account. A key goes into the one request header

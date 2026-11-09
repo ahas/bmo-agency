@@ -119,10 +119,16 @@ pub(super) async fn account_headlines(
   headline_windows(windows, cache_siren::claude::MODE, Some(id), account.needs_login_at).await
 }
 
-// A balance as the routes answer it: what is left, its currency and when it was seen, or null.
+// A balance as the routes answer it: what is left, its currency, when it was seen and the request allowance
+// read with it, or null.
 fn balance_view(kept: Option<KeptBalance>) -> Value {
   kept.map_or(Value::Null, |kept| {
-    json!({ "amount": kept.balance.amount, "currency": kept.balance.currency, "seenAt": kept.seen_at })
+    json!({
+      "amount": kept.balance.amount,
+      "currency": kept.balance.currency,
+      "seenAt": kept.seen_at,
+      "requests": kept.balance.requests,
+    })
   })
 }
 

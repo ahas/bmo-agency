@@ -801,7 +801,11 @@ Each provider answers `name`, `code` (its name, the kebab-case word a screen wor
 `enabled`, `registered`, `gateway`, its `lines`, and `quota`: what it has left as the order reads it
 (`docs/provider-order.md`, 「Quota: what a provider has left」) — `left`, a fraction from 0 to 1 or null where
 it reports none, `window`, the name of the window that counted, `balance` for a provider that keeps one,
-and `resetsAt` in epoch seconds where the counting window names one. `gateway` says its models are served by
+with `currency` and `balanceSeenAt`, the currency it is in and when it was seen in epoch seconds,
+`requests`, the request allowance read with it — `used`, `limit`, `left` and `scope`, what it covers or
+null — or null where its provider
+states none (`docs/usage-windows.md`, 「Balances」), and `resetsAt` in epoch seconds where the counting
+window names one. `gateway` says its models are served by
 agency's model gateway — the registry's registrations and the member roads of Codex, OpenRouter and
 DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
 answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
@@ -969,8 +973,8 @@ the windows」): each a window's `name`, `utilization` (0 to 1), `resetsAt` and 
 epoch seconds, `durationMinutes` and `limitName`, or null where the account holds no such window; an
 endpoint account holds none. An endpoint account whose endpoint is a provider's that offers a balance
 carries `balance`, what it has left as its balance reader last read it (`docs/usage-windows.md`,
-「Balances」): `amount`, `currency` and `seenAt` in epoch seconds, or null where none has been read; a
-directory or token account's is null. `window` is the usage a report named, answered by the report's
+「Balances」): `amount`, `currency`, `seenAt` in epoch seconds and `requests`, the request allowance read
+with it or null, or null where none has been read; a directory or token account's is null. `window` is the usage a report named, answered by the report's
 change and null on the list. Accounts are added and changed through
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.

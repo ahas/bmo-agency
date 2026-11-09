@@ -30,6 +30,7 @@ mod m20261107_000001_run_tools;
 mod m20261108_000001_gate_kinds;
 mod m20261109_000001_job_roads;
 mod m20261109_000002_worker_skill_names;
+mod m20261109_000003_usage_balance_requests;
 mod m20261110_000001_translator_runner;
 mod m20261110_000002_pickers_retired;
 mod m20261111_000001_moments_in_milliseconds;
@@ -171,6 +172,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261108_000001_gate_kinds::Migration),
       Box::new(m20261109_000001_job_roads::Migration),
       Box::new(m20261109_000002_worker_skill_names::Migration),
+      Box::new(m20261109_000003_usage_balance_requests::Migration),
       Box::new(m20261110_000001_translator_runner::Migration),
       Box::new(m20261110_000002_pickers_retired::Migration),
       Box::new(m20261111_000001_moments_in_milliseconds::Migration),

@@ -90,6 +90,7 @@ flowchart TD
   - the gateway's key file written, or not, under the test's scratch data root;
   - the OpenRouter key in the environment, or not;
   - the listing's stand-in address in `BMO_OPENROUTER_LISTING_URL`;
-  - a balance's stand-in address in `BMO_DEEPSEEK_BALANCE_URL` or `BMO_OPENROUTER_BALANCE_URL`
+  - a balance's stand-in address in `BMO_DEEPSEEK_BALANCE_URL` or `BMO_OPENROUTER_BALANCE_URL`, and the
+    stand-in address of OpenRouter's request allowance in `BMO_OPENROUTER_REQUESTS_URL`
     (`docs/usage-windows.md`, 「Balances」);
   - a catalogue file under the login's configuration directory.

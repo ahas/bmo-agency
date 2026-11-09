@@ -70,6 +70,7 @@ pub async fn deepseek_balance(ground: &Ground, amount: f64) {
       &Balance {
         amount,
         currency: "USD".to_owned(),
+        requests: None,
       },
       agency_server::now_ms() / 1000,
     )

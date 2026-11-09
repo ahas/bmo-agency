@@ -620,6 +620,12 @@ pub struct ProviderQuota {
   pub window: Option<String>,
   /// What its balance reader last read, for a provider that keeps a balance, or null.
   pub balance: Option<f64>,
+  /// The currency the balance is in, or null.
+  pub currency: Option<String>,
+  /// When the balance was seen, in epoch seconds, or null.
+  pub balance_seen_at: Option<i64>,
+  /// The request allowance read with the balance, or null where the provider states none.
+  pub requests: Option<Requests>,
   /// When the counting window resets, in epoch seconds, or null.
   pub resets_at: Option<i64>,
 }
@@ -858,6 +864,20 @@ pub struct Balance {
   pub currency: String,
   /// epoch seconds
   pub seen_at: i64,
+  /// The request allowance read with it, or null where the provider states none.
+  pub requests: Option<Requests>,
+}
+
+/// A request allowance as a provider states it (docs/usage-windows.md, 「Balances」): how many requests of the
+/// day are used, the day's ceiling and how many are left.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Requests {
+  pub used: i64,
+  pub limit: i64,
+  pub left: i64,
+  /// What the allowance covers, a kebab-case word a screen words it by, or null where it covers every request.
+  pub scope: Option<String>,
 }
 
 /// ItemFilingAsk: an item a supervisor files for the turn it carries now; the agent is the one its harness

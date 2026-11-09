@@ -10,7 +10,7 @@ use policy::providers::openrouter::OPENROUTER;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::balance::{Balance, OffersBalance, figure, key_in_file};
+use crate::balance::{Balance, OffersBalance, Requests, figure, key_in_file};
 use crate::claude_code::ClaudeCode;
 use crate::member;
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
@@ -18,7 +18,7 @@ use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Read
 pub struct OpenRouter;
 
 // OpenRouter's balance: asked with the member's key file, the credits bought less the credits used, in the
-// currency its policy names.
+// currency its policy names; and beside it the day's allowance of free-model requests.
 impl OffersBalance for OpenRouter {
   fn declared(&self) -> &'static policy::providers::Balance {
     &OPENROUTER.balance
@@ -36,6 +36,19 @@ impl OffersBalance for OpenRouter {
     Ok(Balance {
       amount: credits - usage,
       currency: OPENROUTER.balance.currency.clone().unwrap_or_default(),
+    })
+  }
+
+  // The day's allowance of free-model requests, as the key's own answer states it.
+  fn requests(&self, answer: &Value) -> Option<Requests> {
+    let stated = answer.get("data")?.get("free_model_daily_requests")?;
+    let count = |name: &str| stated.get(name).and_then(Value::as_i64);
+
+    Some(Requests {
+      used: count("used")?,
+      limit: count("limit")?,
+      left: count("remaining")?,
+      scope: OPENROUTER.balance.requests_scope.clone(),
     })
   }
 }

@@ -9,7 +9,7 @@ use axum::Router;
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use cache_siren::balance::{Asking, BalanceAsk, BalanceReader, BalanceSource};
+use cache_siren::balance::{Asking, BalanceAsk, BalanceReader, BalanceSource, Requests};
 use cache_siren::{Balance, Keeping, Reader, Slot};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -23,9 +23,11 @@ const NOW: i64 = NOW_MS / 1000;
 const REFUSED: &str = "sk-refused";
 const SLOW: &str = "sk-slow";
 
-/// A source naming its asks as given, reading `left` out of an answer.
+/// A source naming its asks as given, reading `left` out of an answer, and the request allowance out of the
+/// second address's answer where it names one.
 struct Fixed {
   url: String,
+  requests_url: Option<String>,
   asks: Vec<(&'static str, Result<&'static str, &'static str>)>,
 }
 
@@ -52,6 +54,7 @@ impl BalanceSource for Fixed {
             account: (*account).to_owned(),
             url: self.url.clone(),
             key: key.map(str::to_owned).map_err(str::to_owned),
+            requests_url: self.requests_url.clone(),
           })
           .collect(),
       )
@@ -62,6 +65,16 @@ impl BalanceSource for Fixed {
     Ok(Balance {
       amount: answer["left"].as_f64().ok_or("the answer states nothing left")?,
       currency: "CNY".into(),
+      requests: None,
+    })
+  }
+
+  fn requests_of(&self, answer: &Value) -> Option<Requests> {
+    Some(Requests {
+      used: answer["used"].as_i64()?,
+      limit: answer["limit"].as_i64()?,
+      left: answer["left"].as_i64()?,
+      scope: Some("some-requests".into()),
     })
   }
 }
@@ -90,6 +103,9 @@ async fn balance_endpoint() -> (String, Arc<Mutex<Vec<String>>>) {
           tokio::time::sleep(Duration::from_millis(300)).await;
           axum::Json(json!({ "left": 3.5 })).into_response()
         }
+        _ if request.uri().path() == "/requests" => {
+          axum::Json(json!({ "used": 12, "limit": 50, "left": 38 })).into_response()
+        }
         _ => axum::Json(json!({ "left": 42.5 })).into_response(),
       }
     }
@@ -113,6 +129,7 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
   let (url, asked) = balance_endpoint().await;
   let source = Fixed {
     url,
+    requests_url: None,
     asks: vec![
       ("", Ok("sk-road")),
       ("refused", Ok(REFUSED)),
@@ -125,6 +142,7 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
   let before = Balance {
     amount: 7.0,
     currency: "CNY".into(),
+    requests: None,
   };
 
   for account in ["refused", "keyless", "slow"] {
@@ -140,7 +158,8 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
         String::new(),
         Ok(Balance {
           amount: 42.5,
-          currency: "CNY".into()
+          currency: "CNY".into(),
+          requests: None,
         })
       ),
       ("refused".to_owned(), Err("HTTP 401".to_owned())),
@@ -149,7 +168,8 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
         "slow".to_owned(),
         Ok(Balance {
           amount: 3.5,
-          currency: "CNY".into()
+          currency: "CNY".into(),
+          requests: None,
         })
       ),
     ]
@@ -179,10 +199,65 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
   assert_eq!(keeping.balance(slot("never")).await.unwrap(), None);
 }
 
+#[tokio::test]
+async fn a_second_address_is_asked_with_the_same_key_and_its_allowance_kept_beside_the_balance() {
+  let scratch = Scratch::new().await;
+  let (url, asked) = balance_endpoint().await;
+  let requests_url = url.replace("/balance", "/requests");
+  let reader = Arc::new(BalanceReader::new(Arc::new(Fixed {
+    url: url.clone(),
+    requests_url: Some(requests_url),
+    asks: vec![("", Ok("sk-road")), ("refused", Ok(REFUSED))],
+  })));
+  let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
+  let allowance = Requests {
+    used: 12,
+    limit: 50,
+    left: 38,
+    scope: Some("some-requests".into()),
+  };
+
+  let outcomes = reader.read_each(&keeping, NOW_MS).await.unwrap();
+
+  assert_eq!(
+    outcomes[0],
+    (
+      String::new(),
+      Ok(Balance {
+        amount: 42.5,
+        currency: "CNY".into(),
+        requests: Some(allowance.clone()),
+      })
+    )
+  );
+  assert_eq!(outcomes[1], ("refused".to_owned(), Err("HTTP 401".to_owned())));
+  assert_eq!(
+    *asked.lock().unwrap(),
+    ["Bearer sk-road", "Bearer sk-road", "Bearer sk-refused"],
+    "the second address is asked with the same key, and never after a balance that could not be read"
+  );
+  assert_eq!(keeping.balance(slot("")).await.unwrap().unwrap().balance.requests, Some(allowance));
+
+  // A second address that cannot be read keeps the amount with no allowance, and a reading with none
+  // replaces one kept before.
+  let unread = Arc::new(BalanceReader::new(Arc::new(Fixed {
+    url,
+    requests_url: Some("http://127.0.0.1:9/requests".into()),
+    asks: vec![("", Ok("sk-road"))],
+  })));
+
+  unread.read_each(&keeping, NOW_MS).await.unwrap();
+
+  let kept = keeping.balance(slot("")).await.unwrap().unwrap();
+
+  assert_eq!((kept.balance.amount, kept.balance.requests), (42.5, None));
+}
+
 #[test]
 fn the_reader_declares_its_source_s_provider_cadence_and_span() {
   let reader = BalanceReader::new(Arc::new(Fixed {
     url: "http://127.0.0.1:9/".into(),
+    requests_url: None,
     asks: vec![],
   }));
 

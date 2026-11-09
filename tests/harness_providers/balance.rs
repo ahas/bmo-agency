@@ -5,7 +5,7 @@
 
 use std::os::unix::fs::PermissionsExt;
 
-use harness_providers::balance::Balance;
+use harness_providers::balance::{Balance, Requests};
 use harness_providers::deepseek::DeepSeek;
 use harness_providers::{Machine, Provider, provider};
 use serde_json::json;
@@ -49,6 +49,46 @@ fn openrouter_s_credits_less_its_usage_is_the_reading_in_us_dollars() {
   assert_eq!(
     offers.read(&json!({ "data": { "total_credits": 15 } })),
     Err("the answer states no total usage".into())
+  );
+}
+
+#[test]
+fn openrouter_states_the_day_s_allowance_of_free_model_requests_at_its_second_address() {
+  let offers = provider("openrouter").unwrap().balance().unwrap();
+  let home = tempfile::tempdir().unwrap();
+  let machine = Machine::with_env([], home.path());
+  let stood_in = Machine::with_env(
+    [("BMO_OPENROUTER_REQUESTS_URL".to_owned(), "http://127.0.0.1:9/key".to_owned())],
+    home.path(),
+  );
+
+  assert_eq!(offers.requests_url(&machine).as_deref(), Some("https://openrouter.ai/api/v1/key"));
+  assert_eq!(offers.requests_url(&stood_in).as_deref(), Some("http://127.0.0.1:9/key"));
+  assert_eq!(
+    offers.requests(&json!({
+      "data": { "is_free_tier": false, "free_model_daily_requests": { "used": 12, "limit": 1000, "remaining": 988 } }
+    })),
+    Some(Requests {
+      used: 12,
+      limit: 1000,
+      left: 988,
+      scope: Some("free-models".into()),
+    })
+  );
+  assert_eq!(offers.requests(&json!({ "data": { "is_free_tier": true } })), None);
+  assert_eq!(
+    offers.requests(&json!({ "data": { "free_model_daily_requests": { "used": 1, "limit": 50 } } })),
+    None,
+    "an allowance that states no figure left is none"
+  );
+
+  // A provider that declares no second address is asked once and states none.
+  let deepseek = DeepSeek.balance().unwrap();
+
+  assert_eq!(deepseek.requests_url(&machine), None);
+  assert_eq!(
+    deepseek.requests(&json!({ "free_model_daily_requests": { "used": 1, "limit": 2, "remaining": 1 } })),
+    None
   );
 }
 

@@ -2579,11 +2579,34 @@ export interface components {
              * @description What its balance reader last read, for a provider that keeps a balance, or null.
              */
             balance: number | null;
+            /** @description The currency the balance is in, or null. */
+            currency: string | null;
+            /**
+             * Format: int64
+             * @description When the balance was seen, in epoch seconds, or null.
+             */
+            balanceSeenAt: number | null;
+            /** @description The request allowance read with the balance, or null where the provider states none. */
+            requests: components["schemas"]["Requests"] | null;
             /**
              * Format: int64
              * @description When the counting window resets, in epoch seconds, or null.
              */
             resetsAt: number | null;
+        };
+        /**
+         * @description A request allowance as a provider states it (docs/usage-windows.md, 「Balances」): how many requests of the
+         *     day are used, the day's ceiling and how many are left.
+         */
+        Requests: {
+            /** Format: int64 */
+            used: number;
+            /** Format: int64 */
+            limit: number;
+            /** Format: int64 */
+            left: number;
+            /** @description What the allowance covers, a kebab-case word a screen words it by, or null where it covers every request. */
+            scope: string | null;
         };
         /** @description The body that throws a provider's switch. */
         ProviderChange: {
@@ -2818,6 +2841,8 @@ export interface components {
              * @description epoch seconds
              */
             seenAt: number;
+            /** @description The request allowance read with it, or null where the provider states none. */
+            requests: components["schemas"]["Requests"] | null;
         };
         /** @description One Claude account as the fallback's view shows it. */
         FallbackAccount: {

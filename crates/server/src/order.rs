@@ -275,6 +275,11 @@ pub struct Quota {
   pub left: Option<f64>,
   pub window: Option<String>,
   pub balance: Option<f64>,
+  /// The currency the balance is in, when it was seen in epoch seconds, and the request allowance read
+  /// with it.
+  pub currency: Option<String>,
+  pub balance_seen_at: Option<i64>,
+  pub requests: Option<cache_siren::balance::Requests>,
   pub resets_at: Option<i64>,
   /// The login that counts first, on a provider that holds logins.
   #[serde(skip)]
@@ -331,6 +336,9 @@ pub async fn quota(ground: &Ground, provider: &dyn Provider, share: f64, user: O
       Some(kept) => Quota {
         has: kept.balance.amount > 0.0,
         balance: Some(kept.balance.amount),
+        currency: Some(kept.balance.currency),
+        balance_seen_at: Some(kept.seen_at),
+        requests: kept.balance.requests,
         ..Quota::default()
       },
       None => Quota {

@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, QueryResult, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use store::{Fault, all, one, run};
 
-use crate::balance::{Balance, KeptBalance};
+use crate::balance::{Balance, KeptBalance, Requests};
 use crate::reader::Reader;
 
 // The settings family an account's unread mark stands in, by the account (docs/store.md, 「The settings
@@ -214,18 +214,28 @@ impl Keeping {
   ) -> Result<(), Fault> {
     run(
       &self.db,
-      r#"INSERT INTO "usage_balances" ("mode", "account", "amount", "currency", "seen_at")
-         VALUES ($1, $2, $3, $4, $5)
+      r#"INSERT INTO "usage_balances"
+           ("mode", "account", "amount", "currency", "seen_at", "requests_used", "requests_limit", "requests_left",
+            "requests_scope")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT ("mode", "account") DO UPDATE SET
            "amount" = excluded."amount",
            "currency" = excluded."currency",
-           "seen_at" = excluded."seen_at""#,
+           "seen_at" = excluded."seen_at",
+           "requests_used" = excluded."requests_used",
+           "requests_limit" = excluded."requests_limit",
+           "requests_left" = excluded."requests_left",
+           "requests_scope" = excluded."requests_scope""#,
       vec![
         slot.mode.into(),
         slot.account.into(),
         balance.amount.into(),
         balance.currency.clone().into(),
         seen_at.into(),
+        balance.requests.as_ref().map(|requests| requests.used).into(),
+        balance.requests.as_ref().map(|requests| requests.limit).into(),
+        balance.requests.as_ref().map(|requests| requests.left).into(),
+        balance.requests.as_ref().and_then(|requests| requests.scope.clone()).into(),
       ],
     )
     .await?;
@@ -237,7 +247,9 @@ impl Keeping {
   pub async fn balance(&self, slot: Slot<'_>) -> Result<Option<KeptBalance>, Fault> {
     one(
       &self.db,
-      r#"SELECT "amount", "currency", "seen_at" FROM "usage_balances" WHERE "mode" = $1 AND "account" = $2"#,
+      r#"SELECT "amount", "currency", "seen_at", "requests_used", "requests_limit", "requests_left",
+                "requests_scope"
+         FROM "usage_balances" WHERE "mode" = $1 AND "account" = $2"#,
       vec![slot.mode.into(), slot.account.into()],
     )
     .await?
@@ -255,7 +267,9 @@ impl Keeping {
 
     one(
       &self.db,
-      r#"SELECT "amount", "currency", "seen_at" FROM "usage_balances" WHERE "account" = $1
+      r#"SELECT "amount", "currency", "seen_at", "requests_used", "requests_limit", "requests_left",
+                "requests_scope"
+         FROM "usage_balances" WHERE "account" = $1
          ORDER BY "seen_at" DESC LIMIT 1"#,
       vec![account.into()],
     )
@@ -269,10 +283,22 @@ impl Keeping {
 fn kept_balance(row: &QueryResult) -> Result<KeptBalance, Fault> {
   let field = |why: sea_orm::DbErr| Fault::new(format!("a kept balance: {why}"));
 
+  let figure = |name: &str| row.try_get::<Option<i64>>("", name);
+  let requests = match (figure("requests_used"), figure("requests_limit"), figure("requests_left")) {
+    (Ok(Some(used)), Ok(Some(limit)), Ok(Some(left))) => Some(Requests {
+      used,
+      limit,
+      left,
+      scope: row.try_get::<Option<String>>("", "requests_scope").ok().flatten(),
+    }),
+    _ => None,
+  };
+
   Ok(KeptBalance {
     balance: Balance {
       amount: row.try_get("", "amount").map_err(field)?,
       currency: row.try_get("", "currency").map_err(field)?,
+      requests,
     },
     seen_at: row.try_get("", "seen_at").map_err(field)?,
   })
