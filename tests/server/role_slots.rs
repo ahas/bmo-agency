@@ -817,3 +817,88 @@ async fn a_run_reads_its_prompt_bundles_and_threshold_off_the_agent_it_is_let_in
   assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap(), None);
   assert_eq!(bundles_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_bundles);
 }
+
+// A role that holds no agent is given its agents from what its row names (docs/role-agents.md, 「The roles the
+// policy seeds」): as many as its count, each on the first road of its order whose program carries the role's
+// line, or on the provider forced on it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_is_given_its_agents_on_the_first_road_of_its_order_that_carries_its_line() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+  let order = r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"},
+    {"provider":"registered","model":"flash-next-coder"},
+    {"provider":"claude-code","model":"claude-opus-5-5","effort":"high"}]"#;
+
+  for role in ["worker", "voyager", "seeker", "translator"] {
+    scratch
+      .run(
+        r#"UPDATE "roles" SET "provider_order" = $1, "max_concurrent" = 2, "active_provider" = NULL,
+             "active_model" = NULL WHERE "name" = $2"#,
+        vec![order.into(), role.into()],
+      )
+      .await;
+  }
+
+  scratch
+    .run(
+      r#"UPDATE "roles" SET "provider_order" = $1, "max_concurrent" = 1, "active_provider" = 'claude-code',
+           "active_model" = 'claude-sonnet-5' WHERE "name" = 'producer'"#,
+      vec![order.into()],
+    )
+    .await;
+  crate::support::rows::reseated(db).await;
+
+  let mut roads = vec![];
+
+  for role in ["worker", "voyager", "seeker", "translator", "producer"] {
+    let agents = agency_server::role_agents::of_role(db, role).await.unwrap();
+    let first = agents.first().unwrap();
+
+    assert!(
+      agents
+        .iter()
+        .all(|agent| agent.provider == first.provider && agent.model == first.model)
+    );
+    roads.push((
+      role,
+      agents.len(),
+      first.provider.clone().unwrap(),
+      first.model.clone().unwrap(),
+      first.effort.clone(),
+    ));
+  }
+
+  assert_eq!(
+    roads,
+    [
+      // The worker line and the search line stand on the order's first road.
+      ("worker", 2, "deepseek".to_owned(), "deepseek-flash".to_owned(), Some("high".to_owned())),
+      (
+        "voyager",
+        2,
+        "deepseek".to_owned(),
+        "deepseek-flash".to_owned(),
+        Some("high".to_owned())
+      ),
+      // The browse line is carried by Claude Code alone, and the translate line by no road before the registry.
+      (
+        "seeker",
+        2,
+        "claude-code".to_owned(),
+        "claude-opus-5-5".to_owned(),
+        Some("high".to_owned())
+      ),
+      ("translator", 2, "registered".to_owned(), "flash-next-coder".to_owned(), None),
+      // A forced provider stands on its forced model, at the effort the order names for it.
+      (
+        "producer",
+        1,
+        "claude-code".to_owned(),
+        "claude-sonnet-5".to_owned(),
+        Some("high".to_owned())
+      ),
+    ]
+  );
+}

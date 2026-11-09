@@ -8,7 +8,8 @@ use sea_orm_migration::prelude::*;
 pub const NAME: &str = "m20261203_000001_role_agents";
 
 /// The agents of every role that holds none, as many as the role's cap, each on the provider the owner forced
-/// on the role where one stands and else on the first of its order; none of a road where its order is empty.
+/// on the role where one stands and else on the first of its order whose program carries the role's line, as
+/// the providers declare their lines at this migration; none of a road where its order holds no such entry.
 pub const AGENTS_OF_ROLES: &str = include_str!("role_agents_of_roles.sql");
 
 // The role a job runs as where its item names none, as the roles this store was seeded with name it.
