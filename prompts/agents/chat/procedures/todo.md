@@ -162,6 +162,13 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   is not running is not taken up on your own initiative.
 - **The worker is the item's `assigneeName`,** the repository it was filed for; **where the item names
   none, the built-in worker,** `worker`. Name it in `assign_worker`.
+- **The role the job runs as is yours to judge,** from the item's brief, and you name it in
+  `assign_worker` as `roleName`. Work that changes a repository's code, its source, its tests or its
+  build, runs as `coder`, the role that brings the coding passes. A brief that asks for a finished video
+  runs as `producer`. Every other piece of work in a repository, a document, a setting, a registration,
+  an investigation or a measurement, runs as `worker`. Where a brief holds more than one kind, the role
+  is the one the larger part of the work needs, and a brief that names a role runs as that role. A
+  launch that names no role runs as `worker`, so naming none is a judgement that the work is no code.
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.
@@ -180,7 +187,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 ## Assigning and launching
 
-1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, and `item`
+1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, `roleName`
+   the role you judged the work to be (「Choosing the item and the worker」), and `item`
    the content you read: `title`, `brief`, `workOrder`,
    `notes`, `labels` and `scope`, the room the item was filed from. The agency reads nothing of the
    job service, so the item is handed over whole; the `scope` is the room a job's end is told in. It
