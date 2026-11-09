@@ -294,6 +294,12 @@ pub struct HerdrSessions {
   // The turn each session carries while it goes, with the run it goes out as, which the interrupt stops:
   // one a session, a second turn refused while it goes.
   going: Mutex<HashMap<SessionId, Vec<Running>>>,
+  // The sessions whose turn waits on the receiver's handoff turn. The session is lent to that turn, which
+  // would otherwise be refused as a second turn of it (docs/sessions.md, 「A restart hands the session
+  // over」).
+  handing: Mutex<HashSet<SessionId>>,
+  // The turns a handoff turn displaced, put back when it ends.
+  parked: Mutex<HashMap<SessionId, Vec<Running>>>,
   // What each session's turn going now shows of itself to a reading of its state: what it went out on,
   // once its line is settled.
   showing: Mutex<HashMap<SessionId, WentOut>>,
@@ -664,6 +670,8 @@ impl HerdrSessions {
     Self {
       places,
       going: Mutex::default(),
+      handing: Mutex::default(),
+      parked: Mutex::default(),
       showing: Mutex::default(),
       apart: Mutex::default(),
       conversations: Mutex::default(),
@@ -762,6 +770,16 @@ impl HerdrSessions {
     self.going.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
+  // The sessions lent to the receiver's handoff turn while this process waits on it.
+  fn handing(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
+    self.handing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // The turns a handoff turn displaced, put back when it ends.
+  fn parked(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, Vec<Running>>> {
+    self.parked.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
   // The id the next turn begun is given: the time it began, past every id given before it.
   fn next_turn(&self) -> i64 {
     let at = now_ms();
@@ -849,16 +867,21 @@ impl HerdrSessions {
 
     let mut going = self.going();
 
-    if let Some(runs) = going.get_mut(session) {
-      if let Some(at) = runs.iter().position(|going| going.run == run) {
-        let ended = runs.remove(at);
+    if let Some(runs) = going.get_mut(session)
+      && let Some(at) = runs.iter().position(|going| going.run == run)
+    {
+      let ended = runs.remove(at);
 
-        self.outputs.ended(session, ended.turn);
-      }
+      self.outputs.ended(session, ended.turn);
+    }
 
-      if runs.is_empty() {
-        going.remove(session);
-      }
+    // The handoff turn ended: the turn that lent it the session takes it back.
+    if let Some(parked) = self.parked().remove(session) {
+      going.entry(session.clone()).or_default().extend(parked);
+    }
+
+    if going.get(session).is_some_and(|runs| runs.is_empty()) {
+      going.remove(session);
     }
   }
 
@@ -978,10 +1001,9 @@ impl HerdrSessions {
     }
   }
 
-  // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent's
-  // program still stands on, and what came of it said in the turn's run log (docs/sessions.md, 「A restart
-  // hands the session over」); a turn that resumes its session, or an agent whose pane holds no program, asks
-  // nothing.
+  // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent
+  // had, and what came of it said in the turn's run log (docs/sessions.md, 「A restart hands the session
+  // over」); a turn that resumes its session asks nothing.
   async fn handed_off(
     &self,
     log: &mut RunLog,
@@ -1014,7 +1036,22 @@ impl HerdrSessions {
     }
 
     let _ = crate::queue::settings::set(&ground.db, &key, &now.to_string()).await;
+
+    // The handoff a supervisor's one session across rooms is asked for is one more turn of that same session,
+    // so the session is lent to it while this turn waits: the receiver finds the session by the state agency
+    // answers for it, and that turn would otherwise be refused as a second turn of the session. A room's own
+    // session is not lent, since the handoff turn there would open a generation of its own.
+    let lent = room.is_none().then(|| SessionId(agent.to_owned()));
+
+    if let Some(session) = &lent {
+      self.handing().insert(session.clone());
+    }
+
     let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
+
+    if let Some(session) = &lent {
+      self.handing().remove(session);
+    }
 
     log.write(&ground.db, Line::note(handed.said())).await;
   }
@@ -1422,6 +1459,7 @@ impl HerdrSessions {
     prompt: &str,
     context: &TurnContext,
     shown: OutputWatch<'_>,
+    handoff: bool,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let db = ground.db.clone();
@@ -1444,8 +1482,11 @@ impl HerdrSessions {
     // Claude's, and the stand-in opens a session of its own.
     let stand_in_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
 
-    // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one.
-    if sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
+    // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one,
+    // and the session is asked for its handoff while agency still names it, as before any fresh session
+    // replaces one the agent had (docs/session-resets.md, 「Who holds a session」).
+    if !handoff && sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
+      self.handed_off(&mut log, agent, None, false, true, &HANDOFF.reasons.replaced).await;
       keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
       sessions::settle_reset_agent(&db, agent).await.map_err(store_fault)?;
       held = None;
@@ -1472,13 +1513,17 @@ impl HerdrSessions {
     };
     let hash = line_run.system_hash.clone();
     let recorded = sessions::agent_system_hash(&db, agent).await.map_err(store_fault)?;
-    let moved = sessions::prompt_moved(held.is_some(), recorded.as_deref(), &hash);
+    // The receiver's handoff turn is one more turn of the session whose prompt moved: it reads the prompt the
+    // session holds, so it is no second move.
+    let moved = !handoff && sessions::prompt_moved(held.is_some(), recorded.as_deref(), &hash);
 
     if moved {
       // The documents the prompt is composed from moved under a session the agent already had: the standing
-      // program read the old prompt, so the session is let go and asked for its handoff, and this answer goes
-      // out on a fresh session composed from the new documents (docs/supervisors.md, 「A session in each
-      // room」).
+      // program read the old prompt, so it is asked for its handoff while agency still names its session, and
+      // then let go, and this answer goes out on a fresh session composed from the new documents
+      // (docs/supervisors.md, 「A session in each room」).
+      self.handed_off(&mut log, agent, None, false, true, &HANDOFF.reasons.moved).await;
+
       keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
       held = None;
       line_run.resume = None;
@@ -1490,8 +1535,6 @@ impl HerdrSessions {
           run: run.to_owned(),
         });
       }
-
-      self.handed_off(&mut log, agent, None, false, true, &HANDOFF.reasons.moved).await;
     }
 
     sessions::mark_agent_system(&db, agent, &hash).await.map_err(store_fault)?;
@@ -1517,8 +1560,10 @@ impl HerdrSessions {
           && held.is_some()
           && lost_session(said)
         {
-          keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+          // The session the turn could not resume is asked for its handoff while agency still names it,
+          // then let go.
           self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
+          keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
           asked = self
             .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
             .await;
@@ -2057,13 +2102,22 @@ impl HerdrSessions {
     };
 
     let turn_id;
+    // A session its turn lent the receiver's handoff turn takes that turn now; the turn that lent it stands
+    // waiting and takes the session back when the handoff turn ends.
+    let lent = self.handing().remove(&turn.session);
 
     {
       let mut going = self.going();
       let runs = going.entry(turn.session.clone()).or_default();
 
-      if !runs.is_empty() {
+      if !runs.is_empty() && !lent {
         return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
+      }
+
+      if lent {
+        let parked = std::mem::take(runs);
+
+        self.parked().insert(turn.session.clone(), parked);
       }
 
       turn_id = self.next_turn();
@@ -2184,7 +2238,7 @@ impl HerdrSessions {
         Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
         Err(refused) => Err(refused),
       },
-      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown).await,
+      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown, lent).await,
     };
 
     self.ended(&turn.session, &run);

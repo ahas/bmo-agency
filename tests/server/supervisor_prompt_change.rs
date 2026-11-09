@@ -3,13 +3,28 @@
 //! and the room's turns and logs stay whole, and a supervisor whose documents did not change keeps its
 //! session.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use axum::Router;
+use axum::extract::Request;
+use axum::response::IntoResponse;
+use serde_json::json;
 use sha2::{Digest, Sha256};
+use tokio::net::TcpListener;
 
 use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::herdr_backend::{HerdrSessions, agent_session};
 use agency_server::lines::Trees;
 use agency_server::lines::chat::{ChatDocuments, chat_system};
+use agency_server::places::{Ground, Places};
+use agency_server::seeds::deployment;
 use agency_server::supervisor_turn::sessions::{self, prompt_moved};
+use agent_session::{RoomBlock, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+use harness_providers::Machine;
 
 fn hash(text: &str) -> String {
   format!("{:x}", Sha256::digest(text.as_bytes()))
@@ -226,4 +241,119 @@ async fn a_supervisors_one_session_keeps_the_hash_its_prompt_was_sent_with() {
     sessions::agent_system_hash(scratch.db(), agent).await.unwrap().as_deref(),
     Some("a hash")
   );
+}
+
+// What the stand-in saw of one asking: whether the agency still named the session, whether the handoff turn
+// was let in, and why it was not.
+type Seen = Arc<Mutex<Vec<(bool, bool, Option<String>)>>>;
+
+// The receiver's ask, in the agency's own terms: it reads the state the agency answers for the agent's
+// session and then sends the handoff turn into that same session. What the stand-in records is what the
+// receiver would find at the moment it is asked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_turn_is_let_in() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let agent = "chat-agent";
+
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/nowhere".to_owned()),
+      ("BMO_RECEIVER_URL".to_owned(), format!("http://127.0.0.1:{port}")),
+      ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  supervisor(
+    scratch.db(),
+    agent,
+    &[("session_id", "s-1".into()), ("system_hash", "the old prompt".into())],
+  )
+  .await;
+
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+  let sessions = Arc::new(HerdrSessions::new(Places::new(ground, Arc::default())));
+
+  // What the stand-in saw: whether the agency still named the session when it was asked, and whether the
+  // handoff turn the receiver sends into that session was let in.
+  let seen: Seen = Arc::default();
+  let kept = seen.clone();
+  let asking = sessions.clone();
+  let db = scratch.db().clone();
+  let app = Router::new().fallback(move |request: Request| {
+    let kept = kept.clone();
+    let sessions = asking.clone();
+    let db = db.clone();
+
+    async move {
+      let agent = request.uri().path().rsplit('/').next().unwrap_or_default().to_owned();
+      let named = agent_session(&db, &agent).await.unwrap().is_some();
+      let handoff = sessions
+        .send_turn(Turn {
+          session: SessionId(agent),
+          prompt: "HANDOFF ASK.".into(),
+          context: TurnContext {
+            room: Some(RoomBlock {
+              chat_id: -5,
+              text: "the room's block".into(),
+              mark: "[a]".into(),
+            }),
+            ..TurnContext::default()
+          },
+        })
+        .await;
+      let (let_in, why) = match handoff {
+        Ok(_) => (true, None),
+        Err(why) => (false, Some(why.message)),
+      };
+
+      kept.lock().unwrap().push((named, let_in, why));
+
+      axum::Json(json!({ "path": "/handoffs/chat-agent.md", "bytes": 12 })).into_response()
+    }
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  let session = sessions
+    .start(Start {
+      agent: agent.into(),
+      scope: Scope::Agent,
+    })
+    .await
+    .unwrap()
+    .id;
+
+  // The turn the documents moved under; it goes nowhere on a machine with no program, which does not
+  // matter to what is asked before it.
+  let _ = tokio::time::timeout(
+    std::time::Duration::from_secs(120),
+    sessions.send_turn(Turn {
+      session,
+      prompt: "what the room said".into(),
+      context: TurnContext {
+        room: Some(RoomBlock {
+          chat_id: -5,
+          text: "the room's block".into(),
+          mark: "[a]".into(),
+        }),
+        ..TurnContext::default()
+      },
+    }),
+  )
+  .await
+  .expect("the turn ends");
+
+  let seen = seen.lock().unwrap();
+
+  assert_eq!(seen.len(), 1, "the receiver was asked once: {seen:?}");
+  assert!(seen[0].0, "the agency still names the session when the receiver asks for its handoff");
+  assert!(seen[0].1, "the handoff turn is let into the session: {:?}", seen[0].2);
 }

@@ -14944,7 +14944,7 @@
     },
     {
       "what": "the routes GET, PUT and DELETE /session-summaries/{agentName} and GET /session-summaries/{agentName}/task, the webhook session-summarising, and the hand-over's note and thread",
-      "why": "no session summary is kept anywhere: a closed session hands nothing over"
+      "why": "no session summary is kept anywhere: a session going away writes its own handoff note, and no summary of it is made"
     },
     {
       "what": "the turn address /sessions/{repository}@worker/turns, a role's start naming no slot, and the road fields provider, model, mapping, workKey and tier on a turn",

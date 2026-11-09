@@ -43,7 +43,7 @@ async fn receiver(
       tokio::time::sleep(delay).await;
 
       match answers.get(at).or(answers.last()).copied().unwrap_or(204) {
-        200 => axum::Json(json!({ "path": "/handoffs/agent.md", "size": 1234 })).into_response(),
+        200 => axum::Json(json!({ "path": "/handoffs/agent.md", "bytes": 1234 })).into_response(),
         status => StatusCode::from_u16(status).unwrap().into_response(),
       }
     }

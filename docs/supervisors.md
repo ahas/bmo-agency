@@ -194,9 +194,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - whether it changed is read off the prompt actually sent: the SHA-256 of the system prompt against
     the hash the session keeps from its last turn — a room's session row, or the supervisor's row where
     one session serves every room;
-  - the session writes its handoff note in one more turn, as it does at its handoff mark (「Its limit」
-    below), or, where the receiver holds the room, the receiver asks it for the note; a new generation
-    opens with that note ahead of the turn's words;
+  - a room's own session writes its handoff note in one more turn, as it does at its handoff mark
+    (「Its limit」 below), and the generation that opens holds the note ahead of the turn's words;
+  - the one session across rooms is asked through the receiver while agency still names it, and the
+    receiver's next turn opens with the note the standing program wrote;
   - the turn that answers is composed from the new documents, and the conversation goes on from the note;
   - a supervisor whose documents did not change keeps its session, its hash still matching;
   - a session whose prompt was never recorded hands over once, since what it read cannot be known;
@@ -227,12 +228,12 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 - **The window is its registration's.** The harness is told the registration's context window and
   answer ceiling as the run starts (`docs/own-llm.md`, 「How requests go」).
-- **The session hands itself over at the handoff mark,** as every supervisor's session on the registry's
-  provider does, since that provider declares the handoff as its way of handing a full session over
-  (「What a provider declares for a conversation」 above). A turn whose context — its last request, as its
-  harness reports it — has reached its compaction threshold (`docs/sessions.md`, 「Session compaction」), so
-  with a margin of the window left, is followed by one more turn of the same session, after its answer has
-  gone out and before the room's next turn:
+- **A room's own session hands itself over at the handoff mark when its provider hands a full session
+  over by a note,** as the registry's provider does (「What a provider declares for a conversation」
+  above). This is the session of a supervisor of the `room` scope, which agency carries. A turn whose
+  context — its last request, as its harness reports it — has reached its compaction threshold
+  (`docs/sessions.md`, 「Session compaction」), so with a margin of the window left, is followed by one
+  more turn of the same session, after its answer has gone out and before the room's next turn:
   - the turn is the session itself asked for its handoff: its prompt is the handoff instruction,
     `prompts/agents/pieces/handoff.md`, sent as an ordinary turn on the very run the room's turns go out
     as, so the engine reads only the instruction past what it already holds and the session writes the
@@ -246,6 +247,13 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     it as it went out;
   - an answer that hands nothing over leaves the session as it was, its log says why, and the next turn
     that ends at or past the mark asks again.
+- **The one session across rooms is the receiver's to replace.** A supervisor of the `agent` scope keeps
+  one session every room's turns go on in, and the receiver judges when it is full: where its provider
+  hands a full session over by a note, the receiver writes the owner's word to start it afresh with the
+  reason `full`, and the session's next turn replaces it through the handoff of its own — the same
+  handoff note a replacement leaves (`unified-bmo.md`, 「Replacing the session」). Agency runs no handoff
+  turn of the mark for this session; the session the receiver asks is the one standing in the pane, and
+  the note its successor opens with is the receiver's.
 - **Why a turn and not the harness's fold:** the harness's own `/compact` folds on a request of its
   own shape, which the engine has no saved state for, so the engine would read the whole conversation
   again — on a long session, many minutes — where an ordinary turn on the same session reads only its

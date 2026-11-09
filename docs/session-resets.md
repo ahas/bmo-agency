@@ -33,9 +33,9 @@ flowchart TD
 ```
 
 - **A supervisor of the `agent` scope:** the one session every room's rounds go on in (`unified-bmo.md`).
-  - A reset is the chat's forced replacement: the next round closes the session and opens a new one,
-    nothing of the old one carried into it, as with any replaced session (`docs/sessions.md`,
-    「Session replacement」).
+  - A reset is the chat's forced replacement: the next round asks the session for its handoff while
+    agency still names it, lets it go, and opens a new one on the note, as every replacement does
+    (`docs/sessions.md`, 「A restart hands the session over」).
   - That round settles the ask.
 - **A role:** the sessions kept for it, one for each path, provider and model its runs went out on
   (`docs/sessions.md`, 「A role's session」), or those of one path where the ask names one.

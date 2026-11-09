@@ -1479,8 +1479,8 @@ receiver's `POST /instructions` is handed the report for the room's supervisor; 
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
-handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
-hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
+handoff, with `reason` and `room` where the turn names one, while agency still names the session, and
+waited on (`docs/sessions.md`, 「A restart hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open` and `GET /items` with `state` `draft` are read, and its events as a page, `GET /events` with `Accept:
 application/json` past the cursor agency keeps, narrowed to `item.changed`, `question.created`,
 `question.due` and `reply.created`; an idle queue is told once through the receiver's `POST /owner/notices`

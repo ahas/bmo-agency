@@ -86,7 +86,7 @@ pub async fn ask(
 
         return Handed::Written {
           path: read["path"].as_str().unwrap_or_default().to_owned(),
-          size: read["size"].as_i64().unwrap_or_default(),
+          size: read["bytes"].as_i64().unwrap_or_default(),
         };
       }
       204 => return Handed::Nothing,

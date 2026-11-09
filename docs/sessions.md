@@ -1,7 +1,7 @@
 # Sessions
 
 How a supervisor's session is kept and resumed, told of documents that changed under it, paced at a
-start, folded when its window fills and replaced when its memory stops being worth its price; and how a
+start, folded when its window fills and replaced when its prompt documents or its road move; and how a
 role's runs keep and reuse their sessions by role, path, provider and model. Clearing a session on the
 owner's ask is `docs/session-resets.md`.
 
@@ -113,24 +113,32 @@ statements below about either are kept for a rollback to the road a deployment l
   first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
   own launches, which name none, stand in the folder above.
-- **A fresh session of a supervisor is never opened without the handoff.** Where a chat-line turn — one
+- **A fresh session of a supervisor is never opened without the handoff,** apart from a room's session
+  cleared by the owner's reset, whose program is taken down with it and which carries nothing
+  (`docs/session-resets.md`, 「Who holds a session」). Where a chat-line turn — one
   of the `agent` scope across rooms, or one of the `room` scope in a room — is about to open a fresh session for an agent
-  that had one, agency first asks the receiver for the agent's handoff (`POST /handoffs/{agentName}` of
-  the receiver, with the reason and the room where the turn names one) and waits for its answer, so the
-  session going away writes what the next one needs before anything replaces it:
+  that had one, the session going away writes what the next one needs before anything replaces it. A
+  room's own session whose documents moved or whose window filled writes it in one more turn agency runs
+  on it (`docs/supervisors.md`, 「Its limit」). Otherwise agency asks the receiver for the agent's handoff
+  (`POST /handoffs/{agentName}` of the receiver, with the reason and the room where the turn names one)
+  and waits for its answer:
   - **what counts as replacing a session:** the kept session gone — the program no longer holds it — and
-    a session the agent had that the turn does not resume — a reset, a provider or a prefix change, a
-    login the session cannot follow — while the agent's program still stands in its pane;
+    a session the agent had that the turn does not resume — a prompt whose documents moved, a reset, a
+    provider or a prefix change, a login the session cannot follow — while the agent's program still
+    stands in its pane;
   - **what does not:** a turn that resumes the session it had, and a program stood again on the same
     folder after agency's own restart or a deployment, which takes the same session up again, so
     neither asks anything;
-  - **the order:** the ask goes out while the old program still stands in its pane under herdr, before
-    the turn's stand replaces it; the old program usually outlives agency's own restart, so a turn after
-    a restart that opens a fresh session asks as any other does;
-  - **the answer:** 200 with the handoff file's path and size where the old session wrote one, 204 where
-    there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited on and
-    asked again a few seconds later (`policy/handoff.toml`); the ask waits for the receiver's answer
-    however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
+  - **the order:** the ask goes out while agency still names the session and the old program still stands
+    in its pane under herdr, before the session is let go and the turn's stand replaces it. The turn that
+    waits for the handoff lends the session to the receiver's handoff turn, so that turn runs on the very
+    session going away instead of being refused as a second turn while the waiting turn goes. The old
+    program usually outlives agency's own restart, so a turn after a restart that opens a fresh session
+    asks as any other does;
+  - **the answer:** 200 with the handoff file's path and its byte count where the old session wrote one,
+    204 where there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited
+    on and asked again a few seconds later (`policy/handoff.toml`); the ask waits for the receiver's
+    answer however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
     connection lets the turn go on — the fresh session is opened all the same, and the run log says the
     handoff was not had and why. A deployment that names no receiver asks nothing.
 
@@ -394,27 +402,33 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## Session replacement
 
-- Folding a session is what happens when its window fills. Replacing one is what happens when its
-  memory has stopped being worth its price. A write to a document in the system prompt costs every
-  session holding it its cached prefix, so the next turn in each of those rooms writes that room's
-  whole context again — and a room that has been talking for a day carries hundreds of thousands of
-  tokens.
-- At the head of a turn, and only there, agency checks whether a prompt document was written after this
-  session last answered. If one was, this turn is paying for the whole context whatever happens, so
-  the two prices are compared (`packages/agent/freshstart.ts`): resuming costs what the session's last run
-  reported it was carrying, which the archive keeps on the chat's `agents` row and which every round
-  that got an answer writes, an unfinished `<<WAIT>>` round included; starting fresh costs the
-  system prompt alone, since the round's own messages are sent either way. A size
-  nothing has recorded, and a size a fold has just made meaningless, both read as unknown, and an
-  unknown session is never cut.
-- A fresh start is taken only when it saves at least a hundred thousand tokens **and** resuming
-  would write at least four times what it writes — a room a little over the line keeps its memory,
-  one carrying several times its own weight does not.
-- **A closed session hands nothing over.** No summary of a session is made or kept anywhere: the old
-  session's record is not read, and the new session opens on its turn's words alone. A supervisor's
-  session carries only the note the receiver hands in with its own turn, which is the receiver's.
+- Folding a session is what happens when its window fills. Replacing it is what happens when the next
+  turn should not go on in the session the agent holds: the documents its prompt is composed from
+  moved, its road moved (another provider, model or effort, another login, or a place its registration
+  no longer has), the kept harness session can no longer be resumed, the owner asked for a fresh
+  start, or its provider's cache lifetime passed. A full session on a provider that hands a full
+  session over by a note is replaced at its compaction mark (「Session compaction」,
+  `docs/supervisors.md`, 「Its limit」).
+- At the head of a turn, and only there, agency compares the SHA-256 of the system prompt it composes
+  with the hash the session keeps from its last turn — a room's session row, or the supervisor's row
+  where one session serves every room. A session whose prompt moved is replaced; one whose prompt did
+  not is resumed; one whose prompt was never recorded hands over once, since what it read cannot be
+  known.
+- **A session going away is asked for its handoff before it is let go.** No summary of a session's
+  conversation is made or kept for its successor: the successor opens on the note the old session
+  wrote as it closed. A room's own session whose prompt moved or whose window filled writes that note
+  in one more turn agency asks of it before the new generation opens. The one session across rooms is
+  asked through the receiver's `POST /handoffs/{agentName}`, while agency still names the session and
+  the standing program can answer; the receiver asks that session for its file, and the next session's
+  first turn opens on the receiver's note (`docs/supervisors.md`, 「Its limit」; the receiver's
+  `docs/unified-bmo.md`, 「Replacing the session」). A fresh session opened in place of a room's session
+  that can no longer be resumed is asked the same way, through the receiver.
+- Where the receiver's old session wrote nothing, the next session opens on the receiver's transcript of
+  what the session answered, or, where neither stands, on a word that memory could not be recovered.
+  That fallback is the receiver's.
 - The session id is cleared and a new session opens on the next run; the room hears nothing.
 - Who the people are reaches the new session by the brain's index, whose people group its first turn
   walks, and the person books, as on every turn.
-- A session is never replaced inside a turn: the check runs between rounds, with nothing in flight.
+- A session is never replaced under a turn that is already going: the check runs at the head of a turn,
+  before that turn's words go to the session.
 
