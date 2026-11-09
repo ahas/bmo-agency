@@ -62,8 +62,14 @@ seeds. The other crates and the server reach the store only through it.
     slot's balance — its `mode` and `account` naming it, its `amount`, its `currency`, when it was
     seen, and the request allowance read with it, used, ceiling, left and what it covers, each none where its
     provider states none (`docs/usage-windows.md`, 「Balances」);
-  - the role slots: `role_slot_requests`, one row a slot request with its lease — what it is bound to, the
-    role session among it, whether the line has seen its bound run standing, and who gave it back —;
+  - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the provider and model
+    its runs go out on or none, the effort, thinking and answer ceiling there, whether it is switched on, its
+    place among its role's, whether its cache is kept warm, its compaction threshold or none, and the prompt,
+    bundles and skills it lays over its role's, each none where the role's own stands
+    (`docs/role-agents.md`);
+  - the role slots: `role_slot_requests`, one row a slot request with its lease — the agent it was let in on,
+    its `seat`, what it is bound to, the role session among it, whether the line has seen its bound run
+    standing, and who gave it back —;
     `role_slot_reservations`;
     `role_slot_native`, `role_slot_native_reservations` and `role_slot_native_stops`, the native calls'
     bindings; and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);

@@ -270,34 +270,42 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **A role is answered with every field of its row:** `name`; `code`, its kebab-case word, which is its name
   and what a screen shows the role by (`docs/agent-roles.md`, 「A role's label」); `label`, the English word a
   log keeps; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code` (the
-  name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider order
-  in the shape a supervisor's is (「supervisors」); `active`, the provider the owner forced as its active
-  provider, `provider` and `model`, or null where its order chooses (`docs/provider-order.md`, 「A provider
-  the owner forces」); `maxConcurrent`, its cap; `sessions`, `keep` or `fresh`;
-  `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker;
-  `followsSupervisor`, true while its order is empty, so its runs go out on the road of the supervisor that
-  asks them (`docs/role-slots.md`, 「A delegated task」) and a screen shows its road as the supervisor's; and
-  what stands of it now: `running` and `waiting`, how many of its runs go and wait, `provider`, its active
-  provider, or null where it cannot answer now or its order is empty and none is forced, and `waitingFor`,
-  why its runs wait, or null, null too while it follows the supervisor.
+  name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `agents`, its agents in the
+  order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
+  them are switched on; `sessions`, `keep` or `fresh`; `foldRatio`, its compaction threshold; `callable`,
+  whether a run may call it as a co-worker; `followsSupervisor`, true while none of its agents names a road,
+  so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A delegated task」)
+  and a screen shows its road as the supervisor's; and what stands of it now: `running` and `waiting`, how
+  many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
+  agents' roads can answer now or none names a road, and `waitingFor`, why its runs wait, or null, null too
+  while it follows the supervisor.
 - **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
   bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
   name.
-- **`POST /roles` takes `name`, `label`, `bundles`, `line`, `order` and `maxConcurrent`,** and may add
-  `prompt`, `description`, `sessions` (`keep` where it names none), `foldRatio` (the first provider's declared
-  default where none is given) and `callable` (false where it names none), and answers 201 with the role. It
-  is refused 422 `unprocessable-entity`, with one English sentence and nothing written, for a name out of the
-  roles policy's pattern or past its length or already held; an empty label or one past the policy's
-  length; a bundle the policy does not declare; a line agency does not carry; an order refused as a
-  supervisor's is, its provider judged against the role's line, but for an empty list, which a role's order
-  may be; a cap that is no whole number of zero or
-  more; a prompt or description that is not text; and `sessions` other than `keep` or `fresh`.
+- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description`,
+  `sessions` (`keep` where it names none), `foldRatio` and `callable` (false where it names none), and
+  answers 201 with the role, which holds no agent yet. It is refused 422 `unprocessable-entity`, with one
+  English sentence and nothing written, for a name out of the roles policy's pattern or past its length or
+  already held; an empty label or one past the policy's length; a bundle the policy does not declare; a line
+  agency does not carry; a prompt or description that is not text; `sessions` other than `keep` or `fresh`;
+  and `order`, `quotaShare`, `maxConcurrent` or `active`, which a role does not hold.
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
-  `POST` judges it; a `prompt` or `description` given as null clears it. It alone takes `active`, `provider`
-  and `model` judged as one entry of an order is against the role's line and refused 422 alike, or null,
-  which clears it; it need not stand in the order. 404 `not-found` for a role the store
+  `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
-  under, and a raised cap lets in at once the waiting runs it frees.
+  under.
+- **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
+  narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
+  `name`, `role`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
+  `keepsCache`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
+  names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
+  may add any other field, `name` being the role and a number where none is named, and answers 201 with the
+  agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
+  and answers 200. Both refuse 422 a role the store does not hold (`unknown-role`), a name out of the
+  pattern, a provider without a model or a model without a provider, a road judged as a supervisor's order's
+  entry is against the role's line, and a bundle the policy does not declare; `POST` refuses 409 a name
+  already taken. `DELETE /role-agents/{agentName}` answers 204, 404 for an agent the store does not hold and
+  409 while it carries a run. An agent added, switched or removed holds from the next admission, and one
+  more seat lets in at once the reserved slots it frees.
 - **`DELETE /roles/{roleName}`** answers 204; 404 `not-found` for a role the store does not hold, and 409
   `conflict` while a run of it goes or waits, or for a role the roles policy names as a default.
 - **`GET /roles/{roleName}/sessions` answers `items`,** the sessions the role's runs opened, newest first, a
