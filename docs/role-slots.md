@@ -26,11 +26,14 @@ is and which one a run takes is `docs/role-agents.md`.
   「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, carries
   no run and whose road can answer now. An ask may name a provider and a model together, or a model alone,
   whose provider is the one the role's first agent of that model is on; it is then let in only on an agent of
-  that road and waits for one, and an ask naming a road no agent of the role is on is refused. The agent gives
+  that road and waits for one; an ask naming a road no agent of the role is on is let in on an agent that
+  names no road, and is refused where the role holds none. The agent gives
   the effort and the thinking.
 - **A slot of a role whose agents name no road goes out on the road of the supervisor that asks it,** the one
   its ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
-  refused 422 with why, and nothing starts.
+  refused 422 with why, and nothing starts. In a role that holds agents of both kinds, a slot naming no road
+  is let in on the first free agent by position, on that agent's own road or, for an agent that names none,
+  on its asking supervisor's (`docs/role-agents.md`, 「Which agent a run takes」).
 
 ## The cap
 
@@ -64,6 +67,11 @@ is and which one a run takes is `docs/role-agents.md`.
   - **A request whose provider has no quota is passed over** while it has none, keeping its place, so a run
     waiting for quota never holds up a run of the same role that could go; it is next again once its
     provider has quota.
+  - **A request that could not take the asker's agent is passed over,** keeping its place: one that names a
+    road the agent does not stand on, or one no supervisor asked where the agent names no road
+    (`docs/role-agents.md`, 「Which agent a run takes」). A run waiting for an agent of its own road never
+    holds up a run that a free agent of another road could take. A reservation's slot holds a seat by count
+    and stands in the way whatever the agent.
 - **Request keys:** the key a caller asks under names one request for good. An ask repeated with that key
   while its request stands — waiting, reserved or active — is answered with that request, unchanged, so a
   caller that lost an answer asks again safely. Once the request is given back, released or cancelled, the

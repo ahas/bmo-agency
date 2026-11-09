@@ -14,8 +14,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   go out with there. Its runs go out on that road and never on another: an agent whose provider cannot answer
   now, or has no quota, takes no run until it can, and no run of its moves to another provider.
 - **An agent that names no road follows the supervisor that asks it.** Its run goes out on the asking
-  supervisor's own provider, model and effort as they stand when it is asked, and a run no supervisor asks is
-  refused with why. The doppelganger's agents are seeded so.
+  supervisor's own provider, model and effort as they stand when it is asked; it takes no run that names no
+  road and that no supervisor asked. It also takes a run whose ask names a road no agent of its role stands
+  on — an item's model, a repository's pin — on that road. A role all of whose agents name no road refuses
+  a run that names no road and that no supervisor asks, with why. The doppelganger's agents are seeded so.
 - **A role holds no order, no cap and no forced provider.** How many of a role's runs go at once is the
   number of its agents that are switched on, and which road a run takes is its agent's.
 
@@ -69,11 +71,14 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 ## Which agent a run takes
 
 - **A run is let in on the first agent of its role, by position, that is switched on, carries no run, and
-  whose road can answer now.** An agent carries a run while a slot request let in on it stands active.
+  whose road can answer now.** An agent carries a run while a slot request let in on it stands active. In a
+  role that holds both, an agent on a road of its own and an agent that names none stand in the one order: a
+  run a supervisor asks takes whichever comes first, the second kind on that supervisor's road, and a run no
+  supervisor asks passes the agents that name no road over.
 - **A run that names a road takes an agent of that road alone.** An ask naming a provider and a model, or a
   model alone, is let in only on an agent whose road is that one, and waits for such an agent however long
-  it takes; an ask naming a road no agent of the role holds is refused with the roads the role's agents
-  hold. A job names the road it found free: it reads its role's roads with the agents that carry no run
+  it takes; where no agent of the role stands on that road it is let in on an agent that names none, and
+  where the role holds no such agent either it is refused with the roads the role's agents hold. A job names the road it found free: it reads its role's roads with the agents that carry no run
   first, so it asks for the first free agent's road.
 - **A run waits where no agent of its role is free for it,** in its role's line, in the order asked
   (`docs/role-slots.md`, 「The line」). Where the only agents free are ones whose provider cannot answer, the

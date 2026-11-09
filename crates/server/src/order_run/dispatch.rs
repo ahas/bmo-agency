@@ -351,6 +351,15 @@ pub async fn fixed_road<C: ConnectionTrait>(
        supervisor asked this slot"
     ));
   };
+
+  supervisor_road(&supervisor)
+    .map(Some)
+    .ok_or_else(|| format!("The supervisor {} names no provider to go out on", supervisor.name))
+}
+
+/// The road a supervisor stands on now, which a run that follows it goes out on: the provider, model and
+/// effort its last turn went out on, else its order's first; none where it names no provider.
+fn supervisor_road(supervisor: &crate::supervisors::Supervisor) -> Option<Entry> {
   let stands = supervisor
     .last_mode
     .clone()
@@ -364,10 +373,7 @@ pub async fn fixed_road<C: ConnectionTrait>(
       model,
     });
 
-  stands
-    .or_else(|| supervisor.order.first().cloned())
-    .map(Some)
-    .ok_or_else(|| format!("The supervisor {} names no provider to go out on", supervisor.name))
+  stands.or_else(|| supervisor.order.first().cloned())
 }
 
 /// The request a token names.
@@ -443,9 +449,8 @@ pub async fn enqueue(
 
   let fixed = asked.wanted.fixed.as_ref();
 
-  // A road its caller names is one an agent of the role is on (docs/role-agents.md, 「Which agent a run
-  // takes」): a native call takes a seat and keeps its caller's road, and a role whose agents name no road
-  // goes out on its asking supervisor's.
+  // A road its caller names is one an agent of the role is on, or one an agent that names no road takes
+  // (docs/role-agents.md, 「Which agent a run takes」): a native call takes a seat and keeps its caller's road.
   if let Some(named) = fixed
     && source != NATIVE
   {
@@ -456,7 +461,12 @@ pub async fn enqueue(
       .map(|entry| format!("{} {}", entry.provider, entry.model))
       .collect();
 
-    if !roads.is_empty() && !role.agents.iter().any(|agent| agent.on(&named.provider, &named.model)) {
+    let follows = role.agents.iter().any(|agent| agent.enabled && agent.entry().is_none());
+
+    if !roads.is_empty()
+      && !follows
+      && !role.agents.iter().any(|agent| agent.on(&named.provider, &named.model))
+    {
       return Err(format!(
         "No agent of the {} role is on {} {}; its agents are on: {}",
         role.name,
@@ -574,34 +584,52 @@ pub struct Seat {
 
 /// The agents a request may be let in on (docs/role-agents.md, 「Which agent a run takes」), in the order it
 /// looks for a free one, each with whether its road answers now. A request that names a road takes the agents
-/// on that road, or the agents that name none where its road is its asking supervisor's; one that names none
-/// takes every agent of the role that is switched on and names a road.
+/// on that road, or the agents that name none where no agent of the role is on it; one that names none
+/// takes every agent of the role that is switched on, an agent that names a road on its own and an agent
+/// that names none on the road of the supervisor that asked the request, where one did.
 pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
   let on = role.agents.iter().filter(|agent| agent.enabled);
   let mut seats: Vec<Seat> = vec![];
 
   if held.provider.is_empty() {
-    for agent in on.filter(|agent| agent.entry().is_some()) {
-      let asked = Request {
-        provider: agent.provider.clone().unwrap_or_default(),
-        model: agent.model.clone().unwrap_or_default(),
-        effort: agent.effort.clone(),
-        ..held.clone()
-      };
-      // An agent on a road already judged shares its judgement: one road is asked of its provider once.
-      let judged = seats
+    // An agent that names no road takes the request on its asking supervisor's road, and takes none of a
+    // request no supervisor asked.
+    let followed = match (on.clone().any(|agent| agent.entry().is_none()), held.asked_by.as_deref()) {
+      (true, Some(name)) => crate::supervisors::named(&ground.db, name)
+        .await
+        .map_err(faulted)?
+        .as_ref()
+        .and_then(supervisor_road),
+      _ => None,
+    };
+    // One road is asked of its provider once, whichever agents stand on it.
+    let mut judged: Vec<(String, String, Result<(), String>)> = vec![];
+
+    for agent in on {
+      let Some(own) = agent.entry().or_else(|| followed.clone()) else { continue };
+      let known = judged
         .iter()
-        .find(|seat| role.agent(&seat.agent).is_some_and(|other| other.on(&asked.provider, &asked.model)))
-        .map(|seat| seat.road.clone());
-      let Some(own) = agent.entry() else { continue };
-      let road = match judged {
-        Some(road) => road.map(|_| own),
-        None => road_of(ground, &asked, role).await?.map(|_| own),
+        .find(|(provider, model, _)| *provider == own.provider && *model == own.model)
+        .map(|(_, _, answers)| answers.clone());
+      let answers = match known {
+        Some(answers) => answers,
+        None => {
+          let asked = Request {
+            provider: own.provider.clone(),
+            model: own.model.clone(),
+            effort: own.effort.clone(),
+            ..held.clone()
+          };
+          let answers = road_of(ground, &asked, role).await?.map(|_| ());
+
+          judged.push((own.provider.clone(), own.model.clone(), answers.clone()));
+          answers
+        }
       };
 
       seats.push(Seat {
         agent: agent.name.clone(),
-        road,
+        road: answers.map(|()| own),
       });
     }
 
@@ -828,7 +856,21 @@ async fn admission<C: ConnectionTrait>(
     return Ok((None, changed));
   }
 
-  let inherits = match in_the_way(db, &held.role, held.sequence, since).await? {
+  // A request ahead stands in this one's way only where it could take the agent this one is let in on.
+  let seat_of = role.agent(&agent);
+  let takes = |provider: &str, model: &str, asked_by: Option<&str>| {
+    let Some(seat) = seat_of else { return true };
+
+    match provider.is_empty() {
+      true => seat.entry().is_some() || asked_by.is_some(),
+      false => {
+        seat.on(provider, model)
+          || (seat.entry().is_none()
+            && !role.agents.iter().any(|other| other.enabled && other.on(provider, model)))
+      }
+    }
+  };
+  let inherits = match in_the_way(db, &held.role, held.sequence, since, Some(&takes)).await? {
     None => None,
     Some((first, Some(_), owner)) if owner == held.owner => Some(first),
     Some(_) => return Ok((None, changed)),
@@ -885,39 +927,61 @@ async fn foreground_waits<C: ConnectionTrait>(
   )
 }
 
+// Whether a waiting request could take the agent an asking request is let in on, judged by the provider and
+// the model it names, each empty where it names none, and the supervisor that asked it.
+type Takes<'a> = &'a (dyn Fn(&str, &str, Option<&str>) -> bool + Sync);
+
 // The first request of a role's line standing in the way of one asked for at `sequence`: one ahead of it that
 // is a reservation's slot, or whose owner has asked since that request's own last ask `since` — every one
 // ahead where it has not asked before. A request whose owner has not asked since, whose place key is taken
-// or whose road has no quota is passed over and keeps its place.
+// or whose road has no quota is passed over and keeps its place; so is one that could not take the agent the
+// asking request is let in on, as `takes` judges it by the road it names and the supervisor that asked it —
+// a reservation's slot holds a seat by count, so it stands in the way whatever the agent.
 pub(crate) async fn in_the_way<C: ConnectionTrait>(
   db: &C,
   role: &str,
   sequence: i64,
   since: Option<i64>,
+  takes: Option<Takes<'_>>,
 ) -> Result<Option<(String, Option<String>, String)>, Fault> {
-  let row = one(
+  let rows = all(
     db,
-    r#"SELECT "token", "reservation", "owner" FROM "role_slot_requests" AS "waiting"
+    r#"SELECT "token", "reservation", "owner", "provider", "model", "asked_by"
+       FROM "role_slot_requests" AS "waiting"
        WHERE "role" = $1 AND "state" = 'waiting' AND "class" = 'foreground' AND "held_for" IS NULL
          AND "sequence" < $2
          AND ("place_key" IS NULL OR NOT EXISTS (SELECT 1 FROM "role_slot_requests" AS "held"
            WHERE "held"."place_key" = "waiting"."place_key" AND "held"."state" = 'active'))
          AND ("reservation" IS NOT NULL OR $3::bigint IS NULL OR "asked" > $3::bigint)
-       ORDER BY "sequence" LIMIT 1"#,
+       ORDER BY "sequence""#,
     vec![role.into(), sequence.into(), since.into()],
   )
   .await
   .map_err(faulted)?;
 
-  row
-    .map(|row| {
-      Ok((
+  for row in rows {
+    let reservation: Option<String> = row.try_get("", "reservation").map_err(faulted)?;
+    let provider: Option<String> = row.try_get("", "provider").map_err(faulted)?;
+    let model: Option<String> = row.try_get("", "model").map_err(faulted)?;
+    let asked_by: Option<String> = row.try_get("", "asked_by").map_err(faulted)?;
+    let could = takes.is_none_or(|takes| {
+      takes(
+        provider.as_deref().unwrap_or_default(),
+        model.as_deref().unwrap_or_default(),
+        asked_by.as_deref(),
+      )
+    });
+
+    if reservation.is_some() || could {
+      return Ok(Some((
         row.try_get("", "token").map_err(faulted)?,
-        row.try_get("", "reservation").map_err(faulted)?,
+        reservation,
         row.try_get("", "owner").map_err(faulted)?,
-      ))
-    })
-    .transpose()
+      )));
+    }
+  }
+
+  Ok(None)
 }
 
 /// Why a supervisor's double asking a slot of `role` could wait with no end, where it could (docs/role-slots.md,
@@ -1250,7 +1314,7 @@ pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> R
     let since: Option<i64> = seat.try_get("", "asked").map_err(faulted)?;
     let sequence: i64 = seat.try_get("", "sequence").map_err(faulted)?;
 
-    if in_the_way(db, role, sequence, since).await?.is_some() || used(db, role).await? >= cap {
+    if in_the_way(db, role, sequence, since, None).await?.is_some() || used(db, role).await? >= cap {
       break;
     }
 

@@ -902,3 +902,98 @@ async fn a_role_is_given_its_agents_on_the_first_road_of_its_order_that_carries_
     ]
   );
 }
+
+// A role that holds an agent on a road of its own beside agents that name none (docs/role-agents.md, 「Which
+// agent a run takes」): a run a supervisor asks takes the first free agent in the one order, an agent that
+// names no road on that supervisor's road; a run no supervisor asks passes those agents over; and a run that
+// names a road no agent stands on is let in on an agent that names none.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
+           "last_model", "last_effort", "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 'deepseek',
+           'deepseek-flash', 'max', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  // The coder's second agent stands on a road of its own; its first and third name none.
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = 'deepseek', "model" = 'deepseek-flash', "effort" = 'low'
+         WHERE "name" = 'coder-02'"#,
+      vec![],
+    )
+    .await;
+
+  let ask =
+    async |key: &str, asked_by: Option<&'static str>, fixed: Option<agency_server::order::Entry>| {
+      let asked = Asked {
+        request_key: format!("mixed:{key}"),
+        owner: format!("mixed:{key}"),
+        wanted: Wanted {
+          role: "coder",
+          path: Some("/scratch/mixed"),
+          fixed,
+        },
+        asked_by,
+        ..Asked::default()
+      };
+      let held = enqueue(db, &ground.events, &asked, DELEGATE, async |_, _| Ok(())).await.unwrap();
+
+      acquire(&ground, &held).await.unwrap()
+    };
+  let seat = |request: &Option<dispatch::Request>| {
+    request
+      .as_ref()
+      .map(|let_in| (let_in.seat.clone().unwrap_or_default(), let_in.effort.clone()))
+  };
+
+  // No supervisor asked: the agents that name no road are passed over, and the run sits on the one that does.
+  let alone = ask("alone", None, None).await;
+
+  assert_eq!(seat(&alone), Some(("coder-02".to_owned(), Some("low".to_owned()))));
+  // A second run nobody asked waits for that agent, though two agents stand free.
+  assert_eq!(seat(&ask("alone-again", None, None).await), None);
+
+  // A supervisor's runs take the free agents in order, each on the supervisor's own road.
+  let first = ask("first", Some("chat"), None).await;
+  let third = ask("third", Some("chat"), None).await;
+
+  assert_eq!(seat(&first), Some(("coder-01".to_owned(), Some("max".to_owned()))));
+  assert_eq!(seat(&third), Some(("coder-03".to_owned(), Some("max".to_owned()))));
+  assert_eq!(first.as_ref().unwrap().model, "deepseek-flash");
+
+  // With coder-02 free again, a supervisor's run takes it on the agent's own road, in its place in the order.
+  assert!(finish(db, &ground.events, &alone.unwrap().token, "done", false).await.unwrap());
+  assert!(finish(db, &ground.events, &first.unwrap().token, "done", false).await.unwrap());
+
+  // The waiting run nobody asked is ahead in the line and takes coder-02; the supervisor's next takes coder-01.
+  let waited = dispatch::requests(db, &["waiting"]).await.unwrap();
+  let waited = acquire(&ground, &waited[0]).await.unwrap();
+
+  assert_eq!(seat(&waited), Some(("coder-02".to_owned(), Some("low".to_owned()))));
+  assert_eq!(
+    seat(&ask("again", Some("chat"), None).await),
+    Some(("coder-01".to_owned(), Some("max".to_owned())))
+  );
+
+  // A run naming a road no agent stands on is let in on an agent that names none; with none of those free it
+  // waits, and it is never refused while the role holds one.
+  let pinned = agency_server::order::Entry {
+    provider: "claude-code".to_owned(),
+    model: "claude-opus-5".to_owned(),
+    effort: Some("high".to_owned()),
+    thinking: None,
+    answer_tokens: None,
+  };
+
+  assert_eq!(seat(&ask("pinned", None, Some(pinned)).await), None);
+}
