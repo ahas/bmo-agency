@@ -244,8 +244,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   where the line was taken. A receiving BMO that answers the refusal marker is answered 409 `relay-refused`, a
   BMO in a turn 409 `relay-busy`, and a turn that failed 422 `relay-failed`; each is also recorded with the
   state it came to. An unknown receiving BMO is 404 `unknown-supervisor`, an unknown sender 422
-  `unknown-sender`, a line to itself 409 `relay-to-self`, and a `person` that is not the receiving BMO's
-  account 422 `person-mismatch`.
+  `unknown-sender`, a line to itself 409 `relay-to-self`, a line to another supervisor of the same person 422
+  `relay-to-supervisor` (the two meet in a room one of them answers, by the name that wakes the other), and a
+  `person` that is not the receiving BMO's account 422 `person-mismatch`.
 - **`GET /relays`** takes `agent`, the BMO's name, and an optional `limit`, and answers `items`, the relays it
   sent or received, the latest first: `id`, `from`, `to`, `room`, `kind`, `line`, `state`, `answer`,
   `reason` and `createdAt`.

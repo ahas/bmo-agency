@@ -60,10 +60,28 @@ async fn line_of(db: &sea_orm::DatabaseConnection, ask: Ask, kind: &str) -> Resu
     );
   }
 
-  if crate::supervisors::named(db, &from).await?.is_none() {
+  let sender = crate::supervisors::named(db, &from).await?;
+
+  if sender.is_none() {
     return Err(
       Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("No supervisor named {from} is held"))
         .with_code("unknown-sender"),
+    );
+  }
+
+  // Two supervisors of one person meet in a room, never through a relay: the line is said there, by the
+  // name that wakes the one addressed, and its answer is a reply under it.
+  if let (Some(sender), Some(target)) = (&sender, crate::supervisors::named(db, &to).await?)
+    && sender.owner_account == target.owner_account
+  {
+    return Err(
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!(
+          "{to} is another supervisor of the same person: say the line in a room it answers, by the name that wakes it"
+        ),
+      )
+      .with_code("relay-to-supervisor"),
     );
   }
 
