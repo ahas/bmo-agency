@@ -1,18 +1,22 @@
 # Provider order
 
-How a run gets its provider and its model. Every supervisor and every role carries a provider order of
-its own, which decides where a run whose model is left to the row goes: the row's active provider. That is
-the provider the owner forced on the row where one stands, else the first provider of its order that has
-quota and can answer now; a run on the order's choice moves down the order on a limit or a failure, and
-comes back to the top at its next run. There is no order shared by everything, no level of work standing
-between a role and its model, and no limit on how many runs go out on one provider at once. How the Claude Code provider walks its own accounts is `docs/cache-fallback.md`; how
+How a run gets its provider and its model. Every supervisor carries a provider order of its own, which
+decides where a turn whose model is left to the row goes: the row's active provider. That is the provider
+the owner forced on the row where one stands, else the first provider of its order that has quota and can
+answer now; a turn on the order's choice moves down the order on a limit or a failure, and comes back to the
+top at its next turn. A role carries no order: each of its agents names one road, and a run of the role goes
+out on the road of the agent it is let in on (`docs/role-agents.md`). Where a run reads its role's roads as
+an order — a job choosing its road before it asks its slot — the order is the roads of the role's agents
+that are switched on, each once, the agents that carry no run first, with no forced provider and the
+policy's share. There is no order shared by everything, no level of work standing between a role and its
+model, and no limit on how many runs go out on one provider at once. How the Claude Code provider walks its own accounts is `docs/cache-fallback.md`; how
 quota is read is `docs/usage-windows.md`.
 
 ## What an order is
 
-- **An order is a list of providers, each once,** held on its supervisor's or its role's row
-  (`docs/supervisors.md`, `docs/agent-roles.md`). Its first entry is where the row's runs go while it has
-  quota; every later entry is where they go when the ones above it have none.
+- **An order is a list of providers, each once,** held on its supervisor's row (`docs/supervisors.md`). Its
+  first entry is where the row's turns go while it has quota; every later entry is where they go when the
+  ones above it have none.
 - **Each entry names the provider and what the row runs on there:**
   - the model, one the provider holds (「Models a provider holds」 below);
   - the effort, a level of the one scale `low`, `medium`, `high`, `xhigh` and `max`, or none for the
@@ -25,8 +29,8 @@ quota is read is `docs/usage-windows.md`.
   a fraction of its quota, 1% where the row sets none.
 - **An order names only providers agency carries and whose program carries the row's line** (the chat line
   for a supervisor, the role's own line for a role); a write naming another is refused with the provider and
-  why. A supervisor's order is never empty. A role's may be: a role whose order is empty has no road of its
-  own and follows the supervisor that asks it (「Runs that do not walk their own role's order」 below).
+  why. A supervisor's order is never empty. A role whose agents name no road has no road of its own and
+  follows the supervisor that asks it (「Runs that do not walk their own role's order」 below).
 
 ## Quota: what a provider has left
 
@@ -59,17 +63,16 @@ quota is read is `docs/usage-windows.md`.
   thinking default of the gateway member or the registration the model is, which is read beside the model
   (「Models a provider holds」); a model of the Claude CLI's catalogue states none, and its thinking is the
   line's own.
-- **That provider is the row's active provider while none is forced.** Every run of a role goes out on the
-  role's active provider at that moment; a role's runs never spread over several providers by count, since
-  no provider carries a concurrency limit of its own and the role's cap is the only bound
-  (`docs/role-slots.md`).
+- **That provider is the row's active provider while none is forced.** A role's runs spread over its agents'
+  roads as its agents are free: no provider carries a concurrency limit of its own, and the role's agents are
+  the only bound (`docs/role-slots.md`).
 - **The choice is made as the run starts and kept for the run.** A run already going finishes where it went
   out; a change of the order, the share or the quota holds from the next run.
 
 ## A provider the owner forces
 
-- **The owner may force a supervisor's or a role's active provider:** a provider and one model of it, held
-  on the row beside its order (`active`, `docs/api.md`, 「supervisors」 and 「roles」). It is a provider agency
+- **The owner may force a supervisor's active provider:** a provider and one model of it, held on the row
+  beside its order (`active`, `docs/api.md`, 「supervisors」). A role holds none: its agents' roads are fixed. It is a provider agency
   carries whose program carries the row's line, on a model it holds, judged as an order's entry is; it need
   not stand in the order.
 - **While it stands it is the row's active provider.** Every run of the row whose model is left to the row
@@ -143,20 +146,22 @@ quota is read is `docs/usage-windows.md`.
 ## Runs that do not walk their own role's order
 
 - **An item's own model,** its `model` label other than `auto`, carries that item's job instead of its
-  role's active provider and instead of its repository's pin, and the job waits while it has no quota or
+  role's agents' roads and instead of its repository's pin, and the job waits while it has no quota or
   cannot answer; nothing falls back (`docs/repositories.md`, 「A model an item names」).
-- **A repository's pinned model** carries every job in the repository whose item names no model and whose
-  role has no forced provider, instead of the role's order, and its work waits while the pin has no quota or
-  cannot answer; nothing falls back (`docs/repositories.md`, 「A pinned model」).
-- **A job's provider and model are chosen by the first that stands** of its item's `model`, its role's
-  forced provider, its repository's pin and its role's order, and the job says which.
-- **A run of a role whose order is empty** — the supervisor's double, the `doppelganger` role, as seeded —
-  goes out on the asking supervisor's own provider, model and effort as they stand when it is asked, and
-  waits, never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An order
-  the owner sets on the role stands over that, and its runs then walk that order.
+- **A repository's pinned model** carries every job in the repository whose item names no model, instead of
+  the role's agents' roads, and its work waits while the pin has no quota or cannot answer; nothing falls
+  back (`docs/repositories.md`, 「A pinned model」).
+- **A job's provider and model are chosen by the first that stands** of its item's `model`, its repository's
+  pin and its role's agents' roads, and the job says which. The road it chose is one an agent of its role is
+  on, or its slot is refused with the roads the role's agents are on (`docs/role-agents.md`, 「Which agent a
+  run takes」).
+- **A run of a role whose agents name no road** — the supervisor's double, the `doppelganger` role, as
+  seeded — goes out on the asking supervisor's own provider, model and effort as they stand when it is asked,
+  and waits, never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An
+  agent the owner sets a road goes out on that road instead.
 - **A native co-worker** stands inside its caller's program, so it goes out on the provider that program
-  stands on, at the model and effort the co-worker role's order names for that provider; where the role's
-  order holds no entry for that provider, the call is refused and the caller does that part itself
+  stands on, at the model and effort of the co-worker role's first agent on that provider; where the role
+  has no agent on that provider, the call is refused and the caller does that part itself
   (`docs/role-slots.md`, 「Native co-worker slots」).
 - **A session a caller starts naming a provider and a model** goes out on exactly that, as a named road: the
   provider must carry the line and hold the model, else it cannot answer, and the run never moves off it.
