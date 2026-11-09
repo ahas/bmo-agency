@@ -454,8 +454,9 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
     }
   }
 
+  // A role names it where an agent of the role stands on it, switched on or off.
   for role in crate::agent_roles::every(db).await? {
-    if names_it(&role.order) {
+    if role.agents.iter().any(|agent| agent.on(PROVIDER, name)) {
       used.push(format!("role {}", role.name));
     }
   }

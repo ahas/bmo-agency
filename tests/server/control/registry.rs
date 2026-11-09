@@ -134,3 +134,27 @@ async fn role_files_of(db: &sea_orm::DatabaseConnection) -> bool {
     .addresses[0]
     .role_files
 }
+
+// A role names a registration where any agent of it stands on it (docs/own-llm.md, 「Where it is set」): two
+// agents of one role on two registrations name both, and an agent switched off names its own still.
+#[tokio::test]
+async fn a_role_names_every_registration_an_agent_of_it_stands_on() {
+  let scratch = crate::support::scratch::Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  crate::support::rows::seats(db, "worker", &[("registered", "model-a"), ("registered", "model-b")]).await;
+  scratch
+    .run(r#"UPDATE "role_agents" SET "enabled" = 0 WHERE "name" = 'worker-02'"#, vec![])
+    .await;
+
+  for model in ["model-a", "model-b"] {
+    assert!(
+      referrers(db, model).await.unwrap().contains(&"role worker".to_owned()),
+      "{model} is named by the worker role"
+    );
+  }
+
+  assert!(!referrers(db, "model-c").await.unwrap().contains(&"role worker".to_owned()));
+}

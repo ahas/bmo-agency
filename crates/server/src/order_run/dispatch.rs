@@ -280,8 +280,8 @@ pub struct Asked<'a> {
   pub asked_by: Option<&'a str>,
 }
 
-/// The road a caller names for its slot: the provider and model, at the effort and thinking the role's order
-/// names for that provider.
+/// The road a caller names for its slot: the provider and model, at the effort and thinking the role's agent
+/// on that road names, else its first agent on that provider.
 pub async fn named_road<C: ConnectionTrait>(
   db: &C,
   role: &str,
@@ -289,7 +289,7 @@ pub async fn named_road<C: ConnectionTrait>(
   model: &str,
 ) -> Result<Entry, Fault> {
   let held = role_of(db, role).await?;
-  let own = held.order.entry(provider);
+  let own = held.order.entry_of(provider, model);
 
   Ok(Entry {
     provider: provider.to_owned(),
@@ -559,8 +559,11 @@ pub async fn road_of(
     provider: held.provider.clone(),
     model: held.model.clone(),
     effort: held.effort.clone(),
-    thinking: role.order.entry(&held.provider).and_then(|entry| entry.thinking.clone()),
-    answer_tokens: role.order.entry(&held.provider).and_then(|entry| entry.answer_tokens),
+    thinking: role
+      .order
+      .entry_of(&held.provider, &held.model)
+      .and_then(|entry| entry.thinking.clone()),
+    answer_tokens: role.order.entry_of(&held.provider, &held.model).and_then(|entry| entry.answer_tokens),
   });
   let ask = Ask {
     fixed: fixed.as_ref(),

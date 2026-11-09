@@ -211,8 +211,8 @@ never the model's name.
     such an address.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
-- **What a removal is refused for:** a registration an order's entry — a supervisor's or a role's — a
-  repository's pin or a model catalogue entry names is not removed, and the refusal names each of them
+- **What a removal is refused for:** a registration a supervisor's order's entry, an agent of a role —
+  switched on or off — a repository's pin or a model catalogue entry names is not removed, and the refusal names each of them
   (`docs/provider-order.md`, 「Models a provider holds」); each of those answers for itself whether it
   names the registration. The last address of a
   registration something names is not removed either.

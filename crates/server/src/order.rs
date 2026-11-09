@@ -77,9 +77,10 @@ impl Order {
 
   /// The entry a run goes out on where its provider and model are fixed over the order — an item's model, a
   /// forced provider or a repository's pin: that provider and model, at the effort, thinking and answer
-  /// ceiling the order's entry for the provider names where it holds one, else the provider's own.
+  /// ceiling the order's entry for that road names where it holds one, else its entry for the provider, else
+  /// the provider's own.
   pub fn entry_on(&self, fixed: &Pin) -> Entry {
-    let own = self.entry(&fixed.provider);
+    let own = self.entry_of(&fixed.provider, &fixed.model);
 
     Entry {
       provider: fixed.provider.clone(),
@@ -93,6 +94,16 @@ impl Order {
   /// The entry of a provider, where the order names it.
   pub fn entry(&self, provider: &str) -> Option<&Entry> {
     self.entries.iter().find(|entry| entry.provider == provider)
+  }
+
+  /// The entry of a road, a provider and one model of it, where the order names it; else the entry of the
+  /// provider. A role's roads are its agents', and several of them may stand on one provider.
+  pub fn entry_of(&self, provider: &str, model: &str) -> Option<&Entry> {
+    self
+      .entries
+      .iter()
+      .find(|entry| entry.provider == provider && entry.model == model)
+      .or_else(|| self.entry(provider))
   }
 
   /// Whether the order is empty, so the row's runs follow the supervisor that asks them.
