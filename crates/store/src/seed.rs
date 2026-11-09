@@ -274,6 +274,17 @@ async fn role_seed<C: ConnectionTrait>(
     vec![role.name.clone().into()],
   )
   .await?;
+  // Its agents take the sessions setting, the compaction threshold and the callability its declaration
+  // states (docs/role-agents.md, 「What an agent row holds」).
+  run(
+    db,
+    &format!(
+      r#"{} AND a."role" = $1"#,
+      crate::migration::m20261204_000001_role_agent_settings::SETTINGS_OF_ROLES.trim_end()
+    ),
+    vec![role.name.clone().into()],
+  )
+  .await?;
 
   Ok(())
 }

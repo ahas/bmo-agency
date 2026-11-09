@@ -272,8 +272,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   log keeps; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code` (the
   name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `agents`, its agents in the
   order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
-  them are switched on; `sessions`, `keep` or `fresh`; `foldRatio`, its compaction threshold; `callable`,
-  whether a run may call it as a co-worker; `followsSupervisor`, true while none of its agents names a road,
+  them are switched on; `followsSupervisor`, true while none of its agents names a road,
   so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A delegated task」)
   and a screen shows its road as the supervisor's; and what stands of it now: `running` and `waiting`, how
   many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
@@ -282,13 +281,13 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
   bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
   name.
-- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description`,
-  `sessions` (`keep` where it names none), `foldRatio` and `callable` (false where it names none), and
+- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt` and `description`, and
   answers 201 with the role, which holds no agent yet. It is refused 422 `unprocessable-entity`, with one
   English sentence and nothing written, for a name out of the roles policy's pattern or past its length or
   already held; an empty label or one past the policy's length; a bundle the policy does not declare; a line
-  agency does not carry; a prompt or description that is not text; `sessions` other than `keep` or `fresh`;
-  and `order`, `quotaShare`, `maxConcurrent` or `active`, which a role does not hold.
+  agency does not carry; a prompt or description that is not text;
+  and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions`, `foldRatio` or `callable`, none of which
+  a role holds: each is its agent's (「role agents」 below).
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
   `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
@@ -296,7 +295,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
   `name`, `role`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
-  `keepsCache`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
+  `keepsCache`, `sessions`, `callable`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
   names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,

@@ -3033,9 +3033,6 @@ pub struct Role {
   pub agents: Vec<RoleAgent>,
   /// the most of its runs that go at once: how many of its agents are switched on
   pub max_concurrent: i64,
-  pub sessions: RoleSessions,
-  pub fold_ratio: f64,
-  pub callable: bool,
   /// Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
   /// screen shows its road as the supervisor's.
   #[serde(default)]
@@ -3069,12 +3066,6 @@ pub struct RoleAsk {
   pub prompt: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub description: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub sessions: Option<RoleSessions>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub fold_ratio: Option<f64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub callable: Option<bool>,
 }
 
 /// RoleChange: the fields a change of a role names; a prompt or a description given as null clears it.
@@ -3091,12 +3082,6 @@ pub struct RoleChange {
   pub prompt: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub description: Option<Option<String>>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub sessions: Option<RoleSessions>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub fold_ratio: Option<f64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub callable: Option<bool>,
 }
 
 /// RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
@@ -3119,7 +3104,11 @@ pub struct RoleAgent {
   pub position: i64,
   /// whether the session its last answered run kept is pinged before its cache cools
   pub keeps_cache: bool,
-  /// its compaction threshold, or null where its role's stands
+  /// whether its runs keep their sessions
+  pub sessions: RoleSessions,
+  /// whether a run of another role may call it as a co-worker
+  pub callable: bool,
+  /// its compaction threshold, or null where the ratio its provider declares stands
   pub fold_ratio: Option<f64>,
   /// what it lays over its role's preset, each null where the role's own stands
   pub prompt: Option<String>,
@@ -3175,6 +3164,10 @@ pub struct RoleAgentChange {
   pub position: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub keeps_cache: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sessions: Option<RoleSessions>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub callable: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub fold_ratio: Option<Option<f64>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]

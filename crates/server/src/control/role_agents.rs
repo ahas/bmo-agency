@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
+use policy::control_words::CONTROL_WORDS;
 use policy::roles::ROLES;
 use regex::Regex;
 use serde_json::{Value, json};
@@ -106,6 +107,19 @@ async fn judged(
 
   if let Some(position) = body.get("position") {
     agent.position = whole(position).ok_or_else(|| unprocessable("position: a whole number."))?;
+  }
+
+  if let Some(sessions) = body.get("sessions") {
+    agent.sessions = sessions
+      .as_str()
+      .and_then(policy::roles::Sessions::of)
+      .ok_or_else(|| unprocessable(CONTROL_WORDS.agent_roles.sessions.as_str()))?;
+  }
+
+  if let Some(callable) = body.get("callable") {
+    agent.callable = callable
+      .as_bool()
+      .ok_or_else(|| unprocessable(CONTROL_WORDS.agent_roles.callable.as_str()))?;
   }
 
   if let Some(keeps) = body.get("keepsCache") {
@@ -258,6 +272,8 @@ impl Route for RoleAgentCreate {
       enabled: true,
       position: last + 1,
       keeps_cache: false,
+      sessions: policy::roles::Sessions::default(),
+      callable: false,
       fold_ratio: None,
       prompt: None,
       bundles: None,

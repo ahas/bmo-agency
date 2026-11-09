@@ -24,9 +24,9 @@ seeds. The other crates and the server reach the store only through it.
     object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
-    the bundles it gives as a JSON list, its line, its provider order as a JSON list with its quota share,
-    its cap, its `sessions`, `keep` or `fresh`, its compaction threshold, whether it may be called as a
-    co-worker, the place a screen lists it at, and when it was made and last changed in epoch milliseconds
+    the bundles it gives as a JSON list, its line, what its declaration gave the agents it was seeded with —
+    a road list, a count, a sessions setting, a compaction threshold and a callability, which nothing reads
+    once its agents stand — the place a screen lists it at, and when it was made and last changed in epoch milliseconds
     — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a
     role row holds」);
   - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
@@ -64,7 +64,8 @@ seeds. The other crates and the server reach the store only through it.
     provider states none (`docs/usage-windows.md`, 「Balances」);
   - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the provider and model
     its runs go out on or none, the effort, thinking and answer ceiling there, whether it is switched on, its
-    place among its role's, whether its kept session is kept warm, its compaction threshold or none, and the prompt,
+    place among its role's, whether its kept session is kept warm, whether its runs keep their sessions, whether it may be called as a
+    co-worker, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the agent it was let in on,

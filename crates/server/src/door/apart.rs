@@ -112,7 +112,7 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     .herdr
     .clone()
     .ok_or_else(|| format!("{}: this machine names no herdr to open the run's pane on", apart.line))?;
-  let kept = if apart_sessions::setting(&ground.db, apart.role).await.keeps() {
+  let kept = if apart_sessions::setting(&ground.db, apart.role, &apart.command.cwd).await.keeps() {
     Some(apart_sessions::SessionKey {
       role: apart.role.to_owned(),
       path: apart.command.cwd.clone(),

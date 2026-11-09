@@ -298,7 +298,8 @@ statements below about either are kept for a rollback to the road a deployment l
     program compacts at its own default share of the model's window while the job goes on;
     compacting a large session early costs more than reading its cached context again;
   - between turns, a run folds the session it keeps once its turn has left the session at or past its
-    role's compaction threshold, the row's `foldRatio`, read afresh as the run ends — the rule a
+    agent's compaction threshold, the agent row's `foldRatio`, or the ratio its provider declares where the
+    agent sets none, read afresh as the run ends — the rule a
     supervisor's session is folded by. The fold is one more turn into the same session on the same command,
     the program's fold word, made by the run before it gives its slot back, so it runs inside the run's slot
     and holds the kept session while it goes; a fold that went through leaves the session kept and valid,

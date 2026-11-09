@@ -123,9 +123,6 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "line": role.line,
     "agents": role.agents,
     "maxConcurrent": role.max_concurrent,
-    "sessions": role.sessions.word(),
-    "foldRatio": role.fold_ratio,
-    "callable": role.callable,
     "followsSupervisor": role.order.follows_supervisor(),
   });
 
@@ -150,8 +147,9 @@ struct Fields {
   callable: Option<bool>,
 }
 
-// What a role's row no longer holds: a body naming one is told where it stands now.
-const AGENTS_FIELDS: [&str; 4] = ["order", "quotaShare", "maxConcurrent", "active"];
+// What a role's row does not hold: a body naming one is told where it stands.
+const AGENTS_FIELDS: [&str; 7] =
+  ["order", "quotaShare", "maxConcurrent", "active", "sessions", "foldRatio", "callable"];
 
 fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused> {
   match value {
@@ -202,10 +200,12 @@ impl Fields {
       }
     }
 
-    // A role holds no order, no cap and no forced provider: its agents do (docs/role-agents.md).
+    // A role holds no road, no cap, no sessions setting, no threshold and no callability: its agents do
+    // (docs/role-agents.md).
     if let Some(named) = AGENTS_FIELDS.iter().find(|field| body.get(**field).is_some()) {
       return Err(unprocessable(format!(
-        "{named}: A role holds no order, cap or forced provider. Its agents hold its roads and their number is          its cap: add or change them at /role-agents."
+        "{named}: A role holds no order, cap, forced provider, sessions setting, compaction threshold or \
+         callability. Each is its agent's: add or change the agents at /role-agents."
       )));
     }
 
@@ -215,27 +215,6 @@ impl Fields {
 
     if let Some(description) = body.get("description") {
       fields.description = Some(optional_text(description, &words.description)?);
-    }
-
-    if let Some(sessions) = body.get("sessions") {
-      match sessions.as_str().and_then(Sessions::of) {
-        Some(sessions) => fields.sessions = Some(sessions),
-        None => return Err(unprocessable(words.sessions.as_str())),
-      }
-    }
-
-    if let Some(ratio) = body.get("foldRatio") {
-      match ratio.as_f64().filter(|ratio| *ratio > 0.0 && *ratio <= 1.0) {
-        Some(ratio) => fields.fold_ratio = Some(ratio),
-        None => return Err(unprocessable(words.fold_ratio.as_str())),
-      }
-    }
-
-    if let Some(callable) = body.get("callable") {
-      match callable.as_bool() {
-        Some(callable) => fields.callable = Some(callable),
-        None => return Err(unprocessable(words.callable.as_str())),
-      }
     }
 
     Ok(fields)

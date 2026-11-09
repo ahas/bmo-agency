@@ -37,8 +37,8 @@ pub fn worker_session_full(context_ratio: Option<f64>, fold_ratio: f64) -> bool 
 
 /// The compaction threshold of a job's session (docs/sessions.md, 「Session compaction」): the one the agent
 /// the job is let in on sets, where it sets one — the seat of the slot the job holds at `path`, the folder it
-/// works in — else its role's, and the provider's declared default where the store cannot be read, since a
-/// fold is upkeep that fails nothing.
+/// works in — else the ratio its provider declares, which also stands where the store cannot be read, since
+/// a fold is upkeep that fails nothing.
 pub async fn worker_fold_ratio(
   ground: &Ground,
   provider: &str,
@@ -47,7 +47,7 @@ pub async fn worker_fold_ratio(
 ) -> f64 {
   let seat = crate::role_agents::seated_at(&ground.db, role, path).await.unwrap_or_else(|why| {
     eprintln!(
-      "agency: the agent at {} did not read, its role's threshold stands: {why}",
+      "agency: the agent at {} did not read, its provider's threshold stands: {why}",
       path.unwrap_or("no path")
     );
 
@@ -58,24 +58,10 @@ pub async fn worker_fold_ratio(
     return own;
   }
 
-  // A job let in on an agent runs as that agent's role; one whose seat is not told runs as the job role.
-  let seated = seat.map(|agent| agent.role);
-  let role = role.or(seated.as_deref()).unwrap_or_else(|| crate::agent_roles::job_role());
-
-  match crate::agent_roles::named(&ground.db, role).await {
-    Ok(Some(role)) => role.fold_ratio,
-    held => {
-      if let Err(why) = held {
-        eprintln!(
-          "agency: the compaction threshold of {role} did not read, {provider}'s own stands: {why}"
-        );
-      }
-
-      harness_providers::provider(provider)
-        .and_then(|provider| provider.declared().fold_ratio)
-        .unwrap_or(crate::order::DEFAULT_FOLD_RATIO)
-    }
-  }
+  // An agent that sets none, and a job whose agent cannot be told, folds at the ratio its provider declares.
+  harness_providers::provider(provider)
+    .and_then(|provider| provider.declared().fold_ratio)
+    .unwrap_or(crate::order::DEFAULT_FOLD_RATIO)
 }
 
 // What the program answers in its own words for a session with too little in it to fold.

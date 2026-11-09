@@ -3783,10 +3783,6 @@ export interface components {
              * @description the most of its runs that go at once: how many of its agents are switched on
              */
             maxConcurrent: number;
-            sessions: components["schemas"]["RoleSessions"];
-            /** Format: double */
-            foldRatio: number;
-            callable: boolean;
             /**
              * @description Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
              *     screen shows its road as the supervisor's.
@@ -3834,9 +3830,13 @@ export interface components {
             position: number;
             /** @description whether the session its last answered run kept is pinged before its cache cools */
             keepsCache: boolean;
+            /** @description whether its runs keep their sessions */
+            sessions: components["schemas"]["RoleSessions"];
+            /** @description whether a run of another role may call it as a co-worker */
+            callable: boolean;
             /**
              * Format: double
-             * @description its compaction threshold, or null where its role's stands
+             * @description its compaction threshold, or null where the ratio its provider declares stands
              */
             foldRatio: number | null;
             /** @description what it lays over its role's preset, each null where the role's own stands */
@@ -3873,10 +3873,6 @@ export interface components {
             line: string;
             prompt?: string | null;
             description?: string | null;
-            sessions?: components["schemas"]["RoleSessions"] | null;
-            /** Format: double */
-            foldRatio?: number | null;
-            callable?: boolean | null;
         };
         /** @description RoleChange: the fields a change of a role names; a prompt or a description given as null clears it. */
         RoleChange: {
@@ -3885,10 +3881,6 @@ export interface components {
             line?: string | null;
             prompt?: string | null;
             description?: string | null;
-            sessions?: components["schemas"]["RoleSessions"] | null;
-            /** Format: double */
-            foldRatio?: number | null;
-            callable?: boolean | null;
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -3952,6 +3944,8 @@ export interface components {
             /** Format: int64 */
             position?: number | null;
             keepsCache?: boolean | null;
+            sessions?: components["schemas"]["RoleSessions"] | null;
+            callable?: boolean | null;
             /** Format: double */
             foldRatio?: number | null;
             prompt?: string | null;
@@ -3973,6 +3967,8 @@ export interface components {
             /** Format: int64 */
             position?: number | null;
             keepsCache?: boolean | null;
+            sessions?: components["schemas"]["RoleSessions"] | null;
+            callable?: boolean | null;
             /** Format: double */
             foldRatio?: number | null;
             prompt?: string | null;

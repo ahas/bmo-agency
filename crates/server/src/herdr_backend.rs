@@ -2457,7 +2457,7 @@ impl HerdrSessions {
     }
 
     // The session the role keeps at this folder on this provider and model, where it keeps sessions.
-    let key = if crate::apart_sessions::setting(&ground.db, role).await.keeps() {
+    let key = if crate::apart_sessions::setting(&ground.db, role, &composed.cwd).await.keeps() {
       Some(crate::apart_sessions::SessionKey {
         role: role.to_owned(),
         path: composed.cwd.clone(),

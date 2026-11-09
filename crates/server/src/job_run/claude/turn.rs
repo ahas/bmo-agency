@@ -727,10 +727,10 @@ impl Attempting<'_, '_> {
     let kept = records::resumable(&ground.db, worker, &work.model, &recorded, ttl)
       .await
       .map_err(refused)?;
-    // A job whose role keeps no sessions opens a new one for a turn that leaves the choice to agency
-    // (docs/agent-roles.md, 「A role's sessions」).
-    let kept = match crate::agent_roles::sessions_of(&ground.db, crate::agent_roles::job_role()).await {
-      Ok(Some(sessions)) if !sessions.keeps() && matches!(work.resume, Resume::Auto) => None,
+    // A job whose agent keeps no sessions opens a new one for a turn that leaves the choice to agency
+    // (docs/agent-roles.md, 「A role's sessions」); a job whose agent cannot be told resumes as it would.
+    let kept = match crate::role_agents::seated_at(&ground.db, None, Some(&work.cwd)).await {
+      Ok(Some(agent)) if !agent.sessions.keeps() && matches!(work.resume, Resume::Auto) => None,
       _ => kept,
     };
     let resume = match choose(&work.resume, kept) {

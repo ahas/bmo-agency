@@ -72,8 +72,24 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
       ("worker-03", "deepseek-flash")
     ]
   );
-  assert_eq!(role(&listing, "scout").unwrap()["callable"], true);
-  assert_eq!(role(&listing, "producer").unwrap()["callable"], false);
+  // Whether a run keeps its session, the share its session is folded at and whether it may be called are
+  // each agent's own, given by its role's declaration and answered on no role.
+  let settings = |name: &str, field: &str| -> Vec<Value> {
+    role(&listing, name).unwrap()["agents"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|agent| agent[field].clone())
+      .collect()
+  };
+
+  assert!(settings("scout", "callable").iter().all(|callable| callable == true));
+  assert!(settings("producer", "callable").iter().all(|callable| callable == false));
+  assert!(settings("worker", "sessions").iter().all(|sessions| sessions == "keep"));
+  assert!(settings("worker", "foldRatio").iter().all(Value::is_number));
+  for field in ["sessions", "foldRatio", "callable"] {
+    assert_eq!(role(&listing, "worker").unwrap().get(field), None, "{field}");
+  }
 
   // The coder is seeded beside the worker, on the worker line, with the same bundles and as many agents, each
   // on no road: its road follows the supervisor that asks it until the owner sets an agent one.
@@ -91,7 +107,6 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     "{coder}"
   );
   assert_eq!(coder["followsSupervisor"], true, "{coder}");
-  assert_eq!(coder["sessions"], "keep", "{coder}");
 
   let coder_prompt =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/coder.md")).unwrap();
@@ -109,7 +124,9 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     json!({ "name": "reviewer", "label": "Reviewer", "line": "worker" }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": ["web.everything"], "line": "worker" }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "nowhere" }),
-    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "sessions": "sometimes" }),
+    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "sessions": "keep" }),
+    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "foldRatio": 0.5 }),
+    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "callable": true }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "maxConcurrent": 1 }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker",
       "order": [{ "provider": "claude-code", "model": "claude-sonnet-4-6" }] }),
@@ -138,24 +155,24 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(status, 201, "{added}");
   assert_eq!(added["bundles"].as_array().unwrap().len(), 2);
   assert_eq!((&added["maxConcurrent"], &added["agents"]), (&json!(0), &json!([])));
-  assert_eq!(added["sessions"], "keep");
 
   // A change names only what it changes.
   let (status, changed) = ask(
     reqwest::Method::PATCH,
     port,
     "/roles/reviewer",
-    Some(json!({ "label": "Checker of work", "prompt": null, "sessions": "fresh" })),
+    Some(json!({ "label": "Checker of work", "prompt": null })),
   )
   .await;
   assert_eq!(status, 200, "{changed}");
   assert_eq!(changed["label"], "Checker of work");
   assert_eq!(changed["bundles"].as_array().unwrap().len(), 2);
   assert_eq!(changed["prompt"], Value::Null);
-  assert_eq!(changed["sessions"], "fresh");
 
   for body in [
-    json!({ "sessions": "never" }),
+    json!({ "sessions": "fresh" }),
+    json!({ "foldRatio": 0.5 }),
+    json!({ "callable": true }),
     json!({ "bundles": ["web.nothing"] }),
     json!({ "maxConcurrent": 5 }),
     json!({ "active": { "provider": "claude-code", "model": "claude-opus-5" } }),
@@ -216,10 +233,22 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     reqwest::Method::PATCH,
     port,
     "/role-agents/reviewer-local",
-    Some(json!({ "enabled": false, "prompt": null, "keepsCache": true, "bundles": ["web.read"] })),
+    Some(json!({
+      "enabled": false, "prompt": null, "keepsCache": true, "bundles": ["web.read"],
+      "sessions": "fresh", "callable": true, "foldRatio": 0.5
+    })),
   )
   .await;
   assert_eq!(status, 200, "{off}");
+  // An agent added with none named keeps its sessions, may not be called and sets no threshold.
+  assert_eq!(
+    (&second["sessions"], &second["callable"], &second["foldRatio"]),
+    (&json!("keep"), &json!(false), &Value::Null)
+  );
+  assert_eq!(
+    (&off["sessions"], &off["callable"], &off["foldRatio"]),
+    (&json!("fresh"), &json!(true), &json!(0.5))
+  );
   assert_eq!(
     (&off["enabled"], &off["prompt"], &off["keepsCache"], &off["bundles"]),
     (&json!(false), &Value::Null, &json!(true), &json!(["web.read"])),
@@ -252,6 +281,8 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     (json!({ "role": "reviewer", "provider": "nowhere", "model": "x" }), 422),
     (json!({ "role": "reviewer", "bundles": ["web.nothing"] }), 422),
     (json!({ "role": "reviewer", "skills": ["no-such-skill"] }), 422),
+    (json!({ "role": "reviewer", "sessions": "sometimes" }), 422),
+    (json!({ "role": "reviewer", "callable": "yes" }), 422),
   ] {
     let (status, said) = ask(reqwest::Method::POST, port, "/role-agents", Some(body.clone())).await;
 

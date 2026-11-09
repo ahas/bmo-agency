@@ -29,6 +29,8 @@ fn agent(enabled: bool, keeps_cache: bool) -> RoleAgent {
     enabled,
     position: 1,
     keeps_cache,
+    sessions: policy::roles::Sessions::Keep,
+    callable: false,
     fold_ratio: None,
     prompt: None,
     bundles: None,

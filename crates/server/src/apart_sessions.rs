@@ -19,13 +19,14 @@ use crate::worker_session::warmth::{set_aside_lifetime_ms, warm};
 const OPENS: &str = "--session-id";
 const SYSTEM_PROMPT_FILE: &str = "--system-prompt-file";
 
-/// The sessions setting a role's run opens its session by; a role the store does not hold keeps nothing.
-pub async fn setting<C: ConnectionTrait>(db: &C, role: &str) -> Sessions {
-  match agent_roles::sessions_of(db, role).await {
-    Ok(sessions) => sessions.unwrap_or(Sessions::Fresh),
+/// The sessions setting a role's run opens its session by: its agent's, found by the folder the run works in
+/// (docs/role-agents.md, 「What a run reads off its agent」); a run whose agent cannot be told keeps nothing.
+pub async fn setting<C: ConnectionTrait>(db: &C, role: &str, path: &str) -> Sessions {
+  match crate::role_agents::sessions_at(db, role, Some(path)).await {
+    Ok(sessions) => sessions,
     Err(why) => {
       eprintln!(
-        "{role}: the role's sessions setting could not be read, so its run opens a new one: {why:?}"
+        "{role}: its agent's sessions setting could not be read, so its run opens a new one: {why:?}"
       );
 
       Sessions::Fresh
@@ -235,7 +236,19 @@ pub async fn take_for_fold<C: ConnectionTrait>(
     .await?
     .and_then(|agent| agent.fold_ratio);
 
-  if !fold_due(context_share, own.unwrap_or(role.fold_ratio)) {
+  // An agent that sets none folds at the ratio the session's provider declares.
+  let declared = one(
+    db,
+    r#"SELECT "provider" FROM "role_sessions" WHERE "session" = $1 AND "role" = $2 ORDER BY "id" DESC LIMIT 1"#,
+    vec![session.into(), role.name.as_str().into()],
+  )
+  .await?
+  .map(|row| row.try_get::<String>("", "provider"))
+  .transpose()?
+  .and_then(|provider| harness_providers::provider(&provider).and_then(|held| held.declared().fold_ratio))
+  .unwrap_or(crate::order::DEFAULT_FOLD_RATIO);
+
+  if !fold_due(context_share, own.unwrap_or(declared)) {
     return Ok(None);
   }
 

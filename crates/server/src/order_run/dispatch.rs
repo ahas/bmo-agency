@@ -721,11 +721,12 @@ pub async fn acquire_inside(
     thinking: None,
     answer_tokens: None,
   };
-  // A native call takes a seat and no road: any agent of its role that is switched on, on its caller's road.
+  // A native call takes a seat and no road: any callable agent of its role that is switched on, on its
+  // caller's road.
   let seats = role
     .agents
     .iter()
-    .filter(|agent| agent.enabled)
+    .filter(|agent| agent.enabled && agent.callable)
     .map(|agent| Seat {
       agent: agent.name.clone(),
       road: Ok(entry.clone()),

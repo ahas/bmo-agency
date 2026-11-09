@@ -70,6 +70,8 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
     .await
     .unwrap();
   }
+
+  settled(db).await;
 }
 
 /// Every role's agents laid down afresh from what its row names, as the store gives a role its agents: as many
@@ -78,6 +80,15 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
 pub async fn reseated(db: &DatabaseConnection) {
   store::run(db, r#"DELETE FROM "role_agents""#, vec![]).await.unwrap();
   store::run(db, store::migration::m20261203_000001_role_agents::AGENTS_OF_ROLES, vec![])
+    .await
+    .unwrap();
+  settled(db).await;
+}
+
+/// Every agent given what its role's row holds of the sessions setting, the compaction threshold and the
+/// callability, as the store gives a seeded role's agents theirs: for a test that lays agents down itself.
+pub async fn settled(db: &DatabaseConnection) {
+  store::run(db, store::migration::m20261204_000001_role_agent_settings::SETTINGS_OF_ROLES, vec![])
     .await
     .unwrap();
 }
@@ -102,4 +113,5 @@ pub async fn seated_on_order(db: &DatabaseConnection, role: &str) {
   )
   .await
   .unwrap();
+  settled(db).await;
 }

@@ -997,3 +997,72 @@ async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
 
   assert_eq!(seat(&ask("pinned", None, Some(pinned)).await), None);
 }
+
+// Whether a run keeps its session and whether a role may be called are its agents' own (docs/role-agents.md,
+// 「What an agent row holds」): a run reads the sessions setting of the agent it is let in on, and a role is
+// called only through an agent that is switched on and marked callable.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
+  use agency_server::role_agents::sessions_at;
+  use policy::roles::Sessions;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+  // The worker's first agent keeps no session and may be called; its others keep theirs and may not.
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "sessions" = 'fresh', "callable" = 1 WHERE "name" = 'worker-01'"#,
+      vec![],
+    )
+    .await;
+
+  // No run stands at the folder, so no agent can be told and nothing is kept.
+  assert_eq!(sessions_at(db, "worker", Some("/checkouts/one")).await.unwrap(), Sessions::Fresh);
+
+  let first = ask(&ground, "worker", "one").await;
+  let second = Asked {
+    wanted: Wanted {
+      role: "worker",
+      path: Some("/checkouts/two"),
+      fixed: None,
+    },
+    ..asked("worker", "two")
+  };
+  let second = enqueue(db, &ground.events, &second, "job", async |_, _| Ok(())).await.unwrap();
+
+  assert!(admitted(&ground, &first).await && admitted(&ground, &second).await);
+  assert_eq!(sessions_at(db, "worker", Some("/checkouts/one")).await.unwrap(), Sessions::Fresh);
+  assert_eq!(sessions_at(db, "worker", Some("/checkouts/two")).await.unwrap(), Sessions::Keep);
+
+  // The worker is called through its one callable agent, on that agent's road; switched off, it is not called.
+  let worker = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap();
+
+  assert!(worker.called());
+  assert_eq!(worker.called_on("deepseek").map(|entry| entry.model), Some("deepseek-flash".to_owned()));
+  assert_eq!(worker.called_on("claude-code"), None);
+  assert!(
+    agency_server::agent_roles::callable(db)
+      .await
+      .unwrap()
+      .iter()
+      .any(|role| role.name == "worker")
+  );
+  scratch
+    .run(r#"UPDATE "role_agents" SET "enabled" = 0 WHERE "name" = 'worker-01'"#, vec![])
+    .await;
+
+  let worker = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap();
+
+  assert!(!worker.called());
+  assert!(
+    !agency_server::agent_roles::callable(db)
+      .await
+      .unwrap()
+      .iter()
+      .any(|role| role.name == "worker")
+  );
+}

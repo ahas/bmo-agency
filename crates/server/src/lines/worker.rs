@@ -409,7 +409,7 @@ pub async fn coworkers_json(
   let mut definitions = vec![];
 
   for role in crate::agent_roles::callable(&ground.db).await? {
-    let Some(entry) = role.order.entry(provider) else { continue };
+    let Some(entry) = role.called_on(provider) else { continue };
     let effort = entry
       .effort
       .clone()

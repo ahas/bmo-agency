@@ -222,12 +222,12 @@ pub fn coworker_provider(machine: &harness_providers::Machine) -> Option<&'stati
 }
 
 /// The road a callable role's native calls go out on from a program standing on `provider`: the model and
-/// effort the role's order names for that provider. A role whose order holds no entry for it is refused, and
+/// effort of the role's first callable agent on that provider. A role with no such agent is refused, and
 /// the caller does that part itself (docs/role-slots.md, 「Native co-worker slots」).
 pub fn native_road(role: &AgentRole, provider: &str) -> Result<Entry, String> {
-  role.order.entry(provider).cloned().ok_or_else(|| {
+  role.called_on(provider).ok_or_else(|| {
     format!(
-      "the {} role's order holds no entry for {provider}, the provider this program stands on",
+      "the {} role holds no callable agent on {provider}, the provider this program stands on",
       role.name
     )
   })

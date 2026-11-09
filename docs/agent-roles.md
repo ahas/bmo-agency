@@ -32,10 +32,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its bundles,** the function bundles its runs are given, each one the policy declares;
   - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
     the translate line (`docs/launch-lines.md`);
-  - **its sessions,** `keep` or `fresh` (「A role's sessions」 below);
-  - **its compaction threshold,** the share of its model's window a run's session may fill before the
-    session is folded between turns (`docs/sessions.md`, 「Session compaction」);
-  - **whether it may be called as a co-worker,** by a run of another role naming it.
+- **A role holds no road, no cap, no sessions setting, no compaction threshold and no word on being called.**
+  Whether a run keeps its session, the share at which that session is folded and whether a run of another
+  role may call it as a co-worker are each its agent's (`docs/role-agents.md`, 「What an agent row holds」).
 - **A role holds no road and no cap.** The roads its runs go out on are its agents', one each, and how many
   of its runs go at once is the number of its agents that are switched on (`docs/role-agents.md`). A role
   with no agent runs nothing.
@@ -109,8 +108,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   role's name under `prompts/agents/worker/coworkers/`. A `policy` description is the sentence the role's
   declaration states.
 
-- **Each seeded role's agents and compaction threshold are the policy's,** given with the row: as many agents
-  as its declaration's count, each on the road it declares (`docs/role-agents.md`, 「The roles the policy
+- **Each seeded role's agents are the policy's,** given with the row: as many agents
+  as its declaration's count, each on the road it declares and with the sessions setting, the compaction
+  threshold and the callability the declaration states (`docs/role-agents.md`, 「The roles the policy
   seeds」), changed by the owner afterwards like any agent. The `doppelganger` and the `coder` declare no road,
   so their agents follow the supervisor that asks them until the owner sets an agent a road.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
@@ -237,20 +237,22 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **A co-worker is a run of a role, called by the role's name from another role's run** — a co-work order's
   branch, a search's branch, or a native call from a job's program — and is let in on one of that role's
   agents (`docs/role-slots.md`, 「Who takes a slot」).
-- **Only a role marked as callable is called,** and **an unknown role is an error:** a call naming a role
-  the store does not hold, or one not marked callable, is refused with the name, and nothing starts. A CLI
-  default type such as `general-purpose` is no role and is refused the same way.
-- **The definitions a job's program is handed** are the callable roles, each with its description and the
-  model and effort of the role's first agent on the provider that program stands on; a role with no agent on
-  that provider is not defined there, and the caller does that part itself (`docs/role-slots.md`, 「Native
+- **Only a role with a callable agent is called,** and **an unknown role is an error:** a call naming a role
+  the store does not hold, or one none of whose agents that are switched on is marked callable, is refused
+  with the name, and nothing starts. A CLI default type such as `general-purpose` is no role and is refused
+  the same way. The call is let in on a callable agent of the role and on no other.
+- **The definitions a job's program is handed** are the roles with a callable agent, each with its
+  description and the model and effort of the role's first callable agent on the provider that program stands
+  on; a role with no such agent on that provider is not defined there, and the caller does that part itself (`docs/role-slots.md`, 「Native
   co-worker slots」).
 - **The builder role is the work order's own turn,** never called as a co-worker: a co-work order's builder
   stage runs as `builder` in the order's checkout.
 
 ## A role's sessions
 
-- **Whether a run goes on in the session an earlier run left is its role's setting,** the row's `sessions`:
-  `keep` or `fresh`. Nothing reads a line's name or a run's caller to decide it.
+- **Whether a run goes on in the session an earlier run left is its agent's setting,** the agent row's
+  `sessions`: `keep` or `fresh`. Nothing reads a line's name or a run's caller to decide it; a run whose
+  agent cannot be told keeps none.
 - **`keep`: a run resumes the session the last answered run of the same role left at the same path on the
   same provider and model, while that session is valid** — inside the cache lifetime the provider declares
   for the model, and on the prefix it was opened on — and opens a new one otherwise (`docs/sessions.md`,
@@ -295,8 +297,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   of its row, how many of its runs go now and how many wait; beside them, every bundle a role may give and
   every line a role may name (`docs/api.md`, 「roles」).
 - **`POST /roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the policy
-  does not declare, a line agency does not carry, a sessions setting other than `keep` or `fresh`, and an
-  order, a cap or a forced provider, which a role does not hold. A role added holds no agent, so it runs
+  does not declare, a line agency does not carry, and an
+  order, a cap, a forced provider, a sessions setting, a compaction threshold or a callability, none of
+  which a role holds. A role added holds no agent, so it runs
   nothing until one is added (`docs/role-agents.md`, 「Changing the agents」).
 - **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
 - **`DELETE /roles/{roleName}`** removes a role with its agents, and is refused while a run of it goes or

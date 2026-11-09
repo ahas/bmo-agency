@@ -13111,16 +13111,6 @@
             "format": "int64",
             "description": "the most of its runs that go at once: how many of its agents are switched on"
           },
-          "sessions": {
-            "$ref": "#/components/schemas/RoleSessions"
-          },
-          "foldRatio": {
-            "type": "number",
-            "format": "double"
-          },
-          "callable": {
-            "type": "boolean"
-          },
           "followsSupervisor": {
             "type": "boolean",
             "description": "Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a\nscreen shows its road as the supervisor's.",
@@ -13158,9 +13148,6 @@
           "line",
           "agents",
           "maxConcurrent",
-          "sessions",
-          "foldRatio",
-          "callable",
           "followsSupervisor",
           "running",
           "waiting",
@@ -13244,13 +13231,21 @@
             "type": "boolean",
             "description": "whether the session its last answered run kept is pinged before its cache cools"
           },
+          "sessions": {
+            "$ref": "#/components/schemas/RoleSessions",
+            "description": "whether its runs keep their sessions"
+          },
+          "callable": {
+            "type": "boolean",
+            "description": "whether a run of another role may call it as a co-worker"
+          },
           "foldRatio": {
             "type": [
               "number",
               "null"
             ],
             "format": "double",
-            "description": "its compaction threshold, or null where its role's stands"
+            "description": "its compaction threshold, or null where the ratio its provider declares stands"
           },
           "prompt": {
             "type": [
@@ -13304,6 +13299,8 @@
           "enabled",
           "position",
           "keepsCache",
+          "sessions",
+          "callable",
           "foldRatio",
           "prompt",
           "bundles",
@@ -13351,29 +13348,6 @@
               "string",
               "null"
             ]
-          },
-          "sessions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RoleSessions"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "foldRatio": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "callable": {
-            "type": [
-              "boolean",
-              "null"
-            ]
           }
         },
         "required": [
@@ -13417,29 +13391,6 @@
           "description": {
             "type": [
               "string",
-              "null"
-            ]
-          },
-          "sessions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RoleSessions"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "foldRatio": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "callable": {
-            "type": [
-              "boolean",
               "null"
             ]
           }
@@ -13640,6 +13591,22 @@
               "null"
             ]
           },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "callable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "foldRatio": {
             "type": [
               "number",
@@ -13725,6 +13692,22 @@
             "format": "int64"
           },
           "keepsCache": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "callable": {
             "type": [
               "boolean",
               "null"

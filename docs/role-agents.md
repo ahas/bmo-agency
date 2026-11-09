@@ -35,8 +35,12 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
     kept is pinged before its cache cools, so its next run there resumes it warm
     (`docs/keepalive-schedule.md`, 「An agent's kept session」);
+  - **whether its runs keep their sessions,** `sessions`, `keep` or `fresh` (`docs/agent-roles.md`, 「A
+    role's sessions」); an agent added with none named keeps them;
   - **its compaction threshold,** `foldRatio`, the share of its model's window a run's session may fill
-    before it is folded; where it sets none, its role's;
+    before it is folded; where it sets none, the ratio its provider declares;
+  - **whether a run of another role may call it as a co-worker,** `callable` (`docs/agent-roles.md`,
+    「Co-workers」); an agent added with none named may not be;
   - **what it lays over its role's preset,** each none where the role's own stands: `prompt`, which then
     stands in place of the role's prompt; `bundles`, which then are the bundles its runs are given in place
     of the role's; and `skills`, the names of the skills its runs carry in place of the role's bundle of
@@ -63,9 +67,11 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   holds — the agent's list changed, or a release moved a skill's text — and stands at the same path run
   after run. A named skill no plugin of the release carries any longer is left out and said in the log. A
   list that names none hands the run a plugin with no skill.
+- **Its sessions:** the agent's `sessions` says whether the run resumes the session the last answered run
+  left at its key and keeps its own (`docs/sessions.md`, 「A role's session」).
 - **Its compaction threshold:** the agent's `foldRatio`, where it sets one, is the share a run's kept
-  session is folded at as the run ends, in the place of the role's (`docs/sessions.md`, 「Session
-  compaction」).
+  session is folded at as the run ends; where it sets none, the ratio its provider declares
+  (`docs/sessions.md`, 「Session compaction」).
 
 ## Which agent a run takes
 
@@ -85,8 +91,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **The slot request names its agent,** as its `seat`, from the moment it is let in, with the provider, model
   and effort it goes out on, and keeps them to its end.
 - **A native co-worker's call takes a seat and no road.** It stands inside its caller's program, which
-  already goes out on its own road, so it is let in on the first free agent of its role whatever that
-  agent's road and goes out on its caller's.
+  already goes out on its own road, so it is let in on the first free callable agent of its role whatever
+  that agent's road and goes out on its caller's.
 - **A reservation holds seats of a role by count,** not agents by name: a reserved seat is one fewer agent a
   run may be let in on, and the request that takes the reservation's place is let in on whichever agent is
   then first free.

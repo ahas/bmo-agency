@@ -87,6 +87,22 @@ impl AgentRole {
     }
   }
 
+  /// Whether a run of another role may call it: an agent of it is switched on and marked callable.
+  pub fn called(&self) -> bool {
+    self.agents.iter().any(|agent| agent.enabled && agent.callable)
+  }
+
+  /// The road a native call of it goes out on from a program standing on `provider`: that of its first
+  /// callable agent, by position, on that provider.
+  pub fn called_on(&self, provider: &str) -> Option<Entry> {
+    self
+      .agents
+      .iter()
+      .filter(|agent| agent.enabled && agent.callable)
+      .filter_map(RoleAgent::entry)
+      .find(|entry| entry.provider == provider)
+  }
+
   /// The agent of this name among the role's, where it holds one.
   pub fn agent(&self, name: &str) -> Option<&RoleAgent> {
     self.agents.iter().find(|agent| agent.name == name)
@@ -158,14 +174,10 @@ pub async fn prompt_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<
   )
 }
 
-/// The sessions setting of a role, where the store holds it.
-pub async fn sessions_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<Sessions>, Fault> {
-  Ok(named(db, name).await?.map(|role| role.sessions))
-}
-
-/// The roles a run may call as co-workers, in the order a screen lists them.
+/// The roles a run may call as co-workers, in the order a screen lists them: those with an agent that is
+/// switched on and marked callable (docs/agent-roles.md, 「Co-workers」).
 pub async fn callable<C: ConnectionTrait>(db: &C) -> Result<Vec<AgentRole>, Fault> {
-  Ok(every(db).await?.into_iter().filter(|role| role.callable).collect())
+  Ok(every(db).await?.into_iter().filter(AgentRole::called).collect())
 }
 
 /// The sentence an ask naming a role the store does not hold is refused with.

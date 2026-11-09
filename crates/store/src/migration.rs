@@ -61,6 +61,7 @@ mod m20261130_000001_supervisor_card_rank;
 mod m20261201_000001_relays;
 mod m20261202_000001_supervisor_system_hash;
 pub mod m20261203_000001_role_agents;
+pub mod m20261204_000001_role_agent_settings;
 
 use sea_orm_migration::prelude::*;
 
@@ -205,6 +206,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261201_000001_relays::Migration),
       Box::new(m20261202_000001_supervisor_system_hash::Migration),
       Box::new(m20261203_000001_role_agents::Migration),
+      Box::new(m20261204_000001_role_agent_settings::Migration),
     ]
   }
 
