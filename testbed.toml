@@ -126,7 +126,9 @@ cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-ski
 '''
 
 # The coder's and the producer's own bundles, each into its role's plugin directory: a run of the role
-# hands its directory to Claude Code, and every other run carries the worker's.
+# hands its directory to Claude Code, and every other run carries the worker's. The worker bundle's skills,
+# the ones every job needs whatever its work, are placed beside the role's own, a skill at a time after the
+# bundle, since placing a bundle writes the directory afresh.
 [[deploy.step]]
 id = "place-coder-skills"
 phase = "before-flip"
@@ -137,6 +139,9 @@ skills="${BMO_SKILLS_DIR:-$(dirname "$common")/../../resources/skills}"
 target="${BMO_CARGO_TARGET_DIR:-$HOME/.local/share/bmo/cargo-target}"
 cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-skills --target-dir "$target"
 "$target/release/bmo-skills" place --bundle coder --into prompts/agents/coder/plugin --from "$skills"
+"$target/release/bmo-skills" list --from "$skills" | awk -F '\t' '$2 == "worker" { print $1 }' | while read -r name; do
+  "$target/release/bmo-skills" place --skill "$name" --into prompts/agents/coder/plugin/skills --from "$skills"
+done
 '''
 
 [[deploy.step]]
@@ -149,6 +154,9 @@ skills="${BMO_SKILLS_DIR:-$(dirname "$common")/../../resources/skills}"
 target="${BMO_CARGO_TARGET_DIR:-$HOME/.local/share/bmo/cargo-target}"
 cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-skills --target-dir "$target"
 "$target/release/bmo-skills" place --bundle producer --into prompts/agents/producer/plugin --from "$skills"
+"$target/release/bmo-skills" list --from "$skills" | awk -F '\t' '$2 == "worker" { print $1 }' | while read -r name; do
+  "$target/release/bmo-skills" place --skill "$name" --into prompts/agents/producer/plugin/skills --from "$skills"
+done
 '''
 
 # Each tool is placed in its folder's .placed/, the folder the tool host reads (docs/tools.md, 「A tool's

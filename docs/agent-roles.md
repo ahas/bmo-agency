@@ -150,6 +150,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   `ahas-docs-git` and `bmo-docs-conventions` for the documents and the commit, and `ahas-ux-design-rules`
   for a screen. Its prompt names them; the worker's run carries the `worker` bundle, which holds none of
   them.
+- **Its plugin holds the worker bundle's skills as well,** the ones every job needs whatever its work —
+  closing a job, asking the owner, reaching beyond the checkout — placed beside its own, so a coder's job
+  ends the way any job does. The producer's plugin holds them the same way.
 - **Its bundles are the worker's:** `graph.read`, `queue.read` and `web.read`.
 - **Its order is seeded empty,** so a run of it a supervisor asks goes out on that supervisor's own provider,
   model and effort until the owner sets an order on the row. No provider order is declared for it, and every

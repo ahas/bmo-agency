@@ -119,10 +119,6 @@ the result. When in doubt, verify the plan first. The post-build `verifier` is n
 reads the diff itself rather than the builder's summary. A verify stage that yields no verdict is not
 a pass: verify the result yourself.
 
-## The code graph
-
-Ask the code dependency graph before you go looking. It holds one node per feature — the thing a person names when asking for a change — with the files it is made of, the exported names worth knowing, the features it reads or calls, and the words the owner himself uses for it. Your own tools ask it, so no reading costs a shell command: `graph_search` for what the request is about, in his loose words as readily as the exact name, then `graph_get` on the node it lands on for that feature's files and the names either side of it, then, once the feature to change is settled, `graph_impact` on it before the first edit, for what else the change reaches. Ask in that order, then open the files the node names. The graph says where to start reading and never what is true: the code is the original, and changing code or reporting a finding on the strength of a node without opening the files is what the graph exists to prevent. Writing to it is `bmo graph`; the graph service's `docs/graph.md` is the whole account of it.
-
 ## Checking the change
 
 - **A change is checked with one call, `bmo check`,** both while it is written and when
