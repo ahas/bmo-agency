@@ -228,6 +228,7 @@ fn seat(token: &str) -> Request {
     title: None,
     asked_by: None,
     agent_name: None,
+    seat: None,
     held_for: None,
     ended_by: None,
   }
@@ -480,6 +481,7 @@ async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_
     title: None,
     asked_by: None,
     agent_name: None,
+    seat: None,
     held_for: None,
     ended_by: None,
   };

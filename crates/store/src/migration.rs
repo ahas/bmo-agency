@@ -60,6 +60,7 @@ mod m20261129_000001_chosen_roads;
 mod m20261130_000001_supervisor_card_rank;
 mod m20261201_000001_relays;
 mod m20261202_000001_supervisor_system_hash;
+pub mod m20261203_000001_role_agents;
 
 use sea_orm_migration::prelude::*;
 
@@ -83,7 +84,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 52] = [
+pub const OWN_TABLES: [&str; 53] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -91,6 +92,7 @@ pub const OWN_TABLES: [&str; 52] = [
   "repository_node_checkouts",
   "role_sessions",
   "role_slot_requests",
+  "role_agents",
   "role_slot_reservations",
   "role_slot_native",
   "role_slot_native_reservations",
@@ -202,6 +204,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261130_000001_supervisor_card_rank::Migration),
       Box::new(m20261201_000001_relays::Migration),
       Box::new(m20261202_000001_supervisor_system_hash::Migration),
+      Box::new(m20261203_000001_role_agents::Migration),
     ]
   }
 

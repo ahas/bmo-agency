@@ -397,6 +397,7 @@ async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it()
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let mut carrier = answered();
 

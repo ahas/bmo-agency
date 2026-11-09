@@ -64,6 +64,7 @@ async fn tracer(scratch: &Scratch) {
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 }
 
 // An account of a kind, on no base prompt unless it is given one.
@@ -296,6 +297,7 @@ async fn a_role_s_run_opens_on_its_role_s_prompt_and_reads_its_repository_s_rule
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
   repository(scratch.db(), "repo-a", &checkout.to_string_lossy(), &[("prompts", "kept".into())]).await;
   repository(scratch.db(), "kept", &home.path().join("other").to_string_lossy(), &[]).await;
 

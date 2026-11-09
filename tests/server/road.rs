@@ -259,6 +259,7 @@ async fn force_worker(scratch: &Scratch, forced: Option<(&str, &str)>) {
       ],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 }
 
 fn taken(resolution: &Resolution) -> Option<(String, String)> {

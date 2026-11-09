@@ -76,6 +76,7 @@ async fn a_raised_cap_lets_in_the_runs_waiting_at_their_next_ask() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let first = ask(&ground, "worker", "first").await;
   let second = ask(&ground, "worker", "second").await;
@@ -86,6 +87,7 @@ async fn a_raised_cap_lets_in_the_runs_waiting_at_their_next_ask() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 2 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert!(admitted(&ground, &second).await, "the cap is read as every run asks to be let in");
 }
@@ -379,6 +381,7 @@ async fn an_owner_s_release_gives_back_everything_it_holds_and_nothing_of_anothe
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let mut first = asked("worker", "first");
   let mut second = asked("worker", "second");
@@ -604,6 +607,7 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert_eq!(
     dispatch::fixed_road(&ground.db, "doppelganger", Some("chat")).await.unwrap(),
@@ -691,6 +695,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'builder'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let job = enqueue(
     &ground.db,
@@ -721,6 +726,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 0 WHERE "name" = 'doppelganger'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert!(
     dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:closed")

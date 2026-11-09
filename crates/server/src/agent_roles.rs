@@ -5,7 +5,8 @@ use policy::roles::{ROLES, Sessions};
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
-use crate::order::Order;
+use crate::order::{Entry, Order};
+use crate::role_agents::{self, RoleAgent};
 
 /// One role as its row holds it.
 #[derive(Clone, Debug, PartialEq)]
@@ -31,6 +32,8 @@ pub struct AgentRole {
   /// Whether a run of another role may call it as a co-worker.
   pub callable: bool,
   pub position: i64,
+  /// Its agents, in the order a run looks for a free one (docs/role-agents.md).
+  pub agents: Vec<RoleAgent>,
 }
 
 impl AgentRole {
@@ -52,26 +55,82 @@ impl AgentRole {
       fold_ratio: row.try_get("", "fold_ratio")?,
       callable: row.try_get::<i64>("", "callable")? != 0,
       position: row.try_get("", "position")?,
+      agents: vec![],
     })
+  }
+
+  /// The role with its agents: how many of its runs go at once is the number of them switched on, and the
+  /// roads its runs go out on are theirs, each once, in the order a run looks for a free agent — the agents
+  /// that carry no run first, `carrying` naming the ones that do, so a run reading the role's roads finds
+  /// the first free agent's. A role whose agents name no road follows the supervisor that asks it.
+  pub fn seated(self, agents: Vec<RoleAgent>, carrying: &[String]) -> Self {
+    let on: Vec<&RoleAgent> = agents.iter().filter(|agent| agent.enabled).collect();
+    let (free, busy): (Vec<&RoleAgent>, Vec<&RoleAgent>) =
+      on.iter().copied().partition(|agent| !carrying.contains(&agent.name));
+    let mut entries: Vec<Entry> = vec![];
+
+    for entry in free.iter().chain(busy.iter()).filter_map(|agent| agent.entry()) {
+      if !entries.iter().any(|held| held.provider == entry.provider && held.model == entry.model) {
+        entries.push(entry);
+      }
+    }
+
+    Self {
+      max_concurrent: on.len() as i64,
+      order: Order {
+        entries,
+        forced: None,
+        ..self.order
+      },
+      agents,
+      ..self
+    }
+  }
+
+  /// The agent of this name among the role's, where it holds one.
+  pub fn agent(&self, name: &str) -> Option<&RoleAgent> {
+    self.agents.iter().find(|agent| agent.name == name)
   }
 }
 
 /// Every role the store holds, in the order a screen lists them.
 pub async fn every<C: ConnectionTrait>(db: &C) -> Result<Vec<AgentRole>, Fault> {
-  all(db, r#"SELECT * FROM "roles" ORDER BY "position", "name""#, vec![])
+  let mut agents = role_agents::every(db).await?;
+  let carrying = role_agents::carrying_any(db).await?;
+  let roles: Vec<AgentRole> = all(db, r#"SELECT * FROM "roles" ORDER BY "position", "name""#, vec![])
     .await?
     .iter()
     .map(AgentRole::of)
-    .collect()
+    .collect::<Result<_, _>>()?;
+
+  Ok(
+    roles
+      .into_iter()
+      .map(|role| {
+        let (own, rest): (Vec<RoleAgent>, Vec<RoleAgent>) =
+          std::mem::take(&mut agents).into_iter().partition(|agent| agent.role == role.name);
+
+        agents = rest;
+        role.seated(own, &carrying)
+      })
+      .collect(),
+  )
 }
 
 /// The role of this name, where the store holds one.
 pub async fn named<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<AgentRole>, Fault> {
-  one(db, r#"SELECT * FROM "roles" WHERE "name" = $1"#, vec![name.into()])
+  let Some(role) = one(db, r#"SELECT * FROM "roles" WHERE "name" = $1"#, vec![name.into()])
     .await?
     .as_ref()
     .map(AgentRole::of)
-    .transpose()
+    .transpose()?
+  else {
+    return Ok(None);
+  };
+
+  let carrying = role_agents::carrying(db, name).await?;
+
+  Ok(Some(role.seated(role_agents::of_role(db, name).await?, &carrying)))
 }
 
 /// Whether the store holds a role of this name.

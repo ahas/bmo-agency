@@ -14,14 +14,12 @@ use regex::Regex;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 
-use super::claude_accounts::Judging;
-use super::{Call, Refused, Route, answer, whole};
+use super::{Call, Refused, Route, answer};
 use crate::agent_roles::{self, AgentRole};
 use crate::now_ms;
-use crate::order::{self, Order};
+use crate::order;
 use crate::order_run::dispatch;
 use crate::places::Ground;
-use crate::repositories::Pin;
 use crate::road::{self, Ask, Row};
 use crate::text::length;
 use store::{all, one, run};
@@ -123,9 +121,7 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "description": role.description,
     "bundles": role.bundles.iter().map(|bundle| bundle_view(bundle)).collect::<Vec<_>>(),
     "line": role.line,
-    "order": role.order.entries,
-    "quotaShare": role.order.quota_share,
-    "active": role.order.forced.as_ref().map(Pin::view),
+    "agents": role.agents,
     "maxConcurrent": role.max_concurrent,
     "sessions": role.sessions.word(),
     "foldRatio": role.fold_ratio,
@@ -147,16 +143,15 @@ struct Fields {
   label: Option<String>,
   bundles: Option<Vec<String>>,
   line: Option<String>,
-  order: Option<Order>,
-  bound: Option<i64>,
   prompt: Option<Option<String>>,
   description: Option<Option<String>>,
   sessions: Option<Sessions>,
   fold_ratio: Option<f64>,
   callable: Option<bool>,
-  /// The provider forced as its active provider, `Some(None)` where the body clears it.
-  active: Option<Option<Pin>>,
 }
+
+// What a role's row no longer holds: a body naming one is told where it stands now.
+const AGENTS_FIELDS: [&str; 4] = ["order", "quotaShare", "maxConcurrent", "active"];
 
 fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused> {
   match value {
@@ -168,8 +163,8 @@ fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused
 }
 
 impl Fields {
-  // The fields a body names, judged; an order against the line the body names, else the one the role holds.
-  async fn of(ground: &Ground, body: &Value, held_line: Option<&str>) -> Result<Self, Refused> {
+  // The fields a body names, judged.
+  fn of(body: &Value) -> Result<Self, Refused> {
     let words = &CONTROL_WORDS.agent_roles;
     let mut fields = Self::default();
 
@@ -207,27 +202,11 @@ impl Fields {
       }
     }
 
-    if let Some(entries) = body.get("order") {
-      let line = fields.line.as_deref().or(held_line).unwrap_or("worker");
-      let judged = order::judge(
-        Judging::of(ground),
-        &ground.machine(),
-        line,
-        entries,
-        body.get("quotaShare"),
-        order::Empty::FollowsSupervisor,
-      )
-      .await
-      .map_err(|refusal| unprocessable(format!("{}: {}", refusal.field, refusal.error)))?;
-
-      fields.order = Some(judged);
-    }
-
-    if let Some(bound) = body.get("maxConcurrent") {
-      match whole(bound).filter(|bound| *bound >= 0) {
-        Some(bound) => fields.bound = Some(bound),
-        None => return Err(unprocessable(words.bound.as_str())),
-      }
+    // A role holds no order, no cap and no forced provider: its agents do (docs/role-agents.md).
+    if let Some(named) = AGENTS_FIELDS.iter().find(|field| body.get(**field).is_some()) {
+      return Err(unprocessable(format!(
+        "{named}: A role holds no order, cap or forced provider. Its agents hold its roads and their number is          its cap: add or change them at /role-agents."
+      )));
     }
 
     if let Some(prompt) = body.get("prompt") {
@@ -257,24 +236,6 @@ impl Fields {
         Some(callable) => fields.callable = Some(callable),
         None => return Err(unprocessable(words.callable.as_str())),
       }
-    }
-
-    if let Some(active) = body.get("active") {
-      let line = fields.line.as_deref().or(held_line).unwrap_or("worker");
-
-      fields.active = Some(match active {
-        Value::Null => None,
-        Value::Object(_) => Some(
-          order::judge_one(Judging::of(ground), &ground.machine(), line, active)
-            .await
-            .map_err(|why| unprocessable(format!("active: {why}")))?,
-        ),
-        _ => {
-          return Err(unprocessable(
-            "active: A forced provider is a provider and a model, or null for none.",
-          ));
-        }
-      });
     }
 
     Ok(fields)
@@ -359,15 +320,10 @@ impl Route for RoleCreate {
       return Err(unprocessable(fill_marks(&words.taken, &[("name", &name)])));
     }
 
-    let fields = Fields::of(call.ground(), &body, None).await?;
+    let fields = Fields::of(&body)?;
     let label = fields.label.clone().ok_or_else(|| unprocessable(label_refusal()))?;
     let bundles = fields.bundles.clone().ok_or_else(|| unprocessable(bundles_refusal()))?;
     let line = fields.line.clone().ok_or_else(|| unprocessable(line_refusal()))?;
-    let order = fields
-      .order
-      .clone()
-      .ok_or_else(|| unprocessable("order: A role names its provider order."))?;
-    let bound = fields.bound.ok_or_else(|| unprocessable(words.bound.as_str()))?;
     let now = now_ms();
 
     run(
@@ -380,15 +336,15 @@ impl Route for RoleCreate {
         name.clone().into(),
         label.into(),
         serde_json::to_string(&bundles).map_err(Refused::failed)?.into(),
-        bound.into(),
+        0_i64.into(),
         fields.prompt.flatten().into(),
         now.into(),
         fields.sessions.unwrap_or_default().word().into(),
         fields.description.flatten().into(),
         line.into(),
-        order.entries_text().into(),
-        order.quota_share.into(),
-        fields.fold_ratio.unwrap_or_else(|| order.default_fold_ratio()).into(),
+        "[]".into(),
+        ROLES.quota_share.into(),
+        fields.fold_ratio.unwrap_or(order::DEFAULT_FOLD_RATIO).into(),
         i64::from(fields.callable.unwrap_or(false)).into(),
       ],
     )
@@ -416,32 +372,26 @@ impl Route for RoleChange {
     let Some(held) = agent_roles::named(call.store(), &name).await? else {
       return Err(unknown(&name));
     };
-    let fields = Fields::of(call.ground(), &body, Some(&held.line)).await?;
-    let active = fields.active.clone().unwrap_or_else(|| held.order.forced.clone());
-    let order = fields.order.unwrap_or(held.order);
+    let fields = Fields::of(&body)?;
 
     run(
       call.store(),
-      r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5,
-           "sessions" = $7, "description" = $8, "line" = $9, "provider_order" = $10, "quota_share" = $11,
-           "fold_ratio" = $12, "callable" = $13, "active_provider" = $14, "active_model" = $15
-         WHERE "name" = $6"#,
+      r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "prompt" = $3, "updated_at" = $4, "sessions" = $6,
+           "description" = $7, "line" = $8, "fold_ratio" = $9, "callable" = $10
+         WHERE "name" = $5"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
-        serde_json::to_string(&fields.bundles.unwrap_or(held.bundles)).map_err(Refused::failed)?.into(),
-        fields.bound.unwrap_or(held.max_concurrent).into(),
+        serde_json::to_string(&fields.bundles.unwrap_or(held.bundles))
+          .map_err(Refused::failed)?
+          .into(),
         fields.prompt.unwrap_or(held.prompt).into(),
         now_ms().into(),
         name.clone().into(),
         fields.sessions.unwrap_or(held.sessions).word().into(),
         fields.description.unwrap_or(held.description).into(),
         fields.line.unwrap_or(held.line).into(),
-        order.entries_text().into(),
-        order.quota_share.into(),
         fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
         i64::from(fields.callable.unwrap_or(held.callable)).into(),
-        active.as_ref().map(|active| active.provider.clone()).into(),
-        active.as_ref().map(|active| active.model.clone()).into(),
       ],
     )
     .await?;
@@ -483,6 +433,12 @@ impl Route for RoleDelete {
       return Err(Refused::new(StatusCode::CONFLICT, fill_marks(&words.held, &[("name", &name)])));
     }
 
+    run(
+      call.store(),
+      r#"DELETE FROM "role_agents" WHERE "role" = $1"#,
+      vec![name.clone().into()],
+    )
+    .await?;
     run(call.store(), r#"DELETE FROM "roles" WHERE "name" = $1"#, vec![name.into()]).await?;
 
     Ok(StatusCode::NO_CONTENT.into_response())
