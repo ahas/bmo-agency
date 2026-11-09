@@ -22,6 +22,38 @@ fn an_assistant_line_leaves_its_words_its_thinking_and_its_calls() {
 }
 
 #[test]
+fn an_assistant_line_keeps_the_request_its_message_answers_with_the_usage_the_provider_stated() {
+  let lines = record_lines(&event(
+    r#"{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":12,"output_tokens":7,"cache_read_input_tokens":900,"cache_creation_input_tokens":30,"service_tier":"standard"},"content":[{"type":"text","text":"hi"},{"type":"tool_use","id":"t","name":"Bash","input":{"command":"ls"}}]}}"#,
+  ));
+
+  assert_eq!(lines.len(), 2);
+
+  for line in &lines {
+    let request = line
+      .metadata
+      .as_ref()
+      .and_then(|metadata| metadata.get("request"))
+      .expect("the request");
+
+    assert_eq!(request.get("id").and_then(Json::as_str), Some("m1"));
+    assert_eq!(
+      request.get("usage").map(Json::stringify).as_deref(),
+      Some(
+        r#"{"input_tokens":12,"output_tokens":7,"cache_read_input_tokens":900,"cache_creation_input_tokens":30}"#
+      )
+    );
+  }
+
+  // A message that states no usage keeps none, and a user line never does.
+  let bare = record_lines(&event(
+    r#"{"type":"assistant","message":{"id":"m2","content":[{"type":"text","text":"hi"}]}}"#,
+  ));
+
+  assert!(bare[0].metadata.as_ref().and_then(|metadata| metadata.get("request")).is_none());
+}
+
+#[test]
 fn a_compaction_is_a_line_of_its_own_with_how_it_was_set_off_and_how_full_the_session_was() {
   let lines = stream_lines(&event(
     r#"{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":167000}}"#,

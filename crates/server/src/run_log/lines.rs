@@ -192,13 +192,63 @@ pub fn record_lines(event: &Json) -> Vec<Line> {
     _ => vec![],
   };
 
+  let request = match text_field(event, "type") {
+    Some("assistant") => message.and_then(request_of),
+    _ => None,
+  };
+
   lines
     .into_iter()
     .map(|line| Line {
       parent: parent.clone(),
+      metadata: with_request(line.metadata, request.as_ref()),
       ..line
     })
     .collect()
+}
+
+// The token counts a record's usage may state for one request.
+const USAGE_COUNTS: [&str; 4] = [
+  "input_tokens",
+  "output_tokens",
+  "cache_read_input_tokens",
+  "cache_creation_input_tokens",
+];
+
+// What an assistant message says of the request it answers (docs/api.md, 「log-lines」): its id and the usage
+// the provider stated, each count where the record states it; none where it states no usage.
+fn request_of(message: &Json) -> Option<Json> {
+  let usage = message.get("usage").filter(|usage| usage.is_object())?;
+  let counts: Vec<(String, Json)> = USAGE_COUNTS
+    .iter()
+    .filter_map(|name| match usage.get(name) {
+      Some(Json::Number(count)) => Some(((*name).to_owned(), Json::Number(count.clone()))),
+      _ => None,
+    })
+    .collect();
+  let mut request = vec![];
+
+  if let Some(id) = text_field(message, "id") {
+    request.push(("id".to_owned(), Json::String(id.to_owned())));
+  }
+
+  request.push(("usage".to_owned(), Json::Object(counts)));
+
+  Some(Json::Object(request))
+}
+
+// A line's metadata with the request its message answers beside what it already kept.
+fn with_request(metadata: Option<Json>, request: Option<&Json>) -> Option<Json> {
+  let Some(request) = request else { return metadata };
+  let mut kept = match metadata {
+    Some(Json::Object(kept)) => kept,
+    Some(other) => return Some(other),
+    None => vec![],
+  };
+
+  kept.push(("request".to_owned(), request.clone()));
+
+  Some(Json::Object(kept))
 }
 
 fn assistant_lines(blocks: &[Json], source_id: Option<String>, failed: bool) -> Vec<Line> {

@@ -626,7 +626,11 @@ road whose program carries its own turns has them too, read off that program's r
 line carries no arguments and its result's text says how long the call ran (`docs/run-records.md`,
 「Agent log」).
 
-A line's `metadata` is the JSON object the writer kept beside it, null where it kept none. A job's lines
+A line's `metadata` is the JSON object the writer kept beside it, null where it kept none. A line read off
+an assistant message of a Claude Code program's record carries `request` there, the message's `id` and the
+`usage` the provider stated for that request — `input_tokens`, `output_tokens`, `cache_read_input_tokens`
+and `cache_creation_input_tokens`, each where the record states it — so a reader of the run as it goes
+counts each request once by its `id` and needs no end of the turn for its figures. A job's lines
 keep the metadata their writer filed, and a pane program's shell call carries Claude Code's
 `toolUseResult.bashEditDiff` there, with the files, their hunks, the count of files whose hunks were left
 out and the paths the call changed.
