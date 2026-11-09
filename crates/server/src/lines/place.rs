@@ -83,7 +83,7 @@ for bmo_carried in "${!BMO_CARRIED_@}"; do
   fi
 done
 unset bmo_carried bmo_hex bmo_name bmo_at bmo_char
-# A conversational agent's shell guard (docs/agents.md, 「No agent reaches another unit's store」): the command
+# A conversational agent's shell guard (docs/agents.md, 「No print mode」): the command
 # about to run handed to agency's guard, and refused before it runs.
 if [[ -n ${BMO_SHELL_GUARD-} && -n ${BASH_EXECUTION_STRING-} && -x ${BMO_SHELL_GUARD} ]]; then
   if ! bmo_refused=$(printf '%s' "$BASH_EXECUTION_STRING" | "$BMO_SHELL_GUARD" guard-shell 2>&1); then

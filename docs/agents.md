@@ -85,14 +85,11 @@ flowchart TD
   - A job's guard refuses print mode outright, whatever the job has opened (`docs/live-claude-guard.md`).
 - **The check:** a test reads this repository's code for a place that launches Claude Code in print mode,
   and fails on any it finds.
-- **No agent reaches another unit's store.** A unit's database, its loopback port and its token files are
-  its own: a supervisor knows what the system holds through its tools alone — the brain's `brain_list` and
-  `brain_similar`, the gate's reference tools, and each unit's own tools — never its store. The same shell
-  guard refuses, before it runs, a shell command that runs a database client (`psql`, `pg_dump`,
-  `pg_restore`, `sqlite3` and their kin), names a `postgres://` or `postgresql://` address, reaches a
-  loopback port a unit of the deployment answers on, reads the token files under the data root's `env/`,
-  or handles the session's own token (`policy/shell-guard.toml`). Its refusal names the road instead. A
-  role's run is held by the job guard.
+- **A supervisor's shell reaches the whole machine.** The machine is the owner's, and a supervisor acts on it
+  with his hands: its shell runs whatever the account may run, a unit's loopback port, its store and the token
+  files under the data root's `env/` among them. Where a tool of its own does a task, the tool is the road; where
+  none does, the shell is, and the task is done before a road of its own is asked for. The shell guard refuses
+  one thing, a command that would start Claude Code (「No print mode」). A role's run is held by the job guard.
 
 ## A run in a pane of its own
 

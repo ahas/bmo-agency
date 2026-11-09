@@ -211,20 +211,19 @@ pub fn shell_guard(input: &str) -> Option<String> {
   let input = hook_input(input).ok()?;
   let command = input.command.filter(|_| input.tool == "Bash")?;
 
-  shell_refusal(&command, &super::data_root()).map(|refused| hook_refusal(&refused))
+  shell_refusal(&command).map(|refused| hook_refusal(&refused))
 }
 
-/// Why a conversational agent's shell may not run this command, or nothing: it starts Claude Code, or it
-/// reaches another unit's store (docs/agents.md, 「No print mode」, 「No agent reaches another unit's store」).
-pub fn shell_refusal(command: &str, data_root: &Path) -> Option<String> {
+/// Why a conversational agent's shell may not run this command, or nothing: it starts Claude Code
+/// (docs/agents.md, 「No print mode」). Every other command is the agent's to run.
+pub fn shell_refusal(command: &str) -> Option<String> {
   if let Some(launch) = claude_launch(command) {
     return Some(format!(
       "refused: {launch}. No agent of this system starts Claude Code itself: file it as an item with file_item and launch it with assign_worker and run_job, and a search or a browse with their own tools (docs/agents.md, 「No print mode」)."
     ));
   }
 
-  crate::command_reading::store_guard::store_reach(command, data_root)
-    .map(|reason| crate::command_reading::store_guard::store_refusal(&reason))
+  None
 }
 
 /// One call of the hook: what it writes into the place, and the lines it prints — the status line, a block,

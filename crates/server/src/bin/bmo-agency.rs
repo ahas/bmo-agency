@@ -499,7 +499,7 @@ async fn run(verb: Verb) -> ExitCode {
       }
       Err(why) => ended(Err(why)),
     },
-    Verb::GuardShell => match agent_status::shell_refusal(&standing_input(), &data_root) {
+    Verb::GuardShell => match agent_status::shell_refusal(&standing_input()) {
       Some(refused) => {
         eprintln!("{refused}");
         ExitCode::from(126)

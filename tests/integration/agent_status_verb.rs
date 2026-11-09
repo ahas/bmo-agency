@@ -504,42 +504,20 @@ async fn a_typed_line_goes_on_with_a_line_saying_why_where_the_service_cannot_co
   );
 }
 
-/// refuses a shell command that reaches another unit's store, naming the tools instead, and lets every other
-/// through (docs/agents.md, 「No agent reaches another unit's store」)
+/// lets through a shell command that reaches a unit's port, its store or its token files: the machine is the
+/// owner's and the agent acts on it with his hands (docs/agents.md, 「A supervisor's shell reaches the whole
+/// machine」)
 #[test]
-fn the_shell_guard_refuses_a_command_that_reaches_another_unit_s_store_and_names_the_tools_instead() {
-  for (command, said) in [
-    (r#"psql "dbname=bmo_brain" -c "select 1""#, "it runs psql"),
-    ("bash -c 'pg_dump bmo_brain > /tmp/x'", "it runs pg_dump"),
-    ("sqlite3 /tmp/x.db .tables", "it runs sqlite3"),
-    (
-      "python3 - <<'EOF'\nimport psycopg\npsycopg.connect('postgresql:///bmo_brain')\nEOF",
-      "postgresql:// address",
-    ),
-    ("curl -s http://127.0.0.1:13104/agents", "it reaches 127.0.0.1:13104"),
-    ("nc localhost 5432", "it reaches localhost 5432"),
-    ("cat $BMO_DATA_DIR/env/agency.token", "token files"),
-    ("cat ~/.local/share/bmo/data/env/job.token", "token files"),
-    ("echo $BMO_MCP_TOKEN > /tmp/bmotok", "the session's token"),
-    (
-      "BMO_MCP_TOKEN=$(cat /tmp/bmotok) bmo use bmo/brain_learn --json '{}'",
-      "the session's token",
-    ),
-  ] {
-    let reason = shell_refusal(command).unwrap_or_else(|| panic!("let through: {command}"));
-
-    assert!(reason.contains(said), "{command}: {reason}");
-    assert!(
-      reason.contains("mcp__bmo__brain_list") && reason.contains("mcp__gate__reference_search"),
-      "{reason}"
-    );
-  }
-
+fn the_shell_guard_lets_a_command_reach_a_unit_s_port_its_store_and_its_token_files() {
   for command in [
+    r#"psql "dbname=bmo_brain" -c "select 1""#,
+    "sqlite3 /tmp/x.db .tables",
+    "curl -s http://127.0.0.1:13104/agents",
+    "nc localhost 5432",
+    "cat $BMO_DATA_DIR/env/agency.token",
+    "cat ~/.local/share/bmo/data/env/job.token",
     "bmo use bmo/brain_list --subject person:90000001",
-    "curl -s https://example.org/page",
     "ls /tmp && echo done",
-    "grep -r birthday notes.md",
   ] {
     assert_eq!(shell_refusal(command), None, "{command}");
   }
@@ -566,10 +544,10 @@ fn a_dsh_shell_refuses_before_it_runs_and_runs_every_other_command() {
       .unwrap()
   };
 
-  let refused = run(&format!("touch {} ; psql -c 'select 1'", marker.display()));
+  let refused = run(&format!("touch {} ; claude -p hi", marker.display()));
 
   assert_eq!(refused.status.code(), Some(126));
-  assert!(String::from_utf8_lossy(&refused.stderr).contains("refused: it runs psql"));
+  assert!(String::from_utf8_lossy(&refused.stderr).contains("refused: it starts the Claude Code CLI"));
   assert!(!marker.exists(), "nothing of a refused command runs");
 
   let allowed = run("echo fine");

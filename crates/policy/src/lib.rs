@@ -39,7 +39,6 @@ pub mod run_clock;
 pub mod run_lines;
 pub mod run_stop;
 pub mod seeds;
-pub mod shell_guard;
 pub mod span_words;
 pub mod supervisor_runner;
 pub mod supervisors;

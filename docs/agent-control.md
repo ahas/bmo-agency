@@ -283,8 +283,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   session the supervisor or the run resumes, with what lets agency read the program while it stays up — for
   Claude Code, a settings file naming agency's status-line command and its `Stop`, `StopFailure`,
   `UserPromptSubmit` and `SessionStart` hooks, and on a supervisor's program the shell guard, a `PreToolUse`
-  hook on the shell that refuses a command starting Claude Code or reaching another unit's store
-  (`docs/agents.md`, 「No print mode」 and 「No agent reaches another unit's store」).
+  hook on the shell that refuses a command starting Claude Code (`docs/agents.md`, 「No print mode」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
