@@ -1014,6 +1014,14 @@ impl HerdrSessions {
     reason: &str,
   ) {
     let ground = self.ground();
+
+    // A room's own session is not asked through the receiver. When its prompt moved or its window filled,
+    // agency asks it for its own handoff note; a generation that opens because the session it had is gone
+    // has no session left to ask, so it carries nothing and the receiver is not asked.
+    if room.is_some() {
+      return;
+    }
+
     let standing = crate::lines::place::Place::of(&ground.roots.data, agent).program_alive().is_some();
 
     if !crate::handoff::replaces(kept, resuming, standing) {
@@ -1039,19 +1047,14 @@ impl HerdrSessions {
 
     // The handoff a supervisor's one session across rooms is asked for is one more turn of that same session,
     // so the session is lent to it while this turn waits: the receiver finds the session by the state agency
-    // answers for it, and that turn would otherwise be refused as a second turn of the session. A room's own
-    // session is not lent, since the handoff turn there would open a generation of its own.
-    let lent = room.is_none().then(|| SessionId(agent.to_owned()));
+    // answers for it, and that turn would otherwise be refused as a second turn of the session.
+    let session = SessionId(agent.to_owned());
 
-    if let Some(session) = &lent {
-      self.handing().insert(session.clone());
-    }
+    self.handing().insert(session.clone());
 
     let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
 
-    if let Some(session) = &lent {
-      self.handing().remove(session);
-    }
+    self.handing().remove(&session);
 
     log.write(&ground.db, Line::note(handed.said())).await;
   }

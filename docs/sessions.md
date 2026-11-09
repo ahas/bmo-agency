@@ -113,19 +113,16 @@ statements below about either are kept for a rollback to the road a deployment l
   first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
   own launches, which name none, stand in the folder above.
-- **A fresh session of a supervisor is never opened without the handoff,** apart from a room's session
-  cleared by the owner's reset, whose program is taken down with it and which carries nothing
-  (`docs/session-resets.md`, 「Who holds a session」). Where a chat-line turn — one
-  of the `agent` scope across rooms, or one of the `room` scope in a room — is about to open a fresh session for an agent
-  that had one, the session going away writes what the next one needs before anything replaces it. A
-  room's own session whose documents moved or whose window filled writes it in one more turn agency runs
-  on it (`docs/supervisors.md`, 「Its limit」). Otherwise agency asks the receiver for the agent's handoff
-  (`POST /handoffs/{agentName}` of the receiver, with the reason and the room where the turn names one)
-  and waits for its answer:
-  - **what counts as replacing a session:** the kept session gone — the program no longer holds it — and
-    a session the agent had that the turn does not resume — a prompt whose documents moved, a reset, a
-    provider or a prefix change, a login the session cannot follow — while the agent's program still
-    stands in its pane;
+- **A fresh session of a supervisor opened in place of one it still holds is never opened without the
+  handoff.** Where a chat-line turn — one of the `agent` scope across rooms, or one of the `room` scope
+  in a room — is about to open a fresh session for an agent that had one, the session going away writes
+  what the next one needs before anything replaces it. A room's own session whose documents moved or
+  whose window filled writes it in one more turn agency runs on it (`docs/supervisors.md`, 「Its limit」).
+  The one session across rooms is asked through the receiver's `POST /handoffs/{agentName}`, and the ask
+  is waited on:
+  - **what counts as replacing a session:** a session the turn does not resume — its prompt documents
+    moved, the owner asked a reset, its provider, model, effort or login moved — and a session the agent
+    had whose kept harness is gone, which is asked while the agent's program still stands in its pane;
   - **what does not:** a turn that resumes the session it had, and a program stood again on the same
     folder after agency's own restart or a deployment, which takes the same session up again, so
     neither asks anything;
@@ -141,6 +138,9 @@ statements below about either are kept for a rollback to the road a deployment l
     answer however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
     connection lets the turn go on — the fresh session is opened all the same, and the run log says the
     handoff was not had and why. A deployment that names no receiver asks nothing.
+- **A room's session opened because the session it had is gone carries nothing:** there is no session
+  left to ask. So does a room's session cleared by the owner's reset, whose program is taken down with
+  it (`docs/session-resets.md`, 「Who holds a session」).
 
 ## Document reload
 
@@ -421,8 +421,8 @@ statements below about either are kept for a rollback to the road a deployment l
   asked through the receiver's `POST /handoffs/{agentName}`, while agency still names the session and
   the standing program can answer; the receiver asks that session for its file, and the next session's
   first turn opens on the receiver's note (`docs/supervisors.md`, 「Its limit」; the receiver's
-  `docs/unified-bmo.md`, 「Replacing the session」). A fresh session opened in place of a room's session
-  that can no longer be resumed is asked the same way, through the receiver.
+  `docs/unified-bmo.md`, 「Replacing the session」). A room's session opened because the session it had is
+  gone carries nothing: there is no session left to ask.
 - Where the receiver's old session wrote nothing, the next session opens on the receiver's transcript of
   what the session answered, or, where neither stands, on a word that memory could not be recovered.
   That fallback is the receiver's.
