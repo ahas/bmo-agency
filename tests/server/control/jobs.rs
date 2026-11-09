@@ -179,6 +179,10 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   );
   let port = server.port;
 
+  // The worker's agents stand one on each road of its row, Claude Code's among them, once the server has
+  // settled the store.
+  crate::support::rows::seated_on_order(scratch.db(), "worker").await;
+
   // An item naming a role the store does not hold is refused, and nothing is held for it.
   let (status, refused) = post(
     port,

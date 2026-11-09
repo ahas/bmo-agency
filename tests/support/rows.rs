@@ -99,3 +99,25 @@ pub async fn reseated(db: &DatabaseConnection) {
     .await
     .unwrap();
 }
+
+/// A role's agents laid down afresh, one on each road its row's order names, in that order: a role whose runs
+/// may go out on several roads, each a seat of its own.
+pub async fn seated_on_order(db: &DatabaseConnection, role: &str) {
+  store::run(db, r#"DELETE FROM "role_agents" WHERE "role" = $1"#, vec![role.into()])
+    .await
+    .unwrap();
+  store::run(
+    db,
+    r#"INSERT INTO "role_agents"
+         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "position")
+       SELECT r."name" || '-' || lpad(listed.place::text, 2, '0'), r."name", listed.entry ->> 'provider',
+              listed.entry ->> 'model', listed.entry ->> 'effort', listed.entry ->> 'thinking',
+              (listed.entry ->> 'answerTokens')::bigint, listed.place
+       FROM "roles" r
+       CROSS JOIN LATERAL jsonb_array_elements(r."provider_order"::jsonb) WITH ORDINALITY AS listed(entry, place)
+       WHERE r."name" = $1"#,
+    vec![role.into()],
+  )
+  .await
+  .unwrap();
+}
