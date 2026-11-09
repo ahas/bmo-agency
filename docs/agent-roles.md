@@ -8,8 +8,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 ## What a role is
 
-- **Every run holds one role,** the one the work names (「Which role a run holds」 below). A role is never an
-  agent standing somewhere: it is a row every run of it reads as it starts.
+- **Every run holds one role,** the one the work names (「Which role a run holds」 below). A role is a preset —
+  a prompt, tools, skills, a line and how its sessions are kept — that every run of it reads as it starts; the
+  seats its runs take, each on one road, are its agents (`docs/role-agents.md`).
 - **A role gives function bundles, never a run by its name.** Every reader takes the role a run holds and
   reads its row, so a role added as a row is given everything its row says from its first run, with no
   change anywhere else.
@@ -31,23 +32,19 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its bundles,** the function bundles its runs are given, each one the policy declares;
   - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
     the translate line (`docs/launch-lines.md`);
-  - **its provider order,** the providers its runs go out on, in order, each with the model and the effort
-    the role runs on there, and its quota share, the remaining quota below which a provider is passed over,
-    1% where none is set (`docs/provider-order.md`);
-  - **its forced provider,** a provider and one model of it the owner forced as the role's active provider,
-    or none (`docs/provider-order.md`, 「A provider the owner forces」);
-  - **its cap,** `max_concurrent`, the most of its runs that go at once (`docs/role-slots.md`);
   - **its sessions,** `keep` or `fresh` (「A role's sessions」 below);
   - **its compaction threshold,** the share of its model's window a run's session may fill before the
     session is folded between turns (`docs/sessions.md`, 「Session compaction」);
   - **whether it may be called as a co-worker,** by a run of another role naming it.
-- **A role's order is its own.** No order is shared between roles, and none is read from a table of
-  providers: every run of the role goes out on the role's active provider, the provider the owner forced on
-  it where one stands, else the first of its order that has quota above the share and can answer now.
-- **A role's order may be empty, and it then follows the supervisor that asks it.** A run of such a role a
+- **A role holds no road and no cap.** The roads its runs go out on are its agents', one each, and how many
+  of its runs go at once is the number of its agents that are switched on (`docs/role-agents.md`). A role
+  with no agent runs nothing.
+- **A role whose agents name no road follows the supervisor that asks it.** A run of such a role a
   supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is
   asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A delegated task」). The role's
-  row answers `followsSupervisor` true while its order is empty (`docs/api.md`, 「roles」).
+  row answers `followsSupervisor` true while none of its agents names a road (`docs/api.md`, 「roles」).
+- **An agent may lay its own prompt, bundles and skills over its role's,** each standing in place of the
+  role's for that agent's runs alone (`docs/role-agents.md`, 「What an agent row holds」).
 - **The owner adds, changes and removes roles on the control port** (「Changing the roles」 below), and every
   reader takes a change at its next read, with no deployment and no restart.
 
@@ -112,9 +109,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   role's name under `prompts/agents/worker/coworkers/`. A `policy` description is the sentence the role's
   declaration states.
 
-- **Each seeded role's provider order and compaction threshold are the policy's,** given with the row and
-  changed by the owner afterwards like any field. The `doppelganger` role's seeded order is empty, so it
-  follows the supervisor that asks it until the owner sets one.
+- **Each seeded role's agents and compaction threshold are the policy's,** given with the row: as many agents
+  as its declaration's count, each on the road it declares (`docs/role-agents.md`, 「The roles the policy
+  seeds」), changed by the owner afterwards like any agent. The `doppelganger` and the `coder` declare no road,
+  so their agents follow the supervisor that asks them until the owner sets an agent a road.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
   asked** (`docs/agent-documents.md`): a job's report and the documents it files, in the language the item's
   brief names for its requester, else its room; a voyager's result, in its question's language. What
@@ -134,7 +132,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   and the queue's two (`docs/worker-mcp.md`); and `web.read`, web search and page fetch. The site tools are
   the voyager's and the seeker's alone.
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
-  job」), and its run holds that role's prompt, bundles, order and cap in the same repository's checkout.
+  job」), and its run holds that role's prompt and bundles, on one of that role's agents, in the same
+  repository's checkout.
 
 ## The coder role
 
@@ -154,10 +153,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   closing a job, asking the owner, reaching beyond the checkout — placed beside its own, so a coder's job
   ends the way any job does. The producer's plugin holds them the same way.
 - **Its bundles are the worker's:** `graph.read`, `queue.read` and `web.read`.
-- **Its order is seeded empty,** so a run of it a supervisor asks goes out on that supervisor's own provider,
-  model and effort until the owner sets an order on the row. No provider order is declared for it, and every
-  other role's order stands as it was.
-- **Its cap is `3`, the worker's,** so a repository's coding jobs run as many at once as its jobs did.
+- **Its agents are seeded on no road,** so a run of it a supervisor asks goes out on that supervisor's own
+  provider, model and effort until the owner sets an agent a road of its own.
+- **It is seeded with three agents, as the worker is,** so a repository's coding jobs run as many at once as
+  its jobs did.
 - **Which jobs name it:** an item whose work changes a repository's code names `coder`; one whose work is
   not code names `worker`, and an item naming no role stays `worker` (`docs/repositories.md`, 「A job」).
   An item already raised keeps the role it named, so every existing job runs as it did.
@@ -172,12 +171,12 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   handed over (the receiver's `docs/drafting.md`, 「A round handed to the double」) carries the room's block
   and the round's turn as the supervisor read them: the double then answers as the supervisor itself, by that
   block's rules, and its answer is the message the room hears. The role's prompt tells the two apart.
-- **Its order is seeded empty, so a run of it goes out on the asking supervisor's own provider, model and
-  effort** as they stand when it is asked, and waits while that provider has no quota (`docs/role-slots.md`,
-  「A delegated task」). An order the owner sets on the role stands over that: its runs then walk that order
-  like any role's.
-- **Its cap bounds every supervisor's delegations together,** 2 as seeded, a number the owner changes on the
-  role's row like any role's.
+- **Its agents are seeded on no road, so a run of it goes out on the asking supervisor's own provider, model
+  and effort** as they stand when it is asked, and waits while that provider has no quota
+  (`docs/role-slots.md`, 「A delegated task」). An agent the owner sets a road goes out on that road instead,
+  like any role's agent.
+- **Its agents bound every supervisor's delegations together,** two as seeded, a number the owner changes by
+  adding, removing or switching its agents.
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
@@ -230,20 +229,21 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 ## The upkeep role
 
 - **Held by agency's own runs that stand for no one's work,** the usage reader's renewal turn among them. It
-  gives no bundle and carries no prompt: what such a run holds of a role is its order, its cap and its
+  gives no bundle and carries no prompt: what such a run holds of a role is one of its agents and its
   sessions setting.
 
 ## Co-workers
 
 - **A co-worker is a run of a role, called by the role's name from another role's run** — a co-work order's
-  branch, a search's branch, or a native call from a job's program — and is let in under that role's cap
-  (`docs/role-slots.md`, 「Who takes a slot」).
+  branch, a search's branch, or a native call from a job's program — and is let in on one of that role's
+  agents (`docs/role-slots.md`, 「Who takes a slot」).
 - **Only a role marked as callable is called,** and **an unknown role is an error:** a call naming a role
   the store does not hold, or one not marked callable, is refused with the name, and nothing starts. A CLI
   default type such as `general-purpose` is no role and is refused the same way.
 - **The definitions a job's program is handed** are the callable roles, each with its description and the
-  model and effort its own order gives on the provider that program stands on (`docs/role-slots.md`,
-  「Native co-worker slots」).
+  model and effort of the role's first agent on the provider that program stands on; a role with no agent on
+  that provider is not defined there, and the caller does that part itself (`docs/role-slots.md`, 「Native
+  co-worker slots」).
 - **The builder role is the work order's own turn,** never called as a co-worker: a co-work order's builder
   stage runs as `builder` in the order's checkout.
 
@@ -282,8 +282,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where
   it holds `room.tools`, and otherwise the catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.
-- **The slot,** the cap of the run's role, read from the store as every run asks to be let in.
-- **The provider,** the role's order, read as every run starts.
+- **The slot,** the agents of the run's role, read from the store as every run asks to be let in: the run
+  is let in on one of them, which is its seat and its road (`docs/role-agents.md`, 「Which agent a run
+  takes」).
 - **The launch,** which reads the role's prompt from the store as it composes the run's prompt.
 - **The console's role tab,** which lists, adds, changes and removes the roles, and shows each role's
   session history (`docs/api.md`, 「roles」).
@@ -294,11 +295,11 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   of its row, how many of its runs go now and how many wait; beside them, every bundle a role may give and
   every line a role may name (`docs/api.md`, 「roles」).
 - **`POST /roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the policy
-  does not declare, a line agency does not carry, an order naming a provider agency does not carry or a
-  model its provider does not hold, a cap that is no whole number of zero or more, and a sessions setting
-  other than `keep` or `fresh`.
+  does not declare, a line agency does not carry, a sessions setting other than `keep` or `fresh`, and an
+  order, a cap or a forced provider, which a role does not hold. A role added holds no agent, so it runs
+  nothing until one is added (`docs/role-agents.md`, 「Changing the agents」).
 - **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
-- **`DELETE /roles/{roleName}`** removes a role, and is refused while a run of it goes or waits, and for a
-  role the policy names as a default — `worker`, `doppelganger` and `upkeep`.
+- **`DELETE /roles/{roleName}`** removes a role with its agents, and is refused while a run of it goes or
+  waits, and for a role the policy names as a default — `worker`, `doppelganger` and `upkeep`.
 - **A role added or changed is read at its next use;** nothing running is stopped for it, and a run already
   let in finishes under the row it began under.
