@@ -533,7 +533,7 @@ async fn run_on_line(
     file: rules,
   } = standing_rules(trees, folder.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
   let above = match role {
-    Some(role) => super::role_prompt(&ground.db, role).await,
+    Some(role) => super::role_prompt(&ground.db, role, Some(cwd)).await,
     None => None,
   };
   let system_prompt = worker_system_prompt(
@@ -550,11 +550,18 @@ async fn run_on_line(
   let harnessed = harnessed_system_prompt(trees, &rules_text, above.as_deref())?;
   let worker_dir = trees.agent_dir(LINE);
   // A role that places a plugin of its own carries its own bundle; every other run carries the
-  // general worker's.
-  let plugin_dir = role
+  // general worker's. An agent that names its own skills carries those alone, in a plugin of its own
+  // (docs/role-agents.md, 「What a run reads off its agent」).
+  let role_plugin = role
     .map(|role| trees.agent_dir(role).join("plugin"))
     .filter(|dir| dir.exists())
     .unwrap_or_else(|| worker_dir.join("plugin"));
+  let seat = crate::role_agents::seated_at(&ground.db, role, Some(cwd)).await?;
+  let plugin_dir = match seat.as_ref().and_then(|agent| agent.skills.as_ref().map(|skills| (agent, skills)))
+  {
+    Some((agent, skills)) => super::agent_plugin::placed(trees, &role_plugin, &agent.name, skills)?,
+    None => role_plugin,
+  };
   let reasoning = match worker {
     Some(worker) => Some(reasoning_of(ground, worker).await?),
     None => None,

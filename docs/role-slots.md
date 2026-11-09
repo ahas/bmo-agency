@@ -1,10 +1,10 @@
 # Role slots
 
-A role is a concurrency cap for its runs: each run of a role occupies one slot of it while it goes, and a
-run beyond the cap waits in the role's line until a slot frees. This document states how a run asks for
-its slot, how the line orders the asks, how slots are reserved ahead, and the standing branch checkouts a
-co-work branch works in. What a role is, is `docs/agent-roles.md`; which provider a run goes out on is
-`docs/provider-order.md`.
+A role's agents are its seats: each run of a role occupies one slot of it while it goes, let in on one agent
+of the role, and a run that finds no agent free waits in the role's line until one frees. This document
+states how a run asks for its slot, how the line orders the asks, how slots are reserved ahead, and the
+standing branch checkouts a co-work branch works in. What a role is, is `docs/agent-roles.md`; what an agent
+is and which one a run takes is `docs/role-agents.md`.
 
 ## Who takes a slot
 
@@ -22,31 +22,30 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **A slot's source and owner are the caller's.** A slot is asked under the source label its caller sends —
   `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks, `native` for a
   native call — and under the owner and request key its caller names; the label is kept as sent.
-- **A slot is let in on its role's order unless its ask names a road.** An ask may name a provider and a model
-  together, the road it then goes out on and waits for; or a model alone, whose provider the role's order
-  gives: the first entry of the order naming that model, else the role's active provider as the ask is made,
-  else the order's first. The entry the provider has in the role's order gives the effort and the thinking; a
-  role whose order is empty takes the asking supervisor's entry for the provider, on every road, and a run of
-  such a role that names no supervisor is refused.
-- **A slot of a role whose order is empty goes out on the road of the supervisor that asks it,** the one its
-  ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
+- **A slot is let in on one agent of its role, and goes out on that agent's road** (`docs/role-agents.md`,
+  「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, carries
+  no run and whose road can answer now. An ask may name a provider and a model together, or a model alone,
+  whose provider is the one the role's first agent of that model is on; it is then let in only on an agent of
+  that road and waits for one, and an ask naming a road no agent of the role is on is refused. The agent gives
+  the effort and the thinking.
+- **A slot of a role whose agents name no road goes out on the road of the supervisor that asks it,** the one
+  its ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
   refused 422 with why, and nothing starts.
 
 ## The cap
 
-- **A role's cap is the most of its runs that are let in at once,** the row's `max_concurrent`. A run beyond
-  it waits for a slot and none is refused, but for a double's own ask where delegated runs hold the whole cap
-  (「A delegated task」 below).
-- **The cap is the role's alone.** It is counted over every run of the role whatever its provider, its model
-  or its path: a role's runs all go out on its active provider (`docs/provider-order.md`, 「Choosing the
-  provider」), and no provider, model or path carries a limit of its own.
+- **A role's cap is the most of its runs that are let in at once: the number of its agents that are switched
+  on.** A run beyond it waits for a slot and none is refused, but for a double's own ask where delegated runs
+  hold the whole cap (「A delegated task」 below).
+- **The cap is the role's alone.** It is counted over every run of the role wherever it works, each run on
+  an agent of its own; no path carries a limit of its own.
 - **Runs do not take turns at a path.** A run occupies a slot of its role wherever it works; two runs at
   two paths, or two runs a caller sends to one folder, are two slots. What keeps two jobs out of one
   checkout is the repository's checkout, not the slot (`docs/worker-slots.md`).
-- **The cap is read as every run asks to be let in,** so a changed cap holds from the next admission: a
-  raised cap lets in at once the waiting runs it frees, and a lowered one takes no slot away from a run
-  already let in.
-- **A cap of zero closes the role:** its runs wait until the owner raises it.
+- **The agents are read as every run asks to be let in,** so an agent added, removed or switched holds from
+  the next admission: one more lets in at once the waiting run it frees, and one fewer takes no slot away
+  from a run already let in.
+- **A role with no agent switched on is closed:** its runs wait until the owner switches one on.
 
 ## The line
 
@@ -170,13 +169,12 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   the role its ask names — `doppelganger` where it names none — as the source `delegate`, keyed by a request
   of its own, and waits in that role's line however long it takes.
 - **A task naming no role is the supervisor's double:** it holds a slot of the `doppelganger` role. The
-  doppelganger role is seeded with an empty order, so its lease carries the asking supervisor's provider,
-  model and effort as they stand when it is asked — the provider, model and effort its last turn went out on,
-  else its order's first — and it waits, never moves, while that provider has no quota. An order the owner
-  sets on the role stands over that, and the slot is then let in on that order like any run of the role. The
-  doppelganger role's cap counts every supervisor's double together.
-- **A task naming a role** holds a slot of that role and goes out on that role's own order, like any run of
-  it, or on the asking supervisor's road where that role's order is empty.
+  doppelganger's agents are seeded on no road, so its lease carries the asking supervisor's provider, model
+  and effort as they stand when it is asked — the provider, model and effort its last turn went out on, else
+  its order's first — and it waits, never moves, while that provider has no quota. An agent the owner sets a
+  road goes out on that road instead. The doppelganger's agents count every supervisor's double together.
+- **A task naming a role** holds a slot of that role and goes out on the road of the agent it is let in on,
+  like any run of it, or on the asking supervisor's road where that agent names none.
 - **A double's own ask never waits on doubles.** Every delegated run is a double, and a double may delegate in
   turn; its ask says it comes from a double. Such an ask is refused, before it enters the line, where slots
   asked under the source `delegate` and let in already number the role's cap or more, the cap being above
@@ -199,8 +197,9 @@ The worker settings' hook takes the slot for one native `Agent` call a job's pro
   not marked callable, is refused, and the caller does that part with its own tools.
 - **The provider is the caller's program's,** read off the environment the program hands its hook — the
   provider that owns the program, and Claude Code where none does — since a native child runs inside that
-  program. The model and effort are the co-worker role's order's entry for that provider; a role whose order
-  holds no entry for it is refused, and the caller does that part itself.
+  program. The model and effort are those of the co-worker role's first agent on that provider; a role with no
+  agent on it is refused, and the caller does that part itself. A native call takes a seat of its role and no
+  road of its own: it is let in on the first free agent whatever that agent's road.
 - **Before the call** the hook puts in a request under the role, keyed by the session and tool-use id, and
   waits in the role's line, however long that takes. A call that got its slot is allowed while its input is
   edited: the caller's prompt is appended the way to read the code dependency graph.
@@ -219,8 +218,8 @@ The worker settings' hook takes the slot for one native `Agent` call a job's pro
   belongs to the design, and how many run at once belongs to each task's role. Tasks a slot is not free for
   remain pending, having started neither the model process nor any clock; when one ends and releases its
   lease, the next tick launches the front task of the same role.
-- **A branch's provider is its role's active provider,** never its parent's: the dispatcher takes the role a
-  task names and the role's order (`docs/provider-order.md`).
+- **A branch's provider is its role's agent's,** never its parent's: the dispatcher takes the role a task
+  names and is let in on one of that role's agents.
 - **Inside a branch, a provider that fails does not cross straight to another:** the branch is closed as
   failed, its lease released, and a fresh request taken for the same role, which goes out on the role's next
   provider as a separate attempt.
@@ -275,7 +274,7 @@ The worker settings' hook takes the slot for one native `Agent` call a job's pro
 ## On a registration the arbiter stands
 
 - **A slot on a registration whose engine the arbiter stands** asks its demand once the line lets it in
-  (`docs/own-llm.md`, 「An engine the arbiter stands」). The role's cap is the ceiling and the master's
+  (`docs/own-llm.md`, 「An engine the arbiter stands」). The role's agents are the ceiling and the master's
   grants are what run: a run waits for its grant as it waits for its slot, and gives its demand back with
   its lease. A slot asked from a run on such a registration asks within that run's demand, and a slot whose
   caller hands in a granted demand of its own stands on that demand and asks none. A session started on a

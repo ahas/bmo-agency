@@ -263,5 +263,17 @@ async fn role_seed<C: ConnectionTrait>(
   )
   .await?;
 
+  // A role is seeded with its agents (docs/role-agents.md, 「The roles the policy seeds」): as many as its
+  // declaration's count, each on the road it names, given once with the role.
+  run(
+    db,
+    &format!(
+      r#"{} AND r."name" = $1"#,
+      crate::migration::m20261203_000001_role_agents::AGENTS_OF_ROLES.trim_end()
+    ),
+    vec![role.name.clone().into()],
+  )
+  .await?;
+
   Ok(())
 }

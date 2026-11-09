@@ -106,14 +106,17 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
+  // The scout's agents stand on Claude Code, the road the run below is asked on.
+  crate::support::rows::seats(scratch.db(), "scout", &[("claude-code", "claude-haiku-4-5-20251001")]).await;
+
   let (_, roles) = get(port, token, "/roles/scout").await;
-  let entry = roles["order"]
+  let entry = roles["agents"]
     .as_array()
     .unwrap()
     .iter()
     .find(|entry| entry["provider"] == "claude-code")
     .cloned()
-    .unwrap_or_else(|| panic!("the scout role holds no claude-code entry: {roles}"));
+    .unwrap_or_else(|| panic!("the scout role holds no agent on claude-code: {roles}"));
 
   // A slot let in, asked for by a supervisor, and a role's session started on it.
   let (status, slot) = post(
@@ -193,6 +196,9 @@ async fn a_repository_s_words_are_the_owners_and_wait_while_another_turn_holds_t
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
   let path = "/repositories/helper/words";
+
+  // The worker's agents stand on Claude Code, the road a word's own turn at the worker stands on.
+  crate::support::rows::seats(scratch.db(), "worker", &[("claude-code", "claude-opus-5")]).await;
 
   assert_eq!(
     post(port, token, "/repositories/nobody/words", json!({ "words": "more" })).await.1["code"],

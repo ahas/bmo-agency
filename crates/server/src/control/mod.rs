@@ -33,6 +33,7 @@ pub mod registry;
 pub mod relay_routes;
 mod repository_routes;
 pub mod road_verbs;
+mod role_agents;
 mod rooms;
 pub mod run_clocks;
 mod run_ledger;

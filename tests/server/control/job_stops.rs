@@ -287,6 +287,7 @@ async fn a_job_stopped_through_the_route_gives_its_slot_back_and_the_next_waitin
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
   running(&scratch, "worker-a", 9, 44, Some("job-9")).await;
 
   // The job holds the worker role's one slot, its lease bound to its run, and the next job waits for it.

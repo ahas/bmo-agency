@@ -177,6 +177,7 @@ async fn a_job_reaped_as_stale_gives_its_slot_back_and_its_waiting_ask_is_cancel
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
   repository(scratch.db(), "bmo-cli", "/checkouts/bmo-cli", &[]).await;
   scratch
     .run(

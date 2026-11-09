@@ -522,7 +522,7 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
     if run.resume.is_none() { "brought up" } else { "resumed" }
   );
 
-  let fold_ratio = fold::worker_fold_ratio(ground, &reply.mode, None).await;
+  let fold_ratio = fold::worker_fold_ratio(ground, &reply.mode, None, Some(&cwd)).await;
 
   if fold::worker_session_full(reply.context_ratio, fold_ratio) {
     println!("{label} {worker} {model}: {session_id} is full, folding it");

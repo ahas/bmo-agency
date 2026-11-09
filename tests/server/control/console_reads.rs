@@ -260,12 +260,12 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   assert_eq!((status, refused["code"].clone()), (409, json!("seeded")), "{refused}");
 
-  // A slot asked for a model alone goes out on the provider the role's order names it under.
+  // A slot asked for a model alone goes out on the provider the role's agent of that model is on.
   let (status, roles) = get(port, token, "/roles/scout").await;
 
   assert_eq!(status, 200, "{roles}");
 
-  let entry = roles["order"][0].clone();
+  let entry = roles["agents"][0].clone();
   let (status, asked) = call(
     port,
     token,

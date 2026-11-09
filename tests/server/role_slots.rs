@@ -76,6 +76,7 @@ async fn a_raised_cap_lets_in_the_runs_waiting_at_their_next_ask() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let first = ask(&ground, "worker", "first").await;
   let second = ask(&ground, "worker", "second").await;
@@ -86,6 +87,7 @@ async fn a_raised_cap_lets_in_the_runs_waiting_at_their_next_ask() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 2 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert!(admitted(&ground, &second).await, "the cap is read as every run asks to be let in");
 }
@@ -379,6 +381,7 @@ async fn an_owner_s_release_gives_back_everything_it_holds_and_nothing_of_anothe
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'worker'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let mut first = asked("worker", "first");
   let mut second = asked("worker", "second");
@@ -604,6 +607,7 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert_eq!(
     dispatch::fixed_road(&ground.db, "doppelganger", Some("chat")).await.unwrap(),
@@ -688,9 +692,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   );
 
   // A role whose slots a job holds is waited on as the line says: that run ends of its own.
-  scratch
-    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'builder'"#, vec![])
-    .await;
+  crate::support::rows::seats(scratch.db(), "builder", &[("deepseek", "deepseek-flash")]).await;
 
   let job = enqueue(
     &ground.db,
@@ -721,11 +723,182 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   scratch
     .run(r#"UPDATE "roles" SET "max_concurrent" = 0 WHERE "name" = 'doppelganger'"#, vec![])
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   assert!(
     dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:closed")
       .await
       .unwrap()
       .is_none()
+  );
+}
+
+// What a run reads off the agent it is let in on (docs/role-agents.md, 「What a run reads off its agent」): its
+// seat is found by the slot it holds at the folder it works in, and what the agent lays over its role stands in
+// the role's place for that run alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_reads_its_prompt_bundles_and_threshold_off_the_agent_it_is_let_in_on() {
+  use agency_server::role_agents::{bundles_at, prompt_at, seated_at};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  // The role's first agent lays a prompt, bundles and a threshold of its own over its role's.
+  let first = agency_server::role_agents::of_role(db, "worker").await.unwrap().remove(0);
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "prompt" = 'Work as the first seat.', "bundles" = '["web.read"]',
+           "fold_ratio" = 0.4 WHERE "name" = $1"#,
+      vec![first.name.as_str().into()],
+    )
+    .await;
+
+  let role_prompt = agency_server::agent_roles::prompt_of(db, "worker").await.unwrap();
+  let role_bundles = agency_server::agent_roles::bundles_of(db, "worker").await.unwrap();
+
+  // No run stands anywhere: the role's own preset.
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(prompt_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_prompt);
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_bundles);
+
+  // A run let in at a folder sits on the role's first free agent, and reads that agent.
+  let held = ask(&ground, "worker", "one").await;
+
+  assert!(admitted(&ground, &held).await);
+
+  let seat = seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap().unwrap();
+
+  assert_eq!(seat.name, first.name);
+  assert_eq!(
+    prompt_at(db, "worker", Some("/checkouts/one")).await.unwrap().as_deref(),
+    Some("Work as the first seat.")
+  );
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one/")).await.unwrap(), ["web.read"]);
+  // The folder alone names the seat too, whatever its role, and a run that names no folder takes its role's
+  // only active request.
+  assert_eq!(seated_at(db, None, Some("/checkouts/one")).await.unwrap().unwrap().name, first.name);
+  assert_eq!(seated_at(db, Some("worker"), None).await.unwrap().unwrap().name, first.name);
+  // Another folder, and another role at the same folder, name no seat.
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/two")).await.unwrap(), None);
+  assert_eq!(seated_at(db, Some("coder"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(prompt_at(db, "worker", Some("/checkouts/two")).await.unwrap(), role_prompt);
+
+  // The job's threshold is its agent's where the agent sets one, and its role's elsewhere.
+  let role_ratio = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap().fold_ratio;
+
+  assert_eq!(
+    agency_server::worker_session::fold::worker_fold_ratio(
+      &ground,
+      "deepseek",
+      None,
+      Some("/checkouts/one")
+    )
+    .await,
+    0.4
+  );
+  assert_eq!(
+    agency_server::worker_session::fold::worker_fold_ratio(
+      &ground,
+      "deepseek",
+      None,
+      Some("/checkouts/two")
+    )
+    .await,
+    role_ratio
+  );
+
+  // The slot given back, nothing stands on the agent, and the role's own preset is read again.
+  assert!(finish(db, &ground.events, &held.token, "done", false).await.unwrap());
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_bundles);
+}
+
+// A role that holds no agent is given its agents from what its row names (docs/role-agents.md, 「The roles the
+// policy seeds」): as many as its count, each on the first road of its order whose program carries the role's
+// line, or on the provider forced on it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_is_given_its_agents_on_the_first_road_of_its_order_that_carries_its_line() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+  let order = r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"},
+    {"provider":"registered","model":"flash-next-coder"},
+    {"provider":"claude-code","model":"claude-opus-5-5","effort":"high"}]"#;
+
+  for role in ["worker", "voyager", "seeker", "translator"] {
+    scratch
+      .run(
+        r#"UPDATE "roles" SET "provider_order" = $1, "max_concurrent" = 2, "active_provider" = NULL,
+             "active_model" = NULL WHERE "name" = $2"#,
+        vec![order.into(), role.into()],
+      )
+      .await;
+  }
+
+  scratch
+    .run(
+      r#"UPDATE "roles" SET "provider_order" = $1, "max_concurrent" = 1, "active_provider" = 'claude-code',
+           "active_model" = 'claude-sonnet-5' WHERE "name" = 'producer'"#,
+      vec![order.into()],
+    )
+    .await;
+  crate::support::rows::reseated(db).await;
+
+  let mut roads = vec![];
+
+  for role in ["worker", "voyager", "seeker", "translator", "producer"] {
+    let agents = agency_server::role_agents::of_role(db, role).await.unwrap();
+    let first = agents.first().unwrap();
+
+    assert!(
+      agents
+        .iter()
+        .all(|agent| agent.provider == first.provider && agent.model == first.model)
+    );
+    roads.push((
+      role,
+      agents.len(),
+      first.provider.clone().unwrap(),
+      first.model.clone().unwrap(),
+      first.effort.clone(),
+    ));
+  }
+
+  assert_eq!(
+    roads,
+    [
+      // The worker line and the search line stand on the order's first road.
+      ("worker", 2, "deepseek".to_owned(), "deepseek-flash".to_owned(), Some("high".to_owned())),
+      (
+        "voyager",
+        2,
+        "deepseek".to_owned(),
+        "deepseek-flash".to_owned(),
+        Some("high".to_owned())
+      ),
+      // The browse line is carried by Claude Code alone, and the translate line by no road before the registry.
+      (
+        "seeker",
+        2,
+        "claude-code".to_owned(),
+        "claude-opus-5-5".to_owned(),
+        Some("high".to_owned())
+      ),
+      ("translator", 2, "registered".to_owned(), "flash-next-coder".to_owned(), None),
+      // A forced provider stands on its forced model, at the effort the order names for it.
+      (
+        "producer",
+        1,
+        "claude-code".to_owned(),
+        "claude-sonnet-5".to_owned(),
+        Some("high".to_owned())
+      ),
+    ]
   );
 }

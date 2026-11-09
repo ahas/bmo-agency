@@ -93,6 +93,7 @@ async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let ground = ground_on(scratch.db().clone(), home);
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  crate::support::rows::seated_on_order(scratch.db(), "worker").await;
   set_provider_order(scratch.db(), &order).await.unwrap();
   std::fs::create_dir_all(home.join("helper")).unwrap();
   repository(scratch.db(), "helper", &home.join("helper").to_string_lossy(), &[]).await;
@@ -389,20 +390,6 @@ async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it()
   carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
   assert_eq!(carrier.turns[0].0.model, "pinned-model");
   assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("pin"));
-
-  scratch
-    .run(
-      r#"UPDATE "roles" SET "active_provider" = 'claude-code', "active_model" = 'forced-model'
-         WHERE "name" = 'worker'"#,
-      vec![],
-    )
-    .await;
-
-  let mut carrier = answered();
-
-  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
-  assert_eq!(carrier.turns[0].0.model, "forced-model", "the forced provider stands over the pin");
-  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("forced"));
 }
 
 #[test]
@@ -536,6 +523,7 @@ async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, P
   let ground = ground_on(scratch.db().clone(), home);
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  crate::support::rows::seated_on_order(scratch.db(), "worker").await;
   set_provider_order(scratch.db(), &order).await.unwrap();
 
   let base = home.join("web");

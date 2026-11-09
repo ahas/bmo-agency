@@ -630,7 +630,7 @@ pub async fn chat_run(
   .await;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
   let above = match role.as_deref() {
-    Some(role) => super::role_prompt(&ground.db, role).await,
+    Some(role) => super::role_prompt(&ground.db, role, launch.cwd).await,
     None => None,
   };
   let documents = documents(&ground.db).await;

@@ -88,6 +88,8 @@ pub struct Request {
   pub asked_by: Option<String>,
   /// The run its child is, where its binding names one.
   pub agent_name: Option<String>,
+  /// The agent of its role it was let in on, its seat (docs/role-agents.md); none until it is let in.
+  pub seat: Option<String>,
   /// Why it waits where no provider of its road has quota, or none.
   pub held_for: Option<String>,
   /// Who gave it back — the token's holder, its owner, or the line on evidence its run ended — or none while
@@ -217,6 +219,7 @@ pub fn request_of(row: &QueryResult) -> Result<Request, Fault> {
     title: row.try_get("", "title").map_err(get)?,
     asked_by: row.try_get("", "asked_by").map_err(get)?,
     agent_name: row.try_get("", "agent").map_err(get)?,
+    seat: row.try_get("", "seat").map_err(get)?,
     held_for: row.try_get("", "held_for").map_err(get)?,
     ended_by: row.try_get("", "ended_by").map_err(get)?,
   })
@@ -439,6 +442,31 @@ pub async fn enqueue(
   }
 
   let fixed = asked.wanted.fixed.as_ref();
+
+  // A road its caller names is one an agent of the role is on (docs/role-agents.md, 「Which agent a run
+  // takes」): a native call takes a seat and keeps its caller's road, and a role whose agents name no road
+  // goes out on its asking supervisor's.
+  if let Some(named) = fixed
+    && source != NATIVE
+  {
+    let roads: Vec<String> = role
+      .agents
+      .iter()
+      .filter_map(|agent| agent.entry())
+      .map(|entry| format!("{} {}", entry.provider, entry.model))
+      .collect();
+
+    if !roads.is_empty() && !role.agents.iter().any(|agent| agent.on(&named.provider, &named.model)) {
+      return Err(format!(
+        "No agent of the {} role is on {} {}; its agents are on: {}",
+        role.name,
+        named.provider,
+        named.model,
+        roads.join(", ")
+      ));
+    }
+  }
+
   let written = db.begin().await.map_err(faulted)?;
 
   let opened = run(
@@ -536,6 +564,74 @@ pub async fn road_of(
   })
 }
 
+/// One agent a request may be let in on: its name, and the road the request goes out on there or why that
+/// road cannot answer now.
+#[derive(Clone, Debug)]
+pub struct Seat {
+  pub agent: String,
+  pub road: Result<Entry, String>,
+}
+
+/// The agents a request may be let in on (docs/role-agents.md, 「Which agent a run takes」), in the order it
+/// looks for a free one, each with whether its road answers now. A request that names a road takes the agents
+/// on that road, or the agents that name none where its road is its asking supervisor's; one that names none
+/// takes every agent of the role that is switched on and names a road.
+pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
+  let on = role.agents.iter().filter(|agent| agent.enabled);
+  let mut seats: Vec<Seat> = vec![];
+
+  if held.provider.is_empty() {
+    for agent in on.filter(|agent| agent.entry().is_some()) {
+      let asked = Request {
+        provider: agent.provider.clone().unwrap_or_default(),
+        model: agent.model.clone().unwrap_or_default(),
+        effort: agent.effort.clone(),
+        ..held.clone()
+      };
+      // An agent on a road already judged shares its judgement: one road is asked of its provider once.
+      let judged = seats
+        .iter()
+        .find(|seat| role.agent(&seat.agent).is_some_and(|other| other.on(&asked.provider, &asked.model)))
+        .map(|seat| seat.road.clone());
+      let Some(own) = agent.entry() else { continue };
+      let road = match judged {
+        Some(road) => road.map(|_| own),
+        None => road_of(ground, &asked, role).await?.map(|_| own),
+      };
+
+      seats.push(Seat {
+        agent: agent.name.clone(),
+        road,
+      });
+    }
+
+    return Ok(seats);
+  }
+
+  let named: Vec<&crate::role_agents::RoleAgent> =
+    on.clone().filter(|agent| agent.on(&held.provider, &held.model)).collect();
+  let taken: Vec<&crate::role_agents::RoleAgent> = match named.is_empty() {
+    false => named,
+    true => on.filter(|agent| agent.entry().is_none()).collect(),
+  };
+
+  if taken.is_empty() {
+    return Ok(seats);
+  }
+
+  let road = road_of(ground, held, role).await?;
+
+  Ok(
+    taken
+      .into_iter()
+      .map(|agent| Seat {
+        agent: agent.name.clone(),
+        road: road.clone(),
+      })
+      .collect(),
+  )
+}
+
 /// The request let in where its turn has come, or none where it waits on: its owner asking for it, let in once
 /// no request whose owner is asking stands ahead of it in its role's line, the role's cap has room and its road
 /// has quota. A request whose road has none keeps its place and says why; one let in carries the provider,
@@ -550,9 +646,9 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
   }
 
   let role = role_of(&ground.db, &held.role).await?;
-  let road = road_of(ground, held, &role).await?;
+  let seats = seats_for(ground, held, &role).await?;
   let written = ground.db.begin().await.map_err(faulted)?;
-  let (admitted, changed) = admission(&written, &held.token, &role, road, crate::now_ms()).await?;
+  let (admitted, changed) = admission(&written, &held.token, &role, seats, crate::now_ms()).await?;
 
   written.commit().await.map_err(faulted)?;
 
@@ -594,8 +690,18 @@ pub async fn acquire_inside(
     thinking: None,
     answer_tokens: None,
   };
+  // A native call takes a seat and no road: any agent of its role that is switched on, on its caller's road.
+  let seats = role
+    .agents
+    .iter()
+    .filter(|agent| agent.enabled)
+    .map(|agent| Seat {
+      agent: agent.name.clone(),
+      road: Ok(entry.clone()),
+    })
+    .collect();
   let written = db.begin().await.map_err(faulted)?;
-  let (admitted, changed) = admission(&written, &held.token, &role, Ok(entry), crate::now_ms()).await?;
+  let (admitted, changed) = admission(&written, &held.token, &role, seats, crate::now_ms()).await?;
 
   written.commit().await.map_err(faulted)?;
 
@@ -637,7 +743,7 @@ async fn admission<C: ConnectionTrait>(
   db: &C,
   token: &str,
   role: &AgentRole,
-  road: Result<Entry, String>,
+  seats: Vec<Seat>,
   now: i64,
 ) -> Result<(Option<Request>, Vec<Request>), Fault> {
   let Some(held) = request(db, token).await? else { return Ok((None, vec![])) };
@@ -653,9 +759,16 @@ async fn admission<C: ConnectionTrait>(
 
   let since = ask(db, token).await?;
 
-  // A request whose road has no quota keeps its place, says why and stands in no one's way.
-  let entry = match road {
-    Ok(entry) => {
+  // The first agent it may take that carries no run and whose road answers now is its seat. Where every agent
+  // it may take carries a run it waits and says nothing; where the free ones' roads cannot answer it keeps its
+  // place, says why and stands in no one's way.
+  let carrying = crate::role_agents::carrying(db, &held.role).await.map_err(faulted)?;
+  let free: Vec<&Seat> = seats.iter().filter(|seat| !carrying.contains(&seat.agent)).collect();
+  let picked = free
+    .iter()
+    .find_map(|seat| seat.road.as_ref().ok().map(|entry| (seat.agent.clone(), entry.clone())));
+  let (agent, entry) = match picked {
+    Some(picked) => {
       run(
         db,
         r#"UPDATE "role_slot_requests" SET "held_for" = NULL WHERE "token" = $1"#,
@@ -664,16 +777,18 @@ async fn admission<C: ConnectionTrait>(
       .await
       .map_err(faulted)?;
 
-      entry
+      picked
     }
-    Err(why) => {
-      run(
-        db,
-        r#"UPDATE "role_slot_requests" SET "held_for" = $2 WHERE "token" = $1"#,
-        vec![token.into(), why.into()],
-      )
-      .await
-      .map_err(faulted)?;
+    None => {
+      if let Some(why) = free.first().and_then(|seat| seat.road.as_ref().err()) {
+        run(
+          db,
+          r#"UPDATE "role_slot_requests" SET "held_for" = $2 WHERE "token" = $1"#,
+          vec![token.into(), why.clone().into()],
+        )
+        .await
+        .map_err(faulted)?;
+      }
 
       return Ok((None, vec![]));
     }
@@ -704,7 +819,7 @@ async fn admission<C: ConnectionTrait>(
       changed.push(ended);
     }
 
-    let admitted = admit(db, token, &entry, role.max_concurrent, now).await?;
+    let admitted = admit(db, token, &entry, &agent, role.max_concurrent, now).await?;
 
     return Ok((admitted, changed));
   }
@@ -729,7 +844,7 @@ async fn admission<C: ConnectionTrait>(
     changed.push(ended);
   }
 
-  let admitted = admit(db, token, &entry, role.max_concurrent, now).await?;
+  let admitted = admit(db, token, &entry, &agent, role.max_concurrent, now).await?;
 
   Ok((admitted, changed))
 }
@@ -873,13 +988,14 @@ async fn admit<C: ConnectionTrait>(
   db: &C,
   token: &str,
   entry: &Entry,
+  agent: &str,
   capacity: i64,
   now: i64,
 ) -> Result<Option<Request>, Fault> {
   let changed = run(
     db,
     r#"UPDATE "role_slot_requests" SET "state" = 'active', "leased_at" = $1, "provider" = $3, "model" = $4,
-         "effort" = $5, "capacity" = $6, "held_for" = NULL
+         "effort" = $5, "capacity" = $6, "held_for" = NULL, "seat" = $7
        WHERE "token" = $2 AND "state" = 'waiting'"#,
     vec![
       now.into(),
@@ -888,6 +1004,7 @@ async fn admit<C: ConnectionTrait>(
       entry.model.clone().into(),
       entry.effort.clone().unwrap_or_default().into(),
       capacity.into(),
+      agent.into(),
     ],
   )
   .await

@@ -66,11 +66,11 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   (`docs/agent-roles.md`, 「The coder role」).
 - **A job goes out when two things are free:** a slot of its role (`docs/role-slots.md`) and a checkout of
   its repository (`docs/worker-slots.md`, 「The queue with support checkouts」). Jobs on three repositories
-  whose role is capped at two run two at a time, each in its own repository's checkout on the role's
-  provider and model; the third waits for a slot.
-- **It runs on its role's active provider:** the provider the owner forced on the role, else the first of
-  the role's order with quota above the role's share (`docs/provider-order.md`), unless its item names a
-  model, or, where the role has no forced provider, its repository pins one (below).
+  whose role has two agents switched on run two at a time, each in its own repository's checkout on its
+  agent's provider and model; the third waits for a slot.
+- **It runs on the road of an agent of its role:** the first of the role's agents, by position, that is
+  switched on, carries no run and whose road can answer now (`docs/role-agents.md`, 「Which agent a run
+  takes」), unless its item names a model or its repository pins one (below).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
@@ -86,18 +86,18 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   after it. A `model` label that is `auto` or empty, or none at all, names no model, and the job goes out as
   「A job」 above says.
 - **It carries that item's job alone,** whatever role it runs as: the run goes out on the named provider
-  and model instead of its role's active provider and instead of its repository's pin, at the effort the
-  role's order names for that provider where it names one, else the provider's own default.
+  and model instead of the road its role's first free agent holds and instead of its repository's pin, and
+  is let in on an agent of its role that stands on that road (`docs/role-agents.md`, 「Which agent a run
+  takes」), at the effort that agent names.
 - **A named model that is unavailable makes the job wait,** as a pin does: it is held with the reason and
   goes out once the named provider can answer again, and it never falls back to another provider or
   model, since the item chose it.
 - **A named model agency does not hold refuses the launch** with the label's text, and the item's orderer
   is told once (`docs/agent-control.md`, 「An item's change is told to its orderer」); a label that does not
   read as a provider and a model is refused alike.
-- **The job holds a slot of its role,** so the role's cap counts it like any other run.
-- **What chose a job's provider and model is the first of four that stands:** its item's `model`, else
-  its role's forced provider (`docs/provider-order.md`, 「A provider the owner forces」), else its
-  repository's pin, else its role's order. The job says which (`chosenBy`, `docs/api.md`, 「assignments and
+- **The job holds a slot of its role,** the agent it is let in on, like any other run.
+- **What chose a job's provider and model is the first of three that stands:** its item's `model`, else
+  its repository's pin, else its role's agents in their order. The job says which (`chosenBy`, `docs/api.md`, 「assignments and
   jobs」).
 
 ## A pinned model
@@ -105,15 +105,15 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A repository may pin a model:** a provider and one model of it — a model the Claude CLI's catalogue
   names on Claude Code, a member of a provider's own road, or an offered registration on the registry's
   provider (`docs/provider-order.md`, 「Models a provider holds」).
-- **A pin carries every job in the repository whose item names no model and whose role has no forced
-  provider,** whatever role the job runs as: the run goes out on the pinned provider and model instead of its
-  role's order, at the effort the role's order names for that
-  provider where it names one, else the provider's own default.
+- **A pin carries every job in the repository whose item names no model,** whatever role the job runs as:
+  the run goes out on the pinned provider and model, let in on an agent of its role that stands on that
+  road alone, at the effort that agent names. A pin no agent of the role stands on refuses the job's slot
+  with the roads the role's agents hold (`docs/role-agents.md`, 「Which agent a run takes」).
 - **A pinned model that is unavailable makes the repository's work wait.** Where the pinned provider has no
-  quota above the role's share, cannot answer now, or the pinned registration's engine is down, the job is
+  quota, cannot answer now, or the pinned registration's engine is down, the job is
   held with the reason and goes out once the pin can answer again; it never falls back to another
   provider or model.
-- **A pinned job still holds a slot of its role,** so the role's cap counts it like any other run.
+- **A pinned job still holds a slot of its role,** the agent on the pinned road it is let in on.
 - **The pin is set and cleared on the repository's row;** the next job reads it.
 
 ## The words said to a repository

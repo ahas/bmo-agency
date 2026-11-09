@@ -249,16 +249,9 @@ fn pin(provider: &str, model: &str) -> Pin {
 }
 
 // The worker role's forced provider set, or cleared where none is given.
-async fn force_worker(scratch: &Scratch, forced: Option<(&str, &str)>) {
-  scratch
-    .run(
-      r#"UPDATE "roles" SET "active_provider" = $1, "active_model" = $2 WHERE "name" = 'worker'"#,
-      vec![
-        forced.map(|(provider, _)| provider.to_owned()).into(),
-        forced.map(|(_, model)| model.to_owned()).into(),
-      ],
-    )
-    .await;
+// The worker's agents laid down on one road, the only road its runs then go out on.
+async fn seat_worker(scratch: &Scratch, road: (&str, &str)) {
+  crate::support::rows::seats(scratch.db(), "worker", &[road, road, road]).await;
 }
 
 fn taken(resolution: &Resolution) -> Option<(String, String)> {
@@ -266,7 +259,7 @@ fn taken(resolution: &Resolution) -> Option<(String, String)> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_job_goes_out_on_its_item_s_model_then_the_forced_provider_then_the_pin_then_the_order() {
+async fn a_job_goes_out_on_its_item_s_model_then_the_pin_then_its_role_s_agents_road() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
@@ -289,34 +282,28 @@ async fn a_job_goes_out_on_its_item_s_model_then_the_forced_provider_then_the_pi
 
   assert_eq!((taken(&pinned), pinned.chosen_by), (deepseek("pinned-model"), Some(ChosenBy::Pin)));
 
-  // The owner forces the role's provider: it carries the job over the order and over the pin.
-  force_worker(&scratch, Some(("deepseek", "forced-model"))).await;
+  // The role's agents moved to another road: a job that names nothing goes out on it, and the pin still
+  // stands over it.
+  seat_worker(&scratch, ("deepseek", "seated-model")).await;
 
-  let forced = for_job(&ground, None, Some("pinned"), None, &[]).await.unwrap();
+  let seated = for_job(&ground, None, None, None, &[]).await.unwrap();
 
-  assert_eq!((taken(&forced), forced.chosen_by), (deepseek("forced-model"), Some(ChosenBy::Forced)));
-  assert!(forced.fixed);
-  assert_eq!(forced.steps.len(), 1, "the forced provider alone is walked: {forced:?}");
+  assert_eq!((taken(&seated), seated.chosen_by), (deepseek("seated-model"), Some(ChosenBy::Order)));
+  assert_eq!(seated.steps.len(), 1, "the agents' one road alone is walked: {seated:?}");
 
-  // The item's model stands over the forced provider and the pin.
+  let pinned = for_job(&ground, None, Some("pinned"), None, &[]).await.unwrap();
+
+  assert_eq!((taken(&pinned), pinned.chosen_by), (deepseek("pinned-model"), Some(ChosenBy::Pin)));
+
+  // The item's model stands over the pin.
   let item = pin("deepseek", "item-model");
   let named = for_job(&ground, None, Some("pinned"), Some(&item), &[]).await.unwrap();
 
   assert_eq!((taken(&named), named.chosen_by), (deepseek("item-model"), Some(ChosenBy::Item)));
-
-  // Cleared, the next run goes back to the pin, and with no pin to the order.
-  force_worker(&scratch, None).await;
-
-  let cleared = for_job(&ground, None, None, None, &[]).await.unwrap();
-
-  assert_eq!(
-    (taken(&cleared), cleared.chosen_by),
-    (deepseek("deepseek-flash"), Some(ChosenBy::Order))
-  );
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_forced_provider_or_an_item_s_model_that_cannot_answer_waits_and_never_falls_back() {
+async fn an_agents_road_or_an_item_s_model_that_cannot_answer_waits_and_never_falls_back() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
@@ -332,15 +319,15 @@ async fn a_forced_provider_or_an_item_s_model_that_cannot_answer_waits_and_never
   assert_eq!(named.chosen_by, Some(ChosenBy::Item));
   assert!(!named.sentence().is_empty());
 
-  // The owner forces a provider whose balance is spent: the role's runs wait for it.
-  force_worker(&scratch, Some(("deepseek", "forced-model"))).await;
+  // The role's agents stand on a provider whose balance is spent: the role's runs wait for it.
+  seat_worker(&scratch, ("deepseek", "seated-model")).await;
   deepseek_balance(&ground, 0.0).await;
 
-  let forced = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let spent = for_job(&ground, None, None, None, &[]).await.unwrap();
 
-  assert!(forced.road().is_none(), "{forced:?}");
-  assert_eq!(forced.steps.len(), 1, "the forced provider alone is walked: {forced:?}");
-  assert!(forced.sentence().contains("balance is spent"), "{}", forced.sentence());
+  assert!(spent.road().is_none(), "{spent:?}");
+  assert_eq!(spent.steps.len(), 1, "the agents' one road alone is walked: {spent:?}");
+  assert!(spent.sentence().contains("balance is spent"), "{}", spent.sentence());
 
   // A run of the role that is no job waits for it alike.
   let role = agency_server::agent_roles::named(scratch.db(), "worker").await.unwrap().unwrap();

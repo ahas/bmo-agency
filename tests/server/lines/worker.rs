@@ -64,6 +64,8 @@ async fn tracer(scratch: &Scratch) {
       vec![],
     )
     .await;
+  // One agent of the tracer on each road, so the role is defined on either provider a caller stands on.
+  crate::support::rows::seated_on_order(scratch.db(), "tracer").await;
 }
 
 // An account of a kind, on no base prompt unless it is given one.
@@ -296,6 +298,7 @@ async fn a_role_s_run_opens_on_its_role_s_prompt_and_reads_its_repository_s_rule
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
   repository(scratch.db(), "repo-a", &checkout.to_string_lossy(), &[("prompts", "kept".into())]).await;
   repository(scratch.db(), "kept", &home.path().join("other").to_string_lossy(), &[]).await;
 
@@ -396,6 +399,7 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
   store::seed::settle(scratch.db(), &agency_server::seeds::deployment(&ground.machine()))
     .await
     .unwrap();
+  crate::support::rows::seated_on_order(scratch.db(), "worker").await;
   repository(
     scratch.db(),
     "helper",

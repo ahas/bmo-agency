@@ -1476,6 +1476,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/role-agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every agent of every role, by role and position, or one role's. */
+        get: operations["listRoleAgents"];
+        put?: never;
+        /** Add an agent to a role. */
+        post: operations["createRoleAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/role-agents/{agentName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an agent that carries no run. */
+        delete: operations["deleteRoleAgent"];
+        options?: never;
+        head?: never;
+        /** Change any field of an agent. */
+        patch: operations["changeRoleAgent"];
+        trace?: never;
+    };
     "/repositories": {
         parameters: {
             query?: never;
@@ -3041,8 +3077,8 @@ export interface components {
             reason: string | null;
         };
         /**
-         * @description What chose a job's provider and model: its item's `model` label, its role's forced provider, its
-         *     repository's pin or its role's order.
+         * @description What chose a job's provider and model: its item's `model` label, its repository's pin or its role's
+         *     agents in their order (`order`). `forced` stands on a job row that holds it, and no job is given it.
          * @enum {string}
          */
         JobChoice: "item" | "forced" | "pin" | "order";
@@ -3737,17 +3773,14 @@ export interface components {
             description: string | null;
             bundles: components["schemas"]["RoleBundle"][];
             line: string;
-            order: components["schemas"]["OrderEntry"][];
-            /** Format: double */
-            quotaShare: number;
             /**
-             * @description the provider the owner forced as its active provider, or null where its order chooses
-             * @default null
+             * @description its agents, in the order a run looks for a free one
+             * @default []
              */
-            active: components["schemas"]["ActiveProvider"] | null;
+            agents: components["schemas"]["RoleAgent"][];
             /**
              * Format: int64
-             * @description the most of its runs that go at once
+             * @description the most of its runs that go at once: how many of its agents are switched on
              */
             maxConcurrent: number;
             sessions: components["schemas"]["RoleSessions"];
@@ -3755,8 +3788,8 @@ export interface components {
             foldRatio: number;
             callable: boolean;
             /**
-             * @description Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen
-             *     shows its road as the supervisor's.
+             * @description Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
+             *     screen shows its road as the supervisor's.
              * @default false
              */
             followsSupervisor: boolean;
@@ -3764,7 +3797,10 @@ export interface components {
             running: number;
             /** Format: int64 */
             waiting: number;
-            /** @description its active provider, or null where none of its order has quota or its order is empty */
+            /**
+             * @description the provider its next run goes out on, or null where none of its agents' roads can answer or none
+             *     names a road
+             */
             provider: string | null;
             waitingFor: string | null;
         };
@@ -3773,6 +3809,55 @@ export interface components {
             name: string;
             code: string;
             label: string;
+        };
+        /**
+         * @description RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
+         *     road its runs go out on.
+         */
+        RoleAgent: {
+            name: string;
+            role: string;
+            /** @description its road's provider, or null where it follows the supervisor that asks it */
+            provider: string | null;
+            model: string | null;
+            effort: string | null;
+            /** @description `on`, `off`, or null for the provider's own */
+            thinking: string | null;
+            /** Format: int64 */
+            answerTokens: number | null;
+            /** @description an agent switched off takes no run */
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description its place among its role's agents, lowest first
+             */
+            position: number;
+            /** @description whether its kept session is marked to be kept warm between runs; the mark warms nothing */
+            keepsCache: boolean;
+            /**
+             * Format: double
+             * @description its compaction threshold, or null where its role's stands
+             */
+            foldRatio: number | null;
+            /** @description what it lays over its role's preset, each null where the role's own stands */
+            prompt: string | null;
+            bundles: string[] | null;
+            skills: string[] | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            addedAt: number;
+            /**
+             * @description whether it names no road
+             * @default false
+             */
+            followsSupervisor: boolean;
+            /**
+             * @description whether a run stands let in on it now
+             * @default false
+             */
+            carries: boolean;
         };
         /**
          * @description RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,
@@ -3786,11 +3871,6 @@ export interface components {
             label: string;
             bundles: string[];
             line: string;
-            order: components["schemas"]["OrderEntry"][];
-            /** Format: int64 */
-            maxConcurrent: number;
-            /** Format: double */
-            quotaShare?: number | null;
             prompt?: string | null;
             description?: string | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
@@ -3803,19 +3883,12 @@ export interface components {
             label?: string | null;
             bundles?: string[] | null;
             line?: string | null;
-            order?: components["schemas"]["OrderEntry"][] | null;
-            /** Format: double */
-            quotaShare?: number | null;
-            /** Format: int64 */
-            maxConcurrent?: number | null;
             prompt?: string | null;
             description?: string | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
             /** Format: double */
             foldRatio?: number | null;
             callable?: boolean | null;
-            /** @description The provider forced as its active provider; null clears it. */
-            active?: components["schemas"]["ActiveProvider"] | null;
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -3859,6 +3932,52 @@ export interface components {
              * @description The share of the window they filled, from 0 to 1, or null.
              */
             share: number | null;
+        };
+        /** @description RoleAgentPage: the agents, by role and position. */
+        RoleAgentPage: {
+            items: components["schemas"]["RoleAgent"][];
+        };
+        /** @description RoleAgentAsk: the body that adds an agent to a role; every field but the role is optional. */
+        RoleAgentAsk: {
+            role: string;
+            /** @description kebab-case; the role and a number where none is named */
+            name?: string | null;
+            provider?: string | null;
+            model?: string | null;
+            effort?: string | null;
+            thinking?: string | null;
+            /** Format: int64 */
+            answerTokens?: number | null;
+            enabled?: boolean | null;
+            /** Format: int64 */
+            position?: number | null;
+            keepsCache?: boolean | null;
+            /** Format: double */
+            foldRatio?: number | null;
+            prompt?: string | null;
+            bundles?: string[] | null;
+            skills?: string[] | null;
+        };
+        /**
+         * @description RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an
+         *     override gives the role's own back.
+         */
+        RoleAgentChange: {
+            provider?: string | null;
+            model?: string | null;
+            effort?: string | null;
+            thinking?: string | null;
+            /** Format: int64 */
+            answerTokens?: number | null;
+            enabled?: boolean | null;
+            /** Format: int64 */
+            position?: number | null;
+            keepsCache?: boolean | null;
+            /** Format: double */
+            foldRatio?: number | null;
+            prompt?: string | null;
+            bundles?: string[] | null;
+            skills?: string[] | null;
         };
         /** @description RepositoryList: every repository. */
         RepositoryList: {
@@ -7792,6 +7911,108 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listRoleAgents: {
+        parameters: {
+            query?: {
+                role?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgentPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createRoleAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAgentAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    deleteRoleAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeRoleAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAgentChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
         };
     };
     listRepositories: {

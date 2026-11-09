@@ -47,3 +47,59 @@ pub async fn repository(db: &DatabaseConnection, name: &str, path: &str, with: &
   columns.extend([("created_at", 0i64.into()), ("updated_at", 0i64.into())]);
   insert(db, "repositories", columns).await;
 }
+
+/// A role's agents laid down afresh, one a road named, in the order named: its seats, each on one provider and
+/// model (docs/role-agents.md). A role given none carries no run.
+pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) {
+  store::run(db, r#"DELETE FROM "role_agents" WHERE "role" = $1"#, vec![role.into()])
+    .await
+    .unwrap();
+
+  for (place, (provider, model)) in roads.iter().enumerate() {
+    store::run(
+      db,
+      r#"INSERT INTO "role_agents" ("name", "role", "provider", "model", "position") VALUES ($1, $2, $3, $4, $5)"#,
+      vec![
+        format!("{role}-{:02}", place + 1).into(),
+        role.into(),
+        (*provider).into(),
+        (*model).into(),
+        (place as i64 + 1).into(),
+      ],
+    )
+    .await
+    .unwrap();
+  }
+}
+
+/// Every role's agents laid down afresh from what its row names, as the store gives a role its agents: as many
+/// as its row's cap, each on its row's forced provider or its order's first entry. For a test that writes a
+/// role's row itself.
+pub async fn reseated(db: &DatabaseConnection) {
+  store::run(db, r#"DELETE FROM "role_agents""#, vec![]).await.unwrap();
+  store::run(db, store::migration::m20261203_000001_role_agents::AGENTS_OF_ROLES, vec![])
+    .await
+    .unwrap();
+}
+
+/// A role's agents laid down afresh, one on each road its row's order names, in that order: a role whose runs
+/// may go out on several roads, each a seat of its own.
+pub async fn seated_on_order(db: &DatabaseConnection, role: &str) {
+  store::run(db, r#"DELETE FROM "role_agents" WHERE "role" = $1"#, vec![role.into()])
+    .await
+    .unwrap();
+  store::run(
+    db,
+    r#"INSERT INTO "role_agents"
+         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "position")
+       SELECT r."name" || '-' || lpad(listed.place::text, 2, '0'), r."name", listed.entry ->> 'provider',
+              listed.entry ->> 'model', listed.entry ->> 'effort', listed.entry ->> 'thinking',
+              (listed.entry ->> 'answerTokens')::bigint, listed.place
+       FROM "roles" r
+       CROSS JOIN LATERAL jsonb_array_elements(r."provider_order"::jsonb) WITH ORDINALITY AS listed(entry, place)
+       WHERE r."name" = $1"#,
+    vec![role.into()],
+  )
+  .await
+  .unwrap();
+}

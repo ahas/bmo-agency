@@ -18,6 +18,7 @@ async fn a_roles_row_is_read_whole_and_a_role_the_store_does_not_hold_gives_noth
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let making = named(scratch.db(), "making").await.unwrap().unwrap();
 

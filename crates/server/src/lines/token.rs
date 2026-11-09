@@ -160,7 +160,7 @@ async fn capabilities(
     None
   };
   let bundles = match role.as_deref() {
-    Some(role) => crate::agent_roles::bundles_of(&ground.db, role).await?,
+    Some(role) => crate::role_agents::bundles_at(&ground.db, role, Some(checkout)).await?,
     None if supervisor => ROLES.supervisor.clone(),
     None => vec![],
   };
@@ -323,7 +323,7 @@ pub struct Carries {
 pub async fn carried_by(ground: &Ground, apart: &agent_session::Apart) -> Result<Carries, Refusal> {
   let line = apart.line.as_deref().unwrap_or(super::worker::LINE);
   let bundles = match apart.role.as_deref() {
-    Some(role) => crate::agent_roles::bundles_of(&ground.db, role).await?,
+    Some(role) => crate::role_agents::bundles_at(&ground.db, role, Some(&apart.cwd)).await?,
     None => vec![],
   };
   let doubled = apart.supervisor.as_ref().map(|_| supervisor_capabilities()).unwrap_or_default();

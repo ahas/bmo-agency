@@ -35,10 +35,32 @@ pub fn worker_session_full(context_ratio: Option<f64>, fold_ratio: f64) -> bool 
   context_ratio.is_some_and(|ratio| ratio >= fold_ratio)
 }
 
-/// The compaction threshold of a job's session: its role's (docs/sessions.md, 「Session compaction」), the
-/// provider's declared default where the store cannot be read, since a fold is upkeep that fails nothing.
-pub async fn worker_fold_ratio(ground: &Ground, provider: &str, role: Option<&str>) -> f64 {
-  let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
+/// The compaction threshold of a job's session (docs/sessions.md, 「Session compaction」): the one the agent
+/// the job is let in on sets, where it sets one — the seat of the slot the job holds at `path`, the folder it
+/// works in — else its role's, and the provider's declared default where the store cannot be read, since a
+/// fold is upkeep that fails nothing.
+pub async fn worker_fold_ratio(
+  ground: &Ground,
+  provider: &str,
+  role: Option<&str>,
+  path: Option<&str>,
+) -> f64 {
+  let seat = crate::role_agents::seated_at(&ground.db, role, path).await.unwrap_or_else(|why| {
+    eprintln!(
+      "agency: the agent at {} did not read, its role's threshold stands: {why}",
+      path.unwrap_or("no path")
+    );
+
+    None
+  });
+
+  if let Some(own) = seat.as_ref().and_then(|agent| agent.fold_ratio) {
+    return own;
+  }
+
+  // A job let in on an agent runs as that agent's role; one whose seat is not told runs as the job role.
+  let seated = seat.map(|agent| agent.role);
+  let role = role.or(seated.as_deref()).unwrap_or_else(|| crate::agent_roles::job_role());
 
   match crate::agent_roles::named(&ground.db, role).await {
     Ok(Some(role)) => role.fold_ratio,

@@ -370,6 +370,7 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   // With no instance standing the registry still offers the registration and can answer for the key.
   let registered = agency_server::control::harness::named("registered").unwrap();
@@ -515,6 +516,7 @@ async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_l
       vec![],
     )
     .await;
+  crate::support::rows::reseated(scratch.db()).await;
 
   let translated = translate(&ground, "document", "English", (None, &[]), "the text").await.unwrap();
 
