@@ -72,24 +72,6 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
   }
 }
 
-/// A role's agents laid down afresh, `count` of them, each naming no road, so its runs follow the supervisor
-/// that asks them.
-pub async fn following_seats(db: &DatabaseConnection, role: &str, count: usize) {
-  store::run(db, r#"DELETE FROM "role_agents" WHERE "role" = $1"#, vec![role.into()])
-    .await
-    .unwrap();
-
-  for place in 1..=count {
-    store::run(
-      db,
-      r#"INSERT INTO "role_agents" ("name", "role", "position") VALUES ($1, $2, $3)"#,
-      vec![format!("{role}-{place:02}").into(), role.into(), (place as i64).into()],
-    )
-    .await
-    .unwrap();
-  }
-}
-
 /// Every role's agents laid down afresh from what its row names, as the store gives a role its agents: as many
 /// as its row's cap, each on its row's forced provider or its order's first entry. For a test that writes a
 /// role's row itself.
