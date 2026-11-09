@@ -775,7 +775,22 @@ impl HerdrSessions {
     self.handing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
-  // The turns a handoff turn displaced, put back when it ends.
+  // A session lent to the receiver's handoff no longer: the turns its handoff turns displaced take it back.
+  fn lent_back(&self, session: &SessionId) {
+    self.handing().remove(session);
+
+    let mut going = self.going();
+
+    if let Some(parked) = self.parked().remove(session) {
+      going.entry(session.clone()).or_default().extend(parked);
+    }
+
+    if going.get(session).is_some_and(|runs| runs.is_empty()) {
+      going.remove(session);
+    }
+  }
+
+  // The turns a handoff turn displaced, put back once the session is lent no longer.
   fn parked(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, Vec<Running>>> {
     self.parked.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
@@ -865,6 +880,7 @@ impl HerdrSessions {
     self.questions.clear(session);
     self.deaf().remove(session);
 
+    let lending = self.handing().contains(session);
     let mut going = self.going();
 
     if let Some(runs) = going.get_mut(session)
@@ -875,8 +891,9 @@ impl HerdrSessions {
       self.outputs.ended(session, ended.turn);
     }
 
-    // The handoff turn ended: the turn that lent it the session takes it back.
-    if let Some(parked) = self.parked().remove(session) {
+    // A turn of the receiver's handoff ended while the session is still lent: the turn that lent it waits on,
+    // since the receiver may send another. Lent no longer, the waiting turn takes the session back.
+    if !lending && let Some(parked) = self.parked().remove(session) {
       going.entry(session.clone()).or_default().extend(parked);
     }
 
@@ -1054,7 +1071,7 @@ impl HerdrSessions {
 
     let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
 
-    self.handing().remove(&session);
+    self.lent_back(&session);
 
     log.write(&ground.db, Line::note(handed.said())).await;
   }
@@ -2105,22 +2122,23 @@ impl HerdrSessions {
     };
 
     let turn_id;
-    // A session its turn lent the receiver's handoff turn takes that turn now; the turn that lent it stands
-    // waiting and takes the session back when the handoff turn ends.
-    let lent = self.handing().remove(&turn.session);
+    // A session its turn lent the receiver's handoff takes each turn the receiver sends for it, one at a
+    // time, for as long as the ask stands; the turn that lent it stands waiting and takes the session back
+    // once the ask is answered.
+    let lent = self.handing().contains(&turn.session);
 
     {
       let mut going = self.going();
       let runs = going.entry(turn.session.clone()).or_default();
+      let mut parked = self.parked();
 
-      if !runs.is_empty() && !lent {
+      // Busy: a second turn of a session not lent, or of a lent one while a handoff turn of it still goes.
+      if !runs.is_empty() && (!lent || parked.contains_key(&turn.session)) {
         return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
       }
 
       if lent {
-        let parked = std::mem::take(runs);
-
-        self.parked().insert(turn.session.clone(), parked);
+        parked.entry(turn.session.clone()).or_default().extend(std::mem::take(runs));
       }
 
       turn_id = self.next_turn();

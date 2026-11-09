@@ -128,8 +128,11 @@ statements below about either are kept for a rollback to the road a deployment l
     neither asks anything;
   - **the order:** the ask goes out while agency still names the session and the old program still stands
     in its pane under herdr, before the session is let go and the turn's stand replaces it. The turn that
-    waits for the handoff lends the session to the receiver's handoff turn, so that turn runs on the very
-    session going away instead of being refused as a second turn while the waiting turn goes. The old
+    waits for the handoff lends the session to the receiver for as long as the ask stands, so every turn
+    the receiver sends for it, the notes the session owes and then the handoff itself, one after another,
+    runs on the very session going away instead of being refused as a second turn while the waiting turn
+    goes. The waiting turn takes the session back once the ask is answered, never between two of the
+    receiver's turns. The old
     program usually outlives agency's own restart, so a turn after a restart that opens a fresh session
     asks as any other does;
   - **the answer:** 200 with the handoff file's path and its byte count where the old session wrote one,

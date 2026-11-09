@@ -243,12 +243,12 @@ async fn a_supervisors_one_session_keeps_the_hash_its_prompt_was_sent_with() {
   );
 }
 
-// What the stand-in saw of one asking: whether the agency still named the session, whether the handoff turn
-// was let in, and why it was not.
+// What the stand-in saw of one asking: whether the agency still named the session, whether every turn of the
+// handoff was let in, and why one was not.
 type Seen = Arc<Mutex<Vec<(bool, bool, Option<String>)>>>;
 
 // The receiver's ask, in the agency's own terms: it reads the state the agency answers for the agent's
-// session and then sends the handoff turn into that same session. What the stand-in records is what the
+// session and then sends the handoff's turns into that same session, the note it owes and the handoff. What the stand-in records is what the
 // receiver would find at the moment it is asked.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_turn_is_let_in() {
@@ -295,24 +295,31 @@ async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_t
     async move {
       let agent = request.uri().path().rsplit('/').next().unwrap_or_default().to_owned();
       let named = agent_session(&db, &agent).await.unwrap().is_some();
-      let handoff = sessions
-        .send_turn(Turn {
-          session: SessionId(agent),
-          prompt: "HANDOFF ASK.".into(),
-          context: TurnContext {
-            room: Some(RoomBlock {
-              chat_id: -5,
-              text: "the room's block".into(),
-              mark: "[a]".into(),
-            }),
-            ..TurnContext::default()
-          },
-        })
-        .await;
-      let (let_in, why) = match handoff {
-        Ok(_) => (true, None),
-        Err(why) => (false, Some(why.message)),
-      };
+      // The receiver sends the note the session owes and then the handoff, one after the other.
+      let mut refused = None;
+
+      for prompt in ["THE NOTE OWED.", "HANDOFF ASK."] {
+        let sent = sessions
+          .send_turn(Turn {
+            session: SessionId(agent.clone()),
+            prompt: prompt.into(),
+            context: TurnContext {
+              room: Some(RoomBlock {
+                chat_id: -5,
+                text: "the room's block".into(),
+                mark: "[a]".into(),
+              }),
+              ..TurnContext::default()
+            },
+          })
+          .await;
+
+        if let Err(why) = sent {
+          refused.get_or_insert(format!("{prompt} {}", why.message));
+        }
+      }
+
+      let (let_in, why) = (refused.is_none(), refused);
 
       kept.lock().unwrap().push((named, let_in, why));
 
@@ -355,5 +362,5 @@ async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_t
 
   assert_eq!(seen.len(), 1, "the receiver was asked once: {seen:?}");
   assert!(seen[0].0, "the agency still names the session when the receiver asks for its handoff");
-  assert!(seen[0].1, "the handoff turn is let into the session: {:?}", seen[0].2);
+  assert!(seen[0].1, "every turn of the handoff is let into the session: {:?}", seen[0].2);
 }
