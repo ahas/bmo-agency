@@ -3028,23 +3028,22 @@ pub struct Role {
   pub description: Option<String>,
   pub bundles: Vec<RoleBundle>,
   pub line: String,
-  pub order: Vec<OrderEntry>,
-  pub quota_share: f64,
-  /// the provider the owner forced as its active provider, or null where its order chooses
+  /// its agents, in the order a run looks for a free one
   #[serde(default)]
-  pub active: Option<ActiveProvider>,
-  /// the most of its runs that go at once
+  pub agents: Vec<RoleAgent>,
+  /// the most of its runs that go at once: how many of its agents are switched on
   pub max_concurrent: i64,
   pub sessions: RoleSessions,
   pub fold_ratio: f64,
   pub callable: bool,
-  /// Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen
-  /// shows its road as the supervisor's.
+  /// Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
+  /// screen shows its road as the supervisor's.
   #[serde(default)]
   pub follows_supervisor: bool,
   pub running: i64,
   pub waiting: i64,
-  /// its active provider, or null where none of its order has quota or its order is empty
+  /// the provider its next run goes out on, or null where none of its agents' roads can answer or none
+  /// names a road
   pub provider: Option<String>,
   pub waiting_for: Option<String>,
 }
@@ -3066,10 +3065,6 @@ pub struct RoleAsk {
   pub label: String,
   pub bundles: Vec<String>,
   pub line: String,
-  pub order: Vec<OrderEntry>,
-  pub max_concurrent: i64,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub quota_share: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prompt: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3092,12 +3087,6 @@ pub struct RoleChange {
   pub bundles: Option<Vec<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub line: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub order: Option<Vec<OrderEntry>>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub quota_share: Option<f64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub max_concurrent: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub prompt: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
@@ -3108,9 +3097,92 @@ pub struct RoleChange {
   pub fold_ratio: Option<f64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub callable: Option<bool>,
-  /// The provider forced as its active provider; null clears it.
+}
+
+/// RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
+/// road its runs go out on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleAgent {
+  pub name: String,
+  pub role: String,
+  /// its road's provider, or null where it follows the supervisor that asks it
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub effort: Option<String>,
+  /// `on`, `off`, or null for the provider's own
+  pub thinking: Option<String>,
+  pub answer_tokens: Option<i64>,
+  /// an agent switched off takes no run
+  pub enabled: bool,
+  /// its place among its role's agents, lowest first
+  pub position: i64,
+  /// whether its session's cache is kept warm between runs
+  pub keeps_cache: bool,
+  /// its compaction threshold, or null where its provider's declared ratio stands
+  pub fold_ratio: Option<f64>,
+  /// what it lays over its role's preset, each null where the role's own stands
+  pub prompt: Option<String>,
+  pub bundles: Option<Vec<String>>,
+  pub skills: Option<Vec<String>>,
+  /// epoch milliseconds
+  pub added_at: i64,
+  /// whether it names no road
+  #[serde(default)]
+  pub follows_supervisor: bool,
+  /// whether a run stands let in on it now
+  #[serde(default)]
+  pub carries: bool,
+}
+
+/// RoleAgentPage: the agents, by role and position.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleAgentPage {
+  pub items: Vec<RoleAgent>,
+}
+
+/// RoleAgentAsk: the body that adds an agent to a role; every field but the role is optional.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleAgentAsk {
+  pub role: String,
+  /// kebab-case; the role and a number where none is named
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  #[serde(flatten)]
+  pub fields: RoleAgentChange,
+}
+
+/// RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an
+/// override gives the role's own back.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleAgentChange {
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
-  pub active: Option<Option<ActiveProvider>>,
+  pub provider: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub model: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub effort: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub thinking: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub answer_tokens: Option<Option<i64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub enabled: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub position: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub keeps_cache: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub fold_ratio: Option<Option<f64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub prompt: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub bundles: Option<Option<Vec<String>>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub skills: Option<Option<Vec<String>>>,
 }
 
 /// RoleSession: one session a role's runs opened, and whether the next run of its key would resume it.

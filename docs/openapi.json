@@ -6113,6 +6113,180 @@
         ]
       }
     },
+    "/role-agents": {
+      "get": {
+        "operationId": "listRoleAgents",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Every agent of every role, by role and position, or one role's.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createRoleAgent",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Add an agent to a role.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "unprocessable-entity",
+          "conflict"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleAgentAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/role-agents/{agentName}": {
+      "patch": {
+        "operationId": "changeRoleAgent",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Change any field of an agent.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleAgentChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRoleAgent",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Remove an agent that carries no run.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "conflict"
+        ],
+        "parameters": [
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
     "/repositories": {
       "get": {
         "operationId": "listRepositories",
@@ -12924,32 +13098,18 @@
           "line": {
             "type": "string"
           },
-          "order": {
+          "agents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            }
-          },
-          "quotaShare": {
-            "type": "number",
-            "format": "double"
-          },
-          "active": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ActiveProvider"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "the provider the owner forced as its active provider, or null where its order chooses",
-            "default": null
+              "$ref": "#/components/schemas/RoleAgent"
+            },
+            "description": "its agents, in the order a run looks for a free one",
+            "default": []
           },
           "maxConcurrent": {
             "type": "integer",
             "format": "int64",
-            "description": "the most of its runs that go at once"
+            "description": "the most of its runs that go at once: how many of its agents are switched on"
           },
           "sessions": {
             "$ref": "#/components/schemas/RoleSessions"
@@ -12963,7 +13123,7 @@
           },
           "followsSupervisor": {
             "type": "boolean",
-            "description": "Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen\nshows its road as the supervisor's.",
+            "description": "Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a\nscreen shows its road as the supervisor's.",
             "default": false
           },
           "running": {
@@ -12979,7 +13139,7 @@
               "string",
               "null"
             ],
-            "description": "its active provider, or null where none of its order has quota or its order is empty"
+            "description": "the provider its next run goes out on, or null where none of its agents' roads can answer or none\nnames a road"
           },
           "waitingFor": {
             "type": [
@@ -12996,9 +13156,7 @@
           "description",
           "bundles",
           "line",
-          "order",
-          "quotaShare",
-          "active",
+          "agents",
           "maxConcurrent",
           "sessions",
           "foldRatio",
@@ -13031,6 +13189,131 @@
         ],
         "description": "RoleBundle: one bundle a role may give, with its kebab-case code and its label."
       },
+      "RoleAgent": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "its road's provider, or null where it follows the supervisor that asks it"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`on`, `off`, or null for the provider's own"
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "an agent switched off takes no run"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "description": "its place among its role's agents, lowest first"
+          },
+          "keepsCache": {
+            "type": "boolean",
+            "description": "whether its session's cache is kept warm between runs"
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "its compaction threshold, or null where its provider's declared ratio stands"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "what it lays over its role's preset, each null where the role's own stands"
+          },
+          "bundles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "addedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "followsSupervisor": {
+            "type": "boolean",
+            "description": "whether it names no road",
+            "default": false
+          },
+          "carries": {
+            "type": "boolean",
+            "description": "whether a run stands let in on it now",
+            "default": false
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens",
+          "enabled",
+          "position",
+          "keepsCache",
+          "foldRatio",
+          "prompt",
+          "bundles",
+          "skills",
+          "addedAt",
+          "followsSupervisor",
+          "carries"
+        ],
+        "description": "RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one\nroad its runs go out on."
+      },
       "RoleSessions": {
         "type": "string",
         "enum": [
@@ -13056,23 +13339,6 @@
           },
           "line": {
             "type": "string"
-          },
-          "order": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            }
-          },
-          "maxConcurrent": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "quotaShare": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
           },
           "prompt": {
             "type": [
@@ -13114,9 +13380,7 @@
           "name",
           "label",
           "bundles",
-          "line",
-          "order",
-          "maxConcurrent"
+          "line"
         ],
         "description": "RoleAsk: the body that adds a role."
       },
@@ -13143,29 +13407,6 @@
               "string",
               "null"
             ]
-          },
-          "order": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            }
-          },
-          "quotaShare": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "maxConcurrent": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           },
           "prompt": {
             "type": [
@@ -13201,17 +13442,6 @@
               "boolean",
               "null"
             ]
-          },
-          "active": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ActiveProvider"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The provider forced as its active provider; null clears it."
           }
         },
         "description": "RoleChange: the fields a change of a role names; a prompt or a description given as null clears it."
@@ -13331,6 +13561,208 @@
           "share"
         ],
         "description": "RoleSessionContext: what a session's last answered turn carried."
+      },
+      "RoleAgentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleAgent"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "RoleAgentPage: the agents, by role and position."
+      },
+      "RoleAgentAsk": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "kebab-case; the role and a number where none is named"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "keepsCache": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "description": "RoleAgentAsk: the body that adds an agent to a role; every field but the role is optional."
+      },
+      "RoleAgentChange": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "keepsCache": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "skills": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an\noverride gives the role's own back."
       },
       "RepositoryList": {
         "type": "object",

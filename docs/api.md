@@ -260,6 +260,10 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | PATCH | `/roles/{roleName}` | Change any field of a role. |
 | DELETE | `/roles/{roleName}` | Remove a role no run holds or waits for and no default names. |
 | GET | `/roles/{roleName}/sessions` | The sessions the role's runs opened, newest first. |
+| GET | `/role-agents` | Every agent of every role, by role and position, or one role's. |
+| POST | `/role-agents` | Add an agent to a role. |
+| PATCH | `/role-agents/{agentName}` | Change any field of an agent. |
+| DELETE | `/role-agents/{agentName}` | Remove an agent that carries no run. |
 
 - **The roles are the store's rows** (`docs/agent-roles.md`, 「What a role row holds」), and these routes are
   the one way to change them.
