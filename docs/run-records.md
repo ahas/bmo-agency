@@ -89,6 +89,12 @@ about a message is not agency's: the judgement records belong to the units that 
   and how many tool calls its log lines held under its unit as it closed, every `tool` line under that name,
   a branch's among them. A run keeps the first closing it was given (`docs/api.md`, 「runs」).
 - **The job unit's runs** are opened and closed by the job unit across the boundary.
+- **A translation through the gateway is a run of the translator role,** opened by agency as the request goes
+  out and closed as it is answered or fails: its unit is the name its log lines are written under, it names
+  no room, its outcome is `answered` or `failed`, and what it spent is the tokens the gateway's answer
+  counts. Its log lines are its start, naming the registration it went out on; one note, naming the purpose,
+  the target language and how many characters went in and came back; and its end, with why it failed where
+  it did. They hold none of the text translated.
 - **A chat turn's run is opened by agency** as a turn into a room's or a supervisor's session starts, the
   turn naming its room and carrying no work parts: its unit is the name the turn's log lines are written
   under, its room the room the turn answers, its round the round the turn's context names, and its message

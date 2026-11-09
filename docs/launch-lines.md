@@ -429,7 +429,9 @@
   registered model does not answer」). On Claude Code it is a run in a pane of its own (`docs/agents.md`, 「A
   run in a pane of its own」): that system prompt as the whole of it, no tool shown or allowed, no MCP
   server, the session the translator role's setting gives it (`docs/agent-roles.md`, 「A role's sessions」),
-  thinking off. No other provider carries the line. The answer is the translation whole.
+  thinking off. No other provider carries the line. The answer is the translation whole. A translation
+  through the gateway leaves a run of the translator role and its log lines (`docs/run-records.md`, 「The run
+  ledger」), as a run apart on Claude Code leaves its own.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is,
   by whoever starts an apart session on it: the model and effort the session names, else those the seeker
   role's order names for the provider it goes out on, don't-ask mode, no built-in tool shown, the

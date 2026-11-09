@@ -20,7 +20,7 @@ use agency_server::queue::settings;
 use agency_server::road::{self, Ask};
 use agency_server::seeds::deployment;
 use agency_server::translate::{
-  KEY, LINE, Purpose, gateway_request, input, noted_system, system_prompt, too_large, translate,
+  KEY, LINE, Purpose, gateway_request, input, noted_system, spent_of, system_prompt, too_large, translate,
 };
 use axum::Json;
 use axum::extract::{Path, State};
@@ -435,7 +435,10 @@ async fn slowly(State((named, slow)): State<(Named, Duration)>, headers: HeaderM
     .unwrap()
     .push((header("x-litellm-timeout"), header("x-litellm-stream-timeout")));
   tokio::time::sleep(slow).await;
-  Json(json!({ "choices": [{ "message": { "content": "the text, rendered" } }] }))
+  Json(json!({
+    "choices": [{ "message": { "content": "the text, rendered" } }],
+    "usage": { "prompt_tokens": 41, "completion_tokens": 7 },
+  }))
 }
 
 // A gateway that answers each request only after `slow`.
@@ -517,4 +520,64 @@ async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_l
 
   assert_eq!(translated.text, "the text, rendered", "waited for until the gateway answered");
   assert_eq!(*named.lock().unwrap(), [(String::new(), String::new())], "no wait named to the gateway");
+
+  // The translation left a run of the translator role, closed with what the gateway counted, and its log
+  // lines: the start, one note and the end, holding none of the text.
+  let role = vec![ROLES.translate.clone().into()];
+
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "runs" WHERE "agent" = $1 AND "unit" LIKE 'translate:%' AND "outcome" = 'answered'
+             AND "finished_at" IS NOT NULL AND "input_tokens" = 41 AND "output_tokens" = 7"#,
+        role.clone(),
+      )
+      .await,
+    1
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "agent_log" l JOIN "runs" r ON r."agent" = l."agent" AND r."unit" = l."run"
+           WHERE l."agent" = $1 AND l."kind" IN ('start', 'note', 'end')"#,
+        role.clone(),
+      )
+      .await,
+    3
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "agent_log" WHERE "agent" = $1 AND "text" LIKE '%the text%'"#,
+        role.clone()
+      )
+      .await,
+    0,
+    "none of the text translated is written down"
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "agent_log" WHERE "agent" = $1 AND "kind" = 'note'
+             AND "text" = 'document · English · ' || $2 || ' characters in, 18 back'"#,
+        vec![
+          ROLES.translate.clone().into(),
+          input("English", "the text", &[]).chars().count().to_string().into()
+        ],
+      )
+      .await,
+    1
+  );
+}
+
+#[test]
+fn what_a_translation_spent_is_what_the_gateway_s_answer_counts() {
+  let spent = spent_of(&json!({ "usage": { "prompt_tokens": 41, "completion_tokens": 7 } })).unwrap();
+
+  assert_eq!((spent.input_tokens, spent.output_tokens, spent.total()), (41, 7, 48));
+  assert_eq!(
+    spent_of(&json!({ "usage": { "prompt_tokens": 3 } })).map(|spent| spent.total()),
+    Some(3)
+  );
+  assert_eq!(spent_of(&json!({ "choices": [] })), None);
 }

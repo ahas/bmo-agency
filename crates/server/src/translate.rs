@@ -21,6 +21,9 @@ use crate::lines::worker::{effort_of, rulebook, system_prompt_file};
 use crate::lines::{Trees, read_required, role_prompt};
 use crate::places::Ground;
 use crate::road::{self, Ask};
+use crate::run_ledger;
+use crate::run_log::lines::Line;
+use crate::run_log::{RunLog, Target};
 
 /// The work key a translation goes out on.
 pub const KEY: &str = "translate";
@@ -33,6 +36,9 @@ const AGENT: &str = "translator";
 
 // The card the translations out at once on a registration share.
 static TRANSLATING: LazyLock<Arc<cards::Sharing>> = LazyLock::new(Arc::default);
+
+// What tells two translations begun in the same millisecond apart in their runs' names.
+static RECORDED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// What a translation is for, each with its own instructions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -192,7 +198,7 @@ pub async fn translate(
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
   let input = input(language, text, terms);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
-    on_registry(ground, &taken.model, &system, &input).await
+    recorded(ground, purpose, language, &taken, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {
     apart_on_claude(ground, &trees, purpose, &taken.model, &system, &input).await
   } else {
@@ -231,6 +237,82 @@ pub fn gateway_request(registration: &str, system: &str, input: &str) -> Value {
   request
 }
 
+// One translation through the gateway with its record kept (docs/run-records.md, 「The run ledger」): a run of
+// the translator role opened as the request goes out and closed as it ends, with what the gateway counted, and
+// its log lines — the start, a note of the purpose, the language and the characters in and back, and the end.
+// None of the text is written down, and a record that cannot be kept is said and never fails the translation.
+async fn recorded(
+  ground: &Ground,
+  purpose: Purpose,
+  language: &str,
+  taken: &road::Road,
+  system: &str,
+  input: &str,
+) -> Result<String, String> {
+  let db = &ground.db;
+  let at = crate::now_ms();
+  let unit = format!("{KEY}:{at}:{}", RECORDED.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+  let ledger = run_ledger::open(
+    db,
+    &run_ledger::Opening {
+      agent: ROLES.translate.clone(),
+      chat_id: None,
+      unit: unit.clone(),
+      depth: 0,
+      cap_ms: None,
+      started_at: at,
+      started_by: None,
+      search_id: None,
+      round: None,
+      message_id: None,
+    },
+  )
+  .await
+  .map_err(|why| eprintln!("{unit}: the translation could not be written to the ledger: {}", why.detail))
+  .ok();
+  let mut log = RunLog::new(Target {
+    agent: ROLES.translate.clone(),
+    run: unit.clone(),
+    chat_id: None,
+    job_id: None,
+  });
+
+  log.apart_started(db, &taken.provider, &taken.model).await;
+
+  let answered = on_registry(ground, &taken.model, system, input).await;
+  let back = answered.as_ref().map_or(0, |(text, _)| text.chars().count());
+
+  log
+    .write(
+      db,
+      Line::note(format!(
+        "{} · {} · {} characters in, {back} back",
+        purpose.word(),
+        language.trim(),
+        input.chars().count()
+      )),
+    )
+    .await;
+  log
+    .apart_ended(db, &taken.provider, answered.as_ref().map(|_| "").map_err(String::as_str))
+    .await;
+
+  if let Some(id) = ledger {
+    let closing = run_ledger::Closing {
+      finished_at: crate::now_ms(),
+      outcome: if answered.is_ok() { "answered" } else { "failed" }.to_owned(),
+      context_tokens: None,
+      spent: answered.as_ref().ok().and_then(|(_, spent)| *spent),
+    };
+
+    if let Err(run_ledger::NotClosed::Store(why)) = run_ledger::close(db, id, &closing).await {
+      eprintln!("{unit}: the translation could not be closed in the ledger: {}", why.detail);
+    }
+  }
+
+  answered.map(|(text, _)| text)
+}
+
 // One translation on the registry's provider: on a registration naming a card service, the card every
 // translation out on it at once shares, asked by the first and given back once the last is answered or
 // has failed, and the request naming the card's entry (docs/own-llm.md, 「An engine the arbiter stands」).
@@ -239,7 +321,7 @@ async fn on_registry(
   registration: &str,
   system: &str,
   input: &str,
-) -> Result<String, String> {
+) -> Result<(String, Option<run_ledger::Spent>), String> {
   let card = match crate::control::registry::registration(&ground.db, registration).await {
     Ok(Some(one)) => cards::hold_shared(ground, &TRANSLATING, &one, AGENT)
       .await
@@ -260,15 +342,15 @@ async fn on_registry(
   answered
 }
 
-// One request through the model gateway, answering the model's words: it names no wait, so the gateway's
-// entry decides, and on a card service's engine that is however long the engine takes (docs/own-llm.md,
-// 「The gateway」).
+// One request through the model gateway, answering the model's words and the tokens its answer counts: it
+// names no wait, so the gateway's entry decides, and on a card service's engine that is however long the engine
+// takes (docs/own-llm.md, 「The gateway」).
 async fn on_gateway(
   ground: &Ground,
   registration: &str,
   system: &str,
   input: &str,
-) -> Result<String, String> {
+) -> Result<(String, Option<run_ledger::Spent>), String> {
   let machine = ground.machine();
   let url = harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"));
   let key = std::fs::read_to_string(Registered::key_file(&machine)).unwrap_or_default();
@@ -286,13 +368,28 @@ async fn on_gateway(
     return Err(format!("the gateway answered {}: {}", status.as_u16(), body["error"]));
   }
 
-  body
+  let text = body
     .pointer("/choices/0/message/content")
     .and_then(Value::as_str)
     .map(str::trim)
     .filter(|text| !text.is_empty())
     .map(str::to_owned)
-    .ok_or_else(|| "the gateway answered no words".to_owned())
+    .ok_or_else(|| "the gateway answered no words".to_owned())?;
+
+  Ok((text, spent_of(&body)))
+}
+
+/// What a gateway's answer counts of its request: the prompt's tokens and the answer's, none where it counts
+/// neither.
+pub fn spent_of(answer: &Value) -> Option<run_ledger::Spent> {
+  let count = |name: &str| answer.pointer(&format!("/usage/{name}")).and_then(Value::as_i64);
+  let (input, output) = (count("prompt_tokens"), count("completion_tokens"));
+
+  (input.is_some() || output.is_some()).then(|| run_ledger::Spent {
+    input_tokens: input.unwrap_or(0),
+    output_tokens: output.unwrap_or(0),
+    ..run_ledger::Spent::default()
+  })
 }
 
 // A run apart's pane watched for nothing but its end.
