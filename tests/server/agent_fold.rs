@@ -100,7 +100,15 @@ impl Played {
       return;
     }
 
-    let mut process = std::process::Command::new("sleep").arg("600").spawn().unwrap();
+    // The stand-in outlives its test, so it holds none of the test run's streams: a reader of the run's output
+    // would otherwise wait on it long after the tests ended.
+    let mut process = std::process::Command::new("sleep")
+      .arg("600")
+      .stdin(std::process::Stdio::null())
+      .stdout(std::process::Stdio::null())
+      .stderr(std::process::Stdio::null())
+      .spawn()
+      .unwrap();
     let identity = ProcessIdentity::of(process.id() as i32).unwrap();
     let at = now_ms();
 
