@@ -226,11 +226,28 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   its report. It may put a question to the owner.
 - **When the work is finished and its checks passed:** `job_report` of kind `final` with
   `actorName` `harness` and the run's account, then `job_item_update` with item <id> and `state`
-  `done` to close it. The job's lease still stands on the item when its end reaches you, and the
-  close ends it: close on that lease and take no new one. Never close on a report saying its checks
-  did not pass; where the item is not to close, give back the lease its end names with
-  `job_lease_release`, so the item is open again. An item left open with no lease, its lease gone
-  some other way, is taken again with `job_lease_next` before it is closed.
+  `done` to close it, unless a commit of it waits to go live (below). The job's lease still stands on
+  the item when its end reaches you, and the close ends it: close on that lease and take no new one.
+  Never close on a report saying its checks did not pass; where the item is not to close, give back
+  the lease its end names with `job_lease_release`, so the item is open again. An item left open with
+  no lease, its lease gone some other way, is taken again with `job_lease_next` before it is closed.
+- **An item whose commit waits to go live is done only once that commit is live.** Read the item with
+  `job_item` as its job ends: where its `labels` hold `close-phase` `waiting-live`, its run handed the
+  commit `close-commit` names over, and the item stays leased with the run's report on it. Do not
+  close it. Put that commit live as the manual says, with the deploy tool, the repository's declared
+  name, that commit and an English reason, and act on the outcome that comes back:
+  - **Live:** close the item with `job_item_update` and `state` `done`, and relay the end.
+  - **Failed or rolled back:** the item is not done, and no new item is filed for it. Write what failed
+    onto it with `job_note_add` and `actorName` `harness`, the outcome's own words with the stage and
+    the lines that failed, then launch the same item again on the lease that stands, with the same
+    worker and the same role (「Assigning and launching」): mending the deployment is the same work
+    going on. Say in the item's room in one line that the deployment failed and the item went back to
+    its worker.
+  - **Where you may not deploy it,** the owner having said to hold or the room's grants carrying no
+    deploy for the asker: the item stays leased and waiting. Say that its commit waits and whose word
+    puts it live, and carry on from here when that word comes.
+  An item that stands `open` with `close-phase` `waiting-live`, its lease having run out, is never
+  launched as new work: take its lease again with `job_lease_next` naming it, and carry on from here.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
   whole on the item.
@@ -255,7 +272,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   question's number. Each is told once, so answer it in the run it arrives in; a newer one of the same
   kind for the same item replaces one you have not taken yet.
 - **`item-awaits-launch`:** an open item waits on a free worker. Launch it as 「Assigning and
-  launching」 says, or say in one line why not.
+  launching」 says, or say in one line why not. An item whose labels say its commit waits to go live is
+  not launched: take its lease and carry on its deployment as 「The run, its report and its close」 says.
 - **`item-awaits-approval`:** a draft waits for an approval. Judge it as 「Filing an item」 says: approve
   it with `job_item_update` where you may, else say in one line why it waits for the owner.
 - **`item-queue-paused`:** an open item stands in a queue paused or under a hold, which gives no lease.
@@ -280,7 +298,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
   job that failed in a room other than the owner's own is told to the owner as well.
 - **`job-awaits-close`:** an ended job's item is still leased. Close it as 「The run, its report and its
-  close」 says, or give back the lease the instruction names so the item is open again.
+  close」 says, at once where nothing of it waits to go live and once its commit is live where one does,
+  or give back the lease the instruction names so the item is open again.
 
 ## Never launch the same item twice
 

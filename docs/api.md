@@ -1217,6 +1217,11 @@ service.
   gone and stops. A lease the job service no longer holds is not taken again for an ended job. An item the
   lease pass still finds leased at the pass after the one that first found its job ended is told once to its
   orderer (`job-awaits-close`).
+- **An item whose commit waits to go live stays leased until it is live.** Where the job's close handed a commit
+  over, the item's labels say so (the job service's `docs/cli.md`, 「`bmo-job job close`」), and the requester
+  does not move it to `done` at the job's end: it puts the commit live, and closes the item once the deployment
+  ended live. A deployment that fails closes nothing and files nothing: the requester writes what failed onto
+  the item and launches the same item again on the lease that stands, as the same worker and role.
 - **A job that is stopped gives its lease back.** A stop — the harness's or the owner's, or the pass below
   ending a job whose process went away — returns the item's lease to the job service as the end is written,
   so the item is open again for a rerun.
