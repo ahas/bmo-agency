@@ -692,10 +692,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   );
 
   // A role whose slots a job holds is waited on as the line says: that run ends of its own.
-  scratch
-    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'builder'"#, vec![])
-    .await;
-  crate::support::rows::reseated(scratch.db()).await;
+  crate::support::rows::seats(scratch.db(), "builder", &[("deepseek", "deepseek-flash")]).await;
 
   let job = enqueue(
     &ground.db,
