@@ -1161,7 +1161,7 @@ impl Attempting<'_, '_> {
       .await?;
     note_carried(&ground.db, worker, &work.model, &account, sent.resume.is_none(), reply).await?;
 
-    let fold_ratio = worker_fold_ratio(ground, &reply.mode, None).await;
+    let fold_ratio = worker_fold_ratio(ground, &reply.mode, None, Some(&work.cwd)).await;
 
     if worker_session_full(reply.context_ratio, fold_ratio) {
       println!("{worker} {}: {session_id} is full, folding it", work.model);

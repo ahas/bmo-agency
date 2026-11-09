@@ -156,17 +156,15 @@ pub struct Resolution {
   pub chosen_by: Option<ChosenBy>,
 }
 
-/// What chose a job's provider and model, the first that stands of four (docs/repositories.md, 「A model an
+/// What chose a job's provider and model, the first that stands of three (docs/repositories.md, 「A model an
 /// item names」).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChosenBy {
   /// The model its item's `model` label names.
   Item,
-  /// The provider the owner forced on its role.
-  Forced,
   /// Its repository's pinned model.
   Pin,
-  /// Its role's order.
+  /// Its role's agents, in their order.
   Order,
 }
 
@@ -175,7 +173,6 @@ impl ChosenBy {
   pub fn word(self) -> &'static str {
     match self {
       Self::Item => "item",
-      Self::Forced => "forced",
       Self::Pin => "pin",
       Self::Order => "order",
     }
@@ -294,10 +291,10 @@ impl Resolution {
   }
 }
 
-/// Where a job of a role at a checkout goes out now, the first that stands of four (docs/repositories.md, 「A
-/// model an item names」): the model its item names, else the provider the owner forced on its role, else its
-/// repository's pinned model, each walked alone, waited for and never left; else the role's own order. The
-/// role is the job role where none is named. The providers the job already left count as unable to answer.
+/// Where a job of a role at a checkout goes out now, the first that stands of three (docs/repositories.md, 「A
+/// model an item names」): the model its item names, else its repository's pinned model, each walked alone,
+/// waited for and never left; else the roads of its role's agents, in their order. The role is the job role
+/// where none is named. The providers the job already left count as unable to answer.
 pub async fn for_job(
   ground: &Ground,
   role: Option<&str>,
@@ -317,13 +314,11 @@ pub async fn for_job(
       .and_then(|repository| repository.pin),
     None => None,
   };
-  // An item's model and a pin go out at the effort the role's order names for their provider; a forced
-  // provider is the order's own, which the resolution walks alone.
-  let (fixed, chosen_by) = match (item, &held.order.forced, pin) {
-    (Some(item), _, _) => (Some(held.order.entry_on(item)), ChosenBy::Item),
-    (None, Some(_), _) => (None, ChosenBy::Forced),
-    (None, None, Some(pin)) => (Some(held.order.entry_on(&pin)), ChosenBy::Pin),
-    (None, None, None) => (None, ChosenBy::Order),
+  // An item's model and a pin go out at the effort the role's agent on their provider names.
+  let (fixed, chosen_by) = match (item, pin) {
+    (Some(item), _) => (Some(held.order.entry_on(item)), ChosenBy::Item),
+    (None, Some(pin)) => (Some(held.order.entry_on(&pin)), ChosenBy::Pin),
+    (None, None) => (None, ChosenBy::Order),
   };
   let ask = Ask {
     left,

@@ -193,7 +193,7 @@ pub async fn translate(
   road::went(ground, &resolution, Some(&taken), &[]).await;
 
   let trees = Trees::of(ground);
-  let role = role_prompt(&ground.db, &ROLES.translate).await;
+  let role = role_prompt(&ground.db, &ROLES.translate, None).await;
   let system =
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
   let input = input(language, text, terms);

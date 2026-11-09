@@ -732,3 +732,88 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
       .is_none()
   );
 }
+
+// What a run reads off the agent it is let in on (docs/role-agents.md, 「What a run reads off its agent」): its
+// seat is found by the slot it holds at the folder it works in, and what the agent lays over its role stands in
+// the role's place for that run alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_reads_its_prompt_bundles_and_threshold_off_the_agent_it_is_let_in_on() {
+  use agency_server::role_agents::{bundles_at, prompt_at, seated_at};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  // The role's first agent lays a prompt, bundles and a threshold of its own over its role's.
+  let first = agency_server::role_agents::of_role(db, "worker").await.unwrap().remove(0);
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "prompt" = 'Work as the first seat.', "bundles" = '["web.read"]',
+           "fold_ratio" = 0.4 WHERE "name" = $1"#,
+      vec![first.name.as_str().into()],
+    )
+    .await;
+
+  let role_prompt = agency_server::agent_roles::prompt_of(db, "worker").await.unwrap();
+  let role_bundles = agency_server::agent_roles::bundles_of(db, "worker").await.unwrap();
+
+  // No run stands anywhere: the role's own preset.
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(prompt_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_prompt);
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_bundles);
+
+  // A run let in at a folder sits on the role's first free agent, and reads that agent.
+  let held = ask(&ground, "worker", "one").await;
+
+  assert!(admitted(&ground, &held).await);
+
+  let seat = seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap().unwrap();
+
+  assert_eq!(seat.name, first.name);
+  assert_eq!(
+    prompt_at(db, "worker", Some("/checkouts/one")).await.unwrap().as_deref(),
+    Some("Work as the first seat.")
+  );
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one/")).await.unwrap(), ["web.read"]);
+  // The folder alone names the seat too, whatever its role, and a run that names no folder takes its role's
+  // only active request.
+  assert_eq!(seated_at(db, None, Some("/checkouts/one")).await.unwrap().unwrap().name, first.name);
+  assert_eq!(seated_at(db, Some("worker"), None).await.unwrap().unwrap().name, first.name);
+  // Another folder, and another role at the same folder, name no seat.
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/two")).await.unwrap(), None);
+  assert_eq!(seated_at(db, Some("coder"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(prompt_at(db, "worker", Some("/checkouts/two")).await.unwrap(), role_prompt);
+
+  // The job's threshold is its agent's where the agent sets one, and its role's elsewhere.
+  let role_ratio = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap().fold_ratio;
+
+  assert_eq!(
+    agency_server::worker_session::fold::worker_fold_ratio(
+      &ground,
+      "deepseek",
+      None,
+      Some("/checkouts/one")
+    )
+    .await,
+    0.4
+  );
+  assert_eq!(
+    agency_server::worker_session::fold::worker_fold_ratio(
+      &ground,
+      "deepseek",
+      None,
+      Some("/checkouts/two")
+    )
+    .await,
+    role_ratio
+  );
+
+  // The slot given back, nothing stands on the agent, and the role's own preset is read again.
+  assert!(finish(db, &ground.events, &held.token, "done", false).await.unwrap());
+  assert_eq!(seated_at(db, Some("worker"), Some("/checkouts/one")).await.unwrap(), None);
+  assert_eq!(bundles_at(db, "worker", Some("/checkouts/one")).await.unwrap(), role_bundles);
+}

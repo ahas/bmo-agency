@@ -64,7 +64,7 @@ seeds. The other crates and the server reach the store only through it.
     provider states none (`docs/usage-windows.md`, 「Balances」);
   - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the provider and model
     its runs go out on or none, the effort, thinking and answer ceiling there, whether it is switched on, its
-    place among its role's, whether its cache is kept warm, its compaction threshold or none, and the prompt,
+    place among its role's, whether its kept session is marked to be kept warm, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the agent it was let in on,

@@ -25,7 +25,7 @@ pub struct RoleAgent {
   pub position: i64,
   /// Whether its session's cache is kept warm between runs.
   pub keeps_cache: bool,
-  /// Its compaction threshold, none where its provider's declared ratio stands.
+  /// Its compaction threshold, none where its role's stands.
   pub fold_ratio: Option<f64>,
   /// What it lays over its role's preset, each none where the role's own stands.
   pub prompt: Option<String>,
@@ -204,4 +204,78 @@ pub async fn carrying<C: ConnectionTrait>(db: &C, role: &str) -> Result<Vec<Stri
   .iter()
   .map(|row| row.try_get::<String>("", "seat").map_err(Fault::from))
   .collect()
+}
+
+/// The agent a run is let in on (docs/role-agents.md, 「What a run reads off its agent」): the seat of the newest
+/// slot request that stands active at the path the run works at, of the role named where one is; and, for a
+/// run that names no path, the seat of its role's only active request. None where neither tells one, and the
+/// run then stands on its role's preset alone.
+pub async fn seated_at<C: ConnectionTrait>(
+  db: &C,
+  role: Option<&str>,
+  path: Option<&str>,
+) -> Result<Option<RoleAgent>, Fault> {
+  let path = path.map(|path| path.trim().trim_end_matches('/')).filter(|path| !path.is_empty());
+  let seat = match (path, role) {
+    (Some(path), Some(role)) => one(
+      db,
+      r#"SELECT "seat" FROM "role_slot_requests"
+         WHERE rtrim("path", '/') = $1 AND "role" = $2 AND "state" = 'active' AND "seat" IS NOT NULL
+         ORDER BY "sequence" DESC LIMIT 1"#,
+      vec![path.into(), role.into()],
+    )
+    .await?
+    .map(|row| row.try_get::<String>("", "seat"))
+    .transpose()?,
+    (Some(path), None) => one(
+      db,
+      r#"SELECT "seat" FROM "role_slot_requests"
+         WHERE rtrim("path", '/') = $1 AND "state" = 'active' AND "seat" IS NOT NULL
+         ORDER BY "sequence" DESC LIMIT 1"#,
+      vec![path.into()],
+    )
+    .await?
+    .map(|row| row.try_get::<String>("", "seat"))
+    .transpose()?,
+    (None, Some(role)) => match carrying(db, role).await?.as_slice() {
+      [only] => Some(only.clone()),
+      _ => None,
+    },
+    (None, None) => None,
+  };
+
+  match seat {
+    Some(seat) => named(db, &seat).await,
+    None => Ok(None),
+  }
+}
+
+/// The prompt a run of a role opens with: its agent's own where it lays one over its role's, else its role's;
+/// none where neither carries one.
+pub async fn prompt_at<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  path: Option<&str>,
+) -> Result<Option<String>, Fault> {
+  let own = seated_at(db, Some(role), path)
+    .await?
+    .and_then(|agent| agent.prompt)
+    .filter(|prompt| !prompt.trim().is_empty());
+
+  match own {
+    Some(own) => Ok(Some(own)),
+    None => crate::agent_roles::prompt_of(db, role).await,
+  }
+}
+
+/// The bundles a run of a role is given: its agent's own where it lays them over its role's, else its role's.
+pub async fn bundles_at<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  path: Option<&str>,
+) -> Result<Vec<String>, Fault> {
+  match seated_at(db, Some(role), path).await?.and_then(|agent| agent.bundles) {
+    Some(own) => Ok(own),
+    None => crate::agent_roles::bundles_of(db, role).await,
+  }
 }

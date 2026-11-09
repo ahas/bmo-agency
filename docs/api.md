@@ -687,7 +687,7 @@ out and the paths the call changed.
 |---|---|---|
 | GET | `/slots` | Every role's slots: the runs let in, reserved and waiting. |
 | GET | `/slot-requests` | Open slot requests, by role, by owner or waiting. |
-| POST | `/slot-requests` | Ask for a slot of a role; its provider and model are the role's order's. |
+| POST | `/slot-requests` | Ask for a slot of a role; its provider and model are those of the agent it is let in on. |
 | DELETE | `/slot-requests` | An owner's release: every request, reservation and bound role session the owner holds given back. |
 | GET | `/slot-requests/{token}` | One slot request. |
 | PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
@@ -702,14 +702,16 @@ out and the paths the call changed.
 
 A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
 caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
-(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, a road the run
-goes out on in place of the role's order — a `doppelganger` run as its supervisor's double, a native call on
-its caller's provider; or `model` alone, whose provider is the first entry of the role's order naming that
-model, else the role's active provider, else the order's first; a `provider` named alone is refused 400. It
-may name `placeKey`, the key only one active request holds at once. A slot naming no road under a role whose
-order is empty goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went
+(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, the road the run
+goes out on: it is let in on an agent of the role that stands on that road alone, and is refused 422 with
+the roads the role's agents hold where none does (`docs/role-agents.md`, 「Which agent a run takes」) — a
+native call names its caller's provider and takes any agent of its role as its seat; or `model` alone, whose
+provider is that of the role's first agent naming that model; a `provider` named alone is refused 400. It
+may name `placeKey`, the key only one active request holds at once. A slot let in on an agent that names no
+road goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went
 out on, else its order's first; asked under no supervisor the store holds, it is refused 422
-`unprocessable-entity` saying the role follows the supervisor that asks it.
+`unprocessable-entity` saying the role follows the supervisor that asks it. A request answers `seat`, the
+agent it is let in on, null until it is.
 
 A request key names one request for good (`docs/role-slots.md`, 「Request keys」). Asked again with the same key
 while that request stands — `waiting`, `reserved` or `active` — the ask answers 201 with that request and
@@ -754,8 +756,9 @@ none was named.
 
 A slot request may carry `fromDouble`, true where the ask is made by a supervisor's double, a delegated run
 asking again (`docs/tools.md`, 「The delegate」). Such an ask is refused 409 `double-waits-on-doubles`, before
-it enters the line and with the role and its cap in the sentence, where the requests asked under the source
-`delegate` and let in already number the role's cap or more and the cap is above zero (`docs/role-slots.md`, 「A
+it enters the line and with the role and the count of its agents in the sentence, where the requests asked
+under the source `delegate` and let in already number the role's agents that are switched on or more and that
+count is above zero (`docs/role-slots.md`, 「A
 delegated task」). An ask whose request key already names a request is answered with that request as any is.
 
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
@@ -856,7 +859,8 @@ default — what a run on it does where its order's entry leaves thinking to the
 under its own name as its label, at the registry's smallest window and answer and with no address, and is
 refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
 engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
-`usedBy`, every supervisor, role and repository whose order, forced provider or pin names it, and a take-away is refused 409
+`usedBy`, every supervisor whose order or forced provider names it, every role an agent of which stands on
+it and every repository whose pin names it, and a take-away is refused 409
 while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
 and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
 change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
@@ -888,7 +892,7 @@ Code road is a list of accounts」); the provider order and the route actions ar
 
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed to
-the roads a named model or role's order would take, and a deletion by that id opens the road again
+the roads a named model or a role's agents would take, and a deletion by that id opens the road again
 (`docs/provider-order.md`, 「Falling over and coming back」). Agency writes a block itself as a supervisor's
 turn or a job walks off a road for its provider's failure, for the span the failure's kind holds, its reason
 naming the kind and the failure's words; a block written by the route and one written by a walk are one
@@ -958,8 +962,8 @@ notice that holds nothing is withdrawn.
   「Translate runner」). An empty list, or none, asks with the language line alone.
 - **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`
-  where the road answered with nothing or failed otherwise, naming why. A translation whose role's order has
-  no quota left waits, as every run does (`docs/provider-order.md`, 「When every provider is out」).
+  where the road answered with nothing or failed otherwise, naming why. A translation none of whose role's agents has
+  quota left waits, as every run does (`docs/provider-order.md`, 「When every provider is out」).
 
 ### accounts, rest and usage
 
@@ -1159,8 +1163,8 @@ naming anything else, or a value that does not read as its filter's kind, is ref
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
-  keyed by the checkout, goes out on its item's model, the role's active provider or the repository's pin
-  (「A job goes out on its role's active provider」 below), in a session of the role's
+  keyed by the checkout, goes out on its item's model, the repository's pin or the road of an agent of the role
+  (「A job goes out on the road of an agent of its role」 below), in a session of the role's
   started for each turn and ended with it, and resumes the session the role keeps at that checkout on that
   provider and model where it keeps one (「sessions」 above; `docs/role-slots.md`, 「The line」).
 
@@ -1292,22 +1296,22 @@ service.
   the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a job's run reads the brain only through what the gate picked here.
-- **A job goes out on its role's active provider** (`docs/provider-order.md`, 「Choosing the provider」): the
-  provider the owner forced on the role, else the first provider of the role's order that has quota above
-  the role's share and can answer now, on the model and effort the order names there. Two choices stand
-  over the order: the model its item names, its label `model=<provider>/<model>` other than `auto`
-  (`docs/repositories.md`, 「A model an item names」), over everything; and its repository's pinned model,
-  where the repository pins one and the role has no forced provider (`docs/repositories.md`, 「A pinned
-  model」). The job answers `chosenBy`, which chose its provider and model: `item`, `forced`, `pin` or
-  `order`, the first of them that stands in that order.
+- **A job goes out on the road of an agent of its role** (`docs/role-agents.md`, 「Which agent a run takes」):
+  the first of the role's agents, by position, that is switched on, carries no run and whose road can answer
+  now. Two choices stand over that: the model its item names, its label `model=<provider>/<model>` other
+  than `auto` (`docs/repositories.md`, 「A model an item names」), over everything; and its repository's
+  pinned model, where the repository pins one (`docs/repositories.md`, 「A pinned model」); either is let in
+  on an agent of the role that stands on that road alone. The job answers `chosenBy`, which chose its
+  provider and model: `item`, `pin` or `order`, the first of them that stands in that order, `order` being
+  the role's agents. A job row that holds `forced` answers it as it stands; no job is given it.
 - **An item's `model` is read off the item `POST /jobs` is handed,** its `labels`, and judged as a
   repository's pin is: a value that is no `<provider>/<model>`, a provider agency does not carry or whose
   program does not carry the worker line, or a model it does not hold refuses the launch 422
   `unknown-model`, the sentence quoting the label, nothing written and the assignment left held; the item's
   orderer is told once for that label (`item-unlaunchable`, `docs/agent-control.md`, 「An item's change is
   told to its orderer」), and the mark is let go as a job of the item is launched.
-- **A job is never refused for quota:** where no provider of the order has quota, or the item's model, the
-  forced provider or the pin cannot answer, `POST /jobs` takes the job all the same and answers 201. The job
+- **A job is never refused for quota:** where none of its role's agents has quota, or the item's model or
+  the pin cannot answer, `POST /jobs` takes the job all the same and answers 201. The job
   is written `starting`, holds its assignment, its checkout and its item's lease, and waits, answering
   `heldFor`, its sentence naming every provider's reason — the owner's switch, a spent balance or quota,
   each Claude login's own, with the moment the first of them reopens — and what a person must do for the
@@ -1321,15 +1325,15 @@ service.
   wait begins (`job-waiting`).
 - **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
   quota, window, balance or credential refused, its last login closing under it, or its road found unable
-  to answer as the turn ends — is launched again on the order's next provider: the same job, item,
+  to answer as the turn ends — is launched again on the next of its role's agents whose road can answer: the same job, item,
   lease and checkout, at most once on each provider in one job, its prompt opened with a line saying it
   continues work already in the checkout. A job answers `roads`, every road its turns went out on in
   order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
-  saying where it ran and why it moved. Where no provider of the order has quota, the job stays `running`
+  saying where it ran and why it moved. Where none of its role's agents has quota, the job stays `running`
   and answers `heldFor`, the reason it waits; it goes out again as soon as a provider has quota, and
-  `heldFor` is null whenever a turn is out and not waiting for its card. A job on its item's model, a
-  forced provider or a pinned model never moves: it waits for that one. A failure of the work itself moves nothing.
+  `heldFor` is null whenever a turn is out and not waiting for its card. A job on its item's model or
+  a pinned model never moves: it waits for that one. A failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
@@ -1595,7 +1599,8 @@ reach it through the hook point above for everything else.
 - **No agent rows, worker rows or tiers stand behind this boundary,** so these are no routes of it: `/agents`
   and `/agents/{agentName}` (a supervisor is `/supervisors`, a role `/roles`); `/agent-roles` (`/roles`);
   `/workers` and every route under it (`/repositories`); `/seat-requests` (`/slot-requests`); the pool's
-  `GET /pool`, `GET /roles` of co-worker roles and `PATCH /pool/limits` (a role's cap is a field of its row);
+  `GET /pool`, `GET /roles` of co-worker roles and `PATCH /pool/limits` (how many of a role's runs go at once
+  is the count of its agents);
   `/tiers`, `/work-keys`, `/fold-ratios` and `/pin-checks` (an order's entries and a row's compaction
   threshold); and the route table, the provider order and the per-key choices of `/fallback`, which keeps the
   Claude accounts alone.

@@ -2,6 +2,7 @@
 //! resident program stands on, the files that command points at, and the session token its tools are
 //! reached with.
 
+pub mod agent_plugin;
 pub mod chat;
 pub mod claude;
 pub mod codex;
@@ -108,10 +109,16 @@ pub fn render(template: &str, values: &[(&str, &str)]) -> String {
     .into_owned()
 }
 
-/// The prompt a role's agents are given before their own (docs/agent-roles.md): the one its row in the
-/// store carries, where it carries one. A store that cannot be read gives none, and says so.
-pub async fn role_prompt<C: sea_orm::ConnectionTrait>(db: &C, role: &str) -> Option<String> {
-  crate::agent_roles::prompt_of(db, role).await.unwrap_or_else(|fault| {
+/// The prompt a run of a role opens with (docs/agent-roles.md; docs/role-agents.md, 「What a run reads off its
+/// agent」): the one the agent it is let in on lays over its role's, else the one its role's row carries, where
+/// either carries one. `path` is the folder the run works in, which names its agent. A store that cannot be
+/// read gives none, and says so.
+pub async fn role_prompt<C: sea_orm::ConnectionTrait>(
+  db: &C,
+  role: &str,
+  path: Option<&str>,
+) -> Option<String> {
+  crate::role_agents::prompt_at(db, role, path).await.unwrap_or_else(|fault| {
     eprintln!("agency: the prompt of the role {role} could not be read: {}", fault.detail);
 
     None

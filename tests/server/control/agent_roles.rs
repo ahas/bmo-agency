@@ -243,7 +243,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   );
 
   // Each refusal writes nothing: a role nobody holds, a name taken, a road that is half named, a provider
-  // agency does not carry, a bundle the policy does not declare.
+  // agency does not carry, a bundle the policy does not declare, a skill no plugin of the release carries.
   for (body, refused) in [
     (json!({ "role": "nobody" }), 422),
     (json!({ "role": "reviewer", "name": "reviewer-01" }), 409),
@@ -251,6 +251,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     (json!({ "role": "reviewer", "provider": "claude-code" }), 422),
     (json!({ "role": "reviewer", "provider": "nowhere", "model": "x" }), 422),
     (json!({ "role": "reviewer", "bundles": ["web.nothing"] }), 422),
+    (json!({ "role": "reviewer", "skills": ["no-such-skill"] }), 422),
   ] {
     let (status, said) = ask(reqwest::Method::POST, port, "/role-agents", Some(body.clone())).await;
 

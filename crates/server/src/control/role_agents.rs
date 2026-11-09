@@ -143,6 +143,14 @@ async fn judged(
 
   if let Some(skills) = body.get("skills") {
     agent.skills = names(skills, "skills")?;
+
+    let carried = crate::lines::agent_plugin::carried(&crate::lines::Trees::of(ground));
+
+    if let Some(unknown) = agent.skills.iter().flatten().find(|named| !carried.contains(*named)) {
+      return Err(unprocessable(format!(
+        "skills: {unknown} is no skill a plugin of this release carries."
+      )));
+    }
   }
 
   // Its road is a provider and a model together, or neither; a road named is judged as an order's entry is.

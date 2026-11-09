@@ -221,8 +221,21 @@ pub async fn take_for_fold<C: ConnectionTrait>(
   let Some(role) = agent_roles::named(db, role).await? else {
     return Ok(None);
   };
+  // The threshold is the one the agent the run is let in on sets, where it sets one: the run still holds its
+  // slot at the session's path while it folds.
+  let path = one(
+    db,
+    r#"SELECT "path" FROM "role_sessions" WHERE "session" = $1 AND "role" = $2 ORDER BY "id" DESC LIMIT 1"#,
+    vec![session.into(), role.name.as_str().into()],
+  )
+  .await?
+  .map(|row| row.try_get::<String>("", "path"))
+  .transpose()?;
+  let own = crate::role_agents::seated_at(db, Some(&role.name), path.as_deref())
+    .await?
+    .and_then(|agent| agent.fold_ratio);
 
-  if !fold_due(context_share, role.fold_ratio) {
+  if !fold_due(context_share, own.unwrap_or(role.fold_ratio)) {
     return Ok(None);
   }
 

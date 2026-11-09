@@ -30,16 +30,41 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
   - **its place among its role's agents,** `position`, lowest first: the order a run looks for a free agent
     in;
-  - **whether its session's cache is kept warm** between runs, `keepsCache`
-    (`docs/cache-fallback.md`);
+  - **whether its kept session is marked to be kept warm** between runs, `keepsCache`. The mark is held on
+    the row and warms nothing: no pass pings a role's session (`docs/keepalive-schedule.md`, 「Whose prefix
+    is warmed」), so a kept session is resumed while its cache is still warm and opened afresh once it has
+    gone, whatever the mark says;
   - **its compaction threshold,** `foldRatio`, the share of its model's window a run's session may fill
-    before it is folded; where it sets none, the ratio its provider declares for the model;
+    before it is folded; where it sets none, its role's;
   - **what it lays over its role's preset,** each none where the role's own stands: `prompt`, which then
     stands in place of the role's prompt; `bundles`, which then are the bundles its runs are given in place
     of the role's; and `skills`, the names of the skills its runs carry in place of the role's bundle of
     them.
 - **A role's preset is the default of every agent of it.** A run reads its agent first and its role for
   whatever the agent leaves unset, so an agent that sets nothing runs exactly as its role says.
+
+## What a run reads off its agent
+
+- **A run finds its agent by the slot it holds:** the seat of the slot request of its role that stands
+  active at the folder the run works in — a job's checkout, a delegation's task folder, a place — the newest
+  where more than one stands there. A run that names no folder, a translation among them, takes the seat of
+  its role's only active request. A run whose seat neither tells stands on its role's preset alone.
+- **Its prompt:** the agent's `prompt` stands in the place the role's prompt takes in the run's system
+  prompt (`docs/agent-roles.md`, 「A role's prompt」). A system prompt is a word of the run's command, so an
+  agent with a prompt of its own keeps a session of its own (`docs/sessions.md`, 「A role's session」).
+- **Its bundles:** the agent's `bundles` are the bundles the run's token is issued with and its session's
+  record carries, in the place of the role's (`docs/agent-roles.md`, 「Where the role is read」); the line's
+  own capabilities stand whatever the agent names.
+- **Its skills,** on the worker line: an agent that names skills is handed a plugin of its own, a folder
+  under the agents root, `role-agents/<agent>/plugin`, holding the manifest of its role's plugin and the
+  named skills alone — each from its role's plugin where that carries it, else from the first other plugin
+  of the release that does. The folder is written whole whenever what it should hold differs from what it
+  holds — the agent's list changed, or a release moved a skill's text — and stands at the same path run
+  after run. A named skill no plugin of the release carries any longer is left out and said in the log. A
+  list that names none hands the run a plugin with no skill.
+- **Its compaction threshold:** the agent's `foldRatio`, where it sets one, is the share a run's kept
+  session is folded at as the run ends, in the place of the role's (`docs/sessions.md`, 「Session
+  compaction」).
 
 ## Which agent a run takes
 
@@ -69,7 +94,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **`POST /role-agents`** adds an agent to a role: `role` required, every other field optional. It refuses a
   role the store does not hold, a name out of the pattern or already taken, a provider agency does not
   carry, a model its provider does not hold, a provider without a model or a model without a provider, a
-  bundle the policy does not declare and a skill the skills folder does not hold.
+  bundle the policy does not declare and a skill no plugin of the release carries.
 - **`PATCH /role-agents/{agentName}`** changes any field of the row, each judged as the add judges it; a
   field set to null is cleared, which for an override gives the role's own back.
 - **`DELETE /role-agents/{agentName}`** removes an agent, and is refused 409 while it carries a run.

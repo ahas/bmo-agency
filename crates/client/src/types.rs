@@ -155,8 +155,8 @@ pub enum JobState {
   Stopped,
 }
 
-/// What chose a job's provider and model: its item's `model` label, its role's forced provider, its
-/// repository's pin or its role's order.
+/// What chose a job's provider and model: its item's `model` label, its repository's pin or its role's
+/// agents in their order (`order`). `forced` stands on a job row that holds it, and no job is given it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum JobChoice {
   #[serde(rename = "item")]
@@ -3117,9 +3117,9 @@ pub struct RoleAgent {
   pub enabled: bool,
   /// its place among its role's agents, lowest first
   pub position: i64,
-  /// whether its session's cache is kept warm between runs
+  /// whether its kept session is marked to be kept warm between runs; the mark warms nothing
   pub keeps_cache: bool,
-  /// its compaction threshold, or null where its provider's declared ratio stands
+  /// its compaction threshold, or null where its role's stands
   pub fold_ratio: Option<f64>,
   /// what it lays over its role's preset, each null where the role's own stands
   pub prompt: Option<String>,

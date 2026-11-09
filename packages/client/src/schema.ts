@@ -3077,8 +3077,8 @@ export interface components {
             reason: string | null;
         };
         /**
-         * @description What chose a job's provider and model: its item's `model` label, its role's forced provider, its
-         *     repository's pin or its role's order.
+         * @description What chose a job's provider and model: its item's `model` label, its repository's pin or its role's
+         *     agents in their order (`order`). `forced` stands on a job row that holds it, and no job is given it.
          * @enum {string}
          */
         JobChoice: "item" | "forced" | "pin" | "order";
@@ -3832,11 +3832,11 @@ export interface components {
              * @description its place among its role's agents, lowest first
              */
             position: number;
-            /** @description whether its session's cache is kept warm between runs */
+            /** @description whether its kept session is marked to be kept warm between runs; the mark warms nothing */
             keepsCache: boolean;
             /**
              * Format: double
-             * @description its compaction threshold, or null where its provider's declared ratio stands
+             * @description its compaction threshold, or null where its role's stands
              */
             foldRatio: number | null;
             /** @description what it lays over its role's preset, each null where the role's own stands */
