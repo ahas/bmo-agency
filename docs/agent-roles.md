@@ -167,6 +167,11 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
   delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/doppelganger.md`, stands first
   in every run.
+- **A turn of it is a task or a round handed over whole.** A task names the folder to work in and what to
+  find or do, and its answer is a report the supervisor carries back. A round a supervisor's own draft turn
+  handed over (the receiver's `docs/drafting.md`, 「A round handed to the double」) carries the room's block
+  and the round's turn as the supervisor read them: the double then answers as the supervisor itself, by that
+  block's rules, and its answer is the message the room hears. The role's prompt tells the two apart.
 - **Its order is seeded empty, so a run of it goes out on the asking supervisor's own provider, model and
   effort** as they stand when it is asked, and waits while that provider has no quota (`docs/role-slots.md`,
   「A delegated task」). An order the owner sets on the role stands over that: its runs then walk that order
