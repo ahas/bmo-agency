@@ -3117,7 +3117,7 @@ pub struct RoleAgent {
   pub enabled: bool,
   /// its place among its role's agents, lowest first
   pub position: i64,
-  /// whether its kept session is marked to be kept warm between runs; the mark warms nothing
+  /// whether the session its last answered run kept is pinged before its cache cools
   pub keeps_cache: bool,
   /// its compaction threshold, or null where its role's stands
   pub fold_ratio: Option<f64>,

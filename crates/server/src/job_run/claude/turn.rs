@@ -1168,6 +1168,27 @@ impl Attempting<'_, '_> {
       fold(ground, row, &work.model, &account, &session_id).await;
     }
 
+    // The session is remembered as its agent's warm one where the agent the job was let in on keeps its
+    // cache warm (docs/keepalive-schedule.md, 「An agent's kept session」): the job still holds its slot at
+    // its checkout, which names the agent.
+    match crate::role_agents::seated_at(&ground.db, None, Some(&work.cwd)).await {
+      Ok(Some(agent)) if agent.keeps_cache => {
+        crate::keepalive::agents::remember(crate::keepalive::agents::Warm {
+          session: session_id,
+          role: agent.role,
+          agent: agent.name,
+          provider: reply.mode.clone(),
+          model: work.model.clone(),
+          how: crate::keepalive::agents::How::Worker { row: row.clone() },
+        })
+      }
+      Ok(Some(agent)) => {
+        crate::keepalive::agents::forget(&agent.name);
+      }
+      Ok(None) => {}
+      Err(why) => eprintln!("{worker}: the agent its job was let in on could not be read: {why}"),
+    }
+
     Ok(())
   }
 

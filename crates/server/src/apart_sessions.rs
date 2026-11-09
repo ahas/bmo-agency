@@ -337,6 +337,70 @@ pub async fn keep<C: ConnectionTrait>(
   Ok(())
 }
 
+/// The kept session of this id as its row holds it, dropped or not; none where no row holds it.
+pub async fn kept<C: ConnectionTrait>(db: &C, session: &str) -> Result<Option<Kept>, Fault> {
+  one(
+    db,
+    r#"SELECT * FROM "role_sessions" WHERE "session" = $1 ORDER BY "id" DESC LIMIT 1"#,
+    vec![session.into()],
+  )
+  .await?
+  .as_ref()
+  .map(Kept::of)
+  .transpose()
+}
+
+/// Whether a kept session is still the one its key's next run would look to: the last answered, not dropped,
+/// of its role at its path on its provider and model. A later run that kept another there leaves this one
+/// behind.
+pub async fn newest<C: ConnectionTrait>(db: &C, kept: &Kept) -> Result<bool, Fault> {
+  let last = one(
+    db,
+    r#"SELECT "session" FROM "role_sessions"
+       WHERE "role" = $1 AND "path" = $2 AND "provider" = $3 AND "model" = $4 AND "dropped" = 0
+         AND "answered_at" IS NOT NULL
+       ORDER BY "answered_at" DESC, "id" DESC LIMIT 1"#,
+    vec![
+      kept.role.clone().into(),
+      kept.path.clone().into(),
+      kept.provider.clone().into(),
+      kept.model.clone().into(),
+    ],
+  )
+  .await?
+  .map(|row| row.try_get::<String>("", "session"))
+  .transpose()?;
+
+  Ok(last.as_deref() == Some(kept.session.as_str()))
+}
+
+/// A kept session taken for its warm ping (docs/keepalive-schedule.md, 「An agent's kept session」), held so
+/// no run resumes it while the ping goes; whether it was taken — not where a run or a fold holds it, or it
+/// was dropped.
+pub async fn take_for_ping<C: ConnectionTrait>(db: &C, session: &str) -> Result<bool, Fault> {
+  let taken = run(
+    db,
+    r#"UPDATE "role_sessions" SET "held" = 1 WHERE "session" = $1 AND "dropped" = 0 AND "held" = 0"#,
+    vec![session.into()],
+  )
+  .await?;
+
+  Ok(taken == 1)
+}
+
+/// A kept session given back after a ping that answered: its last answer is the ping's, so it stands valid
+/// from that moment, and its count of runs is as it was.
+pub async fn warmed<C: ConnectionTrait>(db: &C, session: &str, at: i64) -> Result<(), Fault> {
+  run(
+    db,
+    r#"UPDATE "role_sessions" SET "held" = 0, "answered_at" = $2 WHERE "session" = $1"#,
+    vec![session.into(), at.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
 /// A session a run took and did not answer on given back unchanged, so the next run of its key may resume
 /// it while it is still valid.
 pub async fn give_back<C: ConnectionTrait>(db: &C, session: &str) -> Result<(), Fault> {

@@ -53,8 +53,10 @@ pub mod job_run {
   pub mod openrouter_tap;
 }
 
-/// The keepalive agency keeps beside the supervisors' warming: the logins' watch.
+/// The keepalive agency keeps beside the supervisors' warming: the logins' watch, and the warming of an
+/// agent's kept session.
 pub mod keepalive {
+  pub mod agents;
   pub mod logins;
 }
 pub mod lines;

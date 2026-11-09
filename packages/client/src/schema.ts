@@ -3832,7 +3832,7 @@ export interface components {
              * @description its place among its role's agents, lowest first
              */
             position: number;
-            /** @description whether its kept session is marked to be kept warm between runs; the mark warms nothing */
+            /** @description whether the session its last answered run kept is pinged before its cache cools */
             keepsCache: boolean;
             /**
              * Format: double

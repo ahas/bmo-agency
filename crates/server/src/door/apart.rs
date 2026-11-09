@@ -176,11 +176,111 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     }
 
     if let Ok(Ending::Answered { reply, .. }) = &ended {
+      let warm = fold.warm(&session);
+      let cwd = fold.command.cwd.clone();
+
       fold.fold(ground, herdr, &session, reply.context_ratio).await;
+      remember_warm(ground, warm, &cwd).await;
     }
   }
 
   ended
+}
+
+// The session a run kept remembered as its agent's warm one, where the agent it was let in on keeps its cache
+// warm (docs/keepalive-schedule.md, 「An agent's kept session」): the run still holds its slot at its folder,
+// which names the agent. An agent that does not keep its cache warm has nothing remembered of it.
+async fn remember_warm(ground: &Ground, warm: crate::keepalive::agents::Warm, cwd: &str) {
+  let seat = crate::role_agents::seated_at(&ground.db, Some(&warm.role), Some(cwd)).await;
+
+  match seat {
+    Ok(Some(agent)) if agent.keeps_cache => {
+      crate::keepalive::agents::remember(crate::keepalive::agents::Warm {
+        agent: agent.name,
+        ..warm
+      });
+    }
+    Ok(Some(agent)) => {
+      crate::keepalive::agents::forget(&agent.name);
+    }
+    Ok(None) => {}
+    Err(why) => eprintln!("{}: the agent its run was let in on could not be read: {why:?}", warm.role),
+  }
+}
+
+/// One warm ping of an agent's kept session (docs/keepalive-schedule.md, 「An agent's kept session」): one
+/// more turn into the session on the command its run went out on, the keepalive's word, the session held
+/// while it goes. A ping that answered leaves the session valid from that moment; one that did not, or that
+/// found the session held, leaves it as it stood. Whether it answered.
+pub async fn ping(ground: &Ground, warm: &crate::keepalive::agents::Warm) -> bool {
+  let Some(herdr) = ground.herdr.clone() else {
+    eprintln!("keepalive {}: this machine names no herdr to open the ping's pane on", warm.agent);
+
+    return false;
+  };
+
+  match apart_sessions::take_for_ping(&ground.db, &warm.session).await {
+    Ok(true) => {}
+    Ok(false) => return false,
+    Err(why) => {
+      eprintln!("keepalive {}: its session could not be taken: {why:?}", warm.agent);
+
+      return false;
+    }
+  }
+
+  let crate::keepalive::agents::How::Apart {
+    line,
+    run_name,
+    effort,
+    account,
+    command,
+    parent,
+    root,
+  } = &warm.how
+  else {
+    return false;
+  };
+  let mut command = command.clone();
+
+  command.args = resumed_command(&command.args, &warm.session);
+
+  let ping = Apart {
+    agent: run_name,
+    role: &warm.role,
+    line,
+    provider: &warm.provider,
+    title: DOOR_WORDS.keepalive_title.clone(),
+    command,
+    session: warm.session.clone(),
+    prompt: policy::keepalive::KEEPALIVE.prompt.clone(),
+    model: warm.model.clone(),
+    effort: effort.clone(),
+    account: account.clone(),
+    parent: parent.clone(),
+    root: root.clone(),
+    run: None,
+  };
+  let answered = matches!(run_on(ground, herdr, ping, &mut Quiet).await, Ok(Ending::Answered { .. }));
+  let given = match answered {
+    true => {
+      println!("keepalive {} {}: warmed", warm.agent, warm.session);
+      apart_sessions::warmed(&ground.db, &warm.session, now_ms()).await
+    }
+    false => {
+      eprintln!(
+        "keepalive {} {}: the ping did not answer, the session stands as it was",
+        warm.agent, warm.session
+      );
+      apart_sessions::give_back(&ground.db, &warm.session).await
+    }
+  };
+
+  if let Err(why) = given {
+    eprintln!("keepalive {}: the session it pinged was not given back: {why:?}", warm.agent);
+  }
+
+  answered
 }
 
 /// What a run's fold goes out with: the run's own line, command, road and login, on the session it kept.
@@ -198,6 +298,27 @@ struct Folding<'a> {
 }
 
 impl Folding<'_> {
+  // What a warm ping of the session this run kept would go out on: the run as it went out, under no agent
+  // yet.
+  fn warm(&self, session: &str) -> crate::keepalive::agents::Warm {
+    crate::keepalive::agents::Warm {
+      agent: String::new(),
+      session: session.to_owned(),
+      role: self.role.to_owned(),
+      provider: self.provider.to_owned(),
+      model: self.model.clone(),
+      how: crate::keepalive::agents::How::Apart {
+        line: self.line.to_owned(),
+        run_name: self.agent.to_owned(),
+        effort: self.effort.clone(),
+        account: self.account.clone(),
+        command: self.command.clone(),
+        parent: self.parent.clone(),
+        root: self.root.clone(),
+      },
+    }
+  }
+
   /// The session a run kept folded, where its turn left it at or past its role's compaction threshold
   /// (docs/sessions.md, 「Session compaction」): one more turn into the same session on the same command, the
   /// fold word, before the run gives its slot back. A fold that compacted leaves the session kept and valid

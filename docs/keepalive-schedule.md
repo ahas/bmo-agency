@@ -1,9 +1,9 @@
 # The keepalive schedule
 
-When a kept prompt-cache prefix is worth a ping, and whose prefixes agency keeps warm. Agency warms
-supervisors alone: each supervisor's resident program, on each provider its row switches warming on for. No
-role, no repository and no standing branch checkout is warmed, and no switch warms or stops everything at
-once. The general rule is the schedule library `bmo-cache-warmer-schedule` publishes, plain values that use
+When a kept prompt-cache prefix is worth a ping, and whose prefixes agency keeps warm. Agency warms each
+supervisor's resident program, on each provider its row switches warming on for, and the kept session of
+each role's agent whose row switches it on. No repository and no standing branch checkout is warmed, and no
+switch warms or stops everything at once. The general rule is the schedule library `bmo-cache-warmer-schedule` publishes, plain values that use
 nothing outside themselves, which agency and any other repository that keeps prefixes warm build on
 (`docs/api.md`, 「Calls agency makes」). Agency's own schedule stands in the server's keepalive module and
 calls it; the ping itself goes into the supervisor's program (`docs/agent-control.md`, 「The keepalive ping
@@ -51,11 +51,45 @@ its own. Every moment and span is in epoch milliseconds.
   holds」). The keepalive warms the program the supervisor stands on now, while the provider it stands on is
   one switched on; a supervisor whose current provider is switched off is passed over and its prefix left to
   cool.
-- **Nothing of a role.** A role's runs are spawned per run and keep no program between runs, and a reservation
-  of a role's slots warms nothing (`docs/role-slots.md`, 「Reserving slots」). A role's kept session is resumed
-  while its cache is still warm and opened afresh once it has gone (`docs/sessions.md`, 「A role's session」).
+- **An agent's kept session, where its row says so** (「An agent's kept session」 below). Nothing else of a
+  role: a role's runs are spawned per run and keep no program between runs, a reservation of a role's slots
+  warms nothing (`docs/role-slots.md`, 「Reserving slots」), and the kept session of an agent that does not
+  keep its cache warm is resumed while its cache is still warm and opened afresh once it has gone
+  (`docs/sessions.md`, 「A role's session」).
 - **Nothing of a repository or a place.** A standing branch checkout's list line is read to choose a place
   whose prefix may still be cached, never pinged.
+
+## An agent's kept session
+
+- **One session an agent, its last.** An agent whose row keeps its cache warm (`keepsCache`,
+  `docs/role-agents.md`) has one session kept warm: the one its last answered run kept, of a role that keeps
+  its sessions (`docs/sessions.md`, 「A role's session」). A later run of the agent that keeps another
+  session — in another folder, on another command — takes its place, and the earlier one is left to cool.
+  An agent's warming therefore never grows with the folders it has worked in.
+- **What is remembered of it** is what a ping goes out on, taken as the run keeps its session: the agent,
+  its role and line, the session, the provider, model, effort and login the run went out on, and the command
+  it went out with. A command carries its run's whole environment, so it is held in the server's memory and
+  never written to the store: a restart of agency lets the warm sessions cool, and an agent's next run
+  is remembered again.
+- **Its clocks are its provider's:** the idle stretch and the lifetime the provider publishes for the model,
+  the margin taken off a lifetime (`policy/pool-warm.toml`), failures that do not touch, and no idle
+  override. A provider that publishes no lifetime has no prefix to keep, and its agents' sessions are never
+  pinged.
+- **Its record:** the session's last answer as its last use — a run's or a ping's, since a ping that answers
+  is written as the session's last answer.
+- **A ping is one turn of the keepalive's word into the kept session** (`policy/keepalive.toml`), holding no
+  slot of the role. A role's session is pinged on the command its run went out on, in a pane of its own,
+  the session held while the ping goes so no run resumes it meanwhile. A job's session at its repository's
+  checkout, the worker's own, is pinged by a turn on that session (`docs/agent-control.md`, 「The keepalive
+  ping goes into the same program as the turns」), its command composed as the agent's own, so it is the
+  command the agent's job went out on. A ping that answers leaves the session valid from that moment; one
+  that does not leaves the session as it stood.
+- **No ping goes, and what is remembered is let go,** where the agent is gone, switched off or no longer
+  keeps its cache warm, where the session was dropped, a later run kept another session at the same key, its
+  cache has already gone, or its provider publishes no lifetime. A session a run or a fold holds is passed
+  over for that pass, as is one in whose folder a run works now — that run keeps it warm itself — and one
+  whose provider cannot answer now.
+- **The clock** is the keepalive pass's own (「Whether a ping goes」 below), one ping at a time.
 
 ## When a supervisor's prefix is worth a ping
 

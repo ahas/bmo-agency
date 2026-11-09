@@ -32,10 +32,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
   - **its place among its role's agents,** `position`, lowest first: the order a run looks for a free agent
     in;
-  - **whether its kept session is marked to be kept warm** between runs, `keepsCache`. The mark is held on
-    the row and warms nothing: no pass pings a role's session (`docs/keepalive-schedule.md`, 「Whose prefix
-    is warmed」), so a kept session is resumed while its cache is still warm and opened afresh once it has
-    gone, whatever the mark says;
+  - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
+    kept is pinged before its cache cools, so its next run there resumes it warm
+    (`docs/keepalive-schedule.md`, 「An agent's kept session」);
   - **its compaction threshold,** `foldRatio`, the share of its model's window a run's session may fill
     before it is folded; where it sets none, its role's;
   - **what it lays over its role's preset,** each none where the role's own stands: `prompt`, which then

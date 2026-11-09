@@ -76,6 +76,8 @@ pub struct StatusLine {
 pub struct DoorWords {
   pub provider_off: String,
   pub fold_title: String,
+  /// The title of the pane a kept session's warm ping runs in.
+  pub keepalive_title: String,
   pub notes: Notes,
   pub screens: Screens,
   pub confirm: Confirm,

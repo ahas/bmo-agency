@@ -2646,10 +2646,12 @@ enters the prefix.
   - A person attached to herdr sees the ping in the same program as the turns.
   - The cache the ping reads and writes is the cache the next turn reads. Pinging on another line warms a
     prefix no turn uses.
-- **Only a supervisor is pinged,** on the providers its row switches warming on for
-  (`docs/keepalive-schedule.md`, 「Whose prefix is warmed」). No role's run is pinged: a run's pane closes
-  with the run, and its kept session is resumed while its cache is still warm and opened afresh once it
-  has gone (`docs/sessions.md`, 「A role's session」).
+- **A supervisor is pinged in its resident program,** on the providers its row switches warming on for
+  (`docs/keepalive-schedule.md`, 「Whose prefix is warmed」). A role's run keeps no program — its pane closes
+  with the run — so the kept session of an agent that keeps its cache warm is pinged by one more turn into
+  that session on its run's own command, in a pane of its own (`docs/keepalive-schedule.md`, 「An agent's
+  kept session」); every other kept session is resumed while its cache is still warm and opened afresh once
+  it has gone (`docs/sessions.md`, 「A role's session」).
 - **A ping goes out on the login the supervisor's session was opened under,** so the turn after it finds
   the program the ping left standing on the same command (`docs/keepalive-schedule.md`, 「Whether a ping
   goes」).

@@ -10,6 +10,8 @@ provider_off = "The provider is switched off."
 # The title a fold of a worker's session stands under in its pane (docs/sessions.md, 「Session
 # compaction」).
 fold_title = "fold"
+# The title of the pane a kept session's warm ping runs in.
+keepalive_title = "keepalive"
 
 # What a turn put into a standing program writes into its run's log as it goes, read by a person on the
 # console and by whoever follows the run up: the {config} and the {cwd} whose trust was written, {why} the

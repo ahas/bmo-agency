@@ -656,10 +656,11 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 ### Warming only enabled providers
 
-- **Only a supervisor is warmed,** on the providers its row switches warming on for
-  (`docs/keepalive-schedule.md`, 「Whose prefix is warmed」). No switch stops every supervisor's warming at
-  once, and nothing of a role, a repository or a place is warmed: a role's kept session is resumed while
-  its cache is still warm and opened afresh once it has gone (`docs/sessions.md`, 「A role's session」).
+- **A supervisor is warmed,** on the providers its row switches warming on for, **and the kept session of an
+  agent whose row keeps its cache warm** (`docs/keepalive-schedule.md`, 「Whose prefix is warmed」). No switch
+  stops every warming at once, and nothing of a repository or a place is warmed; the kept session of any
+  other agent is resumed while its cache is still warm and opened afresh once it has gone
+  (`docs/sessions.md`, 「A role's session」).
 - **Claude off:** while Claude Code is off, no Claude keepalive goes out. **One account off or resting:**
   its own sessions are not warmed and its prefixes are left to cool, while every other account's are
   warmed, since a prefix belongs to the account it was built under. **An endpoint account:** its

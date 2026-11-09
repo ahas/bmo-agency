@@ -162,6 +162,7 @@ mod queue {
   mod settings;
   mod workers;
 }
+mod keepalive_agents;
 mod readiness;
 mod rest;
 mod road;

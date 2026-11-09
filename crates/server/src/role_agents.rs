@@ -215,6 +215,11 @@ pub async fn seated_at<C: ConnectionTrait>(
   role: Option<&str>,
   path: Option<&str>,
 ) -> Result<Option<RoleAgent>, Fault> {
+  // A composition made as an agent outside any run of it reads that agent, where it is of the role named.
+  if let Ok(agent) = COMPOSED_AS.try_with(Clone::clone) {
+    return Ok(named(db, &agent).await?.filter(|agent| role.is_none_or(|role| agent.role == role)));
+  }
+
   let path = path.map(|path| path.trim().trim_end_matches('/')).filter(|path| !path.is_empty());
   let seat = match (path, role) {
     (Some(path), Some(role)) => one(
@@ -278,4 +283,36 @@ pub async fn bundles_at<C: ConnectionTrait>(
     Some(own) => Ok(own),
     None => crate::agent_roles::bundles_of(db, role).await,
   }
+}
+
+tokio::task_local! {
+  // The agent a composition is made as, where it is made outside any run of that agent.
+  static COMPOSED_AS: String;
+}
+
+/// A piece of work done as an agent that holds no slot while it goes — the warm ping of its kept session
+/// (docs/keepalive-schedule.md, 「An agent's kept session」): whatever it composes reads that agent as its
+/// seat, so the command it goes out on is the one the agent's run went out on.
+pub async fn composed_as<F: Future>(agent: String, work: F) -> F::Output {
+  COMPOSED_AS.scope(agent, work).await
+}
+
+/// Whether a run works in a folder now: a slot request stands active at it.
+pub async fn worked_in<C: ConnectionTrait>(db: &C, path: &str) -> Result<bool, Fault> {
+  let path = path.trim().trim_end_matches('/');
+
+  if path.is_empty() {
+    return Ok(false);
+  }
+
+  Ok(
+    one(
+      db,
+      r#"SELECT 1 AS "works" FROM "role_slot_requests"
+         WHERE rtrim("path", '/') = $1 AND "state" = 'active' LIMIT 1"#,
+      vec![path.into()],
+    )
+    .await?
+    .is_some(),
+  )
 }

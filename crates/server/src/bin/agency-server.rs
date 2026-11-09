@@ -331,6 +331,18 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  // The warming of the agents' kept sessions, on the keepalive pass's own clock, one ping at a time.
+  let warmed = ground.clone();
+
+  tokio::spawn(async move {
+    every("agents' warming", first, period, move || {
+      let ground = warmed.clone();
+
+      async move { agency_server::keepalive::agents::pass(&ground, now_ms).await.map(|_| ()) }
+    })
+    .await
+  });
+
   let held = ground.clone();
   let period = Duration::from_secs(MACHINE_ROOM.clocks.held_watch_seconds);
 
