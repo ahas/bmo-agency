@@ -79,6 +79,12 @@ flowchart TD
   the requests it has in hand, and why it stands aside and until when. A value of the wrong shape
   reads as none.
 - **No address answering is no health,** which every caller reads as nothing known.
+- **An arbiter of the operator's own is read where the registration names its word for the model:** the
+  address's origin with `/arbiter/status`, under the same key, an object whose `awake` lists the models
+  standing on the card, with `node_mode` and `node_mode_basis` saying what holds the card. The model not
+  among `awake` sets the health aside with `<node_mode>: <node_mode_basis>` as the reason and, where the
+  status names the model's pin, its expiry as until; an answer that cannot be read or holds no `awake` list
+  sets nothing aside.
 
 ## The arbiter's master
 

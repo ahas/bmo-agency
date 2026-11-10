@@ -63,6 +63,9 @@ pub struct Registration {
   pub card_service: Option<String>,
   /// Whether the card service's instances keep role files (docs/own-llm.md, 「Role files」).
   pub role_files: bool,
+  /// The word the operator's own arbiter lists the model under, none where no arbiter is read
+  /// (docs/own-llm.md, 「What a registration holds」).
+  pub arbiter_model: Option<String>,
   pub addresses: Vec<Address>,
 }
 
@@ -118,6 +121,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       thinking: flag(&row, "thinking")?,
       walked: flag(&row, "walked")?,
       keeps_research: flag(&row, "keeps_research")?,
+      arbiter_model: row.try_get::<Option<String>>("", "arbiter_model")?.filter(|word| !word.is_empty()),
       card_service: row.try_get("", "card_service")?,
       role_files: flag(&row, "role_files")?,
       addresses: held,
@@ -159,8 +163,22 @@ pub async fn registration_health<C: ConnectionTrait>(
           key_file: address.key_file,
         })
         .collect();
+      let mut health = engine_health::health(data_root, &addresses).await;
 
-      engine_health::health(data_root, &addresses).await
+      // An arbiter of the operator's own, where the registration names its word for the model, says whether the
+      // model stands on the card now (docs/own-llm.md, 「What a registration holds」).
+      if let (Some(health), Some(word)) = (health.as_mut(), held.arbiter_model.as_deref())
+        && health.aside.is_none()
+      {
+        for address in &addresses {
+          if let Some(aside) = engine_health::arbiter_aside(data_root, address, word).await {
+            health.aside = Some(aside);
+            break;
+          }
+        }
+      }
+
+      health
     }
   };
 
@@ -230,9 +248,11 @@ pub async fn registered_model<C: ConnectionTrait>(
   let model: String = row.try_get("", "model")?;
   let card_service: Option<String> = row.try_get("", "card_service")?;
   let role_files = flag(&row, "role_files")?;
-  let healthy = registration_health(db, data_root, name)
-    .await?
-    .is_some_and(|health| health.aside.is_none());
+  let health = registration_health(db, data_root, name).await?;
+  let healthy = health.as_ref().is_some_and(|health| health.aside.is_none());
+  let aside_reason = health.and_then(|health| health.aside.map(|aside| aside.reason));
+  let arbiter_model: Option<String> =
+    row.try_get::<Option<String>>("", "arbiter_model")?.filter(|word| !word.is_empty());
   // The probe above wrote an answer down; the row read now carries the moment it last stood at.
   let last_answered_at = one(
     db,
@@ -251,6 +271,8 @@ pub async fn registered_model<C: ConnectionTrait>(
     "roleFiles": role_files,
     "usedBy": referrers(db, name).await?,
     "healthy": healthy,
+    "asideReason": aside_reason,
+    "arbiterModel": arbiter_model,
     "lastAnsweredAt": last_answered_at,
     "contextTokens": row.try_get::<i64>("", "context_tokens")?,
     "answerTokens": row.try_get::<i64>("", "answer_tokens")?,
@@ -516,6 +538,7 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
       "keepsResearch": one.keeps_research,
       "cardService": one.card_service,
       "roleFiles": one.role_files,
+      "arbiterModel": one.arbiter_model,
       "addresses": addresses,
       "referrers": referrers(db, &one.name).await?,
     }));
@@ -613,6 +636,7 @@ struct Fields {
   thinking: bool,
   walked: bool,
   keeps_research: bool,
+  arbiter_model: Option<String>,
 }
 
 impl Fields {
@@ -658,6 +682,12 @@ impl Fields {
     let Some(keeps_research) = fields.get("keepsResearch").and_then(Value::as_bool) else {
       return refused("keepsResearch", CONTROL_WORDS.registry.keeps_research.as_str());
     };
+    let arbiter_model = match fields.get("arbiterModel") {
+      None | Some(Value::Null) => None,
+      Some(Value::String(word)) if word.trim().is_empty() => None,
+      Some(Value::String(word)) if MODEL.is_match(word.trim()) => Some(word.trim().to_owned()),
+      Some(_) => return refused("arbiterModel", CONTROL_WORDS.registry.model.as_str()),
+    };
 
     Ok(Self {
       label,
@@ -667,6 +697,7 @@ impl Fields {
       thinking,
       walked,
       keeps_research,
+      arbiter_model,
     })
   }
 
@@ -679,6 +710,7 @@ impl Fields {
       i64::from(self.thinking).into(),
       i64::from(self.walked).into(),
       i64::from(self.keeps_research).into(),
+      self.arbiter_model.clone().into(),
     ]
   }
 }
@@ -716,6 +748,8 @@ impl<C: ConnectionTrait> Change<'_, C> {
       "walked": given(body, "walked").cloned().unwrap_or_else(|| json!(held.as_ref().is_some_and(|held| held.walked))),
       "keepsResearch": given(body, "keepsResearch").cloned()
         .unwrap_or_else(|| json!(held.as_ref().is_some_and(|held| held.keeps_research))),
+      "arbiterModel": body.get("arbiterModel").cloned()
+        .unwrap_or_else(|| held.as_ref().and_then(|held| held.arbiter_model.clone()).map_or(Value::Null, Value::String)),
     });
 
     if held.is_none() {
@@ -729,7 +763,7 @@ impl<C: ConnectionTrait> Change<'_, C> {
       run(
         self.db,
         "INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked,
-         keeps_research, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+         keeps_research, arbiter_model, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         values,
       )
       .await?;
@@ -740,7 +774,7 @@ impl<C: ConnectionTrait> Change<'_, C> {
       run(
         self.db,
         "UPDATE registered_models SET label = $1, model = $2, context_tokens = $3, answer_tokens = $4,
-         thinking = $5, walked = $6, keeps_research = $7 WHERE name = $8",
+         thinking = $5, walked = $6, keeps_research = $7, arbiter_model = $8 WHERE name = $9",
         values,
       )
       .await?;

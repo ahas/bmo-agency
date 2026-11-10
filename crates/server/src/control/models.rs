@@ -985,10 +985,15 @@ impl Route for ChangeModel {
           .to_owned(),
       ),
     };
-    let card = ["cardService", "roleFiles"].into_iter().any(|field| body.get(field).is_some());
+    let card = ["cardService", "roleFiles", "arbiterModel"]
+      .into_iter()
+      .any(|field| body.get(field).is_some());
 
     if model.is_none() && !card {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, "model, cardService or roleFiles is required"));
+      return Err(Refused::new(
+        StatusCode::BAD_REQUEST,
+        "model, cardService, roleFiles or arbiterModel is required",
+      ));
     }
 
     let db = call.store();
@@ -1005,7 +1010,7 @@ impl Route for ChangeModel {
     if card {
       let mut change = json!({ "action": "save", "name": name });
 
-      for field in ["cardService", "roleFiles"] {
+      for field in ["cardService", "roleFiles", "arbiterModel"] {
         if let Some(value) = body.get(field) {
           change[field] = value.clone();
         }
