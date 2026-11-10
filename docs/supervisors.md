@@ -198,7 +198,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     (「Its limit」 below), and the generation that opens holds the note ahead of the turn's words;
   - the one session across rooms is asked through the receiver while agency still names it, and the
     receiver's next turn opens with the note the standing program wrote;
-  - the turn that answers is composed from the new documents, and the conversation goes on from the note;
+  - the handover is owed, not made under the turn that found it: that turn goes on in the session the
+    agent holds, sent the new prompt, and the handover is made once the turn has ended and the agent
+    is quiet (`sessions.md`, 「Session replacement」); the next turn is composed from the new documents,
+    and the conversation goes on from the note;
   - a supervisor whose documents did not change keeps its session, its hash still matching;
   - a session whose prompt was never recorded hands over once, since what it read cannot be known;
   - the turn's log carries a line saying the system prompt changed, which the console shows.

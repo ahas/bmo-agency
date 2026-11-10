@@ -203,6 +203,31 @@ async fn serve(args: Args) -> Result<(), String> {
 
   let front = control::Front::new(token, ground)?.with_places(places, watch);
 
+  // The replacements the supervisors' sessions owe, made while they are quiet: once as the server starts, so
+  // a deployment that moved a document is settled before anyone asks, and on the keepalive clock after
+  // (docs/sessions.md, 「Session replacement」).
+  if let Some(sessions) = front.sessions() {
+    let at_start = sessions.clone();
+
+    tokio::spawn(async move {
+      every(
+        "sessions' owed replacements",
+        Duration::from_secs(5),
+        Duration::from_secs(KEEPALIVE.tick_seconds),
+        move || {
+          let sessions = at_start.clone();
+
+          async move {
+            sessions.settle_pass().await;
+
+            Ok::<(), String>(())
+          }
+        },
+      )
+      .await
+    });
+  }
+
   let listener = control::bind(args.control_port)
     .await
     .map_err(|why| format!("the control port: {why}"))?;

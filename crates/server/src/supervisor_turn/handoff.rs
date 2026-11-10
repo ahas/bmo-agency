@@ -24,6 +24,7 @@ use crate::worker_session::records::{note_answer, slot_account};
 
 /// The supervisor a handoff is for: its agent name, the label it is shown under, and the model it is pinned
 /// to.
+#[derive(Clone)]
 pub struct Speaker {
   pub name: String,
   pub label: Option<String>,

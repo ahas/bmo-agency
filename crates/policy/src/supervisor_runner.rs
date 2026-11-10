@@ -49,6 +49,7 @@ pub struct Log {
   pub answered: String,
   pub cleared: String,
   pub system_changed: String,
+  pub system_moved_owed: String,
   pub carried: String,
   pub handoff_start: String,
   pub handoff_documents: String,

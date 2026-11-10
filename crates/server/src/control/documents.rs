@@ -77,6 +77,12 @@ impl Route for DocumentsReload {
 
     call.events().publish(moved.clone());
 
+    // A session whose prompt the moved documents are part of is replaced while it is quiet, not under its
+    // next turn (docs/sessions.md, 「Session replacement」).
+    if let Some(sessions) = call.sessions() {
+      tokio::spawn(async move { sessions.settle_pass().await });
+    }
+
     Ok(answer(
       StatusCode::CREATED,
       json!({

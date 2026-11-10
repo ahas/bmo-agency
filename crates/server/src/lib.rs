@@ -21,6 +21,7 @@ pub mod supervisor_turn {
   pub mod guard;
   pub mod handoff;
   pub mod overtaken;
+  pub mod replacement;
   pub mod reset;
   pub mod run;
   pub mod sessions;

@@ -23,7 +23,7 @@ use agency_server::lines::chat::{ChatDocuments, chat_system};
 use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
 use agency_server::supervisor_turn::sessions::{self, prompt_moved};
-use agent_session::{RoomBlock, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+use agent_session::{RoomBlock, SessionId, Sessions, Turn, TurnContext};
 use harness_providers::Machine;
 
 fn hash(text: &str) -> String {
@@ -251,7 +251,8 @@ type Seen = Arc<Mutex<Vec<(bool, bool, Option<String>)>>>;
 // session and then sends the handoff's turns into that same session, the note it owes and the handoff. What the stand-in records is what the
 // receiver would find at the moment it is asked.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_turn_is_let_in() {
+async fn a_prompt_that_moved_is_settled_outside_any_turn_while_the_session_stands_and_the_handoff_turn_is_let_in()
+ {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let agent = "chat-agent";
@@ -329,38 +330,35 @@ async fn a_prompt_that_moved_is_asked_while_the_session_stands_and_the_handoff_t
 
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-  let session = sessions
-    .start(Start {
-      agent: agent.into(),
-      scope: Scope::Agent,
-    })
-    .await
-    .unwrap()
-    .id;
+  // No turn asks for the handoff: the pass that runs while the agent is quiet finds the prompt its session was
+  // sent with moved, owes the replacement and makes it, asking the receiver while agency still names the
+  // session (docs/sessions.md, 「Session replacement」).
+  sessions.settle_pass().await;
 
-  // The turn the documents moved under; it goes nowhere on a machine with no program, which does not
-  // matter to what is asked before it.
-  let _ = tokio::time::timeout(
-    std::time::Duration::from_secs(120),
-    sessions.send_turn(Turn {
-      session,
-      prompt: "what the room said".into(),
-      context: TurnContext {
-        room: Some(RoomBlock {
-          chat_id: -5,
-          text: "the room's block".into(),
-          mark: "[a]".into(),
-        }),
-        ..TurnContext::default()
-      },
-    }),
-  )
-  .await
-  .expect("the turn ends");
-
-  let seen = seen.lock().unwrap();
+  let seen = seen.lock().unwrap().clone();
 
   assert_eq!(seen.len(), 1, "the receiver was asked once: {seen:?}");
   assert!(seen[0].0, "the agency still names the session when the receiver asks for its handoff");
   assert!(seen[0].1, "every turn of the handoff is let into the session: {:?}", seen[0].2);
+  assert!(agent_session(scratch.db(), agent).await.unwrap().is_none(), "the old session is let go");
+  assert_eq!(
+    agency_server::supervisor_turn::replacement::owed(scratch.db(), agent).await.unwrap(),
+    None,
+    "the debt is settled"
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replacement_owed_is_kept_with_its_first_reason_until_it_is_settled() {
+  use agency_server::supervisor_turn::replacement::{owe, owed, settle};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  assert_eq!(owed(db, "chat-agent").await.unwrap(), None);
+  owe(db, "chat-agent", "the documents moved").await.unwrap();
+  owe(db, "chat-agent", "a later reason").await.unwrap();
+  assert_eq!(owed(db, "chat-agent").await.unwrap().as_deref(), Some("the documents moved"));
+  settle(db, "chat-agent").await.unwrap();
+  assert_eq!(owed(db, "chat-agent").await.unwrap(), None);
 }

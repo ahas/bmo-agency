@@ -470,10 +470,15 @@ impl Front {
     })
   }
 
+  /// The session contract the front carries over the places, where it stands them.
+  pub fn sessions(&self) -> Option<crate::herdr_backend::Shared> {
+    self.sessions.clone()
+  }
+
   /// The front with the workers' places the server stands, the session contract carried over them, and the
   /// picture of herdr it keeps.
   pub fn with_places(mut self, places: Places, herdr: Option<herdr::picture::Watch>) -> Self {
-    let sessions = Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone()));
+    let sessions = Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone())).shared_as();
     self.sessions = Some(sessions);
     self.places = Some(places);
     self.herdr = herdr;

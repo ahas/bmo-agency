@@ -576,6 +576,80 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
 }
 
 /// The run a turn of the chat goes out on, its prompt as it is handed in.
+/// The system prompt a chat session of `agent` is composed with: its text, its SHA-256, the parts it was made
+/// of and the base persona as it was read.
+pub struct ComposedSystem {
+  pub system: String,
+  pub hash: String,
+  pub parts: SystemParts,
+  pub persona: super::persona::BasePersona,
+}
+
+/// The system prompt a chat session of `agent` is composed with: the harness opening, the brain's and the tool
+/// host's disciplines, the base persona, the role's prompt where the agent holds a role, the documents and the
+/// servers it is handed. Composed for a turn, and on its own to tell whether the prompt a session holds has
+/// moved (docs/sessions.md, 「Session replacement」).
+pub async fn composed_system(
+  ground: &Ground,
+  trees: &Trees,
+  agent: &str,
+  cwd: Option<&str>,
+  base_persona: Option<&str>,
+) -> Result<ComposedSystem, Refusal> {
+  let discipline = match ground.peers.brain.discipline().await {
+    Ok(text) => Some(text),
+    Err(why) => {
+      eprintln!("agency: the brain's discipline could not be read; the chat launches without it: {why}");
+      None
+    }
+  };
+  let tool_discipline = match super::token::discipline(ground).await {
+    Ok(text) => Some(text),
+    Err(why) => {
+      eprintln!(
+        "agency: the tool host's discipline could not be read; the chat launches without it: {why}"
+      );
+      None
+    }
+  };
+  let persona = super::persona::base_persona(
+    ground.peers.brain.as_ref(),
+    agent,
+    ground.config.persona_values.as_deref(),
+    base_persona,
+  )
+  .await;
+  let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
+  let above = match role.as_deref() {
+    Some(role) => super::role_prompt(&ground.db, role, cwd).await,
+    None => None,
+  };
+  let documents = documents(&ground.db).await;
+  let parts = SystemParts {
+    above,
+    persona: persona.text.clone(),
+    discipline,
+    tool_discipline,
+    documents,
+    servers: harness_servers(ground, agent)
+      .entries()
+      .into_iter()
+      .flatten()
+      .map(|(name, _)| name.clone())
+      .collect(),
+  };
+  // Claude Code lists its own tools to the session, every one but the line's denied list.
+  let system = parts.whole(trees, &[CHAT_LINE.tools.listed.as_str()])?;
+  let hash = format!("{:x}", Sha256::digest(system.as_bytes()));
+
+  Ok(ComposedSystem {
+    system,
+    hash,
+    parts,
+    persona,
+  })
+}
+
 pub async fn chat_run(
   ground: &Ground,
   machine: &Machine,
@@ -605,51 +679,9 @@ pub async fn chat_run(
     }
   };
   let thinking = held_thinking.or(reasoning.thinking).unwrap_or(true);
-  let discipline = match ground.peers.brain.discipline().await {
-    Ok(text) => Some(text),
-    Err(why) => {
-      eprintln!("agency: the brain's discipline could not be read; the chat launches without it: {why}");
-      None
-    }
-  };
-  let tool_discipline = match super::token::discipline(ground).await {
-    Ok(text) => Some(text),
-    Err(why) => {
-      eprintln!(
-        "agency: the tool host's discipline could not be read; the chat launches without it: {why}"
-      );
-      None
-    }
-  };
-  let persona = super::persona::base_persona(
-    ground.peers.brain.as_ref(),
-    agent,
-    ground.config.persona_values.as_deref(),
-    launch.base_persona,
-  )
-  .await;
-  let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
-  let above = match role.as_deref() {
-    Some(role) => super::role_prompt(&ground.db, role, launch.cwd).await,
-    None => None,
-  };
-  let documents = documents(&ground.db).await;
-  let parts = SystemParts {
-    above,
-    persona: persona.text.clone(),
-    discipline,
-    tool_discipline,
-    documents,
-    servers: harness_servers(ground, agent)
-      .entries()
-      .into_iter()
-      .flatten()
-      .map(|(name, _)| name.clone())
-      .collect(),
-  };
-  // Claude Code lists its own tools to the session, every one but the line's denied list.
-  let system = parts.whole(&trees, &[CHAT_LINE.tools.listed.as_str()])?;
-  let system_hash = format!("{:x}", Sha256::digest(system.as_bytes()));
+  let composed = composed_system(ground, &trees, agent, launch.cwd, launch.base_persona).await?;
+  let (system, system_hash, parts, persona) =
+    (composed.system, composed.hash, composed.parts, composed.persona);
   let system_path = system_prompt_file(&trees, agent, &system)?;
   let mcp = mcp_config(ground, &trees, agent)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();

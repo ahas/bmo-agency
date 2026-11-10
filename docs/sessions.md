@@ -413,11 +413,23 @@ statements below about either are kept for a rollback to the road a deployment l
   start, or its provider's cache lifetime passed. A full session on a provider that hands a full
   session over by a note is replaced at its compaction mark (「Session compaction」,
   `docs/supervisors.md`, 「Its limit」).
-- At the head of a turn, and only there, agency compares the SHA-256 of the system prompt it composes
-  with the hash the session keeps from its last turn — a room's session row, or the supervisor's row
-  where one session serves every room. A session whose prompt moved is replaced; one whose prompt did
-  not is resumed; one whose prompt was never recorded hands over once, since what it read cannot be
-  known.
+- **A replacement never stands between a question and its answer.** Agency compares the SHA-256 of
+  the system prompt it composes with the hash the session keeps from its last turn — a room's session
+  row, or the supervisor's row where one session serves every room — at the head of a turn and on
+  its own, outside any turn. A session whose prompt moved owes a replacement; one whose prompt did not
+  is resumed; one whose prompt was never recorded owes one once, since what it read cannot be known.
+  - **A turn that finds the prompt moved goes on in the session the agent holds,** sent the prompt as
+    it now is, and writes the replacement down as owed: the person asking waits for no handoff. The
+    session's one cache miss on that turn is the same read a fresh session would make.
+  - **An owed replacement is made while the agent is quiet,** never under a turn: the moment the turn
+    that found it ends and no other turn of the agent runs, when a reload of its prompt's documents is
+    told, when the server starts after a deployment, and on the keepalive clock as a catch-all. The old
+    session is asked for its handoff then, let go, and the next turn opens a fresh session on the
+    note, as below. A turn that arrives while the replacement is being made waits for it and then
+    opens on the fresh session.
+  - **Which sessions owe one is read off the documents, not waited for:** agency composes the agent's
+    system prompt on its own, so a deployment that moved a document is found at the server's start
+    and settled before anyone asks.
 - **A session going away is asked for its handoff before it is let go.** No summary of a session's
   conversation is made or kept for its successor: the successor opens on the note the old session
   wrote as it closed. A room's own session whose prompt moved or whose window filled writes that note
@@ -433,6 +445,6 @@ statements below about either are kept for a rollback to the road a deployment l
 - The session id is cleared and a new session opens on the next run; the room hears nothing.
 - Who the people are reaches the new session by the brain's index, whose people group its first turn
   walks, and the person books, as on every turn.
-- A session is never replaced under a turn that is already going: the check runs at the head of a turn,
-  before that turn's words go to the session.
+- A session is never replaced under a turn that is already going, and never ahead of one that is
+  asked: a replacement found at a turn's head is owed and made once the turn has ended.
 
