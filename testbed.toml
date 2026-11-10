@@ -51,11 +51,6 @@ base_libraries = [
 repository = "bmo-chat"
 
 [[check.step]]
-id = "check"
-command = "cargo check --workspace --all-targets"
-lane = "wide"
-
-[[check.step]]
 id = "clippy"
 command = "cargo clippy --workspace --all-targets -- -D warnings"
 lane = "wide"
