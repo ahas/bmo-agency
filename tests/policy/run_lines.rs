@@ -84,3 +84,19 @@ fn a_runner_line_writes_the_deployment_agent_s_brain_and_shows_the_tools_for_it(
   assert!(!RUN_LINES.writes_agent_brain("worker"));
   assert!(!RUN_LINES.writes_agent_brain("chat"));
 }
+
+// "the worker line reads the brain of the supervisor its runs work for and writes their lessons there, through
+// the namespace its record alone names, its runs staying their own"
+#[test]
+fn the_worker_line_works_for_a_supervisor_s_brain_and_stays_its_own() {
+  assert!(RUN_LINES.works_for_brain("worker"));
+  assert!(!RUN_LINES.writes_agent_brain("worker"));
+  assert!(RUN_LINES.namespaces("worker").iter().any(|one| one == "bmo"));
+  assert!(!RUN_LINES.shows("worker", "bmo/brain_learn"), "reached with bmo use, shown by no name");
+
+  for line in ["search", "browse"] {
+    assert!(RUN_LINES.works_for_brain(line), "{line}");
+  }
+
+  assert!(!RUN_LINES.works_for_brain("chat"));
+}

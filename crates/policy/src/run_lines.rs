@@ -35,6 +35,10 @@ pub struct RunLine {
   /// Whether the brain its runs write is the deployment's agent's own, rather than the runner's.
   #[serde(default)]
   pub brain_agent: bool,
+  /// Whether its runs read the brain of the supervisor they work for and write their lessons there, the turn's
+  /// agent staying the run's own.
+  #[serde(default)]
+  pub lessons: bool,
 }
 
 /// Every line, by its name.
@@ -82,6 +86,12 @@ impl RunLines {
   /// Whether a run of the line writes the deployment's agent's brain rather than its runner's.
   pub fn writes_agent_brain(&self, name: &str) -> bool {
     self.line(name).is_some_and(|line| line.brain_agent)
+  }
+
+  /// Whether a run of the line works for a supervisor's brain, which its record names: a line writing the
+  /// deployment's agent's brain, or one whose runs read it and write their lessons there.
+  pub fn works_for_brain(&self, name: &str) -> bool {
+    self.line(name).is_some_and(|line| line.brain_agent || line.lessons)
   }
 }
 

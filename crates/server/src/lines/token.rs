@@ -231,6 +231,10 @@ pub async fn issue(
     variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
+  if let Some(supervisor) = brain_supervisor(ground, line, None).await? {
+    variables.insert(BRAIN_AGENT.to_owned(), supervisor);
+  }
+
   let mut labels = Map::new();
 
   labels.insert("line".to_owned(), json!(line));
@@ -470,6 +474,10 @@ pub async fn issue_for_run(
     variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
+  if let Some(supervisor) = brain_supervisor(ground, line, doubled.as_deref()).await? {
+    variables.insert(BRAIN_AGENT.to_owned(), supervisor);
+  }
+
   let mut labels = Map::new();
   labels.insert("line".to_owned(), json!(line));
   labels.insert("checkout".to_owned(), json!(cwd));
@@ -587,6 +595,27 @@ pub fn record_checkout(ground: &Ground, place: &Path, cwd: &str) -> PathBuf {
 
 /// The supervisor a run of a line writing a supervisor's brain writes for where no supervisor delegated it:
 /// the one agency's `research_supervisor` setting names, none where it names none (docs/api.md, 「settings」).
+/// The variable a run's record names the supervisor by whose brain its brain tools read and write.
+pub const BRAIN_AGENT: &str = "BMO_BRAIN_AGENT";
+
+/// The supervisor whose brain a run of `line` works for (docs/agent-roles.md, 「The bundles」): the one whose
+/// double the run is, else the one agency's research setting names; none for a line that works for no
+/// supervisor's brain.
+pub async fn brain_supervisor(
+  ground: &Ground,
+  line: &str,
+  doubled: Option<&str>,
+) -> Result<Option<String>, Refusal> {
+  if !RUN_LINES.works_for_brain(line) {
+    return Ok(None);
+  }
+
+  match doubled {
+    Some(supervisor) => Ok(Some(supervisor.to_owned())),
+    None => research_supervisor(ground).await,
+  }
+}
+
 pub async fn research_supervisor(ground: &Ground) -> Result<Option<String>, Refusal> {
   Ok(
     crate::queue::settings::get(&ground.db, RESEARCH_SUPERVISOR)

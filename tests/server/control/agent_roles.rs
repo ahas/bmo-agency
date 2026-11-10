@@ -103,7 +103,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
       .iter()
       .map(|bundle| bundle["name"].as_str().unwrap())
       .collect::<Vec<_>>(),
-    ["graph.read", "queue.read", "web.read"],
+    ["graph.read", "queue.read", "web.read", "brain.lessons"],
     "{coder}"
   );
   assert_eq!(coder["followsSupervisor"], true, "{coder}");

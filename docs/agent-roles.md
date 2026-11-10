@@ -59,6 +59,13 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
   sending; and the shape of a role's name.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
+- **`brain.lessons` reads the brain of the supervisor a run works for and writes the run's lessons there:**
+  the brain's `brain_list`, `brain_similar` and `brain_learn` in the narrower form that bundle holds (the
+  brain's `docs/boundary-api.md`, 「Its tool」), reached with `bmo use`. The run's record names that
+  supervisor as `BMO_BRAIN_AGENT` — the supervisor whose double the run is, and otherwise the one agency's
+  `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none — while the
+  turn's agent stays the run's own, so every other tool it calls acts as the run. Every role on the worker
+  line but `upkeep`, which stands for no one's work, holds it.
 - **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.
@@ -93,15 +100,15 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
   | Role | Label | Line | Bundles | Cap | Prompt | Description | Sessions | Co-worker |
   |---|---|---|---|---|---|---|---|---|
-  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | policy | keep | no |
-  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read` | 3 | `coder.md` | policy | keep | no |
-  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read` | 2 | `doppelganger.md` | policy | keep | no |
-  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | policy | keep | no |
-  | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `producer.md` | policy | keep | no |
-  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | definition | definition | keep | no |
-  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
-  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
-  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read` | 12 | definition | definition | fresh | yes |
+  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | none | policy | keep | no |
+  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | policy | keep | no |
+  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `doppelganger.md` | policy | keep | no |
+  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | policy | keep | no |
+  | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send`, `brain.lessons` | 2 | `producer.md` | policy | keep | no |
+  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 8 | definition | definition | keep | no |
+  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 6 | definition | definition | fresh | yes |
+  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 12 | definition | definition | fresh | yes |
+  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 12 | definition | definition | fresh | yes |
   | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
   | `seeker` | Seeker | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
   | `translator` | Translator | translate | none | 4 | `translator.md` | policy | fresh | no |
@@ -133,8 +140,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **It carries no prompt:** a job's run opens on the harness opening and the worker line's rules, with
   what its repository hands it after them.
 - **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
-  and the queue's two (`docs/worker-mcp.md`); and `web.read`, web search and page fetch. The site tools are
-  the voyager's and the seeker's alone.
+  and the queue's two (`docs/worker-mcp.md`); `web.read`, web search and page fetch; and `brain.lessons`, the
+  brain it reads before the work and writes its lessons into once the work is done. The site tools are the
+  voyager's and the seeker's alone.
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
   job」), and its run holds that role's prompt and bundles, on one of that role's agents, in the same
   repository's checkout.
@@ -156,7 +164,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its plugin holds the worker bundle's skills as well,** the ones every job needs whatever its work —
   closing a job, asking the owner, reaching beyond the checkout — placed beside its own, so a coder's job
   ends the way any job does. The producer's plugin holds them the same way.
-- **Its bundles are the worker's:** `graph.read`, `queue.read` and `web.read`.
+- **Its bundles are the worker's:** `graph.read`, `queue.read`, `web.read` and `brain.lessons`.
 - **Its agents are seeded on no road,** so a run of it a supervisor asks goes out on that supervisor's own
   provider, model and effort until the owner sets an agent a road of its own.
 - **It is seeded with three agents, as the worker is,** so a repository's coding jobs run as many at once as
@@ -179,7 +187,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
+- **Its bundles** are the worker's: `graph.read`, `queue.read`, `web.read` and `brain.lessons`.
 
 ## The doppelganger role
 
@@ -200,7 +208,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`; a run a supervisor asks holds
+- **Its bundles** are the worker's: `graph.read`, `queue.read`, `web.read` and `brain.lessons`; a run a supervisor asks holds
   that supervisor's tools beside them (`docs/tools.md`, 「The delegate」).
 
 ## The producer role
@@ -213,7 +221,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   checks.
 - **Its bundles:** `queue.read` for its items, `web.read` for the pages and assets an item names, and
   `room.send` for the finished file, which goes into the item's room through the receiver's file send tool
-  as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」). It holds no graph.
+  as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」); and `brain.lessons`, as every
+  role of the worker line. It holds no graph.
 
 ## The voyager and the seeker roles
 

@@ -591,10 +591,66 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
     capabilities.contains(&"room.send".to_owned()),
     "the producer role's own bundle: {capabilities:?}"
   );
+  assert!(capabilities.contains(&"brain.lessons".to_owned()), "{capabilities:?}");
+  assert!(
+    record["variables"].get("BMO_BRAIN_AGENT").is_none(),
+    "no supervisor's brain where the research setting names none: {record}"
+  );
   assert!(
     !capabilities.contains(&"graph.read".to_owned()),
     "no bundle the role does not give: {capabilities:?}"
   );
+}
+
+// A run of the worker line that is no supervisor's double works for the brain of the supervisor agency's research
+// setting names, which its record names apart from the turn's agent, so its other tools act as the run itself
+// (docs/agent-roles.md, 「The bundles」).
+#[tokio::test]
+async fn a_worker_line_run_works_for_the_research_supervisor_s_brain_and_stays_its_own() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  agency_server::queue::settings::set(
+    scratch.db(),
+    agency_server::lines::token::RESEARCH_SUPERVISOR,
+    "agent-a",
+  )
+  .await
+  .unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let coder = Apart {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    cwd: "/tmp".into(),
+    role: Some("coder".into()),
+    ..Apart::default()
+  };
+  let env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&coder).into_iter().collect();
+
+  agency_server::lines::token::issue_for_run(&ground, "worker", "some-checkout", "/tmp", &env, u64::MAX)
+    .await
+    .unwrap()
+    .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+  let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
+  let namespaces: Vec<String> = serde_json::from_value(record["namespaces"].clone()).unwrap();
+
+  assert!(capabilities.contains(&"brain.lessons".to_owned()), "{capabilities:?}");
+  assert!(namespaces.contains(&"bmo".to_owned()), "{namespaces:?}");
+  assert_eq!(record["variables"]["BMO_BRAIN_AGENT"], json!("agent-a"), "{record}");
+  assert_ne!(
+    record["variables"].get("BMO_TURN_AGENT"),
+    Some(&json!("agent-a")),
+    "the run stays its own: {record}"
+  );
+  assert_ne!(record["holderName"], json!("agent-a"), "{record}");
 }
 
 // A standing program's environment holds no turn's variables, the role its run holds among them: the record it
@@ -692,6 +748,11 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
 
   assert_eq!(record["holderName"], json!("bmo"), "held under the supervisor's name: {record}");
   assert_eq!(record["variables"]["BMO_TURN_AGENT"], json!("bmo"), "{record}");
+  assert_eq!(
+    record["variables"]["BMO_BRAIN_AGENT"],
+    json!("bmo"),
+    "the brain of the supervisor it doubles: {record}"
+  );
   assert_eq!(record["variables"]["BMO_TURN_CHAT"], json!("-7"), "the asking turn's room: {record}");
   assert_eq!(record["labels"]["role"], json!("doppelganger"), "{record}");
 

@@ -42,11 +42,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
   assert_eq!(balances.mode(), "deepseek");
   assert_eq!(
     asked(balances.asks().await.unwrap()),
-    [(
-      "paid".to_owned(),
-      "http://[::1]:9/user/balance".to_owned(),
-      Ok("sk-paid".to_owned())
-    )],
+    [("paid".to_owned(), "http://[::1]:9/user/balance".to_owned(), Ok("sk-paid".to_owned()))],
     "the road is not asked while its key file is missing"
   );
 

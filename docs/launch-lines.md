@@ -305,7 +305,9 @@
   and two namespaces of the tool host in one configuration: `web`, which every agent that may use
   the web is given, and `worker`, which serves the graph's reading verbs and the queue's two as
   tools (`docs/worker-mcp.md`), shown to a run by its role's bundles (`docs/agent-roles.md`, 「The
-  bundles」). No other line is handed that file, so what is added to it reaches runs on the worker line
+  bundles」). The line's record names a third, `bmo`, which no configuration names: the brain's lessons form
+  the `brain.lessons` bundle holds is reached there with `bmo use`, on the brain the record's
+  `BMO_BRAIN_AGENT` names, the line's policy marking it a line that works for a supervisor's brain. No other line is handed that file, so what is added to it reaches runs on the worker line
   and nothing else. So exactly one copy of each reaches a run, a checkout on another
   machine runs the same job, and changing any of it is a commit here rather than an edit to the
   machine. The deploy unit's `deploy.md` says what the whole of it adds up to and what to do when it moves.
@@ -385,8 +387,8 @@
   unless the session names a folder. It is handed the standing `search.mcp.json`, and the run's session
   record carries the labels and keeps the capabilities the session's caller named, so the web tools read
   what that caller told them; the record also names the supervisor — the agent whose row answers every room
-  that names nobody — as the turn its brain tools run for, so a fact the run establishes is written into the
-  supervisor's brain while the run itself stays the runner's. The voyager role's bundles show it
+  that names nobody — as the turn its brain tools run for and as `BMO_BRAIN_AGENT`, so a fact the run
+  establishes is written into the supervisor's brain while the run itself stays the runner's. The voyager role's bundles show it
   bmo-explorer's `research` tool, which opens a branch through the research unit, and the research unit's
   `rulebook` reader where the record holds `web.rulebooks`; the line's `eye` namespace shows it `eye/see`,
   which looks at a picture by its address and answers a question about it. No native Claude Code subagent is

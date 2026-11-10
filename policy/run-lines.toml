@@ -67,7 +67,9 @@ keeps_session = false
 [worker]
 needs = []
 keeps_session = true
-namespaces = ["web", "worker"]
+# `bmo` stands in the record alone, for the brain's lessons form `bmo use` reaches; no configuration names it.
+namespaces = ["web", "worker", "bmo"]
+lessons = true
 shown = [
   "web/web_fetch", "web/web_search", "worker/graph_get", "worker/graph_impact", "worker/graph_search",
   "worker/todo_show",

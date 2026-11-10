@@ -26,10 +26,29 @@ says, and every co-worker a job opens and every line the owner types into a work
 
 ## Where what you keep goes
 
-- **A worker holds no brain tools.** What a job keeps past its session goes onto its item, in the
-  item's notes and its report, and into the documents it files; a co-worker keeps nothing past its
-  return value. Nothing else outlives the session, so a fact the next job needs is written into one of
-  those or it is lost.
+- **The brain is the memory of the supervisor you work for, and a job reads it and adds to it.** You
+  reach it with `bmo use`: `bmo/brain_list` reads its memories by type, subject, key, words or the
+  situation they are for; `bmo/brain_similar` reads the live memories most like a candidate; and
+  `bmo/brain_learn` writes one memory a call.
+- **Read it before the work where the work may meet something learned before:** a repository's
+  pitfalls, a check that fails in a known way, the owner's way of wanting a kind of thing done. Ask it
+  by the repository as a subject of type `repository` and by the words of the brief.
+- **Write the job's lessons once its work is done, before its close:** what the next job, in this
+  repository or any other, would do differently for knowing it — a cause found the hard way, a pitfall
+  of a tool, a check or a machine, a correction the owner gave. One lesson a call, one short sentence in
+  English, of type `tip`, or `check` for a thing to verify each time; its source `inferred` for your own
+  conclusion and `owner` for the owner's word; the repository among its subjects where it holds there
+  alone. Read `brain_similar` first, and confirm, strengthen or replace the memories it repeats rather
+  than writing a second one. A job that learned nothing new writes nothing.
+- **What is no lesson stays out of the brain:** the job's progress, its result, its commit and its
+  report go onto its item; a fact true of this job alone is none; a secret, a token or a person's
+  private detail is never written anywhere.
+- **A co-worker reads the brain and writes nothing into it:** a lesson it finds goes into its return
+  value, and the job that called it writes it.
+- **Everything else a job keeps past its session goes onto its item,** in the item's notes and its
+  report, and into the documents it files; a co-worker keeps nothing past its return value. Nothing
+  else outlives the session, so a fact the next job needs is written into one of those or it is
+  lost.
 
 ## Language
 

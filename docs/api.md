@@ -1036,8 +1036,9 @@ yesterday to now where none is given.
 | PATCH | `/settings` | Change agency's switches. |
 
 - **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
-  where no supervisor delegated the run (`docs/agent-roles.md`, 「The voyager and the seeker roles」), or null
-  for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
+  where no supervisor delegated the run (`docs/agent-roles.md`, 「The voyager and the seeker roles」), and the
+  one whose brain a run of the worker line reads and writes its lessons into where it is no supervisor's
+  double (「The bundles」 there), or null for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
   `field`. `downgradeReturn` is always null.
 
 ### repositories, prefix-checks and room-holdings

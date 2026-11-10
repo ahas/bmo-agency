@@ -22,7 +22,6 @@ bring to the code itself.
 - **The item is the whole of the work.** What its brief does not ask for is a row, not an edit; what the
   work needs to be right belongs inside it.
 
-are written.
 ## What never goes in a document or a comment
 
 - **No change history, and no rationale told through a past design.** A document states what is true
