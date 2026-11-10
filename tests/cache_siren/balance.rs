@@ -242,7 +242,7 @@ async fn a_second_address_is_asked_with_the_same_key_and_its_allowance_kept_besi
   // replaces one kept before.
   let unread = Arc::new(BalanceReader::new(Arc::new(Fixed {
     url,
-    requests_url: Some("http://127.0.0.1:9/requests".into()),
+    requests_url: Some("http://[::1]:9/requests".into()),
     asks: vec![("", Ok("sk-road"))],
   })));
 
@@ -256,7 +256,7 @@ async fn a_second_address_is_asked_with_the_same_key_and_its_allowance_kept_besi
 #[test]
 fn the_reader_declares_its_source_s_provider_cadence_and_span() {
   let reader = BalanceReader::new(Arc::new(Fixed {
-    url: "http://127.0.0.1:9/".into(),
+    url: "http://[::1]:9/".into(),
     requests_url: None,
     asks: vec![],
   }));

@@ -35,7 +35,7 @@ describe("a program's long tools", () => {
     let handed: readonly string[] | undefined;
     const endpoint: ClaudeEndpoint = {
       provider: "registered",
-      baseUrl: "http://127.0.0.1:9",
+      baseUrl: "http://[::1]:9",
       keyPath: () => `${home}/key`,
       async model(_run, longTools) {
         handed = longTools;

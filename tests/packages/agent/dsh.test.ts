@@ -146,7 +146,7 @@ describe("the overlay one run is configured by", () => {
       },
     });
     expect(JSON.stringify(rowsById(runFor()).get("llm-pi-ai"))).not.toContain("cacheRetention");
-    expect(JSON.stringify(rowsById(runFor({ model: "qwen3.8-27b", env: { BMO_DSH_LOCAL_URL: "http://127.0.0.1:1/v1" } })).get("llm-pi-ai"))).not.toContain("LongCache");
+    expect(JSON.stringify(rowsById(runFor({ model: "qwen3.8-27b", env: { BMO_DSH_LOCAL_URL: "http://[::1]:1/v1" } })).get("llm-pi-ai"))).not.toContain("LongCache");
   });
 
   // dsh refuses a model asked for a level it does not offer, and which levels a stand-in offers

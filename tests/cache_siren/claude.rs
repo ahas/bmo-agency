@@ -131,7 +131,7 @@ fn an_answer_is_read_into_the_windows_the_parity_cases_record() {
 
 #[test]
 fn a_reading_stands_thirty_one_minute_passes() {
-  let reader = ClaudeAccounts::new("http://127.0.0.1:9/", Arc::new(Fixed(vec![])));
+  let reader = ClaudeAccounts::new("http://[::1]:9/", Arc::new(Fixed(vec![])));
 
   assert_eq!(reader.cadence(), Duration::from_secs(60));
   assert_eq!(reader.fresh(), Duration::from_secs(1800));

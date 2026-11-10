@@ -16,7 +16,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
   let scratch = Scratch::new().await;
   let dir = tempfile::tempdir().unwrap();
   let machine = Machine::with_env(
-    [("BMO_DEEPSEEK_BALANCE_URL".to_owned(), "http://127.0.0.1:9/user/balance".to_owned())],
+    [("BMO_DEEPSEEK_BALANCE_URL".to_owned(), "http://[::1]:9/user/balance".to_owned())],
     dir.path(),
   );
   let paid_key = dir.path().join("paid.key");
@@ -28,7 +28,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
            ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at",
             "endpoint_url", "key_file")
          VALUES ('main', 'one', 1, 1, 'directory', '/logins/one', 0, NULL, NULL),
-                ('paid', 'two', 2, 0, 'endpoint', '/logins/paid', 0, 'http://127.0.0.1:9/anthropic', $1),
+                ('paid', 'two', 2, 0, 'endpoint', '/logins/paid', 0, 'http://[::1]:9/anthropic', $1),
                 ('elsewhere', 'three', 3, 1, 'endpoint', '/logins/else', 0, 'http://127.0.0.1:8/anthropic', $1)"#,
       vec![paid_key.to_string_lossy().into_owned().into()],
     )
@@ -44,7 +44,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
     asked(balances.asks().await.unwrap()),
     [(
       "paid".to_owned(),
-      "http://127.0.0.1:9/user/balance".to_owned(),
+      "http://[::1]:9/user/balance".to_owned(),
       Ok("sk-paid".to_owned())
     )],
     "the road is not asked while its key file is missing"
@@ -75,7 +75,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
   assert_eq!(asks.len(), 2);
   assert_eq!(
     asks[0],
-    (String::new(), "http://127.0.0.1:9/user/balance".to_owned(), Ok("sk-road".to_owned()))
+    (String::new(), "http://[::1]:9/user/balance".to_owned(), Ok("sk-road".to_owned()))
   );
   assert!(ProviderBalances::of(provider("codex").unwrap(), &machine, scratch.db()).is_none());
 }

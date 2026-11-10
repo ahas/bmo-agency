@@ -183,8 +183,8 @@ fn the_same_session_composes_the_same_overlay_and_a_changed_prompt_another() {
   std::fs::write(
     &mcp,
     r#"{"mcpServers": {
-      "bmo": {"type": "http", "url": "http://127.0.0.1:1/mcp/bmo", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
-      "web": {"type": "http", "url": "http://127.0.0.1:1/mcp/web", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
+      "bmo": {"type": "http", "url": "http://[::1]:1/mcp/bmo", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
+      "web": {"type": "http", "url": "http://[::1]:1/mcp/web", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
       "job": {"command": "bmo-job", "args": ["mcp"], "env": {"B_TOKEN": "b", "A_TOKEN": "a"}}
     }}"#,
   )

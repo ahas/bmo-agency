@@ -45,7 +45,7 @@ fn a_launch_and_a_run_are_handed_agency_s_tokens_as_files_and_agency_keeps_the_v
       ("AGENCY_BRAIN_TOKEN", "brain-token"),
       ("BMO_JOB_TOKEN", "job-token"),
       ("BMO_JOB_CHAT_TOKEN_FILE", &own),
-      ("BMO_JOB_URL", "http://127.0.0.1:1"),
+      ("BMO_JOB_URL", "http://[::1]:1"),
     ],
     data.path(),
   );
@@ -71,7 +71,7 @@ fn a_launch_and_a_run_are_handed_agency_s_tokens_as_files_and_agency_keeps_the_v
   // A file the deployment names alone is handed as it is, and what agency calls with keeps the values.
   assert_eq!(ground.env()["BMO_JOB_CHAT_TOKEN_FILE"], own);
   assert_eq!(ground.vars()["BMO_JOB_TOKEN"], "job-token");
-  assert_eq!(ground.env()["BMO_JOB_URL"], "http://127.0.0.1:1");
+  assert_eq!(ground.env()["BMO_JOB_URL"], "http://[::1]:1");
 
   // A run's environment, its `BMO_` variables copied, carries the job token as its file too.
   let run = ground.run_env("a-run");

@@ -249,7 +249,7 @@ async fn read(State(shared): State<Shared>, Path(id): Path<i64>) -> axum::respon
   engine.granted = true;
   Json(json!({
     "id": id, "serviceName": "gguf", "count": 1, "state": "granted",
-    "cards": [{ "nodeName": "n1", "address": "http://127.0.0.1:9/v1/chat/completions", "keyFile": null }],
+    "cards": [{ "nodeName": "n1", "address": "http://[::1]:9/v1/chat/completions", "keyFile": null }],
   }))
   .into_response()
 }
@@ -505,7 +505,7 @@ async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_l
   scratch
     .run(
       r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
-         VALUES ('hy', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+         VALUES ('hy', 'n1', 1, 'http://[::1]:9/v1/chat/completions', NULL, 0)"#,
       vec![],
     )
     .await;

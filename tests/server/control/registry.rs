@@ -6,12 +6,12 @@ use policy::providers::registered::REGISTERED;
 #[test]
 fn an_address_is_held_to_the_chat_completions_path_over_http() {
   assert_eq!(
-    checked_url("http://127.0.0.1:9/v1/chat/completions").ok(),
-    Some("http://127.0.0.1:9/v1/chat/completions".to_owned())
+    checked_url("http://[::1]:9/v1/chat/completions").ok(),
+    Some("http://[::1]:9/v1/chat/completions".to_owned())
   );
 
   for refusedurl in [
-    "http://127.0.0.1:9/v1/models",
+    "http://[::1]:9/v1/models",
     "ftp://host/v1/chat/completions",
     "https://user@host/v1/chat/completions",
     "https://host/v1/chat/completions?x=1",

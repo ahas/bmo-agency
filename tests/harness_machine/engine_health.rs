@@ -89,7 +89,7 @@ async fn the_first_address_with_a_key_that_answers_gives_the_health() {
 
   // An address that does not answer at all leaves the next to be asked.
   let unanswered = Address {
-    url: "http://127.0.0.1:9/v1/chat/completions".into(),
+    url: "http://[::1]:9/v1/chat/completions".into(),
     key_file: Some("right.key".into()),
   };
 

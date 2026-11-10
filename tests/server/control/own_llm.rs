@@ -6,7 +6,7 @@ fn service() -> OwnLlmService {
     name: "registered",
     label: "Qwen".into(),
     short_label: "Qwen".into(),
-    base_url: "http://127.0.0.1:9".into(),
+    base_url: "http://[::1]:9".into(),
     key_file: "llm-gateway.key".into(),
     registration: "qwen".into(),
   }

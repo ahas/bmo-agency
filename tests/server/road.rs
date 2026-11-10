@@ -405,7 +405,7 @@ async fn walking(scratch: &Scratch, data: &std::path::Path, name: &str) -> Order
   });
   let address = serde_json::json!({
     "action": "set-address", "name": "a-registration", "node": "alpha",
-    "url": "http://127.0.0.1:9/v1/chat/completions", "key": null,
+    "url": "http://[::1]:9/v1/chat/completions", "key": null,
   });
 
   change(scratch.db(), data, &save).await.unwrap().unwrap();

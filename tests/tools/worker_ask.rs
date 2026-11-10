@@ -307,7 +307,7 @@ async fn a_worker_is_asked_for_a_room_s_words_only_past_the_owner_s_gate() {
     (AccountService::default(), "11"),
     (
       AccountService {
-        address: "http://127.0.0.1:9".into(),
+        address: "http://[::1]:9".into(),
         token: String::new(),
       },
       "11",

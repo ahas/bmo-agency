@@ -6,7 +6,7 @@ use serde_json::json;
 
 #[test]
 fn the_gateway_answers_where_the_process_names_or_else_where_the_policy_does() {
-  assert_eq!(url(Some(" http://127.0.0.1:9/// ")), "http://127.0.0.1:9");
+  assert_eq!(url(Some(" http://[::1]:9/// ")), "http://[::1]:9");
   assert_eq!(url(Some("  ")), REGISTERED.gateway.url);
   assert_eq!(url(None), REGISTERED.gateway.url);
 }

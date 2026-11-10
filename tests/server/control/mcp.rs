@@ -16,7 +16,7 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
   let listed = tokio::task::spawn_blocking(move || {
     let mut child = Command::new(binary)
       .args(["mcp", "--agent", "chat-agent"])
-      .env("AGENCY_URL", "http://127.0.0.1:1")
+      .env("AGENCY_URL", "http://[::1]:1")
       .env("AGENCY_CONTROL_TOKEN", "secret")
       .stdin(Stdio::piped())
       .stdout(Stdio::piped())
@@ -97,7 +97,7 @@ async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_is_refused_where_the_c
   let answered = tokio::task::spawn_blocking(move || {
     let mut child = Command::new(binary)
       .args(["mcp", "--agent", "chat-agent"])
-      .env("AGENCY_URL", "http://127.0.0.1:1")
+      .env("AGENCY_URL", "http://[::1]:1")
       .env("AGENCY_CONTROL_TOKEN", "secret")
       .env("BMO_AGENT_PLACE", &place)
       .env("BMO_DATA_DIR", &data)

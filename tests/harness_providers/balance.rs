@@ -58,12 +58,12 @@ fn openrouter_states_the_day_s_allowance_of_free_model_requests_at_its_second_ad
   let home = tempfile::tempdir().unwrap();
   let machine = Machine::with_env([], home.path());
   let stood_in = Machine::with_env(
-    [("BMO_OPENROUTER_REQUESTS_URL".to_owned(), "http://127.0.0.1:9/key".to_owned())],
+    [("BMO_OPENROUTER_REQUESTS_URL".to_owned(), "http://[::1]:9/key".to_owned())],
     home.path(),
   );
 
   assert_eq!(offers.requests_url(&machine).as_deref(), Some("https://openrouter.ai/api/v1/key"));
-  assert_eq!(offers.requests_url(&stood_in).as_deref(), Some("http://127.0.0.1:9/key"));
+  assert_eq!(offers.requests_url(&stood_in).as_deref(), Some("http://[::1]:9/key"));
   assert_eq!(
     offers.requests(&json!({
       "data": { "is_free_tier": false, "free_model_daily_requests": { "used": 12, "limit": 1000, "remaining": 988 } }
@@ -109,16 +109,16 @@ fn a_stand_in_s_address_wins_and_an_endpoint_on_its_origin_is_the_provider_s() {
   let offers = DeepSeek.balance().unwrap();
   let own = Machine::with_env([], dir.path());
   let stood_in = Machine::with_env(
-    [("BMO_DEEPSEEK_BALANCE_URL".to_owned(), "http://127.0.0.1:9/user/balance".to_owned())],
+    [("BMO_DEEPSEEK_BALANCE_URL".to_owned(), "http://[::1]:9/user/balance".to_owned())],
     dir.path(),
   );
 
   assert_eq!(offers.url(&own), "https://api.deepseek.com/user/balance");
-  assert_eq!(offers.url(&stood_in), "http://127.0.0.1:9/user/balance");
+  assert_eq!(offers.url(&stood_in), "http://[::1]:9/user/balance");
   assert!(offers.serves("https://api.deepseek.com/anthropic", &own));
   assert!(!offers.serves("https://api.deepseek.com.example/anthropic", &own));
   assert!(!offers.serves("https://openrouter.ai/api", &own));
-  assert!(offers.serves("http://127.0.0.1:9/anthropic", &stood_in));
+  assert!(offers.serves("http://[::1]:9/anthropic", &stood_in));
   assert!(!offers.serves("not an address", &own));
 }
 

@@ -92,7 +92,7 @@ fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set(
   );
   let machine = Machine::with_env(
     [
-      ("BMO_GATE_URL".to_owned(), " http://127.0.0.1:9 ".to_owned()),
+      ("BMO_GATE_URL".to_owned(), " http://[::1]:9 ".to_owned()),
       ("BMO_GATE_TOKEN_FILE".to_owned(), String::new()),
       ("BMO_OTHER".to_owned(), "x".to_owned()),
     ],
@@ -102,7 +102,7 @@ fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set(
 
   assert_eq!(
     line_variables(&ground, "chat"),
-    [("BMO_GATE_URL".to_owned(), "http://127.0.0.1:9".to_owned())]
+    [("BMO_GATE_URL".to_owned(), "http://[::1]:9".to_owned())]
   );
   assert!(line_variables(&ground, "worker").is_empty());
 }

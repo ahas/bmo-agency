@@ -845,7 +845,7 @@ fn demand_of(master: &Master, id: i64) -> Option<Value> {
     "id": id,
     "serviceName": asked["serviceName"],
     "count": 1,
-    "cards": if granted { json!([{ "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions" }]) } else { json!([]) },
+    "cards": if granted { json!([{ "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions" }]) } else { json!([]) },
     "state": if granted { "granted" } else { "waiting" },
     "reason": if granted { Value::Null } else { json!({ "code": "starting", "text": "The engine is starting." }) },
     "waitedMs": 0,
@@ -928,7 +928,7 @@ async fn master_standin(held: Vec<Value>) -> (String, Shared) {
       get(|State(shared): State<Shared>| async move {
         let standing = shared.lock().unwrap().standing;
         let instances = if standing {
-          json!([{ "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions" }])
+          json!([{ "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions" }])
         } else {
           json!([])
         };

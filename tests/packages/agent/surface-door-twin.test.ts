@@ -241,7 +241,7 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
   const command = async (run: HarnessRun): Promise<HarnessCommand> => ({
     args: ["claude", "--model", "qwen-test", run.resumeSessionId === null ? "--session-id" : "--resume", run.resumeSessionId ?? run.openSessionId ?? "", "--settings", run.resident?.settingsPath ?? ""],
     cwd: run.cwd,
-    env: { PATH: "/usr/bin:/bin", CLAUDE_CONFIG_DIR: registered, ANTHROPIC_BASE_URL: "http://127.0.0.1:9/gateway" },
+    env: { PATH: "/usr/bin:/bin", CLAUDE_CONFIG_DIR: registered, ANTHROPIC_BASE_URL: "http://[::1]:9/gateway" },
     stdin: null,
   });
   const surface = { command } as unknown as ResidentSurface;

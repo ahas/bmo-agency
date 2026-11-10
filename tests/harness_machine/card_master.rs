@@ -39,7 +39,7 @@ fn picture(cards: serde_json::Value) -> serde_json::Value {
     "services": [{
       "serviceName": "lab-arena", "tier": 2, "nodeNames": ["n3", "n4"],
       "instances": [
-        { "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions", "keyFile": "/keys/n3.key", "demands": 1 },
+        { "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions", "keyFile": "/keys/n3.key", "demands": 1 },
         { "nodeName": "n4", "demands": 0 },
       ],
     }],
@@ -73,7 +73,7 @@ fn a_service_is_open_while_a_node_of_its_placement_is_held_by_no_claim_and_no_lo
 #[test]
 fn a_demand_holds_its_card_only_while_granted_and_untaken() {
   let read = |value: serde_json::Value| serde_json::from_value::<Demand>(value).unwrap();
-  let card = json!([{ "nodeName": "n3", "address": "http://127.0.0.1:9/v1/chat/completions" }]);
+  let card = json!([{ "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions" }]);
 
   assert_eq!(
     read(json!({ "id": 1, "serviceName": "lab-arena", "cards": card, "state": "granted" }))
