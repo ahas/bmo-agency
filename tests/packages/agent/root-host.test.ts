@@ -81,7 +81,9 @@ beforeAll(async () => {
   composeToolRecord((run) => ({ granted: bundlesOf(run.agent === "worker" ? "worker" : null) }));
 
   for (let i = 0; i < 200 && !existsSync(join(data, "executions", "agent-host", "claim")); i++) await Bun.sleep(25);
-}, 120_000);
+  // The guard is against a hang, never a wait: the agent host is built first, from nothing where the build
+  // directory holds none of it yet.
+}, 900_000);
 
 afterAll(async () => {
   agentHost.kill();
