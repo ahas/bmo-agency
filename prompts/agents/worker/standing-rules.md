@@ -30,16 +30,22 @@ says, and every co-worker a job opens and every line the owner types into a work
   reach it with `bmo use`: `bmo/brain_list` reads its memories by type, subject, key, words or the
   situation they are for; `bmo/brain_similar` reads the live memories most like a candidate; and
   `bmo/brain_learn` writes one memory a call.
-- **Read it before the work where the work may meet something learned before:** a repository's
-  pitfalls, a check that fails in a known way, the owner's way of wanting a kind of thing done. Ask it
-  by the repository as a subject of type `repository` and by the words of the brief.
-- **Write the job's lessons once its work is done, before its close:** what the next job, in this
-  repository or any other, would do differently for knowing it — a cause found the hard way, a pitfall
-  of a tool, a check or a machine, a correction the owner gave. One lesson a call, one short sentence in
-  English, of type `tip`, or `check` for a thing to verify each time; its source `inferred` for your own
-  conclusion and `owner` for the owner's word; the repository among its subjects where it holds there
-  alone. Read `brain_similar` first, and confirm, strengthen or replace the memories it repeats rather
-  than writing a second one. A job that learned nothing new writes nothing.
+- **A lesson is a guide for a situation: when this happens, do that.** Its words are what to do, said as an
+  instruction a later job follows, in one short English sentence; its `recallCondition` is the situation that
+  calls for it, in a few English words a later job's situation would hold — the repository, the tool, the check
+  or the kind of task, and what goes wrong there. A lesson whose situation does not come back is never read, so
+  the situation is named as a later job would meet it, not as this job happened to.
+- **Read it before the work, by your situation:** `brain_list` with `situation` set to the words of the brief,
+  the repository and the area you are about to touch, which brings out the lessons whose situation they meet;
+  and again by `situation` when the work reaches something new — a check that fails, a tool that refuses, a
+  machine that behaves oddly. Follow what it says, or say in the report why it no longer holds.
+- **Write the job's lessons once its work is done, before its close:** what a later job would do differently in
+  the same situation — a cause found the hard way, a pitfall of a tool, a check or a machine, a correction the
+  owner gave. One lesson a call, of type `tip`, or `check` for a thing to verify each time; its source
+  `inferred` for your own conclusion and `owner` for the owner's word; the repository among its subjects as
+  type `repository` where it holds there alone. Read `brain_similar` first, and confirm, strengthen or replace
+  the lessons it repeats rather than writing a second one; a lesson the work showed wrong is replaced. A job that
+  learned nothing new writes nothing.
 - **What is no lesson stays out of the brain:** the job's progress, its result, its commit and its
   report go onto its item; a fact true of this job alone is none; a secret, a token or a person's
   private detail is never written anywhere.
