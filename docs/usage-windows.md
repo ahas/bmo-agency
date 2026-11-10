@@ -110,8 +110,9 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   initialised, and asked `account/rateLimits/read`; the answer's windows by limit are read, or its
   single `rateLimits` where it gives none by limit, in the same names and fields. The read waits for that
   answer or for the process to close its output, however long either takes. The process is ended with
-  the reading, so none outlives it, and what it had said on its error stream by then is carried beside a
-  failure.
+  the reading, so none outlives it, and everything it had said on its error stream by its end is carried
+  beside a failure: what stands in the pipe as it ends is read then, and the stream's close, which a process it
+  started may hold off, is never waited for.
 - **It passes every minute where Codex is installed, and a reading stands for six passes.** Only the
   public meter fields are kept: no account id, credit balance or plan detail.
 

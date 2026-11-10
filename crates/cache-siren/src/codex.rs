@@ -242,25 +242,51 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
   let mut stdin = child.stdin.take().ok_or("codex app-server took no input")?;
   let stdout = child.stdout.take().ok_or("codex app-server gave no output")?;
   // What it says on its error stream is read as it goes, so a full pipe never holds it up, and what it has
-  // said by the time the read ends is carried beside a failure: a process it started may hold the stream
-  // open past its own end, so the stream's close is never waited for.
+  // said by its end is carried beside a failure: once it has ended, what it wrote stands in the pipe already
+  // and is read without waiting, since a process it started may hold the stream open past its own end and
+  // the stream's close is never waited for.
   let said = Arc::new(Mutex::new(Vec::new()));
-  if let Some(mut stderr) = child.stderr.take() {
+  let (ended, ending) = tokio::sync::oneshot::channel::<()>();
+  let reading = child.stderr.take().map(|mut stderr| {
     let said = said.clone();
+    let keep = move |bytes: &[u8]| {
+      said.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+    };
 
     tokio::spawn(async move {
       let mut chunk = [0u8; 4096];
+      let mut ending = std::pin::pin!(ending);
 
-      while let Ok(read) = stderr.read(&mut chunk).await
-        && read > 0
-      {
-        said
-          .lock()
-          .unwrap_or_else(std::sync::PoisonError::into_inner)
-          .extend_from_slice(&chunk[..read]);
+      loop {
+        tokio::select! {
+          read = stderr.read(&mut chunk) => match read {
+            Ok(read) if read > 0 => keep(&chunk[..read]),
+            _ => return,
+          },
+          _ = &mut ending => break,
+        }
       }
-    });
-  }
+
+      let mut seen = std::task::Context::from_waker(std::task::Waker::noop());
+
+      loop {
+        let read = {
+          let mut read = std::pin::pin!(stderr.read(&mut chunk));
+
+          match std::future::Future::poll(read.as_mut(), &mut seen) {
+            std::task::Poll::Ready(Ok(read)) => read,
+            _ => 0,
+          }
+        };
+
+        if read == 0 {
+          return;
+        }
+
+        keep(&chunk[..read]);
+      }
+    })
+  });
   let answered = async {
     stdin.write_all(lines.as_bytes()).await.map_err(|why| why.to_string())?;
     stdin.flush().await.map_err(|why| why.to_string())?;
@@ -294,6 +320,11 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
 
   drop(stdin);
   let _ = child.kill().await;
+  let _ = ended.send(());
+
+  if let Some(reading) = reading {
+    let _ = reading.await;
+  }
 
   let Err(why) = answered else {
     return answered;
