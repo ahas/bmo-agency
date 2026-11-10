@@ -64,6 +64,8 @@ pub mod m20261203_000001_role_agents;
 pub mod m20261204_000001_role_agent_settings;
 mod m20261205_000001_role_skills;
 mod m20261206_000001_agent_wanted;
+mod m20261207_000001_arbiter_model;
+mod m20261208_000001_arbiter_model_gone;
 
 use sea_orm_migration::prelude::*;
 
@@ -211,6 +213,8 @@ impl MigratorTrait for Migrator {
       Box::new(m20261204_000001_role_agent_settings::Migration),
       Box::new(m20261205_000001_role_skills::Migration),
       Box::new(m20261206_000001_agent_wanted::Migration),
+      Box::new(m20261207_000001_arbiter_model::Migration),
+      Box::new(m20261208_000001_arbiter_model_gone::Migration),
     ]
   }
 
