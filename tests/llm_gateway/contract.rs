@@ -81,6 +81,23 @@ Bun.serve({
         );
       }
     }
+    // A Messages answer whose one text block writes four bytes at a time, held open after its first delta until
+    // the release file stands.
+    if (request.headers.get("x-standin-messages")) {
+      const event = (data) => new TextEncoder().encode(`event: ${data.type}\ndata: ${JSON.stringify(data)}\n\n`);
+      return new Response(new ReadableStream({
+        async start(controller) {
+          controller.enqueue(event({ type: "message_start", message: { id: "m-1" } }));
+          controller.enqueue(event({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } }));
+          controller.enqueue(event({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "abcd" } }));
+          controller.enqueue(event({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "efgh" } }));
+          while (!existsSync(join(dir, "release-messages"))) await Bun.sleep(20);
+          controller.enqueue(event({ type: "content_block_stop", index: 0 }));
+          controller.enqueue(event({ type: "message_stop" }));
+          controller.close();
+        },
+      }), { headers: { "content-type": "text/event-stream; charset=utf-8", "x-standin": table } });
+    }
     const stream = request.headers.get("x-standin-stream");
     if (stream) {
       const gap = Number(request.headers.get("x-standin-gap") ?? 0);
@@ -475,6 +492,53 @@ async fn without_its_own_key_the_gateway_does_not_stand() {
     assert_eq!(ended.code(), Some(1));
     assert!(world.said().contains("llm-gateway.key"), "{}", world.said());
     assert!(world.children().is_empty());
+  }
+}
+
+// "the open block of a streamed answer whose request names its program's session is read behind the key while it
+// is written, and let go of once it ends"
+#[tokio::test]
+async fn a_streamed_answer_s_open_block_is_read_while_it_is_written() {
+  let world = World::new(PAIR).await.start().await;
+  world.serving(None).await;
+  let headers = [("x-standin-messages", "1"), ("x-claude-code-session-id", "session-a")];
+  let answer = world.open("POST", "/v1/messages", &headers, "{}").await;
+  let reading = tokio::spawn(read_whole(answer));
+  let open = read_until(&world, "/gateway/streams/session-a", |(status, body)| {
+    *status == 200 && body.contains(r#""bytes":8"#)
+  })
+  .await;
+
+  assert_eq!(
+    serde_json::from_str::<Value>(&open.1).unwrap(),
+    json!({ "index": 0, "kind": "text", "bytes": 8 })
+  );
+
+  let unkeyed = world.open_bare("GET", "/gateway/streams/session-a", &[], "").await;
+  assert_eq!(unkeyed.status().as_u16(), 401, "the reading stands behind the key");
+
+  std::fs::write(world.root().join("release-messages"), "").unwrap();
+  let (status, _, body) = reading.await.unwrap();
+  assert_eq!(status, 200);
+  assert!(body.contains("message_stop"), "the answer passed whole: {body}");
+
+  read_until(&world, "/gateway/streams/session-a", |(status, _)| *status == 404).await;
+}
+
+// A keyed GET of the gateway asked again until its answer holds, within the wait every check here keeps.
+async fn read_until(world: &World, path: &str, holds: impl Fn(&(u16, String)) -> bool) -> (u16, String) {
+  let bound = Instant::now() + Duration::from_secs(30);
+
+  loop {
+    let (status, _, body) = world.ask("GET", path, &[], "").await;
+    let read = (status, body);
+
+    if holds(&read) {
+      return read;
+    }
+
+    assert!(Instant::now() < bound, "waited in vain on {path}: {read:?}");
+    tokio::time::sleep(Duration::from_millis(20)).await;
   }
 }
 

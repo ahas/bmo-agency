@@ -1052,6 +1052,47 @@
         ]
       }
     },
+    "/sessions/{sessionId}/streaming": {
+      "get": {
+        "operationId": "getSessionStreaming",
+        "tags": [
+          "sessions"
+        ],
+        "summary": "The block the session's answer is writing right now, as the model gateway counts it.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamingBlock"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
     "/sessions/{sessionId}/turns": {
       "post": {
         "operationId": "createSessionsTurns",
@@ -7706,6 +7747,33 @@
           "role"
         ],
         "description": "What a session's start options name: the provider, the model and the folder a throwaway or a\nconversation's turns go out on, and the item and role a co-work branch's place labels its run with."
+      },
+      "StreamingBlock": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "description": "Its place in the answer."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`thinking`, `text` or `tool`."
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0,
+            "description": "The bytes its deltas have written so far."
+          }
+        },
+        "required": [
+          "index",
+          "kind",
+          "bytes"
+        ],
+        "description": "StreamingBlock: the block a session's answer is writing right now, as the model gateway counts it."
       },
       "SessionChange": {
         "type": "object",

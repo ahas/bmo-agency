@@ -6,7 +6,8 @@
 //! and the old child is stopped only when the requests in hand through it have ended, however long they
 //! take, so a saved change never cuts a request. A request on a registration
 //! naming a card service whose engine stands nowhere asks the door for its card first, and is sent once
-//! the granted card's entry is served.
+//! the granted card's entry is served. A streamed answer whose request names its program's session has its
+//! open block counted as it passes (`streams`).
 
 use std::collections::{BTreeSet, HashMap};
 use std::future::Future;
@@ -32,6 +33,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 use crate::door::{Door, Seat};
+use crate::streams::{SESSION_HEADER, Streams};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -78,6 +80,8 @@ pub struct Front {
   card_services: Mutex<HashMap<String, String>>,
   /// How long a streamed answer may send no byte before it is cut.
   stall: Duration,
+  /// The block each program session's streamed answer is writing.
+  streams: Streams,
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
 }
 
@@ -198,8 +202,14 @@ impl Front {
       door,
       card_services: Mutex::new(HashMap::new()),
       stall,
+      streams: Streams::default(),
       on_status: Box::new(on_status),
     })
+  }
+
+  /// The block each program session's streamed answer is writing.
+  pub fn streams(&self) -> &Streams {
+    &self.streams
   }
 
   /// The registrations naming a card service, each with its service, as the registry now reads.
@@ -343,6 +353,11 @@ impl Front {
       return refused();
     }
     let (parts, body) = request.into_parts();
+    let session = parts
+      .headers
+      .get(SESSION_HEADER)
+      .and_then(|named| named.to_str().ok())
+      .map(str::to_owned);
     let chat = parts.method == Method::POST && CHAT_PATHS.contains(&parts.uri.path());
     // A chat request's body is read whole for the model it names, which a card is asked by and a cut
     // stream is told by.
@@ -435,6 +450,9 @@ impl Front {
     let watched = Watched {
       body: BodyDataStream::new(body),
       kept: Some(Box::new(kept)),
+      counter: session
+        .filter(|session| !session.is_empty())
+        .map(|session| self.streams.counter(session)),
       stall: self.stall,
       model: model.unwrap_or_else(|| "(none named)".to_owned()),
       table,
@@ -477,6 +495,8 @@ impl Front {
 struct Watched {
   body: BodyDataStream<hyper::body::Incoming>,
   kept: Option<Box<dyn Send>>,
+  /// Where its bytes are handed to be counted for its session's open block, where its request named one.
+  counter: Option<tokio::sync::mpsc::UnboundedSender<Bytes>>,
   stall: Duration,
   model: String,
   table: String,
@@ -488,11 +508,18 @@ impl Watched {
     futures_util::stream::unfold((self, Instant::now()), |(mut watched, last)| async move {
       watched.kept.as_ref()?;
       match tokio::time::timeout(watched.stall, watched.body.next()).await {
-        Ok(Some(chunk)) => Some((chunk.map_err(BoxError::from), (watched, Instant::now()))),
+        Ok(Some(chunk)) => {
+          if let (Ok(bytes), Some(counter)) = (&chunk, &watched.counter) {
+            let _ = counter.send(bytes.clone());
+          }
+
+          Some((chunk.map_err(BoxError::from), (watched, Instant::now())))
+        }
         Ok(None) => None,
         Err(_) => {
           let silent = last.elapsed();
           watched.kept = None;
+          watched.counter = None;
           eprintln!(
             "llm-gateway: model {} from table {} (port {}) sent no byte for {:.1}s; its stream was cut",
             watched.model,
@@ -511,9 +538,27 @@ impl Watched {
   }
 }
 
-/// Every path and method comes through the front, and through its check of the key.
+/// The block a program session's streamed answer is writing, behind the key; 404 where none is open.
+async fn open_block(
+  State(front): State<Arc<Front>>,
+  axum::extract::Path(session): axum::extract::Path<String>,
+  headers: HeaderMap,
+) -> Response {
+  if !carries_key(&headers, &front.key) {
+    return refused();
+  }
+
+  match front.streams.open(&session) {
+    Some(block) => axum::Json(block).into_response(),
+    None => StatusCode::NOT_FOUND.into_response(),
+  }
+}
+
+/// Every path and method comes through the front, and through its check of the key; the gateway's own reading
+/// of an open block stands under `/gateway/`, which no route of the child's takes.
 pub fn router(front: Arc<Front>) -> Router {
   Router::new()
+    .route("/gateway/streams/{session}", axum::routing::get(open_block))
     .fallback(
       |State(front): State<Arc<Front>>, request: Request| async move { front.handle(request).await },
     )

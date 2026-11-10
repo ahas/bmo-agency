@@ -556,6 +556,16 @@ never the model's name.
     back」) — and closes its connection to the child, which ends LiteLLM's stream of that answer and its
     request to the backend. It writes one line naming the model, the child by its table and port, and how
     long the stream was silent.
+- **A streamed answer's open block is counted as it passes.** The front reads the Messages events of a
+  streamed answer whose request names the program's session, Claude Code's `x-claude-code-session-id`, as
+  they go by, and holds for that session the block being written: its place in the answer, its kind
+  (thinking, text or a tool call), and the bytes its deltas have written so far. A block that ends, an
+  answer that ends and a stream that is cut each let go of it, so a session holds a block only while one is
+  open. The bytes are counted and never weighed as tokens: what they come to is the reader's estimate.
+  - `GET /gateway/streams/{session}` behind the gateway's key answers the open block of the session the
+    path names, as `index`, `kind` and `bytes`, or 404 where none is open. The path stands under
+    `/gateway/`, which no route of the child's takes.
+  - The count rides on the bytes going back: nothing is held back for it and nothing is written down.
 - **What holds for every entry:**
   - An OpenAI-compatible backend is asked at its chat completions path; left to itself the gateway asks
     the Responses API, which an engine's front may answer with a 404.

@@ -248,6 +248,23 @@ export interface paths {
         patch: operations["changeSession"];
         trace?: never;
     };
+    "/sessions/{sessionId}/streaming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The block the session's answer is writing right now, as the model gateway counts it. */
+        get: operations["getSessionStreaming"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sessions/{sessionId}/turns": {
         parameters: {
             query?: never;
@@ -1963,6 +1980,21 @@ export interface components {
             /** Format: int64 */
             todo: number | null;
             role: string | null;
+        };
+        /** @description StreamingBlock: the block a session's answer is writing right now, as the model gateway counts it. */
+        StreamingBlock: {
+            /**
+             * Format: uint64
+             * @description Its place in the answer.
+             */
+            index: number;
+            /** @description `thinking`, `text` or `tool`. */
+            kind: string;
+            /**
+             * Format: uint64
+             * @description The bytes its deltas have written so far.
+             */
+            bytes: number;
         };
         /**
          * @description The body that moves a conversation's or a throwaway session's provider and model, or hands a worker's
@@ -5138,6 +5170,36 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getSessionStreaming: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamingBlock"];
+                };
+            };
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     createSessionsTurns: {

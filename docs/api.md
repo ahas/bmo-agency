@@ -373,6 +373,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/sessions` | Every session, by agent or scope. |
 | POST | `/sessions` | Start a session at a scope: a supervisor's, a role's run at a path, or a conversation. |
 | GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed, the fold ratio. |
+| GET | `/sessions/{sessionId}/streaming` | The block the session's answer is writing right now, as the model gateway counts it. |
 | PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or hand a role's kept session over. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
 | POST | `/sessions/{sessionId}/turns` | Send a turn into a session. |
@@ -383,6 +384,14 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | POST | `/sessions/{sessionId}/answers` | Answer a question a turn asked. |
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 | POST | `/session-reset` | Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. |
+
+**The block a session's answer is writing.** `GET /sessions/{sessionId}/streaming` answers what the model
+gateway holds of the answer the session's program is streaming now (`docs/own-llm.md`, 「The gateway」):
+`index`, `kind` (`thinking`, `text` or `tool`) and `bytes`, the bytes that block has written so far. It is read
+for a supervisor's session, by the program session the supervisor holds; it answers 204 with no body where
+the session is no supervisor's, its supervisor holds no program session, its road does not go through the
+gateway, or no block is being written now, and where the gateway does not answer. A turn's lines say a block
+only once it has ended, so this is the one place a block still being written is read.
 
 **A question in the middle of a turn carries what the screen shows, never a choice among options.** A
 turn whose program holds the pane at a permission question, or at another screen the reading does not

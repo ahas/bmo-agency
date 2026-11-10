@@ -953,6 +953,35 @@ impl Route for SessionState {
 
 crate::moved!(SessionState);
 
+/// The block a session's answer is writing right now, as the model gateway counts it: read for a supervisor's
+/// session by the program session it holds, 204 wherever none is to be read.
+pub struct SessionStreaming;
+
+impl Route for SessionStreaming {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/sessions/{sessionId}/streaming";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let id = call.param("sessionId").unwrap_or_default().to_owned();
+    let none = || StatusCode::NO_CONTENT.into_response();
+    let Ok((agent, _)) = backend(&call)?.held_scope(&SessionId(id)).await else {
+      return Ok(none());
+    };
+    let Some(program) =
+      crate::supervisors::named(call.store(), &agent).await?.and_then(|held| held.session_id)
+    else {
+      return Ok(none());
+    };
+
+    Ok(match crate::streaming::open_block(call.machine(), &program).await {
+      Some(block) => answer(StatusCode::OK, block),
+      None => none(),
+    })
+  }
+}
+
+crate::moved!(SessionStreaming);
+
 // Where a session's holder and the reason its prefix last changed are kept, by the session's id.
 const HOLDER: &str = "session_holder:";
 

@@ -105,6 +105,20 @@ impl AgencyClient {
     })
   }
 
+  // A member, or none where the route answers 204 with no body.
+  async fn maybe<T: DeserializeOwned>(request: RequestBuilder) -> Answer<Option<T>> {
+    let answer = Self::sent(request).await?;
+    let status = answer.status();
+    let bytes = answer.bytes().await.map_err(|why| ClientFailure::Unreadable(why.to_string()))?;
+    match status.as_u16() {
+      204 => Ok(None),
+      200 => serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|why| ClientFailure::Unreadable(why.to_string())),
+      other => Err(ClientFailure::Unreadable(format!("{other} where the member or 204 was due"))),
+    }
+  }
+
   async fn nothing(request: RequestBuilder) -> Answer<()> {
     let answer = Self::sent(request).await?;
     match answer.status() {
@@ -422,6 +436,12 @@ impl AgencyClient {
   /// `GET /sessions/{sessionId}`: A session's state: provider, model, place, holder, why the prefix changed.
   pub async fn get_session(&self, session_id: &str) -> Answer<Session> {
     Self::answered(self.request(Method::GET, &["sessions", session_id])).await
+  }
+
+  /// `GET /sessions/{sessionId}/streaming`: The block the session's answer is writing right now, as the model
+  /// gateway counts it; none where no block is to be read.
+  pub async fn get_session_streaming(&self, session_id: &str) -> Answer<Option<StreamingBlock>> {
+    Self::maybe(self.request(Method::GET, &["sessions", session_id, "streaming"])).await
   }
 
   /// `PATCH /sessions/{sessionId}`: Hand a session over to another holder.

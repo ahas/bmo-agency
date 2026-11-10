@@ -25,6 +25,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
+sse-stream.workspace = true
 store = { path = "../store" }
 tokio.workspace = true
 url.workspace = true

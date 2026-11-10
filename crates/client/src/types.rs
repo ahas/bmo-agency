@@ -394,6 +394,18 @@ pub struct TurnContext {
   pub context: Option<String>,
 }
 
+/// StreamingBlock: the block a session's answer is writing right now, as the model gateway counts it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingBlock {
+  /// Its place in the answer.
+  pub index: u64,
+  /// `thinking`, `text` or `tool`.
+  pub kind: String,
+  /// The bytes its deltas have written so far.
+  pub bytes: u64,
+}
+
 /// Run:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

@@ -8,4 +8,5 @@ pub mod child;
 pub mod door;
 pub mod front;
 pub mod keys;
+pub mod streams;
 pub mod table;

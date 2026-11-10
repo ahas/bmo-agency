@@ -1948,6 +1948,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "sse-stream",
  "store",
  "tokio",
  "url",
