@@ -477,8 +477,6 @@ async fn the_model_resource_is_one_record() {
       "roleFiles": false,
       "usedBy": [],
       "healthy": false,
-      "asideReason": Value::Null,
-      "arbiterModel": Value::Null,
       "lastAnsweredAt": Value::Null,
       "contextTokens": 100000,
       "answerTokens": 4000,

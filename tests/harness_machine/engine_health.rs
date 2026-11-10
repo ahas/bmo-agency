@@ -99,33 +99,3 @@ async fn the_first_address_with_a_key_that_answers_gives_the_health() {
       .is_some()
   );
 }
-
-#[test]
-fn an_operators_arbiter_sets_the_model_aside_while_it_is_not_awake_with_its_mode_and_basis() {
-  use harness_machine::engine_health::read_arbiter_aside;
-
-  let status = json!({
-    "node_mode": "setlock",
-    "node_mode_basis": "pin model-a by the owner until 17:01 (standing)",
-    "awake": ["model-b"],
-    "pins_effective": { "model-a": { "expires": 2109225676, "until": "17:01" } }
-  });
-
-  // Not awake: aside, with the arbiter's own words and the pin's expiry.
-  let aside = read_arbiter_aside(&status, "model-a").unwrap();
-
-  assert_eq!(aside.reason, "setlock: pin model-a by the owner until 17:01 (standing)");
-  assert_eq!(aside.until, json!(2109225676_i64));
-
-  // Awake: nothing set aside.
-  assert_eq!(read_arbiter_aside(&status, "model-b"), None);
-
-  // A status with no awake list says nothing; one with no basis names the mode alone.
-  assert_eq!(read_arbiter_aside(&json!({ "node_mode": "bench" }), "model-a"), None);
-  assert_eq!(
-    read_arbiter_aside(&json!({ "node_mode": "bench", "awake": [] }), "model-a")
-      .unwrap()
-      .reason,
-    "bench"
-  );
-}

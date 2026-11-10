@@ -125,11 +125,6 @@ never the model's name.
   that names the node; a key or none (「The keys」 below); and whether the instance behind it keeps role
   files, a role's saved prefix it restores on asking (「Role files」 below), off unless named.
 - **Its model:** the model's name as every one of its addresses serves it.
-- **Its arbiter name, or none:** the word an arbiter of the operator's own lists the model under at an
-  address's origin with `/arbiter/status` (`docs/harness-machine.md`, 「An engine's health」). Named, the
-  registration's health reads that status: while the model is not among those awake, the registration stands
-  aside, with the arbiter's own mode and its basis as the reason, and is not `healthy`; a status that cannot be
-  read or names no `awake` list leaves the health as the engine's own answer says.
 - **Its context window:** a whole number of tokens within the bounds the policy sets (「The context
   window」 below).
 - **Its answer size:** the answer ceiling of a run on it where its order's entry names none, a whole

@@ -877,17 +877,13 @@ settings, `contextTokens`, its window, `answerTokens`, its answer ceiling, and `
 default — what a run on it does where its order's entry leaves thinking to the provider (`docs/own-llm.md`,
 「Registered models」), so a screen marks the entry's thinking equal to it as the default. A create starts a registration
 under its own name as its label, at the registry's smallest window and answer and with no address, and is
-refused where the name already stands. `healthy`, `asideReason` and `lastAnsweredAt` are read back: `healthy` is
-whether the engine answers now and stands aside for nothing, `asideReason` why it stands aside where it does —
-the arbiter's mode and basis of a registration that names its `arbiterModel` (`docs/own-llm.md`, 「What a
-registration holds」), else null — and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each
-answer carries `arbiterModel`, the word the operator's own arbiter lists the model under or null, which the
-change takes among its fields. Each answer carries
+refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
+engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
 `usedBy`, every supervisor whose order or forced provider names it, every role an agent of which stands on
 it and every repository whose pin names it, and a take-away is refused 409
 while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
 and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
-change names at least one of `model`, `cardService`, `roleFiles` and `arbiterModel`. Naming a card service takes the
+change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
 registration's addresses away, and its `healthy` is the arbiter master's (`docs/own-llm.md`, 「An engine the
 arbiter stands」). A registration's addresses are the registry's, set with `bmo-agency agent
 --register-address`; no route of this boundary sets an address.
