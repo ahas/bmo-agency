@@ -61,7 +61,7 @@ async fn a_session_s_open_block_is_the_gateway_s_and_none_where_it_holds_none() 
   );
   assert_eq!(open_block(&machine, "session-b").await, None);
 
-  let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+  let gone = std::net::TcpListener::bind("[::1]:0").unwrap().local_addr().unwrap();
   let unanswered = self::machine(data.path(), &format!("http://[::1]:{}", gone.port()));
 
   assert_eq!(open_block(&unanswered, "session-a").await, None);

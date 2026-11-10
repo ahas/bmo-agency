@@ -400,7 +400,7 @@ async fn a_brain_is_filed_under_its_owner_s_account_where_the_agent_names_one() 
 
 #[tokio::test]
 async fn a_service_with_no_listener_is_unreachable() {
-  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let listener = TcpListener::bind("[::1]:0").await.unwrap();
   let address = format!("http://{}/", listener.local_addr().unwrap());
 
   drop(listener);

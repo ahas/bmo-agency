@@ -107,13 +107,13 @@ async fn a_slow_answer_is_waited_for_and_a_refused_connection_is_let_go_and_said
   assert_eq!(ask(&vars, "agent", "why", None, Duration::from_millis(20)).await, Handed::Nothing);
 
   // A port nothing listens on: the connection is refused, which ends the ask.
-  let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let closed = TcpListener::bind("[::1]:0").await.unwrap();
   let port = closed.local_addr().unwrap().port();
 
   drop(closed);
 
   let vars = BTreeMap::from([
-    ("BMO_RECEIVER_URL".to_owned(), format!("http://127.0.0.1:{port}")),
+    ("BMO_RECEIVER_URL".to_owned(), format!("http://[::1]:{port}")),
     ("BMO_RECEIVER_TOKEN".to_owned(), "secret".to_owned()),
   ]);
   let handed = ask(&vars, "agent", "why", None, Duration::from_millis(20)).await;

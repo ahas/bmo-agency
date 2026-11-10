@@ -142,7 +142,7 @@ async fn the_handed_persona_stands_where_the_brain_gives_none() {
 
 #[tokio::test]
 async fn the_handed_persona_stands_where_a_brain_does_not_answer() {
-  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let listener = TcpListener::bind("[::1]:0").await.unwrap();
   let address = format!("http://{}/", listener.local_addr().unwrap());
 
   drop(listener);
