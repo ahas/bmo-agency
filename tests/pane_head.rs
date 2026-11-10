@@ -335,7 +335,9 @@ fn a_program_started_often_waits_its_bound_and_holds_the_place_meanwhile() {
 
   let running = root.read("chat", "running.json");
 
-  assert!(running["pendingUntil"].as_u64().unwrap() >= now + 2_000);
+  // The program starts when the wait ends. How long the wait is, is read on the monotonic clock below: the wall
+  // clock a virtual machine keeps is stepped as its host sets it, so two of its readings are never ordered here.
+  assert_eq!(running["pendingUntil"], running["startedAt"], "{running}");
   assert_eq!(running["starts"], 4);
   // Waiting, it holds the place: a second head is shown the view.
   assert!(matches!(root.ask("chat", std::process::id() as i32), Answer::View { .. }));
