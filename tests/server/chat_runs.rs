@@ -197,7 +197,9 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
 
   assert_eq!(by_names["items"][0]["id"], id, "a run's names are its unit and its round");
 
-  let lines_path = format!("/log-lines?runId={id}&agentName=chat-agent");
+  // The run's own line; a note the server's sweep may have added by now, where the test ran long enough for the
+  // sweep to find the run with no turn going, is the server's and is read past.
+  let lines_path = format!("/log-lines?runId={id}&agentName=chat-agent&kinds=tool");
   let (_, lines) = ask(port, token, reqwest::Method::GET, &lines_path, None).await;
 
   assert_eq!(lines["items"].as_array().unwrap().len(), 1, "{lines}");

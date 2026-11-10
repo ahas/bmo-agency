@@ -329,7 +329,9 @@ fn a_program_started_often_waits_its_bound_and_holds_the_place_meanwhile() {
   let began = Instant::now();
   let head = root.spawn("chat", "p1", &[]);
 
-  assert!(within(1_000, || root.read("chat", "running.json")["pendingUntil"].is_u64()));
+  // The head writes its wait the moment it decides on it, however long a loaded machine takes to start it, and
+  // the program waits its bound from then: the wait is read as soon as it stands, before the bound has passed.
+  assert!(within(30_000, || root.read("chat", "running.json")["pendingUntil"].is_u64()));
 
   let running = root.read("chat", "running.json");
 

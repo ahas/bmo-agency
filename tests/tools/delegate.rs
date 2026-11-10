@@ -365,12 +365,19 @@ async fn a_call_stopped_while_its_slot_waits_cancels_the_slot() {
   let held = Held::default();
   let session = session(home.path());
 
-  // The slot is never let in: the call waits on, and is stopped from outside.
-  let waited =
-    tokio::time::timeout(Duration::from_millis(300), delegate_with(&api, &session, input("look"), &held))
-      .await;
+  // The slot is never let in: the call waits on, asking again and again, and is stopped from outside once it has
+  // asked more than three times, however long a loaded machine takes to ask them.
+  let asked_often = async {
+    while stub.lock().unwrap().admissions <= 3 {
+      tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+  };
+  let waited = tokio::select! {
+    _ = delegate_with(&api, &session, input("look"), &held) => false,
+    _ = tokio::time::timeout(Duration::from_secs(60), asked_often) => true,
+  };
 
-  assert!(waited.is_err(), "the call waits for its slot however long the line takes");
+  assert!(waited, "the call waits for its slot however long the line takes");
 
   held.give_back(&api).await;
 

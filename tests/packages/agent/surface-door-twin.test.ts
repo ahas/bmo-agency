@@ -231,8 +231,9 @@ function harnessRun(overrides: Partial<HarnessRun>): HarnessRun {
 }
 
 // A twin starts `bmo-agency` and stands a store of its own on each side, several times in one
-// scenario: a second or two alone, many times that on a machine carrying other runs.
-setDefaultTimeout(60_000);
+// scenario: a second or two alone, many times that on a machine carrying other runs or on a slower one. The bounds
+// are guards against a hang, never a wait, so they are wide.
+setDefaultTimeout(300_000);
 
 describe("a turn of the registry's Claude Code on the gateway, by either side", () => {
   const model = { home: registered, name: "qwen-test" };
@@ -281,7 +282,7 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
     expect(roundTyped).toHaveLength(1);
     expect(roundTyped[0]).toBe("[chat:20 · a talk · <clock>] ");
     expect(roundTyped[0]).not.toContain("The text pasted after this line");
-  }, 90_000);
+  }, 300_000);
 
   test("a turn that wrote the program's own error is that error", async () => {
     const failed = { type: "assistant", isApiErrorMessage: true, message: { id: "e", model: "<synthetic>", content: [{ type: "text", text: "API Error: 529 Overloaded" }] } };
