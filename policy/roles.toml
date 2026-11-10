@@ -116,6 +116,23 @@ max_concurrent = 2
 bundles = ["graph.read", "queue.read", "web.read"]
 order = []
 
+# The helper: the role a supervisor names for a problem it could not settle in its own turn. Its order is the
+# strongest road the deployment names, which is what tells it from the double (docs/agent-roles.md, 「The helper
+# role」).
+[[roles]]
+name = "helper"
+label = "Helper"
+description = "Takes a hard problem a supervisor hands off by name — a design question, a stubborn bug, a plan, an analysis — on the strongest road, and answers the cause or the decision in plain sentences."
+line = "worker"
+prompt = "helper.md"
+max_concurrent = 2
+bundles = ["graph.read", "queue.read", "web.read"]
+order = [
+  { provider = "claude-code", model = "claude-fable-5-2", effort = "high" },
+  { provider = "codex", model = "gpt-5.6-sol", effort = "max" },
+  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
+]
+
 # The producer: a role whose items make videos with the video-shotcraft studio, which reads its items, the
 # web and sends the finished file into a room (docs/agent-roles.md, 「The producer role」).
 [[roles]]

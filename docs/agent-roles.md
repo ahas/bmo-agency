@@ -16,8 +16,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the coder, the doppelganger, the producer, the voyager, the seeker, the translator, the
-  transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
+- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator,
+  the transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
   role but what its row says.
 
 ## What a role row holds
@@ -96,6 +96,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | policy | keep | no |
   | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read` | 3 | `coder.md` | policy | keep | no |
   | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read` | 2 | `doppelganger.md` | policy | keep | no |
+  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | policy | keep | no |
   | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `producer.md` | policy | keep | no |
   | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | definition | definition | keep | no |
   | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | definition | definition | fresh | yes |
@@ -163,6 +164,22 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Which jobs name it:** an item whose work changes a repository's code names `coder`; one whose work is
   not code names `worker`, and an item naming no role stays `worker` (`docs/repositories.md`, 「A job」).
   An item already raised keeps the role it named, so every existing job runs as it did.
+
+## The helper role
+
+- **The role a supervisor names when it hands off a problem it could not settle in its own turn** — a design
+  question, a stubborn bug, a plan that has to hold, an analysis that needs care (`docs/tools.md`, 「The
+  delegate」; the chat agent's manual, `prompts/agents/chat/manual.md`). Its prompt, seeded from
+  `prompts/roles/helper.md`, stands first in every run.
+- **Its runs go out on the helper role's own order, the strongest road the deployment names,** and hold a slot
+  of the helper role, like any role named in a delegation; a run a supervisor asks holds that supervisor's tools
+  beside its bundles (`docs/tools.md`, 「The delegate」). This is what sets it apart from the double, which goes
+  out on the asking supervisor's own road: the helper is asked where the problem wants a better model than the
+  supervisor's, the double where it wants the supervisor's own hands elsewhere.
+- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
+  root where none is named, so a delegation that follows another at the same folder on the same provider and
+  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
+- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
 
 ## The doppelganger role
 

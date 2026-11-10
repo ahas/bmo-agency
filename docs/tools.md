@@ -120,8 +120,10 @@ belongs to no one service is a repository of its own, not a folder here.
   instruction, carrying every piece of context the task needs, since the run sees nothing of the
   conversation; an optional role; and an optional folder.
   - The role is any role the store holds; where none is named it is the one agency's roles policy names for
-    delegated work, `doppelganger`, the supervisor's double. A role the store does not hold is an error: the
-    call is refused with the name and starts nothing.
+    delegated work, `doppelganger`, the supervisor's double. A problem the supervisor could not settle itself
+    names `helper`, the role whose order is the strongest road the deployment names (`docs/agent-roles.md`,
+    「The helper role」). A role the store does not hold is an error: the call is refused with the name and
+    starts nothing.
   - The folder is where the task works: the asking supervisor's scratch workspace under the data root where
     none is named, made on first use, the same one the worker ask defaults to.
 - **Every delegated run is the asking supervisor's double:** it runs with the supervisor's tools beside its

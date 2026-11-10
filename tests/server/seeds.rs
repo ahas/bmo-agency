@@ -33,7 +33,7 @@ fn the_account_is_the_machines_own_login_directory() {
 }
 
 #[tokio::test]
-async fn a_fresh_store_is_given_the_account_and_the_thirteen_roles_once() {
+async fn a_fresh_store_is_given_the_account_and_the_fourteen_roles_once() {
   let scratch = Scratch::blank().await;
   let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
 
@@ -41,8 +41,8 @@ async fn a_fresh_store_is_given_the_account_and_the_thirteen_roles_once() {
   settle(scratch.db(), &seeds).await.unwrap();
 
   assert_eq!(scratch.count(r#"SELECT count(*) FROM "claude_accounts""#, vec![]).await, 1);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 13);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 13);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 14);
   assert_eq!(
     scratch
       .count(

@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the thirteen seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the fourteen seeded roles with their
 //! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_thirteen_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_fourteen_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -17,6 +17,7 @@ fn the_policy_seeds_the_thirteen_roles_in_the_order_a_screen_lists_them() {
       "worker",
       "coder",
       "doppelganger",
+      "helper",
       "producer",
       "builder",
       "verifier",
@@ -40,6 +41,7 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
     ("worker", 3),
     ("coder", 3),
     ("doppelganger", 2),
+    ("helper", 2),
     ("producer", 2),
     ("builder", 8),
     ("verifier", 6),
@@ -167,4 +169,20 @@ fn every_role_declares_its_description_once_and_a_co_worker_its_definition() {
       role.name
     );
   }
+}
+
+#[test]
+fn the_helper_goes_out_on_the_strongest_road_first_and_the_double_on_none() {
+  let helper = ROLES.role("helper").unwrap();
+
+  assert_eq!(
+    (helper.order[0].provider.as_str(), helper.order[0].model.as_str()),
+    ("claude-code", "claude-fable-5-2"),
+    "a problem a supervisor could not settle goes to a stronger model than its own"
+  );
+  assert!(
+    ROLES.role("doppelganger").unwrap().order.is_empty(),
+    "the double follows the asking supervisor"
+  );
+  assert!(!ROLES.default_role("helper"), "the helper is a role one names");
 }
