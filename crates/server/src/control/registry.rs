@@ -237,7 +237,7 @@ pub async fn registered_model<C: ConnectionTrait>(
 ) -> Result<Option<Value>, Refused> {
   let Some(row) = one(
     db,
-    r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking"
+    r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking", "arbiter_model"
        FROM "registered_models" WHERE "name" = $1"#,
     vec![name.into()],
   )

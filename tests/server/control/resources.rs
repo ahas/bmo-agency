@@ -7,6 +7,19 @@ use serde_json::{Value, json};
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
+async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .json(&body)
+    .send()
+    .await
+    .unwrap();
+  let status = answer.status().as_u16();
+
+  (status, answer.json().await.unwrap_or(Value::Null))
+}
+
 async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   let answer = reqwest::Client::new()
     .get(format!("http://127.0.0.1:{port}{path}"))
@@ -485,6 +498,13 @@ async fn the_model_resource_is_one_record() {
       "thinking": false,
     }])
   );
+
+  // A change naming the operator's arbiter word is read back on the record.
+  let (status, changed) =
+    patch(port, token, "/models/registered::mine", json!({ "arbiterModel": "mine-w" })).await;
+
+  assert_eq!(status, 200, "{changed}");
+  assert_eq!(changed["arbiterModel"], "mine-w");
 
   // A provider that is not the registry's has no models here.
   assert_eq!(get(port, token, "/models?provider=registered").await.0, 200);
