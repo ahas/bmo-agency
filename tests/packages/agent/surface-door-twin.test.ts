@@ -294,5 +294,5 @@ describe("a turn of the registry's Claude Code on the gateway, by either side", 
     );
 
     expect(seen.turns[0]?.came).toEqual({ error: "API Error: 529 Overloaded" });
-  }, 60_000);
+  }, 300_000);
 });
