@@ -40,6 +40,18 @@ pub struct AgentRole {
 }
 
 impl AgentRole {
+  /// The most of an account's runs of this role that go at once: its agents of that account switched on
+  /// (docs/role-slots.md, 「Accounts」).
+  pub fn cap_for(&self, account: Option<&str>) -> i64 {
+    self
+      .agents
+      .iter()
+      .filter(|agent| agent.enabled && agent.owner_account.as_deref() == account)
+      .count() as i64
+  }
+}
+
+impl AgentRole {
   pub fn of(row: &QueryResult) -> Result<Self, Fault> {
     let bundles: String = row.try_get("", "bundles")?;
     let skills: Option<String> = row.try_get("", "skills")?;

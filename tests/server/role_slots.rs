@@ -55,7 +55,7 @@ async fn a_roles_runs_are_let_in_up_to_its_cap_and_the_next_waits_for_a_slot_giv
   }
 
   assert!(!admitted(&ground, &held[3]).await, "the fourth waits for a slot");
-  assert_eq!(used(&ground.db, "worker").await.unwrap(), 3);
+  assert_eq!(used(&ground.db, "worker", None).await.unwrap(), 3);
 
   let let_in = dispatch::request(&ground.db, &held[0].token).await.unwrap().unwrap();
 
@@ -119,7 +119,11 @@ async fn a_run_whose_providers_have_no_quota_waits_with_the_reason_and_goes_once
 
   assert_eq!(held.state, "waiting", "a run waiting for quota is never refused");
   assert!(held.held_for.as_deref().is_some_and(|why| why.contains("deepseek")), "{held:?}");
-  assert_eq!(used(&ground.db, "worker").await.unwrap(), 0, "a run waiting for quota holds no slot");
+  assert_eq!(
+    used(&ground.db, "worker", None).await.unwrap(),
+    0,
+    "a run waiting for quota holds no slot"
+  );
 
   deepseek_balance(&ground, 5.0).await;
 
@@ -211,8 +215,8 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppe
     !admitted(&ground, &doubles[2]).await,
     "the doppelganger role's cap of 2 counts every double"
   );
-  assert_eq!(used(&ground.db, "doppelganger").await.unwrap(), 2);
-  assert_eq!(used(&ground.db, "builder").await.unwrap(), 0, "a double holds no builder slot");
+  assert_eq!(used(&ground.db, "doppelganger", None).await.unwrap(), 2);
+  assert_eq!(used(&ground.db, "builder", None).await.unwrap(), 0, "a double holds no builder slot");
 
   let running = dispatch::request(&ground.db, &doubles[0].token).await.unwrap().unwrap();
 
@@ -545,7 +549,7 @@ async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owne
     (ended.state.as_str(), ended.ended_by.as_deref()),
     ("released", Some(dispatch::BY_OWNER))
   );
-  assert_eq!(used(&ground.db, "worker").await.unwrap(), 0, "its slot is free again");
+  assert_eq!(used(&ground.db, "worker", None).await.unwrap(), 0, "its slot is free again");
 }
 
 // The doppelganger role is seeded with an empty order, so a delegation follows its supervisor; an order the
@@ -1128,4 +1132,79 @@ async fn a_run_that_names_an_agent_is_let_in_on_that_agent_alone_and_waits_for_i
 
   stranger.wanted.agent = Some("nobody-01");
   assert!(enqueue(db, &ground.events, &stranger, "job", async |_, _| Ok(())).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_accounts_runs_take_its_own_agents_and_count_against_its_own_cap() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
+           "last_model", "last_effort", "created_at", "updated_at", "owner_account")
+         VALUES ('secretary-a', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 'deepseek',
+           'deepseek-flash', 'high', 0, 0, 7)"#,
+      vec![],
+    )
+    .await;
+
+  let of_account = |key: &'static str| Asked {
+    asked_by: Some("secretary-a"),
+    ..asked("worker", key)
+  };
+  let first = enqueue(&ground.db, &ground.events, &of_account("account-one"), "job", async |_, _| Ok(()))
+    .await
+    .unwrap();
+
+  assert_eq!(first.account.as_deref(), Some("7"), "a slot belongs to its asking supervisor's account");
+  assert!(
+    !admitted(&ground, &first).await,
+    "an account with no agent of the role runs nothing of it"
+  );
+
+  // One seat of the role for the account, on the road the deployment's workers stand on.
+  let mut seat = agency_server::role_agents::of_role(&ground.db, "worker").await.unwrap().remove(0);
+
+  seat.name = "worker-account-7".into();
+  seat.owner_account = Some("7".into());
+  agency_server::role_agents::write(&ground.db, &seat).await.unwrap();
+
+  // The deployment's three seats fill with its own runs, and the account's run still takes its own.
+  let mut deployment = vec![];
+
+  for key in ["one", "two", "three"] {
+    deployment.push(ask(&ground, "worker", key).await);
+  }
+
+  for request in &deployment {
+    assert!(admitted(&ground, request).await, "the deployment's cap is its own seats'");
+  }
+
+  assert!(admitted(&ground, &first).await, "the account's run takes the account's seat");
+
+  let let_in = dispatch::request(&ground.db, &first.token).await.unwrap().unwrap();
+
+  assert_eq!(let_in.seat.as_deref(), Some("worker-account-7"));
+  assert_eq!(used(&ground.db, "worker", Some("7")).await.unwrap(), 1);
+  assert_eq!(used(&ground.db, "worker", None).await.unwrap(), 3);
+
+  // A second run of the account waits on the account's cap of one, whatever the deployment's seats do.
+  let second = enqueue(&ground.db, &ground.events, &of_account("account-two"), "job", async |_, _| Ok(()))
+    .await
+    .unwrap();
+
+  assert!(!admitted(&ground, &second).await, "the account's cap is its own agents switched on");
+  assert!(finish(&ground.db, &ground.events, &deployment[0].token, "done", false).await.unwrap());
+  assert!(
+    !admitted(&ground, &second).await,
+    "a deployment seat given back is no seat of the account's"
+  );
+  assert!(finish(&ground.db, &ground.events, &first.token, "done", false).await.unwrap());
+  assert!(
+    admitted(&ground, &second).await,
+    "the account's own seat given back lets its next run in"
+  );
 }

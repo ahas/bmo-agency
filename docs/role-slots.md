@@ -35,6 +35,15 @@ is and which one a run takes is `docs/role-agents.md`.
   is let in on the first free agent by position, on that agent's own road or, for an agent that names none,
   on its asking supervisor's (`docs/role-agents.md`, 「Which agent a run takes」).
 
+## Accounts
+
+- **A slot belongs to an account:** the account of the supervisor its ask names as `askedBy`, as that supervisor's
+  row names its owner account, or none, the deployment's own, where no supervisor asked or the one that did belongs
+  to none. It is kept on the request as `account`.
+- **A slot is let in only on its account's agents,** counted against its account's cap — the number of its role's
+  agents of that account that are switched on — and against its account's slots of the role that are let in or
+  reserved. A slot of another account never stands in its way in the line, and never takes its seat.
+
 ## The cap
 
 - **A role's cap is the most of its runs that are let in at once: the number of its agents that are switched

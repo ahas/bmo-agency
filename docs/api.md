@@ -314,7 +314,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   under.
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
-  `name`, `role`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
+  `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
   `keepsCache`, `sessions`, `callable`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
   names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
@@ -780,7 +780,8 @@ lease.
 
 A slot request may carry `title`, one line naming the work it is asked for, and `askedBy`, the supervisor
 that asked for it, each kept as given; a `PATCH` binding it may name the run its child is. Each is null where
-none was named.
+none was named. A request answers `account`, the account it belongs to: its asking supervisor's owner account,
+or null for the deployment's own (`docs/role-slots.md`, 「Accounts」).
 
 A slot request may carry `fromDouble`, true where the ask is made by a supervisor's double, a delegated run
 asking again (`docs/tools.md`, 「The delegate」). Such an ask is refused 409 `double-waits-on-doubles`, before

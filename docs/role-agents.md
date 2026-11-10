@@ -20,10 +20,16 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   a run that names no road and that no supervisor asks, with why. The doppelganger's agents are seeded so.
 - **A role holds no order, no cap and no forced provider.** How many of a role's runs go at once is the
   number of its agents that are switched on, and which road a run takes is its agent's.
+- **An agent belongs to an account** (`STRUCTURE.md`, 「Accounts, companies and units」): `ownerAccount`, the id of
+  the login account whose seat it is, or none for the deployment's own. A run is let in only on the agents of its
+  own account — the account of the supervisor that asks it, or none — so one account's runs never take another
+  account's seat, and an account's settings of a role are its own agents' prompts, bundles and skills laid over
+  the role's preset. The role itself, its preset, is the deployment's.
 
 ## What an agent row holds
 
 - **Kept in agency's store,** the `role_agents` table (`docs/store.md`), one row an agent:
+  - **its account,** `ownerAccount`, the login account whose seat it is, or none for the deployment's own;
   - **its name,** its key, kebab-case, which a screen and a log show the agent by; an agent added with no
     name is named after its role and a number, `coder-01`;
   - **its role,** one the store holds;

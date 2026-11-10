@@ -86,6 +86,9 @@ pub struct Request {
   pub title: Option<String>,
   /// The supervisor that asked for it, where its asker names one.
   pub asked_by: Option<String>,
+  /// The account it belongs to: its asking supervisor's owner account, none for the deployment's own
+  /// (docs/role-slots.md, 「Accounts」).
+  pub account: Option<String>,
   /// The run its child is, where its binding names one.
   pub agent_name: Option<String>,
   /// The one agent of its role it asks to be let in on, where its asker named one.
@@ -220,6 +223,7 @@ pub fn request_of(row: &QueryResult) -> Result<Request, Fault> {
     session: row.try_get("", "session").map_err(get)?,
     title: row.try_get("", "title").map_err(get)?,
     asked_by: row.try_get("", "asked_by").map_err(get)?,
+    account: row.try_get("", "account").map_err(get)?,
     agent_name: row.try_get("", "agent").map_err(get)?,
     agent_wanted: row
       .try_get::<Option<String>>("", "agent_wanted")
@@ -492,14 +496,23 @@ pub async fn enqueue(
     }
   }
 
+  // The account it belongs to is its asking supervisor's (docs/role-slots.md, 「Accounts」).
+  let account = match asked.asked_by {
+    Some(name) => crate::supervisors::named(db, name)
+      .await
+      .map_err(faulted)?
+      .and_then(|supervisor| supervisor.owner_account)
+      .map(|account| account.to_string()),
+    None => None,
+  };
   let written = db.begin().await.map_err(faulted)?;
 
   let opened = run(
     &written,
     r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
          "model", "effort", "capacity", "state", "enqueued_at", "class", "place_key", "session", "title",
-         "asked_by", "agent_wanted")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16, $17)
+         "asked_by", "agent_wanted", "account")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT ("request_key") DO NOTHING"#,
     vec![
       uuid::Uuid::new_v4().to_string().into(),
@@ -511,7 +524,7 @@ pub async fn enqueue(
       fixed.map(|entry| entry.provider.clone()).unwrap_or_default().into(),
       fixed.map(|entry| entry.model.clone()).unwrap_or_default().into(),
       fixed.and_then(|entry| entry.effort.clone()).unwrap_or_default().into(),
-      role.max_concurrent.into(),
+      role.cap_for(account.as_deref()).into(),
       crate::now_ms().into(),
       (if asked.yielding { "yielding" } else { "foreground" }).into(),
       place_key.clone().into(),
@@ -519,6 +532,7 @@ pub async fn enqueue(
       asked.title.map(str::to_owned).into(),
       asked.asked_by.map(str::to_owned).into(),
       asked.wanted.agent.map(str::to_owned).into(),
+      account.clone().into(),
     ],
   )
   .await
@@ -609,8 +623,11 @@ pub struct Seat {
 pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
   // A request that names an agent is let in on that agent alone (docs/role-agents.md, 「Which agent a run
   // takes」).
+  // A request is let in only on its own account's agents (docs/role-slots.md, 「Accounts」).
   let on = role.agents.iter().filter(|agent| {
-    agent.enabled && held.agent_wanted.as_deref().is_none_or(|wanted| wanted == agent.name)
+    agent.enabled
+      && agent.owner_account == held.account
+      && held.agent_wanted.as_deref().is_none_or(|wanted| wanted == agent.name)
   });
   let mut seats: Vec<Seat> = vec![];
 
@@ -871,7 +888,7 @@ async fn admission<C: ConnectionTrait>(
       changed.push(ended);
     }
 
-    let admitted = admit(db, token, &entry, &agent, role.max_concurrent, now).await?;
+    let admitted = admit(db, token, &entry, &agent, role.cap_for(held.account.as_deref()), now).await?;
 
     return Ok((admitted, changed));
   }
@@ -899,13 +916,16 @@ async fn admission<C: ConnectionTrait>(
       }
     }
   };
-  let inherits = match in_the_way(db, &held.role, held.sequence, since, Some(&takes)).await? {
-    None => None,
-    Some((first, Some(_), owner)) if owner == held.owner => Some(first),
-    Some(_) => return Ok((None, changed)),
-  };
+  let inherits =
+    match in_the_way(db, &held.role, held.account.as_deref(), held.sequence, since, Some(&takes)).await? {
+      None => None,
+      Some((first, Some(_), owner)) if owner == held.owner => Some(first),
+      Some(_) => return Ok((None, changed)),
+    };
 
-  if used(db, &held.role).await? >= role.max_concurrent {
+  let cap = role.cap_for(held.account.as_deref());
+
+  if used(db, &held.role, held.account.as_deref()).await? >= cap {
     return Ok((None, changed));
   }
 
@@ -915,7 +935,7 @@ async fn admission<C: ConnectionTrait>(
     changed.push(ended);
   }
 
-  let admitted = admit(db, token, &entry, &agent, role.max_concurrent, now).await?;
+  let admitted = admit(db, token, &entry, &agent, cap, now).await?;
 
   Ok((admitted, changed))
 }
@@ -969,6 +989,7 @@ type Takes<'a> = &'a (dyn Fn(&str, &str, Option<&str>, Option<&str>) -> bool + S
 pub(crate) async fn in_the_way<C: ConnectionTrait>(
   db: &C,
   role: &str,
+  account: Option<&str>,
   sequence: i64,
   since: Option<i64>,
   takes: Option<Takes<'_>>,
@@ -982,8 +1003,9 @@ pub(crate) async fn in_the_way<C: ConnectionTrait>(
          AND ("place_key" IS NULL OR NOT EXISTS (SELECT 1 FROM "role_slot_requests" AS "held"
            WHERE "held"."place_key" = "waiting"."place_key" AND "held"."state" = 'active'))
          AND ("reservation" IS NOT NULL OR $3::bigint IS NULL OR "asked" > $3::bigint)
+         AND "account" IS NOT DISTINCT FROM $4
        ORDER BY "sequence""#,
-    vec![role.into(), sequence.into(), since.into()],
+    vec![role.into(), sequence.into(), since.into(), account.map(str::to_owned).into()],
   )
   .await
   .map_err(faulted)?;
@@ -1064,11 +1086,12 @@ pub async fn double_would_wait<C: ConnectionTrait>(
 }
 
 /// How many slots of a role are taken: its runs let in and its reserved slots together.
-pub async fn used<C: ConnectionTrait>(db: &C, role: &str) -> Result<i64, Fault> {
+pub async fn used<C: ConnectionTrait>(db: &C, role: &str, account: Option<&str>) -> Result<i64, Fault> {
   let row = one(
     db,
-    r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests" WHERE "role" = $1 AND "state" IN ('active', 'reserved')"#,
-    vec![role.into()],
+    r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests"
+       WHERE "role" = $1 AND "state" IN ('active', 'reserved') AND "account" IS NOT DISTINCT FROM $2"#,
+    vec![role.into(), account.map(str::to_owned).into()],
   )
   .await
   .map_err(faulted)?;
@@ -1316,13 +1339,12 @@ pub async fn cancel_waiting(
 /// role's cap has room. The pass is an ask of every such slot waiting in the role, its standing reservation
 /// being its owner asking.
 pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> Result<Vec<Request>, Fault> {
-  let Some(cap) = agent_roles::named(db, role).await.map_err(faulted)?.map(|role| role.max_concurrent)
-  else {
+  let Some(held_role) = agent_roles::named(db, role).await.map_err(faulted)? else {
     return Ok(vec![]);
   };
   let seats = all(
     db,
-    r#"SELECT "token", "sequence", "asked" FROM "role_slot_requests" AS "waiting"
+    r#"SELECT "token", "sequence", "asked", "account" FROM "role_slot_requests" AS "waiting"
        WHERE "role" = $1 AND "state" = 'waiting' AND "class" = 'foreground' AND "reservation" IS NOT NULL
          AND ("place_key" IS NULL OR NOT EXISTS (SELECT 1 FROM "role_slot_requests" AS "held"
            WHERE "held"."place_key" = "waiting"."place_key" AND "held"."state" = 'active'))
@@ -1347,9 +1369,14 @@ pub async fn promote_role<C: ConnectionTrait>(db: &C, role: &str, now: i64) -> R
     let token: String = seat.try_get("", "token").map_err(faulted)?;
     let since: Option<i64> = seat.try_get("", "asked").map_err(faulted)?;
     let sequence: i64 = seat.try_get("", "sequence").map_err(faulted)?;
+    let account: Option<String> = seat.try_get("", "account").map_err(faulted)?;
+    let cap = held_role.cap_for(account.as_deref());
 
-    if in_the_way(db, role, sequence, since, None).await?.is_some() || used(db, role).await? >= cap {
-      break;
+    // Each account's line and cap stand apart: one account's full cap holds back none of another's.
+    if in_the_way(db, role, account.as_deref(), sequence, since, None).await?.is_some()
+      || used(db, role, account.as_deref()).await? >= cap
+    {
+      continue;
     }
 
     let changed = run(

@@ -15,6 +15,8 @@ use crate::order::Entry;
 pub struct RoleAgent {
   pub name: String,
   pub role: String,
+  /// The login account whose seat it is, none for the deployment's own (docs/role-agents.md).
+  pub owner_account: Option<String>,
   /// Its road: the provider and model its runs go out on, both or neither. An agent naming neither follows
   /// the supervisor that asks it.
   pub provider: Option<String>,
@@ -79,6 +81,7 @@ impl RoleAgent {
       bundles: list(row, "bundles")?,
       skills: list(row, "skills")?,
       added_at: row.try_get("", "added_at")?,
+      owner_account: row.try_get("", "owner_account")?,
     })
   }
 
@@ -156,15 +159,17 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
     db,
     r#"INSERT INTO "role_agents"
          ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled", "position",
-          "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions", "callable")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions", "callable",
+          "owner_account")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
          "answer_tokens" = excluded."answer_tokens", "enabled" = excluded."enabled",
          "position" = excluded."position", "keeps_cache" = excluded."keeps_cache",
          "fold_ratio" = excluded."fold_ratio", "prompt" = excluded."prompt", "bundles" = excluded."bundles",
-         "skills" = excluded."skills", "sessions" = excluded."sessions", "callable" = excluded."callable""#,
+         "skills" = excluded."skills", "sessions" = excluded."sessions", "callable" = excluded."callable",
+         "owner_account" = excluded."owner_account""#,
     vec![
       agent.name.clone().into(),
       agent.role.clone().into(),
@@ -183,6 +188,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       agent.added_at.into(),
       agent.sessions.word().into(),
       i64::from(agent.callable).into(),
+      agent.owner_account.clone().into(),
     ],
   )
   .await?;

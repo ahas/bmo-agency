@@ -211,7 +211,7 @@ async fn a_job_reaped_as_stale_gives_its_slot_back_and_its_waiting_ask_is_cancel
     "a reaped job's waiting ask leaves the line: {cancelled:?}"
   );
   assert_eq!(
-    dispatch::used(&ground.db, "worker").await.unwrap(),
+    dispatch::used(&ground.db, "worker", None).await.unwrap(),
     0,
     "no slot of the role stays taken"
   );

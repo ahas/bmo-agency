@@ -74,6 +74,14 @@ async fn judged(
 ) -> Result<RoleAgent, Refused> {
   let mut agent = held;
 
+  // The account whose seat it is, a login account's id written as digits, or none for the deployment's own.
+  if let Some(account) = body.get("ownerAccount") {
+    agent.owner_account = match account {
+      Value::Number(number) => Some(number.to_string()),
+      other => text(other, "ownerAccount")?,
+    };
+  }
+
   if let Some(provider) = body.get("provider") {
     agent.provider = text(provider, "provider")?;
   }
@@ -279,6 +287,7 @@ impl Route for RoleAgentCreate {
       bundles: None,
       skills: None,
       added_at: now_ms(),
+      owner_account: None,
     };
     let agent = judged(call.ground(), &held, fresh, &body).await?;
 
