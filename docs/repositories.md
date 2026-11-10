@@ -77,9 +77,26 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **Its checkout, its branch and its landing** are `docs/worker-slots.md`'s; its workbench and dev server
   are `docs/worker-bench.md`'s.
 
+## An agent an item names
+
+- **An item names the agent its job runs on** with its label `agent=<name>`, an agent of any role as the
+  agency registers it (`docs/role-agents.md`): the owner's word on who does the work. The job runs as that
+  agent's role, goes out on that agent's road — its provider, model and effort — and is let in on that agent
+  alone, waiting for it however long it is busy or its provider cannot answer, never on another agent of the
+  role and never on another road. An agent that names no road of its own cannot carry a job, since no supervisor
+  asked it; the launch is refused 422 `agent-names-no-road` with the agent's name. An agent the agency does not
+  register refuses the launch 422 `unknown-agent` with the label's text. An `agent` label that is `auto` or
+  empty, or none at all, names no agent, and the role and the road are found as below.
+- **A role an item names** with its label `role=<name>`, a role the store holds, is the owner's word on the role
+  alone: the launch runs as it over the role the launcher judged, on whichever agent of that role is first free.
+  A role the store does not hold refuses the launch 422 `unknown-role` with the label's text. An agent label
+  stands over a role label.
+
 ## A model an item names
 
-- **An item may name the provider and model its job runs on** with its label `model=<provider>/<model>`,
+- **An item may still name a provider and model alone** with its label `model=<provider>/<model>`, the older
+  word, which an `agent` label stands over; the console files the agent, and the launch reads `model` for the
+  items that still carry one. It names
   the model the item was filed to run on: a provider agency carries whose program carries the worker line,
   and a model it holds — the values a repository's pin takes, judged the same way (「A pinned model」 below);
   a registered model is `registered/<name>`. The provider is what stands before the first `/`, the model all

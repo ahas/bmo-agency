@@ -519,6 +519,7 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
       role: "worker",
       path: Some("/checkouts/slot"),
       fixed: None,
+      agent: None,
     },
     ..Asked::default()
   };

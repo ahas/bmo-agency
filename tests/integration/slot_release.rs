@@ -61,6 +61,7 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
       role: "worker",
       path: None,
       fixed: None,
+      agent: None,
     },
     ..Asked::default()
   };

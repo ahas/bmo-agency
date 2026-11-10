@@ -17,6 +17,7 @@ fn asked<'a>(role: &'a str, key: &str) -> Asked<'a> {
       role,
       path: Some("/checkouts/one"),
       fixed: None,
+      agent: None,
     },
     place_key: None,
     ..Asked::default()
@@ -188,6 +189,7 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppe
           role: "doppelganger",
           path: Some("/scratch/chat"),
           fixed: Some(fixed.clone()),
+          agent: None,
         },
         asked_by: Some("chat"),
         ..Asked::default()
@@ -239,6 +241,7 @@ async fn a_double_waits_on_its_supervisors_provider_and_never_moves_to_the_roles
         thinking: None,
         answer_tokens: None,
       }),
+      agent: None,
     },
     ..Asked::default()
   };
@@ -642,6 +645,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
       role,
       path: Some("/scratch/chat"),
       fixed: Some(road.clone()),
+      agent: None,
     },
     asked_by: Some("chat"),
     ..Asked::default()
@@ -702,6 +706,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
         role: "builder",
         path: Some("/checkouts/one"),
         fixed: Some(road.clone()),
+        agent: None,
       },
       ..asked("builder", "job")
     },
@@ -942,6 +947,7 @@ async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
           role: "coder",
           path: Some("/scratch/mixed"),
           fixed,
+          agent: None,
         },
         asked_by,
         ..Asked::default()
@@ -1029,6 +1035,7 @@ async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
       role: "worker",
       path: Some("/checkouts/two"),
       fixed: None,
+      agent: None,
     },
     ..asked("worker", "two")
   };
@@ -1065,4 +1072,60 @@ async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
       .iter()
       .any(|role| role.name == "worker")
   );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_that_names_an_agent_is_let_in_on_that_agent_alone_and_waits_for_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let agents = agency_server::role_agents::of_role(db, "worker").await.unwrap();
+  let second = agents[1].name.clone();
+  let wanted = |key: &str| {
+    let mut asked = asked("worker", key);
+
+    asked.wanted.agent = Some(second.as_str());
+    asked
+  };
+
+  // The first ask naming the second agent is let in on it, passing the first agent over.
+  let one = enqueue(db, &ground.events, &wanted("one"), "job", async |_, _| Ok(())).await.unwrap();
+
+  assert!(admitted(&ground, &one).await, "the named agent is free");
+
+  let let_in = dispatch::request(db, &one.token).await.unwrap().unwrap();
+
+  assert_eq!(let_in.agent_wanted.as_deref(), Some(second.as_str()));
+  assert_eq!(
+    let_in.seat.as_deref(),
+    Some(second.as_str()),
+    "let in on the agent it named, not the first"
+  );
+
+  // A second ask naming the same agent waits, though the role has free agents.
+  let two = enqueue(db, &ground.events, &wanted("two"), "job", async |_, _| Ok(())).await.unwrap();
+
+  assert!(!admitted(&ground, &two).await, "the named agent carries a run, so the ask waits");
+  assert!(
+    admitted(&ground, &ask(&ground, "worker", "three").await).await,
+    "an ask naming none takes another agent"
+  );
+
+  // Given back, the named agent takes the waiting ask.
+  finish(db, &ground.events, &one.token, "ended", true).await.unwrap();
+  assert!(admitted(&ground, &two).await);
+  assert_eq!(
+    dispatch::request(db, &two.token).await.unwrap().unwrap().seat.as_deref(),
+    Some(second.as_str())
+  );
+
+  // An agent the role does not hold is an error.
+  let mut stranger = asked("worker", "four");
+
+  stranger.wanted.agent = Some("nobody-01");
+  assert!(enqueue(db, &ground.events, &stranger, "job", async |_, _| Ok(())).await.is_err());
 }

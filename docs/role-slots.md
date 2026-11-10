@@ -68,9 +68,9 @@ is and which one a run takes is `docs/role-agents.md`.
     waiting for quota never holds up a run of the same role that could go; it is next again once its
     provider has quota.
   - **A request that could not take the asker's agent is passed over,** keeping its place: one that names a
-    road the agent does not stand on, or one no supervisor asked where the agent names no road
-    (`docs/role-agents.md`, 「Which agent a run takes」). A run waiting for an agent of its own road never
-    holds up a run that a free agent of another road could take. A reservation's slot holds a seat by count
+    road the agent does not stand on, one that names an agent by name and not this one, or one no supervisor
+    asked where the agent names no road (`docs/role-agents.md`, 「Which agent a run takes」). A run waiting for
+    an agent of its own road, or for one agent by name, never holds up a run that a free agent could take. A reservation's slot holds a seat by count
     and stands in the way whatever the agent.
 - **Request keys:** the key a caller asks under names one request for good. An ask repeated with that key
   while its request stands — waiting, reserved or active — is answered with that request, unchanged, so a

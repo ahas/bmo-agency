@@ -24,7 +24,7 @@ use crate::now_ms;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
-use crate::repositories::{MODEL_LABEL, Pin};
+use crate::repositories::{AGENT_LABEL, MODEL_LABEL, Pin, ROLE_LABEL};
 use crate::road::{self, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
@@ -820,9 +820,21 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
-    let role: String =
-      held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned();
-    let item_model = item_model(&call.shared_ground(), item_id, &item).await?;
+    let item_agent = item_agent(db, item_id, &item).await?;
+    let role: String = match (&item_agent, item_role(db, item_id, &item).await?) {
+      (Some(agent), _) => agent.role.clone(),
+      (None, Some(named)) => named,
+      (None, None) => {
+        held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
+      }
+    };
+    let item_model = match &item_agent {
+      Some(agent) => agent.entry().map(|entry| Pin {
+        provider: entry.provider,
+        model: entry.model,
+      }),
+      None => item_model(&call.shared_ground(), item_id, &item).await?,
+    };
     // A job is never refused for quota (docs/api.md, 「assignments and jobs」): where nothing in its walk can
     // answer now, it is taken and waits `starting`, held with the reason, until a road can. The walk read
     // here only says which chose the job's road.
@@ -839,8 +851,8 @@ impl Route for CreateJob {
       db,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
               "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role", "item_provider",
-              "item_model", "chosen_by")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13) RETURNING "id""#,
+              "item_model", "chosen_by", "item_agent")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -855,6 +867,7 @@ impl Route for CreateJob {
         item_model.as_ref().map(|named| named.provider.clone()).into(),
         item_model.as_ref().map(|named| named.model.clone()).into(),
         resolution.chosen_by.map(|chosen| chosen.word().to_owned()).into(),
+        item_agent.as_ref().map(|agent| agent.name.clone()).into(),
       ],
     )
     .await?
@@ -1615,6 +1628,19 @@ pub async fn carry_job<C: Carrier>(
   }
 }
 
+/// The agent a job's item names, as its row keeps it from the launch (docs/repositories.md, 「An agent an item
+/// names」); none where its item named none.
+pub async fn item_agent_of_job(ground: &Ground, id: i64) -> Option<String> {
+  one(&ground.db, r#"SELECT "item_agent" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()?
+    .try_get::<Option<String>>("", "item_agent")
+    .ok()
+    .flatten()
+    .filter(|name| !name.is_empty())
+}
+
 /// The model a job's item names, as its row keeps it from the launch (docs/repositories.md, 「A model an item
 /// names」); none where its item named none.
 pub async fn item_model_of_job(ground: &Ground, id: i64) -> Option<Pin> {
@@ -1631,6 +1657,67 @@ pub async fn item_model_of_job(ground: &Ground, id: i64) -> Option<Pin> {
     row.try_get("", "item_provider").ok().flatten(),
     row.try_get("", "item_model").ok().flatten(),
   )
+}
+
+/// The agent the item `POST /jobs` is handed names with its `agent` label (docs/repositories.md, 「An agent an
+/// item names」): none for `auto` or no label, 422 `unknown-agent` for one the agency does not register, and 422
+/// `agent-names-no-road` for one that follows a supervisor's road, since no supervisor asks a job.
+async fn item_agent(
+  db: &sea_orm::DatabaseConnection,
+  item_id: i64,
+  item: &Value,
+) -> Result<Option<crate::role_agents::RoleAgent>, Refused> {
+  let label = item["labels"][AGENT_LABEL].as_str().map(str::trim).unwrap_or_default();
+
+  if label.is_empty() || label == crate::repositories::AUTO {
+    return Ok(None);
+  }
+
+  match crate::role_agents::named(db, label).await {
+    Ok(Some(agent)) if agent.entry().is_none() => Err(
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("Item #{item_id} names {AGENT_LABEL}={label}, which follows a supervisor's road and no supervisor asks a job"),
+      )
+      .with_code("agent-names-no-road"),
+    ),
+    Ok(Some(agent)) => Ok(Some(agent)),
+    Ok(None) => Err(
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("Item #{item_id} names {AGENT_LABEL}={label}, which is no agent the agency registers"),
+      )
+      .with_code("unknown-agent"),
+    ),
+    Err(why) => Err(Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.to_string())),
+  }
+}
+
+/// The role the item `POST /jobs` is handed names with its `role` label (docs/repositories.md, 「A role an item
+/// names」): none for `auto` or no label, and 422 `unknown-role` with the label's text for one the store does not
+/// hold.
+async fn item_role(
+  db: &sea_orm::DatabaseConnection,
+  item_id: i64,
+  item: &Value,
+) -> Result<Option<String>, Refused> {
+  let label = item["labels"][ROLE_LABEL].as_str().map(str::trim).unwrap_or_default();
+
+  if label.is_empty() || label == crate::repositories::AUTO {
+    return Ok(None);
+  }
+
+  match crate::agent_roles::named(db, label).await {
+    Ok(Some(_)) => Ok(Some(label.to_owned())),
+    Ok(None) => Err(
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("Item #{item_id} names {ROLE_LABEL}={label}, which is no role the store holds"),
+      )
+      .with_code("unknown-role"),
+    ),
+    Err(why) => Err(Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.to_string())),
+  }
 }
 
 /// The model the item `POST /jobs` is handed names with its `model` label, judged as a repository's pin is
@@ -1720,6 +1807,8 @@ struct OnSession<'a> {
   member: &'a Value,
   worker: &'a str,
   role: &'a str,
+  // The one agent its item named, where it named one.
+  agent: Option<&'a str>,
   room: i64,
   name: &'a str,
   title: &'a str,
@@ -1746,6 +1835,7 @@ impl OnSession<'_> {
         role: self.role,
         path: Some(&parts.cwd),
         fixed: Some(fixed),
+        agent: self.agent,
       },
       place_key: Some(self.worker),
       title: Some(self.title),
@@ -1949,12 +2039,14 @@ async fn launched(
   // The gate picks the reference a job's instruction calls for, and the run carries it in its first
   // prompt; a job with no instruction stands as it was.
   let prompt = referenced(ground, member.get("instruction"), &prompt).await;
+  let item_agent = item_agent_of_job(ground, id).await;
   let mut carrier = OnSession {
     ground,
     sessions,
     member: &member,
     worker: &worker_name,
     role: &role,
+    agent: item_agent.as_deref(),
     room,
     name: &name,
     title: &title,

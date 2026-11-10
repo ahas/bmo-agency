@@ -81,6 +81,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   role that holds both, an agent on a road of its own and an agent that names none stand in the one order: a
   run a supervisor asks takes whichever comes first, the second kind on that supervisor's road, and a run no
   supervisor asks passes the agents that name no road over.
+- **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
+  only on it, on its own road, and waits for it however long it carries a run or its provider cannot answer;
+  it is never let in on another agent of the role. A job whose item names an agent asks so
+  (`docs/repositories.md`, 「An agent an item names」).
 - **A run that names a road takes an agent of that road alone.** An ask naming a provider and a model, or a
   model alone, is let in only on an agent whose road is that one, and waits for such an agent however long
   it takes; where no agent of the role stands on that road it is let in on an agent that names none, and

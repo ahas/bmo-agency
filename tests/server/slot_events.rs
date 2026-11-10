@@ -19,6 +19,7 @@ fn asked<'a>(key: &str, owner: &str, title: Option<&'a str>, asked_by: Option<&'
       role: "worker",
       path: Some("/checkouts/slot"),
       fixed: None,
+      agent: None,
     },
     title,
     asked_by,

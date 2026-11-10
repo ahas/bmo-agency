@@ -1862,7 +1862,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
-    codes: &["bad-request", "conflict", "gone", "unknown-model"],
+    codes: &["bad-request", "conflict", "gone", "unknown-model", "unknown-role"],
   },
   Operation {
     method: "GET",

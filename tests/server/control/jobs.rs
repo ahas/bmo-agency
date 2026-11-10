@@ -246,6 +246,31 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     assert!(refused["error"].as_str().unwrap().contains(quoted), "{refused}");
   }
 
+  // An item naming an agent the agency does not register, one that follows a supervisor's road, or a role the
+  // store does not hold, is refused the same way (docs/repositories.md, 「An agent an item names」).
+  for (labels, code, quoted) in [
+    (json!({ "agent": "nobody-07" }), "unknown-agent", "agent=nobody-07"),
+    (json!({ "agent": "doppelganger-01" }), "agent-names-no-road", "agent=doppelganger-01"),
+    (json!({ "role": "nothing" }), "unknown-role", "role=nothing"),
+  ] {
+    let (status, refused) = post(
+      port,
+      token,
+      "/jobs",
+      json!({
+        "assignmentId": assignment,
+        "itemId": 41,
+        "leaseId": 1,
+        "holderName": "harness",
+        "item": { "title": "A harmless item", "brief": "Nothing.", "notes": [], "labels": labels },
+      }),
+    )
+    .await;
+
+    assert_eq!((status, refused["code"].as_str()), (422, Some(code)), "{refused}");
+    assert!(refused["error"].as_str().unwrap().contains(quoted), "{refused}");
+  }
+
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 

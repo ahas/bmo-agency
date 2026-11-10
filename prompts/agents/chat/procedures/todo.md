@@ -36,12 +36,13 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   the item's `assigneeName`, so only that repository's worker takes it; a name the agency does not hold
   is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
   the repositories to choose from. Host work names none.
-- **The item names its model where the owner names one for this piece of work:** the label
-  `model=<provider>/<model>`, the provider and model as an order's entry names them (a registered model
-  as `registered/<name>`). Its job runs on that model alone, over the role's provider order and the
-  repository's pin, at the effort the role's order names for that provider, and waits for it while it
-  cannot answer rather than falling back. `model=auto`, or no `model` label, leaves the choice to the
-  order. Never change a role's provider order for one item's sake.
+- **The item names its agent where the owner names one for this piece of work:** the label
+  `agent=<name>`, an agent as the agency registers it, of any role — `coder-03`, `worker-01`, `builder-02`.
+  Its job runs as that agent's role, on that agent's road, and is let in on that agent alone, waiting for it
+  while it is busy rather than taking another. When the owner says who does the work, or on what model, write
+  it on the item as this label with `file_item`'s labels or `job_item_update` before you launch, so every
+  relaunch keeps it; an agent's road is what names the model, so the older `model=<provider>/<model>` label
+  is not written any more. No `agent` label leaves the agent to the role's order.
 - **Work across several repositories is one item per repository,** each with the same brief and the
   same `series=<name>` label, the name one short word for the whole of it, so the items read as one
   piece of work in the queue.
@@ -164,12 +165,18 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **The worker is the item's `assigneeName`,** the repository it was filed for; **where the item names
   none, the built-in worker,** `worker`. Name it in `assign_worker`.
 - **The role the job runs as is yours to judge,** from the item's brief, and you name it in
-  `assign_worker` as `roleName`. Work that changes a repository's code, its source, its tests or its
-  build, runs as `coder`, the role that brings the coding passes. A brief that asks for a finished video
-  runs as `producer`. Every other piece of work in a repository, a document, a setting, a registration,
-  an investigation or a measurement, runs as `worker`. Where a brief holds more than one kind, the role
-  is the one the larger part of the work needs, and a brief that names a role runs as that role. A
-  launch that names no role runs as `worker`, so naming none is a judgement that the work is no code.
+  `assign_worker` as `roleName`. An item with a repository runs as `coder`, the role that brings the
+  coding passes, unless its brief is plainly no code: a document alone, a setting, a registration, a
+  measurement. Adding a feature, putting a service into a console, fixing, investigating a bug in a
+  repository, wiring something up: all of that is code and runs as `coder`. A brief that asks for a
+  finished video runs as `producer`. Host work and the plainly-no-code items run as `worker`. Where a
+  brief holds more than one kind, the role is the one the larger part of the work needs. A launch that
+  names no role runs as `worker`, so naming none is a judgement that the work is no code: make it, never
+  leave it.
+- **The owner's word on the role alone is the item's `role=<name>` label,** set with `file_item`'s labels
+  or `job_item_update`, which the launch obeys over your judgement; the owner's word on the agent is the
+  `agent=<name>` label, which stands over both. Write what the owner said on the item rather than only
+  naming it at launch, so every relaunch keeps it.
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.

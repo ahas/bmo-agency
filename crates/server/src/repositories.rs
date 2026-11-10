@@ -46,6 +46,12 @@ impl Pin {
 /// The label an item names the model its job runs on with.
 pub const MODEL_LABEL: &str = "model";
 
+/// The label an item names the role its job runs as with (docs/repositories.md, 「A role an item names」).
+pub const ROLE_LABEL: &str = "role";
+
+/// The label an item names the agent its job runs on with (docs/repositories.md, 「An agent an item names」).
+pub const AGENT_LABEL: &str = "agent";
+
 /// The value of an item's `model` label that leaves its job to the order.
 pub const AUTO: &str = "auto";
 

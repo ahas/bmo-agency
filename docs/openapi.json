@@ -4565,7 +4565,8 @@
           "bad-request",
           "conflict",
           "gone",
-          "unknown-model"
+          "unknown-model",
+          "unknown-role"
         ],
         "requestBody": {
           "required": true,

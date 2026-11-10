@@ -142,6 +142,7 @@ pub async fn job_slot(ground: &Ground, job: i64, let_in: bool) -> dispatch::Requ
       role: "worker",
       path: Some("/checkouts/worker"),
       fixed: None,
+      agent: None,
     },
     ..dispatch::Asked::default()
   };

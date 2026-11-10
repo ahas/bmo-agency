@@ -88,6 +88,8 @@ pub struct Request {
   pub asked_by: Option<String>,
   /// The run its child is, where its binding names one.
   pub agent_name: Option<String>,
+  /// The one agent of its role it asks to be let in on, where its asker named one.
+  pub agent_wanted: Option<String>,
   /// The agent of its role it was let in on, its seat (docs/role-agents.md); none until it is let in.
   pub seat: Option<String>,
   /// Why it waits where no provider of its road has quota, or none.
@@ -219,6 +221,10 @@ pub fn request_of(row: &QueryResult) -> Result<Request, Fault> {
     title: row.try_get("", "title").map_err(get)?,
     asked_by: row.try_get("", "asked_by").map_err(get)?,
     agent_name: row.try_get("", "agent").map_err(get)?,
+    agent_wanted: row
+      .try_get::<Option<String>>("", "agent_wanted")
+      .map_err(get)?
+      .filter(|name| !name.is_empty()),
     seat: row.try_get("", "seat").map_err(get)?,
     held_for: row.try_get("", "held_for").map_err(get)?,
     ended_by: row.try_get("", "ended_by").map_err(get)?,
@@ -263,6 +269,8 @@ pub struct Wanted<'a> {
   pub role: &'a str,
   pub path: Option<&'a str>,
   pub fixed: Option<Entry>,
+  /// The one agent of the role it is to be let in on, where its asker names one.
+  pub agent: Option<&'a str>,
 }
 
 /// One slot asked of a role's line: under a key the asker names again, by whom, for what, and where only one
@@ -449,6 +457,13 @@ pub async fn enqueue(
 
   let fixed = asked.wanted.fixed.as_ref();
 
+  // An agent its caller names is one of the role's, switched on (docs/role-agents.md, 「Which agent a run takes」).
+  if let Some(wanted) = asked.wanted.agent
+    && !role.agents.iter().any(|agent| agent.enabled && agent.name == wanted)
+  {
+    return Err(format!("The {} role holds no agent {wanted} that is switched on", role.name));
+  }
+
   // A road its caller names is one an agent of the role is on, or one an agent that names no road takes
   // (docs/role-agents.md, 「Which agent a run takes」): a native call takes a seat and keeps its caller's road.
   if let Some(named) = fixed
@@ -483,8 +498,8 @@ pub async fn enqueue(
     &written,
     r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
          "model", "effort", "capacity", "state", "enqueued_at", "class", "place_key", "session", "title",
-         "asked_by")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16)
+         "asked_by", "agent_wanted")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT ("request_key") DO NOTHING"#,
     vec![
       uuid::Uuid::new_v4().to_string().into(),
@@ -503,6 +518,7 @@ pub async fn enqueue(
       asked.session.map(str::to_owned).into(),
       asked.title.map(str::to_owned).into(),
       asked.asked_by.map(str::to_owned).into(),
+      asked.wanted.agent.map(str::to_owned).into(),
     ],
   )
   .await
@@ -591,7 +607,11 @@ pub struct Seat {
 /// takes every agent of the role that is switched on, an agent that names a road on its own and an agent
 /// that names none on the road of the supervisor that asked the request, where one did.
 pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
-  let on = role.agents.iter().filter(|agent| agent.enabled);
+  // A request that names an agent is let in on that agent alone (docs/role-agents.md, 「Which agent a run
+  // takes」).
+  let on = role.agents.iter().filter(|agent| {
+    agent.enabled && held.agent_wanted.as_deref().is_none_or(|wanted| wanted == agent.name)
+  });
   let mut seats: Vec<Seat> = vec![];
 
   if held.provider.is_empty() {
@@ -862,8 +882,13 @@ async fn admission<C: ConnectionTrait>(
 
   // A request ahead stands in this one's way only where it could take the agent this one is let in on.
   let seat_of = role.agent(&agent);
-  let takes = |provider: &str, model: &str, asked_by: Option<&str>| {
+  let takes = |provider: &str, model: &str, asked_by: Option<&str>, wanted: Option<&str>| {
     let Some(seat) = seat_of else { return true };
+
+    // One that names an agent could take this agent only where it is the one it names.
+    if let Some(wanted) = wanted {
+      return wanted == seat.name;
+    }
 
     match provider.is_empty() {
       true => seat.entry().is_some() || asked_by.is_some(),
@@ -933,7 +958,7 @@ async fn foreground_waits<C: ConnectionTrait>(
 
 // Whether a waiting request could take the agent an asking request is let in on, judged by the provider and
 // the model it names, each empty where it names none, and the supervisor that asked it.
-type Takes<'a> = &'a (dyn Fn(&str, &str, Option<&str>) -> bool + Sync);
+type Takes<'a> = &'a (dyn Fn(&str, &str, Option<&str>, Option<&str>) -> bool + Sync);
 
 // The first request of a role's line standing in the way of one asked for at `sequence`: one ahead of it that
 // is a reservation's slot, or whose owner has asked since that request's own last ask `since` — every one
@@ -950,7 +975,7 @@ pub(crate) async fn in_the_way<C: ConnectionTrait>(
 ) -> Result<Option<(String, Option<String>, String)>, Fault> {
   let rows = all(
     db,
-    r#"SELECT "token", "reservation", "owner", "provider", "model", "asked_by"
+    r#"SELECT "token", "reservation", "owner", "provider", "model", "asked_by", "agent_wanted"
        FROM "role_slot_requests" AS "waiting"
        WHERE "role" = $1 AND "state" = 'waiting' AND "class" = 'foreground' AND "held_for" IS NULL
          AND "sequence" < $2
@@ -968,11 +993,16 @@ pub(crate) async fn in_the_way<C: ConnectionTrait>(
     let provider: Option<String> = row.try_get("", "provider").map_err(faulted)?;
     let model: Option<String> = row.try_get("", "model").map_err(faulted)?;
     let asked_by: Option<String> = row.try_get("", "asked_by").map_err(faulted)?;
+    let wanted: Option<String> = row
+      .try_get::<Option<String>>("", "agent_wanted")
+      .map_err(faulted)?
+      .filter(|name| !name.is_empty());
     let could = takes.is_none_or(|takes| {
       takes(
         provider.as_deref().unwrap_or_default(),
         model.as_deref().unwrap_or_default(),
         asked_by.as_deref(),
+        wanted.as_deref(),
       )
     });
 

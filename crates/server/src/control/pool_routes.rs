@@ -156,6 +156,7 @@ impl Route for SlotAsk {
         role,
         path: optional(&body, "path"),
         fixed,
+        agent: None,
       },
       yielding: body.get("yielding").and_then(Value::as_bool).unwrap_or(false),
       token: optional(&body, "token"),

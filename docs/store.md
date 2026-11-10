@@ -68,9 +68,10 @@ seeds. The other crates and the server reach the store only through it.
     co-worker, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
-  - the role slots: `role_slot_requests`, one row a slot request with its lease — the agent it was let in on,
-    its `seat`, what it is bound to, the role session among it, whether the line has seen its bound run
-    standing, and who gave it back —;
+  - the role slots: `role_slot_requests`, one row a slot request with its lease — the one agent it asks to be
+    let in on, `agent_wanted`, where its asker named one, the agent it was let in on, its `seat`, what it is
+    bound to, the role session among it, whether the line has seen its bound run standing, and who gave it
+    back —;
     `role_slot_reservations`;
     `role_slot_native`, `role_slot_native_reservations` and `role_slot_native_stops`, the native calls'
     bindings; and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);
@@ -92,8 +93,8 @@ seeds. The other crates and the server reach the store only through it.
   - the moves of the cache prefix: `prefix_moves`;
   - the work a harness hands over: `assignments`, one row an item held for a repository — the item, the
     holder, the repository, the role it runs as and its state — and `jobs`, one row the item's run — the
-    item and lease the harness named, the assignment, the repository, the role, the checkout, the session
-    and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
+    item and lease the harness named, the assignment, the repository, the role, the agent its item named where
+    it named one, the checkout, the session and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
     reason it waits where no road can answer, its state, outcome and report, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
