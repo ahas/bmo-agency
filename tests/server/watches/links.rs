@@ -186,6 +186,11 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   // The supervisor's place goes there: its program sent, its running record brought back.
   assert_eq!(place_node(&roots.place("u7-bmo")).as_deref(), Some("u7"));
   assert!(pc.push.iter().any(|push| push.local == roots.place("u7-bmo")));
+  assert_eq!(
+    pc.folders,
+    ["/home/tester/node-root/data/supervisor-homes/u7-bmo"],
+    "its folder is made there"
+  );
   assert!(pc.pull.iter().any(|landing| landing.local == roots.place("u7-bmo")
     && landing.pull.remote == "/home/tester/node-root/data/agent-places/u7-bmo"));
   assert!(pc.path_head[0].ends_with("node-root/bun/bin"));

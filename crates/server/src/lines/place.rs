@@ -170,6 +170,25 @@ fn quoted(word: &str) -> String {
   format!("'{}'", word.replace('\'', r"'\''"))
 }
 
+/// The words every status-line and hook call of a place's program begins with: this tree's verbs binary; or,
+/// for a place standing on a node, the node's link handing the call to the home bridge to run with the CLI's
+/// `bmo` on this machine, so what the call writes lands in the place here, where the door reads it
+/// (docs/person-nodes.md, 「Which node is a person's」). The place named stays this machine's, which the bridge
+/// leaves as it is.
+fn hook_verbs(place: &Path, tree: &Path) -> Vec<String> {
+  if crate::watches::links::place_node(place).is_some() {
+    return [NODE_LINK, NODE_LINK_HOME, BRIDGE_VERBS, STATUS_VERB].map(str::to_owned).to_vec();
+  }
+
+  vec![tree.join(STATUS_BINARY).to_string_lossy().into_owned(), STATUS_VERB.to_owned()]
+}
+
+/// The node's link binary, found on the search path every program on a node runs with, and its verb that asks
+/// the home bridge; and the CLI's verbs binary the bridge runs, under its deploy tree.
+const NODE_LINK: &str = "node-link";
+const NODE_LINK_HOME: &str = "home";
+const BRIDGE_VERBS: &str = "bin/bmo";
+
 /// The settings a resident program is started with: the status-line command and the four hooks, each
 /// the tree's `bmo agent status` told which place to write into, and the shell guard where the line asks
 /// for it, merged into the settings the line already hands its program so a hook the line had keeps
@@ -180,15 +199,11 @@ pub fn write_place_settings(
   tree: &Path,
   holds: Holds,
 ) -> Result<PathBuf, Refusal> {
-  let binary = tree.join(STATUS_BINARY);
+  let verbs = hook_verbs(place, tree);
   let call = |kind: &str, flags: &[&str]| {
-    let mut words = vec![
-      binary.to_string_lossy().into_owned(),
-      STATUS_VERB.to_owned(),
-      kind.to_owned(),
-      "--place".to_owned(),
-      place.to_string_lossy().into_owned(),
-    ];
+    let mut words = verbs.clone();
+
+    words.extend([kind.to_owned(), "--place".to_owned(), place.to_string_lossy().into_owned()]);
 
     words.extend(flags.iter().map(|flag| (*flag).to_owned()));
     words.iter().map(|word| quoted(word)).collect::<Vec<_>>().join(" ")

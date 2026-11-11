@@ -79,6 +79,9 @@ pub fn deployed_commit(deploy_link: &Path) -> Option<String> {
   text_of(&record, "commit")
 }
 
+/// The server's environment file under the data root, as its unit names it.
+const SERVER_ENV_FILE: &str = "agency.env";
+
 /// The mode the jake hub's executable carries one byte stream to an agent's port in.
 const JAKE_CONNECT: &str = "connect";
 
@@ -184,8 +187,13 @@ pub trait LinkUnits {
 pub struct Systemd<'a>(pub &'a Roots);
 
 impl Systemd<'_> {
+  /// The server's own environment file, which a link's units run on as the server does: a sync of a node's
+  /// copy asks the node service, whose address stands there.
   fn env_file(&self) -> String {
-    format!("--property=EnvironmentFile=-{}", self.0.data.join("env").join("bot.env").display())
+    format!(
+      "--property=EnvironmentFile=-{}",
+      self.0.data.join("env").join(SERVER_ENV_FILE).display()
+    )
   }
 }
 
@@ -570,6 +578,11 @@ pub async fn spec(
       ("BMO_DATA_DIR".into(), join(&node_root, "data")),
       ("BMO_NODE".into(), node.to_owned()),
     ],
+    folders: agents
+      .iter()
+      .filter(|placed| !placed.checkout)
+      .map(|placed| to_node(&placed.cwd))
+      .collect(),
     rewrite,
     jake,
   }))

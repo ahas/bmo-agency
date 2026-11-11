@@ -228,3 +228,96 @@ pub async fn answer(
 async fn frame_of(send: mpsc::UnboundedSender<(u8, Vec<u8>)>, channel: u8, from: impl AsyncRead + Unpin) {
   frame(&send, channel, from).await;
 }
+
+/// The variables of a run on the node that go with what it asks of the home bridge.
+fn asked_env() -> BTreeMap<String, String> {
+  std::env::vars()
+    .filter(|(name, _)| name.starts_with("BMO_") || name.starts_with("CLAUDE"))
+    .collect()
+}
+
+/// One run asked of the home bridge from the node (docs/person-nodes.md, 「The link over jake」), as the CLI's
+/// own asker asks it: the request line naming the script, its arguments, the run's variables and the folder it
+/// was asked from; standing input carried as frames and its end said; the answer's output and errors written
+/// into the writers given as they come; and the exit code the answer ends with, 2 where the bridge cannot be
+/// reached or drops the run. The connection stays open both ways until the answer ends, since a half-closed
+/// asker reads no answer.
+pub async fn ask(
+  socket: &Path,
+  script: &str,
+  args: &[String],
+  input: impl AsyncRead + Unpin + Send + 'static,
+  mut stdout: impl AsyncWrite + Unpin,
+  mut stderr: impl AsyncWrite + Unpin,
+) -> i32 {
+  let stream = match UnixStream::connect(socket).await {
+    Ok(stream) => stream,
+    Err(error) => {
+      eprintln!("node-link home: the home bridge at {} is out of reach: {error}", socket.display());
+      return 2;
+    }
+  };
+  let (mut reading, mut writing) = stream.into_split();
+  let cwd = std::env::current_dir().ok().map(|dir| dir.display().to_string());
+  let request = serde_json::json!({ "script": script, "args": args, "env": asked_env(), "cwd": cwd });
+
+  if writing.write_all(format!("{request}\n").as_bytes()).await.is_err() {
+    eprintln!("node-link home: the home bridge dropped the request");
+    return 2;
+  }
+
+  let feeding = tokio::spawn(async move {
+    let mut input = input;
+    let mut buffer = vec![0; 64 * 1024];
+
+    loop {
+      match input.read(&mut buffer).await {
+        Ok(0) | Err(_) => break,
+        Ok(read) => {
+          if write_frame(&mut writing, IN, &buffer[..read]).await.is_err() {
+            return writing;
+          }
+        }
+      }
+    }
+
+    let _ = write_frame(&mut writing, 0, &[]).await;
+    writing
+  });
+  let code = loop {
+    let mut head = [0u8; 5];
+
+    if reading.read_exact(&mut head).await.is_err() {
+      eprintln!("node-link home: the home bridge dropped the run before it ended");
+      break 2;
+    }
+
+    let length = u32::from_be_bytes([head[1], head[2], head[3], head[4]]) as usize;
+    let mut body = vec![0; length];
+
+    if reading.read_exact(&mut body).await.is_err() {
+      eprintln!("node-link home: the home bridge dropped the run before it ended");
+      break 2;
+    }
+
+    match head[0] {
+      OUT => {
+        let _ = stdout.write_all(&body).await;
+        let _ = stdout.flush().await;
+      }
+      ERR => {
+        let _ = stderr.write_all(&body).await;
+        let _ = stderr.flush().await;
+      }
+      EXIT => {
+        let code = <[u8; 4]>::try_from(body.as_slice()).map_or(1, i32::from_be_bytes);
+
+        break if (0..=255).contains(&code) { code } else { 1 };
+      }
+      _ => {}
+    }
+  };
+
+  feeding.abort();
+  code
+}

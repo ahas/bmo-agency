@@ -52,6 +52,8 @@ pub enum Frame {
   },
   /// A file that is no longer there.
   Gone { pull: Option<usize>, path: String },
+  /// The folders the programs placed on the node work in, each made where it is not.
+  Folders { paths: Vec<String> },
   /// Which processes a place's running record names are alive, by the pull that watches it.
   Alive { pull: usize, alive: Vec<Identity> },
   /// The node's load, memory and pressure files, by their names under the proc root.

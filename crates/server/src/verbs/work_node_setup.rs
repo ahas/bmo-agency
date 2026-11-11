@@ -295,6 +295,16 @@ pub fn far_end_unit(home: &str, root: &str, session: &str, socket: &str, ports: 
   )
 }
 
+// The configuration file a login keeps on the node: its own directory's, read as the node reads it, or the
+// home's for a login on the machine's own directory.
+fn login_file(place: &SetupPlace<'_>, login: &SetupLogin, home: &str, root: &str) -> String {
+  if login.own_directory {
+    join(&(place.to_node)(&login.path, home, root), ".claude.json")
+  } else {
+    join(home, ".claude.json")
+  }
+}
+
 /// Every step of the setup in order. A step that cannot be met is said and the rest still run where they
 /// can, so one pass names everything missing; a node whose login fails names that alone.
 pub async fn set_up_workplace(
@@ -507,15 +517,23 @@ pub async fn set_up_workplace(
         ),
         format!("cd {}", shell_word(&build)),
         format!("{toolchain}CARGO_TARGET_DIR={} cargo build --release -q", shell_word(&target)),
-        format!(
-          "cp {} {}/",
-          NODE_BINARIES
-            .iter()
-            .map(|one| shell_word(&join(&target, &format!("release/{one}"))))
-            .collect::<Vec<_>>()
-            .join(" "),
-          shell_word(&join(&deploy, "bin"))
-        ),
+        // Each binary copied beside the one in place and renamed over it, since a binary running there — the
+        // far end, the agent host — refuses to be written over but not to be replaced.
+        NODE_BINARIES
+          .iter()
+          .map(|one| {
+            let into = join(&deploy, &format!("bin/{one}"));
+            let beside = join(&deploy, &format!("bin/.{one}.new"));
+
+            format!(
+              "cp {} {beside} && mv -f {beside} {into}",
+              shell_word(&join(&target, &format!("release/{one}"))),
+              beside = shell_word(&beside),
+              into = shell_word(&into),
+            )
+          })
+          .collect::<Vec<_>>()
+          .join(" && "),
         // The agent host standing on the old binary ends, and the link's far end starts the new one.
         format!(
           r#"(held=$(grep -o '"pid":[0-9]*' {} 2>/dev/null | cut -d: -f2); if [ -n "$held" ]; then kill "$held" 2>/dev/null; fi; true)"#,
@@ -610,6 +628,39 @@ pub async fn set_up_workplace(
     }
   }
 
+  // Every login a run on the node goes out on, its first-run screens marked as passed and the workplace's data
+  // root trusted, where a supervisor's own folder and a run's folder stand: none of them stops a program at its
+  // start (docs/work-nodes.md, 「The workplace on a node」).
+  if hands.copy_code() {
+    for login in &place.logins {
+      let file = login_file(place, login, &home, &root);
+      let dir = std::path::Path::new(&file)
+        .parent()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
+      let marked = shell
+        .run(&with_path(
+          &root,
+          &format!(
+            "mkdir -p {} && {} trust --onboarded {} {}",
+            shell_word(&dir),
+            shell_word(&join(&deploy, "bin/agent-host")),
+            shell_word(&file),
+            shell_word(&data)
+          ),
+        ))
+        .await;
+
+      if marked.code != 0 {
+        missing.push(format!(
+          "login {}: its configuration on the node could not be marked: {}",
+          login.account,
+          last_lines(&format!("{}{}", marked.stdout, marked.stderr), 2)
+        ));
+      }
+    }
+  }
+
   // The checkouts placed there, cloned where they are not, set up, and trusted under every login.
   for checkout in &place.checkouts {
     let cwd = node_path(&checkout.cwd, Some(&home));
@@ -657,11 +708,7 @@ pub async fn set_up_workplace(
     }
 
     for login in &place.logins {
-      let file = if login.own_directory {
-        join(&(place.to_node)(&login.path, &home, &root), ".claude.json")
-      } else {
-        join(&home, ".claude.json")
-      };
+      let file = login_file(place, login, &home, &root);
 
       shell
         .run(&with_path(

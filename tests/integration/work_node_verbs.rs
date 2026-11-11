@@ -464,3 +464,36 @@ fn a_pc_keeps_its_bridge_relay_port_and_a_new_one_takes_the_lowest_no_other_node
   assert_eq!(relay_port(data.path(), "u2"), 47220);
   assert_eq!(relay_port(data.path(), "u3"), 47214);
 }
+
+// "every login on the node is marked past its first-run screens and trusts the workplace's data root"
+#[tokio::test]
+async fn every_login_on_the_node_is_marked_past_its_first_run_screens_and_trusts_the_data_root() {
+  let shell = StandIn::new(&[HOME, HERDR_LISTING]);
+  let place = SetupPlace {
+    checkouts: vec![],
+    ..place(true)
+  };
+
+  set_up_workplace(&shell, &place, &hands(true)).await;
+
+  let marked = shell.ran().into_iter().find(|command| command.contains("trust --onboarded")).unwrap();
+  let built = shell.ran().into_iter().find(|command| command.contains("cargo build")).unwrap();
+
+  // A binary running on the node is replaced, never written over.
+  assert!(built.contains(
+    "/home/tester/.local/share/bmo-node/deploy/bin/.agent-host.new && mv -f /home/tester/.local/share/bmo-node/deploy/bin/.agent-host.new /home/tester/.local/share/bmo-node/deploy/bin/agent-host"
+  ));
+
+  assert!(marked.contains("mkdir -p /home/tester/.claude"));
+  assert!(marked.contains(
+    "/home/tester/.local/share/bmo-node/deploy/bin/agent-host trust --onboarded /home/tester/.claude/.claude.json /home/tester/.local/share/bmo-node/data"
+  ));
+
+  let shell = StandIn::new(&[HOME, HERDR_LISTING]);
+
+  set_up_workplace(&shell, &place, &hands(false)).await;
+  assert!(
+    shell.ran().iter().all(|command| !command.contains("trust --onboarded")),
+    "a check writes nothing"
+  );
+}

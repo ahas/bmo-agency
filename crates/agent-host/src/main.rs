@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use agent_host::host::{Ended, HostOptions, serve};
 use agent_host::supervise::{guard, supervise};
-use agent_host::trust::trust_folder;
+use agent_host::trust::{mark_onboarded, trust_folder};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -38,8 +38,14 @@ enum Verb {
   Supervise { envelope: PathBuf },
   /// Kill a process group once standard input closes.
   Guard { group: i32 },
-  /// Trust a folder in a login's configuration file, ending non-zero where the trust does not hold.
-  Trust { file: PathBuf, folder: String },
+  /// Trust a folder in a login's configuration file, ending non-zero where the trust does not hold; with
+  /// `--onboarded`, the login's first-run screens marked as passed in the same file first.
+  Trust {
+    file: PathBuf,
+    folder: String,
+    #[arg(long)]
+    onboarded: bool,
+  },
 }
 
 // The deployment's own data root, under the home.
@@ -83,7 +89,21 @@ fn main() -> ExitCode {
     }
     Verb::Supervise { envelope } => supervise(&envelope),
     Verb::Guard { group } => guard(group),
-    Verb::Trust { file, folder } => {
+    Verb::Trust {
+      file,
+      folder,
+      onboarded,
+    } => {
+      if onboarded {
+        let marked = mark_onboarded(&file);
+
+        println!("first-run screens: {} in {}", marked.word(), file.display());
+
+        if !marked.holds() {
+          return ExitCode::FAILURE;
+        }
+      }
+
       let trust = trust_folder(&file, &folder);
 
       println!("{folder}: {} in {}", trust.word(), file.display());

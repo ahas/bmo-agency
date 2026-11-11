@@ -20,7 +20,13 @@ desktop coding agent whose models and tools are served from elsewhere.
   - its role agents' runs: a run whose slot belongs to the account goes the place-based road whatever its
     provider, its place opened on the node, its folder read as the node reads this machine's roots;
   - the link mirrors each of these places as it mirrors a worker's: its program and settings sent, its running
-    record and its transcripts brought back.
+    record and its transcripts brought back;
+  - the folder each of these programs works in, its supervisor's own or its run's, is named in the spec, and the
+    far end makes it where it is not, since nothing of it need stand on the PC before;
+  - the status line and the hooks of each of these programs answer at home: the place's settings name
+    `node-link home bin/bmo agent-status` in place of this machine's verbs binary, which hands the call to the home
+    bridge to run with the CLI's `bmo` here, so the readings the door waits on before it puts a prompt — the status
+    line drawn, the hooks called — are written into the place here.
 - **While the node is not attached, its runs wait:** a turn of the account asks again every few seconds whether the
   node's link has been heard from, and starts once it has; a head or a room pane of a supervisor of the account is
   not stood until then. Nothing of it runs on this machine or another account's node. A run of no account, or of an

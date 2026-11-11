@@ -572,6 +572,7 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
           state.connected_since = Some(now);
           state.dropped = None;
           let _ = send.send(Frame::Watch { pulls: spec.pulls() });
+          let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
           pushing = Pushing::new();
         }
 
@@ -597,6 +598,7 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
             Ok(read) if same_transport(spec, &read) => {
               *spec = read;
               let _ = send.send(Frame::Watch { pulls: spec.pulls() });
+          let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
             }
             Ok(read) => {
               *spec = read;

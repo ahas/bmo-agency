@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
-use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -282,6 +282,19 @@ async fn join_tcp_to_unix(listener: tokio::net::TcpListener, socket: PathBuf) {
 }
 
 // What the near end sent, done.
+/// The folders the programs placed on the node work in, each made where it is not, readable by the account alone.
+pub fn make_folders(paths: &[String]) -> Result<(), String> {
+  for path in paths {
+    std::fs::DirBuilder::new()
+      .recursive(true)
+      .mode(0o700)
+      .create(path)
+      .map_err(|error| format!("{path}: {error}"))?;
+  }
+
+  Ok(())
+}
+
 fn take(frame: Frame, pulls: &Mutex<Vec<Pull>>) -> Result<(), String> {
   match frame {
     Frame::Watch { pulls: asked } => {
@@ -296,6 +309,7 @@ fn take(frame: Frame, pulls: &Mutex<Vec<Pull>>) -> Result<(), String> {
       write_whole(Path::new(&path), &bytes, mode.unwrap_or(0o600))
         .map_err(|error| format!("{path}: {error}"))
     }
+    Frame::Folders { paths } => make_folders(&paths),
     Frame::Gone { path, .. } => match fs::remove_file(&path) {
       Ok(()) => Ok(()),
       Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

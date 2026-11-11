@@ -234,3 +234,25 @@ async fn a_program_written_into_its_place_carries_the_token_it_was_handed() {
     Some("issued")
   );
 }
+
+// "a place standing on a node has its status line and hooks answered at home, through the node's link"
+#[test]
+fn a_place_standing_on_a_node_has_its_status_line_and_hooks_answered_at_home() {
+  let dir = tempfile::tempdir().unwrap();
+  let place = dir.path().join("place");
+
+  agency_server::watches::links::mark_place_on(&place, Some("pc"), "/home/tester/folder").unwrap();
+
+  let path =
+    write_place_settings(&place, serde_json::Map::new(), Path::new("/deploy"), Holds::default()).unwrap();
+  let settings: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+
+  assert_eq!(
+    settings["statusLine"]["command"],
+    format!("'node-link' 'home' 'bin/bmo' 'agent-status' 'status' '--place' '{}'", place.display())
+  );
+  assert_eq!(
+    settings["hooks"]["SessionStart"][0]["hooks"][0]["command"],
+    format!("'node-link' 'home' 'bin/bmo' 'agent-status' 'start' '--place' '{}'", place.display())
+  );
+}

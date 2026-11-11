@@ -54,6 +54,10 @@ pub struct Spec {
   pub env_keep: Vec<String>,
   #[serde(default)]
   pub env_add: Vec<(String, String)>,
+  /// The folders on the node the programs of the places pushed there work in, made where they are not: a
+  /// supervisor's own folder or a run's, which nothing else of the place makes there.
+  #[serde(default)]
+  pub folders: Vec<String>,
   /// A person's PC, reached through the jake hub alone in place of SSH (docs/person-nodes.md); none for an SSH
   /// node.
   #[serde(default)]

@@ -18,6 +18,13 @@ struct Cli {
 enum Verb {
   /// Hold the link the spec describes, making it again whenever it drops.
   Connect { spec: PathBuf },
+  /// On the node: a script of this machine's CLI tree asked of the home bridge the run's `BMO_HOME_BRIDGE`
+  /// names, its output, errors and exit code the run's own.
+  Home {
+    script: String,
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    args: Vec<String>,
+  },
   /// The far end, on the node: watch, send, write and signal over standard input and output.
   Serve {
     /// The workplace's root on the node.
@@ -53,6 +60,24 @@ async fn main() -> ExitCode {
         ExitCode::FAILURE
       }
     },
+    Verb::Home { script, args } => {
+      let socket = std::env::var_os("BMO_HOME_BRIDGE").filter(|named| !named.is_empty());
+      let Some(socket) = socket else {
+        eprintln!("node-link home: no home bridge is named: BMO_HOME_BRIDGE is not set");
+        return ExitCode::from(2);
+      };
+      let code = node_link::bridge::ask(
+        std::path::Path::new(&socket),
+        &script,
+        &args,
+        tokio::io::stdin(),
+        tokio::io::stdout(),
+        tokio::io::stderr(),
+      )
+      .await;
+
+      ExitCode::from(u8::try_from(code).unwrap_or(1))
+    }
     Verb::Serve {
       root,
       bridge,

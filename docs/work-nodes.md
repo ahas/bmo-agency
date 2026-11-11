@@ -43,8 +43,9 @@ side of a remote agent, the rotation, and what a dropped node does.
      holds in the repository, with the node link's node build manifest and the repository's lockfile,
      so a node builds those crates alone and nothing of the server's; the manifest's members, package
      fields and dependencies are the repository workspace's own, which a test holds it to. The testbed binary a
-     node runs is the testbed unit's, not one agency builds; a build ends the agent host standing on the
-     old binary;
+     node runs is the testbed unit's, not one agency builds; each binary built is put in place by renaming
+     a copy over it, since one running there — the far end, the agent host — refuses to be written over;
+     a build ends the agent host standing on the old binary;
   5. the node's data root, `<root>/data`, which holds the node's agent places and nothing of the
      store;
   6. herdr: a node with none is given this machine's, which is one static binary, so a matching one is
@@ -53,7 +54,10 @@ side of a remote agent, the rotation, and what a dropped node does.
      any session a person keeps there, is started where it does not stand, and its name and socket
      written into the node's setup record here, which the link reads; the name is the setup verb's,
      the packages under it taking it as given;
-  7. each node checkout of a repository placed there, cloned from its base checkout's remote at its path, the
+  7. every login a run on the node goes out on marked as past its first-run screens, its configuration
+     directory made where it is not, and the workplace's data root trusted in it, since a supervisor's own
+     folder and a run's folder on the node stand under it; then each node checkout of a repository placed
+     there, cloned from its base checkout's remote at its path, the
      repository's own setup run in it, trusted in every account's directory on the node so no first
      turn stops at the folder check, and its push to the remote tried. The trust is written by the
      node's own host binary, built in step 4, since the node's deploy tree holds no `bmo-agency` and
@@ -73,7 +77,8 @@ side of a remote agent, the rotation, and what a dropped node does.
   nothing is launched or run on it.
 - **The node's copy follows the deployment.** The setup writes down the deployed commit it copied, as
   the deployment's record beside the deploy tree's link names it. Where the deployed commit has moved
-  past it, the process keeping the links (「The link」 below) starts a sync of its own as a unit; a sync
+  past it, the process keeping the links (「The link」 below) starts a sync of its own as a unit, on the
+  server's own environment file, `env/agency.env`, as every unit of a link is; a sync
   stops the node's link, which that process stands again on the new code.
 
 ## Which nodes take jobs
