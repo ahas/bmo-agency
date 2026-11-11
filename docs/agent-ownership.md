@@ -41,6 +41,10 @@ Beside its provider order, its cache warming per provider and its compaction thr
 | `prompts` | the folder under `prompts/agents/` a pieces-shaped turn's persona is read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 | `owner_account` | the id of the login account that owns it, or none | none | the one its registration names, or none |
 
+- **A supervisor of an account keeps its prompt apart from every other account's:** its system prompt, in either
+  turn shape, is led by a mark made from its owner account alone, so no engine or provider reuses a cached prompt
+  prefix across accounts, and no account's words are answered faster for having been read for another. A
+  supervisor of no account carries no mark.
 - **A supervisor with no voice makes no voice.** No briefing, voice chip or reading is made for its
   turns, and a voice given to its row later turns all three on with no other change
   (`voice-briefing.md`).

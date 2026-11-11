@@ -563,6 +563,11 @@ async fn system_of(
     crate::lines::pieces::takes_harness(provider.name()),
   )
   .map_err(|why| why.to_string())
+  .map(|system| (system, pinned.supervisor.owner_account))
+  .map(|(system, account)| match account {
+    Some(account) => format!("{}\n{system}", crate::supervisors::account_mark(account)),
+    None => system,
+  })
 }
 
 // The generation settings a supervisor's row holds, in the order they were saved.

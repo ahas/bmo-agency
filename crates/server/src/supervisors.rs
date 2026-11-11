@@ -8,6 +8,28 @@ use store::{Fault, all, one};
 
 use crate::order::Order;
 
+/// The mark a supervisor of an account leads its system prompt with (docs/agent-ownership.md, 「What the
+/// supervisor's row carries」): a short digest of the account, which says nothing of it.
+pub fn account_mark(account: i64) -> String {
+  use sha2::{Digest, Sha256};
+
+  let digest = Sha256::digest(format!("account:{account}").as_bytes());
+  let short: String = digest.iter().take(6).map(|byte| format!("{byte:02x}")).collect();
+
+  format!("[tenant {short}]")
+}
+
+/// A system prompt led by its supervisor's account mark, where the supervisor belongs to an account.
+pub async fn account_led<C: ConnectionTrait>(db: &C, agent: &str, system: String) -> String {
+  match named(db, agent).await {
+    Ok(Some(supervisor)) => match supervisor.owner_account {
+      Some(account) => format!("{}\n{system}", account_mark(account)),
+      None => system,
+    },
+    _ => system,
+  }
+}
+
 /// One supervisor as its row holds it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Supervisor {

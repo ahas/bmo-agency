@@ -1,5 +1,6 @@
 //! The server's tests: its ground, each piece asked as a handler or a later part of the server asks it.
 
+mod account_mark;
 mod pin_model;
 mod relays;
 

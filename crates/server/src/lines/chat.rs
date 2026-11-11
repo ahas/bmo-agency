@@ -640,6 +640,7 @@ pub async fn composed_system(
   };
   // Claude Code lists its own tools to the session, every one but the line's denied list.
   let system = parts.whole(trees, &[CHAT_LINE.tools.listed.as_str()])?;
+  let system = crate::supervisors::account_led(&ground.db, agent, system).await;
   let hash = format!("{:x}", Sha256::digest(system.as_bytes()));
 
   Ok(ComposedSystem {
