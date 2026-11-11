@@ -36,8 +36,8 @@ use super::liveness::{
   standing_peer,
 };
 use super::looks::{
-  GoneConfirm, Look, folder_trust_keys, is_blocked, pane_listed, prompt, prompt_with_lead, screen_of,
-  send_keys, status_of,
+  GoneConfirm, Look, folder_trust_keys, is_blocked, pane_listed, plugin_offer_keys, prompt,
+  prompt_with_lead, screen_of, send_keys, status_of,
 };
 use super::place_run::{
   HookRecord, ProgramLogin, begin_run, end_run, hand_run, hooks_file, latest_failure, program_drawn,
@@ -439,6 +439,33 @@ pub fn account_of_login(
     .map(|account| account.id.clone())
 }
 
+// The answers one wait types to the questions the line answers itself: counted against their bound, and
+// paced so a question still on screen a redraw after its answer is answered again.
+struct OwnAnswers {
+  typed: u32,
+  at: Option<tokio::time::Instant>,
+  redraw: Duration,
+}
+
+impl OwnAnswers {
+  fn new(redraw: Duration) -> Self {
+    Self {
+      typed: 0,
+      at: None,
+      redraw,
+    }
+  }
+
+  // Whether a question still standing is past the redraw its last answer was given.
+  fn due(&self) -> bool {
+    self.at.is_none_or(|at| at.elapsed() >= self.redraw)
+  }
+
+  fn left(&self) -> bool {
+    self.typed < RESIDENT_TURN.screen_answers
+  }
+}
+
 // One turn's state as it is watched.
 struct Door<'a, W: Watch> {
   ground: &'a Ground,
@@ -783,16 +810,46 @@ impl<W: Watch> Door<'_, W> {
     .await
   }
 
+  // The keys answering a question on screen the line answers itself, and the note saying so: the
+  // folder-trust question in a run that trusts its folder, and the plugin offer in every run.
+  fn own_answer(&self, screen: &str) -> Option<(Vec<&'static str>, &'static str)> {
+    if self.turn.trusts_folder
+      && let Some(keys) = folder_trust_keys(screen)
+    {
+      return Some((keys, DOOR_WORDS.notes.trusted_folder.as_str()));
+    }
+
+    plugin_offer_keys(screen).map(|keys| (keys, DOOR_WORDS.notes.declined_offer.as_str()))
+  }
+
+  // A question on screen the line answers itself answered, where one stands, answers are left and one is
+  // due: whether its keys went in.
+  async fn answer_own(&mut self, pane: &str, screen: &str, answers: &mut OwnAnswers) -> bool {
+    if !answers.left() || !answers.due() {
+      return false;
+    }
+
+    let Some((keys, note)) = self.own_answer(screen) else { return false };
+
+    if send_keys(self.herdr, pane, &keys).await.is_err() {
+      return false;
+    }
+
+    self.watch.note(note).await;
+    answers.typed += 1;
+    answers.at = Some(tokio::time::Instant::now());
+
+    true
+  }
+
   // Waiting for the program to be ready to be told something, keeping what its screen said meanwhile —
   // the most worth reading is said by a program about to be gone. The wait lasts until the program is at
-  // rest, stands at a question, or its pane is gone, and a herdr that does not answer is waited out. The
-  // folder-trust question a run that trusts its folder may answer is answered here, a counted number of
-  // times, and the wait goes on.
+  // rest, stands at a question, or its pane is gone, and a herdr that does not answer is waited out. A
+  // question the line answers itself is answered here, a counted number of times, and the wait goes on.
   async fn settled(&mut self, pane: &str) -> Result<(Look, String), String> {
     let timings = self.turn.timings.clone();
     let mut screen = String::new();
-    let mut answers = 0;
-    let mut answered_at: Option<tokio::time::Instant> = None;
+    let mut answers = OwnAnswers::new(timings.redraw);
     let mut silent = false;
 
     loop {
@@ -831,20 +888,11 @@ impl<W: Watch> Door<'_, W> {
         return Ok((now, screen));
       }
 
-      let due = answered_at.is_none_or(|at| at.elapsed() >= timings.redraw);
+      let due = answers.due();
 
-      if now.is("blocked")
-        && answers < RESIDENT_TURN.trust_answers
-        && due
-        && self.turn.trusts_folder
-        && let Some(keys) = folder_trust_keys(&seen)
-        && send_keys(self.herdr, pane, &keys).await.is_ok()
-      {
-        self.watch.note(&DOOR_WORDS.notes.trusted_folder).await;
-        answers += 1;
-        answered_at = Some(tokio::time::Instant::now());
-      } else if now.is("blocked") && due {
-        // A question that is not the folder's, or one its answers did not clear: the turn's to handle.
+      if now.is("blocked") && !self.answer_own(pane, &seen, &mut answers).await && due {
+        // A question the line does not answer itself, or one its answers did not clear: the turn's to
+        // handle.
         return Ok((now, screen));
       }
 
@@ -1387,11 +1435,12 @@ async fn watch_turn<W: Watch>(
       // A question nobody is coming to answer, or no state at all: a wedge, given its one reset. The
       // folder-trust question in a run that trusts its folder is nobody's to answer: the trust is
       // written again and the program stood up again, and where even that leaves it standing the turn
-      // names it.
+      // names it. A plugin offer its answers did not clear is nobody's either: a wedge like any other.
       let untrusted = turn.trusts_folder && ready.is("blocked") && folder_trust_keys(&screen).is_some();
+      let offered = ready.is("blocked") && plugin_offer_keys(&screen).is_some();
       // A question is left standing for whoever is to answer it, and only a turn that can put one to
       // somebody has such a question; for any other turn a blocked program is a wedge like any other.
-      let asks_somebody = ready.is("blocked") && door.watch.puts_questions() && !untrusted;
+      let asks_somebody = ready.is("blocked") && door.watch.puts_questions() && !untrusted && !offered;
       let shown = if screen.is_empty() { door.screen(pane).await } else { screen };
       let screen = door.kept_screen(&DOOR_WORDS.screens.not_ready, shown).await;
 
@@ -1552,6 +1601,8 @@ async fn watch_turn<W: Watch>(
   let mut stop_cut = false;
   let mut in_process_cut: Option<super::tool_clock::InProcessCut> = None;
   let mut silent_since: Option<i64> = None;
+  // The answers typed to a plugin offer while the turn is watched.
+  let mut offers = OwnAnswers::new(timings.redraw);
 
   loop {
     // A job's tool calls, read off the record as it goes: each start with its pid and summary, a
@@ -1854,6 +1905,19 @@ async fn watch_turn<W: Watch>(
       }
 
       break;
+    }
+
+    // The plugin offer is no question of the turn's: it is declined from the screen ahead of any question
+    // put to a person, and the watching waits for its answer to clear it. One its answers did not clear
+    // is left to the questions.
+    if now.is("blocked") && offers.left() {
+      let seen = door.screen(pane).await;
+
+      if plugin_offer_keys(&seen).is_some() {
+        door.answer_own(pane, &seen, &mut offers).await;
+        tokio::time::sleep(every).await;
+        continue;
+      }
     }
 
     door.questions.look(door.herdr, pane, &now, door.watch).await;

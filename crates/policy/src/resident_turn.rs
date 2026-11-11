@@ -15,7 +15,7 @@ pub struct ResidentTurn {
   pub apart_lead: String,
   pub poll_ms: u64,
   pub redraw_ms: u64,
-  pub trust_answers: u32,
+  pub screen_answers: u32,
   pub submit_ms: u64,
   /// How often the record of the pane program that carries its own turn is looked at.
   pub inbox_poll_ms: u64,

@@ -27,9 +27,9 @@ poll_ms = 1000
 # and typed again: the program redraws within a poll or two of the keys.
 redraw_ms = 5000
 
-# How many times one wait for a program to come up answers the folder-trust question, where an answer
-# typed did not take and the question still stands.
-trust_answers = 3
+# How many times one wait answers a question the line answers itself, the folder-trust question and the
+# plugin offer together, where an answer typed did not take and the question still stands.
+screen_answers = 3
 
 # How long after a prompt went in, and between presses after that, `enter` is pressed again while the
 # prompt is not seen submitted. A submitted prompt shows within a second or two; the presses go on until

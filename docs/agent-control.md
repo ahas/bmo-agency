@@ -2056,6 +2056,24 @@ was coming to answer and the job ended `blocked` with its report on screen.
   so no run of a login it went out on is offered a plugin. A file that already trusts the folder and
   declines the offer is not written; one that trusts it and does not decline the offer is written for the
   offer alone. The agent host's `trust` on a work node writes both the same way.
+- **The written decline does not always hold.** The configuration file is written back whole from the
+  memory of every program running on the login, so a program that read the file before the decline
+  was written drops it again at its next write of its own, and the next session on that login is offered
+  a plugin again.
+- **An offer on screen all the same is answered from the screen**, in every run, whether or not it
+  trusts its folder. It answers **only when the screen is this offer**: the heading
+  `LSP plugin recommendation` shows with the choices `Yes, install` and
+  `Disable all LSP recommendations`, and the cursor line is read. It presses `down` as many times as the
+  lines from the cursor to `Disable all LSP recommendations` and sends `enter`: the choice that never
+  offers a plugin again, which the program writes as the same decline from its own memory, where its
+  later writes keep it. It is answered both in the wait for a program to come to rest before a prompt
+  goes in and while a turn is watched, ahead of any question being put to a person, paced and bounded
+  as the folder-trust answers are, one shared count per wait. Each answer is written as a line in the
+  execution record.
+- **An offer that will not clear is a wedge, never a person's question.** One still on screen after its
+  answers ran out, before a prompt went in, takes the turn's one reset: the program is stood up again
+  and the prompt put in once more. Where it still stands after that, the turn ends `blocked` with the
+  screen kept.
 - No plugin is installed by this: what the bot's runs carry is the plugin agency hands each run
   (`docs/api.md`, 「The harness plugin」), and an offer to install another is a question no person is
   meant to answer.
@@ -2068,7 +2086,8 @@ The measured, fixed order.
    there, and wait for `agent_status` to read it at rest: `idle` for a program that has just come up,
    `done` for one that has finished a turn, which is how herdr reads a resident program between its
    turns (measured). If `blocked` here with a trust-this-folder screen, the folder-trust line answers as
-   above and waits again. Other `blocked` is a place a person answers, or a wedge the round clears itself
+   above and waits again; with a plugin offer on screen, the offer is declined as above and the wait goes
+   on. Other `blocked` is a place a person answers, or a wedge the round clears itself
    where nobody is coming to answer it (「When a program will not come to rest」 below). The wait has no
    clock: it lasts until the program is at rest, stands at a question, writes its start failure, loses
    its pane or is stopped, and a herdr that does not answer meanwhile is waited out. A head pane herdr

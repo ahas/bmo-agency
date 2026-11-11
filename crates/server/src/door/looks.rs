@@ -153,24 +153,63 @@ pub async fn prompt(herdr: &Herdr, pane: &str, text: &str) -> Result<Value, Faul
   herdr.call("agent.prompt", json!({ "target": pane, "text": text }), None).await
 }
 
-const TRUST_REFUSAL: &str = "No, exit";
-const TRUST_ACCEPTANCE: &str = "Yes, I trust this folder";
 const CURSOR_MARK: &str = "❯";
+
+// A choice the program puts on its screen whose answer is settled before it is asked, read by the words
+// its rows show: the heading that names it, where its own rows do not, a row it offers, and the row to
+// choose. The keys move the cursor the program marks down to the row to choose and confirm it, counted off
+// the screen.
+struct SettledChoice {
+  heading: Option<&'static str>,
+  offered: &'static str,
+  chosen: &'static str,
+}
+
+impl SettledChoice {
+  fn keys(&self, screen: &str) -> Option<Vec<&'static str>> {
+    let rows: Vec<&str> = screen.split('\n').collect();
+
+    if let Some(heading) = self.heading
+      && !rows.iter().any(|row| row.contains(heading))
+    {
+      return None;
+    }
+
+    let offered = rows.iter().position(|row| row.contains(self.offered))?;
+    let chosen = rows.iter().position(|row| row.contains(self.chosen))?;
+    let first = offered.min(chosen);
+    let cursor = (first..=chosen).find(|at| rows[*at].trim_start().starts_with(CURSOR_MARK))?;
+    let mut keys = vec!["down"; chosen - cursor];
+
+    keys.push("enter");
+
+    Some(keys)
+  }
+}
+
+// The folder-trust question: the cursor stands on refusing, which ends the program.
+const FOLDER_TRUST: SettledChoice = SettledChoice {
+  heading: None,
+  offered: "No, exit",
+  chosen: "Yes, I trust this folder",
+};
+
+// The program's offer of a code-intelligence plugin: declined for every plugin, so it is never offered
+// again (docs/agent-control.md, 「A turn's end stops at a plugin recommendation」).
+const PLUGIN_OFFER: SettledChoice = SettledChoice {
+  heading: Some("LSP plugin recommendation"),
+  offered: "Yes, install",
+  chosen: "Disable all LSP recommendations",
+};
 
 /// The keys that accept the folder-trust question a program asks the first time it comes up in a
 /// directory nobody has accepted, read off the screen — or none, where the screen is not that question.
-/// The cursor stands on refusing, so accepting is moving it down to the accepting row and confirming,
-/// counted off the screen: the rows are matched by the two options' own words, and the cursor row is
-/// the one the program marks.
 pub fn folder_trust_keys(screen: &str) -> Option<Vec<&'static str>> {
-  let rows: Vec<&str> = screen.split('\n').collect();
-  let refusal = rows.iter().position(|row| row.contains(TRUST_REFUSAL))?;
-  let acceptance = rows.iter().position(|row| row.contains(TRUST_ACCEPTANCE))?;
-  let first = refusal.min(acceptance);
-  let cursor = (first..=acceptance).find(|at| rows[*at].trim_start().starts_with(CURSOR_MARK))?;
-  let mut keys = vec!["down"; acceptance - cursor];
+  FOLDER_TRUST.keys(screen)
+}
 
-  keys.push("enter");
-
-  Some(keys)
+/// The keys that decline the program's plugin offer for good, read off the screen — or none, where the
+/// screen is not that offer.
+pub fn plugin_offer_keys(screen: &str) -> Option<Vec<&'static str>> {
+  PLUGIN_OFFER.keys(screen)
 }

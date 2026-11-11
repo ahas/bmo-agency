@@ -172,9 +172,9 @@ const escapeInterrupt: ResidentInterrupt = { keys: ["escape"] };
 // How long a question just answered may still stand on the screen before its answer is read as not
 // taken and typed again. The CLI redraws within a poll or two of the keys.
 const redrawMs: number = declaredTurn.redraw_ms;
-// How many times one wait for a program to come up answers the folder-trust question, where an answer
-// typed did not take and the question still stands.
-const trustAnswers: number = declaredTurn.trust_answers;
+// How many times one wait answers a question the line answers itself, the folder-trust question and the
+// plugin offer together, where an answer typed did not take and the question still stands.
+const screenAnswers: number = declaredTurn.screen_answers;
 
 // What one turn in a pane came to.
 //
@@ -521,35 +521,65 @@ function workflowName(block: ContentBlock): string {
   return named?.[1] ?? (typeof block.input?.["name"] === "string" ? (block.input["name"] as string) : "");
 }
 
-// The folder-trust question a CLI asks the first time it comes up in a directory nobody has
-// accepted, read off the screen, and the keys that accept it — or nothing, where the screen is not
-// that question.
-//
-// The cursor stands on refusing, so the one key that is obviously an answer ends the CLI, and so
-// does escape. Accepting is moving the cursor down to the accepting row and confirming, which is
-// counted off the screen rather than assumed: the rows are matched by the two options' own words,
-// which fit on a line however narrow the pane, and the cursor row is the one the CLI marks.
-const trustRefusal = "No, exit";
-const trustAcceptance = "Yes, I trust this folder";
+// A choice the CLI puts on its screen whose answer is settled before it is asked, read by the words its
+// rows show, which fit on a line however narrow the pane: the heading that names it, where its own rows
+// do not, a row it offers, and the row to choose. The keys move the cursor the CLI marks down to the row
+// to choose and confirm it, counted off the screen rather than assumed.
+interface SettledChoice {
+  heading: string | null;
+  offered: string;
+  chosen: string;
+}
+
 const cursorMark = "❯";
 
-export function folderTrustKeys(screen: string): string[] | null {
+function settledChoiceKeys(choice: SettledChoice, screen: string): string[] | null {
   const rows = screen.split("\n");
-  const refusal = rows.findIndex((row) => row.includes(trustRefusal));
-  const acceptance = rows.findIndex((row) => row.includes(trustAcceptance));
 
-  if (refusal < 0 || acceptance < 0) {
+  if (choice.heading !== null && !rows.some((row) => row.includes(choice.heading as string))) {
     return null;
   }
 
-  const first = Math.min(refusal, acceptance);
-  const cursor = rows.findIndex((row, at) => at >= first && at <= acceptance && row.trimStart().startsWith(cursorMark));
+  const offered = rows.findIndex((row) => row.includes(choice.offered));
+  const chosen = rows.findIndex((row) => row.includes(choice.chosen));
+
+  if (offered < 0 || chosen < 0) {
+    return null;
+  }
+
+  const first = Math.min(offered, chosen);
+  const cursor = rows.findIndex((row, at) => at >= first && at <= chosen && row.trimStart().startsWith(cursorMark));
 
   if (cursor < 0) {
     return null;
   }
 
-  return [...Array.from({ length: acceptance - cursor }, () => "down"), "enter"];
+  return [...Array.from({ length: chosen - cursor }, () => "down"), "enter"];
+}
+
+// The folder-trust question a CLI asks the first time it comes up in a directory nobody has accepted.
+// The cursor stands on refusing, so the one key that is obviously an answer ends the CLI, and so does
+// escape.
+const folderTrust: SettledChoice = { heading: null, offered: "No, exit", chosen: "Yes, I trust this folder" };
+
+// The CLI's offer of a code-intelligence plugin, declined for every plugin so it is never offered again
+// (`docs/agent-control.md`, 「A turn's end stops at a plugin recommendation」).
+const pluginOffer: SettledChoice = {
+  heading: "LSP plugin recommendation",
+  offered: "Yes, install",
+  chosen: "Disable all LSP recommendations",
+};
+
+// The keys that accept the folder-trust question, read off the screen — or nothing, where the screen is
+// not that question.
+export function folderTrustKeys(screen: string): string[] | null {
+  return settledChoiceKeys(folderTrust, screen);
+}
+
+// The keys that decline the plugin offer for good, read off the screen — or nothing, where the screen is
+// not that offer.
+export function pluginOfferKeys(screen: string): string[] | null {
+  return settledChoiceKeys(pluginOffer, screen);
 }
 
 // The value a command line gives a flag, where it gives the flag at all.
@@ -849,7 +879,7 @@ export async function runTurnInPane(options: {
         // A resident program started again for this turn reads at rest from the one before it until it
         // is up, and words put in meanwhile are lost whole.
         drawn: resident === null ? undefined : () => programDrawn(resident.place),
-        answer: options.trustsFolder === true ? (screen) => acceptFolderTrust(pane, screen, where, options.log ?? null) : undefined,
+        answer: (screen) => answerOwn(pane, screen, options.trustsFolder === true, where, options.log ?? null),
         answerAgainMs: options.redrawMs,
         // A herdr answering none of the looks is waited out; the silence is written down where it begins.
         onSilent: () => options.log?.write({ kind: "note", text: fillMarks(turnWords.notes.herdr_silent, { cause: String(silenceCause) }) }),
@@ -870,9 +900,11 @@ export async function runTurnInPane(options: {
         // front of one is a question nobody is coming to answer, which is a wedge like any other.
         // Everything that is not a question is a wedge outright. The folder-trust question in a run that
         // trusts its folder is nobody's to answer: the trust is written again and the program stood up
-        // again, which reads it afresh, and where even that leaves it standing the turn names it.
+        // again, which reads it afresh, and where even that leaves it standing the turn names it. A plugin
+        // offer its answers did not clear is nobody's either: a wedge like any other.
         const untrusted = options.trustsFolder === true && ready.status === "blocked" && folderTrustKeys(ready.screen) !== null;
-        const asksSomebody = ready.status === "blocked" && options.confirm !== undefined && !untrusted;
+        const offered = ready.status === "blocked" && pluginOfferKeys(ready.screen) !== null;
+        const asksSomebody = ready.status === "blocked" && options.confirm !== undefined && !untrusted && !offered;
         const screen = await keptScreen(
           turnWords.screens.not_ready,
           ready.screen === "" ? await screenOf(pane, where) : ready.screen,
@@ -970,6 +1002,8 @@ export async function runTurnInPane(options: {
     // A look that saw the program at work while the prompt was being seen submitted is a look of this
     // turn's.
     let worked = taken === "working";
+    // The answers typed to a plugin offer while the turn is watched, and when the last went in.
+    const offers: { typed: number; at: number | null } = { typed: 0, at: null };
     // When the caller's overtime policy is next asked about the turn: its clock first, then the moment
     // each answer names. A turn handed no policy carries no clock.
     let askAt = options.turnMs === undefined || options.overtime === undefined ? null : Date.now() + options.turnMs;
@@ -1127,6 +1161,23 @@ export async function runTurnInPane(options: {
 
       if (now === "working") {
         worked = true;
+      }
+
+      // The plugin offer is no question of the turn's: it is declined from the screen ahead of any
+      // question put to a person, and the watching waits for its answer to clear it. One its answers did
+      // not clear is left to the questions.
+      if (now === "blocked" && offers.typed < screenAnswers) {
+        const offer = await screenOf(pane, where);
+
+        if (pluginOfferKeys(offer) !== null) {
+          if ((offers.at === null || Date.now() - offers.at >= (options.redrawMs ?? redrawMs)) && await answerOwn(pane, offer, false, where, options.log ?? null)) {
+            offers.typed += 1;
+            offers.at = Date.now();
+          }
+
+          await Bun.sleep(everyMs);
+          continue;
+        }
       }
 
       await questions.look(now);
@@ -1746,7 +1797,7 @@ async function settled(
     if (now === "blocked") {
       const answerDue = answeredAt === null || Date.now() - answeredAt >= (options.answerAgainMs ?? redrawMs);
 
-      if (answers < trustAnswers && answerDue && options.answer !== undefined && await options.answer(seen)) {
+      if (answers < screenAnswers && answerDue && options.answer !== undefined && await options.answer(seen)) {
         answers += 1;
         answeredAt = Date.now();
       } else if (answerDue) {
@@ -1758,11 +1809,13 @@ async function settled(
   }
 }
 
-// Accepting the folder-trust question in a pane, where that is the question on its screen.
-// The log is told, since a question answered without a person is something whoever reads the run
-// afterwards should find written down.
-async function acceptFolderTrust(pane: string, screen: string, where: { socket?: string }, log: RunLog | null): Promise<boolean> {
-  const keys = folderTrustKeys(screen);
+// Answering a question on a pane's screen the line answers itself, where that is the question on it: the
+// folder-trust question in a run that trusts its folder, and the plugin offer in every run. The log is
+// told, since a question answered without a person is something whoever reads the run afterwards should
+// find written down.
+async function answerOwn(pane: string, screen: string, trustsFolder: boolean, where: { socket?: string }, log: RunLog | null): Promise<boolean> {
+  const trust = trustsFolder ? folderTrustKeys(screen) : null;
+  const keys = trust ?? pluginOfferKeys(screen);
 
   if (keys === null) {
     return false;
@@ -1771,7 +1824,7 @@ async function acceptFolderTrust(pane: string, screen: string, where: { socket?:
   const sent = (await sendKeys(pane, keys, where)).ok;
 
   if (sent) {
-    await log?.write({ kind: "note", text: turnWords.notes.trusted_folder });
+    await log?.write({ kind: "note", text: trust !== null ? turnWords.notes.trusted_folder : turnWords.notes.declined_offer });
   }
 
   return sent;

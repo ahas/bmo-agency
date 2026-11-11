@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { transcriptPath } from "@agency/agent/freshstart";
 import { scratchDir } from "@agency/test-support/scratch";
 
-import { folderTrustKeys, lastActivityOf, newLines, pastedLead, personTurnDone, promptedSince, readTurn, residentOf, runTurnInPane, spendSince } from "@agency/agent/worker-pane";
+import { folderTrustKeys, lastActivityOf, pluginOfferKeys, newLines, pastedLead, personTurnDone, promptedSince, readTurn, residentOf, runTurnInPane, spendSince } from "@agency/agent/worker-pane";
 import type { TurnOverdue } from "@agency/agent/overtime-clock";
 import type { RunLog } from "@agency/agent/runlog";
 import { recordCall } from "@agency/agent/agent-place";
@@ -89,6 +89,29 @@ describe("the folder-trust question", () => {
     expect(folderTrustKeys("a screen")).toBeNull();
     expect(folderTrustKeys("❯ Try \"write a test for <filepath>\"")).toBeNull();
     expect(folderTrustKeys(trustScreen.replace("❯", " "))).toBeNull();
+  });
+});
+
+// The offer as a worker's pane drew it before its turn could be put in.
+const offerScreen = [
+  " LSP plugin recommendation",
+  "   Plugin: rust-analyzer-lsp",
+  "   Triggered by: .rs files",
+  "   Would you like to install this LSP plugin?",
+  "   ❯ 1. Yes, install",
+  "     2. No, not now",
+  "     3. Never for this plugin",
+  "     4. Disable all LSP recommendations",
+].join("\n");
+
+describe("the plugin offer", () => {
+  test("is declined for every plugin by moving down to the last row and confirming", () => {
+    expect(pluginOfferKeys(offerScreen)).toEqual(["down", "down", "down", "enter"]);
+  });
+
+  test("is not answered when it is not on the screen, or its cursor cannot be read", () => {
+    expect(pluginOfferKeys(offerScreen.replace("LSP plugin recommendation", "A question"))).toBeNull();
+    expect(pluginOfferKeys(offerScreen.replace("❯", " "))).toBeNull();
   });
 });
 
@@ -1027,6 +1050,34 @@ describe("a turn driven over a socket", () => {
     expect(herdr.asked.some((one) => one.method === "pane.send_keys")).toBe(false);
   });
 
+  test("a run at the plugin offer declines it for good, whether or not it trusts its folder, and is then told its work", async () => {
+    const herdr = herdrLike("offer", {
+      statuses: ["blocked"],
+      screen: offerScreen,
+      afterKeys: ["idle", "working", "idle"],
+      transcript: [assistant({ text: "the answer", out: 3 })],
+      cwd,
+      sessionId,
+    });
+    const turn = await runTurnInPane({
+      name: "bmo-work-9-build-0-1",
+      title: "#9 a build",
+      cwd,
+      command: ["claude", "--session-id", sessionId],
+      env: {},
+      prompt: "the work",
+      sessionId,
+      from: 0,
+      pollMs: 5,
+      socket: herdr.path,
+    });
+    const methods = herdr.asked.map((one) => one.method);
+
+    expect(turn.outcome).toBe("answered");
+    expect(herdr.asked.filter((one) => one.method === "pane.send_keys").map((one) => one.params.keys)).toEqual([["down", "down", "down", "enter"]]);
+    expect(methods.indexOf("pane.send_keys")).toBeLessThan(methods.indexOf("agent.prompt"));
+  });
+
   // The confirmation the #364 job stood on, as a real pane drew it (docs/agent-control.md).
   const removalScreen = [
     "─".repeat(60),
@@ -1083,6 +1134,15 @@ describe("a turn driven over a socket", () => {
 
     return { allow: true } as const;
   };
+
+  test("a plugin offer in the middle of a turn is declined from the screen and never put to the caller", async () => {
+    const asked: string[] = [];
+    const { herdr, turn } = midTurn("offer-mid", offerScreen, allowLater(asked), ["idle"]);
+
+    expect((await turn).outcome).toBe("answered");
+    expect(keysSent(herdr)).toEqual([["down", "down", "down", "enter"]]);
+    expect(asked).toEqual([]);
+  });
 
   test("a confirmation in the middle of a turn is asked once, and a refusal is typed into the pane with its reason", async () => {
     const asked: string[] = [];

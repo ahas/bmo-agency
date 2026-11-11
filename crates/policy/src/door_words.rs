@@ -13,6 +13,7 @@ pub struct Notes {
   pub trust_written: String,
   pub trust_unwritten: String,
   pub trusted_folder: String,
+  pub declined_offer: String,
   pub person_turn: String,
   pub stand_again: String,
   pub untrusted: String,
