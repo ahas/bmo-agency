@@ -756,6 +756,16 @@ async fn admission<C: ConnectionTrait>(
   seats: Vec<Seat>,
   now: i64,
 ) -> Result<(Option<Request>, Vec<Request>), Fault> {
+  // One role's asks are judged one at a time: the role's row is held until this transaction ends, so two asks
+  // woken at once never both read the same agent as free (docs/role-slots.md, 「The line」).
+  run(
+    db,
+    r#"SELECT 1 FROM "roles" WHERE "name" = $1 FOR UPDATE"#,
+    vec![role.name.clone().into()],
+  )
+  .await
+  .map_err(faulted)?;
+
   let Some(held) = request(db, token).await? else { return Ok((None, vec![])) };
 
   if held.state == "active" {

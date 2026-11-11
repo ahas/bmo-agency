@@ -1176,3 +1176,87 @@ async fn an_accounts_runs_take_its_own_agents_and_count_against_its_own_cap() {
     "the account's own seat given back lets its next run in"
   );
 }
+
+// One role's asks are judged one at a time (docs/role-slots.md, 「The line」): two asks woken at once by the one
+// agent freeing never both take it; one is let in and the other waits.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn two_asks_woken_at_once_never_both_take_the_one_free_agent() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = std::sync::Arc::new(seeded(scratch.db(), home.path()).await);
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::seats(scratch.db(), "producer", &[("deepseek", "deepseek-flash")]).await;
+
+  let mut holding = ask(&ground, "producer", "holding").await;
+
+  assert!(admitted(&ground, &holding).await);
+
+  for round in 0..30 {
+    let first = ask(&ground, "producer", &format!("first-{round}")).await;
+    let second = ask(&ground, "producer", &format!("second-{round}")).await;
+
+    assert!(finish(&ground.db, &ground.events, &holding.token, "done", false).await.unwrap());
+
+    // Both woken at once, each judged on a thread of its own.
+    let woken = |held: dispatch::Request| {
+      let ground = ground.clone();
+
+      tokio::spawn(async move {
+        let now = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+        acquire(&ground, &now).await.unwrap().is_some()
+      })
+    };
+    let (one, other) = tokio::join!(woken(first.clone()), woken(second.clone()));
+    let (one, other) = (one.unwrap(), other.unwrap());
+
+    assert!(!(one && other), "round {round}: both asks took the one agent");
+    assert_eq!(agency_server::role_agents::carrying(&ground.db, "producer").await.unwrap().len(), 1);
+
+    let (taken, left) = if one { (first, second) } else { (second, first) };
+
+    assert!(one || other || admitted(&ground, &taken).await, "round {round}: neither was let in");
+    assert!(finish(&ground.db, &ground.events, &left.token, "gone", true).await.unwrap());
+    holding = taken;
+  }
+}
+
+// The judging of an ask waits for its role's row (docs/role-slots.md, 「The line」): while another transaction
+// holds that row the ask is not judged, and it is judged once the row is let go.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_ask_is_judged_only_while_it_holds_its_role() {
+  use sea_orm::TransactionTrait;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = std::sync::Arc::new(seeded(scratch.db(), home.path()).await);
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::seats(scratch.db(), "producer", &[("deepseek", "deepseek-flash")]).await;
+
+  let held = ground.db.begin().await.unwrap();
+
+  store::run(&held, r#"SELECT 1 FROM "roles" WHERE "name" = 'producer' FOR UPDATE"#, vec![])
+    .await
+    .unwrap();
+
+  let asking = {
+    let ground = ground.clone();
+
+    tokio::spawn(async move {
+      let request =
+        enqueue(&ground.db, &ground.events, &asked("producer", "judged"), "job", async |_, _| Ok(()))
+          .await
+          .unwrap();
+
+      acquire(&ground, &request).await.unwrap().is_some()
+    })
+  };
+
+  tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+  assert!(!asking.is_finished(), "the ask was judged while another held its role");
+
+  held.commit().await.unwrap();
+  assert!(asking.await.unwrap(), "let go, the role's free agent takes the ask");
+}

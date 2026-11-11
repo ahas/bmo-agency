@@ -64,6 +64,9 @@ is and which one a run takes is `docs/role-agents.md`.
 - **An ask goes into the slot table before the program launches.** One immediate transaction checks the
   role's active slots plus its reserved ones, who stands ahead of the asker, and whether the run's provider
   has quota (`docs/provider-order.md`, 「When every provider is out」), and grants a lease.
+- **One role's asks are judged one at a time.** The transaction that judges an ask holds its role's row until
+  it ends, so two asks woken at once — a slot freed with several waiting — never both read an agent as free
+  and both take it: the second is judged once the first is written, and finds the agent carrying its run.
 - **Within one role, waiting asks stand in the order they were asked,** by a global increasing sequence, and
   a slot goes to the first of them whose owner is asking now.
   - **An owner asks for its waiting request by asking for its admission,** again and again while it waits
