@@ -75,7 +75,10 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
     .expect("the reader runs");
 
   // A server started for an agent files that agent's items.
-  assert_eq!(names, ["file_item", "stop_job", "assign_worker", "release_worker", "run_job"]);
+  assert_eq!(
+    names,
+    ["file_item", "stop_job", "review_job", "assign_worker", "release_worker", "run_job"]
+  );
 }
 
 #[tokio::test(flavor = "multi_thread")]

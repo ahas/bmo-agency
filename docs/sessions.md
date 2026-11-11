@@ -374,6 +374,10 @@ statements below about either are kept for a rollback to the road a deployment l
   A turn whose runner named a session that a move to another provider, a reset or the judging of the kept
   session has moved off is put to the runner again before anything goes in, since its prompt was composed
   for what that session has read.
+- **A turn a job's review asks for continues the job's own session** (`docs/job-review.md`, 「The turns the
+  review asks for」): the session the job's last turn answered on, named by the job and resumed whatever its
+  agent's `sessions` setting and its cache's age, while its record stands and the road is the one it was opened
+  on.
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
   instructions and the tool declaration at a checkout's head, the platform's harness opening, the role's
   prompt, the worker line's settings, standing rules, report trailer and the graph text it carries, plugin

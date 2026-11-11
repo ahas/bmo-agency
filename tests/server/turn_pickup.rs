@@ -249,7 +249,8 @@ async fn a_job_whose_turn_ended_after_the_restart_ends_with_its_report_and_a_cha
   .unwrap()
   .unwrap();
 
-  assert_eq!(job.try_get::<String>("", "state").unwrap(), "ended");
+  // An answered turn puts the job under its review with its report (docs/job-review.md).
+  assert_eq!(job.try_get::<String>("", "state").unwrap(), "reviewing");
   assert_eq!(job.try_get::<Option<String>>("", "outcome").unwrap(), None);
   assert_eq!(job.try_get::<String>("", "report").unwrap(), "The job's report.");
 
@@ -519,7 +520,7 @@ async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_ba
     .unwrap()
     .unwrap();
 
-  assert_eq!(job.try_get::<String>("", "state").unwrap(), "ended");
+  assert_eq!(job.try_get::<String>("", "state").unwrap(), "reviewing");
 
   let _ = program.kill();
   let _ = program.wait();
@@ -631,7 +632,7 @@ async fn a_job_s_turn_on_a_thrown_away_session_is_adopted_from_its_place_and_its
   );
   assert_eq!(
     job_state(&scratch, 41).await,
-    ("ended".to_owned(), Some("The thrown-away session's report.".to_owned()))
+    ("reviewing".to_owned(), Some("The thrown-away session's report.".to_owned()))
   );
 
   let given = slot_now(&ground, &held.token).await;
@@ -878,7 +879,7 @@ async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends
   );
   assert_eq!(
     job_state(&scratch, 43).await,
-    ("ended".to_owned(), Some("The Claude Code job's report.".to_owned()))
+    ("reviewing".to_owned(), Some("The Claude Code job's report.".to_owned()))
   );
   assert_eq!(slot_now(&ground, &held.token).await.state, "released");
 
@@ -1132,7 +1133,7 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
 
   assert_eq!(
     job_state(&scratch, 78).await,
-    ("ended".to_owned(), Some("The relaunched job's report.".to_owned()))
+    ("reviewing".to_owned(), Some("The relaunched job's report.".to_owned()))
   );
   assert!(!kept_now(&scratch, "job-78").await);
 
@@ -1405,7 +1406,7 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
 
   let (state, report) = job_state(&scratch, 80).await;
 
-  assert_eq!(state, "ended");
+  assert_eq!(state, "reviewing");
   assert!(report.unwrap_or_default().contains("The final report."));
   assert!(!kept_now(&scratch, "job-80").await);
 

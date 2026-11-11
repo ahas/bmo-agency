@@ -115,7 +115,7 @@ impl Route for FileItem {
     let upstream = |why: String| Refused::new(StatusCode::BAD_GATEWAY, why).with_code("upstream-failed");
     let answered = reqwest::Client::new()
       .post(format!("{url}/items"))
-      .bearer_auth(bearer)
+      .bearer_auth(&bearer)
       .json(&item)
       .send()
       .await
@@ -129,11 +129,43 @@ impl Route for FileItem {
       return Err(upstream(format!("the job service refused the item: {said}")));
     }
 
+    let id = body["id"].as_i64().unwrap_or_default();
+    let steps: Vec<&str> =
+      ask.steps.iter().map(|step| step.trim()).filter(|step| !step.is_empty()).collect();
+    // The steps the item's job runs in, saved as its work order (docs/job-review.md, 「Stages」).
+    let work_order_refused = if steps.is_empty() {
+      None
+    } else {
+      let order = json!({
+        "purpose": ask.title,
+        "directive": ask.brief,
+        "steps": steps,
+        "state": "saved",
+      });
+      let saved = reqwest::Client::new()
+        .put(format!("{url}/items/{id}/work-order"))
+        .bearer_auth(&bearer)
+        .json(&order)
+        .send()
+        .await;
+
+      match saved {
+        Ok(saved) if saved.status().is_success() => None,
+        Ok(saved) => {
+          let status = saved.status();
+          let said: Value = saved.json().await.unwrap_or(Value::Null);
+
+          Some(said["error"].as_str().map_or_else(|| status.to_string(), str::to_owned))
+        }
+        Err(why) => Some(why.to_string()),
+      }
+    };
     let filed = ItemFiled {
-      id: body["id"].as_i64().unwrap_or_default(),
+      id,
       state: body["state"].as_str().unwrap_or_default().to_owned(),
       scope: body["scope"].as_str().map(str::to_owned),
       labels: body["labels"].clone(),
+      work_order_refused,
     };
 
     Ok(answer(StatusCode::CREATED, serde_json::to_value(filed).unwrap_or_default()))

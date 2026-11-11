@@ -453,6 +453,7 @@ impl Attempt<String> for OnLogin<'_> {
         parent: None,
         root: None,
         run: None,
+        resume: None,
       },
       &mut Quiet,
     )

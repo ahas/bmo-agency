@@ -1159,12 +1159,13 @@ where the shell stands in an agent's program, else the owner.
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, the repository it names as its `assigneeName`, and `asked-by=owner` where every message of that turn is the owner's. |
 | POST | `/job-stops` | Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's. |
+| POST | `/job-reviews` | Examine a job's report under review, for the turn an agent is carrying now: ask the worker, send the work back, pass the check due, or put the work to the owner. |
 | POST | `/pane-deaths` | A head pane died: every job its worker (`agent`) is running ends failed with the exit `code` and the `last` stderr line as its report. |
 
 The list answers the newest jobs first, `limit` of them (50 where it names none, at most 500), and pages by a
 job's id as the runs' list does: with `before`, the jobs before that id; with `after`, the jobs after it nearest
 to it; `more` says whether more lie beyond the page in the direction it was asked. It narrows by `state`, one
-state or several comma-separated; by `running`, `true` the jobs starting or running and `false` every other;
+state or several comma-separated; by `running`, `true` the jobs starting, running or reviewing and `false` every other;
 by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that repository; by `workerName`,
 the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
@@ -1203,7 +1204,8 @@ A job's `itemId` and `leaseId` are the harness's references, kept as given. The 
 progress, questions and outcome from its fields and events, and reports and closes the item in the job
 service.
 
-- **A running job keeps its item's lease, whoever launched it.** While a job is `starting` or `running`,
+- **A running job keeps its item's lease, whoever launched it.** While a job is `starting`, `running` or
+  `reviewing`,
   agency renews its item's lease in the job service on the harness's behalf on its own clock
   (`policy/job-leases.toml`), so the lease holds however long the job runs and whether or not the harness
   that took it still stands — its session replaced, its plugin restarted, agency itself restarted under the
@@ -1235,7 +1237,12 @@ service.
     until an approver approves it: the owner, or the supervisor itself where the deployment marks the chat's
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
     tells the orderer of each such draft once (`docs/agent-control.md`, 「An item's change is told to its orderer」);
-  - an agent carrying no turn now files no item: 409 `no-turn`.
+  - an agent carrying no turn now files no item: 409 `no-turn`;
+  - `steps`, where it names any, are the stages the item's job runs in (`docs/job-review.md`, 「Stages」):
+    once the item is raised, its work order is saved in the job service with the item's title as its purpose,
+    its brief as its directive and these steps, `saved` (`PUT /items/{itemId}/work-order`); a work order the
+    job service refuses leaves the item raised, and the answer's `workOrderRefused` carries the job service's
+    sentence, null where the work order was saved or no step was named.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
 
@@ -1249,6 +1256,21 @@ service.
   - an item with no job `starting` or `running` is 404 `no-job`, and a job already ended or stopped 409.
   The stop is the one below, and its answer is that stop's.
 
+- **A supervisor examines a job's report,** `POST /job-reviews` (`docs/job-review.md`). A job's turn that
+  ends answered does not end the job: the job stands `reviewing`, its report is written onto the item's review
+  in the job service, and its orderer is told the check due now (`job-review`). The call takes the `agentName`
+  its harness plugin was started for, never one the model names; `jobId`; `action`, one of `ask`, `reject`,
+  `pass` and `escalate`; and `text`, the words the action hands on, required for every action but `pass`.
+  - an agent carrying no turn now acts on nothing: 409 `no-turn`;
+  - a job that is not `reviewing` is 409 `not-reviewing`, and one naming no job 404 `no-job`;
+  - `escalate` while the job's work was sent back fewer times than the review policy's ceiling is 409
+    `escalation-early`, and every action while the owner's question on it waits is 409 `awaits-owner`;
+  - it answers 200 with the job as it stands after the move, its `review` naming where its review stands;
+    a turn the move asks for runs apart from the answer, as a launch does.
+  Every job answers `review`: `stages`, the steps it runs in order, empty for a job of one stage; `stage`, the
+  stage under way counted from 1, or null for the final report; `round`; `check`, the check due now or null
+  while a turn runs; `rejections`; `question`, the owner's question while the work waits on it, else null; and
+  `parked`, whether the job gave its checkout up while that question waited.
 - **A job is stopped by asking its turn to end.** `PATCH /jobs/{jobId}` with `state` `stopped` and
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
@@ -1280,7 +1302,8 @@ service.
 - **A job that is stopped gives its lease back.** A stop — the harness's or the owner's, or the pass below
   ending a job whose process went away — returns the item's lease to the job service as the end is written,
   so the item is open again for a rerun.
-- **A job's end reaches the room.** However a job ends, agency queues the job's report for the item's
+- **A job's end reaches the room.** A job's answered turn ends it only once its review has taken the work
+  (`docs/job-review.md`, 「The job's end」); however a job ends, agency queues the job's report for the item's
   orderer through the receiver's `POST /instructions`: an order under the sort `job` in the orderer's room,
   naming the requester of the item the orderer was found on, and carrying the item, the repository, the role,
   the outcome and the report whole, under the kind `job-ended:<item>` and the event `job-ended:#<item>`; an
@@ -1511,6 +1534,8 @@ tool is a thin call of one route through the agency's own client.
   per repository, each with the same brief and a shared `series=<name>` label.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
+- `review_job` calls `POST /job-reviews` the same way, and is listed beside them on the same terms. Its
+  description names the four actions and that `escalate` is refused before the review policy's ceiling.
 - `assign_worker` calls `POST /assignments`, naming the repository and the role.
 - `release_worker` calls `PATCH /assignments/{assignmentId}` with `state` `released`, giving back a hold the
   harness will not run.

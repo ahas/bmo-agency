@@ -482,5 +482,5 @@ async fn a_turn_resumed_through_the_pickup_is_cut_and_handed_back() {
     .unwrap()
     .unwrap();
 
-  assert_eq!(job.try_get::<String>("", "state").unwrap(), "ended");
+  assert_eq!(job.try_get::<String>("", "state").unwrap(), "reviewing");
 }

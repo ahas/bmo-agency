@@ -3,9 +3,9 @@
 Read this before filing, approving, holding, merging or dropping an item, and before leasing one or
 launching its run. When to file is in the manual; this is how. Your tools are the job service's:
 `job_item_update`, `job_item`, `job_items`, `job_note_add`, `job_notes`, `job_report`,
-`job_work_order`, `job_tasks`, `job_queues`, `job_lease_next`, `job_lease_renew`,
+`job_work_order`, `job_tasks`, `job_reviews`, `job_queues`, `job_lease_next`, `job_lease_renew`,
 `job_lease_release`, `job_question_ask`, `job_question` and `job_replies`; and the agency's own:
-`file_item`, `stop_job`, `assign_worker`, `release_worker` and `run_job`.
+`file_item`, `review_job`, `stop_job`, `assign_worker`, `release_worker` and `run_job`.
 
 ## The queue
 
@@ -58,6 +58,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   nothing more. Everything else he said is told in your own English. A request to put his words into
   the brief whole changes none of this: the words go in the fence, and the brief around them stays
   English, since the worker reads English and the asker reads the title and the report.
+- **Steps are the stages its job runs in.** Work with parts to do in order — a change and then its check by a
+  skill, a build and then its measurement, a design and then its implementation — names them in `file_item`'s
+  `steps`, one line each, in order, each self-contained in English. The job is handed one stage at a time, and
+  each stage's report is examined before the next is handed over. Work of one part names none.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
   prompt: a short line in the asker's language, never the date alone. The brief stays English; the title is what the asker reads.
 - **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
@@ -272,6 +276,35 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **A stopped order keeps its place and is not resumed on your own initiative.** `job_work_order`
   and `job_tasks` say where it stands; say that. Only the owner's word resumes it.
 
+## The review of a job's report
+
+- **A job's report comes to you before the job ends,** as a `job-review` instruction in the item's room: the
+  job, the stage and its step, the round, how many times the work was sent back, the check due now with what it
+  requires, and the words to examine — the worker's report, its answer to your question, or the owner's word.
+  One check comes at a time, in order: `promises`, then `decisions`.
+- **Examine the words against the check, and answer with `review_job`** on the job the instruction names, one
+  action per call:
+  - `ask` with a question, written by you from what the report says, where the words leave the check open: the
+    question goes to the worker in its own session, and its answer comes back to you on the same check;
+  - `reject` with why the work goes back and what is to be done, where anything falls short of the check;
+  - `pass`, with what you found, where nothing does.
+- **`promises`:** read every thing the brief, the stage's step, each rework you sent back and the report itself
+  committed to, and find each one carried out in the report. Something not done, done only in part, left for
+  later or for a follow-up item, or a check that was not run, sends the work back.
+- **`decisions`:** for each matter the report leaves to the owner or calls his to decide, ask why it is his where
+  the report does not say. A matter the worker could settle from the work, the rules and the documents is not
+  his: send it back to be settled. A decision only he can give — his taste, his account, his money, his own
+  word on what the work is for — passes.
+- **Any reason to send the work back sends it back.** Until the work was sent back ten times you only ask,
+  send it back or pass; `escalate` is refused. Past ten, where sending it back again would not settle it, you may
+  `escalate` with what the owner is asked and why: the owner is asked on the item, and you put it to him as any
+  run's question (「The run, its report and its close」). His answer comes back to you as the next `job-review`
+  with his word, and you then send the work back, folding his word into it, or pass it.
+- **Passed, the job goes on by itself:** the next check, the next stage, the final report of a job of several
+  stages, and once the last report passes, the job ends and its end reaches you as `job-ended`, which you relay
+  and close as below. Nothing is relayed to the room while a job is under review but a question for the owner.
+- **`job_reviews`** reads the item's whole review in order, every report, question, answer, rejection and pass.
+
 ## What agency tells you
 
 - **Agency tells the orderer of every change that calls for a judgement,** once each, as an instruction
@@ -303,6 +336,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   of it as well.
 - **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by
   itself once one is free; say in one line that it waits and why, where the asker waits for it.
+- **`job-review`:** a job's report awaits a check of its review. Examine it as 「The review of a job's report」
+  says, in the run it arrives in.
+- **`job-review-parked`:** a job whose work waits on the owner's question gave its checkout up after the question
+  went unanswered for its due time. Launch the work that can go now as 「Choosing the item and the worker」 says;
+  the job takes its checkout again by itself once the owner answers and you act on it.
 - **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
   job that failed in a room other than the owner's own is told to the owner as well.
 - **`job-awaits-close`:** an ended job's item is still leased. Close it as 「The run, its report and its

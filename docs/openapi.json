@@ -3409,6 +3409,65 @@
         }
       }
     },
+    "/job-reviews": {
+      "post": {
+        "operationId": "createJobReviews",
+        "tags": [
+          "assignments-and-jobs"
+        ],
+        "summary": "Examine a job's report under review, for the turn an agent is carrying now: ask the worker, send the work back, pass the check due, or put the work to the owner once it was sent back as often as the review's ceiling.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoTurn"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoJob"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotReviewing"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailed"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "no-turn",
+          "no-job",
+          "not-reviewing",
+          "awaits-owner",
+          "escalation-early",
+          "upstream-failed"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobReviewAsk"
+              }
+            }
+          }
+        }
+      }
+    },
     "/road-blocks": {
       "get": {
         "operationId": "listRoadBlocks",
@@ -10793,13 +10852,22 @@
           },
           "labels": {
             "description": "The item's labels, each a string."
+          },
+          "workOrderRefused": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The job service's sentence where the work order the steps make was refused; null where it was saved or no\nstep was named.",
+            "default": null
           }
         },
         "required": [
           "id",
           "state",
           "scope",
-          "labels"
+          "labels",
+          "workOrderRefused"
         ],
         "description": "ItemFiled: the item as the job service raised it."
       },
@@ -10850,6 +10918,13 @@
               "type": "string"
             },
             "default": {}
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The stages the item's job runs in, in order; written as its work order."
           }
         },
         "required": [
@@ -11153,6 +11228,35 @@
           "reason"
         ],
         "description": "JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
+      },
+      "JobReviewAsk": {
+        "type": "object",
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "action": {
+            "type": "string",
+            "description": "`ask`, `reject`, `pass` or `escalate`."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The words the action hands on; required for every action but `pass`."
+          }
+        },
+        "required": [
+          "agentName",
+          "jobId",
+          "action"
+        ],
+        "description": "JobReviewAsk: a supervisor's move on a job's report under review, for the turn it carries now; the agent is the\none its harness plugin was started for (docs/job-review.md, 「What the orderer may do」)."
       },
       "RoadBlockPage": {
         "type": "object",
@@ -15084,6 +15188,13 @@
             },
             "description": "Labels of the filer's own, each a string.",
             "default": {}
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out\nfor work of one stage."
           }
         },
         "required": [
@@ -15123,6 +15234,32 @@
         ],
         "description": "StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for."
       },
+      "ReviewJob": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The job under review, as its review instruction names it."
+          },
+          "action": {
+            "type": "string",
+            "description": "`ask` puts a question to the worker on the check due; `reject` sends the work back with why and what is to\nbe done; `pass` passes the check due; `escalate` puts the work to the owner, refused until the work was sent\nback as often as the review's ceiling."
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The question, the reason and the rework, what the check found, or what the owner is asked and why."
+          }
+        },
+        "required": [
+          "jobId",
+          "action"
+        ],
+        "description": "ReviewJob: a move on a job's report under review as the supervisor asks it, everything but the agent its\nplugin was started for."
+      },
       "ReleaseWorker": {
         "type": "object",
         "properties": {
@@ -15138,6 +15275,16 @@
       }
     },
     "responses": {
+      "AwaitsOwner": {
+        "description": "awaits-owner",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "BadRequest": {
         "description": "bad-request",
         "content": {
@@ -15170,6 +15317,16 @@
       },
       "DoubleWaitsOnDoubles": {
         "description": "double-waits-on-doubles",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "EscalationEarly": {
+        "description": "escalation-early",
         "content": {
           "application/json": {
             "schema": {
@@ -15300,6 +15457,16 @@
       },
       "NotOwner": {
         "description": "not-owner",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotReviewing": {
+        "description": "not-reviewing",
         "content": {
           "application/json": {
             "schema": {
@@ -15439,6 +15606,17 @@
         "$ref": "#/components/schemas/Job"
       },
       "route": "POST /job-stops"
+    },
+    {
+      "name": "review_job",
+      "description": "Examine a job's report under review, the one a job-review instruction names, on the check due now: ask puts your question to the worker in the job's own session and its answer comes back to you; reject sends the work back with why and what is to be done; pass passes the check; escalate puts the work to the owner, refused until the work was sent back as often as the review's ceiling. Any reason to send the work back sends it back.",
+      "input": {
+        "$ref": "#/components/schemas/ReviewJob"
+      },
+      "output": {
+        "$ref": "#/components/schemas/Job"
+      },
+      "route": "POST /job-reviews"
     },
     {
       "name": "assign_worker",

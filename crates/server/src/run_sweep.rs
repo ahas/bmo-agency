@@ -93,7 +93,7 @@ async fn job_left(ground: &Ground, job: i64, unit: &str) -> Result<bool, Refusal
   let ended = store::one(&ground.db, r#"SELECT "state" FROM "jobs" WHERE "id" = $1"#, vec![job.into()])
     .await?
     .and_then(|row| row.try_get::<String>("", "state").ok())
-    .is_some_and(|state| !matches!(state.as_str(), "starting" | "running"));
+    .is_some_and(|state| !matches!(state.as_str(), "starting" | "running" | "reviewing"));
 
   Ok(ended && !crate::control::work::is_carrying(job) && !crate::turn_pickup::kept(&ground.db, unit).await)
 }

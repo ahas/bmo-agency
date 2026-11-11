@@ -2700,12 +2700,15 @@ impl HerdrSessions {
     } else {
       None
     };
-    let resume = match &key {
-      Some(key) => crate::apart_sessions::take(&ground.db, key, now_ms()).await.unwrap_or_else(|why| {
-        eprintln!("{session}: its kept session could not be read, so it opens a new one: {why:?}");
-        None
-      }),
-      None => None,
+    let resume = match (&apart.resume, &key) {
+      (Some(named), _) => Some(named.clone()),
+      (None, Some(key)) => {
+        crate::apart_sessions::take(&ground.db, key, now_ms()).await.unwrap_or_else(|why| {
+          eprintln!("{session}: its kept session could not be read, so it opens a new one: {why:?}");
+          None
+        })
+      }
+      (None, None) => None,
     };
     let chat_run = composed.run(crate::lines::role::Turned {
       place: place.clone(),

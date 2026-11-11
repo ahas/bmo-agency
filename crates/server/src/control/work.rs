@@ -157,7 +157,8 @@ async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> 
        WHERE a."state" = 'running'
          AND EXISTS (SELECT 1 FROM "jobs" j WHERE j."assignment_id" = a."id")
          AND NOT EXISTS (SELECT 1 FROM "jobs" j
-               WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
+               WHERE j."assignment_id" = a."id"
+                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))"#,
     vec![now.into()],
   )
   .await?;
@@ -169,7 +170,8 @@ async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> 
        WHERE a."state" = 'held'
          AND a."holder_name" LIKE $2
          AND NOT EXISTS (SELECT 1 FROM "jobs" j
-               WHERE $3 || j."id"::text = a."holder_name" AND j."state" IN ('starting', 'running'))"#,
+               WHERE $3 || j."id"::text = a."holder_name"
+                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))"#,
     vec![now.into(), format!("{JOB_HOLDER}%").into(), JOB_HOLDER.into()],
   )
   .await?;
@@ -200,7 +202,7 @@ pub async fn release_held(db: &sea_orm::DatabaseConnection, holder: &str) -> Res
       r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
          WHERE a."state" = 'held' AND a."holder_name" = $2
            AND NOT EXISTS (SELECT 1 FROM "jobs" j
-                 WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
+                 WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running', 'reviewing'))"#,
       vec![now_ms().into(), holder.into()],
     )
     .await?,
@@ -335,7 +337,8 @@ impl Route for CreateAssignment {
       let held = one(
         db,
         r#"SELECT 1 AS "held" WHERE EXISTS (SELECT 1 FROM "assignments" WHERE "worker_name" = $1 AND "state" IN ('held', 'running'))
-             OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running'))"#,
+             OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1
+                   AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")))"#,
         vec![checkout.name.clone().into()],
       )
       .await?;
@@ -501,7 +504,8 @@ crate::moved!(ChangeAssignment);
 const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "role",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
-  "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for", "chosen_by""#;
+  "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for", "chosen_by", "review_stages",
+  "review_stage", "review_round", "review_check", "rejections", "review_question", "review_parked""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
 fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -553,12 +557,13 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
       .unwrap_or_else(|| json!([])),
     "heldFor": row.try_get::<Option<String>>("", "held_for")?,
     "chosenBy": row.try_get::<Option<String>>("", "chosen_by")?,
+    "review": crate::job_review::value(row)?,
     "startedAt": row.try_get::<i64>("", "started_at")?,
     "endedAt": row.try_get::<Option<i64>>("", "ended_at")?,
   }))
 }
 
-async fn job(db: &sea_orm::DatabaseConnection, id: i64) -> Result<(Value, String), Refused> {
+pub(crate) async fn job(db: &sea_orm::DatabaseConnection, id: i64) -> Result<(Value, String), Refused> {
   let sql = format!(r#"SELECT {JOB_COLUMNS} FROM "jobs" WHERE "id" = $1"#);
   let row = one(db, &sql, vec![id.into()]).await?;
 
@@ -969,7 +974,25 @@ fn carrying() -> std::sync::MutexGuard<'static, std::collections::HashSet<i64>> 
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
   carrying().insert(id);
 
-  let ended = launched(&ground, sessions, id).await;
+  let ended = launched(&ground, sessions, id, None).await;
+
+  carrying().remove(&id);
+
+  finish(&ground, id, ended).await;
+}
+
+/// A turn a job's review asks for (docs/job-review.md, 「The turns the review asks for」): carried as the job's
+/// first turn is, in the job's own session where it can be resumed, and its end written as any job turn's end
+/// is, back into the review where it answered.
+pub async fn carry_review_turn(
+  ground: Arc<Ground>,
+  sessions: Option<crate::herdr_backend::Shared>,
+  id: i64,
+  turn: crate::job_review::Turn,
+) {
+  carrying().insert(id);
+
+  let ended = launched(&ground, sessions, id, Some(turn)).await;
 
   carrying().remove(&id);
 
@@ -1014,6 +1037,7 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     (None, Ok(None)) => return,
     (None, Err(why)) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
+
   // What was said into the job's turn while it ran stands in its report, read off its run's own log.
   let report = match crate::words::with_words(&ground.db, id, report.clone()).await {
     Ok(report) => report,
@@ -1023,6 +1047,28 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
       report
     }
   };
+
+  // An answered turn ends no job: its report goes to the job's review (docs/job-review.md).
+  if state == "ended" && outcome.is_none() {
+    crate::job_review::reported(ground, id, report.as_deref().unwrap_or_default(), spent).await;
+
+    return;
+  }
+
+  written_end(ground, id, &state, outcome, report, spent).await;
+}
+
+/// A job's end written: its state, outcome and report, what its last turn spent added to the rest, its slot
+/// given back, its assignment released, and its end delivered to its item's orderer (docs/api.md, 「assignments
+/// and jobs」).
+pub(crate) async fn written_end(
+  ground: &Ground,
+  id: i64,
+  state: &str,
+  outcome: Option<String>,
+  report: Option<String>,
+  spent: Option<Spent>,
+) {
   let now = now_ms();
 
   println!("job {id}: ended {state}, outcome {}", outcome.as_deref().unwrap_or("answered"));
@@ -1033,11 +1079,12 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
 
   if let Err(why) = run(
     &ground.db,
-    r#"UPDATE "jobs" SET "state" = $1, "outcome" = $2, "report" = $3, "token_count" = $4, "ended_at" = $5,
-         "input_tokens" = $7, "output_tokens" = $8, "cache_read_tokens" = $9, "cache_write_tokens" = $10
-       WHERE "id" = $6"#,
+    &format!(
+      r#"UPDATE "jobs" SET "state" = $1, "outcome" = $2, "report" = $3, "ended_at" = $5, {SPENT_ADDED}
+         WHERE "id" = $6"#
+    ),
     vec![
-      state.clone().into(),
+      state.to_owned().into(),
       outcome.clone().into(),
       report.clone().into(),
       spent.as_ref().map_or(0, Spent::total).into(),
@@ -1054,8 +1101,7 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     eprintln!("job {id}: its end was not written: {why}");
   }
 
-  crate::job_end::slot_given_back(&ground.db, &ground.events, id, &ending(&state, outcome.as_deref()))
-    .await;
+  crate::job_end::slot_given_back(&ground.db, &ground.events, id, &ending(state, outcome.as_deref())).await;
 
   if let Ok((member, _)) = job(&ground.db, id).await {
     let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
@@ -1068,6 +1114,16 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
     publish(ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
   }
 }
+
+/// What a job's turn spent added to what its earlier turns spent: `$4` the total, `$7` to `$10` the input,
+/// output, cache-read and cache-write tokens, each figure left as it stood where the turn reported none.
+pub const SPENT_ADDED: &str = r#""token_count" = COALESCE("token_count", 0) + $4,
+  "input_tokens" = CASE WHEN $7::bigint IS NULL THEN "input_tokens" ELSE COALESCE("input_tokens", 0) + $7 END,
+  "output_tokens" = CASE WHEN $8::bigint IS NULL THEN "output_tokens" ELSE COALESCE("output_tokens", 0) + $8 END,
+  "cache_read_tokens" = CASE WHEN $9::bigint IS NULL THEN "cache_read_tokens"
+    ELSE COALESCE("cache_read_tokens", 0) + $9 END,
+  "cache_write_tokens" = CASE WHEN $10::bigint IS NULL THEN "cache_write_tokens"
+    ELSE COALESCE("cache_write_tokens", 0) + $10 END"#;
 
 // The reason a job's end gives its slot back with: its state and, where it names one, its outcome.
 fn ending(state: &str, outcome: Option<&str>) -> String {
@@ -1813,6 +1869,10 @@ struct OnSession<'a> {
   name: &'a str,
   title: &'a str,
   roads: usize,
+  // The session a turn of the job's review continues, where the job's last turn left one.
+  resume: Option<crate::job_review::Resumed>,
+  // The prompt a turn of its review goes out with where that session cannot be continued on the road taken.
+  carried: Option<String>,
 }
 
 impl OnSession<'_> {
@@ -1884,7 +1944,23 @@ impl Carrier for OnSession<'_> {
     let Some(lease) = self.slot(id, taken, &parts).await? else {
       return Err(format!("job {id} was stopped while it waited for a slot of the {} role", self.role));
     };
-    let carried = self.on_session(id, taken, &parts, prompt).await;
+    // A turn of the review continues the job's own session on the road that session stands on; on another road
+    // it opens a new one, carrying the job's prompt and its review so far.
+    let resume = self
+      .resume
+      .as_ref()
+      .filter(|resumed| resumed.on(taken))
+      .map(|resumed| resumed.session.clone());
+    let prompt = match (&resume, &self.carried) {
+      (None, Some(carried)) => carried.as_str(),
+      _ => prompt,
+    };
+    let carried = self.on_session(id, taken, &parts, prompt, resume).await;
+
+    if let Ok(end) = &carried {
+      crate::job_review::session_left(&ground.db, id, taken, end).await;
+    }
+
     let outcome = match &carried {
       Ok(end) => format!("{:?}", end.outcome).to_lowercase(),
       Err(why) => format!("failed: {why}"),
@@ -1907,6 +1983,7 @@ impl OnSession<'_> {
     taken: &Road,
     parts: &WorkParts,
     prompt: &str,
+    resume: Option<String>,
   ) -> Result<TurnEnd, String> {
     let ground = self.ground;
     let member = self.member;
@@ -1920,6 +1997,7 @@ impl OnSession<'_> {
           effort: parts.mapping.effort.clone(),
           cwd: parts.cwd.clone(),
           role: Some(self.role.to_owned()),
+          resume,
           ..Apart::default()
         }),
       })
@@ -2021,6 +2099,7 @@ async fn launched(
   ground: &Ground,
   sessions: Option<crate::herdr_backend::Shared>,
   id: i64,
+  turn: Option<crate::job_review::Turn>,
 ) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
@@ -2037,8 +2116,21 @@ async fn launched(
   };
 
   // The gate picks the reference a job's instruction calls for, and the run carries it in its first
-  // prompt; a job with no instruction stands as it was.
-  let prompt = referenced(ground, member.get("instruction"), &prompt).await;
+  // prompt; a job with no instruction stands as it was. The first prompt closes with what the review opens
+  // with; a turn the review asks for goes out with its own words instead.
+  let (prompt, resume, carried) = match turn {
+    None => {
+      let prompt = referenced(ground, member.get("instruction"), &prompt).await;
+      let opening = crate::job_review::opened(ground, id).await;
+
+      (format!("{prompt}\n\n{opening}"), None, None)
+    }
+    Some(turn) => {
+      let carried = crate::job_review::carried(ground, &member, &prompt, &turn.words).await;
+
+      (turn.words, turn.resume, Some(carried))
+    }
+  };
   let item_agent = item_agent_of_job(ground, id).await;
   let mut carrier = OnSession {
     ground,
@@ -2051,6 +2143,8 @@ async fn launched(
     name: &name,
     title: &title,
     roads: 0,
+    resume,
+    carried,
   };
 
   carry_job(
@@ -2113,7 +2207,7 @@ impl Route for ListJobs {
          WHERE ($1::bigint IS NULL OR "id" > $1) AND ($2::bigint IS NULL OR "id" < $2)
            AND ($3::text IS NULL OR "worker_name" = $3) AND ($4::text IS NULL OR "holder_name" = $4)
            AND ($5::jsonb = '[]'::jsonb OR "state" IN (SELECT jsonb_array_elements_text($5::jsonb)))
-           AND ($6::boolean IS NULL OR ("state" IN ('starting', 'running')) = $6)
+           AND ($6::boolean IS NULL OR ("state" IN ('starting', 'running', 'reviewing')) = $6)
            AND ($7::bigint IS NULL OR "room_id" = $7) AND ($8::bigint IS NULL OR "item_id" = $8)
            AND ($10::jsonb IS NULL OR "worker_name" IN (SELECT jsonb_array_elements_text($10::jsonb)))
            AND ($11::text IS NULL OR "role" = $11)
@@ -2270,7 +2364,7 @@ pub async fn stop_job(
   let (member, _) = job(db, id).await?;
   let state = member["state"].as_str().unwrap_or_default();
 
-  if state != "starting" && state != "running" {
+  if !matches!(state, "starting" | "running" | "reviewing") {
     return Err(Refused::new(StatusCode::CONFLICT, format!("job {id} is {state}")));
   }
 
@@ -2296,7 +2390,7 @@ pub async fn stop_job(
         None => is_carrying(id),
       };
 
-      if !held && !matches!(member["state"].as_str(), Some("starting" | "running")) {
+      if !held && !matches!(member["state"].as_str(), Some("starting" | "running" | "reviewing")) {
         if let Some(name) = &run_name {
           let _ = crate::queue::cancels::take_back(db, name).await;
         }
@@ -2316,7 +2410,7 @@ pub async fn stop_job(
   run(
     db,
     r#"UPDATE "jobs" SET "state" = 'stopped', "outcome" = 'stopped', "report" = $1, "ended_at" = $2
-       WHERE "id" = $3 AND "state" IN ('starting', 'running')"#,
+       WHERE "id" = $3 AND "state" IN ('starting', 'running', 'reviewing')"#,
     vec![reason.into(), now.into(), id.into()],
   )
   .await?;

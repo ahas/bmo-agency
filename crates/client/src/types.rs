@@ -912,6 +912,9 @@ pub struct ItemFilingAsk {
   pub requester_name: Option<String>,
   #[serde(default)]
   pub labels: std::collections::BTreeMap<String, String>,
+  /// The stages the item's job runs in, in order; written as its work order.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub steps: Vec<String>,
 }
 
 /// FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for.
@@ -940,6 +943,10 @@ pub struct FileItem {
   /// Labels of the filer's own, each a string.
   #[serde(default)]
   pub labels: std::collections::BTreeMap<String, String>,
+  /// The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out
+  /// for work of one stage.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub steps: Vec<String>,
 }
 
 /// ItemFiled: the item as the job service raised it.
@@ -952,6 +959,40 @@ pub struct ItemFiled {
   pub scope: Option<String>,
   /// The item's labels, each a string.
   pub labels: Value,
+  /// The job service's sentence where the work order the steps make was refused; null where it was saved or no
+  /// step was named.
+  #[serde(default)]
+  pub work_order_refused: Option<String>,
+}
+
+/// JobReviewAsk: a supervisor's move on a job's report under review, for the turn it carries now; the agent is the
+/// one its harness plugin was started for (docs/job-review.md, 「What the orderer may do」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobReviewAsk {
+  pub agent_name: String,
+  pub job_id: i64,
+  /// `ask`, `reject`, `pass` or `escalate`.
+  pub action: String,
+  /// The words the action hands on; required for every action but `pass`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub text: Option<String>,
+}
+
+/// ReviewJob: a move on a job's report under review as the supervisor asks it, everything but the agent its
+/// plugin was started for.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewJob {
+  /// The job under review, as its review instruction names it.
+  pub job_id: i64,
+  /// `ask` puts a question to the worker on the check due; `reject` sends the work back with why and what is to
+  /// be done; `pass` passes the check due; `escalate` puts the work to the owner, refused until the work was sent
+  /// back as often as the review's ceiling.
+  pub action: String,
+  /// The question, the reason and the rework, what the check found, or what the owner is asked and why.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub text: Option<String>,
 }
 
 /// JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the

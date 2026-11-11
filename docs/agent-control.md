@@ -2943,6 +2943,8 @@ with the session.
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
+| A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes | `job-review:<item>`, `job-review:#<item>` |
+| A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |
 | A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner | owner notice, beside the orderer's instruction | code `job-failed` |
 | An ended job's item still leased at the lease pass after the one that first found it so | the orderer | instruction, from the lease pass | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |

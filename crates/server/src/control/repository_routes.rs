@@ -29,7 +29,7 @@ fn not_found(name: &str) -> Refused {
 async fn holder(ground: &Ground, checkout: &str) -> Result<Option<Value>, Refused> {
   let rows = all(
     &ground.db,
-    r#"SELECT "id", "item_id", "role" FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running')
+    r#"SELECT "id", "item_id", "role" FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running', 'reviewing')
        ORDER BY "id" DESC LIMIT 1"#,
     vec![checkout.into()],
   )

@@ -67,6 +67,7 @@ mod m20261206_000001_agent_wanted;
 mod m20261207_000001_arbiter_model;
 mod m20261208_000001_arbiter_model_gone;
 mod m20261209_000001_account_seats;
+mod m20261210_000001_job_review;
 
 use sea_orm_migration::prelude::*;
 
@@ -217,6 +218,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261207_000001_arbiter_model::Migration),
       Box::new(m20261208_000001_arbiter_model_gone::Migration),
       Box::new(m20261209_000001_account_seats::Migration),
+      Box::new(m20261210_000001_job_review::Migration),
     ]
   }
 

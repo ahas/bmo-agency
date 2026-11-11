@@ -56,7 +56,7 @@ pub async fn pass(
   let rows = all(
     db,
     r#"SELECT "id", "item_id", "lease_id", "holder_name", "worker_name", "state" FROM "jobs"
-       WHERE "state" IN ('starting', 'running') OR ("state" = 'ended' AND "lease_kept") ORDER BY "id""#,
+       WHERE "state" IN ('starting', 'running', 'reviewing') OR ("state" = 'ended' AND "lease_kept") ORDER BY "id""#,
     vec![],
   )
   .await?;

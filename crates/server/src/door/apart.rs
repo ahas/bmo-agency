@@ -58,6 +58,9 @@ pub struct Apart<'a> {
   /// work turn kept in flight under its run (docs/sessions.md, 「A restart hands the session over」); the
   /// line and the session name it otherwise.
   pub run: Option<String>,
+  /// The harness session the caller names for the run to continue, resumed while its record stands in place of
+  /// the one its role keeps.
+  pub resume: Option<String>,
 }
 
 /// A new session for a run, which a later run resumes only where the run's role keeps sessions.
@@ -126,7 +129,12 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     None
   };
 
-  if let Some(key) = &kept {
+  let named = apart.resume.clone().filter(|named| record_of(ground, &apart.command, named).is_file());
+
+  if let Some(named) = named {
+    apart.command.args = resumed_command(&apart.command.args, &named);
+    apart.session = named;
+  } else if let Some(key) = &kept {
     match apart_sessions::take(&ground.db, key, now_ms()).await {
       Ok(Some(held)) if record_of(ground, &apart.command, &held).is_file() => {
         apart.command.args = resumed_command(&apart.command.args, &held);
@@ -260,6 +268,7 @@ pub async fn ping(ground: &Ground, warm: &crate::keepalive::agents::Warm) -> boo
     parent: parent.clone(),
     root: root.clone(),
     run: None,
+    resume: None,
   };
   let answered = matches!(run_on(ground, herdr, ping, &mut Quiet).await, Ok(Ending::Answered { .. }));
   let given = match answered {
@@ -354,6 +363,7 @@ impl Folding<'_> {
       parent: self.parent,
       root: self.root,
       run: None,
+      resume: None,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
     let compacted = compacted_since(&tail.look(), from);

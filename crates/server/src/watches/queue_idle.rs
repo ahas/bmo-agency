@@ -465,19 +465,23 @@ async fn setting_number(db: &DatabaseConnection, key: &str) -> Result<Option<i64
 /// items split by whether their queue gives a lease.
 pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, Refusal> {
   // An item a job of agency's is still at work on waits on nothing, its lease run out or not.
-  let working: Vec<i64> =
-    all(db, r#"SELECT "item_id" FROM "jobs" WHERE "state" IN ('starting', 'running')"#, vec![])
-      .await?
-      .iter()
-      .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
-      .collect();
+  let working: Vec<i64> = all(
+    db,
+    r#"SELECT "item_id" FROM "jobs" WHERE "state" IN ('starting', 'running', 'reviewing')"#,
+    vec![],
+  )
+  .await?
+  .iter()
+  .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
+  .collect();
   let (paused, open): (Vec<Open>, Vec<Open>) = open
     .into_iter()
     .filter(|item| !working.contains(&item.id))
     .partition(|item| item.paused);
   let busy: Vec<String> = all(
     db,
-    r#"SELECT DISTINCT "worker_name" FROM "jobs" WHERE "state" IN ('starting', 'running')"#,
+    r#"SELECT DISTINCT "worker_name" FROM "jobs"
+       WHERE "state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")"#,
     vec![],
   )
   .await?

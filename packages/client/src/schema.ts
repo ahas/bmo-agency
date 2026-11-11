@@ -809,6 +809,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Examine a job's report under review, for the turn an agent is carrying now: ask the worker, send the work back, pass the check due, or put the work to the owner once it was sent back as often as the review's ceiling. */
+        post: operations["createJobReviews"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/road-blocks": {
         parameters: {
             query?: never;
@@ -2986,6 +3003,12 @@ export interface components {
             scope: string | null;
             /** @description The item's labels, each a string. */
             labels: unknown;
+            /**
+             * @description The job service's sentence where the work order the steps make was refused; null where it was saved or no
+             *     step was named.
+             * @default null
+             */
+            workOrderRefused: string | null;
         };
         /**
          * @description ItemFilingAsk: an item a supervisor files for the turn it carries now; the agent is the one its harness
@@ -3006,6 +3029,8 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+            /** @description The stages the item's job runs in, in order; written as its work order. */
+            steps?: string[];
         };
         /** @description Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome. */
         Job: {
@@ -3125,6 +3150,19 @@ export interface components {
             /** Format: int64 */
             itemId?: number | null;
             reason: string;
+        };
+        /**
+         * @description JobReviewAsk: a supervisor's move on a job's report under review, for the turn it carries now; the agent is the
+         *     one its harness plugin was started for (docs/job-review.md, 「What the orderer may do」).
+         */
+        JobReviewAsk: {
+            agentName: string;
+            /** Format: int64 */
+            jobId: number;
+            /** @description `ask`, `reject`, `pass` or `escalate`. */
+            action: string;
+            /** @description The words the action hands on; required for every action but `pass`. */
+            text?: string | null;
         };
         /** @description RoadBlockPage: */
         RoadBlockPage: {
@@ -4399,6 +4437,11 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+            /**
+             * @description The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out
+             *     for work of one stage.
+             */
+            steps?: string[];
         };
         /** @description StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for. */
         StopJob: {
@@ -4415,6 +4458,25 @@ export interface components {
             /** @description Why, in a short line: the job's report. */
             reason: string;
         };
+        /**
+         * @description ReviewJob: a move on a job's report under review as the supervisor asks it, everything but the agent its
+         *     plugin was started for.
+         */
+        ReviewJob: {
+            /**
+             * Format: int64
+             * @description The job under review, as its review instruction names it.
+             */
+            jobId: number;
+            /**
+             * @description `ask` puts a question to the worker on the check due; `reject` sends the work back with why and what is to
+             *     be done; `pass` passes the check due; `escalate` puts the work to the owner, refused until the work was sent
+             *     back as often as the review's ceiling.
+             */
+            action: string;
+            /** @description The question, the reason and the rework, what the check found, or what the owner is asked and why. */
+            text?: string | null;
+        };
         /** @description The body that releases an assignment the harness will not run. */
         ReleaseWorker: {
             /** Format: int64 */
@@ -4422,6 +4484,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description awaits-owner */
+        AwaitsOwner: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description bad-request */
         BadRequest: {
             headers: {
@@ -4451,6 +4522,15 @@ export interface components {
         };
         /** @description double-waits-on-doubles */
         DoubleWaitsOnDoubles: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description escalation-early */
+        EscalationEarly: {
             headers: {
                 [name: string]: unknown;
             };
@@ -4568,6 +4648,15 @@ export interface components {
         };
         /** @description not-owner */
         NotOwner: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-reviewing */
+        NotReviewing: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6460,6 +6549,36 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NoJob"];
             409: components["responses"]["NoTurn"];
+        };
+    };
+    createJobReviews: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobReviewAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NoJob"];
+            409: components["responses"]["NoTurn"];
+            422: components["responses"]["NotReviewing"];
+            502: components["responses"]["UpstreamFailed"];
         };
     };
     listRoadBlocks: {

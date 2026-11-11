@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use bmo_agency_client::{
   AgencyClient, Answer, ApiError, AssignWorker, Assignment, AssignmentChange, AssignmentState,
-  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobStopAsk, ReleaseWorker, RunJob, STOP_JOB,
-  StopJob,
+  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobStopAsk, REVIEW_JOB,
+  ReleaseWorker, ReviewJob, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -133,6 +133,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
 
   if let Some(agent) = agent.map(str::to_owned) {
     let stopper = agent.clone();
+    let reviewer = agent.clone();
 
     tools.push(tool::<FileItem, ItemFiled, _, _>(
       "file_item",
@@ -149,6 +150,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
           assignee_name: item.assignee_name,
           requester_name: item.requester_name,
           labels: item.labels,
+          steps: item.steps,
         };
 
         async move { client.create_item_filings(&ask).await }
@@ -168,6 +170,22 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
         };
 
         async move { client.create_job_stops(&ask).await }
+      },
+    ));
+
+    tools.push(tool::<ReviewJob, Job, _, _>(
+      "review_job",
+      REVIEW_JOB,
+      "POST /job-reviews",
+      move |client, review: ReviewJob| {
+        let ask = JobReviewAsk {
+          agent_name: reviewer.clone(),
+          job_id: review.job_id,
+          action: review.action,
+          text: review.text,
+        };
+
+        async move { client.create_job_reviews(&ask).await }
       },
     ));
   }

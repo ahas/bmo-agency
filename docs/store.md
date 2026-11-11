@@ -97,7 +97,9 @@ seeds. The other crates and the server reach the store only through it.
     holder, the repository, the role it runs as and its state — and `jobs`, one row the item's run — the
     item and lease the harness named, the assignment, the repository, the role, the agent its item named where
     it named one, the checkout, the session and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
-    reason it waits where no road can answer, its state, outcome and report, whether its ended job's
+    reason it waits where no road can answer, its state, outcome and report, where its review stands — its
+    stages, the stage, round and check under way, its rejections, the owner's question its work waits on and
+    whether it gave its checkout up meanwhile (`docs/job-review.md`) —, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);

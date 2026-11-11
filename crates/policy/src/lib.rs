@@ -19,6 +19,7 @@ pub mod handoff;
 pub mod job_leases;
 pub mod job_notices;
 pub mod job_prompt;
+pub mod job_review;
 pub mod keepalive;
 pub mod machine_room;
 pub mod model_catalogue;

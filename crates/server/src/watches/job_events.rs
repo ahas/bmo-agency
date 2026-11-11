@@ -82,7 +82,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     };
 
     for event in &events {
-      if telling && let Err(why) = told(db, &service, &receiver, event).await {
+      if telling && let Err(why) = told(db, vars, &service, &receiver, event).await {
         eprintln!("queue: event {} was not told: {why}", event["id"]);
       }
     }
@@ -115,6 +115,7 @@ async fn by_orderer(db: &DatabaseConnection, by: &str, orderer: &Orderer) -> boo
 // One event told to whom it calls for.
 async fn told(
   db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
   service: &JobService,
   receiver: &Receiver,
   event: &Value,
@@ -169,6 +170,10 @@ async fn told(
       println!("queue: question #{id} told to its orderer");
     }
     "question.due" => {
+      if let Some(question) = data["id"].as_i64() {
+        crate::job_review::question_due(db, vars, question).await;
+      }
+
       receiver.notify_owner(&job_notices::question_due(data)).await?;
       println!("queue: question #{} past its due time, told to the owner", data["id"]);
     }
@@ -178,6 +183,8 @@ async fn told(
         return Ok(());
       };
       let key = format!("{QUESTION_TOLD_PREFIX}{question}");
+
+      crate::job_review::ruled(db, vars, data).await;
 
       if let Some(instruction) = settings::get(db, &key)
         .await

@@ -709,6 +709,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["job-stops"]).json(body)).await
   }
 
+  /// `POST /job-reviews`: Examine a job's report under review, for the turn an agent is carrying now.
+  pub async fn create_job_reviews(&self, body: &JobReviewAsk) -> Answer<Job> {
+    Self::answered(self.request(Method::POST, &["job-reviews"]).json(body)).await
+  }
+
   /// `GET /road-blocks`: Roads blocked now, by model or worker; none means open.
   pub async fn list_road_blocks(&self, query: &ListRoadBlocksQuery) -> Answer<RoadBlockPage> {
     Self::answered(self.request(Method::GET, &["road-blocks"]).query(query)).await

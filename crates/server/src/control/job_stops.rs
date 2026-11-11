@@ -62,7 +62,7 @@ impl Route for StopJob {
 async fn running_job_of(db: &sea_orm::DatabaseConnection, item: i64) -> Result<i64, Refused> {
   let row = one(
     db,
-    r#"SELECT "id" FROM "jobs" WHERE "item_id" = $1 AND "state" IN ('starting', 'running')
+    r#"SELECT "id" FROM "jobs" WHERE "item_id" = $1 AND "state" IN ('starting', 'running', 'reviewing')
        ORDER BY "id" DESC LIMIT 1"#,
     vec![item.into()],
   )

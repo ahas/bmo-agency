@@ -23,6 +23,7 @@ fn ask(labels: &[(&str, &str)]) -> ItemFilingAsk {
     assignee_name: Some("helper".to_owned()),
     requester_name: Some("a member".to_owned()),
     labels: labels.iter().map(|(key, value)| ((*key).to_owned(), (*value).to_owned())).collect(),
+    steps: vec![],
   }
 }
 

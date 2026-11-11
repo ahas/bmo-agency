@@ -17,8 +17,11 @@ pub struct Tool {
 /// What `stop_job` does, as its server and the document both say it.
 pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is asked to end first, and the answer is the job once its turn has ended, stopped, however long that takes.";
 
+/// What `review_job` does, as its server and the document both say it.
+pub const REVIEW_JOB: &str = "Examine a job's report under review, the one a job-review instruction names, on the check due now: ask puts your question to the worker in the job's own session and its answer comes back to you; reject sends the work back with why and what is to be done; pass passes the check; escalate puts the work to the owner, refused until the work was sent back as often as the review's ceiling. Any reason to send the work back sends it back.";
+
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 5] = [
+pub const TOOLS: [Tool; 6] = [
   Tool {
     name: "file_item",
     description: "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
@@ -32,6 +35,13 @@ pub const TOOLS: [Tool; 5] = [
     input: "StopJob",
     output: "Job",
     route: "POST /job-stops",
+  },
+  Tool {
+    name: "review_job",
+    description: REVIEW_JOB,
+    input: "ReviewJob",
+    output: "Job",
+    route: "POST /job-reviews",
   },
   Tool {
     name: "assign_worker",
