@@ -477,7 +477,10 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   role's, and its `labels` name the supervisor as `doubleOf`; the supervisor is the turn's agent; and its
   program is handed the supervisor's chat servers beside its line's, on its line's own words on every road
   (`docs/launch-lines.md`, 「What a line's program is allowed, by road」). The turn's room, road, privilege and messages are the turn's own `variables`
-  (`BMO_TURN_CHAT`, `BMO_TURN_VIA`, `BMO_TURN_PRIVILEGED`, `BMO_TURN_MESSAGES`).
+  (`BMO_TURN_CHAT`, `BMO_TURN_VIA`, `BMO_TURN_PRIVILEGED`, `BMO_TURN_MESSAGES`). While a turn naming its room
+  runs, the supervisor carries that room's turn, privileged as `BMO_TURN_PRIVILEGED` says, so an item filed, a
+  job stopped and a job's review acted on through the double are the supervisor's in that turn, as they would be
+  in its own.
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 

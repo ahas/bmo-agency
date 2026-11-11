@@ -2389,6 +2389,19 @@ impl HerdrSessions {
       );
     }
 
+    // A supervisor's double acts as the supervisor, so the room turn its own names is the supervisor's while
+    // it runs (docs/api.md, 「sessions」).
+    let doubled = match (&scope, work) {
+      (Scope::Apart(apart), Some(work)) => {
+        crate::turn_marks::doubled(apart.supervisor.as_deref(), &work.variables)
+      }
+      _ => None,
+    };
+
+    if let Some((supervisor, mark)) = &doubled {
+      crate::turn_marks::carrying(supervisor, &run, *mark);
+    }
+
     self.ground().events.publish(TurnStarted {
       session: turn.session.0.clone(),
       run: run.clone(),
@@ -2458,6 +2471,10 @@ impl HerdrSessions {
 
     self.ended(&turn.session, &run);
     crate::turn_marks::ended(&agent, &run);
+
+    if let Some((supervisor, _)) = &doubled {
+      crate::turn_marks::ended(supervisor, &run);
+    }
     crate::turn_pickup::forget(&self.ground().db, &run, "its end reached its caller").await;
 
     // A replacement this turn found owed is made now that the turn has ended, apart from the answer going

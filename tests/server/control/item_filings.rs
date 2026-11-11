@@ -148,6 +148,30 @@ fn a_turn_s_mark_stands_until_that_turn_ends_and_a_newer_one_stands_past_an_olde
   assert_eq!(turn_marks::of("marked-agent"), None);
 }
 
+// A supervisor's double carries the supervisor's room turn: the room and privilege its own turn names
+// (docs/api.md, 「sessions」); a run that doubles no one, or names no room, carries none for anyone.
+#[test]
+fn a_double_s_turn_is_its_supervisor_s_room_turn() {
+  let variables: std::collections::BTreeMap<String, String> =
+    [("BMO_TURN_CHAT", "-7"), ("BMO_TURN_PRIVILEGED", "1")]
+      .into_iter()
+      .map(|(k, v)| (k.into(), v.into()))
+      .collect();
+
+  assert_eq!(
+    turn_marks::doubled(Some("agent-a"), &variables),
+    Some((
+      "agent-a".to_owned(),
+      Mark {
+        chat_id: -7,
+        privileged: true
+      }
+    ))
+  );
+  assert_eq!(turn_marks::doubled(None, &variables), None);
+  assert_eq!(turn_marks::doubled(Some("agent-a"), &Default::default()), None);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_carrying_no_turn_files_no_item() {
   let scratch = Scratch::new().await;
