@@ -2,7 +2,7 @@
 # agent-host, pane-head and node-link, with the store beneath agent-host. A node's setup copies these
 # crates, each to the path it holds in the repository, and this file, as Cargo.toml, into a directory of
 # their own beside its copy of the code, with the repository's Cargo.lock, so a node builds these crates
-# alone and nothing of the server's. The version, each dependency and each member are the root
+# alone and nothing of the server's. The package fields, each dependency and each member are the root
 # workspace's own, which a test holds this file to.
 
 [workspace]
@@ -17,6 +17,7 @@ members = [
 [workspace.package]
 version = "0.1.0-rev.81"
 edition = "2024"
+license = "MIT"
 
 [workspace.dependencies]
 base64 = "0.22.1"

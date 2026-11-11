@@ -510,16 +510,11 @@ impl Ground {
         ("HOME".to_owned(), node_home.clone()),
         (
           "PATH".to_owned(),
-          [
-            format!("{node_home}/.bun/bin"),
-            format!("{node_home}/.local/bin"),
-            format!("{node_home}/.cargo/bin"),
-            at(&node_root.join("deploy").join("bin")),
-            "/usr/local/bin".into(),
-            "/usr/bin".into(),
-            "/bin".into(),
-          ]
-          .join(":"),
+          links::path_head(&node_home, &at(&node_root))
+            .into_iter()
+            .chain(["/usr/local/bin", "/usr/bin", "/bin"].map(str::to_owned))
+            .collect::<Vec<_>>()
+            .join(":"),
         ),
         ("LANG".to_owned(), self.vars.get("LANG").cloned().unwrap_or_else(|| "C.UTF-8".into())),
         ("BMO_DATA_DIR".to_owned(), at(&node_root.join("data"))),

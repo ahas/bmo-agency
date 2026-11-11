@@ -20,6 +20,39 @@ desktop coding agent whose models and tools are served from elsewhere.
   node (「The workplace on a node」 in `docs/work-nodes.md`).
 - **jake, installed by the invitation,** and nothing else installed by hand: agency lays the workplace down through
   jake — the tools, herdr, the programs and the data root — as setup lays one down on an SSH node.
+- **A user manager of its own that runs while nobody is logged in:** systemd in the Linux shell, with lingering on
+  for the person's account, since every long step and the far end run as units of it.
+- **jake's agent offering the link's ports:** the far end's mirror and herdr ports among its stream ports, and the
+  tool host's port and the far end's bridge port among its listen ports. The far end's three ports are agency's
+  policy (`policy/person-nodes.toml`); the tool host's is the deployment's.
+
+## The workplace on a PC
+
+`bmo-agency node work setup <node> --install`, `check` and `sync` stand, read and bring up a PC's workplace with
+the steps an SSH node's take (`docs/work-nodes.md`, 「The workplace on a node」), through the hub the node service
+names for the node: its control address, the file its control token is kept in, and the agent's name.
+
+- **Each command of the setup is a transient unit of the person's own:** a command through the hub writes the step
+  into a script under the PC's cache directory and starts it with the user manager, and further commands watch it
+  until it ends, each well inside the hub's ceiling of time on one command, then read back what it wrote and the
+  code it ended with. So no step is cut by that ceiling, however long a cold build takes, and a step outlives the
+  jake agent restarting: its watch is asked again, for a couple of minutes, until the agent attaches again. A
+  program a step starts apart outlives the step's unit, as it outlives an SSH session.
+- **The commands run in the shell the agent offers for Linux:** its own where it runs inside the Linux shell, WSL's
+  where it runs on Windows.
+- **The copy goes through the hub's uploads:** the same files an SSH copy sends are gathered here into a mirror
+  under the node's directory, packed into one archive, uploaded with its length and checksum declared, and laid over
+  the PC's copy there with the same files left out, so what is built or installed on the PC stays. A PC without
+  herdr is given this machine's the same way.
+- **A PC is not saved as a machine of this herdr,** which reaches a machine over SSH alone; its herdr session is
+  reached through the link.
+- **The far end stands as a user service, `bmo-node-link`,** written by the setup into the person's user units and
+  enabled, and started again after every copy so it runs the binary just built: the link's serve program on the
+  workplace's root, listening at the PC's loopback on the mirror port and the herdr port, joining the bridge socket
+  to the bridge port, and keeping the herdr session and the agent host standing. Stopping it stops the far end
+  alone; the herdr session and the agent host it started stay, so a restart ends no agent.
+- **What the hub's agent does not offer is said** with the rest of what is missing: a mirror or herdr port not among
+  its stream ports, the tool host's or the bridge port not among its listen ports, or no Linux shell.
 
 ## The link over jake
 
@@ -49,7 +82,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 |---|---|---|
 | jake: streams back | the hub's listens by agent and port, refused for a target outside `JAKE_REVERSE_TARGETS`; the agent's listens at its loopback on `JAKE_LISTEN_PORTS`; each accepted connection carried to its target | — |
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | no spec names a PC yet: the spec writer writes SSH specs alone |
-| the workplace on a PC | — | the deploy tree's commit sent to the PC through jake's uploads and laid out there; the node binaries built on the PC, each long step a transient unit of the person's own watched until it ends, since a jake command has a ceiling of time; the PC's data root and herdr session; the far end standing as a service of the person's own on the mirror, herdr and bridge ports |
+| the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | — | the spec writer writing a jake spec for a person's node; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node is not attached |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set | an account bound to it whose BMO opens a session there and answers |
 

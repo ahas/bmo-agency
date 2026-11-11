@@ -16,7 +16,8 @@ side of a remote agent, the rotation, and what a dropped node does.
   held under the runtime directory: a node may refuse a run of logins made in quick succession, as a
   firewall limiting SSH does. Each command runs there until it ends, however long a cold build takes:
   the shared connection holds a command's output for as long as it runs, and the command's end there, or
-  the connection breaking, is what ends the wait here. No clock cuts a step.
+  the connection breaking, is what ends the wait here. No clock cuts a step. A person's PC, which has no
+  SSH route, is reached through its hub instead (`docs/person-nodes.md`, 「The workplace on a PC」).
 - **What setup makes, each step checked before the next, and everything still missing said:**
   1. the login, and the node's home read through it;
   2. the tools: git, rsync and curl are the machine's to have; the JavaScript runtime, the Rust
@@ -24,7 +25,10 @@ side of a remote agent, the rotation, and what a dropped node does.
      fetched into a file and run with nothing on its standing input, and waited on until it exits;
      where Claude Code's own install step ended without putting the binary in place, the binary it
      fetched is put there from its downloads. The runtime is the version this
-     machine runs, since a newer one may refuse the repository's own configuration, and the Rust
+     machine runs, since a newer one may refuse the repository's own configuration: where the account
+     has none or another version, that version is installed into the workplace's own `<root>/bun`, which
+     every command and program of the workplace finds ahead of the account's, so the account's own
+     runtime and its shell files stay as they were. The Rust
      toolchain is this machine's version, installed beside the account's own and named for the node's
      build alone, so the account's default stays as it was;
   3. the processor: the runtime, and Claude Code built on it, need one with the vector extensions
@@ -32,13 +36,13 @@ side of a remote agent, the rotation, and what a dropped node does.
      processor type — is said not ready, as is one where the runtime is installed and still does not
      run;
   4. the code: the deploy tree's commit copied to `<root>/deploy` — its installs, build output, logs,
-     env files and the data root left out — installed there, and the node's own host, pane and link
-     binaries built there, since this machine's binaries are linked against a newer C library than a
-     node may have. They are built in a workspace of their own under `<root>/build`, the crates they are
+     env files and the data root left out — its Bun workspace under `packages/` installed there, and the
+     node's own host, pane and link binaries built there, since this machine's binaries are linked
+     against a newer C library than a node may have. They are built in a workspace of their own under `<root>/build`, the crates they are
      made of (the agent host, the store beneath it, the pane head and the node link) each at the path it
      holds in the repository, with the node link's node build manifest and the repository's lockfile,
-     so a node builds those crates alone and nothing of the server's; the manifest's members and
-     dependencies are the repository workspace's own, which a test holds it to. The testbed binary a
+     so a node builds those crates alone and nothing of the server's; the manifest's members, package
+     fields and dependencies are the repository workspace's own, which a test holds it to. The testbed binary a
      node runs is the testbed unit's, not one agency builds; a build ends the agent host standing on the
      old binary;
   5. the node's data root, `<root>/data`, which holds the node's agent places and nothing of the
@@ -67,10 +71,10 @@ side of a remote agent, the rotation, and what a dropped node does.
     and its runs stand on this machine alone.
 - **The row says what is missing,** one thing per line, and a node with anything missing is not ready:
   nothing is launched or run on it.
-- **The node's copy follows the deployment.** The setup writes down the deployed commit it copied.
-  Where the deployed commit has moved past it, the process keeping the links (「The link」 below) starts
-  a sync of its own as a unit; a sync stops the node's link, which that process stands again on the
-  new code.
+- **The node's copy follows the deployment.** The setup writes down the deployed commit it copied, as
+  the deployment's record beside the deploy tree's link names it. Where the deployed commit has moved
+  past it, the process keeping the links (「The link」 below) starts a sync of its own as a unit; a sync
+  stops the node's link, which that process stands again on the new code.
 
 ## Which nodes take jobs
 

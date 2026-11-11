@@ -5,7 +5,7 @@
 
 use futures_util::future::BoxFuture;
 
-use crate::watches::links::node_path;
+use crate::watches::links::{node_path, path_head};
 
 /// A word as a POSIX shell reads it back as itself.
 pub fn shell_word(word: &str) -> String {
@@ -60,8 +60,6 @@ pub struct SetupPlace<'a> {
   pub logins: Vec<SetupLogin>,
   /// A path of this machine as the node reads it, once its home and the workplace's root are known.
   pub to_node: &'a (dyn Fn(&str, &str, &str) -> String + Sync),
-  /// The destination of the copy of the tree.
-  pub destination: String,
   /// This machine's herdr, which a node without one is given.
   pub herdr: Option<String>,
   /// This machine's Rust version, which the node's build takes.
@@ -71,14 +69,30 @@ pub struct SetupPlace<'a> {
   pub bun: Option<String>,
   /// The herdr session the node's agents stand in, apart from any session a person keeps there.
   pub session: String,
+  /// Where the link's far end stands on the node as a service of the account's own, listening at the node's
+  /// loopback, rather than being started by the link's own connection: a person's PC (docs/person-nodes.md).
+  pub far_end: Option<FarEnd>,
 }
+
+/// The ports a far end standing as a service listens on at the node's loopback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FarEnd {
+  pub mirror_port: u16,
+  pub herdr_port: u16,
+  pub bridge_port: u16,
+}
+
+/// The user service the link's far end stands as on a node that keeps it standing itself.
+pub const FAR_END_UNIT: &str = "bmo-node-link.service";
 
 /// What each step may do beyond reading: install a missing tool, copy the code, build, clone.
 pub trait SetupHands: Sync {
   fn install(&self) -> bool;
   /// Whether the code is copied and built, or only found there: a check reads, a setup and a sync write.
   fn copy_code(&self) -> bool;
+  /// A file or a tree of this machine, the tree's path ending in a slash, written at a path of the node.
   fn copy<'a>(&'a self, from: &'a str, to: &'a str) -> BoxFuture<'a, (bool, String)>;
+  /// The node saved as a machine of this herdr, or nothing done where herdr does not reach it.
   fn add_machine(&self) -> BoxFuture<'_, (bool, String)>;
   fn say(&self, line: &str);
 }
@@ -112,12 +126,18 @@ pub const COPY_LEFT_OUT: [&str; 10] = [
   "*.log",
 ];
 
+/// Where the deploy tree's Bun workspace stands, which a node installs from its own lockfile.
+pub const BUN_WORKSPACE: &str = "packages";
+
 // The binaries a node builds for itself.
 const NODE_BINARIES: [&str; 3] = ["pane-head", "agent-host", "node-link"];
 
-// The search path every command of the setup runs with, the tools installed into the account first.
-fn with_path(command: &str) -> String {
-  format!(r#"export PATH="$HOME/.bun/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; {command}"#)
+// The search path every command of the setup runs with.
+fn with_path(root: &str, command: &str) -> String {
+  format!(
+    r#"export PATH={}:"$HOME/.bun/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"; {command}"#,
+    shell_word(&join(root, "bun/bin"))
+  )
 }
 
 // An installer fetched into a file and run from it with nothing on its standing input: run as `curl … |
@@ -157,7 +177,17 @@ struct Tool {
   version: Option<(&'static str, String)>,
 }
 
-fn tools(bun: Option<&str>) -> Vec<Tool> {
+fn tools(bun: Option<&str>, root: &str) -> Vec<Tool> {
+  // The runtime of this machine's version, installed into the workplace with a home of its own, so neither
+  // the account's runtime nor its shell files are touched.
+  let own = join(root, "bun");
+  let bun_install = format!(
+    "mkdir -p {home} && export BUN_INSTALL={own} HOME={home} && {}",
+    installer("https://bun.sh/install", &bun.map(|bun| format!("bun-v{bun}")).unwrap_or_default()),
+    own = shell_word(&own),
+    home = shell_word(&join(&own, "home")),
+  );
+
   vec![
     Tool {
       name: "git",
@@ -176,10 +206,7 @@ fn tools(bun: Option<&str>) -> Vec<Tool> {
     },
     Tool {
       name: "bun",
-      install: Some(installer(
-        "https://bun.sh/install",
-        &bun.map(|bun| format!("bun-v{bun}")).unwrap_or_default(),
-      )),
+      install: Some(bun_install),
       version: bun.map(|bun| ("bun --version", bun.to_owned())),
     },
     Tool {
@@ -216,8 +243,56 @@ fn join(base: &str, part: &str) -> String {
 
 // A command whose connection failed is a step that failed, said with the rest, never the end of the
 // setup.
-async fn found(shell: &dyn SetupShell, tool: &str) -> bool {
-  shell.run(&with_path(&format!("command -v {} >/dev/null", shell_word(tool)))).await.code == 0
+async fn found(shell: &dyn SetupShell, root: &str, tool: &str) -> bool {
+  shell
+    .run(&with_path(root, &format!("command -v {} >/dev/null", shell_word(tool))))
+    .await
+    .code
+    == 0
+}
+
+// A word of a unit file's command line as systemd reads it back as itself.
+fn unit_word(word: &str) -> String {
+  format!(
+    "\"{}\"",
+    word.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%").replace('$', "$$")
+  )
+}
+
+/// The unit file of a far end standing as a service: the link's serve program on the workplace, listening at
+/// the node's loopback, started again whenever it ends; stopping it stops it alone, so the herdr session and
+/// the agent host it started stay.
+pub fn far_end_unit(home: &str, root: &str, session: &str, socket: &str, ports: &FarEnd) -> String {
+  let command = [
+    join(root, "deploy/bin/node-link"),
+    "serve".into(),
+    "--root".into(),
+    root.into(),
+    "--herdr-session".into(),
+    session.into(),
+    "--herdr-socket".into(),
+    socket.into(),
+    "--listen".into(),
+    format!("127.0.0.1:{}", ports.mirror_port),
+    "--herdr-listen".into(),
+    format!("127.0.0.1:{}", ports.herdr_port),
+    "--bridge-port".into(),
+    ports.bridge_port.to_string(),
+  ]
+  .iter()
+  .map(|word| unit_word(word))
+  .collect::<Vec<_>>()
+  .join(" ");
+  let mut path = path_head(home, root);
+
+  path.extend(["/usr/local/bin", "/usr/bin", "/bin"].map(str::to_owned));
+
+  // An assignment's value is taken as written but for its specifiers.
+  let path = path.join(":").replace('%', "%%");
+
+  format!(
+    "[Unit]\nDescription=The far end of agency's link to this machine\n\n[Service]\nExecStart={command}\nEnvironment=\"PATH={path}\"\nRestart=always\nRestartSec=5\nKillMode=process\n\n[Install]\nWantedBy=default.target\n"
+  )
 }
 
 /// Every step of the setup in order. A step that cannot be met is said and the rest still run where they
@@ -250,10 +325,10 @@ pub async fn set_up_workplace(
   hands.say(&format!("{node}: home {home}, workplace {root}"));
 
   // The tools, each installed into the account where it is missing and the setup may install.
-  for tool in tools(place.bun.as_deref()) {
-    let standing = found(shell, tool.name).await;
+  for tool in tools(place.bun.as_deref(), &root) {
+    let standing = found(shell, &root, tool.name).await;
     let version = match (&tool.version, standing) {
-      (Some((ask, _)), true) => Some(shell.run(&with_path(ask)).await.stdout.trim().to_owned()),
+      (Some((ask, _)), true) => Some(shell.run(&with_path(&root, ask)).await.stdout.trim().to_owned()),
       _ => None,
     };
     let wanted = tool.version.as_ref().map(|(_, want)| want.clone());
@@ -277,13 +352,14 @@ pub async fn set_up_workplace(
     {
       hands.say(&format!("{node}: installing {}", tool.name));
 
-      let installed = shell.run(&with_path(install)).await;
+      let installed = shell.run(&with_path(&root, install)).await;
       let now = match &tool.version {
-        Some((ask, _)) => Some(shell.run(&with_path(ask)).await.stdout.trim().to_owned()),
+        Some((ask, _)) => Some(shell.run(&with_path(&root, ask)).await.stdout.trim().to_owned()),
         None => None,
       };
 
-      if installed.code == 0 && found(shell, tool.name).await && (wanted.is_none() || now == wanted) {
+      if installed.code == 0 && found(shell, &root, tool.name).await && (wanted.is_none() || now == wanted)
+      {
         continue;
       }
     }
@@ -299,8 +375,8 @@ pub async fn set_up_workplace(
   // virtual machine on a generic processor type is, it crashes on its first line.
   if shell.run("grep -q -w avx /proc/cpuinfo").await.code != 0 {
     missing.push("cpu: the node's processor offers no AVX, which bun and Claude Code need; a virtual machine takes it with a processor type that passes the host's through".into());
-  } else if found(shell, "bun").await
-    && !shell.run(&with_path("bun -e 'console.log(6 * 7)'")).await.stdout.contains("42")
+  } else if found(shell, &root, "bun").await
+    && !shell.run(&with_path(&root, "bun -e 'console.log(6 * 7)'")).await.stdout.contains("42")
   {
     missing.push("bun: installed on the node, but it does not run there".into());
   }
@@ -309,7 +385,7 @@ pub async fn set_up_workplace(
   if let Some(rust) = &place.rust {
     // The toolchain is named for the build alone, so the account's own default stays as it was.
     let rustc = shell
-      .run(&with_path(&format!("RUSTUP_TOOLCHAIN={} rustc --version", shell_word(rust))))
+      .run(&with_path(&root, &format!("RUSTUP_TOOLCHAIN={} rustc --version", shell_word(rust))))
       .await
       .stdout
       .trim()
@@ -326,7 +402,7 @@ pub async fn set_up_workplace(
           )
         );
 
-        Some(shell.run(&with_path(&bring)).await)
+        Some(shell.run(&with_path(&root, &bring)).await)
       } else {
         None
       };
@@ -375,15 +451,16 @@ pub async fn set_up_workplace(
   } else {
     hands.say(&format!("{node}: copying the code"));
 
-    let (copied, said) = hands
-      .copy(&format!("{}/", place.deploy), &format!("{}:{deploy}/", place.destination))
-      .await;
+    let (copied, said) = hands.copy(&format!("{}/", place.deploy), &format!("{deploy}/")).await;
 
     if !copied {
       missing.push(format!("code: the deploy tree could not be copied: {said}"));
     } else {
       let install = shell
-        .run(&with_path(&format!("cd {} && bun install --frozen-lockfile", shell_word(&deploy))))
+        .run(&with_path(
+          &root,
+          &format!("cd {} && bun install --frozen-lockfile", shell_word(&join(&deploy, BUN_WORKSPACE))),
+        ))
         .await;
 
       if install.code != 0 {
@@ -445,7 +522,7 @@ pub async fn set_up_workplace(
           shell_word(&join(&data, "executions/agent-host/claim"))
         ),
       ];
-      let built = shell.run(&with_path(&steps.join(" && "))).await;
+      let built = shell.run(&with_path(&root, &steps.join(" && "))).await;
 
       if built.code != 0 {
         missing.push(format!("binaries: the build failed: {}", last_lines(&built.stderr, 3)));
@@ -457,13 +534,11 @@ pub async fn set_up_workplace(
   // herdr's own machine setup saving the node here, so herdr's sidebar shows it.
   if hands.copy_code()
     && let Some(herdr) = &place.herdr
-    && !found(shell, "herdr").await
+    && !found(shell, &root, "herdr").await
   {
     shell.run(r#"mkdir -p "$HOME/.local/bin""#).await;
 
-    let (given, said) = hands
-      .copy(herdr, &format!("{}:{}", place.destination, join(&home, ".local/bin/herdr")))
-      .await;
+    let (given, said) = hands.copy(herdr, &join(&home, ".local/bin/herdr")).await;
 
     if !given {
       hands.say(&format!("{node}: herdr could not be copied: {said}"));
@@ -480,21 +555,24 @@ pub async fn set_up_workplace(
 
   let mut herdr_socket = None;
 
-  if found(shell, "herdr").await {
-    let listing = shell.run(&with_path("herdr session list </dev/null")).await;
+  if found(shell, &root, "herdr").await {
+    let listing = shell.run(&with_path(&root, "herdr session list </dev/null")).await;
 
     herdr_socket = session_socket(&listing.stdout, &place.session);
 
     if herdr_socket.is_none() {
       shell
-        .run(&with_path(&format!(
-          "setsid -f herdr --session {} server </dev/null >{} 2>&1; sleep 2",
-          shell_word(&place.session),
-          shell_word(&join(&data, "herdr-server.log"))
-        )))
+        .run(&with_path(
+          &root,
+          &format!(
+            "setsid -f herdr --session {} server </dev/null >{} 2>&1; sleep 2",
+            shell_word(&place.session),
+            shell_word(&join(&data, "herdr-server.log"))
+          ),
+        ))
         .await;
       herdr_socket = session_socket(
-        &shell.run(&with_path("herdr session list </dev/null")).await.stdout,
+        &shell.run(&with_path(&root, "herdr session list </dev/null")).await.stdout,
         &place.session,
       );
     }
@@ -504,6 +582,32 @@ pub async fn set_up_workplace(
     }
   } else {
     missing.push("herdr: not installed; add the node to herdr with herdr machine add".into());
+  }
+
+  // The far end standing as a service of the account's own where the node keeps it: written and started again
+  // after a copy, so it runs the binary just built; read as running otherwise.
+  if let (Some(ports), Some(socket)) = (&place.far_end, &herdr_socket) {
+    let unit_file = join(&home, &format!(".config/systemd/user/{FAR_END_UNIT}"));
+
+    if hands.copy_code() {
+      hands.say(&format!("{node}: standing the link's far end as {FAR_END_UNIT}"));
+
+      let unit = far_end_unit(&home, &root, &place.session, socket, ports);
+      let stood = shell
+        .run(&format!(
+          "mkdir -p {dir} && printf %s {unit} >{file} && systemctl --user daemon-reload && systemctl --user enable -q {FAR_END_UNIT} && systemctl --user restart {FAR_END_UNIT} && sleep 2 && systemctl --user is-active -q {FAR_END_UNIT}",
+          dir = shell_word(&join(&home, ".config/systemd/user")),
+          unit = shell_word(&unit),
+          file = shell_word(&unit_file),
+        ))
+        .await;
+
+      if stood.code != 0 {
+        missing.push(format!("far end: {FAR_END_UNIT} does not run: {}", last_lines(&stood.stderr, 2)));
+      }
+    } else if shell.run(&format!("systemctl --user is-active -q {FAR_END_UNIT}")).await.code != 0 {
+      missing.push(format!("far end: {FAR_END_UNIT} does not run on the node; run the setup"));
+    }
   }
 
   // The checkouts placed there, cloned where they are not, set up, and trusted under every login.
@@ -528,7 +632,7 @@ pub async fn set_up_workplace(
       hands.say(&format!("{node}: cloning {} into {cwd}", checkout.worker));
 
       let cloned = shell
-        .run(&with_path(&format!("git clone -q {} {}", shell_word(remote), shell_word(&cwd))))
+        .run(&with_path(&root, &format!("git clone -q {} {}", shell_word(remote), shell_word(&cwd))))
         .await;
 
       if cloned.code != 0 {
@@ -541,7 +645,7 @@ pub async fn set_up_workplace(
 
     if hands.copy_code() {
       let setup = shell
-        .run(&with_path(&format!(
+        .run(&with_path(&root, &format!(
           r#"cd {} && if grep -q '"worktree:setup"' package.json 2>/dev/null; then bun run worktree:setup; fi"#,
           shell_word(&cwd)
         )))
@@ -560,20 +664,23 @@ pub async fn set_up_workplace(
       };
 
       shell
-        .run(&with_path(&format!(
-          "{} trust {} {}",
-          shell_word(&join(&deploy, "bin/agent-host")),
-          shell_word(&file),
-          shell_word(&cwd)
-        )))
+        .run(&with_path(
+          &root,
+          &format!(
+            "{} trust {} {}",
+            shell_word(&join(&deploy, "bin/agent-host")),
+            shell_word(&file),
+            shell_word(&cwd)
+          ),
+        ))
         .await;
     }
 
     let push = shell
-      .run(&with_path(&format!(
-        "cd {} && git push --dry-run -q origin HEAD:refs/heads/bmo-node-check",
-        shell_word(&cwd)
-      )))
+      .run(&with_path(
+        &root,
+        &format!("cd {} && git push --dry-run -q origin HEAD:refs/heads/bmo-node-check", shell_word(&cwd)),
+      ))
       .await;
 
     if push.code != 0 {

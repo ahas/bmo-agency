@@ -17,14 +17,15 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use store::{all, one, run};
 
+use super::work_node_hub::{HubDoor, HubHands};
 use super::work_node_setup::{
-  COPY_LEFT_OUT, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell, ShellRun,
-  set_up_workplace, shell_word,
+  COPY_LEFT_OUT, FarEnd, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell,
+  ShellRun, set_up_workplace, shell_word,
 };
 use super::{Answer, VerbError, deploy_link, home, service, tell_server};
 use crate::control::claude_accounts::accounts;
-use crate::peers::node::NodeService;
-use crate::watches::links::{link_unit, node_path};
+use crate::peers::node::{NodeKind, NodeService};
+use crate::watches::links::{Roots, deployed_commit, link_unit, node_path};
 
 /// The root a workplace takes where its setup names none, under the node's home.
 pub const DEFAULT_WORKPLACE_ROOT: &str = "~/.local/share/bmo-node";
@@ -342,6 +343,7 @@ impl SetupHands for Hands<'_> {
 
   fn copy<'a>(&'a self, from: &'a str, to: &'a str) -> BoxFuture<'a, (bool, String)> {
     Box::pin(async move {
+      let to = format!("{}:{to}", self.login.destination());
       let ssh = std::iter::once("ssh".to_owned())
         .chain(self.login.options().iter().cloned())
         .map(|word| shell_word(&word))
@@ -355,7 +357,7 @@ impl SetupHands for Hands<'_> {
         rsync.args(["--exclude", pattern]);
       }
 
-      rsync.args(["-e", &ssh, from, to]);
+      rsync.args(["-e", &ssh, from, &to]);
 
       let ran = captured(rsync).await;
 
@@ -393,8 +395,28 @@ impl SetupHands for Hands<'_> {
   }
 
   fn say(&self, line: &str) {
-    println!("{line}");
-    let _ = std::io::stdout().flush();
+    say(line);
+  }
+}
+
+/// A line of a setup's progress, said as it happens.
+pub fn say(line: &str) {
+  println!("{line}");
+  let _ = std::io::stdout().flush();
+}
+
+/// How the setup reaches a node: over its SSH login, or through the hub its agent attaches to.
+enum Door {
+  Ssh(SharedLogin),
+  Hub(HubDoor),
+}
+
+impl Door {
+  fn shell(&self) -> &dyn SetupShell {
+    match self {
+      Self::Ssh(login) => login,
+      Self::Hub(door) => door,
+    }
   }
 }
 
@@ -512,15 +534,29 @@ async fn stand(
     _ => return Err(VerbError::Refused("no such step".into())),
   };
   let unreachable = |fault: crate::peers::PeerFault| VerbError::Refused(fault.to_string());
-  let not_ssh = || VerbError::Refused(format!("{node} is no node reached over SSH"));
+  let unlisted = || VerbError::Refused(format!("{node} is no node the node service keeps"));
+  let no_route = || VerbError::Refused(format!("{node} has no route the node service names"));
   let row = nodes
     .node_rows()
     .await
     .map_err(unreachable)?
     .into_iter()
-    .find(|row| row.node == *node && row.kind.over_ssh())
-    .ok_or_else(not_ssh)?;
-  let login = nodes.ssh_login(node).await.map_err(unreachable)?.ok_or_else(not_ssh)?;
+    .find(|row| row.node == *node)
+    .ok_or_else(unlisted)?;
+  let door = match row.kind {
+    NodeKind::Ssh => Door::Ssh(SharedLogin::new(
+      nodes.ssh_login(node).await.map_err(unreachable)?.ok_or_else(no_route)?,
+    )),
+    NodeKind::Jake => {
+      let reach = nodes.hub_reach(node).await.map_err(unreachable)?.ok_or_else(no_route)?;
+
+      Door::Hub(
+        HubDoor::open(&reach, &home())
+          .await
+          .map_err(|why| VerbError::Refused(format!("{node}: {why}")))?,
+      )
+    }
+  };
 
   if let Some(refused) = work_refusal(&row.node, true, None) {
     return Err(VerbError::Refused(format!("{node} takes no work: {refused}")));
@@ -561,7 +597,6 @@ async fn stand(
     .create(node_dir(data_root, node))
     .map_err(|why| VerbError::Refused(why.to_string()))?;
 
-  let shell = SharedLogin::new(login);
   let to_node =
     |path: &str, node_home: &str, node_root: &str| to_node_path(path, data_root, node_home, node_root);
   let place = SetupPlace {
@@ -571,19 +606,35 @@ async fn stand(
     checkouts: checkouts.clone(),
     logins: logins(db, data_root).await?,
     to_node: &to_node,
-    destination: shell.destination().to_owned(),
     herdr: local_program("herdr"),
     rust: local_version("rustc", &["--version"], Some("rustc ")),
     bun: local_version("bun", &["--version"], None),
     session: HERDR_SESSION.to_owned(),
+    far_end: matches!(door, Door::Hub(_)).then(person_far_end),
   };
-  let hands = Hands {
-    install,
-    copy_code,
-    login: &shell,
-    label: row.label.clone().unwrap_or_else(|| row.node.clone()),
+  let hands: Box<dyn SetupHands + '_> = match &door {
+    Door::Ssh(login) => Box::new(Hands {
+      install,
+      copy_code,
+      login,
+      label: row.label.clone().unwrap_or_else(|| row.node.clone()),
+    }),
+    Door::Hub(door) => Box::new(HubHands {
+      install,
+      copy_code,
+      door,
+      staging: node_dir(data_root, node),
+    }),
   };
-  let outcome: SetupOutcome = set_up_workplace(&shell, &place, &hands).await;
+  let mut outcome: SetupOutcome = set_up_workplace(door.shell(), &place, hands.as_ref()).await;
+
+  // What the hub's agent does not offer the workplace and its link is missing with the rest.
+  if let (Door::Hub(door), Some(far_end)) = (&door, &place.far_end) {
+    let tool_host =
+      Roots::of_machine(&harness_providers::Machine::of_process(data_root), deploy_link()).mcp_port;
+
+    outcome.missing.extend(door.wanting(far_end, tool_host));
+  }
 
   // A path written from the node's home reads as the node's own from now on, so every lock, record and
   // transcript of the checkout names the one path.
@@ -613,7 +664,7 @@ async fn stand(
     // The commit the code on the node now stands at, where this run copied it, so agency knows when a
     // deployment has moved past it.
     let commit = if copy_code {
-      read_json(&data_root.join("deployed.json")).and_then(|record| record.get("commit").cloned())
+      deployed_commit(&deploy_link()).map(Value::String)
     } else {
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
@@ -670,6 +721,17 @@ async fn stand(
     lines.extend(outcome.missing.iter().map(|line| format!("  - {line}")));
     Answer { lines, code: 1 }
   })
+}
+
+// The ports the far end stands on at a person's PC, as agency's policy holds them.
+fn person_far_end() -> FarEnd {
+  let ports = &policy::person_nodes::PERSON_NODES;
+
+  FarEnd {
+    mirror_port: ports.mirror_port,
+    herdr_port: ports.herdr_port,
+    bridge_port: ports.bridge_port,
+  }
 }
 
 /// One run of `bmo-agency work-node`.

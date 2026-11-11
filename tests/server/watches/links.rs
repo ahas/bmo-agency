@@ -7,7 +7,8 @@ use std::sync::Mutex;
 use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeRow, NodeService};
 use agency_server::watches::links::{
-  LinkUnits, Roots, Skipped, link_unit, mark_place_node, node_path, place_node, project_dir, settle,
+  LinkUnits, Roots, Skipped, deployed_commit, link_unit, mark_place_node, node_path, place_node,
+  project_dir, settle,
 };
 use node_link::spec::{Spec, rewrite};
 
@@ -19,6 +20,16 @@ fn a_path_from_the_home_is_read_against_the_nodes_home() {
   assert_eq!(node_path("~", Some("/home/tester")), "/home/tester");
   assert_eq!(node_path("/srv/node", Some("/home/tester")), "/srv/node");
   assert_eq!(node_path("~/node-root", None), "~/node-root");
+}
+
+#[test]
+fn the_deployed_commit_is_read_off_the_record_beside_the_deploy_tree_s_link() {
+  let root = tempfile::tempdir().unwrap();
+
+  std::fs::write(root.path().join("deployed.json"), r#"{"commit": "abc123", "subject": "s"}"#).unwrap();
+
+  assert_eq!(deployed_commit(&root.path().join("deploy")).as_deref(), Some("abc123"));
+  assert_eq!(deployed_commit(&root.path().join("deploy").join("deploy")), None);
 }
 
 #[test]

@@ -57,6 +57,27 @@ const MCP_HOST_PORT: u16 = 3290;
 /// The verbs' binary, as the deploy tree's `bin/` holds it.
 const VERBS_BINARY: &str = "bmo-agency";
 
+/// The directories ahead of a node's own search path for every command and program of its workplace: the
+/// workplace's own runtime, the tools installed into the account, then the workplace's own binaries.
+pub fn path_head(home: &str, root: &str) -> Vec<String> {
+  let at = |base: &str, part: &str| Path::new(base).join(part).to_string_lossy().into_owned();
+
+  vec![
+    at(root, "bun/bin"),
+    at(home, ".bun/bin"),
+    at(home, ".local/bin"),
+    at(home, ".cargo/bin"),
+    at(root, "deploy/bin"),
+  ]
+}
+
+/// The commit the deployment runs, as its record beside the deploy tree's link names it.
+pub fn deployed_commit(deploy_link: &Path) -> Option<String> {
+  let record = read_json(&deploy_link.parent()?.join("deployed.json"))?;
+
+  text_of(&record, "commit")
+}
+
 /// The unit one node's link runs under.
 pub fn link_unit(node: &str) -> String {
   format!("bmo-node-link-{node}")
@@ -489,12 +510,7 @@ pub async fn spec(
     state: here.join("link-state.json"),
     follow: vec![shown(&roots.data), shown(&roots.agents)],
     withheld: vec![roots.data.join("env")],
-    path_head: vec![
-      join(&home, ".bun/bin"),
-      join(&home, ".local/bin"),
-      join(&home, ".cargo/bin"),
-      join(&node_root, "deploy/bin"),
-    ],
+    path_head: path_head(&home, &node_root),
     env_keep: NODE_ENV_KEEP.map(str::to_owned).to_vec(),
     env_add: vec![
       ("BMO_HOME_BRIDGE".into(), bridge),
@@ -584,7 +600,7 @@ pub async fn settle(
     }
   }
 
-  let deployed = read_json(&roots.data.join("deployed.json")).and_then(|record| text_of(&record, "commit"));
+  let deployed = deployed_commit(&roots.deploy);
 
   for workplace in workplaces(db).await.map_err(refused)? {
     let node = workplace.node;

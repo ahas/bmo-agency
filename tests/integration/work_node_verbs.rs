@@ -8,8 +8,8 @@ use std::sync::Mutex;
 use agency_server::peers::node::NoNodeService;
 use agency_server::verbs::work_node::{WorkNodeVerb, work_node_on, work_refusal};
 use agency_server::verbs::work_node_setup::{
-  NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell, ShellRun,
-  session_socket, set_up_workplace,
+  FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace,
+  SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
 };
 use common::Scratch;
 use futures_util::future::BoxFuture;
@@ -61,13 +61,14 @@ impl SetupShell for StandIn {
 }
 
 struct Hands {
+  install: bool,
   copy_code: bool,
   said: Mutex<Vec<String>>,
 }
 
 impl SetupHands for Hands {
   fn install(&self) -> bool {
-    false
+    self.install
   }
 
   fn copy_code(&self) -> bool {
@@ -89,6 +90,7 @@ impl SetupHands for Hands {
 
 fn hands(copy_code: bool) -> Hands {
   Hands {
+    install: false,
     copy_code,
     said: Mutex::new(Vec::new()),
   }
@@ -118,11 +120,11 @@ fn place(node_token: bool) -> SetupPlace<'static> {
       token_command: format!("/h/deploy/bin/bmo node claude-token '{ACCOUNT}'"),
     }],
     to_node: &to_node,
-    destination: "tester@n1.example".into(),
     herdr: None,
     rust: None,
     bun: None,
     session: "bmo".into(),
+    far_end: None,
   }
 }
 
@@ -249,6 +251,11 @@ fn the_node_build_takes_each_dependency_as_the_root_workspace_declares_it() {
   };
   let whole = dependencies(&read("Cargo.toml"));
   let node = dependencies(&read("crates/node-link/node-build.toml"));
+  // What a crate's package takes from the workspace, its license among it, the node's build declares alike.
+  let package =
+    |table: &toml::Table| table.get("workspace").and_then(|workspace| workspace.get("package")).cloned();
+
+  assert_eq!(package(&read("crates/node-link/node-build.toml")), package(&read("Cargo.toml")));
 
   for (name, declared) in &node {
     assert_eq!(Some(declared), whole.get(name), "{name}");
@@ -346,4 +353,93 @@ async fn a_workplace_is_listed_its_runs_switched_and_let_go() {
       .await
       .is_err()
   );
+}
+
+const PC_PORTS: FarEnd = FarEnd {
+  mirror_port: 47201,
+  herdr_port: 47202,
+  bridge_port: 47203,
+};
+
+const HERDR_LISTING: (&str, i32, &str, &str) = (
+  "herdr session list",
+  0,
+  "name status directory socket\nbmo running /home/tester/.config/herdr/sessions/bmo /home/tester/.config/herdr/sessions/bmo/herdr.sock\n",
+  "",
+);
+
+// "a PC's far end is written as a user service and started again after the copy, and a check reads it running"
+#[tokio::test]
+async fn a_pc_s_far_end_is_written_as_a_user_service_and_started_again_after_the_copy() {
+  let pc = || SetupPlace {
+    far_end: Some(PC_PORTS),
+    checkouts: vec![],
+    ..place(true)
+  };
+  let shell = StandIn::new(&[HOME, HERDR_LISTING]);
+  let outcome = set_up_workplace(&shell, &pc(), &hands(true)).await;
+  let stood = shell
+    .ran()
+    .into_iter()
+    .find(|command| command.contains("restart bmo-node-link.service"));
+
+  assert!(outcome.missing.iter().all(|line| !line.starts_with("far end")));
+  assert!(
+    stood
+      .is_some_and(|command| command.contains("/home/tester/.config/systemd/user/bmo-node-link.service")
+        && command.contains("enable -q bmo-node-link.service"))
+  );
+
+  let shell = StandIn::new(&[HOME, HERDR_LISTING, ("is-active -q bmo-node-link", 3, "", "")]);
+  let outcome = set_up_workplace(&shell, &pc(), &hands(false)).await;
+
+  assert!(
+    outcome
+      .missing
+      .contains(&format!("far end: {FAR_END_UNIT} does not run on the node; run the setup"))
+  );
+}
+
+// "the far end's unit runs the serve program on the PC's loopback ports and stops alone"
+#[test]
+fn the_far_end_s_unit_runs_the_serve_program_on_the_pc_s_loopback_ports_and_stops_alone() {
+  let unit = far_end_unit("/home/tester", "/home/tester/w", "bmo", "/run/herdr.sock", &PC_PORTS);
+  let exec = unit.lines().find_map(|line| line.strip_prefix("ExecStart=")).unwrap();
+
+  assert_eq!(
+    exec,
+    r#""/home/tester/w/deploy/bin/node-link" "serve" "--root" "/home/tester/w" "--herdr-session" "bmo" "--herdr-socket" "/run/herdr.sock" "--listen" "127.0.0.1:47201" "--herdr-listen" "127.0.0.1:47202" "--bridge-port" "47203""#
+  );
+  assert!(unit.lines().any(|line| line == "KillMode=process"));
+  assert!(
+    unit
+      .lines()
+      .any(|line| line.starts_with(r#"Environment="PATH=/home/tester/w/bun/bin:"#))
+  );
+}
+
+// "a runtime of another version is installed into the workplace, leaving the account's own"
+#[tokio::test]
+async fn a_runtime_of_another_version_is_installed_into_the_workplace_leaving_the_account_s_own() {
+  let shell = StandIn::new(&[HOME, ("bun --version", 0, "1.4.4\n", "")]);
+  let hands = Hands {
+    install: true,
+    ..hands(false)
+  };
+  let place = SetupPlace {
+    bun: Some("1.4.2".into()),
+    ..place(true)
+  };
+
+  set_up_workplace(&shell, &place, &hands).await;
+
+  let installed = shell
+    .ran()
+    .into_iter()
+    .find(|command| command.contains("https://bun.sh/install"))
+    .unwrap();
+
+  assert!(installed.contains("BUN_INSTALL=/home/tester/.local/share/bmo-node/bun"));
+  assert!(installed.contains("HOME=/home/tester/.local/share/bmo-node/bun/home"));
+  assert!(installed.contains("bun-v1.4.2"));
 }

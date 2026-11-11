@@ -94,6 +94,15 @@ pub struct SshReach {
   pub shell: Option<String>,
 }
 
+/// How a hub node is reached, as the node service's reads answer it: the hub's control address, the file its
+/// control token is kept in, and the name the hub knows the node's agent by.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HubReach {
+  pub address: String,
+  pub token_file: String,
+  pub agent: String,
+}
+
 /// The machines the node service tells changed, as they come; a stream that drops ends.
 pub type Pressures = BoxStream<'static, Result<Machine, PeerFault>>;
 
@@ -159,6 +168,10 @@ pub trait NodeService: Send + Sync {
   }
   /// How SSH reaches a node, or none where it has no SSH reach or is not listed; none by default.
   fn ssh_reach<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<SshReach>> {
+    Box::pin(async { Ok(None) })
+  }
+  /// How a hub reaches a node, or none where it is no hub node or is not listed; none by default.
+  fn hub_reach<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<HubReach>> {
     Box::pin(async { Ok(None) })
   }
   /// This machine's standing as the service last read it; nothing read by default.
@@ -281,6 +294,25 @@ impl NodeService for PublishedNode {
         user,
         key_path: target.key_path,
         shell: target.shell.map(|shell| shell.name().to_owned()),
+      }))
+    })
+  }
+
+  fn hub_reach<'a>(&'a self, node: &'a str) -> Asking<'a, Option<HubReach>> {
+    Box::pin(async move {
+      let Some(target) = self.target(node).await? else {
+        return Ok(None);
+      };
+      let (Some(address), Some(token_file), Some(agent)) =
+        (target.hub_address, target.hub_token_file, target.agent_name)
+      else {
+        return Ok(None);
+      };
+
+      Ok(Some(HubReach {
+        address,
+        token_file,
+        agent,
       }))
     })
   }

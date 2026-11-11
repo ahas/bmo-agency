@@ -102,6 +102,7 @@ agent-host = { path = "crates/agent-host" }
 agent-session = { path = "crates/agent-session" }
 cache-siren = { path = "crates/cache-siren" }
 axum.workspace = true
+base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures-util.workspace = true

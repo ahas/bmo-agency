@@ -21,4 +21,5 @@ mod stops;
 mod subcommands;
 mod supervisor_follow_verb;
 mod supervisor_reset_verb;
+mod work_node_hub;
 mod work_node_verbs;

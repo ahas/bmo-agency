@@ -26,6 +26,7 @@ pub mod supervisor_follow;
 pub mod supervisor_reset;
 pub mod turns;
 pub mod work_node;
+pub mod work_node_hub;
 pub mod work_node_setup;
 
 use std::fmt;
