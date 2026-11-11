@@ -1048,11 +1048,12 @@ enum Submit {
 pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Result<Ending, String> {
   let herdr = turn.seat.herdr();
 
-  if let Some(why) = socket_refusal(herdr.socket()) {
+  let machine = ground.machine();
+
+  if let Some(why) = socket_refusal(herdr.socket(), &machine) {
     return Err(why);
   }
 
-  let machine = ground.machine();
   let machine_config = ClaudeCode::machine_config_dir(&machine);
   let records_dir = turn
     .env

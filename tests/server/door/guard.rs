@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::support::grounds::{OrderEntry, set_provider_order};
-use agency_server::door::guard::turn_refusal;
+use agency_server::door::guard::{launch_refusal, prompt_refusal, socket_refusal, turn_refusal};
 use harness_providers::Machine;
 use harness_providers::registered::Registered;
 use policy::door_words::DOOR_WORDS;
@@ -75,4 +75,38 @@ async fn a_deepseek_program_is_claude_codes_and_is_refused_while_it_is_off_where
   order(&scratch, true).await;
 
   assert_ne!(turn_refusal(scratch.db(), &machine, WORK_KEY, &deepseek).await, Some(refused(WORK_KEY)));
+}
+
+fn machine_of(vars: &[(&str, &str)]) -> Machine {
+  Machine::with_env(vars.iter().map(|(name, value)| ((*name).to_owned(), (*value).to_owned())), "/nowhere")
+}
+
+// A test run from inside a job's shell carries both of a job's marks in its process; the guard reads them
+// off the machine it is handed, so a test's machine, which carries neither, is not a job's.
+#[test]
+fn a_jobs_marks_are_read_off_the_machine_handed_in_and_a_tests_home_lifts_them() {
+  let launch = ["claude".to_owned(), "-p".to_owned()];
+  let job = machine_of(&[("CLAUDECODE", "1"), ("BMO_TASK_LOCKED", "1")]);
+
+  assert!(prompt_refusal(&job).is_some());
+  assert!(launch_refusal("worker", &launch, &BTreeMap::new(), &job).is_some());
+
+  for not_a_job in [
+    machine_of(&[]),
+    machine_of(&[("CLAUDECODE", "1")]),
+    machine_of(&[("CLAUDECODE", "1"), ("BMO_TASK_LOCKED", "1"), ("BMO_TEST_HOME", "/a/test/home")]),
+  ] {
+    assert_eq!(prompt_refusal(&not_a_job), None);
+    assert_eq!(launch_refusal("worker", &launch, &BTreeMap::new(), &not_a_job), None);
+  }
+}
+
+#[test]
+fn a_tests_home_holds_it_to_a_herdr_under_that_home() {
+  let home = tempfile::tempdir().unwrap();
+  let test = machine_of(&[("BMO_TEST_HOME", &home.path().to_string_lossy())]);
+
+  assert_eq!(socket_refusal(&home.path().join("herdr.sock"), &test), None);
+  assert!(socket_refusal(Path::new("/run/herdr/herdr.sock"), &test).is_some());
+  assert_eq!(socket_refusal(Path::new("/run/herdr/herdr.sock"), &machine_of(&[])), None);
 }

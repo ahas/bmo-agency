@@ -124,7 +124,7 @@ pub async fn turn<W: Watch>(
     .and_then(|declared| declared.declared().resident.as_ref())
     .ok_or_else(|| format!("{provider} stands no resident program"))?;
 
-  if let Some(why) = socket_refusal(turn.home.herdr.socket()) {
+  if let Some(why) = socket_refusal(turn.home.herdr.socket(), &ground.machine()) {
     return Err(why);
   }
 

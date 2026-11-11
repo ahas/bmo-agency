@@ -13,12 +13,15 @@ use cache_siren::{Balance, Slot};
 use harness_providers::Machine;
 use sea_orm::DatabaseConnection;
 
-/// A ground on a store, under a home of the test's own with no program on its path.
+/// A ground on a store, under a home of the test's own with no program on its path, marked a test's by that
+/// home (docs/live-claude-guard.md, 「Second layer: the guard in agency's code」).
 pub fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();
   let service = Service::new(db, Config::read(|name| variables.get(name).cloned()).unwrap());
+  let home_path = home.to_string_lossy().into_owned();
   let env = vec![
-    ("HOME".to_owned(), home.to_string_lossy().into_owned()),
+    ("HOME".to_owned(), home_path.clone()),
+    ("BMO_TEST_HOME".to_owned(), home_path),
     ("PATH".to_owned(), "/nowhere".to_owned()),
   ];
 

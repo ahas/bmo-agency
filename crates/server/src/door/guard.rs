@@ -5,6 +5,10 @@
 //! itself is read by the TypeScript guard (the agent package's `live-claude-guard.ts`) alone, but for a run
 //! a procedure requires, which its verb declares first. Claude Code switched off closes every turn on a
 //! Claude Code program the door would put in, and none on a program standing on a registration's road.
+//!
+//! The marks are read off the machine the caller hands in, its ground's: the process's own environment
+//! in a service or a verb, and the one a test stands in for its ground, which names the test's home and
+//! carries neither of a job's marks.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -34,19 +38,15 @@ fn declared() -> bool {
   DECLARED.get().is_some()
 }
 
-fn set(name: &str) -> Option<String> {
-  std::env::var(name).ok().filter(|value| !value.is_empty())
-}
-
 fn within(path: &Path, dir: &Path) -> bool {
   let absolute = |path: &Path| std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
 
   absolute(path).starts_with(absolute(dir))
 }
 
-/// Why this process may not reach the herdr at `socket`, or nothing.
-pub fn socket_refusal(socket: &Path) -> Option<String> {
-  let home = PathBuf::from(set(TEST_HOME)?);
+/// Why a process on this machine may not reach the herdr at `socket`, or nothing.
+pub fn socket_refusal(socket: &Path, machine: &Machine) -> Option<String> {
+  let home = PathBuf::from(machine.var(TEST_HOME)?);
 
   (!within(socket, &home) && !within(socket, &std::env::temp_dir())).then(|| {
     format!(
@@ -56,11 +56,11 @@ pub fn socket_refusal(socket: &Path) -> Option<String> {
   })
 }
 
-/// Why this process may not put words into a pane's Claude Code session, or nothing.
-pub fn prompt_refusal() -> Option<String> {
-  if set(TEST_HOME).is_some()
-    || set(SESSION_MARK).is_none()
-    || set(JOB_RUNNER_MARKER).is_none()
+/// Why a process on this machine may not put words into a pane's Claude Code session, or nothing.
+pub fn prompt_refusal(machine: &Machine) -> Option<String> {
+  if machine.var(TEST_HOME).is_some()
+    || machine.var(SESSION_MARK).is_none()
+    || machine.var(JOB_RUNNER_MARKER).is_none()
     || declared()
   {
     return None;
@@ -99,18 +99,23 @@ fn which(program: &str, path: &str) -> Option<PathBuf> {
     })
 }
 
-/// Why this process may not start this command on a line, or nothing: a test starts only a stand-in under
-/// its own home or the temporary directory, never the machine's own program, and a job's own process opens
-/// no Claude Code session on a line that keeps one, since the opening a job makes for itself is read by the
-/// TypeScript guard alone.
-pub fn launch_refusal(line: &str, args: &[String], env: &BTreeMap<String, String>) -> Option<String> {
+/// Why a process on this machine may not start this command, with the environment it is started with, on a
+/// line, or nothing: a test starts only a stand-in under its own home or the temporary directory, never the
+/// machine's own program, and a job's own process opens no Claude Code session on a line that keeps one,
+/// since the opening a job makes for itself is read by the TypeScript guard alone.
+pub fn launch_refusal(
+  line: &str,
+  args: &[String],
+  env: &BTreeMap<String, String>,
+  machine: &Machine,
+) -> Option<String> {
   let program = args.iter().find(|part| GUARDED.contains(&basename(part)))?;
 
-  if let Some(home) = set(TEST_HOME) {
-    let path = env.get("PATH").cloned().or_else(|| std::env::var("PATH").ok()).unwrap_or_default();
-    let found = which(program, &path)?;
+  if let Some(home) = machine.var(TEST_HOME) {
+    let path = env.get("PATH").map(String::as_str).or_else(|| machine.var("PATH")).unwrap_or_default();
+    let found = which(program, path)?;
 
-    if within(&found, Path::new(&home)) || within(&found, &std::env::temp_dir()) {
+    if within(&found, Path::new(home)) || within(&found, &std::env::temp_dir()) {
       return None;
     }
 
@@ -123,8 +128,8 @@ pub fn launch_refusal(line: &str, args: &[String], env: &BTreeMap<String, String
 
   if basename(program) != GUARDED[0]
     || !SESSION_LINES.contains(&line)
-    || set(SESSION_MARK).is_none()
-    || set(JOB_RUNNER_MARKER).is_none()
+    || machine.var(SESSION_MARK).is_none()
+    || machine.var(JOB_RUNNER_MARKER).is_none()
     || declared()
   {
     return None;
@@ -152,5 +157,5 @@ pub async fn turn_refusal(
     ));
   }
 
-  prompt_refusal()
+  prompt_refusal(machine)
 }

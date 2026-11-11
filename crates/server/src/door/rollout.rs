@@ -521,7 +521,7 @@ async fn put<W: Watch>(
 
   let _ = begin_run(&place.path, &turn.name, &turn.title, prompted_at, own);
 
-  if let Some(why) = prompt_refusal() {
+  if let Some(why) = prompt_refusal(&ground.machine()) {
     return Err(why);
   }
 

@@ -270,6 +270,12 @@
   since the opening a job makes is read by the bun guard alone, except a run its procedure requires
   that the verb declared first (「A run the procedure requires declares itself」); and Claude Code switched off
   closes its turns on a Claude Code program as the bun guard does.
+  - **It reads the marks off the ground the turn stands on.** Both of a job's marks and the test mark are
+    read from the environment of the ground's machine, never from the process beside it. A service or a
+    verb stands its ground on the process's own environment, so a job's process is refused as above. A
+    test stands its ground on an environment of its own that carries neither of a job's marks, so a test
+    the testbed runs from inside a job's shell is not a job; the shared test ground also names the test's
+    home in the test mark, which holds it to the stand-ins under that home.
 - **A test holds the list of files that start the CLI.** A file that starts the CLI without going
   through the guard fails that test.
 - **Tests:** a process carrying the test mark follows the test rules instead of this one

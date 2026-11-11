@@ -411,7 +411,7 @@ async fn run_on<W: Watch>(
     .unwrap_or_else(|| format!("{}-{}", apart.line, apart.session.chars().take(8).collect::<String>()));
   let mut env = pane_environment(ground.env(), &apart.command, &name);
 
-  if let Some(why) = launch_refusal(apart.line, &apart.command.args, &env) {
+  if let Some(why) = launch_refusal(apart.line, &apart.command.args, &env, &ground.machine()) {
     return Err(why);
   }
 
