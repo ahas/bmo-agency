@@ -91,12 +91,10 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   the hub to listen on the PC for the tool host and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
   allows (jake's `docs/architecture.md`, 「Carrying a byte stream back」). What the mirror says is the SSH link's,
   frame for frame.
-- **A listen is asked for only where it does not stand:** each connection reads the hub's listens for the agent
-  first, leaves one standing on the target wanted as it is, since asking the agent again for a port it already
-  listens on ends that listen, and takes away and asks afresh one the hub holds that does not listen.
-- **The bridge's stream back stays open after the answer until its asker closes it,** at most half a minute: the
-  hub ends a stream back on its target's half-close ahead of what the target wrote just before it, so the bridge's
-  end is not passed on at once.
+- **Each connection asks the hub for every listen it wants:** the hub keeps one the agent already listens on as it
+  stands, joined to the target named this time, and asks the agent only for one it does not listen on yet.
+- **The bridge's stream back is joined to the bridge socket both ways,** each side's close passed on to the other
+  as it comes: the hub carries what the bridge wrote ahead of its close to the asker on the PC whole.
 - **The spec writer writes a jake spec for a node with no SSH login and a hub reach:** the agent the node service
   names, the hub's connect program run as the hub's executable the deployment names in `AGENCY_JAKE_HUB` with its
   `connect` mode, the hub's token file as the hub's settings, the far end's three ports from agency's policy, and
