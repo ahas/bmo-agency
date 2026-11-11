@@ -107,7 +107,8 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
   let port = server.port;
 
   // The helper's agents stand on Claude Code, the road the run below is asked on.
-  crate::support::rows::seats(scratch.db(), "helper", &[("claude-code", "claude-haiku-4-5-20251001")]).await;
+  crate::support::rows::seats(scratch.db(), "helper", &[("claude-code", "claude-haiku-4-5-20251001")])
+    .await;
 
   let (_, roles) = get(port, token, "/roles/helper").await;
   let entry = roles["agents"]
@@ -142,8 +143,13 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
 
   assert_eq!((status, admission["state"].as_str()), (200, Some("active")), "{admission}");
 
-  let (status, started) =
-    post(port, token, "/sessions", json!({ "scope": "role", "agentName": "helper", "slot": seat })).await;
+  let (status, started) = post(
+    port,
+    token,
+    "/sessions",
+    json!({ "scope": "role", "agentName": "helper", "slot": seat }),
+  )
+  .await;
 
   assert_eq!(status, 201, "{started}");
 
