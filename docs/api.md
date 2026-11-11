@@ -1632,6 +1632,10 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way
   (`AGENCY_NODE_TOKEN`, `AGENCY_NODE_TOKEN_FILE`). With no address, no agent has a brain: nothing is made, counted or let go.
+- **A person's PC's hub.** The node service's target of a hub node names its hub's control address, the file its
+  control token stands in, and the agent; for a PC's workplace and link agency asks that hub itself — `GET
+  /status`, `POST /exec`, `POST /upload`, `GET /listens` and `POST`/`DELETE /listen` — and runs the hub's
+  executable `AGENCY_JAKE_HUB` names in its `connect` mode for each byte stream (`docs/person-nodes.md`).
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
   and the agent's key, and never makes one by itself. A brain agency makes carries, as the account key,
   the id of the login account owning the agent where it names one, and otherwise the key

@@ -169,11 +169,11 @@ fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHan
     let Ok(listener) = tokio::net::TcpListener::bind(("127.0.0.1", relay)).await else {
       return;
     };
-    while let Ok((mut client, _)) = listener.accept().await {
+    while let Ok((client, _)) = listener.accept().await {
       let bridge = bridge.clone();
       tokio::spawn(async move {
-        if let Ok(mut far) = tokio::net::UnixStream::connect(&bridge).await {
-          let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+        if let Ok(far) = tokio::net::UnixStream::connect(&bridge).await {
+          relay_stream_back(client, far, RELAY_LINGER).await;
         }
       });
     }
@@ -189,6 +189,30 @@ fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHan
   }));
 
   sides
+}
+
+/// How long a stream back is held open after the bridge has answered, waiting for the asker to close it.
+pub const RELAY_LINGER: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// One connection of the bridge's stream back joined to the bridge: what the asker sends carried to the bridge,
+/// the bridge's answer carried back, and the stream back left open after the answer until the asker closes it, at
+/// most `linger`. jake's hub ends a stream back on its target's half-close ahead of what the target wrote just
+/// before it, so the answer would be lost were the bridge's end passed on at once.
+pub async fn relay_stream_back(
+  client: tokio::net::TcpStream,
+  far: tokio::net::UnixStream,
+  linger: std::time::Duration,
+) {
+  let (mut asker_in, mut asker_out) = client.into_split();
+  let (mut bridge_in, mut bridge_out) = far.into_split();
+  let asked = tokio::spawn(async move {
+    let _ = tokio::io::copy(&mut asker_in, &mut bridge_out).await;
+    let _ = bridge_out.shutdown().await;
+  });
+
+  let _ = tokio::io::copy(&mut bridge_in, &mut asker_out).await;
+  let _ = asker_out.flush().await;
+  let _ = tokio::time::timeout(linger, asked).await;
 }
 
 // One connection here carried to a port on the PC through the hub's connect program.
@@ -208,9 +232,9 @@ async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jak
   let _ = child.start_kill();
 }
 
-// The hub asked to have the agent listen on each PC port, joined to the port here, with the control port and
-// token its own file names.
-async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
+/// The hub asked to have the agent listen on each PC port wanted, joined to the port here, with the control port
+/// and token the hub's own file names.
+pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
   let mut port = 8791u16;
   let mut token = String::new();
 
@@ -226,12 +250,53 @@ async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Resu
   }
 
   let client = reqwest::Client::new();
+  let base = format!("http://127.0.0.1:{port}");
+  // A listen standing on the target wanted is left as it is, since asking the agent for a port it already
+  // listens on ends that listen; one the hub holds that does not listen, or listens elsewhere, is taken away
+  // and asked for again.
+  let standing: Value = client
+    .get(format!("{base}/listens"))
+    .query(&[("agent", agent)])
+    .bearer_auth(&token)
+    .send()
+    .await
+    .map_err(|error| error.to_string())?
+    .json()
+    .await
+    .map_err(|error| error.to_string())?;
+  let held = |pc: u16| {
+    standing.get("listens").and_then(Value::as_array).and_then(|listens| {
+      listens
+        .iter()
+        .find(|listen| listen.get("port").and_then(Value::as_u64) == Some(u64::from(pc)))
+    })
+  };
+
   for (pc, here) in wanted {
+    let target = format!("127.0.0.1:{here}");
+    let query = [("agent", agent.to_owned()), ("port", pc.to_string())];
+
+    if let Some(listen) = held(*pc) {
+      let listening = listen.get("listening").and_then(Value::as_bool) == Some(true);
+
+      if listening && listen.get("target").and_then(Value::as_str) == Some(target.as_str()) {
+        continue;
+      }
+
+      client
+        .delete(format!("{base}/listen"))
+        .query(&query)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    }
+
     let answer = client
-      .post(format!("http://127.0.0.1:{port}/listen"))
-      .query(&[("agent", agent), ("port", &pc.to_string())])
+      .post(format!("{base}/listen"))
+      .query(&query)
       .bearer_auth(&token)
-      .json(&json!({ "target": format!("127.0.0.1:{here}") }))
+      .json(&json!({ "target": target }))
       .send()
       .await
       .map_err(|error| error.to_string())?;

@@ -85,6 +85,12 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   the hub to listen on the PC for the tool host and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
   allows (jake's `docs/architecture.md`, 「Carrying a byte stream back」). What the mirror says is the SSH link's,
   frame for frame.
+- **A listen is asked for only where it does not stand:** each connection reads the hub's listens for the agent
+  first, leaves one standing on the target wanted as it is, since asking the agent again for a port it already
+  listens on ends that listen, and takes away and asks afresh one the hub holds that does not listen.
+- **The bridge's stream back stays open after the answer until its asker closes it,** at most half a minute: the
+  hub ends a stream back on its target's half-close ahead of what the target wrote just before it, so the bridge's
+  end is not passed on at once.
 - **The spec writer writes a jake spec for a node with no SSH login and a hub reach:** the agent the node service
   names, the hub's connect program run as the hub's executable the deployment names in `AGENCY_JAKE_HUB` with its
   `connect` mode, the hub's token file as the hub's settings, the far end's three ports from agency's policy, and
@@ -105,5 +111,5 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
-| a check on a real PC | a PC attached as a jake agent with its stream and listen ports set | an account bound to it whose BMO opens a session there and answers |
+| a check on a real PC | a PC attached as a jake agent with its stream and listen ports set; its workplace ready, set up through the hub; the link held to it over the hub with the mirror, the herdr session, the tool host and the bridge each answering through it | an account bound to it whose BMO opens a session there and answers, which needs the server that places an account's runs |
 
