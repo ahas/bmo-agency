@@ -142,6 +142,9 @@ async fn a_window_provider_has_quota_while_its_least_left_stands_above_the_share
   let ground = seeded(scratch.db(), home.path()).await;
   let codex = harness_providers::provider("codex").unwrap();
   let now = agency_server::now_ms() / 1000;
+  // The test's machine runs no Codex reader, so a Codex reading stands for no span past the second it was
+  // seen at: it is seen a minute ahead, so it still stands at whichever second the quota is read.
+  let seen_at = now + 60;
 
   ground
     .windows
@@ -157,7 +160,7 @@ async fn a_window_provider_has_quota_while_its_least_left_stands_above_the_share
         duration_minutes: None,
         limit_name: None,
       }],
-      now,
+      seen_at,
     )
     .await
     .unwrap();
