@@ -43,10 +43,13 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place and its tool token.
 
-## Order of the work
+## What stands and what is left
 
-1. jake: streams back (jake's `docs/protocol.md` and `docs/architecture.md`).
-2. agency: the link's far end listening at the PC's loopback, and its near end over jake, beside the SSH link,
-   chosen by the node's kind.
-3. agency: the workplace laid down on a PC through jake.
-4. agency: an account's sessions and runs placed on its person's node.
+| Part | Stands | Left |
+|---|---|---|
+| jake: streams back | the hub's listens by agent and port, refused for a target outside `JAKE_REVERSE_TARGETS`; the agent's listens at its loopback on `JAKE_LISTEN_PORTS`; each accepted connection carried to its target | — |
+| the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | no spec names a PC yet: the spec writer writes SSH specs alone |
+| the workplace on a PC | — | the deploy tree's commit sent to the PC through jake's uploads and laid out there; the node binaries built on the PC, each long step a transient unit of the person's own watched until it ends, since a jake command has a ceiling of time; the PC's data root and herdr session; the far end standing as a service of the person's own on the mirror, herdr and bridge ports |
+| an account's runs on its PC | — | the spec writer writing a jake spec for a person's node; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node is not attached |
+| a check on a real PC | a PC attached as a jake agent with its stream and listen ports set | an account bound to it whose BMO opens a session there and answers |
+
