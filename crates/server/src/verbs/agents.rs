@@ -190,11 +190,9 @@ impl Said {
 }
 
 /// What the verb does beyond the archive, held apart so a test stands in for it: a worker's workbench and
-/// dev server brought to its row, the bot told the workers moved, which workers a job holds now, and a
-/// key read from standing input.
+/// dev server brought to its row, which workers a job holds now, and a key read from standing input.
 pub trait AgentsHands: Send + Sync {
   fn settle<'a>(&'a self, worker: &'a str) -> BoxFuture<'a, ()>;
-  fn tell_workers(&self) -> BoxFuture<'_, ()>;
   /// The workers with something at work, or none where nobody could say.
   fn running(&self) -> BoxFuture<'_, Option<Vec<String>>>;
   fn standing_input(&self) -> String;
@@ -208,10 +206,6 @@ pub struct ShellHands {
 impl AgentsHands for ShellHands {
   fn settle<'a>(&'a self, worker: &'a str) -> BoxFuture<'a, ()> {
     Box::pin(crate::places::dev::settle(&self.ground, worker))
-  }
-
-  fn tell_workers(&self) -> BoxFuture<'_, ()> {
-    Box::pin(super::tell_server("/workers/stand", json!({})))
   }
 
   fn running(&self) -> BoxFuture<'_, Option<Vec<String>>> {

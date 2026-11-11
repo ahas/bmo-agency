@@ -22,7 +22,7 @@ use super::work_node_setup::{
   COPY_LEFT_OUT, FarEnd, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell,
   ShellRun, set_up_workplace, shell_word,
 };
-use super::{Answer, VerbError, deploy_link, home, service, tell_server};
+use super::{Answer, VerbError, deploy_link, home, service};
 use crate::control::claude_accounts::accounts;
 use crate::peers::node::{NodeKind, NodeService};
 use crate::watches::links::{Roots, deployed_commit, link_unit, node_path};
@@ -711,8 +711,6 @@ async fn stand(
       .await;
   }
 
-  tell_server("/workers/stand", json!({})).await;
-
   Ok(if outcome.missing.is_empty() {
     Answer::from(vec![format!("{node}: ready ({})", outcome.root.unwrap_or_default())])
   } else {
@@ -770,8 +768,6 @@ pub async fn work_node_on(
       {
         return Err(VerbError::Refused(format!("{node} has no workplace")));
       }
-
-      tell_server("/workers/stand", json!({})).await;
 
       Ok(Answer::from(vec![format!(
         "{node}: its workplace is no longer one; what stands on the node is left as it is"

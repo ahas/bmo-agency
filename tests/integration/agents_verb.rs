@@ -21,10 +21,6 @@ impl AgentsHands for NoHands {
     Box::pin(async {})
   }
 
-  fn tell_workers(&self) -> BoxFuture<'_, ()> {
-    Box::pin(async {})
-  }
-
   fn running(&self) -> BoxFuture<'_, Option<Vec<String>>> {
     Box::pin(async { None })
   }
