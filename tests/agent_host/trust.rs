@@ -1,5 +1,6 @@
-//! A folder trusted in a login's configuration, by the module and as a work node's setup runs it as
-//! `agent-host trust` (docs/work-nodes.md, 「The workplace on a node」).
+//! A folder trusted in a login's configuration, the plugin recommendation declined beside it
+//! (docs/agent-control.md, 「A turn's end stops at a plugin recommendation」), by the module and as a work
+//! node's setup runs it as `agent-host trust` (docs/work-nodes.md, 「The workplace on a node」).
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -27,6 +28,27 @@ fn a_folder_is_written_trusted_with_every_other_entry_kept_in_its_order() {
   assert!(text.find("zeta").unwrap() < text.find("alpha").unwrap());
   assert_eq!(read["projects"]["/a"], serde_json::json!({ "x": 2, "hasTrustDialogAccepted": true }));
   assert!(!dir.path().join(".claude.json.lock").exists());
+}
+
+#[test]
+fn trusting_a_folder_declines_the_plugin_recommendation_and_a_trusted_folder_is_written_for_it_alone() {
+  let dir = tempfile::tempdir().unwrap();
+  let file = config_file(dir.path());
+
+  std::fs::write(
+    &file,
+    "{\n  \"projects\": {\n    \"/a\": { \"hasTrustDialogAccepted\": true }\n  }\n}\n",
+  )
+  .unwrap();
+
+  assert_eq!(trust_folder(&file, "/a"), Trust::Written);
+
+  let read: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+
+  assert_eq!(read["lspRecommendationDisabled"], Value::Bool(true));
+  assert_eq!(read["projects"]["/a"], serde_json::json!({ "hasTrustDialogAccepted": true }));
+  assert_eq!(trust_folder(&file, "/a"), Trust::Trusted);
+  assert_eq!(trust_folder(&file, "/b"), Trust::Written);
 }
 
 #[test]

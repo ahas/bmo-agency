@@ -1,6 +1,7 @@
 //! A folder trusted in a login's configuration, the way the CLI itself keeps it (docs/agent-control.md,
 //! 「A first interactive run stops at the trust-this-folder check」): the folder's entry in the login's
-//! global configuration file, so an interactive program never stops on the question.
+//! global configuration file, so an interactive program never stops on the question, and the CLI's plugin
+//! recommendation declined in the same file (「A turn's end stops at a plugin recommendation」).
 //!
 //! The file is the CLI's own, so it is changed by that one entry and written back whole in its own key
 //! order, under the CLI's own lock — a directory beside it.
@@ -16,6 +17,9 @@ use serde_json::value::RawValue;
 const CONFIG_NAME: &str = ".claude.json";
 const TRUST_KEY: &str = "hasTrustDialogAccepted";
 const ONBOARDED_KEY: &str = "hasCompletedOnboarding";
+// The CLI's own top-level mark declining its plugin recommendation for every session of the login
+// (docs/agent-control.md, 「A turn's end stops at a plugin recommendation」).
+const DECLINED_KEY: &str = "lspRecommendationDisabled";
 
 // How old a lock may be before it is taken as one its holder left behind: the CLI's holder touches its
 // lock every few seconds while it holds it, so an untouched one is a holder gone, not a slow one.
@@ -92,23 +96,36 @@ fn write_trusted(file: &Path, folder: &str) -> Trust {
     .and_then(|projects| serde_json::from_str(projects.get()).ok())
     .unwrap_or_default();
 
-  if entry_trusts(projects.get(folder)) {
+  let declined = config.get(DECLINED_KEY).is_some_and(|declined| declined.get() == "true");
+  let trusted = entry_trusts(projects.get(folder));
+
+  if trusted && declined {
     return Trust::Trusted;
   }
 
-  let mut entry = match projects.get(folder) {
-    Some(Value::Object(kept)) => kept.clone(),
-    _ => serde_json::Map::new(),
-  };
+  if !trusted {
+    let mut entry = match projects.get(folder) {
+      Some(Value::Object(kept)) => kept.clone(),
+      _ => serde_json::Map::new(),
+    };
 
-  entry.insert(TRUST_KEY.into(), Value::Bool(true));
-  projects.insert(folder.to_owned(), Value::Object(entry));
+    entry.insert(TRUST_KEY.into(), Value::Bool(true));
+    projects.insert(folder.to_owned(), Value::Object(entry));
 
-  let Ok(projects) = serde_json::value::to_raw_value(&projects) else {
-    return Trust::Unreadable;
-  };
+    let Ok(projects) = serde_json::value::to_raw_value(&projects) else {
+      return Trust::Unreadable;
+    };
 
-  config.insert("projects".into(), projects);
+    config.insert("projects".into(), projects);
+  }
+
+  if !declined {
+    let Ok(yes) = RawValue::from_string("true".to_owned()) else {
+      return Trust::Unreadable;
+    };
+
+    config.insert(DECLINED_KEY.into(), yes);
+  }
 
   let Ok(body) = serde_json::to_string_pretty(&config) else { return Trust::Unreadable };
   let mode = if present {
@@ -130,8 +147,9 @@ fn write_trusted(file: &Path, folder: &str) -> Trust {
   Trust::Written
 }
 
-/// The folder written as trusted in the file, every other entry kept as it stood. Nothing is written
-/// where the folder is already trusted, where the configuration directory is not there — no login
+/// The folder written as trusted in the file and the plugin recommendation declined there, every other
+/// entry kept as it stood. Nothing is written where the folder is already trusted and the recommendation
+/// already declined, where the configuration directory is not there — no login
 /// lives in it — or where the file is there and is not the CLI's configuration.
 pub fn trust_folder(file: &Path, folder: &str) -> Trust {
   if !file.parent().is_some_and(Path::exists) {

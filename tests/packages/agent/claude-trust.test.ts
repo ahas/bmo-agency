@@ -34,14 +34,24 @@ describe("the configuration file a run reads its trust from", () => {
 });
 
 describe("trusting a folder", () => {
-  test("writes nothing where the folder is already trusted", () => {
+  test("writes nothing where the folder is already trusted and the plugin recommendation declined", () => {
     const file = join(configDir(), ".claude.json");
-    const text = JSON.stringify({ projects: { "/work/a": { hasTrustDialogAccepted: true } } });
+    const text = JSON.stringify({ projects: { "/work/a": { hasTrustDialogAccepted: true } }, lspRecommendationDisabled: true });
 
     writeFileSync(file, text);
 
     expect(trustFolder(file, "/work/a")).toBe("trusted");
     expect(readFileSync(file, "utf8")).toBe(text);
+  });
+
+  test("declines the plugin recommendation beside a folder already trusted", () => {
+    const file = join(configDir(), ".claude.json");
+
+    writeFileSync(file, JSON.stringify({ projects: { "/work/a": { hasTrustDialogAccepted: true } } }));
+
+    expect(trustFolder(file, "/work/a")).toBe("written");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ projects: { "/work/a": { hasTrustDialogAccepted: true } }, lspRecommendationDisabled: true });
+    expect(trustFolder(file, "/work/a")).toBe("trusted");
   });
 
   test("leaves alone a directory that is not there and a file that is not the CLI's, and takes over a lock its holder left behind", () => {

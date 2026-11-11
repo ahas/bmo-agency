@@ -8,10 +8,13 @@ import { homeDir } from "@agency/support/roots";
 //
 // The CLI asks once per folder and per login whether the folder is to be trusted, and an interactive
 // program sits on that question before it takes anything. The answer is the folder's entry in the
-// CLI's global configuration file, so a folder written there as trusted never asks at all.
+// CLI's global configuration file, so a folder written there as trusted never asks at all. The same
+// write declines the CLI's plugin recommendation for the login, a choice it otherwise stands a turn's
+// end on (「A turn's end stops at a plugin recommendation」).
 
 const configName = ".claude.json";
 const trustKey = "hasTrustDialogAccepted";
+const declinedKey = "lspRecommendationDisabled";
 
 // How old a lock may be before it is taken as one its holder left behind: the CLI's holder touches its
 // lock every few seconds while it holds it, so an untouched one is a holder gone, not a slow one.
@@ -76,8 +79,9 @@ function takeLock(lock: string): void {
 export type FolderTrust = "trusted" | "written" | "no-config-dir" | "unreadable";
 
 /**
- * The folder written as trusted in the file, every other entry kept as it stood. Nothing is written
- * where the folder is already trusted, where the configuration directory is not there — no login
+ * The folder written as trusted in the file and the plugin recommendation declined there, every other
+ * entry kept as it stood. Nothing is written where the folder is already trusted and the recommendation
+ * already declined, where the configuration directory is not there — no login
  * lives in it — or where the file is there and is not the CLI's configuration.
  */
 export function trustFolder(file: string, folder: string): FolderTrust {
@@ -97,10 +101,13 @@ export function trustFolder(file: string, folder: string): FolderTrust {
     const projects = projectsOf(config);
     const entry = projects[folder];
 
-    if (entryTrusts(entry)) return "trusted";
+    const trusted = entryTrusts(entry);
+
+    if (trusted && config[declinedKey] === true) return "trusted";
 
     const kept = typeof entry === "object" && entry !== null ? entry as Record<string, unknown> : {};
-    const next = { ...config, projects: { ...projects, [folder]: { ...kept, [trustKey]: true } } };
+    const withTrust = trusted ? config : { ...config, projects: { ...projects, [folder]: { ...kept, [trustKey]: true } } };
+    const next = { ...withTrust, [declinedKey]: true };
     const mode = present ? statSync(file).mode & 0o777 : 0o600;
     const fresh = `${file}.bmo-trust-${process.pid}`;
 

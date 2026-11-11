@@ -2041,6 +2041,26 @@ with no recorded trust, and the transcript did not even appear. On screen:
   directory's entry went from absent before the answer to `hasTrustDialogAccepted: true`, and no pane was
   left.
 
+### A turn's end stops at a plugin recommendation
+
+Measured. A job's Claude Code program that had written its report and closed its turn stood, a moment
+later, at a full-screen choice offering a code-intelligence plugin (`LSP plugin recommendation`) for the
+files it had read. herdr reads that screen as `blocked`, so the turn read as standing at a question nobody
+was coming to answer and the job ended `blocked` with its report on screen.
+
+- The CLI offers it once per session where its global configuration file does not decline it: the
+  top-level `lspRecommendationDisabled: true` declines it for every session of that login, and so does
+  the CLI's own count of offers passed by once it reaches its limit.
+- **The offer is declined wherever a folder is trusted.** Every write of a folder's trust
+  (「A first interactive run stops at the trust-this-folder check」) also writes
+  `lspRecommendationDisabled: true` at the top of the same file, in the same write under the same lock,
+  so no run of a login it went out on is offered a plugin. A file that already trusts the folder and
+  declines the offer is not written; one that trusts it and does not decline the offer is written for the
+  offer alone. The agent host's `trust` on a work node writes both the same way.
+- No plugin is installed by this: what the bot's runs carry is the plugin agency hands each run
+  (`docs/api.md`, 「The harness plugin」), and an offer to install another is a question no person is
+  meant to answer.
+
 ### The order for putting in one turn and waiting for it to end
 
 The measured, fixed order.
