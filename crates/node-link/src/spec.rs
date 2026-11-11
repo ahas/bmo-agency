@@ -54,6 +54,24 @@ pub struct Spec {
   pub env_keep: Vec<String>,
   #[serde(default)]
   pub env_add: Vec<(String, String)>,
+  /// A person's PC, reached through the jake hub alone in place of SSH (docs/person-nodes.md); none for an SSH
+  /// node.
+  #[serde(default)]
+  pub jake: Option<Jake>,
+}
+
+/// How the link reaches a person's PC through the jake hub: the agent, the hub's connect program and its file,
+/// the far end's loopback ports on the PC for the mirror, the herdr socket and the stream back to the bridge, and
+/// the port here the bridge's stream back joins.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Jake {
+  pub agent: String,
+  pub connect: String,
+  pub hub_env: PathBuf,
+  pub mirror_port: u16,
+  pub herdr_port: u16,
+  pub bridge_port: u16,
+  pub bridge_relay: u16,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

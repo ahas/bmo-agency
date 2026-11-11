@@ -185,3 +185,96 @@ fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
     read_json(&place_there.join("program.json")).is_some_and(|read| read["command"]["args"][0] == "y")
   });
 }
+
+#[test]
+fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
+  let binary = crate::support::binary::built("node-link", "node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let here = dir.path().join("here");
+  let there = dir.path().join("there");
+  let place_here = here.join("agent-places").join("w");
+  let place_there = there.join("data").join("agent-places").join("w");
+
+  for made in [&place_here, &place_there, &there.join("data").join("run")] {
+    fs::create_dir_all(made).expect("made");
+  }
+
+  // The far end stands on the PC as its own service, listening at the loopback for the mirror.
+  let mirror = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+  let mirror_port = mirror.local_addr().expect("its address").port();
+  drop(mirror);
+  let _far = Link(
+    Command::new(&binary)
+      .args(["serve", "--root"])
+      .arg(&there)
+      .args(["--listen", &format!("127.0.0.1:{mirror_port}")])
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("serve"),
+  );
+
+  // The hub's connect program standing in: its agent and port, joined to that port here.
+  let connect = dir.path().join("jake-hub");
+
+  fs::write(&connect, "#!/bin/bash\nexec 3<>/dev/tcp/127.0.0.1/$2\ncat <&3 &\ncat >&3\n").expect("connect");
+  fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
+
+  let spec = dir.path().join("link.json");
+  let state = dir.path().join("state.json");
+
+  fs::write(
+    &spec,
+    json!({
+      "node": "u7",
+      "ssh": [],
+      "root": there,
+      "binary": binary,
+      "herdr": { "local": dir.path().join("h.sock"), "remote": dir.path().join("rh.sock") },
+      "ports": [],
+      "bridge": dir.path().join("b.sock"),
+      "deploy": dir.path(),
+      "control": dir.path().join("c.sock"),
+      "rewrite": [[here.to_string_lossy(), there.join("data").to_string_lossy()]],
+      "push": [{ "local": place_here, "files": ["program.json"], "rewrite": true }],
+      "pull": [{ "remote": place_there, "local": place_here, "files": ["running.json"] }],
+      "proc": dir.path().join("proc"),
+      "state": state,
+      "follow": [here],
+      "withheld": [],
+      "jake": {
+        "agent": "u7",
+        "connect": connect,
+        "hub_env": dir.path().join("no-hub.env"),
+        "mirror_port": mirror_port,
+        "herdr_port": 1,
+        "bridge_port": 2,
+        "bridge_relay": 0
+      }
+    })
+    .to_string(),
+  )
+  .expect("spec");
+
+  let _link = Link(
+    Command::new(&binary)
+      .arg("connect")
+      .arg(&spec)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  );
+
+  wait_for("the connection", || read_json(&state).is_some_and(|read| read["state"] == "connected"));
+
+  // Both ways over the hub's connect program: the program there, its running record here.
+  fs::write(place_here.join("program.json"), json!({ "command": { "args": ["x"] } }).to_string())
+    .expect("program");
+  wait_for("the program on the PC", || place_there.join("program.json").exists());
+  fs::write(place_there.join("running.json"), json!({ "pids": [] }).to_string()).expect("running");
+  wait_for("the running record here", || place_here.join("running.json").exists());
+}

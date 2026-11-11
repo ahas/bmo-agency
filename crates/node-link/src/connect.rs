@@ -127,9 +127,125 @@ fn ssh_command(spec: &Spec, remote_bridge: &str) -> Command {
   command
 }
 
+// The mirror's connection to a person's PC: the hub's connect program joined to the far end's mirror port.
+fn jake_command(jake: &crate::spec::Jake, port: u16) -> Command {
+  // A test names a stand-in for the hub's connect program that reaches a port here.
+  let program = std::env::var("NODE_LINK_JAKE").unwrap_or_else(|_| jake.connect.clone());
+  let mut command = Command::new(program);
+
+  command
+    .args([jake.agent.as_str(), &port.to_string()])
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .kill_on_drop(true);
+  command
+}
+
+// What a link to a person's PC holds beside its mirror, for as long as the connection stands: the herdr socket
+// here joined to the far end's herdr port, the bridge's stream back joined to the bridge socket here, and the hub
+// asked to listen on the PC for the tool host and the bridge (docs/person-nodes.md, 「The link over jake」).
+fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHandle<()>> {
+  let mut sides = Vec::new();
+  let _ = std::fs::remove_file(&spec.herdr.local);
+
+  match UnixListener::bind(&spec.herdr.local) {
+    Ok(listener) => {
+      let jake = jake.clone();
+      sides.push(tokio::spawn(async move {
+        while let Ok((client, _)) = listener.accept().await {
+          let jake = jake.clone();
+          tokio::spawn(async move { carry_over_jake(client, &jake, jake.herdr_port).await });
+        }
+      }));
+    }
+    Err(error) => eprintln!("{}: {}: {error}", spec.node, spec.herdr.local.display()),
+  }
+
+  let bridge = spec.bridge.clone();
+  let relay = jake.bridge_relay;
+  sides.push(tokio::spawn(async move {
+    let Ok(listener) = tokio::net::TcpListener::bind(("127.0.0.1", relay)).await else {
+      return;
+    };
+    while let Ok((mut client, _)) = listener.accept().await {
+      let bridge = bridge.clone();
+      tokio::spawn(async move {
+        if let Ok(mut far) = tokio::net::UnixStream::connect(&bridge).await {
+          let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+        }
+      });
+    }
+  }));
+
+  let mut wanted: Vec<(u16, u16)> = spec.ports.iter().map(|port| (*port, *port)).collect();
+  wanted.push((jake.bridge_port, jake.bridge_relay));
+  let (agent, hub_env, node) = (jake.agent.clone(), jake.hub_env.clone(), spec.node.clone());
+  sides.push(tokio::spawn(async move {
+    if let Err(error) = ask_listens(&agent, &hub_env, &wanted).await {
+      eprintln!("{node}: the hub was not asked to listen: {error}");
+    }
+  }));
+
+  sides
+}
+
+// One connection here carried to a port on the PC through the hub's connect program.
+async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jake, port: u16) {
+  let Ok(mut child) = jake_command(jake, port).stderr(Stdio::null()).spawn() else {
+    return;
+  };
+  let (Some(mut input), Some(mut output)) = (child.stdin.take(), child.stdout.take()) else {
+    return;
+  };
+  let (mut reader, mut writer) = client.into_split();
+
+  tokio::select! {
+    _ = tokio::io::copy(&mut reader, &mut input) => {}
+    _ = tokio::io::copy(&mut output, &mut writer) => {}
+  }
+  let _ = child.start_kill();
+}
+
+// The hub asked to have the agent listen on each PC port, joined to the port here, with the control port and
+// token its own file names.
+async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
+  let mut port = 8791u16;
+  let mut token = String::new();
+
+  for item in dotenvy::from_path_iter(hub_env).map_err(|error| format!("{}: {error}", hub_env.display()))? {
+    let (key, value) = item.map_err(|error| format!("{}: {error}", hub_env.display()))?;
+    match key.as_str() {
+      "JAKE_CONTROL_PORT" => {
+        port = value.parse().map_err(|_| format!("JAKE_CONTROL_PORT {value} is no port"))?
+      }
+      "JAKE_CONTROL_TOKEN" => token = value,
+      _ => {}
+    }
+  }
+
+  let client = reqwest::Client::new();
+  for (pc, here) in wanted {
+    let answer = client
+      .post(format!("http://127.0.0.1:{port}/listen"))
+      .query(&[("agent", agent), ("port", &pc.to_string())])
+      .bearer_auth(&token)
+      .json(&json!({ "target": format!("127.0.0.1:{here}") }))
+      .send()
+      .await
+      .map_err(|error| error.to_string())?;
+    if !answer.status().is_success() {
+      let said = answer.text().await.unwrap_or_default();
+      return Err(format!("port {pc}: {said}"));
+    }
+  }
+  Ok(())
+}
+
 /// Whether two specs make the same connection, so a change between them needs no new one.
 fn same_transport(one: &Spec, other: &Spec) -> bool {
   one.ssh == other.ssh
+    && one.jake == other.jake
     && one.herdr.local == other.herdr.local
     && one.herdr.remote == other.herdr.remote
     && one.herdr.session == other.herdr.session
@@ -321,9 +437,16 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
 /// One connection, from its start to its end; answers why it ended.
 async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &mut State) -> String {
   let remote_bridge = format!("{}/data/run/bridge-{}-{}.sock", spec.root, std::process::id(), now_ms());
-  let mut child = match ssh_command(spec, &remote_bridge).spawn() {
+  let (command, sides) = match &spec.jake {
+    Some(jake) => (jake_command(jake, jake.mirror_port), jake_sides(spec, jake)),
+    None => (ssh_command(spec, &remote_bridge), Vec::new()),
+  };
+  // The sides stand as long as this connection does.
+  let _sides = Sides(sides);
+  let mut command = command;
+  let mut child = match command.spawn() {
     Ok(child) => child,
-    Err(error) => return format!("ssh could not start: {error}"),
+    Err(error) => return format!("the connection could not start: {error}"),
   };
 
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
@@ -433,6 +556,17 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
   let said = last_said.lock().map(|held| held.clone()).unwrap_or_default();
 
   if said.is_empty() { reason } else { format!("{reason}: {said}") }
+}
+
+// What a connection holds beside its mirror, ended with it.
+struct Sides(Vec<tokio::task::JoinHandle<()>>);
+
+impl Drop for Sides {
+  fn drop(&mut self) {
+    for side in &self.0 {
+      side.abort();
+    }
+  }
 }
 
 /// The bot's questions on the control socket: a signal for a process on the node, and the link's own

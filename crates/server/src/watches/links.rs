@@ -502,6 +502,7 @@ pub async fn spec(
       ("BMO_NODE".into(), node.to_owned()),
     ],
     rewrite,
+    jake: None,
   }))
 }
 

@@ -53,6 +53,12 @@ pub struct Serve {
   /// The node's herdr session, by its name and its socket: started where its socket does not answer.
   pub herdr_session: Option<String>,
   pub herdr_socket: Option<PathBuf>,
+  /// On a person's PC (docs/person-nodes.md): the loopback address the mirror is spoken on in place of standard
+  /// input and output, one session after another; the loopback address the herdr socket is reached at; and the
+  /// loopback port the stream back to the home bridge stands on, which the node's bridge socket is joined to.
+  pub listen: Option<String>,
+  pub herdr_listen: Option<String>,
+  pub bridge_port: Option<u16>,
 }
 
 /// How often what must stand on the node is made sure of.
@@ -141,18 +147,78 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     point_bridge(&options.root, bridge);
   }
 
+  // On a person's PC the bridge socket is the far end's own, each connection joined to the stream back.
+  let bridging = match options.bridge_port {
+    Some(port) => {
+      let socket = options.root.join("data").join("run").join("bridge-jake.sock");
+      if let Some(dir) = socket.parent() {
+        fs::create_dir_all(dir)?;
+      }
+      let _ = fs::remove_file(&socket);
+      let listener = tokio::net::UnixListener::bind(&socket)?;
+      point_bridge(&options.root, &socket);
+      Some(tokio::spawn(join_unix_to_tcp(listener, format!("127.0.0.1:{port}"))))
+    }
+    None => None,
+  };
+  let herdr = match (&options.herdr_listen, &options.herdr_socket) {
+    (Some(address), Some(socket)) => {
+      let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
+      Some(tokio::spawn(join_tcp_to_unix(listener, socket.clone())))
+    }
+    _ => None,
+  };
+
+  let standing_options = Serve {
+    root: options.root.clone(),
+    bridge: options.bridge.clone(),
+    herdr_session: options.herdr_session.clone(),
+    herdr_socket: options.herdr_socket.clone(),
+    listen: None,
+    herdr_listen: None,
+    bridge_port: None,
+  };
   let standing = tokio::spawn(async move {
     loop {
-      make_standing(&options);
+      make_standing(&standing_options);
       tokio::time::sleep(STANDING_EVERY).await;
     }
   });
 
+  match &options.listen {
+    // One near end at a time, each speaking the mirror over its own connection.
+    Some(address) => {
+      let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
+      loop {
+        let (socket, _) = listener.accept().await?;
+        let (reader, writer) = socket.into_split();
+        session(reader, writer).await;
+      }
+    }
+    None => session(tokio::io::stdin(), tokio::io::stdout()).await,
+  }
+
+  standing.abort();
+  if let Some(bridging) = bridging {
+    bridging.abort();
+  }
+  if let Some(herdr) = herdr {
+    herdr.abort();
+  }
+
+  Ok(())
+}
+
+// One mirror session over a reader and a writer: the near end's frames done, and what is watched sent.
+async fn session(
+  reader: impl tokio::io::AsyncRead + Unpin + Send + 'static,
+  writer: impl tokio::io::AsyncWrite + Unpin + Send + 'static,
+) {
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
   let pulls: Arc<Mutex<Vec<Pull>>> = Arc::new(Mutex::new(Vec::new()));
 
   let writer = tokio::spawn(async move {
-    let mut out = tokio::io::stdout();
+    let mut out = writer;
 
     while let Some(frame) = sending.recv().await {
       if out.write_all(frame.line().as_bytes()).await.is_err() || out.flush().await.is_err() {
@@ -174,7 +240,7 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     tokio::spawn(async move { watch(pulls, send).await })
   };
 
-  let mut lines = BufReader::new(tokio::io::stdin()).lines();
+  let mut lines = BufReader::new(reader).lines();
 
   while let Ok(Some(line)) = lines.next_line().await {
     let Some(frame) = Frame::read(&line) else { continue };
@@ -185,11 +251,34 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
   }
 
   watching.abort();
-  standing.abort();
   drop(send);
   let _ = writer.await;
+}
 
-  Ok(())
+// Each connection to a unix socket here joined to a fresh TCP connection to `target`.
+async fn join_unix_to_tcp(listener: tokio::net::UnixListener, target: String) {
+  while let Ok((client, _)) = listener.accept().await {
+    let target = target.clone();
+    tokio::spawn(async move {
+      if let Ok(mut far) = tokio::net::TcpStream::connect(target.as_str()).await {
+        let mut client = client;
+        let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+      }
+    });
+  }
+}
+
+// Each TCP connection here joined to a fresh connection to the unix socket `socket`.
+async fn join_tcp_to_unix(listener: tokio::net::TcpListener, socket: PathBuf) {
+  while let Ok((client, _)) = listener.accept().await {
+    let socket = socket.clone();
+    tokio::spawn(async move {
+      if let Ok(mut far) = tokio::net::UnixStream::connect(&socket).await {
+        let mut client = client;
+        let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+      }
+    });
+  }
 }
 
 // What the near end sent, done.
