@@ -8,6 +8,8 @@ pub struct PersonNodes {
   pub mirror_port: u16,
   pub herdr_port: u16,
   pub bridge_port: u16,
+  pub bridge_relay_base: u16,
+  pub wait_seconds: u64,
 }
 
 crate::part!(pub PERSON_NODES: PersonNodes = "person-nodes.toml");

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService};
+use agency_server::peers::node::{HubReach, NodeRow, NodeService};
 use agency_server::watches::links::{
   LinkUnits, Roots, Skipped, deployed_commit, link_unit, mark_place_node, node_path, place_node,
   project_dir, settle,
@@ -50,7 +50,7 @@ fn a_place_is_marked_with_its_node_and_unmarked_when_it_comes_back() {
   assert_eq!(place_node(&place), None);
 }
 
-/// A node service that logs in to `n1` alone.
+/// A node service that logs in to `n1` alone and reaches `u7` and `u8` through a hub.
 struct LogsInToOne;
 
 const LOGIN: [&str; 4] = ["ssh", "-o", "BatchMode=yes", "tester@n1.example"];
@@ -66,6 +66,16 @@ impl NodeService for LogsInToOne {
 
   fn ssh_login<'a>(&'a self, node: &'a str) -> Asking<'a, Option<Vec<String>>> {
     Box::pin(async move { Ok((node == "n1").then(|| LOGIN.map(str::to_owned).to_vec())) })
+  }
+
+  fn hub_reach<'a>(&'a self, node: &'a str) -> Asking<'a, Option<HubReach>> {
+    Box::pin(async move {
+      Ok(["u7", "u8"].contains(&node).then(|| HubReach {
+        address: "http://127.0.0.1:8791".into(),
+        token_file: "~/hub.env".into(),
+        agent: format!("{node}-agent"),
+      }))
+    })
   }
 }
 
@@ -93,7 +103,8 @@ impl LinkUnits for Units {
 }
 
 #[tokio::test]
-async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_with_no_route_is_skipped() {
+async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub_and_one_with_no_route_is_skipped()
+ {
   let scratch = Scratch::new().await;
   let trees = tempfile::tempdir().unwrap();
   let roots = Roots {
@@ -103,12 +114,13 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
     agents: trees.path().join("agents"),
     home: trees.path().to_path_buf(),
     mcp_port: 3290,
+    jake_hub: Some("/opt/jake/jake-hub".into()),
     config_dir: trees.path().join(".claude"),
     path: "/usr/bin:/bin".into(),
     bun: "bun".into(),
   };
 
-  for node in ["n1", "n2"] {
+  for node in ["n1", "n2", "u7", "u8"] {
     scratch
       .run(
         r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "created_at", "updated_at")
@@ -118,6 +130,9 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
       .await;
   }
   crate::support::rows::repository(scratch.db(), "worker", "~/work", &[("node", "n1".into())]).await;
+  // A supervisor of an account whose node is the PC u7.
+  crate::support::rows::supervisor(scratch.db(), "u7-bmo", &[("owner_account", 7i64.into())]).await;
+  agency_server::person_nodes::set(scratch.db(), "7", "u7").await.unwrap();
   std::fs::create_dir_all(trees.path().join("data/nodes/n1")).unwrap();
   std::fs::write(
     trees.path().join("data/nodes/n1/setup.json"),
@@ -125,18 +140,55 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
   )
   .unwrap();
 
+  for (node, setup) in [
+    (
+      "u7",
+      r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock", "bridgeRelay": 47214 }"#,
+    ),
+    ("u8", r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock" }"#),
+  ] {
+    std::fs::create_dir_all(trees.path().join("data/nodes").join(node)).unwrap();
+    std::fs::write(trees.path().join("data/nodes").join(node).join("setup.json"), setup).unwrap();
+  }
+
   let units = Units::default();
   let settled = settle(scratch.db(), &LogsInToOne, &units, &roots).await.unwrap();
 
-  assert_eq!(settled.started, ["n1"]);
+  assert_eq!(settled.started, ["n1", "u7"]);
   assert_eq!(
     settled.skipped,
-    [Skipped {
-      node: "n2".into(),
-      why: "n2 has no SSH route".into(),
-    }]
+    [
+      Skipped {
+        node: "n2".into(),
+        why: "n2 has no SSH route and no hub".into(),
+      },
+      Skipped {
+        node: "u8".into(),
+        why: "u8's setup left no bridge relay port".into(),
+      },
+    ]
   );
-  assert_eq!(*units.started.lock().unwrap(), [(link_unit("n1"), roots.spec_path("n1"))]);
+  assert_eq!(units.started.lock().unwrap()[0], (link_unit("n1"), roots.spec_path("n1")));
+
+  // A person's PC: no login, its hub's connect program and settings, the far end's ports and its relay here.
+  let pc = Spec::read(&roots.spec_path("u7")).unwrap();
+  let jake = pc.jake.unwrap();
+
+  assert!(pc.ssh.is_empty());
+  assert_eq!(jake.agent, "u7-agent");
+  assert_eq!(jake.connect, ["/opt/jake/jake-hub", "connect"]);
+  assert_eq!(jake.hub_env, trees.path().join("hub.env"));
+  assert_eq!(
+    (jake.mirror_port, jake.herdr_port, jake.bridge_port, jake.bridge_relay),
+    (47201, 47202, 47203, 47214)
+  );
+  assert_eq!(pc.ports, [3290]);
+  // The supervisor's place goes there: its program sent, its running record brought back.
+  assert_eq!(place_node(&roots.place("u7-bmo")).as_deref(), Some("u7"));
+  assert!(pc.push.iter().any(|push| push.local == roots.place("u7-bmo")));
+  assert!(pc.pull.iter().any(|landing| landing.local == roots.place("u7-bmo")
+    && landing.pull.remote == "/home/tester/node-root/data/agent-places/u7-bmo"));
+  assert!(pc.path_head[0].ends_with("node-root/bun/bin"));
   assert_eq!(place_node(&roots.place("worker")).as_deref(), Some("n1"));
 
   let spec = Spec::read(&roots.spec_path("n1")).unwrap();

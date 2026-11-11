@@ -218,7 +218,11 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
   // The hub's connect program standing in: its agent and port, joined to that port here.
   let connect = dir.path().join("jake-hub");
 
-  fs::write(&connect, "#!/bin/bash\nexec 3<>/dev/tcp/127.0.0.1/$2\ncat <&3 &\ncat >&3\n").expect("connect");
+  fs::write(
+    &connect,
+    "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\nexec 3<>/dev/tcp/127.0.0.1/$3\ncat <&3 &\ncat >&3\n",
+  )
+  .expect("connect");
   fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
 
   let spec = dir.path().join("link.json");
@@ -245,7 +249,7 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
       "withheld": [],
       "jake": {
         "agent": "u7",
-        "connect": connect,
+        "connect": [connect, "connect"],
         "hub_env": dir.path().join("no-hub.env"),
         "mirror_port": mirror_port,
         "herdr_port": 1,

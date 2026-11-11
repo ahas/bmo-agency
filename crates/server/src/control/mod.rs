@@ -26,6 +26,7 @@ mod machine;
 pub mod models;
 mod node_reads;
 pub mod own_llm;
+mod person_node_routes;
 pub mod pool;
 mod pool_routes;
 pub mod quota;

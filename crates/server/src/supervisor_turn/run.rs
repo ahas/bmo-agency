@@ -351,17 +351,28 @@ pub async fn run_turn(
   let failure = |why: String| NoAnswer::Failed(why);
   // A gate place and a thrown-away session's place stand under no agent's row, by their own names
   // (docs/agent-control.md, 「A gate's places」; docs/api.md, 「sessions」).
-  let home = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
-    Some(row) => ground.home_of_row(&row).await.map_err(|why| failure(why.detail))?,
-    None
-      if crate::places::gate_places::recorded_place(&ground.roots.data, agent)
-        || crate::apart_places::is_apart_place(&ground.roots.data, agent) =>
-    {
-      ground.home_of(agent, agent)
+  // A supervisor of an account with a node stands there, and so does a role run of such an account, whose place
+  // is marked with it; either waits while the node's link is not heard (docs/person-nodes.md).
+  let (label, node) = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
+    Some(row) => (row.shown().to_owned(), row.node),
+    None if crate::places::gate_places::recorded_place(&ground.roots.data, agent) => {
+      (agent.to_owned(), None)
+    }
+    None if crate::apart_places::is_apart_place(&ground.roots.data, agent) => {
+      (agent.to_owned(), crate::watches::links::place_node(&ground.roots.place(agent)))
     }
     None => return Err(failure(format!("no agent is named {agent}"))),
+  };
+
+  if let Some(node) = &node {
+    crate::person_nodes::wait_heard(&ground.roots.data, node, agent).await;
   }
-  .ok_or_else(|| failure(format!("this machine names no herdr for {agent}'s place")))?;
+
+  let home = ground
+    .home_on(agent, &label, node.as_deref())
+    .await
+    .map_err(|why| failure(why.detail))?
+    .ok_or_else(|| failure(format!("this machine names no herdr for {agent}'s place")))?;
   // The agent's one program takes one turn at a time, whichever room it is for.
   let _held = hold(agent_lock(ground, agent)).await.map_err(|why| failure(why.to_string()))?;
   let limits = &SUPERVISOR_RUNNER.limits;

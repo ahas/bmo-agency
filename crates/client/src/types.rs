@@ -3392,6 +3392,31 @@ pub struct WorkNodeList {
   pub more: bool,
 }
 
+/// PersonNode: the node an account's runs stand on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonNode {
+  pub owner_account: String,
+  pub node: String,
+  /// epoch milliseconds
+  pub set_at: i64,
+}
+
+/// PersonNodeList: every account's node, by account.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonNodeList {
+  pub items: Vec<PersonNode>,
+  pub more: bool,
+}
+
+/// The body that sets an account's node: a hub node the node service keeps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonNodeAsk {
+  pub node: String,
+}
+
 /// Repository: one repository as its row holds it, with its checkouts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

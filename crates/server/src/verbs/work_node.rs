@@ -25,7 +25,7 @@ use super::work_node_setup::{
 use super::{Answer, VerbError, deploy_link, home, service};
 use crate::control::claude_accounts::accounts;
 use crate::peers::node::{NodeKind, NodeService};
-use crate::watches::links::{Roots, deployed_commit, link_unit, node_path};
+use crate::watches::links::{Roots, bridge_relay, deployed_commit, link_heard, link_unit, node_path};
 
 /// The root a workplace takes where its setup names none, under the node's home.
 pub const DEFAULT_WORKPLACE_ROOT: &str = "~/.local/share/bmo-node";
@@ -37,9 +37,6 @@ pub const HERDR_SESSION: &str = "bmo";
 /// The service a node's role names to carry a worker's jobs (docs/work-nodes.md, 「Which machines take
 /// work」).
 const JOBS_SERVICE: &str = "jobs";
-
-// How long a link may go without a word from the node before it is taken as down.
-const HEARD_WITHIN_MS: i64 = 20_000;
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum WorkNodeVerb {
@@ -185,12 +182,7 @@ fn link_words(data_root: &Path, node: &str) -> String {
   let Some(state) = read_json(&node_dir(data_root, node).join("link-state.json")) else {
     return "no link".to_owned();
   };
-  let heard = state.get("heard").and_then(Value::as_i64);
-  let now = chrono::Utc::now().timestamp_millis();
-  let up = state.get("state").and_then(Value::as_str) == Some("connected")
-    && heard.is_some_and(|heard| now - heard <= HEARD_WITHIN_MS);
-
-  if up {
+  if link_heard(data_root, node) {
     let since = state.get("since").and_then(Value::as_i64).unwrap_or(0);
 
     return format!("link up since {}", clock(Some(since.div_euclid(1000))));
@@ -628,12 +620,15 @@ async fn stand(
   };
   let mut outcome: SetupOutcome = set_up_workplace(door.shell(), &place, hands.as_ref()).await;
 
-  // What the hub's agent does not offer the workplace and its link is missing with the rest.
-  if let (Door::Hub(door), Some(far_end)) = (&door, &place.far_end) {
+  // A PC's bridge relay port here, and what its hub and agent do not offer the workplace and its link, missing
+  // with the rest.
+  let relay = matches!(door, Door::Hub(_)).then(|| relay_port(data_root, node));
+
+  if let (Door::Hub(door), Some(far_end), Some(relay)) = (&door, &place.far_end, relay) {
     let tool_host =
       Roots::of_machine(&harness_providers::Machine::of_process(data_root), deploy_link()).mcp_port;
 
-    outcome.missing.extend(door.wanting(far_end, tool_host));
+    outcome.missing.extend(door.wanting(far_end, tool_host, relay));
   }
 
   // A path written from the node's home reads as the node's own from now on, so every lock, record and
@@ -668,11 +663,13 @@ async fn stand(
     } else {
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
-    let body = format!(
-      "{}\n",
-      serde_json::to_string_pretty(&json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) }))
-        .unwrap_or_default()
-    );
+    let mut record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
+
+    if let Some(relay) = relay {
+      record["bridgeRelay"] = json!(relay);
+    }
+
+    let body = format!("{}\n", serde_json::to_string_pretty(&record).unwrap_or_default());
     let next = PathBuf::from(format!("{}.{}", path.display(), std::process::id()));
     let written = std::fs::OpenOptions::new()
       .write(true)
@@ -719,6 +716,29 @@ async fn stand(
     lines.extend(outcome.missing.iter().map(|line| format!("  - {line}")));
     Answer { lines, code: 1 }
   })
+}
+
+/// The bridge relay port here a PC keeps: the one its setup record holds, else the lowest from the policy's base
+/// that no other node's record holds (docs/person-nodes.md, 「The link over jake」).
+pub fn relay_port(data_root: &Path, node: &str) -> u16 {
+  let held =
+    |one: &str| read_json(&node_dir(data_root, one).join("setup.json")).as_ref().and_then(bridge_relay);
+
+  if let Some(own) = held(node) {
+    return own;
+  }
+
+  let taken: std::collections::BTreeSet<u16> = std::fs::read_dir(data_root.join("nodes"))
+    .into_iter()
+    .flatten()
+    .flatten()
+    .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
+    .filter(|one| one != node)
+    .filter_map(|one| held(&one))
+    .collect();
+  let base = policy::person_nodes::PERSON_NODES.bridge_relay_base;
+
+  (base..=u16::MAX).find(|port| !taken.contains(port)).unwrap_or(base)
 }
 
 // The ports the far end stands on at a person's PC, as agency's policy holds them.

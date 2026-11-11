@@ -127,13 +127,14 @@ fn ssh_command(spec: &Spec, remote_bridge: &str) -> Command {
   command
 }
 
-// The mirror's connection to a person's PC: the hub's connect program joined to the far end's mirror port.
+// A connection to a port on a person's PC: the hub's connect program, its words ahead of the agent and the port.
 fn jake_command(jake: &crate::spec::Jake, port: u16) -> Command {
-  // A test names a stand-in for the hub's connect program that reaches a port here.
-  let program = std::env::var("NODE_LINK_JAKE").unwrap_or_else(|_| jake.connect.clone());
+  let (program, words) =
+    jake.connect.split_first().map_or(("", &[][..]), |(one, rest)| (one.as_str(), rest));
   let mut command = Command::new(program);
 
   command
+    .args(words)
     .args([jake.agent.as_str(), &port.to_string()])
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())

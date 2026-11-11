@@ -60,13 +60,14 @@ pub struct Spec {
   pub jake: Option<Jake>,
 }
 
-/// How the link reaches a person's PC through the jake hub: the agent, the hub's connect program and its file,
-/// the far end's loopback ports on the PC for the mirror, the herdr socket and the stream back to the bridge, and
-/// the port here the bridge's stream back joins.
+/// How the link reaches a person's PC through the jake hub: the agent, the words the hub's connect program runs
+/// with ahead of the agent and a port, the hub's settings file its control port and token stand in, the far end's
+/// loopback ports on the PC for the mirror, the herdr socket and the stream back to the bridge, and the port here
+/// the bridge's stream back joins.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Jake {
   pub agent: String,
-  pub connect: String,
+  pub connect: Vec<String>,
   pub hub_env: PathBuf,
   pub mirror_port: u16,
   pub herdr_port: u16,

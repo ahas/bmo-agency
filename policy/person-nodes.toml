@@ -10,3 +10,11 @@ herdr_port = 47202
 
 # The port the stream back to the home bridge stands on, which the node's bridge socket is joined to.
 bridge_port = 47203
+
+# The first port of this machine's loopback the bridge's stream back from a PC is joined to: each PC takes the
+# lowest from here no other node holds, and the hub's JAKE_REVERSE_TARGETS lists it.
+bridge_relay_base = 47213
+
+# How often a run of an account waits on its node asks again whether the node's link has been heard from, in
+# seconds.
+wait_seconds = 5

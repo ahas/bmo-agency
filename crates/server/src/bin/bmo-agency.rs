@@ -36,7 +36,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 26] = [
+pub const NOUNS: [&str; 27] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -49,6 +49,7 @@ pub const NOUNS: [&str; 26] = [
   "node work\thome",
   "work-node\thome",
   "node claude-token\thome",
+  "node person\thome",
   "node pane",
   "node-pane",
   "dev-server",
@@ -302,6 +303,13 @@ enum NodeVerb {
   },
   /// What a node's workspace in herdr runs, until the node leaves the list.
   Pane { name: String },
+  /// The node each account's runs stand on: listed with nothing named, set for an account, or taken away.
+  Person {
+    account: Option<String>,
+    node: Option<String>,
+    #[arg(long)]
+    clear: bool,
+  },
   /// The workplaces on the work nodes: listed with no step, or one node's set up, checked, synced, its
   /// heavy runs switched, or let go.
   Work {
@@ -552,6 +560,11 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::Node { what } => match what {
       NodeVerb::ClaudeToken { account, paste } => ended(token(&data_root, &account, paste).await),
       NodeVerb::Pane { name } => ended(node_pane::node_pane(&data_root, &name).await),
+      NodeVerb::Person {
+        account,
+        node,
+        clear,
+      } => ended(agency_server::verbs::person_node::person_node(&data_root, account, node, clear).await),
       NodeVerb::Work { step } => ended(work_node::work_node(&data_root, step).await),
     },
     Verb::NodePane { name } => ended(node_pane::node_pane(&data_root, &name).await),

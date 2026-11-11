@@ -118,6 +118,10 @@ pub async fn stand(ground: &Ground, turns: &FollowTurns, row: &AgentRow) -> Resu
     return Ok(());
   }
 
+  if !ground.node_heard(row.node.as_deref()) {
+    return Ok(());
+  }
+
   let Some(home) = ground.home_of_row(row).await.map_err(|refusal| refusal.detail)? else {
     return Ok(());
   };

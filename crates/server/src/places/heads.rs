@@ -60,6 +60,12 @@ async fn replace_other_heads(home: &Home, busy: &HashSet<String>) {
 
 async fn stand_one(places: &Places, row: &AgentRow, busy: &HashSet<String>) -> Result<(), String> {
   let ground = &places.ground;
+
+  // A head on a node whose link is not heard is stood on a later pass, once it is.
+  if !ground.node_heard(row.node.as_deref()) {
+    return Ok(());
+  }
+
   let Some(home) = ground.home_of_row(row).await.map_err(|refusal| refusal.detail)? else {
     return Ok(());
   };

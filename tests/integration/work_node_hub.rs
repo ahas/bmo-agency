@@ -134,7 +134,11 @@ async fn stand_hub() -> Stood {
 
   let token_file = scratch.path().join("hub.env");
 
-  std::fs::write(&token_file, format!("JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN={TOKEN}\n")).unwrap();
+  std::fs::write(
+    &token_file,
+    format!("JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN={TOKEN}\nJAKE_REVERSE_TARGETS=127.0.0.1:13123,127.0.0.1:47213\n"),
+  )
+  .unwrap();
 
   let commands = Arc::new(Mutex::new(Vec::new()));
   let hub = Hub {
@@ -205,11 +209,16 @@ async fn an_absent_agent_is_refused_and_what_an_attached_one_does_not_offer_is_s
 
   assert!(refused.contains("no agent elsewhere attached"));
   assert_eq!(
-    door(&stood).await.wanting(&ports, 13123),
+    door(&stood).await.wanting(&ports, 13123, 47213),
     [
       "jake: the agent pc does not offer port 47202 for herdr to stream to; its JAKE_STREAM_PORTS must list it",
       "jake: the agent pc does not offer to listen on port 47203 for the bridge; its JAKE_LISTEN_PORTS must list it",
     ]
+  );
+  // A relay port the hub's settings do not list is said with them.
+  assert_eq!(
+    door(&stood).await.wanting(&ports, 13123, 47214)[2],
+    "jake: the hub joins no stream back to 127.0.0.1:47214, the bridge's relay here; its JAKE_REVERSE_TARGETS must list it"
   );
 }
 

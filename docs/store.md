@@ -69,6 +69,8 @@ seeds. The other crates and the server reach the store only through it.
     co-worker, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
+  - the accounts' nodes: `person_nodes`, one row an account — its id, the node its runs stand on and when it
+    was set (`docs/person-nodes.md`, 「Which node is a person's」);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the account it belongs to or
     none, the one agent it asks to be
     let in on, `agent_wanted`, where its asker named one, the agent it was let in on, its `seat`, what it is

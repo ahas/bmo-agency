@@ -1600,6 +1600,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/person-nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every account's node, by account. */
+        get: operations["listPersonNodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/person-nodes/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the node an account's runs stand on. */
+        put: operations["putPersonNode"];
+        post?: never;
+        /** Take an account's node away. */
+        delete: operations["deletePersonNode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/slots": {
         parameters: {
             query?: never;
@@ -4192,6 +4227,25 @@ export interface components {
             /** @description why it takes no jobs, or null where it takes them */
             jobsRefusal: string | null;
         };
+        /** @description PersonNodeList: every account's node, by account. */
+        PersonNodeList: {
+            items: components["schemas"]["PersonNode"][];
+            more: boolean;
+        };
+        /** @description PersonNode: the node an account's runs stand on. */
+        PersonNode: {
+            ownerAccount: string;
+            node: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            setAt: number;
+        };
+        /** @description The body that sets an account's node: a hub node the node service keeps. */
+        PersonNodeAsk: {
+            node: string;
+        };
         /** @description Slots: every role's slots. */
         Slots: {
             items: components["schemas"]["RoleSlots"][];
@@ -4621,6 +4675,15 @@ export interface components {
         };
         /** @description no-worker-free */
         NoWorkerFree: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-a-hub-node */
+        NotAHubNode: {
             headers: {
                 [name: string]: unknown;
             };
@@ -8360,6 +8423,78 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             502: components["responses"]["UpstreamFailed"];
+        };
+    };
+    listPersonNodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonNodeList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putPersonNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonNodeAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonNode"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["NotAHubNode"];
+            502: components["responses"]["UpstreamFailed"];
+        };
+    };
+    deletePersonNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     listSlots: {

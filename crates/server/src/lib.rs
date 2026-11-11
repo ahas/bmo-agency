@@ -68,6 +68,7 @@ pub mod openapi;
 pub mod order;
 pub mod order_run;
 pub mod peers;
+pub mod person_nodes;
 pub mod places;
 pub mod queue;
 pub mod readiness;

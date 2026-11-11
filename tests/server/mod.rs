@@ -122,6 +122,7 @@ mod order_run {
   mod places;
 }
 mod peers;
+mod person_nodes;
 
 mod lines {
   mod chat;

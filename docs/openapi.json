@@ -197,6 +197,9 @@
       "name": "nodes"
     },
     {
+      "name": "person-nodes"
+    },
+    {
       "name": "slots"
     }
   ],
@@ -6619,6 +6622,122 @@
         "x-codes": [
           "unauthorized",
           "upstream-failed"
+        ]
+      }
+    },
+    "/person-nodes": {
+      "get": {
+        "operationId": "listPersonNodes",
+        "tags": [
+          "person-nodes"
+        ],
+        "summary": "Every account's node, by account.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonNodeList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/person-nodes/{ownerAccount}": {
+      "put": {
+        "operationId": "putPersonNode",
+        "tags": [
+          "person-nodes"
+        ],
+        "summary": "Set the node an account's runs stand on.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonNode"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotAHubNode"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailed"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-a-hub-node",
+          "upstream-failed"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonNodeAsk"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePersonNode",
+        "tags": [
+          "person-nodes"
+        ],
+        "summary": "Take an account's node away.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
         ]
       }
     },
@@ -14443,6 +14562,59 @@
         ],
         "description": "WorkNode: one node the node service keeps, with whether it takes jobs."
       },
+      "PersonNodeList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonNode"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "PersonNodeList: every account's node, by account."
+      },
+      "PersonNode": {
+        "type": "object",
+        "properties": {
+          "ownerAccount": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "setAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          }
+        },
+        "required": [
+          "ownerAccount",
+          "node",
+          "setAt"
+        ],
+        "description": "PersonNode: the node an account's runs stand on."
+      },
+      "PersonNodeAsk": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node"
+        ],
+        "description": "The body that sets an account's node: a hub node the node service keeps."
+      },
       "Slots": {
         "type": "object",
         "properties": {
@@ -15427,6 +15599,16 @@
       },
       "NoWorkerFree": {
         "description": "no-worker-free",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotAHubNode": {
+        "description": "not-a-hub-node",
         "content": {
           "application/json": {
             "schema": {

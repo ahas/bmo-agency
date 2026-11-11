@@ -16,6 +16,7 @@ pub mod live_claude;
 pub mod models;
 pub mod node_pane;
 pub mod overtime;
+pub mod person_node;
 pub mod process_memory;
 pub mod reload;
 pub mod repository;

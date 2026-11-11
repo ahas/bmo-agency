@@ -29,6 +29,10 @@ pub struct Config {
 /// The variable naming the brain repository.
 pub const BRAIN_ROOT: &str = "AGENCY_BRAIN_ROOT";
 
+/// The variable naming the jake hub's executable, whose connect mode carries a link to a person's PC
+/// (docs/person-nodes.md, 「The link over jake」).
+pub const JAKE_HUB: &str = "AGENCY_JAKE_HUB";
+
 /// The variable naming the file the persona's placeholder values are kept in.
 pub const PERSONA_VALUES: &str = "AGENCY_PERSONA_VALUES";
 

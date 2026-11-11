@@ -7,12 +7,24 @@ desktop coding agent whose models and tools are served from elsewhere.
 
 ## Which node is a person's
 
-- **A person's node is the hub node whose agent is `u<user>`,** the machine their account was bound to when its
-  invitation was proven (the account service's `docs/accounts.md`, 「Invitations and a person's machine」). The node
-  service lists it as any hub node (`docs/work-nodes.md`, 「In herdr」).
-- **An account's runs go there and nowhere else:** its supervisors' sessions and its role agents' runs. A run of an
-  account whose node is not attached waits; nothing of it runs on this machine or another account's node. A run of no
-  account is placed as before.
+- **A person's node is the node agency's record names for their account:** the hub node of the machine their
+  account was bound to when its invitation was proven, `u<user>` (the account service's `docs/accounts.md`,
+  「Invitations and a person's machine」), or another the administrator bound it to. Agency keeps one record an
+  account, set and taken away by the service that binds the account (`docs/api.md`, 「person-nodes」), or with
+  `bmo-agency node person`; it names a node the node service keeps as a hub node reserved for no service. The
+  node service lists it as any hub node (`docs/work-nodes.md`, 「In herdr」). An account with no record has no
+  node.
+- **An account's runs go there and nowhere else:**
+  - its supervisors' sessions: a supervisor of the account stands on the node as a worker of a node does, its
+    head, its room panes and every turn of it in the node's herdr session;
+  - its role agents' runs: a run whose slot belongs to the account goes the place-based road whatever its
+    provider, its place opened on the node, its folder read as the node reads this machine's roots;
+  - the link mirrors each of these places as it mirrors a worker's: its program and settings sent, its running
+    record and its transcripts brought back.
+- **While the node is not attached, its runs wait:** a turn of the account asks again every few seconds whether the
+  node's link has been heard from, and starts once it has; a head or a room pane of a supervisor of the account is
+  not stood until then. Nothing of it runs on this machine or another account's node. A run of no account, or of an
+  account with no node, is placed as before.
 
 ## What the PC needs
 
@@ -73,6 +85,15 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   the hub to listen on the PC for the tool host and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
   allows (jake's `docs/architecture.md`, 「Carrying a byte stream back」). What the mirror says is the SSH link's,
   frame for frame.
+- **The spec writer writes a jake spec for a node with no SSH login and a hub reach:** the agent the node service
+  names, the hub's connect program run as the hub's executable the deployment names in `AGENCY_JAKE_HUB` with its
+  `connect` mode, the hub's token file as the hub's settings, the far end's three ports from agency's policy, and
+  the bridge's relay port here. A node whose hub program is not named, or whose setup left no relay port, has no
+  spec, and the pass says why.
+- **Each PC has a bridge relay port of its own here,** since each joins its own bridge socket: the setup gives a PC
+  the lowest port from the policy's base that no other node's setup record holds, keeps it on every later setup,
+  and writes it into the node's setup record. The hub's `JAKE_REVERSE_TARGETS` lists it beside the tool host's
+  port, and the setup says either missing where the hub's settings do not.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place and its tool token.
 
@@ -81,8 +102,8 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | Part | Stands | Left |
 |---|---|---|
 | jake: streams back | the hub's listens by agent and port, refused for a target outside `JAKE_REVERSE_TARGETS`; the agent's listens at its loopback on `JAKE_LISTEN_PORTS`; each accepted connection carried to its target | — |
-| the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | no spec names a PC yet: the spec writer writes SSH specs alone |
+| the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
-| an account's runs on its PC | — | the spec writer writing a jake spec for a person's node; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node is not attached |
+| an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set | an account bound to it whose BMO opens a session there and answers |
 

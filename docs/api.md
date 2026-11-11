@@ -1146,6 +1146,21 @@ where the shell stands in an agent's program, else the owner.
   its node checkouts name only a node that takes jobs (「repositories, prefix-checks and room-holdings」).
 - **A node service that cannot answer** is 502 `upstream-failed`.
 
+### person-nodes
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/person-nodes` | Every account's node, by account. |
+| PUT | `/person-nodes/{ownerAccount}` | An account's node set: `node`. |
+| DELETE | `/person-nodes/{ownerAccount}` | An account's node taken away. |
+
+- **An account's node is where its runs stand** (`docs/person-nodes.md`, 「Which node is a person's」): each record is
+  `ownerAccount`, `node` and `setAt` in epoch milliseconds. The service that binds an account to its machine sets it
+  once the machine is proven, and again when the account is bound to another.
+- **The node is one the node service keeps as a hub node reserved for no service:** another is 422
+  `not-a-hub-node`, and a node service
+  that cannot answer is 502 `upstream-failed`. Taking away a record no account holds is 404 `not-found`.
+
 ### assignments and jobs
 
 | Method | Path | Does |
@@ -1506,6 +1521,7 @@ input, so `bmo` finds it from any directory.
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
 | `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
 | `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
+| `node person` | none to list every account's node; `<account> <node>` to set one, `<account> --clear` to take it away | the store, and the node service for the node |
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
 | `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, and the store |
 | `dev-pane` | `<checkout>` | the checkout's dev-server pane, and the store |

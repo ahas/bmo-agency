@@ -1,6 +1,6 @@
 //! The links to the work nodes, kept by agency's server (docs/work-nodes.md, 「The link」): one spec per
-//! ready workplace, written from the store whenever the workers or the nodes move, its SSH login asked of
-//! the node service; every place of an agent placed on a node marked with its node; and one unit per
+//! ready workplace, written from the store whenever the workers or the nodes move, its SSH login or its hub
+//! asked of the node service; every place of an agent placed on a node marked with its node; and one unit per
 //! ready workplace holding the link, started where it is not running and stopped where its workplace is
 //! no longer ready. A process on a copy of the data root keeps none, since a link is the machine's unit
 //! for that node.
@@ -13,7 +13,8 @@ use agent_host::place::Place;
 use harness_machine::model_use::with_user_bus;
 use harness_providers::Machine;
 use node_link::frame::Pull;
-use node_link::spec::{Forward, Landing, Push, Spec};
+use node_link::spec::{Forward, Jake, Landing, Push, Spec};
+use policy::person_nodes::PERSON_NODES;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::Value;
@@ -21,7 +22,7 @@ use store::all;
 
 use crate::Refusal;
 use crate::control::claude_accounts::accounts;
-use crate::peers::node::NodeService;
+use crate::peers::node::{HubReach, NodeService};
 
 /// The place files that go to the node: what the launcher writes and the program on the node reads.
 const PUSHED_PLACE_FILES: [&str; 4] = ["program.json", "settings.json", "run.json", "handed"];
@@ -78,6 +79,15 @@ pub fn deployed_commit(deploy_link: &Path) -> Option<String> {
   text_of(&record, "commit")
 }
 
+/// The mode the jake hub's executable carries one byte stream to an agent's port in.
+const JAKE_CONNECT: &str = "connect";
+
+/// How long a link may go without a word from the node before it is taken as not heard.
+const HEARD_WITHIN_MS: i64 = 20_000;
+
+/// The directory under the data root every agent's place stands in.
+const PLACES_DIR: &str = "agent-places";
+
 /// The unit one node's link runs under.
 pub fn link_unit(node: &str) -> String {
   format!("bmo-node-link-{node}")
@@ -99,6 +109,9 @@ pub struct Roots {
   pub agents: PathBuf,
   pub home: PathBuf,
   pub mcp_port: u16,
+  /// The jake hub's executable, whose connect mode carries a link to a person's PC, where the deployment
+  /// names one (docs/person-nodes.md, 「The link over jake」).
+  pub jake_hub: Option<PathBuf>,
   /// The CLI's own configuration directory, where an account keeps its records unless it names a
   /// directory of its own.
   pub config_dir: PathBuf,
@@ -125,6 +138,7 @@ impl Roots {
         .and_then(|port| port.parse().ok())
         .filter(|&port| port > 0)
         .unwrap_or(MCP_HOST_PORT),
+      jake_hub: machine.var(crate::config::JAKE_HUB).map(PathBuf::from),
       config_dir: machine.var("CLAUDE_CONFIG_DIR").map_or_else(|| home.join(".claude"), PathBuf::from),
       path: machine.var("PATH").unwrap_or("/usr/bin:/bin").to_owned(),
       bun: machine.program("bun").unwrap_or_else(|| PathBuf::from("bun")),
@@ -320,29 +334,54 @@ async fn workers(
   )
 }
 
-/// An agent placed on a node: its name and its checkout as the node reads it.
+/// An agent placed on a node: its name, the folder it works in, and whether that folder is a checkout of the
+/// node's, read as the node reads it, or one of this machine's that the node reads through the spec's roots.
 struct Placed {
   agent: String,
   cwd: String,
+  checkout: bool,
 }
 
-/// The agents placed on each node, read off the workers' rows with their paths as the node reads them.
+/// The agents placed on each node: the workers its rows place there, with their checkouts as the node reads
+/// them, and every other place marked as standing there with the folder its mark names, an account's
+/// supervisors and its role runs among them (docs/person-nodes.md, 「Which node is a person's」).
 async fn placed_agents(
   db: &DatabaseConnection,
   places: &[Workplace],
+  roots: &Roots,
 ) -> Result<BTreeMap<String, Vec<Placed>>, Refusal> {
   let mut placed: BTreeMap<String, Vec<Placed>> = BTreeMap::new();
+  let workers = workers(db).await?;
 
-  for (agent, node, cwd) in workers(db).await? {
+  for (agent, node, cwd) in &workers {
     let (Some(node), Some(cwd)) = (node, cwd) else {
       continue;
     };
-    let home = places.iter().find(|place| place.node == node).and_then(|place| place.home.as_deref());
+    let home = places.iter().find(|place| &place.node == node).and_then(|place| place.home.as_deref());
 
-    placed.entry(node).or_default().push(Placed {
-      cwd: node_path(&cwd, home),
-      agent,
+    placed.entry(node.clone()).or_default().push(Placed {
+      cwd: node_path(cwd, home),
+      agent: agent.clone(),
+      checkout: true,
     });
+  }
+
+  let marked = std::fs::read_dir(roots.data.join(PLACES_DIR)).into_iter().flatten().flatten();
+
+  for entry in marked {
+    let agent = entry.file_name().to_string_lossy().into_owned();
+    let Some(mark) = read_json(&entry.path().join(PLACE_NODE_FILE)) else { continue };
+    let (Some(node), Some(cwd)) = (text_of(&mark, "node"), text_of(&mark, "cwd")) else {
+      continue;
+    };
+
+    if workers.iter().all(|(worker, _, _)| *worker != agent) {
+      placed.entry(node).or_default().push(Placed {
+        agent,
+        cwd,
+        checkout: false,
+      });
+    }
   }
 
   Ok(placed)
@@ -408,8 +447,16 @@ pub async fn spec(
   let places = workplaces(db).await?;
   let workplace = places.iter().find(|place| place.node == node);
   let setup = read_json(&roots.setup_path(node));
-  let Some(ssh) = nodes.ssh_login(node).await? else {
-    return Ok(Err(format!("{node} has no SSH route")));
+  let ssh = nodes.ssh_login(node).await?;
+  let jake = match &ssh {
+    Some(_) => None,
+    None => match nodes.hub_reach(node).await? {
+      None => return Ok(Err(format!("{node} has no SSH route and no hub"))),
+      Some(reach) => match jake_of(roots, node, reach, setup.as_ref()) {
+        Ok(jake) => Some(jake),
+        Err(why) => return Ok(Err(why)),
+      },
+    },
   };
   let Some((workplace, home)) = workplace.and_then(|place| Some((place, place.home.clone()?))) else {
     return Ok(Err(format!("{node} has no workplace set up")));
@@ -421,7 +468,7 @@ pub async fn spec(
     return Ok(Err(format!("{node}'s setup left no record of its herdr session")));
   };
   let node_root = node_path(&workplace.root, Some(&home));
-  let agents = placed_agents(db, &places).await?.remove(node).unwrap_or_default();
+  let agents = placed_agents(db, &places, roots).await?.remove(node).unwrap_or_default();
   let records = record_dirs(db, roots).await?;
   let here = roots.node_dir(node);
   let shown = |path: &Path| path.display().to_string();
@@ -444,6 +491,8 @@ pub async fn spec(
 
   for placed in &agents {
     let place = shown(&roots.place(&placed.agent));
+    // A folder of this machine's reads as the node's through the same roots as every other path.
+    let cwd = if placed.checkout { placed.cwd.clone() } else { to_node(&placed.cwd) };
 
     pull.push(Landing {
       pull: Pull {
@@ -459,7 +508,7 @@ pub async fn spec(
     for records in &records {
       pull.push(Landing {
         pull: Pull {
-          remote: project_dir(&placed.cwd, &join(&to_node(records), "projects")),
+          remote: project_dir(&cwd, &join(&to_node(records), "projects")),
           files: vec![],
           tree: true,
           append: true,
@@ -467,6 +516,10 @@ pub async fn spec(
         },
         local: project_dir(&placed.cwd, &join(records, "projects")).into(),
       });
+    }
+
+    if !placed.checkout {
+      continue;
     }
 
     pull.push(Landing {
@@ -485,7 +538,7 @@ pub async fn spec(
 
   Ok(Ok(Spec {
     node: node.to_owned(),
-    ssh,
+    ssh: ssh.unwrap_or_default(),
     root: node_root.clone(),
     binary: join(&node_root, "deploy/bin/node-link"),
     herdr: Forward {
@@ -518,8 +571,44 @@ pub async fn spec(
       ("BMO_NODE".into(), node.to_owned()),
     ],
     rewrite,
-    jake: None,
+    jake,
   }))
+}
+
+/// The bridge relay port a node's setup record names, where it names one.
+pub fn bridge_relay(setup: &Value) -> Option<u16> {
+  setup
+    .get("bridgeRelay")
+    .and_then(Value::as_u64)
+    .and_then(|port| u16::try_from(port).ok())
+}
+
+// How the link reaches a person's PC through its hub, or why it cannot yet.
+fn jake_of(roots: &Roots, node: &str, reach: HubReach, setup: Option<&Value>) -> Result<Jake, String> {
+  let Some(program) = &roots.jake_hub else {
+    return Err(format!(
+      "{node} is reached through a hub, and the deployment names no hub program in {}",
+      crate::config::JAKE_HUB
+    ));
+  };
+  let Some(bridge_relay) = setup.and_then(bridge_relay) else {
+    return Err(format!("{node}'s setup left no bridge relay port"));
+  };
+  let ports = &PERSON_NODES;
+  let hub_env = match reach.token_file.strip_prefix("~/") {
+    Some(rest) => roots.home.join(rest),
+    None => PathBuf::from(&reach.token_file),
+  };
+
+  Ok(Jake {
+    agent: reach.agent,
+    connect: vec![program.display().to_string(), JAKE_CONNECT.to_owned()],
+    hub_env,
+    mirror_port: ports.mirror_port,
+    herdr_port: ports.herdr_port,
+    bridge_port: ports.bridge_port,
+    bridge_relay,
+  })
 }
 
 /// A spec written where it moved, so the link reads it again only when there is something new to read;
@@ -564,6 +653,43 @@ pub fn place_node(place: &Path) -> Option<String> {
   text_of(&read_json(&place.join(PLACE_NODE_FILE))?, "node")
 }
 
+/// A place that is no worker's marked as standing on a node with the folder of this machine's its program works
+/// in, which the node reads through the spec's roots and whose records the link brings back; or unmarked where
+/// the node is none.
+pub fn mark_place_on(place: &Path, node: Option<&str>, cwd: &str) -> Result<(), String> {
+  let Some(node) = node else { return mark_place_node(place, None) };
+  let body = serde_json::to_string_pretty(&serde_json::json!({ "node": node, "cwd": cwd }))
+    .map_err(|why| why.to_string())?;
+
+  write_whole(&place.join(PLACE_NODE_FILE), &format!("{body}\n"))
+}
+
+/// Whether a node's link was heard from lately, as the link last wrote its state here: connected, and heard
+/// within the last twenty seconds.
+pub fn link_heard(data_root: &Path, node: &str) -> bool {
+  let Some(state) = read_json(&data_root.join("nodes").join(node).join("link-state.json")) else {
+    return false;
+  };
+  let heard = state.get("heard").and_then(Value::as_i64);
+
+  state.get("state").and_then(Value::as_str) == Some("connected")
+    && heard.is_some_and(|heard| crate::now_ms() - heard <= HEARD_WITHIN_MS)
+}
+
+/// One node's spec written again where a workplace is ready for it, so a place just marked for it is mirrored
+/// without waiting for the next pass.
+pub async fn write_node_spec(
+  db: &DatabaseConnection,
+  nodes: &dyn NodeService,
+  roots: &Roots,
+  node: &str,
+) -> Result<(), String> {
+  match spec(db, nodes, roots, node).await.map_err(|refusal| refusal.detail)? {
+    Ok(spec) => write_spec(roots, &spec).map(|_| ()),
+    Err(why) => Err(why),
+  }
+}
+
 /// A place marked as standing on a node, or on this machine where the node is none.
 pub fn mark_place_node(place: &Path, node: Option<&str>) -> Result<(), String> {
   match node {
@@ -597,6 +723,17 @@ pub async fn settle(
 
     if place_node(&place) != node {
       mark_place_node(&place, node.as_deref())?;
+    }
+  }
+
+  // A supervisor of an account with a node stands there, working in its own folder.
+  for (agent, node) in crate::person_nodes::supervisors_placed(db).await.map_err(refused)? {
+    let place = roots.place(&agent);
+
+    if place_node(&place) != node {
+      let folder = harness_machine::supervisor_prompt::homes(&roots.data).join(&agent);
+
+      mark_place_on(&place, node.as_deref(), &folder.display().to_string())?;
     }
   }
 

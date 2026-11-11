@@ -7,7 +7,7 @@ use std::process::{Command, Output, Stdio};
 use crate::support::binary;
 
 // The nouns the command declares, as `nouns` prints them, `home` marks included.
-const NOUNS: [&str; 26] = [
+const NOUNS: [&str; 27] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -20,6 +20,7 @@ const NOUNS: [&str; 26] = [
   "node work\thome",
   "work-node\thome",
   "node claude-token\thome",
+  "node person\thome",
   "node pane",
   "node-pane",
   "dev-server",

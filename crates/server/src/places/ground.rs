@@ -136,6 +136,10 @@ pub struct AgentRow {
   pub resting: bool,
 }
 
+// A supervisor's row as it is read, with its owner account's node.
+const SUPERVISOR_SELECT: &str = r#"SELECT s."name", s."label", s."herdr_label", p."node" FROM "supervisors" s
+  LEFT JOIN "person_nodes" p ON p."owner_account" = s."owner_account"::text"#;
+
 // The kind a supervisor's row is read as, and a checkout's.
 const SUPERVISOR: &str = "chat";
 const CHECKOUT: &str = "worker";
@@ -147,7 +151,8 @@ impl AgentRow {
       kind: SUPERVISOR.to_owned(),
       label: row.try_get("", "label")?,
       herdr_label: row.try_get("", "herdr_label")?,
-      node: None,
+      // Its owner account's node, where the account has one (docs/person-nodes.md).
+      node: row.try_get("", "node")?,
       cwd: None,
       dev_command: None,
       support_of: None,
@@ -186,12 +191,7 @@ impl AgentRow {
 
   /// Every supervisor: the only rows whose program stands between turns.
   pub async fn standing(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
-    let rows = all(
-      db,
-      r#"SELECT "name", "label", "herdr_label" FROM "supervisors" ORDER BY "name""#,
-      vec![],
-    )
-    .await?;
+    let rows = all(db, &format!(r#"{SUPERVISOR_SELECT} ORDER BY s."name""#), vec![]).await?;
 
     Ok(rows.iter().map(Self::supervisor).collect::<Result<_, _>>()?)
   }
@@ -203,12 +203,8 @@ impl AgentRow {
 
   /// One supervisor's row, or one checkout's.
   pub async fn named(db: &DatabaseConnection, name: &str) -> Result<Option<Self>, Refusal> {
-    let supervisor = one(
-      db,
-      r#"SELECT "name", "label", "herdr_label" FROM "supervisors" WHERE "name" = $1"#,
-      vec![name.into()],
-    )
-    .await?;
+    let supervisor =
+      one(db, &format!(r#"{SUPERVISOR_SELECT} WHERE s."name" = $1"#), vec![name.into()]).await?;
 
     if let Some(row) = supervisor {
       return Ok(Some(Self::supervisor(&row)?));
@@ -482,12 +478,23 @@ impl Ground {
   /// An agent's home by its row: under the label herdr shows it by; on a work node, in that node's herdr,
   /// its head the node's own `pane-head` on the node's roots.
   pub async fn home_of_row(&self, row: &AgentRow) -> Result<Option<Home>, Refusal> {
-    let Some(mut home) = self.home_of(&row.name, row.shown()) else {
+    self.home_on(&row.name, row.shown(), row.node.as_deref()).await
+  }
+
+  /// An agent's home under the label given, on this machine where the node is none; on a node, in that node's
+  /// herdr, its head the node's own `pane-head` on the node's roots.
+  pub async fn home_on(
+    &self,
+    agent: &str,
+    label: &str,
+    node: Option<&str>,
+  ) -> Result<Option<Home>, Refusal> {
+    let Some(mut home) = self.home_of(agent, label) else {
       return Ok(None);
     };
-    let Some(node) = &row.node else { return Ok(Some(home)) };
+    let Some(node) = node.map(str::to_owned) else { return Ok(Some(home)) };
 
-    home.herdr = Herdr::there(self.roots.data.join("nodes").join(node).join("herdr.sock"));
+    home.herdr = Herdr::there(self.roots.data.join("nodes").join(&node).join("herdr.sock"));
 
     let workplace = one(
       &self.db,
@@ -504,7 +511,7 @@ impl Ground {
     let at = |path: &Path| path.to_string_lossy().into_owned();
 
     home.head = Launch {
-      command: self.head_command(&row.name, &code),
+      command: self.head_command(agent, &code),
       cwd: at(&code),
       env: BTreeMap::from([
         ("HOME".to_owned(), node_home.clone()),
@@ -521,11 +528,17 @@ impl Ground {
         ("BMO_SOURCE_DIR".to_owned(), at(&code)),
         ("BMO_HOME_BRIDGE".to_owned(), at(&node_root.join("data").join("bridge.sock"))),
         ("BMO_NODE".to_owned(), node.clone()),
-        (RUN_NAME.to_owned(), format!("{HEAD_MARK}{}", row.name)),
+        (RUN_NAME.to_owned(), format!("{HEAD_MARK}{agent}")),
       ]),
     };
 
     Ok(Some(home))
+  }
+
+  /// Whether what stands on a node can stand now: anything of this machine's, and on a node, once the node's
+  /// link has been heard from.
+  pub fn node_heard(&self, node: Option<&str>) -> bool {
+    node.is_none_or(|node| links::link_heard(&self.roots.data, node))
   }
 
   /// The directory a worker works in: its own, or the source root.

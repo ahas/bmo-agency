@@ -22,6 +22,10 @@ use crate::peers::node::HubReach;
 /// The variable of the hub's token file its control token is kept under.
 const TOKEN_KEY: &str = "JAKE_CONTROL_TOKEN";
 
+/// The variable of the hub's settings naming the targets here a stream back may be joined to, each `host:port`,
+/// separated by commas, as jake's hub reads it.
+const REVERSE_TARGETS_KEY: &str = "JAKE_REVERSE_TARGETS";
+
 /// The shells the hub's agent may offer for Linux, the agent's own first: where the agent runs inside the
 /// Linux shell, and WSL's where it runs on Windows.
 const LINUX_SHELLS: [&str; 2] = ["linux", "wsl"];
@@ -53,6 +57,8 @@ pub struct HubDoor {
   client: reqwest::Client,
   address: String,
   token: String,
+  /// The targets here the hub joins a stream back to.
+  reverse_targets: Vec<String>,
   agent: String,
   shell: Option<&'static str>,
   capabilities: Vec<String>,
@@ -66,19 +72,19 @@ fn expand_home(path: &str, home: &Path) -> PathBuf {
   path.strip_prefix("~/").map_or_else(|| PathBuf::from(path), |rest| home.join(rest))
 }
 
-/// The hub's control token, read from the file its node names.
-fn control_token(token_file: &Path) -> Result<String, String> {
+/// One setting of the hub's file its node names, where the file sets it.
+fn hub_setting(token_file: &Path, wanted: &str) -> Result<Option<String>, String> {
   let shown = token_file.display();
 
   for item in dotenvy::from_path_iter(token_file).map_err(|why| format!("{shown}: {why}"))? {
     let (key, value) = item.map_err(|why| format!("{shown}: {why}"))?;
 
-    if key == TOKEN_KEY {
-      return Ok(value);
+    if key == wanted {
+      return Ok(Some(value));
     }
   }
 
-  Err(format!("{shown} holds no {TOKEN_KEY}"))
+  Ok(None)
 }
 
 fn failed(why: impl std::fmt::Display) -> ShellRun {
@@ -93,7 +99,15 @@ impl HubDoor {
   /// The door to the agent the reach names, with what the agent offers as the hub last heard it; refused where
   /// the hub cannot be asked or the agent is not attached.
   pub async fn open(reach: &HubReach, home: &Path) -> Result<Self, String> {
-    let token = control_token(&expand_home(&reach.token_file, home))?;
+    let settings = expand_home(&reach.token_file, home);
+    let token = hub_setting(&settings, TOKEN_KEY)?
+      .ok_or_else(|| format!("{} holds no {TOKEN_KEY}", settings.display()))?;
+    let reverse_targets: Vec<String> = hub_setting(&settings, REVERSE_TARGETS_KEY)?
+      .unwrap_or_default()
+      .split(',')
+      .map(|target| target.trim().to_owned())
+      .filter(|target| !target.is_empty())
+      .collect();
     let address = reach.address.trim_end_matches('/').to_owned();
     let client = reqwest::Client::new();
     let status: Value = client
@@ -132,6 +146,7 @@ impl HubDoor {
       client,
       address,
       token,
+      reverse_targets,
       agent: reach.agent.clone(),
       shell,
       capabilities,
@@ -140,9 +155,10 @@ impl HubDoor {
     })
   }
 
-  /// What the agent does not offer that the workplace and its link need, one thing per line: a Linux shell, the
-  /// far end's mirror and herdr ports to stream to, and the tool host's and the bridge's ports to listen on.
-  pub fn wanting(&self, far_end: &FarEnd, tool_host_port: u16) -> Vec<String> {
+  /// What the hub and its agent do not offer that the workplace and its link need, one thing per line: a Linux
+  /// shell, the far end's mirror and herdr ports to stream to, the tool host's and the bridge's ports to listen
+  /// on, and the tool host's port and the bridge's relay port here among the hub's targets of a stream back.
+  pub fn wanting(&self, far_end: &FarEnd, tool_host_port: u16, bridge_relay: u16) -> Vec<String> {
     let offers = |capability: String| self.capabilities.contains(&capability);
     let agent = &self.agent;
     let mut wanting = Vec::new();
@@ -163,6 +179,16 @@ impl HubDoor {
       if !offers(format!("listen:{port}")) {
         wanting.push(format!(
           "jake: the agent {agent} does not offer to listen on port {port} for {what}; its JAKE_LISTEN_PORTS must list it"
+        ));
+      }
+    }
+
+    for (port, what) in [(tool_host_port, "the tool host"), (bridge_relay, "the bridge's relay")] {
+      let target = format!("127.0.0.1:{port}");
+
+      if !self.reverse_targets.contains(&target) {
+        wanting.push(format!(
+          "jake: the hub joins no stream back to {target}, {what} here; its {REVERSE_TARGETS_KEY} must list it"
         ));
       }
     }

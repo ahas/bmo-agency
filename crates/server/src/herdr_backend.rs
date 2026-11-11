@@ -2426,7 +2426,13 @@ impl HerdrSessions {
             keep_worker_job(db, &agent, turn.context.job).await;
           }
 
-          let came = if apart.provider == worker_session::PROVIDER {
+          // A run of an account with a node goes the place-based road whatever its provider, so the link carries
+          // its place to the node (docs/person-nodes.md, 「Which node is a person's」).
+          let node = match crate::person_nodes::run_node(db, apart.role.as_deref(), &apart.cwd).await {
+            Ok(node) => node,
+            Err(why) => return Err(fault(FaultKind::Refused, why.detail)),
+          };
+          let came = if apart.provider == worker_session::PROVIDER && node.is_none() {
             self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
           } else {
             let began = turn.context.began.unwrap_or(at);
@@ -2440,6 +2446,7 @@ impl HerdrSessions {
                 &turn.prompt,
                 began,
                 turn.context.job,
+                node,
                 shown,
               )
               .await
@@ -2675,6 +2682,7 @@ impl HerdrSessions {
     prompt: &str,
     began: i64,
     job: Option<agent_session::JobMark>,
+    node: Option<String>,
     shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
@@ -2688,6 +2696,19 @@ impl HerdrSessions {
     let mut env = ground.env().clone();
 
     crate::apart_places::mark(ground, &place, session).map_err(refused)?;
+
+    // Placed on its account's node, the place is mirrored there from its first file on.
+    if let Some(node) = &node {
+      crate::watches::links::mark_place_on(&ground.roots.place(&place), Some(node), &composed.cwd)
+        .map_err(refused)?;
+
+      if let Err(why) =
+        crate::watches::links::write_node_spec(&ground.db, ground.peers.node.as_ref(), &ground.roots, node)
+          .await
+      {
+        eprintln!("{place}: {node}'s link spec was not written again: {why}");
+      }
+    }
     env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
     env.extend(crate::lines::token::record_variables(apart));
     // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it.

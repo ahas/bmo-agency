@@ -6,7 +6,7 @@ use crate::integration::common;
 use std::sync::Mutex;
 
 use agency_server::peers::node::NoNodeService;
-use agency_server::verbs::work_node::{WorkNodeVerb, work_node_on, work_refusal};
+use agency_server::verbs::work_node::{WorkNodeVerb, relay_port, work_node_on, work_refusal};
 use agency_server::verbs::work_node_setup::{
   FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace,
   SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
@@ -442,4 +442,25 @@ async fn a_runtime_of_another_version_is_installed_into_the_workplace_leaving_th
   assert!(installed.contains("BUN_INSTALL=/home/tester/.local/share/bmo-node/bun"));
   assert!(installed.contains("HOME=/home/tester/.local/share/bmo-node/bun/home"));
   assert!(installed.contains("bun-v1.4.2"));
+}
+
+// "a PC keeps its bridge relay port and a new one takes the lowest no other node holds"
+#[test]
+fn a_pc_keeps_its_bridge_relay_port_and_a_new_one_takes_the_lowest_no_other_node_holds() {
+  let data = tempfile::tempdir().unwrap();
+  let record = |node: &str, port: u16| {
+    std::fs::create_dir_all(data.path().join("nodes").join(node)).unwrap();
+    std::fs::write(
+      data.path().join("nodes").join(node).join("setup.json"),
+      format!(r#"{{"bridgeRelay": {port}}}"#),
+    )
+    .unwrap();
+  };
+
+  assert_eq!(relay_port(data.path(), "u1"), 47213);
+  record("u1", 47213);
+  record("u2", 47220);
+  assert_eq!(relay_port(data.path(), "u1"), 47213);
+  assert_eq!(relay_port(data.path(), "u2"), 47220);
+  assert_eq!(relay_port(data.path(), "u3"), 47214);
 }

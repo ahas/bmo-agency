@@ -94,7 +94,8 @@ side of a remote agent, the rotation, and what a dropped node does.
   which agency's server starts with the workplace's spec — as it starts, once a minute and whenever
   the repositories move — and stops for a workplace no longer ready. Agency's server keeps the links; a
   process standing on a copy of the data root keeps none. The node's SSH login is asked of the node
-  service, which keeps the nodes (`docs/api.md`, 「The node service」).
+  service, which keeps the nodes (`docs/api.md`, 「The node service」), and a person's PC, which has none, is
+  reached through the hub the service names for it (`docs/person-nodes.md`, 「The link over jake」).
 - **Its spec is the server's:** a link record of the node's under the data root, written whole
   whenever what it says moves — the login, the forwards, what is mirrored each way, how this machine's
   roots read on the node, which variables of a program go there. The link reads it again as it moves,
