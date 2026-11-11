@@ -1869,6 +1869,9 @@ struct OnSession<'a> {
   name: &'a str,
   title: &'a str,
   roads: usize,
+  // When this turn of the job began, which keeps each turn's slot requests apart from those of the job's
+  // earlier turns, a review asking for several (docs/job-review.md, 「The turns the review asks for」).
+  began: i64,
   // The session a turn of the job's review continues, where the job's last turn left one.
   resume: Option<crate::job_review::Resumed>,
   // The prompt a turn of its review goes out with where that session cannot be continued on the road taken.
@@ -1889,7 +1892,7 @@ impl OnSession<'_> {
       answer_tokens: parts.mapping.answer_tokens.and_then(|tokens| i64::try_from(tokens).ok()),
     };
     let asked = dispatch::Asked {
-      request_key: format!("job-{id}-{}", self.roads),
+      request_key: format!("job-{id}-{}-{}", self.began, self.roads),
       owner: format!("{}{id}", dispatch::JOB_OWNER),
       wanted: dispatch::Wanted {
         role: self.role,
@@ -2146,6 +2149,7 @@ async fn launched(
     name: &name,
     title: &title,
     roads: 0,
+    began: now_ms(),
     resume,
     carried,
   };
