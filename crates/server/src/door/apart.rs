@@ -61,6 +61,8 @@ pub struct Apart<'a> {
   /// The harness session the caller names for the run to continue, resumed while its record stands in place of
   /// the one its role keeps.
   pub resume: Option<String>,
+  /// The words the run goes out with instead where the session `resume` names cannot be resumed.
+  pub resume_else: Option<String>,
 }
 
 /// A new session for a run, which a later run resumes only where the run's role keeps sessions.
@@ -134,6 +136,11 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
   if let Some(named) = named {
     apart.command.args = resumed_command(&apart.command.args, &named);
     apart.session = named;
+  } else if apart.resume.is_some()
+    && let Some(instead) = apart.resume_else.clone()
+  {
+    // The named session's record is gone: a new session opens on the words that carry what it held.
+    apart.prompt = instead;
   } else if let Some(key) = &kept {
     match apart_sessions::take(&ground.db, key, now_ms()).await {
       Ok(Some(held)) if record_of(ground, &apart.command, &held).is_file() => {
@@ -269,6 +276,7 @@ pub async fn ping(ground: &Ground, warm: &crate::keepalive::agents::Warm) -> boo
     root: root.clone(),
     run: None,
     resume: None,
+    resume_else: None,
   };
   let answered = matches!(run_on(ground, herdr, ping, &mut Quiet).await, Ok(Ending::Answered { .. }));
   let given = match answered {
@@ -364,6 +372,7 @@ impl Folding<'_> {
       root: self.root,
       run: None,
       resume: None,
+      resume_else: None,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
     let compacted = compacted_since(&tail.look(), from);

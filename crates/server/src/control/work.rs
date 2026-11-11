@@ -1955,7 +1955,8 @@ impl Carrier for OnSession<'_> {
       (None, Some(carried)) => carried.as_str(),
       _ => prompt,
     };
-    let carried = self.on_session(id, taken, &parts, prompt, resume).await;
+    let instead = resume.as_ref().and(self.carried.clone());
+    let carried = self.on_session(id, taken, &parts, prompt, resume, instead).await;
 
     if let Ok(end) = &carried {
       crate::job_review::session_left(&ground.db, id, taken, end).await;
@@ -1984,6 +1985,7 @@ impl OnSession<'_> {
     parts: &WorkParts,
     prompt: &str,
     resume: Option<String>,
+    resume_else: Option<String>,
   ) -> Result<TurnEnd, String> {
     let ground = self.ground;
     let member = self.member;
@@ -1998,6 +2000,7 @@ impl OnSession<'_> {
           cwd: parts.cwd.clone(),
           role: Some(self.role.to_owned()),
           resume,
+          resume_else,
           ..Apart::default()
         }),
       })

@@ -834,6 +834,7 @@ impl Attempting<'_, '_> {
         root: work.unit.as_deref().map(execution_root),
         run: Some(work.name.clone()),
         resume: apart.resume.clone(),
+        resume_else: apart.resume_else.clone(),
       },
       &mut watch,
     )
@@ -920,6 +921,7 @@ impl Attempting<'_, '_> {
         root: work.unit.as_deref().map(execution_root),
         run: Some(work.name.clone()),
         resume: apart.resume.clone(),
+        resume_else: apart.resume_else.clone(),
       },
       &mut watch,
     )

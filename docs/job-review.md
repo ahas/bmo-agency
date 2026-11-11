@@ -31,7 +31,8 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   has answered, as many times as the review asks. A turn that ends in anything but an answer — failed, blocked,
   stopped, cut — ends the job as any job's turn ends it, its review left as it stood.
 - **The job keeps where its review stands,** read on every read of the job (`docs/api.md`, 「assignments and
-  jobs」): its stages, the stage under way and how many there are, the round, the check due now, how many times
+  jobs」): its stages, the stage under way and how many there are, the round, the check due now — kept while a
+  question of it is out, and none while a work turn runs —, how many times
   its work was sent back (`rejections`), the owner's question where the work was put to the owner, and whether
   its checkout was given up while that question waited (「The owner's word」 below).
 - **A stop reaches a job under review as it reaches any job:** no turn carries it, so it is written stopped at
@@ -114,9 +115,10 @@ jobs」), naming the job, one action and its words.
 
 - **Each goes on in the job's own session:** the harness session the job's last turn answered on, named by the
   job, resumed whatever the role's own setting for keeping sessions and however long the review took, since
-  the conversation is the job's work. Where it cannot be resumed — its record gone, or the road moved to another
-  provider or model — a new session opens, and the turn's prompt opens with the item's prompt, the stage and the
-  job's review so far, read from the job service.
+  the conversation is the job's work. Where it cannot be resumed — the road moved to another provider or model,
+  or, on a program whose session record agency reads, that record is gone — a new session opens, and the turn's
+  prompt opens with the item's prompt and the job's review so far, read from the job service, before the turn's
+  own words.
 - **Each holds a slot of the job's role while it runs,** asked as the job's first turn asked it, and goes out on
   the job's road as `docs/cache-fallback.md` resolves it.
 - **What each turn is told is the policy's** (`policy/job-review.toml`): the words the review hands over, said

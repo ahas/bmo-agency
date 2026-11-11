@@ -1268,8 +1268,8 @@ service.
   - it answers 200 with the job as it stands after the move, its `review` naming where its review stands;
     a turn the move asks for runs apart from the answer, as a launch does.
   Every job answers `review`: `stages`, the steps it runs in order, empty for a job of one stage; `stage`, the
-  stage under way counted from 1, or null for the final report; `round`; `check`, the check due now or null
-  while a turn runs; `rejections`; `question`, the owner's question while the work waits on it, else null; and
+  stage under way counted from 1, or null for the final report; `round`; `check`, the check due now, kept
+  while a question of it is out and null while a work turn runs; `rejections`; `question`, the owner's question while the work waits on it, else null; and
   `parked`, whether the job gave its checkout up while that question waited.
 - **A job is stopped by asking its turn to end.** `PATCH /jobs/{jobId}` with `state` `stopped` and
   `POST /job-stops` stop a job alike:

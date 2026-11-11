@@ -253,3 +253,65 @@ async fn a_rejection_is_counted_and_a_stage_passed_hands_the_next_one_over() {
   );
   turn_marks::ended(agent, "run-s1");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_and_comes_back_as_a_check() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let port = front(ground.clone()).await;
+  let agent = "escalating-chat-agent";
+  let vars = std::collections::BTreeMap::new();
+
+  carrying(agent, "run-e1");
+  running(&scratch, "worker-v", 25, 65, &[]).await;
+  agency_server::job_review::reported(&ground, 25, "Done, but one matter is the owner's.", None).await;
+
+  // Past the ceiling the work may be put to the owner: refused here only because this ground names no job
+  // service to ask the question in, never as too early.
+  scratch.run(r#"UPDATE "jobs" SET "rejections" = 10 WHERE "id" = 25"#, vec![]).await;
+
+  let (status, refused) = review(port, agent, 25, "escalate", Some("Is the colour his call?")).await;
+
+  assert_eq!((status, refused["code"].as_str()), (502, Some("upstream-failed")), "{refused}");
+
+  // While the owner's question waits, nothing of the review moves.
+  scratch.run(r#"UPDATE "jobs" SET "review_question" = 77 WHERE "id" = 25"#, vec![]).await;
+
+  let (status, refused) = review(port, agent, 25, "pass", None).await;
+
+  assert_eq!((status, refused["code"].as_str()), (409, Some("awaits-owner")), "{refused}");
+
+  // Past its due time the job gives its checkout up, its item still its own.
+  agency_server::job_review::question_due(scratch.db(), &vars, 77).await;
+
+  let member = read(port, 25).await;
+
+  assert_eq!(
+    (&member["state"], &member["review"]["parked"]),
+    (&json!("reviewing"), &json!(true)),
+    "{member}"
+  );
+  assert_eq!(call(port, reqwest::Method::GET, "/assignments/25", None).await.1["state"], "released");
+
+  // The owner's answer comes back as the check due, and the review moves again.
+  agency_server::job_review::ruled(
+    scratch.db(),
+    &vars,
+    &json!({ "questionId": 77, "choice": "Send the work back", "text": "Settle the colour yourself." }),
+  )
+  .await;
+
+  assert_eq!(read(port, 25).await["review"]["question"], Value::Null);
+
+  // Sent back, the job takes its checkout again before its turn goes out.
+  let (status, member) =
+    review(port, agent, 25, "reject", Some("The owner says: settle the colour yourself.")).await;
+
+  assert_eq!(status, 200, "{member}");
+
+  let member = until_state(port, 25, "stopped").await;
+
+  assert_eq!(member["review"]["parked"], false, "{member}");
+  turn_marks::ended(agent, "run-e1");
+}
