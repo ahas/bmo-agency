@@ -11044,6 +11044,13 @@
               "type": "string"
             },
             "description": "The stages the item's job runs in, in order; written as its work order."
+          },
+          "stepsCheck": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The mark the steps check answered with, once the steps were checked against it."
           }
         },
         "required": [
@@ -11368,6 +11375,14 @@
               "null"
             ],
             "description": "The words the action hands on; required for every action but `pass`."
+          },
+          "stage": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For `reject`: the stage, counted from one, the work goes back to; one already reached. None sends back the\nstage under way."
           }
         },
         "required": [
@@ -13428,6 +13443,14 @@
             "description": "Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a\nscreen shows its road as the supervisor's.",
             "default": false
           },
+          "providerPrompts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "the text a run of it is given beside its prompt where its program stands on a provider, by provider",
+            "default": {}
+          },
           "running": {
             "type": "integer",
             "format": "int64"
@@ -13462,6 +13485,7 @@
           "agents",
           "maxConcurrent",
           "followsSupervisor",
+          "providerPrompts",
           "running",
           "waiting",
           "provider",
@@ -13548,10 +13572,6 @@
             "$ref": "#/components/schemas/RoleSessions",
             "description": "whether its runs keep their sessions"
           },
-          "callable": {
-            "type": "boolean",
-            "description": "whether a run of another role may call it as a co-worker"
-          },
           "foldRatio": {
             "type": [
               "number",
@@ -13613,7 +13633,6 @@
           "position",
           "keepsCache",
           "sessions",
-          "callable",
           "foldRatio",
           "prompt",
           "bundles",
@@ -13670,6 +13689,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "providerPrompts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "the text a run of it is given beside its prompt where its program stands on a provider, by provider"
           }
         },
         "required": [
@@ -13724,6 +13750,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "providerPrompts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "each provider's prompt set, or taken away where it is given as null; a provider left out stands as it is"
           }
         },
         "description": "RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears\nit."
@@ -13932,12 +13968,6 @@
               }
             ]
           },
-          "callable": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "foldRatio": {
             "type": [
               "number",
@@ -14036,12 +14066,6 @@
               {
                 "type": "null"
               }
-            ]
-          },
-          "callable": {
-            "type": [
-              "boolean",
-              "null"
             ]
           },
           "foldRatio": {
@@ -15366,7 +15390,14 @@
             "items": {
               "type": "string"
             },
-            "description": "The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out\nfor work of one stage."
+            "description": "The stages the item's job runs in, in order, each examined before the next (docs/job-review.md): each one\nthe question its agent is asked at that stage, in your words. The job's worker cannot change them."
+          },
+          "stepsCheck": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Left out the first time: the filing is then refused `steps-unchecked` with the skills and tools of the\nagent the item runs on and what to check the steps against. Check them, and file again with the steps as\nthey then stand and this set to the mark that refusal named."
           }
         },
         "required": [
@@ -15424,6 +15455,14 @@
               "null"
             ],
             "description": "The question, the reason and the rework, what the check found, or what the owner is asked and why."
+          },
+          "stage": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For `reject` only: the stage, counted from one, the work goes back to — one already passed whose work the\nreport shows falls short, or the stage under way; left out, the stage under way is sent back. Its step is\nhanded over again with `text` as what is to be done, and the stages after it follow again."
           }
         },
         "required": [
@@ -15791,7 +15830,7 @@
     },
     {
       "name": "review_job",
-      "description": "Examine a job's report under review, the one a job-review instruction names, on the check due now: ask puts your question to the worker in the job's own session and its answer comes back to you; reject sends the work back with why and what is to be done; pass passes the check; escalate puts the work to the owner, refused until the work was sent back as often as the review's ceiling. Any reason to send the work back sends it back.",
+      "description": "Examine a job's report under review, the one a job-review instruction names, on the check due now: ask puts your question to the worker in the job's own session and its answer comes back to you; reject sends the work back with why and what is to be done, to the stage under way or, naming stage, to an earlier stage whose work the report shows falls short, whose step is handed over again with the stages after it following; pass passes the check; escalate puts the work to the owner, refused until the work was sent back as often as the review's ceiling. Any reason to send the work back sends it back.",
       "input": {
         "$ref": "#/components/schemas/ReviewJob"
       },

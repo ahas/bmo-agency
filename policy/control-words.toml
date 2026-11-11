@@ -113,7 +113,7 @@ model_none = "{label} takes no model of its own to fix."
 
 # The roles: a {name} out of its shape of at most {most} characters, one a role already holds, or none the
 # store holds; a label past its {most} characters, {bundles} the policy declares, one of the {lines}, a cap, a
-# prompt, a description, a callable mark, a compaction threshold and a sessions setting; and a role that
+# prompt, a description, a compaction threshold and a sessions setting; and a role that
 # stays, its runs going or waiting or a default the roles policy names.
 [agent_roles]
 name = "A role's name is lowercase letters and digits in words joined by single hyphens, starting with a letter, at most {most} characters."
@@ -125,7 +125,6 @@ line = "A role's line is one of {lines}."
 bound = "A role's cap is a whole number of zero or more."
 prompt = "A role's prompt is text, or null for none."
 description = "A role's description is text, or null for none."
-callable = "Whether a role may be called as a co-worker is true or false."
 fold_ratio = "A role's compaction threshold is a fraction above 0 and at most 1."
 sessions = "A role's sessions are keep, its runs going on in the session an earlier run left while its cache is warm, or fresh, each run opening its own."
 held = "{name} has runs going or waiting. Let them end first."
@@ -187,14 +186,13 @@ above = "above {min}"
 least = "at least {min}"
 most = "{least} and at most {max}"
 
-# The tier settings: a provider, a tier, a work key or a mapping not chosen, a co-worker role held to the
-# co-worker {tiers}, kept earlier settings not yet accepted, and an answer ceiling only the {providers}
+# The tier settings: a provider, a tier, a work key or a mapping not chosen, kept earlier settings not yet
+# accepted, and an answer ceiling only the {providers}
 # that cap one take, out of its {choices}.
 [tiers]
 provider = "Choose a provider."
 tier = "Choose a tier."
 key = "Choose a registered work key."
-coworker = "A co-worker role takes one of {tiers}; the supervisor's tier and the job worker's are never borrowed as co-workers."
 conflicts = "Review the kept earlier settings and agree to the tier first."
 mapping = "Choose a provider, a model and an effort."
 answer_tokens = "An answer ceiling is set only on {providers}, as one of {choices}."

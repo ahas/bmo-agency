@@ -65,8 +65,7 @@ seeds. The other crates and the server reach the store only through it.
   - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the account whose seat it
     is or none, the provider and model
     its runs go out on or none, the effort, thinking and answer ceiling there, whether it is switched on, its
-    place among its role's, whether its kept session is kept warm, whether its runs keep their sessions, whether it may be called as a
-    co-worker, its compaction threshold or none, and the prompt,
+    place among its role's, whether its kept session is kept warm, whether its runs keep their sessions, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
   - the accounts' nodes: `person_nodes`, one row an account — its id, the node its runs stand on and when it
@@ -77,8 +76,10 @@ seeds. The other crates and the server reach the store only through it.
     bound to, the role session among it, whether the line has seen its bound run standing, and who gave it
     back —;
     `role_slot_reservations`;
-    `role_slot_native`, `role_slot_native_reservations` and `role_slot_native_stops`, the native calls'
-    bindings; and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);
+    and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);
+  - the roles' provider prompts: `role_provider_prompts`, one row a role and a provider — the text and when it
+    was set — and `role_provider_prompt_seeded`, the role and provider of each one the policy gave
+    (`docs/agent-roles.md`, 「A role's provider prompts」);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
     card service and its instances' role files among its columns —,
     `registered_model_addresses`, `card_demands`, one row a demand agency asked of the arbiter's master and
@@ -202,8 +203,9 @@ seeds. The other crates and the server reach the store only through it.
   since a model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
   text of its seed file under the code tree's `prompts/base/`; and the roles `policy/roles.toml` declares,
   each with its prompt and its description as `docs/agent-roles.md`, 「The roles the policy seeds」, states
-  them — a prompt file's text under the code tree's `prompts/roles/` and the declaration's description, or a
-  co-worker definition's body and description — its provider order and its compaction threshold. A
+  them — a prompt file's text under the code tree's `prompts/roles/` and the declaration's description — its
+  provider order and its compaction threshold, and each provider prompt the declaration names, its file's text
+  under `prompts/roles/`, given once by the role and the provider whether the role was seeded then or before. A
   supervisor and a repository are the deployment's to add; the registry's provider is named in an order by
   the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.

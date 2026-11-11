@@ -440,7 +440,6 @@ pub async fn compose(
     thinking: model.road.map(|_| member_thinking),
     claude_effort,
     backend_effort: model.road.map(|_| effort.as_str()),
-    own_coworkers: false,
   };
   let (mut command, _) = gateway_command(
     ground,

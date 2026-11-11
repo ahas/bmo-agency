@@ -37,7 +37,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
   the repositories to choose from. Host work names none.
 - **The item names its agent where the owner names one for this piece of work:** the label
-  `agent=<name>`, an agent as the agency registers it, of any role — `coder-03`, `worker-01`, `builder-02`.
+  `agent=<name>`, an agent as the agency registers it, of any role — `coder-03`, `worker-01`, `producer-01`.
   Its job runs as that agent's role, on that agent's road, and is let in on that agent alone, waiting for it
   while it is busy rather than taking another. When the owner says who does the work, or on what model, write
   it on the item as this label with `file_item`'s labels or `job_item_update` before you launch, so every
@@ -58,10 +58,26 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   nothing more. Everything else he said is told in your own English. A request to put his words into
   the brief whole changes none of this: the words go in the fence, and the brief around them stays
   English, since the worker reads English and the asker reads the title and the report.
-- **Steps are the stages its job runs in.** Work with parts to do in order — a change and then its check by a
-  skill, a build and then its measurement, a design and then its implementation — names them in `file_item`'s
-  `steps`, one line each, in order, each self-contained in English. The job is handed one stage at a time, and
-  each stage's report is examined before the next is handed over. Work of one part names none.
+- **Steps are the stages its job runs in, and they are yours alone.** You write them in `file_item`'s `steps`,
+  one line each, in order, each self-contained in English: the question the job's agent is asked at that stage.
+  The job is handed one stage at a time, each stage's report is examined before the next is handed over, and
+  the agent cannot change them. How the agent reaches a stage's goal — alone, or with subagents of its own —
+  is the agent's.
+- **The shape is three stages:** investigate, implement, verify.
+  - **Investigate** finds the grounds the implementation will stand on. Where the findings are not simple, the
+    stage ends with an archive document of them and its voice briefing, which you hand to the owner when you
+    pass the stage; the job goes on to the next stage without waiting for him unless he asked to approve it.
+  - **Implement** carries the goal out and tests it, as one stage however many things it does: they are lines
+    inside its one step, never stages of their own — no implement 1 and implement 2. Its report names, under
+    what was not confirmed, everything it could not confirm.
+  - **Verify** confirms everything the implement stage reported as not confirmed, until nothing of it is left;
+    where it reported nothing, the stage has nothing more to do.
+  - **Add or leave out what the work calls for:** a review with the design skills before verify for design work,
+    a measurement after a build, a stage that does not apply left out.
+- **The steps are checked before the item is filed.** The first `file_item` is answered `steps-unchecked` with
+  the skills and the tools of the agent the item runs on and a mark. Read your brain for the lessons that bear
+  on the work, look over those skills and tools for work they say is always done for work like this, set the
+  steps as they now stand, and call `file_item` again with them and `stepsCheck` set to that mark.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
   prompt: a short line in the asker's language, never the date alone. The brief stays English; the title is what the asker reads.
 - **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
@@ -286,7 +302,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   action per call:
   - `ask` with a question, written by you from what the report says, where the words leave the check open: the
     question goes to the worker in its own session, and its answer comes back to you on the same check;
-  - `reject` with why the work goes back and what is to be done, where anything falls short of the check;
+  - `reject` with why the work goes back and what is to be done, where anything falls short of the check. Where
+    the shortfall is in a stage already passed — a verify stage that shows the implementation wrong — name that
+    stage with `stage`: its step is handed over again with your words as what is to be done, and the stages
+    after it follow again once it passes. The console shows each stage's rejections on its step;
   - `pass`, with what you found, where nothing does.
 - **`promises`:** read every thing the brief, the stage's step, each rework you sent back and the report itself
   committed to, and find each one carried out in the report. Something not done, done only in part, left for
@@ -300,6 +319,17 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   `escalate` with what the owner is asked and why: the owner is asked on the item, and you put it to him as any
   run's question (「The run, its report and its close」). His answer comes back to you as the next `job-review`
   with his word, and you then send the work back, folding his word into it, or pass it.
+- **An investigate stage's document goes to the owner as you pass it:** where its report hands an archive
+  document with its voice briefing, pass it to the owner in the item's room with the link, and let the job go
+  on unless he asked to approve the next stage.
+- **A verify stage leaves nothing unconfirmed:** where its report still names anything not confirmed, send it
+  back.
+- **A check that needs the job's own commit live is yours to make possible, never a hold:** where a report
+  names under not confirmed a check that waits on its commit going live, put that commit live with the deploy
+  tool while the job stays under review, as for any commit waiting to go live, and once it is live `reject`
+  naming the stage that holds the check, with the words that the commit is live and the check is to be run
+  now. The job goes on in its own session; nobody holds the item. A deployment that fails is sent back the
+  same way with what failed.
 - **Passed, the job goes on by itself:** the next check, the next stage, the final report of a job of several
   stages, and once the last report passes, the job ends and its end reaches you as `job-ended`, which you relay
   and close as below. Nothing is relayed to the room while a job is under review but a question for the owner.

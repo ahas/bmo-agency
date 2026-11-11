@@ -7,10 +7,16 @@ use std::collections::BTreeMap;
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use bmo_agency_client::{ItemFiled, ItemFilingAsk};
+use policy::fill_marks;
+use policy::job_review::JOB_REVIEW;
+use policy::roles::ROLES;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use super::{Call, Refused, Route, answer};
 use crate::job_end::{address, token};
+use crate::lines::Trees;
+use crate::places::Ground;
 use crate::turn_marks;
 
 /// The label an item the owner asked for himself carries, which the job service's unattended labels open.
@@ -71,6 +77,99 @@ pub fn item_of(ask: &ItemFilingAsk, mark: turn_marks::Mark) -> Result<Value, Str
   Ok(item)
 }
 
+// The front matter of a skill's own file, of which its description is read.
+#[derive(serde::Deserialize)]
+struct SkillFront {
+  description: Option<String>,
+}
+
+// A skill named with the first sentence its own file describes it by, where it says one.
+fn skill_line(skills: &std::path::Path, name: &str) -> String {
+  let described = std::fs::read_to_string(skills.join(name).join("SKILL.md")).ok().and_then(|text| {
+    let text = text.replace("\r\n", "\n");
+    let (front, _) = text.strip_prefix("---\n")?.split_once("\n---")?;
+
+    serde_norway::from_str::<SkillFront>(front).ok()?.description
+  });
+
+  match described.map(|said| said.split_whitespace().collect::<Vec<_>>().join(" ")) {
+    Some(said) if !said.is_empty() => format!("- {name}: {said}"),
+    _ => format!("- {name}"),
+  }
+}
+
+/// What an item's steps are checked against before it is filed (docs/job-review.md, 「Stages」): the agent its
+/// labels name, or its role, else the role a job runs as; the skills and the tools that agent holds; and the mark
+/// a filing that checked them names, read off the item and that agent alone, so the steps may change between the
+/// two filings. Answers the mark and the words the supervisor is told.
+pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String, String), Refused> {
+  let agent = match given(ask.labels.get("agent")) {
+    Some(name) => crate::role_agents::named(&ground.db, name).await?,
+    None => None,
+  };
+  let role_name = agent
+    .as_ref()
+    .map(|agent| agent.role.clone())
+    .or_else(|| given(ask.labels.get("role")).map(str::to_owned))
+    .unwrap_or_else(|| crate::agent_roles::job_role().to_owned());
+  let role = crate::agent_roles::named(&ground.db, &role_name).await?;
+  let trees = Trees::of(ground);
+  let plugin = Some(trees.agent_dir(&role_name).join("plugin"))
+    .filter(|dir| dir.exists())
+    .unwrap_or_else(|| trees.agent_dir("worker").join("plugin"));
+  let skills_dir = plugin.join("skills");
+  let named_skills = agent
+    .as_ref()
+    .and_then(|agent| agent.skills.clone())
+    .or_else(|| role.as_ref().and_then(|role| role.skills.clone()));
+  let skills: Vec<String> = match named_skills {
+    Some(named) => named,
+    None => {
+      let mut held: Vec<String> = std::fs::read_dir(&skills_dir)
+        .map(|read| {
+          read
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect()
+        })
+        .unwrap_or_default();
+
+      held.sort();
+      held
+    }
+  };
+  let bundles = agent
+    .as_ref()
+    .and_then(|agent| agent.bundles.clone())
+    .or_else(|| role.as_ref().map(|role| role.bundles.clone()))
+    .unwrap_or_default();
+  let listed = |lines: Vec<String>| {
+    if lines.is_empty() { JOB_REVIEW.steps_check_none.clone() } else { lines.join("\n") }
+  };
+  let skill_lines = listed(skills.iter().map(|name| skill_line(&skills_dir, name)).collect());
+  let tool_lines =
+    listed(bundles.iter().map(|bundle| format!("- {}", ROLES.bundle_label(bundle))).collect());
+  let agent_name = agent
+    .as_ref()
+    .map_or_else(|| format!("an agent of {role_name}"), |agent| agent.name.clone());
+  let digest =
+    Sha256::digest(format!("{}\n{}\n{agent_name}\n{role_name}", ask.title.trim(), ask.brief.trim()));
+  let mark = format!("{digest:x}")[..12].to_owned();
+  let words = fill_marks(
+    &JOB_REVIEW.steps_check,
+    &[
+      ("role", &role_name),
+      ("agent", &agent_name),
+      ("skills", &skill_lines),
+      ("tools", &tool_lines),
+      ("mark", &mark),
+    ],
+  );
+
+  Ok((mark, words))
+}
+
 /// One item filed for the turn an agent carries now.
 pub struct FileItem;
 
@@ -102,6 +201,14 @@ impl Route for FileItem {
         Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no repository is named {repository}"))
           .with_code("unknown-repository"),
       );
+    }
+
+    // The steps are checked against the agent the item runs on before anything is filed: a filing that names no
+    // mark, or not the one that check answers, is told what to check and filed by the next.
+    let (mark, check) = steps_check(call.ground(), &ask).await?;
+
+    if given(ask.steps_check.as_ref()) != Some(mark.as_str()) {
+      return Err(Refused::new(StatusCode::CONFLICT, check).with_code("steps-unchecked"));
     }
 
     let vars = call.ground().vars();

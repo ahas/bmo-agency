@@ -49,18 +49,26 @@ async fn ground(scratch: &Scratch, home: &tempfile::TempDir) -> Ground {
   Ground::new(&service, &machine, None)
 }
 
-// The tracer, a callable role whose order holds Claude Code's Sonnet at low effort and, on the registry, a
-// registration of its own that thinks.
+// The tracer, a role whose order holds Claude Code's Sonnet at low effort and, on the registry, a
+// registration of its own that thinks, and whose Claude Code runs are given a provider prompt.
 async fn tracer(scratch: &Scratch) {
   scratch
     .run(
       r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-           "updated_at", "description", "line", "provider_order", "callable")
+           "updated_at", "description", "line", "provider_order")
          VALUES ('tracer', 'Tracer', '[]', 1, 'Trace the road.', 0, 0, 0, 'Traces a road', 'worker',
            '[{"provider":"claude-code","model":"claude-sonnet-5","effort":"low"},
-             {"provider":"registered","model":"coder-registration","effort":"thinking"}]', 1)
+             {"provider":"registered","model":"coder-registration","effort":"thinking"}]')
          ON CONFLICT ("name") DO UPDATE SET "prompt" = excluded."prompt", "description" = excluded."description",
-           "provider_order" = excluded."provider_order", "callable" = 1"#,
+           "provider_order" = excluded."provider_order""#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "role_provider_prompts" ("role", "provider", "prompt", "updated_at")
+         VALUES ('tracer', 'claude-code', 'Open your subagents as you judge.', 0)
+         ON CONFLICT ("role", "provider") DO NOTHING"#,
       vec![],
     )
     .await;
@@ -140,8 +148,7 @@ async fn an_endpoint_accounts_base_stands_where_the_programs_prompt_would_and_th
 }
 
 // A worker that chooses no base on an account that names none opens on the platform's harness opening, read
-// out of the tree the line is composed from, with its rules after it, handed whole in the program's own place;
-// its co-workers' prompts open on the same opening and close on the rules every worker shares.
+// out of the tree the line is composed from, with its rules after it, handed whole in the program's own place.
 #[tokio::test]
 async fn a_directory_account_with_no_choice_hands_the_harness_and_the_rules_whole() {
   let scratch = Scratch::new().await;
@@ -173,20 +180,14 @@ async fn a_directory_account_with_no_choice_hands_the_harness_and_the_rules_whol
     std::fs::read_to_string(&run.harnessed).unwrap(),
     format!("{}\n\n{rules}", harness.trim())
   );
-
-  // The co-workers' definitions carry the opening too, as a subagent's whole prompt.
-  let coworkers: serde_json::Value = serde_json::from_str(&run.agents_json).unwrap();
-  let prompt = coworkers["tracer"]["prompt"].as_str().unwrap();
-
-  assert!(prompt.starts_with(&format!("{}\n\nTrace the road.\n\n", harness.trim())), "{prompt}");
-  assert!(prompt.contains("RULEBOOK prompts/rules/self-preservation.md"), "{prompt}");
+  assert!(!args.iter().any(|arg| arg == "--agents"), "no subagent definition is handed: {args:?}");
 }
 
 // A worker's prefix documents stand last in its rules file, in the list's order, each headed by its path
 // as written, a relative one read from its checkout and an absolute one where it stands; one that cannot
-// be read is left out, and the co-workers' rules carry none (docs/worker-bench.md, 「Prefix documents」).
+// be read is left out (docs/worker-bench.md, 「Prefix documents」).
 #[tokio::test]
-async fn a_worker_s_prefix_documents_stand_last_in_its_rules_and_its_co_workers_carry_none() {
+async fn a_worker_s_prefix_documents_stand_last_in_its_rules() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let checkout = home.path().join("checkout");
@@ -219,7 +220,6 @@ async fn a_worker_s_prefix_documents_stand_last_in_its_rules_and_its_co_workers_
 
   assert!(rules.trim_end().ends_with(&expected), "{rules}");
   assert!(!rules.contains("docs/gone.md"), "{rules}");
-  assert!(!run.agents_json.contains("Its canonical statement."));
 }
 
 // A worker's rules file, the session's cached prefix, carries the report trailer every job is held to, its
@@ -328,14 +328,12 @@ async fn a_role_s_run_opens_on_its_role_s_prompt_and_reads_its_repository_s_rule
   assert!(!std::fs::read_to_string(&bare.rules).unwrap().contains("KEEP THE TREE TIDY."));
 }
 
-// A worker's co-worker definitions are resolved where its program's native calls take their seats: each
-// callable role names the model and effort its own order holds for the provider the program stands on —
-// Claude Code's model and effort there, and on the registry the registration its entry names, with that
-// entry's thinking in Claude Code's effort word. A worker standing on the registry leaves the subagent model
-// to those definitions, while every model of its own run stays its own registration (docs/role-slots.md,
-// 「Native co-worker slots」; docs/own-llm.md, 「How requests go」).
+// A role's provider prompt stands after its prompt on a run whose program stands on that provider and on no
+// other (docs/agent-roles.md, 「A role's provider prompts」), and a worker standing on the registry sends every
+// model slot of its run, its subagents' among them, to its own registration (docs/own-llm.md, 「How requests
+// go」).
 #[tokio::test]
-async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on() {
+async fn a_role_s_provider_prompt_reaches_its_runs_on_that_provider_alone() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
 
@@ -353,35 +351,37 @@ async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on
 
   let ground = ground(&scratch, &home).await;
   let trees = Trees::of(&ground);
-  let on_claude = worker_run(&ground, &trees, Some("worker"), None, "claude-opus-5", "/work")
+  let on_claude =
+    role_run(&ground, &trees, "tracer", None, None, "claude-sonnet-5", "/work", "claude-code")
+      .await
+      .unwrap();
+  let on_deepseek = role_run(&ground, &trees, "tracer", None, None, "deepseek-flash", "/work", "deepseek")
     .await
     .unwrap();
-  let on_claude: serde_json::Value = serde_json::from_str(&on_claude.agents_json).unwrap();
+  let claude_prompt = std::fs::read_to_string(&on_claude.harnessed).unwrap();
+  let deepseek_prompt = std::fs::read_to_string(&on_deepseek.harnessed).unwrap();
 
-  assert_eq!(on_claude["tracer"]["model"], "claude-sonnet-5");
-  assert_eq!(on_claude["tracer"]["effort"], "low");
+  assert!(
+    claude_prompt.contains("Trace the road.\n\nOpen your subagents as you judge."),
+    "{claude_prompt}"
+  );
+  assert!(deepseek_prompt.contains("Trace the road."), "{deepseek_prompt}");
+  assert!(!deepseek_prompt.contains("Open your subagents"), "{deepseek_prompt}");
 
   let standing =
     registered_program(&ground, &ground.machine(), "worker", "/work", Some("run-registration"))
       .await
       .unwrap();
   let command = standing.program.command;
-  let at = command.args.iter().position(|arg| arg == "--agents").unwrap();
-  let on_registry: serde_json::Value = serde_json::from_str(&command.args[at + 1]).unwrap();
 
-  assert_eq!(on_registry["tracer"]["model"], "coder-registration");
-  assert_eq!(on_registry["tracer"]["effort"], "medium");
-  assert!(
-    !command.env.contains_key("CLAUDE_CODE_SUBAGENT_MODEL"),
-    "the subagent model is left to the definitions: {:?}",
-    command.env
-  );
+  assert!(!command.args.iter().any(|arg| arg == "--agents"), "{:?}", command.args);
 
   for slot in [
     "ANTHROPIC_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
   ] {
     assert_eq!(command.env.get(slot).map(String::as_str), Some("run-registration"), "{slot}");
   }

@@ -55,8 +55,14 @@ pub struct JobReview {
   pub question_turn: String,
   /// The work sent back.
   pub rejection_turn: String,
+  /// The work sent back to a stage already passed.
+  pub rejection_back_turn: String,
   /// A turn's prompt where the job's session could not be resumed.
   pub carried: String,
+  /// What a supervisor filing an item is answered with before the item is filed.
+  pub steps_check: String,
+  /// What a list of the steps check names where it holds nothing.
+  pub steps_check_none: String,
 }
 
 /// One check a report is examined by.

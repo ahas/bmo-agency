@@ -937,8 +937,8 @@ The owner's words:
   other role's run stand as a session, and words said to one go through the session push the room's do
   (`POST /sessions/{sessionId}/words`, `docs/api.md`, 「sessions」). The owner, and the supervisor that asked
   for the run, may say them; nobody else. A role's turn hears them unless its caller said otherwise, so a
-  delegated run hears them as a job's does. A native co-worker a job's own CLI stands inside that job's
-  program is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
+  delegated run hears them as a job's does. A subagent a job's own program opens stands inside that
+  program and is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
 - **A run that has ended takes none.** Its session goes with its run, so a word said to it is answered
   refused as ended and nothing stands to receive it. A run whose session still stands but carries no turn
   refuses them as no turn: its next turn is its caller's to send, and agency holds nothing for it.
@@ -1342,10 +1342,9 @@ parent execution, take a slot of the task's role before launch, and run as runs 
 pane of their own at the place they work in (`docs/role-slots.md`, 「A co-work branch」). New
 search/browse side work enters through the same agency-owned dispatcher with the role it names;
 it is not a native provider child and never inherits the parent model. Native Claude Code subagents
-remain descendants of their actual herdr-hosted parent. On the worker line a native `Agent` call takes
-a slot of the role it names through the worker settings' hooks before the CLI starts the child, and
-gives the slot back when the child ends (`docs/role-slots.md`, 「Native co-worker slots」); on every
-other line a native creation request is refused. Represent each reported native child as
+remain descendants of their actual herdr-hosted parent. On the worker line a native `Agent` call
+starts its child inside the run's own program and takes no slot (`docs/agent-roles.md`, 「Subagents」);
+on every other line a native creation request is refused. Represent each reported native child as
 a child execution with its provider-native ID, parent, shared owning pane, purpose and lifecycle,
 and render it in that pane's activity display and running state. A shared pane must be explicitly
 identified as shared; do not claim a separate pane or session when the provider supplies neither.
@@ -1797,22 +1796,22 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   - **A work order** is named by its item, and the item's stop is its stop (the job unit's
     `work-orders.md`, 「The owner stops an item now」): it reaches every run the order holds, each by the reach that run's own kind
     has. A skipped or folded branch is stopped the same way.
-  - **A co-worker has no reach of its own.** It shares its parent's pane and has no unit, no envelope and
+  - **A subagent has no reach of its own.** It shares its parent's pane and has no unit, no envelope and
     no cancel file of its own, and it cannot outlive the parent — so a stop aimed at one is refused, and
     the refusal names the parent as the target to aim at instead.
 - **Every row of the picture names its own stop.** The bot says per row what a stop on it is aimed at — a
-  runner and a job by their unit, a chat turn by the execution it opened, a co-worker tile by the run it
+  runner and a job by their unit, a chat turn by the execution it opened, a subagent tile by the run it
   works inside — so no screen and no script works a target out of a row's shape, and the one place that
   decides which kind is reached by what stays the verb's. A row with nothing to aim at says so, and wears no
   stop.
 - **Everything running stops on one call.** The owner's "stop every agent's running work" is the same verb asked
   of every target the picture names at that moment, walked in the order the picture stands them in — what
   stands apart first, the bot's own runs last, so the turn that may be doing the asking is asked last of
-  all. A co-worker is never among them, since the run it lives in is, and a job's item is not either, since
+  all. A subagent is never among them, since the run it lives in is, and a job's item is not either, since
   the job's own unit is. One target that cannot be stopped does not keep the rest going: a run that ended
   between the reading and the asking is the ordinary way that happens, so each refusal comes back beside
   what was stopped rather than ending the walk.
-- **A refusal says what was refused.** A co-worker's names the run to aim at instead and hands that target
+- **A refusal says what was refused.** A subagent's names the run to aim at instead and hands that target
   back, so a screen can offer it rather than only printing a sentence; a row already ended says so; a target
   naming nothing says that. No refusal is written in terms of which screen asked — what may be stopped is
   the run's own business, not the screen's.
@@ -2649,7 +2648,7 @@ enters the prefix.
   permission mode and its tool lists — with `--settings` added comes up, stops at the
   folder trust like the worker's line, and runs the status line and every hook the settings file names
   (measured). The worker's line already runs interactive with its MCP configuration, plugin directory,
-  co-worker definitions and denied tools. A flag that takes a list — the tools shown, allowed or denied, the
+  and denied tools. A flag that takes a list — the tools shown, allowed or denied, the
   MCP configuration — reads every word after it as another item, so it never ends the line (measured: a
   prompt placed after the allowed tools was read as a tool).
 
@@ -2767,7 +2766,7 @@ enters the prefix.
   release by its real path, the runner's executable and working directory taken from the same
   release.
 - **The runner's code tree is that release,** so the worker line it composes names the release's
-  settings, plugin, rules and co-worker definitions, and its launches start the release's verbs.
+  settings, plugin and rules, and its launches start the release's verbs.
 - **The pane carries it.** `BMO_DEPLOY_DIR` is a `BMO_` variable, so the pane's program is handed it
   by name with the rest, and the worker's own hooks and the scripts the job calls read the same
   release.

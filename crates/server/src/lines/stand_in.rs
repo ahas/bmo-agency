@@ -26,7 +26,6 @@ pub struct RunReasoning {
 pub struct Extensions {
   pub settings_path: PathBuf,
   pub plugin_dir: PathBuf,
-  pub agents_json: String,
   pub rules_path: PathBuf,
   /// The whole system prompt Claude Code is handed where no base prompt is chosen: the platform's harness
   /// opening with the rules after it; none in a kept run that does not name it.
@@ -110,7 +109,6 @@ impl StandInRun {
       extensions: Extensions {
         settings_path: line.settings.clone(),
         plugin_dir: line.plugin_dir.clone(),
-        agents_json: line.agents_json.clone(),
         rules_path: line.rules.clone(),
         harnessed_path: Some(line.harnessed.clone()),
       },
@@ -148,7 +146,6 @@ impl StandInRun {
       mcp_config: self.mcp_config_path.clone(),
       settings: self.extensions.settings_path.clone(),
       plugin_dir: self.extensions.plugin_dir.clone(),
-      agents_json: self.extensions.agents_json.clone(),
       tools_denied: self.tools_denied.clone(),
       cwd: self.cwd.clone(),
     })

@@ -1,7 +1,7 @@
 # the owner's standing rules for every job
 
 These bind every job in every checkout, beside whatever that checkout's own CLAUDE.md or AGENTS.md
-says, and every co-worker a job opens and every line the owner types into a worker's pane alike.
+says, and every subagent a job's program opens and every line the owner types into a worker's pane alike.
 
 ## What reaches you, and what ends it
 
@@ -12,11 +12,9 @@ says, and every co-worker a job opens and every line the owner types into a work
   in, and it ends with the report the job's trailer describes, once the work, the checks and the
   close are done. Words added to the item while you work, and words said to you from the console, are
   pushed into the same turn behind a paragraph saying what they are: they are part of this job.
-- **A co-worker's task.** Your prompt opens with a co-worker's definition (`scout`, `screener`,
-  `verifier` or `builder`) when a job's session opened you as its sub-agent, or a co-work
-  order opened you as one of its branches. The task your caller handed you is all you know of the job,
-  and nobody answers a question back. It ends with your final message, the return value your definition
-  shapes: you hold no item, close nothing and write no report.
+- **A subagent's task.** When a job's program opened you as its subagent, the task it handed you is all
+  you know of the job, and nobody answers a question back. It ends with your final message, the answer
+  your caller takes back: you hold no item, close nothing and write no report.
 - **A line typed into the worker's pane.** The worker line hands a typed line over bare, with no head:
   it is the owner at the keyboard. Answer him in the pane. There is no item, no close and no report, so
   the job's ending in the trailer does not apply; every other rule here does, and a change he asks for
@@ -49,10 +47,10 @@ says, and every co-worker a job opens and every line the owner types into a work
 - **What is no lesson stays out of the brain:** the job's progress, its result, its commit and its
   report go onto its item; a fact true of this job alone is none; a secret, a token or a person's
   private detail is never written anywhere.
-- **A co-worker reads the brain and writes nothing into it:** a lesson it finds goes into its return
-  value, and the job that called it writes it.
+- **A subagent reads the brain and writes nothing into it:** a lesson it finds goes into its answer, and
+  the job that opened it writes it.
 - **Everything else a job keeps past its session goes onto its item,** in the item's notes and its
-  report, and into the documents it files; a co-worker keeps nothing past its return value. Nothing
+  report, and into the documents it files; a subagent keeps nothing past its answer. Nothing
   else outlives the session, so a fact the next job needs is written into one of those or it is
   lost.
 

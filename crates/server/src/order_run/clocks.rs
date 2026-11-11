@@ -1,5 +1,5 @@
 //! The role slots' own clocks (docs/role-slots.md, 「The line」): every five seconds a reservation's head slot
-//! raised into room another process gave back, and a native call whose caller ended reclaimed; every minute from
+//! raised into room another process gave back; every minute from
 //! the start the leases bound to a launched child read against what stands, one whose child was seen standing
 //! and stands no longer given back, and the
 //! demand a lease no longer active held on the arbiter's master given back with it; every ten
@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 
-use super::dispatch::{announce, promote_reservations, reclaim_bound, reclaim_native};
+use super::dispatch::{announce, promote_reservations, reclaim_bound};
 use crate::clock::every;
 use crate::events::Bus;
 use crate::now_ms;
@@ -20,7 +20,7 @@ use crate::places::Ground;
 use crate::queue::leftovers::sweep_everywhere;
 use crate::queue::running::Running;
 
-/// How often the line raises its reservations' head slots and reclaims what an ended caller held.
+/// How often the line raises its reservations' head slots.
 pub const POOL_PASS: Duration = Duration::from_secs(5);
 
 /// How often the leases bound to a launched child are read against whether that child stands. A reading, never
@@ -30,8 +30,7 @@ pub const BOUND_PASS: Duration = Duration::from_secs(60);
 /// How often what a job's end left in herdr is swept beside the sweep each job's end asks for.
 pub const LEFTOVERS_PASS: Duration = Duration::from_secs(10 * 60);
 
-/// The line's clock: a reservation's slot at the head of its role's line let into room given back, and a
-/// native call whose caller ended giving back the slot another run may be waiting for.
+/// The line's clock: a reservation's slot at the head of its role's line let into room given back.
 pub async fn keep_pool(db: DatabaseConnection, events: Bus) {
   every("role slots", Duration::ZERO, POOL_PASS, move || {
     let db = db.clone();
@@ -41,8 +40,6 @@ pub async fn keep_pool(db: DatabaseConnection, events: Bus) {
       for request in promote_reservations(&db, now_ms()).await? {
         announce(&events, &request);
       }
-
-      reclaim_native(&db, &events).await?;
 
       Ok(())
     }

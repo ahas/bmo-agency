@@ -24,8 +24,8 @@ use agency_server::verbs::run_stop::{self, StopArgs};
 use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
-  Answer, VerbError, agent_status, borrow, claude_token, code_tree, coworker_pool, deploy_link,
-  live_claude, node_pane, repository, supervisor_follow, turns,
+  Answer, VerbError, agent_status, borrow, claude_token, code_tree, deploy_link, live_claude, node_pane,
+  repository, supervisor_follow, turns,
 };
 use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
@@ -36,15 +36,13 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 27] = [
+pub const NOUNS: [&str; 25] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
   "agent-status\thome",
   "model",
   "models",
-  "coworker pool",
-  "coworker hook\thome",
   "reload",
   "node work\thome",
   "work-node\thome",
@@ -137,11 +135,6 @@ enum Verb {
   Repository {
     #[command(subcommand)]
     what: RepositoryVerb,
-  },
-  /// A job's native co-worker calls held to the common pool.
-  Coworker {
-    #[command(subcommand)]
-    what: CoworkerVerb,
   },
   /// A batch put to Claude Code on a pinned login.
   Claude {
@@ -269,21 +262,6 @@ enum RepositoryVerb {
   },
   /// Remove a repository's registration, refused while a job holds one of its checkouts.
   Remove { name: String },
-}
-
-#[derive(Subcommand)]
-enum CoworkerVerb {
-  /// Slots of a callable role reserved under the CLI this is run from, or every one given back.
-  Pool {
-    /// `reserve` or `release`.
-    action: Option<String>,
-    #[arg(long, allow_hyphen_values = true)]
-    role: Option<String>,
-    #[arg(long, allow_hyphen_values = true)]
-    count: Option<String>,
-  },
-  /// The worker's native co-worker hooks, with the hook input on standard input.
-  Hook,
 }
 
 #[derive(Subcommand)]
@@ -553,7 +531,6 @@ async fn run(verb: Verb) -> ExitCode {
       }
       RepositoryVerb::Remove { name } => ended(repository::run(&name).await),
     },
-    Verb::Coworker { what } => ended(coworker(&data_root, what).await),
     Verb::Claude {
       what: ClaudeVerb::Batch(asked),
     } => ended(claude_batch::run(asked, &data_root).await.map(Answer::from)),
@@ -673,53 +650,6 @@ async fn live_claude_run(
   live_claude::open(&db, &run, purpose.as_deref().unwrap_or_default(), agency_server::now_ms())
     .await
     .map(Answer::from)
-}
-
-async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Answer, VerbError> {
-  let (action, role, count) = match what {
-    CoworkerVerb::Hook => return Ok(coworker_pool::hook(data_root, &standing_input()).await),
-    CoworkerVerb::Pool {
-      action,
-      role,
-      count,
-    } => (action, role, count),
-  };
-  let failed = |why: &str| VerbError::Ended {
-    code: 1,
-    said: format!("coworker-pool: {why}"),
-  };
-  let parent = i64::from(std::os::unix::process::parent_id());
-  let Some(caller) = coworker_pool::hook_caller(parent) else {
-    return Err(failed("the CLI this command was run from could not be identified"));
-  };
-  let service = agency_server::verbs::service(data_root).await?;
-
-  match action.as_deref() {
-    Some("reserve") => {
-      // A run on a provider that lends no co-workers has none apart from itself, so there is nothing to
-      // hold.
-      let machine = Machine::of_process(data_root);
-
-      if !coworker_pool::caller_lends_coworkers(&machine) {
-        return Err(failed(
-          "this run stands on a single model, which has no co-workers apart from the run itself; do the work yourself",
-        ));
-      }
-
-      let count = count.and_then(|count| count.trim().parse::<i64>().ok()).filter(|count| *count >= 1);
-      let (Some(role), Some(count)) = (role, count) else {
-        return Err(failed("reserve needs --role <role> and --count <n>"));
-      };
-
-      coworker_pool::reserve(&service.db, &service.events, &caller, &role, count)
-        .await
-        .map(Answer::from)
-    }
-    Some("release") => {
-      coworker_pool::release(&service.db, &service.events, &caller).await.map(Answer::from)
-    }
-    _ => Err(failed(coworker_pool::USAGE)),
-  }
 }
 
 async fn token(data_root: &std::path::Path, account: &str, paste: bool) -> Result<Answer, VerbError> {

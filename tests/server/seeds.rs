@@ -41,18 +41,18 @@ async fn a_fresh_store_is_given_the_account_and_the_fourteen_roles_once() {
   settle(scratch.db(), &seeds).await.unwrap();
 
   assert_eq!(scratch.count(r#"SELECT count(*) FROM "claude_accounts""#, vec![]).await, 1);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 10);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 10);
   assert_eq!(
     scratch
       .count(
-        r#"SELECT count(*) FROM "roles" WHERE "name" = 'scout' AND "callable" = 1 AND "description" IS NOT NULL
-             AND "prompt" IS NOT NULL"#,
+        r#"SELECT count(*) FROM "role_provider_prompts" WHERE "role" = 'coder' AND "provider" = 'claude-code'
+             AND "prompt" <> ''"#,
         vec![]
       )
       .await,
     1,
-    "a co-worker role takes its definition's body and description"
+    "the coder's Claude Code runs are given its provider prompt"
   );
 }
 
@@ -86,17 +86,14 @@ fn every_declared_role_is_seeded_with_its_prompt_and_its_description() {
 
   assert_eq!(seeds.len(), ROLES.roles.len());
   for (seed, declared) in seeds.iter().zip(&ROLES.roles) {
-    let description = match &declared.definition {
-      Some(_) => seed.description.clone(),
-      None => declared.description.clone(),
-    };
-    let prompt = match (&declared.prompt, &declared.definition) {
-      (Some(file), _) => {
-        Some(std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap())
-      }
-      (None, Some(_)) => seed.prompt.clone(),
-      (None, None) => None,
-    };
+    let read = |file: &str| std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap();
+    let description = declared.description.clone();
+    let prompt = declared.prompt.as_deref().map(read);
+    let provider_prompts: Vec<(String, String)> = declared
+      .provider_prompts
+      .iter()
+      .map(|(provider, file)| (provider.clone(), read(file)))
+      .collect();
 
     assert_eq!(
       (&seed.name, &seed.label, &seed.bundles),
@@ -104,18 +101,13 @@ fn every_declared_role_is_seeded_with_its_prompt_and_its_description() {
     );
     assert_eq!(seed.max_concurrent, declared.max_concurrent);
     assert_eq!(seed.line, declared.line);
-    assert_eq!(seed.callable, declared.callable);
+    assert_eq!(seed.provider_prompts, provider_prompts);
     assert_eq!(seed.prompt, prompt);
     assert_eq!(seed.description, description);
     assert_eq!(seed.sessions, declared.sessions.word());
     assert!(
       seed.description.as_deref().is_some_and(|text| !text.trim().is_empty()),
       "{} is seeded with no description",
-      seed.name
-    );
-    assert!(
-      !seed.callable || seed.prompt.as_deref().is_some_and(|text| !text.trim().is_empty()),
-      "the co-worker role {} is seeded with no prompt",
       seed.name
     );
   }

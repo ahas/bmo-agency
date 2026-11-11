@@ -69,6 +69,7 @@ mod m20261208_000001_arbiter_model_gone;
 mod m20261209_000001_account_seats;
 mod m20261210_000001_job_review;
 mod m20261211_000001_person_nodes;
+mod m20261212_000001_coworkers_gone;
 
 use sea_orm_migration::prelude::*;
 
@@ -92,7 +93,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 54] = [
+pub const OWN_TABLES: [&str; 53] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -102,9 +103,8 @@ pub const OWN_TABLES: [&str; 54] = [
   "role_slot_requests",
   "role_agents",
   "role_slot_reservations",
-  "role_slot_native",
-  "role_slot_native_reservations",
-  "role_slot_native_stops",
+  "role_provider_prompts",
+  "role_provider_prompt_seeded",
   "place_writes",
   "gate_kinds",
   "chat_documents",
@@ -222,6 +222,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261209_000001_account_seats::Migration),
       Box::new(m20261210_000001_job_review::Migration),
       Box::new(m20261211_000001_person_nodes::Migration),
+      Box::new(m20261212_000001_coworkers_gone::Migration),
     ]
   }
 

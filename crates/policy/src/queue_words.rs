@@ -50,12 +50,11 @@ pub struct RouteWords {
   pub no_model: String,
 }
 
-/// Why the co-worker pool cannot lend a place.
+/// Why a run's provider cannot be had, and why a standing branch checkout could not be had.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PoolWords {
   pub off: String,
-  pub single_model: String,
   pub no_place: String,
   pub head_unread: String,
   pub change_unread: String,

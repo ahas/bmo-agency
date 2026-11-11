@@ -915,6 +915,9 @@ pub struct ItemFilingAsk {
   /// The stages the item's job runs in, in order; written as its work order.
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub steps: Vec<String>,
+  /// The mark the steps check answered with, once the steps were checked against it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub steps_check: Option<String>,
 }
 
 /// FileItem: an item to file as the supervisor asks it, everything but the agent its plugin was started for.
@@ -943,10 +946,15 @@ pub struct FileItem {
   /// Labels of the filer's own, each a string.
   #[serde(default)]
   pub labels: std::collections::BTreeMap<String, String>,
-  /// The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out
-  /// for work of one stage.
+  /// The stages the item's job runs in, in order, each examined before the next (docs/job-review.md): each one
+  /// the question its agent is asked at that stage, in your words. The job's worker cannot change them.
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub steps: Vec<String>,
+  /// Left out the first time: the filing is then refused `steps-unchecked` with the skills and tools of the
+  /// agent the item runs on and what to check the steps against. Check them, and file again with the steps as
+  /// they then stand and this set to the mark that refusal named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub steps_check: Option<String>,
 }
 
 /// ItemFiled: the item as the job service raised it.
@@ -977,6 +985,10 @@ pub struct JobReviewAsk {
   /// The words the action hands on; required for every action but `pass`.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub text: Option<String>,
+  /// For `reject`: the stage, counted from one, the work goes back to; one already reached. None sends back the
+  /// stage under way.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub stage: Option<i64>,
 }
 
 /// ReviewJob: a move on a job's report under review as the supervisor asks it, everything but the agent its
@@ -993,6 +1005,11 @@ pub struct ReviewJob {
   /// The question, the reason and the rework, what the check found, or what the owner is asked and why.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub text: Option<String>,
+  /// For `reject` only: the stage, counted from one, the work goes back to — one already passed whose work the
+  /// report shows falls short, or the stage under way; left out, the stage under way is sent back. Its step is
+  /// handed over again with `text` as what is to be done, and the stages after it follow again.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub stage: Option<i64>,
 }
 
 /// JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the
@@ -3094,6 +3111,9 @@ pub struct Role {
   /// screen shows its road as the supervisor's.
   #[serde(default)]
   pub follows_supervisor: bool,
+  /// the text a run of it is given beside its prompt where its program stands on a provider, by provider
+  #[serde(default)]
+  pub provider_prompts: std::collections::BTreeMap<String, String>,
   pub running: i64,
   pub waiting: i64,
   /// the provider its next run goes out on, or null where none of its agents' roads can answer or none
@@ -3129,6 +3149,9 @@ pub struct RoleAsk {
   pub description: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub skills: Option<Vec<String>>,
+  /// the text a run of it is given beside its prompt where its program stands on a provider, by provider
+  #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+  pub provider_prompts: std::collections::BTreeMap<String, String>,
 }
 
 /// RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
@@ -3148,6 +3171,9 @@ pub struct RoleChange {
   pub description: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub skills: Option<Option<Vec<String>>>,
+  /// each provider's prompt set, or taken away where it is given as null; a provider left out stands as it is
+  #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+  pub provider_prompts: std::collections::BTreeMap<String, Option<String>>,
 }
 
 /// RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
@@ -3172,8 +3198,6 @@ pub struct RoleAgent {
   pub keeps_cache: bool,
   /// whether its runs keep their sessions
   pub sessions: RoleSessions,
-  /// whether a run of another role may call it as a co-worker
-  pub callable: bool,
   /// its compaction threshold, or null where the ratio its provider declares stands
   pub fold_ratio: Option<f64>,
   /// what it lays over its role's preset, each null where the role's own stands
@@ -3232,8 +3256,6 @@ pub struct RoleAgentChange {
   pub keeps_cache: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub sessions: Option<RoleSessions>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub callable: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub fold_ratio: Option<Option<f64>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]

@@ -216,7 +216,7 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppe
     "the doppelganger role's cap of 2 counts every double"
   );
   assert_eq!(used(&ground.db, "doppelganger", None).await.unwrap(), 2);
-  assert_eq!(used(&ground.db, "builder", None).await.unwrap(), 0, "a double holds no builder slot");
+  assert_eq!(used(&ground.db, "producer", None).await.unwrap(), 0, "a double holds no producer slot");
 
   let running = dispatch::request(&ground.db, &doubles[0].token).await.unwrap().unwrap();
 
@@ -700,19 +700,19 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   );
 
   // A role whose slots a job holds is waited on as the line says: that run ends of its own.
-  crate::support::rows::seats(scratch.db(), "builder", &[("deepseek", "deepseek-flash")]).await;
+  crate::support::rows::seats(scratch.db(), "producer", &[("deepseek", "deepseek-flash")]).await;
 
   let job = enqueue(
     &ground.db,
     &ground.events,
     &Asked {
       wanted: Wanted {
-        role: "builder",
+        role: "producer",
         path: Some("/checkouts/one"),
         fixed: Some(road.clone()),
         agent: None,
       },
-      ..asked("builder", "job")
+      ..asked("producer", "job")
     },
     "job",
     async |_, _| Ok(()),
@@ -722,7 +722,7 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
 
   assert!(admitted(&ground, &job).await);
   assert!(
-    dispatch::double_would_wait(&ground.db, "builder", "delegate:builder")
+    dispatch::double_would_wait(&ground.db, "producer", "delegate:producer")
       .await
       .unwrap()
       .is_none()
@@ -1008,11 +1008,10 @@ async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
   assert_eq!(seat(&ask("pinned", None, Some(pinned)).await), None);
 }
 
-// Whether a run keeps its session and whether a role may be called are its agents' own (docs/role-agents.md,
-// 「What an agent row holds」): a run reads the sessions setting of the agent it is let in on, and a role is
-// called only through an agent that is switched on and marked callable.
+// Whether a run keeps its session is its agent's own (docs/role-agents.md, 「What an agent row holds」): a run
+// reads the sessions setting of the agent it is let in on.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
+async fn a_run_keeps_its_session_as_its_agent_says() {
   use agency_server::role_agents::sessions_at;
   use policy::roles::Sessions;
 
@@ -1022,12 +1021,9 @@ async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
   let db = &ground.db;
 
   deepseek_balance(&ground, 5.0).await;
-  // The worker's first agent keeps no session and may be called; its others keep theirs and may not.
+  // The worker's first agent keeps no session; its others keep theirs.
   scratch
-    .run(
-      r#"UPDATE "role_agents" SET "sessions" = 'fresh', "callable" = 1 WHERE "name" = 'worker-01'"#,
-      vec![],
-    )
+    .run(r#"UPDATE "role_agents" SET "sessions" = 'fresh' WHERE "name" = 'worker-01'"#, vec![])
     .await;
 
   // No run stands at the folder, so no agent can be told and nothing is kept.
@@ -1048,34 +1044,6 @@ async fn a_run_keeps_its_session_and_a_role_is_called_as_its_agents_say() {
   assert!(admitted(&ground, &first).await && admitted(&ground, &second).await);
   assert_eq!(sessions_at(db, "worker", Some("/checkouts/one")).await.unwrap(), Sessions::Fresh);
   assert_eq!(sessions_at(db, "worker", Some("/checkouts/two")).await.unwrap(), Sessions::Keep);
-
-  // The worker is called through its one callable agent, on that agent's road; switched off, it is not called.
-  let worker = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap();
-
-  assert!(worker.called());
-  assert_eq!(worker.called_on("deepseek").map(|entry| entry.model), Some("deepseek-flash".to_owned()));
-  assert_eq!(worker.called_on("claude-code"), None);
-  assert!(
-    agency_server::agent_roles::callable(db)
-      .await
-      .unwrap()
-      .iter()
-      .any(|role| role.name == "worker")
-  );
-  scratch
-    .run(r#"UPDATE "role_agents" SET "enabled" = 0 WHERE "name" = 'worker-01'"#, vec![])
-    .await;
-
-  let worker = agency_server::agent_roles::named(db, "worker").await.unwrap().unwrap();
-
-  assert!(!worker.called());
-  assert!(
-    !agency_server::agent_roles::callable(db)
-      .await
-      .unwrap()
-      .iter()
-      .any(|role| role.name == "worker")
-  );
 }
 
 #[tokio::test(flavor = "multi_thread")]

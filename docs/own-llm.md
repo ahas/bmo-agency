@@ -262,7 +262,7 @@ never the model's name.
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
 - **Every run on it asks a demand first:** a supervisor's turn, a role's run — a translation's request among
-  them — and a native co-worker's child alike ask the master for one card of the card service, with the
+  them — alike ask the master for one card of the card service, with the
   session's key as the work it continues and agency's holder as the demand's shown reference. A request at
   the gateway's door on a registration with no instance standing asks one too (「The gateway」 below). A
   caller that holds a granted demand of its own hands its id in with its slot or session request, and no
@@ -318,8 +318,7 @@ never the model's name.
   given back, granted or still waiting, so a line with no translation out holds no card and no place in the
   master's line. A demand the master refuses fails every translation waiting on it. A translation asked
   after the last has ended asks a new one.
-- **Work a run asks holds the run's card as its own.** A native co-worker, a search branch or a session
-  asked from a run whose own demand is granted asks its demand within the run's. Work on the
+- **Work a run asks holds the run's card as its own.** A search branch or a session asked from a run whose own demand is granted asks its demand within the run's. Work on the
   model the run already stands on is granted on the run's own card, beside the run, which waits on it.
   Work on another registration naming a card service goes to any other card with that engine idle, or a
   card free or idle, and only where none is does the run hand its own card over: the self-swap. The run's
@@ -327,16 +326,11 @@ never the model's name.
   the work's demand is given back. A run holding no card that finds none open waits in the master's line
   like any caller.
 - **The run comes back before its next request, and is told.** After such an ask returns, the run's next
-  request is held — the native co-worker gate's hook after the call holding it — until the run's own
-  demand is granted again and its engine answers health, however long that takes. What the ask hands back
-  says that the run's own engine stood down for the work and came back, so the agent knows what its ask
-  cost: "Your own model stood down while this work ran on its card, and it has come back." A native
-  co-worker's demand is asked within the demand its caller's turn holds, its caller found by the place its
-  program stands in; the gate's hook before the call waits for the grant and the hook after it holds the
-  caller and hands it the sentence, each hook's limit a day. The co-worker's own requests are its caller's
-  program's, sent under its definition's model, so they name the registration's spread entry, which lists
-  the standing instances, the card granted among them. A slot asks within the demand its admission
-  names, and the slot's finish answers the sentence.
+  request is held until the run's own demand is granted again and its engine answers health, however long
+  that takes. What the ask hands back says that the run's own engine stood down for the work and came back,
+  so the agent knows what its ask cost: "Your own model stood down while this work ran on its card, and it
+  has come back." A subagent the run's program opens is the run's own requests, on the run's card. A slot
+  asks within the demand its admission names, and the slot's finish answers the sentence.
 - **The gateway never sends to an engine that is down.** Its table holds, for such a registration, one
   entry for each instance the master reports standing, and the entry under the registration's name alone
   spread over exactly those; the launcher reads the master's picture on its beat, and a change starts a
@@ -877,17 +871,10 @@ never the model's name.
   decides whether the instructions it hands in fit at all. The road changes only what
   follows, each value read from the registration the run's model names as the run is started.
   - **The endpoint:** the Anthropic base URL is the gateway, and every model Claude Code asks for a call
-    of the run's own — its Opus, Sonnet and Haiku defaults — is the registration's gateway name, with its
+    of the run's own — its Opus, Sonnet and Haiku defaults and its subagent model — is the registration's
+    gateway name, with its
     node where the run is placed on one (「Nodes and sessions」 above), so nothing the run itself does
     asks a model the gateway does not serve and no request of the run's own session leaves its node.
-  - **Its co-workers' requests go where their role's order names:** a run on the worker line carries
-    co-worker definitions resolved on the registry's provider, each naming the registration its role's
-    order names there, and its subagent model is left unset, so a native co-worker asks the gateway for
-    its own definition's registration under its name alone. Those requests are spread over that
-    registration's addresses, which may stand on other nodes than the run's (「A run on the worker line is
-    composed as on Claude」 below). Where every co-worker role names the run's own registration, its
-    co-workers are that registration again. A run that carries no co-worker definitions — a supervisor's
-    — has its subagent model set to the registration's gateway name like the defaults.
   - **No login of the Claude road:** the run's records go under a configuration home of the
     registration's own under the data root, which holds no login, and no account's token or directory is
     handed over. It is the data root's since a session resumed across a deployment needs its record
@@ -1001,20 +988,14 @@ never the model's name.
   is the worker line (`docs/launch-lines.md`) — the platform's harness opening and the role's prompt with
   the line's rules after it (the owner's standing rules, the rule against destroying the system and the
   repository's own where it works in one), or a base prompt with the same rules after it where one is
-  chosen for the run (`docs/base-prompts.md`), the worker plugin and its skills, the co-worker
-  definitions, the worker's MCP server, the project and local setting sources, so the checkout's
+  chosen for the run (`docs/base-prompts.md`), the worker plugin and its skills, the worker's MCP server, the project and local setting sources, so the checkout's
   `CLAUDE.md` is read in, every tool the line shows, and the worker settings with their hooks, the job
   guard among them.
 - **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
   registration's name, window and answer ceiling (「How requests go」 above), beside the
   effort word and the records home every run on a registration has.
-- **Its co-workers are the registry's:** a native co-worker stays on its caller's provider, so the
-  co-worker definitions a run on a registration is handed are resolved on the registry — each callable
-  role's definition names the registration that role's order names there, with the Claude Code effort
-  word of that entry's thinking — and a native agent call of the run takes a slot of the co-worker role
-  (`docs/role-slots.md`, 「Native co-worker slots」). A role whose order holds no entry for the registry is
-  refused, and the caller does that part itself. The child runs on its definition's registration, which
-  is its parent's only where the role's entry names it (「How requests go」 above).
+- **Its subagents are its own registration's:** a subagent the run's program opens asks the gateway under
+  the run's own gateway name, so it runs on the run's registration (「How requests go」 above).
 - **Its first request** is the whole line — the tool definitions, the MCP server among them, the system
   prompt, and the opening lines that carry the checkout's `CLAUDE.md` and the skill listing — plus a
   job's prompt where there is one, read by the engine before its first byte. A job writes nothing to its

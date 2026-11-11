@@ -151,6 +151,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
           requester_name: item.requester_name,
           labels: item.labels,
           steps: item.steps,
+          steps_check: item.steps_check,
         };
 
         async move { client.create_item_filings(&ask).await }
@@ -183,6 +184,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
           job_id: review.job_id,
           action: review.action,
           text: review.text,
+          stage: review.stage,
         };
 
         async move { client.create_job_reviews(&ask).await }

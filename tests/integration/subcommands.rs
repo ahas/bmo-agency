@@ -27,8 +27,6 @@ const SUBCOMMANDS: &[&[&str]] = &[
   &["run", "list"],
   &["run", "stop"],
   &["machine", "memory"],
-  &["coworker", "pool"],
-  &["coworker", "hook"],
   &["claude", "batch"],
   &["live-claude"],
   &["prompts"],

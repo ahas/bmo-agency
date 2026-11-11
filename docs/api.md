@@ -292,7 +292,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
   them are switched on; `followsSupervisor`, true while none of its agents names a road,
   so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A delegated task」)
-  and a screen shows its road as the supervisor's; and what stands of it now: `running` and `waiting`, how
+  and a screen shows its road as the supervisor's; `providerPrompts`, each text its runs are given beside its
+  prompt by the provider their program stands on (`docs/agent-roles.md`, 「A role's provider prompts」); and
+  what stands of it now: `running` and `waiting`, how
   many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
   agents' roads can answer now or none names a road, and `waitingFor`, why its runs wait, or null, null too
   while it follows the supervisor.
@@ -300,22 +302,26 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   them, every bundle the policy declares with its `name`, `code` and `label`, the name of every skill a
   plugin of the release carries, which a role or an agent may name, and every line agency carries a role may
   name.
-- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description` and `skills`, and
+- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description`, `skills`
+  and `providerPrompts`, and
   answers 201 with the role, which holds no agent yet. It is refused 422 `unprocessable-entity`, with one
   English sentence and nothing written, for a name out of the roles policy's pattern or past its length or
   already held; an empty label or one past the policy's length; a bundle the policy does not declare; a line
   agency does not carry; a prompt or description that is not text; `skills` that is not a list of names or
-  names a skill no plugin of the release carries;
-  and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions`, `foldRatio` or `callable`, none of which
+  names a skill no plugin of the release carries; `providerPrompts` that is not an object naming providers of
+  this build, each with text or null;
+  and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions` or `foldRatio`, none of which
   a role holds: each is its agent's (「role agents」 below).
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
-  `POST` judges it; a `prompt`, a `description` or `skills` given as null clears it. 404 `not-found` for a role the store
+  `POST` judges it; a `prompt`, a `description` or `skills` given as null clears it; `providerPrompts` sets the
+  text of each provider it names and takes away each it names as null, and leaves every other provider's as
+  it stands. A role removed takes its provider prompts with it. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
   under.
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
   `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
-  `keepsCache`, `sessions`, `callable`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
+  `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
   names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
@@ -735,8 +741,8 @@ A slot is asked under a role the store holds (「roles」), with the source, the
 caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
 (`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, the road the run
 goes out on: it is let in on an agent of the role that stands on that road alone, and is refused 422 with
-the roads the role's agents hold where none does (`docs/role-agents.md`, 「Which agent a run takes」) — a
-native call names its caller's provider and takes any agent of its role as its seat; or `model` alone, whose
+the roads the role's agents hold where none does (`docs/role-agents.md`, 「Which agent a run takes」); or
+`model` alone, whose
 provider is that of the role's first agent naming that model; a `provider` named alone is refused 400. It
 may name `placeKey`, the key only one active request holds at once. A slot let in on an agent that names no
 road goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went
@@ -1063,7 +1069,7 @@ yesterday to now where none is given.
 | GET | `/repositories/{repositoryName}` | One repository: checkouts, node, prefix documents, preamble, rules, pin, jobs. |
 | PATCH | `/repositories/{repositoryName}` | Change a repository: fields, checkouts, node placement, pin, sampling, ready its bench. |
 | DELETE | `/repositories/{repositoryName}` | Remove a repository no job holds a checkout of. |
-| GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer, handoff, the callable roles. |
+| GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer and handoff. |
 | GET | `/repositories/{repositoryName}/workbench` | The repository's workbench and scratch folders. |
 | DELETE | `/repositories/{repositoryName}/servers` | End the job servers a job of the repository left running. |
 | POST | `/repositories/{repositoryName}/words` | Say words to a repository's worker, into its job's turn or a turn of its own. |
@@ -1256,6 +1262,12 @@ service.
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
     tells the orderer of each such draft once (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - an agent carrying no turn now files no item: 409 `no-turn`;
+  - **its steps are checked before it is filed** (`docs/job-review.md`, 「Stages」): a call whose
+    `stepsCheck` is not the mark the check answers is refused 409 `steps-unchecked`, nothing filed, its
+    sentence naming the agent the item runs on — its `agent` label's, else an agent of its `role` label's
+    role, else of the role a job runs as —, the skills and the tools that agent holds, what the steps are
+    checked against and the mark. The mark is read off the item's title and brief and that agent alone, so
+    the steps may change before the call that names it;
   - `steps`, where it names any, are the stages the item's job runs in (`docs/job-review.md`, 「Stages」):
     once the item is raised, its work order is saved in the job service with the item's title as its purpose,
     its brief as its directive and these steps, `saved` (`PUT /items/{itemId}/work-order`); a work order the
@@ -1278,7 +1290,9 @@ service.
   ends answered does not end the job: the job stands `reviewing`, its report is written onto the item's review
   in the job service, and its orderer is told the check due now (`job-review`). The call takes the `agentName`
   its harness plugin was started for, never one the model names; `jobId`; `action`, one of `ask`, `reject`,
-  `pass` and `escalate`; and `text`, the words the action hands on, required for every action but `pass`.
+  `pass` and `escalate`; `text`, the words the action hands on, required for every action but `pass`; and, for
+  `reject` alone, `stage`, the stage counted from 1 the work goes back to, one the job has reached
+  (`docs/job-review.md`, 「Stages」), else 400 `bad-request`.
   - an agent carrying no turn now acts on nothing: 409 `no-turn`;
   - a job that is not `reviewing` is 409 `not-reviewing`, and one naming no job 404 `no-job`;
   - `escalate` while the job's work was sent back fewer times than the review policy's ceiling is 409
@@ -1515,8 +1529,6 @@ input, so `bmo` finds it from any directory.
 | `agent` (`agents`) | the agent flags `--help` prints: the providers' switches and the account order, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, the supervisors, roles and repositories with their orders, and a supervisor's gates | the store at the data root, and the service for what it must be told |
 | `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
-| `coworker pool` | `reserve --role <role> --count <n>` or `release` | the store's role slots |
-| `coworker hook` | the hook's input on standard input | the store's role slots |
 | `session fold` | `--role <role>`, `--path <path>`, `--model <model>`, `--all` or `--dry-run` | the roles' kept sessions, and the store |
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
 | `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
@@ -1683,7 +1695,7 @@ reach it through the hook point above for everything else.
 - **No agent rows, worker rows or tiers stand behind this boundary,** so these are no routes of it: `/agents`
   and `/agents/{agentName}` (a supervisor is `/supervisors`, a role `/roles`); `/agent-roles` (`/roles`);
   `/workers` and every route under it (`/repositories`); `/seat-requests` (`/slot-requests`); the pool's
-  `GET /pool`, `GET /roles` of co-worker roles and `PATCH /pool/limits` (how many of a role's runs go at once
+  `GET /pool`, `GET /roles` of the pool's roles and `PATCH /pool/limits` (how many of a role's runs go at once
   is the count of its agents);
   `/tiers`, `/work-keys`, `/fold-ratios` and `/pin-checks` (an order's entries and a row's compaction
   threshold); and the route table, the provider order and the per-key choices of `/fallback`, which keeps the

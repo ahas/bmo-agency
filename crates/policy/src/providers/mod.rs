@@ -73,8 +73,6 @@ pub struct Declared {
   pub lines: Vec<String>,
   /// Whether a mapping of it carries a ceiling on the answer's tokens.
   pub caps_answer_tokens: bool,
-  /// Whether co-workers are borrowed on it.
-  pub lends_coworkers: bool,
   /// The share of a model's window a session on it may fill before it is folded, where the fold-ratio
   /// table holds none for the session's tier (docs/sessions.md, 「Session compaction」); none leaves the
   /// general share `resident-turn.toml` names.

@@ -32,8 +32,6 @@ pub struct RoleAgent {
   /// Whether its runs keep their sessions (docs/agent-roles.md, 「A role's sessions」).
   #[serde(serialize_with = "sessions_word")]
   pub sessions: Sessions,
-  /// Whether a run of another role may call it as a co-worker.
-  pub callable: bool,
   /// Its compaction threshold, none where its role's stands.
   pub fold_ratio: Option<f64>,
   /// What it lays over its role's preset, each none where the role's own stands.
@@ -75,7 +73,6 @@ impl RoleAgent {
       position: row.try_get("", "position")?,
       keeps_cache: row.try_get::<i64>("", "keeps_cache")? != 0,
       sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
-      callable: row.try_get::<i64>("", "callable")? != 0,
       fold_ratio: row.try_get("", "fold_ratio")?,
       prompt: text("prompt")?,
       bundles: list(row, "bundles")?,
@@ -159,16 +156,16 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
     db,
     r#"INSERT INTO "role_agents"
          ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled", "position",
-          "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions", "callable",
+          "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions",
           "owner_account")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
          "answer_tokens" = excluded."answer_tokens", "enabled" = excluded."enabled",
          "position" = excluded."position", "keeps_cache" = excluded."keeps_cache",
          "fold_ratio" = excluded."fold_ratio", "prompt" = excluded."prompt", "bundles" = excluded."bundles",
-         "skills" = excluded."skills", "sessions" = excluded."sessions", "callable" = excluded."callable",
+         "skills" = excluded."skills", "sessions" = excluded."sessions",
          "owner_account" = excluded."owner_account""#,
     vec![
       agent.name.clone().into(),
@@ -187,7 +184,6 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       kept(&agent.skills).into(),
       agent.added_at.into(),
       agent.sessions.word().into(),
-      i64::from(agent.callable).into(),
       agent.owner_account.clone().into(),
     ],
   )

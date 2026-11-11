@@ -106,17 +106,17 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
-  // The scout's agents stand on Claude Code, the road the run below is asked on.
-  crate::support::rows::seats(scratch.db(), "scout", &[("claude-code", "claude-haiku-4-5-20251001")]).await;
+  // The helper's agents stand on Claude Code, the road the run below is asked on.
+  crate::support::rows::seats(scratch.db(), "helper", &[("claude-code", "claude-haiku-4-5-20251001")]).await;
 
-  let (_, roles) = get(port, token, "/roles/scout").await;
+  let (_, roles) = get(port, token, "/roles/helper").await;
   let entry = roles["agents"]
     .as_array()
     .unwrap()
     .iter()
     .find(|entry| entry["provider"] == "claude-code")
     .cloned()
-    .unwrap_or_else(|| panic!("the scout role holds no agent on claude-code: {roles}"));
+    .unwrap_or_else(|| panic!("the helper role holds no agent on claude-code: {roles}"));
 
   // A slot let in, asked for by a supervisor, and a role's session started on it.
   let (status, slot) = post(
@@ -124,7 +124,7 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
     token,
     "/slot-requests",
     json!({
-      "role": "scout",
+      "role": "helper",
       "requestKey": "words:run",
       "owner": "words-run",
       "askedBy": "supervisor-a",
@@ -143,7 +143,7 @@ async fn a_runs_session_takes_words_from_the_owner_and_the_supervisor_that_asked
   assert_eq!((status, admission["state"].as_str()), (200, Some("active")), "{admission}");
 
   let (status, started) =
-    post(port, token, "/sessions", json!({ "scope": "role", "agentName": "scout", "slot": seat })).await;
+    post(port, token, "/sessions", json!({ "scope": "role", "agentName": "helper", "slot": seat })).await;
 
   assert_eq!(status, 201, "{started}");
 

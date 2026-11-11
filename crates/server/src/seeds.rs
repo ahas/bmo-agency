@@ -1,8 +1,8 @@
 //! The seeds agency's server settles its store with (docs/store.md, 「Its seeds」): the values agency's
 //! policy declares — the account, the catalogue's entries, the base prompts and the roles — with the
 //! account's credential the machine's own Claude Code login directory, each base prompt's text its seed file
-//! in the code tree, and each role's prompt its prompt file there and its description the policy's, or both
-//! its co-worker definition's.
+//! in the code tree, and each role's prompt and provider prompts their files there and its description the
+//! policy's.
 
 use std::path::Path;
 
@@ -11,7 +11,6 @@ use harness_providers::claude_code::ClaudeCode;
 use policy::base_prompts::BASE_PROMPTS;
 use policy::roles::{ROLES, Role};
 use policy::seeds::SEEDS;
-use serde::Deserialize;
 use store::seed::{AccountSeed, BasePromptSeed, CatalogueSeed, RoleSeed, Seeds};
 
 use crate::control::claude_accounts::Credential;
@@ -57,7 +56,7 @@ pub fn deployment(machine: &Machine) -> Seeds {
   }
 }
 
-/// The roles the policy declares, each with the text of the prompt file or the co-worker definition it
+/// The roles the policy declares, each with the text of the prompt file and the provider prompt files it
 /// names under the code tree. One whose file cannot be read is said and left out, so it is given by the first
 /// settling that can read it.
 pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
@@ -65,7 +64,7 @@ pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
     .roles
     .iter()
     .filter_map(|role| match role_texts(code, role) {
-      Ok((prompt, description)) => Some(role_seed(role, prompt, description)),
+      Ok(texts) => Some(role_seed(role, texts)),
       Err(why) => {
         eprintln!("agency: the role seed {} is not given: {why}", role.name);
 
@@ -77,7 +76,7 @@ pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
 
 // A seeded role's row: its order with the policy's share, and its compaction threshold its first provider's
 // declared default.
-fn role_seed(role: &Role, prompt: Option<String>, description: Option<String>) -> RoleSeed {
+fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
   let order = Order {
     entries: role
       .order
@@ -102,46 +101,38 @@ fn role_seed(role: &Role, prompt: Option<String>, description: Option<String>) -
     order: order.entries_text(),
     quota_share: order.quota_share,
     max_concurrent: role.max_concurrent,
-    prompt,
-    description,
+    prompt: texts.prompt,
+    description: role.description.clone(),
     sessions: role.sessions.word().to_owned(),
     fold_ratio: order.default_fold_ratio(),
-    callable: role.callable,
+    provider_prompts: texts.provider_prompts,
   }
 }
 
-// What a co-worker definition's front matter says of it.
-#[derive(Deserialize)]
-struct Definition {
-  description: Option<String>,
+// A role's texts under the code tree: its prompt file's, where it names one, and each provider prompt file's
+// by the provider it is for.
+struct RoleTexts {
+  prompt: Option<String>,
+  provider_prompts: Vec<(String, String)>,
 }
 
-// A role's prompt and description: the prompt file's text, or none, and the declaration's description; or a
-// co-worker definition's body and its front matter's description.
-fn role_texts(code: &Path, role: &Role) -> Result<(Option<String>, Option<String>), String> {
-  let read =
-    |file: &Path| std::fs::read_to_string(file).map_err(|why| format!("{}: {why}", file.display()));
+fn role_texts(code: &Path, role: &Role) -> Result<RoleTexts, String> {
+  let read = |file: &str| {
+    let path = code.join("prompts").join("roles").join(file);
 
-  if let Some(file) = &role.prompt {
-    return Ok((Some(read(&code.join("prompts").join("roles").join(file))?), role.description.clone()));
-  }
-
-  let Some(file) = &role.definition else {
-    return Ok((None, role.description.clone()));
+    std::fs::read_to_string(&path).map_err(|why| format!("{}: {why}", path.display()))
   };
-  let path = code.join("prompts").join("agents").join("worker").join("coworkers").join(file);
-  let text = read(&path)?;
-  // The front matter stands between the definition's two marker lines; its fields are YAML.
-  let text = text.replace("\r\n", "\n");
-  let (fields, body) = text
-    .strip_prefix("---\n")
-    .and_then(|rest| rest.split_once("\n---\n"))
-    .ok_or_else(|| format!("{}: no front matter", path.display()))?;
-  let definition: Definition =
-    serde_norway::from_str(fields).map_err(|why| format!("{}: its front matter: {why}", path.display()))?;
-  let body = body.trim_start().to_owned();
+  let prompt = role.prompt.as_deref().map(read).transpose()?;
+  let provider_prompts = role
+    .provider_prompts
+    .iter()
+    .map(|(provider, file)| Ok((provider.clone(), read(file)?)))
+    .collect::<Result<_, String>>()?;
 
-  Ok((Some(body), definition.description))
+  Ok(RoleTexts {
+    prompt,
+    provider_prompts,
+  })
 }
 
 /// The base prompts the policy declares, each with its seed file's text under the code tree. One whose

@@ -21,8 +21,6 @@ use crate::road::{self, Ask, Row};
 pub const COWORK: &str = "cowork";
 /// What a job's run asks a slot as.
 pub const JOB: &str = "job";
-/// What a native `Agent` call of a job's own CLI asks a slot as.
-pub const NATIVE: &str = "native";
 /// What a supervisor's delegated task asks a slot as.
 pub const DELEGATE: &str = "delegate";
 
@@ -266,8 +264,7 @@ pub fn reservation_of(row: &QueryResult) -> Result<Reservation, Fault> {
 }
 
 /// What a slot is asked for: the role, the path its run works at, and the road its caller fixes where it
-/// fixes one — a repository's pin, a delegation's supervisor's own, a native call's caller's provider, a
-/// session's named road.
+/// fixes one — a repository's pin, a delegation's supervisor's own, a session's named road.
 #[derive(Clone, Debug, Default)]
 pub struct Wanted<'a> {
   pub role: &'a str,
@@ -469,10 +466,8 @@ pub async fn enqueue(
   }
 
   // A road its caller names is one an agent of the role is on, or one an agent that names no road takes
-  // (docs/role-agents.md, 「Which agent a run takes」): a native call takes a seat and keeps its caller's road.
-  if let Some(named) = fixed
-    && source != NATIVE
-  {
+  // (docs/role-agents.md, 「Which agent a run takes」).
+  if let Some(named) = fixed {
     let roads: Vec<String> = role
       .agents
       .iter()
@@ -726,60 +721,6 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
 
   if let Some(request) = &admitted {
     announce(&ground.events, request);
-  }
-
-  Ok(admitted)
-}
-
-/// A native call's request let in as `acquire` lets one in, on the road its caller fixed with no quota asked of
-/// it: a native co-worker stands inside its caller's program, which already goes out on that road.
-pub async fn acquire_inside(
-  db: &DatabaseConnection,
-  events: &Bus,
-  held: &Request,
-) -> Result<Option<Request>, Fault> {
-  if held.state == "released" || held.state == "cancelled" {
-    return Ok(None);
-  }
-
-  if held.state == "active" {
-    return Ok(Some(held.clone()));
-  }
-
-  if held.provider.is_empty() {
-    return Err("A native call's slot names the road its caller stands on".to_owned());
-  }
-
-  let role = role_of(db, &held.role).await?;
-  let entry = Entry {
-    provider: held.provider.clone(),
-    model: held.model.clone(),
-    effort: held.effort.clone(),
-    thinking: None,
-    answer_tokens: None,
-  };
-  // A native call takes a seat and no road: any callable agent of its role that is switched on, on its
-  // caller's road.
-  let seats = role
-    .agents
-    .iter()
-    .filter(|agent| agent.enabled && agent.callable)
-    .map(|agent| Seat {
-      agent: agent.name.clone(),
-      road: Ok(entry.clone()),
-    })
-    .collect();
-  let written = db.begin().await.map_err(faulted)?;
-  let (admitted, changed) = admission(&written, &held.token, &role, seats, crate::now_ms()).await?;
-
-  written.commit().await.map_err(faulted)?;
-
-  for request in &changed {
-    announce(events, request);
-  }
-
-  if let Some(request) = &admitted {
-    announce(events, request);
   }
 
   Ok(admitted)
@@ -1698,29 +1639,14 @@ pub async fn held_reservations(
   rows.map_err(faulted)?.iter().map(reservation_of).collect()
 }
 
-// A process the line marked by its id and its start, alive while a process of that id started then stands.
-fn alive(pid: Option<i64>, start: Option<&str>) -> bool {
-  let (Some(pid), Some(start)) = (pid, start) else { return false };
-  let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
-    return false;
-  };
-  let Some(after) = stat.rfind(')').and_then(|at| stat.get(at + 2..)) else {
-    return false;
-  };
-
-  after.split(' ').nth(19) == Some(start)
-}
-
 /// Every active lease bound to a launched unit, pane or execution, as its token, its child and whether the line
-/// has seen that child standing; the native calls, whose callers are read by their processes, and the leases
-/// bound to a role session, which end with their session, left out.
+/// has seen that child standing; the leases bound to a role session, which end with their session, left out.
 pub async fn bound_leases(db: &DatabaseConnection) -> Result<Vec<(String, String, bool)>, Fault> {
   let rows = all(
     db,
     r#"SELECT "r"."token", "r"."child_id", "r"."child_seen" FROM "role_slot_requests" "r"
        WHERE "r"."state" = 'active' AND "r"."child_id" IS NOT NULL
          AND "r"."child_id" IS DISTINCT FROM "r"."session"
-         AND NOT EXISTS (SELECT 1 FROM "role_slot_native" "n" WHERE "n"."token" = "r"."token")
        ORDER BY "r"."sequence""#,
     vec![],
   )
@@ -1990,84 +1916,4 @@ pub async fn release_owner_for(
   }
 
   Ok(done)
-}
-
-// How long a native call's stop mark is kept.
-const STOP_MARK_MS: i64 = 24 * 60 * 60 * 1000;
-
-/// Every native request whose waiter, while it waits, or whose caller, once let in, is gone, ended; and every
-/// native reservation whose CLI is gone given back.
-pub async fn reclaim_native(db: &DatabaseConnection, events: &Bus) -> Result<i64, Fault> {
-  let now = crate::now_ms();
-  let rows = all(
-    db,
-    r#"SELECT "n"."token", "n"."waiter_pid", "n"."waiter_start", "n"."owner_pid", "n"."owner_start", "r"."state"
-       FROM "role_slot_native" "n" JOIN "role_slot_requests" "r" ON "r"."token" = "n"."token"
-       WHERE "r"."state" IN ('waiting', 'active')"#,
-    vec![],
-  )
-  .await
-  .map_err(faulted)?;
-  let mut reclaimed = 0;
-
-  for row in rows {
-    let read = |key: &str| row.try_get::<Option<i64>>("", key).ok().flatten();
-    let text = |key: &str| row.try_get::<Option<String>>("", key).ok().flatten();
-    let token: String = row.try_get("", "token").map_err(faulted)?;
-    let waiting = text("state").as_deref() == Some("waiting");
-    let lives = if waiting {
-      alive(read("waiter_pid"), text("waiter_start").as_deref())
-    } else {
-      alive(read("owner_pid"), text("owner_start").as_deref())
-    };
-
-    if lives {
-      continue;
-    }
-
-    let outcome = if waiting {
-      "native call's waiting hook ended"
-    } else {
-      "native call's caller process ended"
-    };
-
-    if finish_by(db, events, &token, outcome, waiting, BY_RUN_ENDED).await? {
-      reclaimed += 1;
-    }
-  }
-
-  let reservations = all(
-    db,
-    r#"SELECT "n"."token", "n"."owner_pid", "n"."owner_start" FROM "role_slot_native_reservations" "n"
-       JOIN "role_slot_reservations" "r" ON "r"."token" = "n"."token" WHERE "r"."state" = 'held'"#,
-    vec![],
-  )
-  .await
-  .map_err(faulted)?;
-
-  for row in reservations {
-    let token: String = row.try_get("", "token").map_err(faulted)?;
-    let pid = row.try_get::<Option<i64>>("", "owner_pid").ok().flatten();
-    let start = row.try_get::<Option<String>>("", "owner_start").ok().flatten();
-
-    if alive(pid, start.as_deref()) {
-      continue;
-    }
-
-    if release_reservation_by(db, events, &token, "the CLI that reserved these slots ended", BY_RUN_ENDED)
-      .await?
-    {
-      reclaimed += 1;
-    }
-  }
-
-  run(
-    db,
-    r#"DELETE FROM "role_slot_native_stops" WHERE "at" < $1"#,
-    vec![(now - STOP_MARK_MS).into()],
-  )
-  .await
-  .map_err(faulted)?;
-
-  Ok(reclaimed)
 }

@@ -10,9 +10,6 @@ lines = ["chat", "gate", "worker", "search", "browse", "translate"]
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
 caps_answer_tokens = false
 
-# The catalogue holds several models, so its co-workers each take their own tier's.
-lends_coworkers = true
-
 [effort]
 # Every effort word a mapping of it may hold, in the order a screen shows them.
 words = ["low", "medium", "high", "xhigh", "max"]

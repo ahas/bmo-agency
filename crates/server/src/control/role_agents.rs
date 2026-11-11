@@ -124,12 +124,6 @@ async fn judged(
       .ok_or_else(|| unprocessable(CONTROL_WORDS.agent_roles.sessions.as_str()))?;
   }
 
-  if let Some(callable) = body.get("callable") {
-    agent.callable = callable
-      .as_bool()
-      .ok_or_else(|| unprocessable(CONTROL_WORDS.agent_roles.callable.as_str()))?;
-  }
-
   if let Some(keeps) = body.get("keepsCache") {
     agent.keeps_cache = keeps.as_bool().ok_or_else(|| unprocessable("keepsCache: true or false."))?;
   }
@@ -281,7 +275,6 @@ impl Route for RoleAgentCreate {
       position: last + 1,
       keeps_cache: false,
       sessions: policy::roles::Sessions::default(),
-      callable: false,
       fold_ratio: None,
       prompt: None,
       bundles: None,

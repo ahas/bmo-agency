@@ -18,7 +18,11 @@ fn role(name: &str, cap: i64, sessions: &str, prompt: Option<&str>) -> RoleSeed 
     description: Some(format!("What {name} is for.")),
     sessions: sessions.into(),
     fold_ratio: 0.5,
-    callable: name == "maker",
+    provider_prompts: if name == "maker" {
+      vec![("claude-code".into(), "Use your subagents.".into())]
+    } else {
+      vec![]
+    },
   }
 }
 
@@ -71,7 +75,7 @@ async fn role_row(scratch: &Scratch, name: &str) -> Option<sea_orm::QueryResult>
 }
 
 #[tokio::test]
-async fn a_role_is_given_once_with_its_order_cap_line_threshold_and_callable_mark() {
+async fn a_role_is_given_once_with_its_order_cap_line_threshold_and_provider_prompts() {
   let scratch = Scratch::blank().await;
 
   settle(scratch.db(), &seeds()).await.unwrap();
@@ -84,10 +88,17 @@ async fn a_role_is_given_once_with_its_order_cap_line_threshold_and_callable_mar
   assert_eq!(talker.try_get::<String>("", "sessions").unwrap(), "keep");
   assert_eq!(talker.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
   assert!(talker.try_get::<String>("", "provider_order").unwrap().contains("deepseek-flash"));
-  assert_eq!(talker.try_get::<i64>("", "callable").unwrap(), 0);
   assert_eq!(maker.try_get::<i64>("", "max_concurrent").unwrap(), 0, "a cap of zero closes a role");
   assert_eq!(maker.try_get::<Option<String>>("", "prompt").unwrap().as_deref(), Some("Make things."));
-  assert_eq!(maker.try_get::<i64>("", "callable").unwrap(), 1);
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "role_provider_prompts" WHERE "role" = 'maker' AND "provider" = 'claude-code'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
   assert_eq!(talker.try_get::<i64>("", "position").unwrap(), 0);
   assert_eq!(maker.try_get::<i64>("", "position").unwrap(), 1);
 }
@@ -101,7 +112,16 @@ async fn what_the_owner_removed_stays_removed_and_what_the_owner_set_stands() {
     .run(r#"UPDATE "roles" SET "max_concurrent" = 9 WHERE "name" = 'talker'"#, vec![])
     .await;
   scratch.run(r#"DELETE FROM "roles" WHERE "name" = 'maker'"#, vec![]).await;
+  scratch
+    .run(r#"DELETE FROM "role_provider_prompts" WHERE "role" = 'maker'"#, vec![])
+    .await;
   settle(scratch.db(), &seeds()).await.unwrap();
+
+  assert_eq!(
+    scratch.count(r#"SELECT count(*) FROM "role_provider_prompts""#, vec![]).await,
+    0,
+    "a provider prompt the owner took away stays away"
+  );
 
   assert_eq!(
     role_row(&scratch, "talker")

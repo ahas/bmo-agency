@@ -1,5 +1,5 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the fourteen seeded roles with their
-//! lines, caps, sessions, descriptions, callable marks and orders, the defaults nothing names, the
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the ten seeded roles with their
+//! lines, caps, sessions, descriptions, provider prompts and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
 use std::collections::BTreeSet;
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_fourteen_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -19,10 +19,6 @@ fn the_policy_seeds_the_fourteen_roles_in_the_order_a_screen_lists_them() {
       "doppelganger",
       "helper",
       "producer",
-      "builder",
-      "verifier",
-      "scout",
-      "screener",
       "voyager",
       "seeker",
       "translator",
@@ -43,10 +39,6 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
     ("doppelganger", 2),
     ("helper", 2),
     ("producer", 2),
-    ("builder", 8),
-    ("verifier", 6),
-    ("scout", 12),
-    ("screener", 12),
     ("upkeep", 1),
   ] {
     assert!(caps.contains(&(name, cap)), "{name} starts at {cap}: {caps:?}");
@@ -100,11 +92,15 @@ fn every_order_names_a_provider_once_and_every_role_names_its_line() {
 }
 
 #[test]
-fn only_the_co_worker_roles_are_callable_and_the_builder_is_the_orders_own_turn() {
-  let callable: Vec<&str> =
-    ROLES.roles.iter().filter(|role| role.callable).map(|role| role.name.as_str()).collect();
+fn only_the_coder_carries_a_provider_prompt_and_only_on_claude_code() {
+  let carrying: Vec<(&str, Vec<&str>)> = ROLES
+    .roles
+    .iter()
+    .filter(|role| !role.provider_prompts.is_empty())
+    .map(|role| (role.name.as_str(), role.provider_prompts.keys().map(String::as_str).collect()))
+    .collect();
 
-  assert_eq!(callable, ["verifier", "scout", "screener"]);
+  assert_eq!(carrying, [("coder", vec!["claude-code"])]);
 }
 
 #[test]
@@ -151,23 +147,11 @@ fn every_seeded_role_carries_the_label_a_log_keeps_of_it() {
 }
 
 #[test]
-fn every_role_declares_its_description_once_and_a_co_worker_its_definition() {
+fn every_role_declares_its_description() {
   for role in &ROLES.roles {
-    match (&role.definition, &role.description) {
-      (Some(_), Some(_)) => panic!("{} states a description beside its definition's", role.name),
-      (Some(_), None) => {
-        assert!(role.prompt.is_none(), "{} names a prompt beside its definition", role.name)
-      }
-      (None, Some(description)) => {
-        assert!(!description.trim().is_empty(), "{}'s description is empty", role.name)
-      }
-      (None, None) => panic!("{} states no description and names no definition", role.name),
-    }
-    assert!(
-      !role.callable || role.definition.is_some(),
-      "{} is callable, so a co-worker definition gives its prompt and description",
-      role.name
-    );
+    let description = role.description.as_deref().unwrap_or_default();
+
+    assert!(!description.trim().is_empty(), "{} states no description", role.name);
   }
 }
 

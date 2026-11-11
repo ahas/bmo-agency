@@ -169,7 +169,7 @@
   `</dev/null` given to one part of a compound then leaves every other part on that socket, and a
   reader given nothing to read — `rg` with no path, a path held in a variable that came back empty —
   waits on it with no end.
-- **What it does:** every Bash call it lets through, the job's own and a co-worker's alike, goes to
+- **What it does:** every Bash call it lets through, the job's own and a subagent's alike, goes to
   the tool rewritten with `exec </dev/null` on a line of its own ahead of the command. The shell's
   own standard input is then `/dev/null` for everything the command runs, a part sent to the
   background included, and a reader given nothing ends at once: `cat` or `grep` reads an empty

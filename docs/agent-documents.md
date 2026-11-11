@@ -21,7 +21,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - `agent-words.md` — every supervisor, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every run of the worker line,
-    every co-worker and the news page writer.
+    every subagent such a run opens and the news page writer.
 - **`prompts/agents/<folder>/own-rules.md`** is a repository's own rules, appended after the worker
   line's standing rules for a run in that repository's checkout, from the prompt folder the repository's
   row names (`docs/repositories.md`, 「What a repository row holds」); no repository carried in this
@@ -33,7 +33,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
   harness around the agent is, how words reach it, where its memory is and what the platform around it
   holds. Every line on Claude Code opens its whole system prompt with it — every supervisor's
-  session, every run of the worker line and every co-worker, and every session on the search and
+  session, every run of the worker line, and every session on the search and
   browse lines, before the instructions its caller hands in — but a run of the worker line on an account
   that names a base prompt, which opens on that base instead (`docs/base-prompts.md`, 「The harness
   layer」).
@@ -164,7 +164,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   is asked in. Numbers, tables, code, commands, paths, identifiers, sources and
   quoted words stand as they are, and a repository's own documents, its commits and everything pushed
   with them stay English.
-- **Everything else is English:** a worker's and a co-worker's notes and the questions it puts to the
+- **Everything else is English:** a worker's notes and the questions it puts to the
   owner, a gate's verdict, a subagent's prompt and report, the logs; so does the supervisor wherever no
   person in a room reads it — an item's brief and notes, a work order, a memory, a handoff note — words
   quoted from people kept as they said them. The exceptions are the agents whose product is text a person

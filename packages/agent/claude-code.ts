@@ -1088,7 +1088,6 @@ export const claudeCodeProvider: AgentProvider = {
   // thinking off is no thinking tokens in the environment.
   reasoning: levelReasoning(async (model) => levelsIn(await claudeEffortsFor(model))),
   capsAnswerTokens: declared.capsAnswerTokens,
-  lendsCoworkers: declared.lendsCoworkers,
   logins: claudeLogins,
   resident: claudeResident,
 };

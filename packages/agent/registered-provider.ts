@@ -237,7 +237,6 @@ export function registeredProvider(options: { lines: readonly RunLine[] }): Agen
     effortFault: declared.effortFault,
     reasoning: registeredReasoning,
     capsAnswerTokens: declared.capsAnswerTokens,
-    lendsCoworkers: declared.lendsCoworkers,
     logins: null,
     // An agent on a registered model stands Claude Code on the gateway in its pane.
     resident: claudeResidentAt(registeredEndpoint, declaredRegistered.resident as { interrupt: string[]; words_mid_turn: boolean }),

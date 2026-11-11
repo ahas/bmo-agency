@@ -42,7 +42,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   // worker on the worker line, and the translator's prompt its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 14, "{listing}");
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 10, "{listing}");
   assert_eq!(role(&listing, "doppelganger").unwrap()["maxConcurrent"], 2);
   // The double's agents are seeded on no road: its road follows the supervisor that asks it, which a screen
   // shows.
@@ -72,8 +72,8 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
       ("worker-03", "deepseek-flash")
     ]
   );
-  // Whether a run keeps its session, the share its session is folded at and whether it may be called are
-  // each agent's own, given by its role's declaration and answered on no role.
+  // Whether a run keeps its session and the share its session is folded at are each agent's own, given by its
+  // role's declaration and answered on no role.
   let settings = |name: &str, field: &str| -> Vec<Value> {
     role(&listing, name).unwrap()["agents"]
       .as_array()
@@ -83,11 +83,9 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
       .collect()
   };
 
-  assert!(settings("scout", "callable").iter().all(|callable| callable == true));
-  assert!(settings("producer", "callable").iter().all(|callable| callable == false));
   assert!(settings("worker", "sessions").iter().all(|sessions| sessions == "keep"));
   assert!(settings("worker", "foldRatio").iter().all(Value::is_number));
-  for field in ["sessions", "foldRatio", "callable"] {
+  for field in ["sessions", "foldRatio"] {
     assert_eq!(role(&listing, "worker").unwrap().get(field), None, "{field}");
   }
 
@@ -96,6 +94,12 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   let coder = role(&listing, "coder").unwrap();
 
   assert_eq!((&coder["line"], &coder["maxConcurrent"]), (&json!("worker"), &json!(3)), "{coder}");
+  assert!(
+    coder["providerPrompts"]["claude-code"]
+      .as_str()
+      .is_some_and(|text| text.contains("subagent")),
+    "the coder's Claude Code runs carry its provider prompt: {coder}"
+  );
   assert_eq!(
     coder["bundles"]
       .as_array()
@@ -126,7 +130,8 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "nowhere" }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "sessions": "keep" }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "foldRatio": 0.5 }),
-    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "callable": true }),
+    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker",
+      "providerPrompts": { "nowhere": "x" } }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker", "maxConcurrent": 1 }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "line": "worker",
       "order": [{ "provider": "claude-code", "model": "claude-sonnet-4-6" }] }),
@@ -136,7 +141,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 10);
 
   // A role added, its bundles once each: it holds no agent yet, so it carries no run.
   let (status, added) = ask(
@@ -209,10 +214,39 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     ask(reqwest::Method::PATCH, port, "/roles/reviewer", Some(json!({ "skills": null }))).await;
   assert_eq!((status, &cleared["skills"]), (200, &Value::Null), "{cleared}");
 
+  // A provider prompt is set by its provider and taken away as null, every other provider's left as it stands.
+  let (status, prompted) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/roles/reviewer",
+    Some(json!({ "providerPrompts": { "claude-code": "Open subagents.", "deepseek": "Search first." } })),
+  )
+  .await;
+  assert_eq!(
+    (status, &prompted["providerPrompts"]),
+    (200, &json!({ "claude-code": "Open subagents.", "deepseek": "Search first." })),
+    "{prompted}"
+  );
+
+  let (status, prompted) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/roles/reviewer",
+    Some(json!({ "providerPrompts": { "deepseek": null } })),
+  )
+  .await;
+  assert_eq!(
+    (status, &prompted["providerPrompts"]),
+    (200, &json!({ "claude-code": "Open subagents." })),
+    "{prompted}"
+  );
+
   for body in [
     json!({ "sessions": "fresh" }),
     json!({ "foldRatio": 0.5 }),
-    json!({ "callable": true }),
+    json!({ "providerPrompts": "x" }),
+    json!({ "providerPrompts": { "nowhere": "x" } }),
+    json!({ "providerPrompts": { "claude-code": 3 } }),
     json!({ "bundles": ["web.nothing"] }),
     json!({ "skills": ["no-such-skill"] }),
     json!({ "skills": "clean" }),
@@ -278,20 +312,14 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     "/role-agents/reviewer-local",
     Some(json!({
       "enabled": false, "prompt": null, "keepsCache": true, "bundles": ["web.read"],
-      "sessions": "fresh", "callable": true, "foldRatio": 0.5
+      "sessions": "fresh", "foldRatio": 0.5
     })),
   )
   .await;
   assert_eq!(status, 200, "{off}");
-  // An agent added with none named keeps its sessions, may not be called and sets no threshold.
-  assert_eq!(
-    (&second["sessions"], &second["callable"], &second["foldRatio"]),
-    (&json!("keep"), &json!(false), &Value::Null)
-  );
-  assert_eq!(
-    (&off["sessions"], &off["callable"], &off["foldRatio"]),
-    (&json!("fresh"), &json!(true), &json!(0.5))
-  );
+  // An agent added with none named keeps its sessions and sets no threshold.
+  assert_eq!((&second["sessions"], &second["foldRatio"]), (&json!("keep"), &Value::Null));
+  assert_eq!((&off["sessions"], &off["foldRatio"]), (&json!("fresh"), &json!(0.5)));
   assert_eq!(
     (&off["enabled"], &off["prompt"], &off["keepsCache"], &off["bundles"]),
     (&json!(false), &Value::Null, &json!(true), &json!(["web.read"])),
@@ -325,7 +353,6 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     (json!({ "role": "reviewer", "bundles": ["web.nothing"] }), 422),
     (json!({ "role": "reviewer", "skills": ["no-such-skill"] }), 422),
     (json!({ "role": "reviewer", "sessions": "sometimes" }), 422),
-    (json!({ "role": "reviewer", "callable": "yes" }), 422),
   ] {
     let (status, said) = ask(reqwest::Method::POST, port, "/role-agents", Some(body.clone())).await;
 

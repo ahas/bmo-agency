@@ -10,8 +10,8 @@ is and which one a run takes is `docs/role-agents.md`.
 
 - **Every run of a role takes a slot of that role before its program launches:** a job's run, a worker
   ask, a delegated task, a co-work order's builder stage, a co-work branch, a search's or a browse's run and
-  its branches, a translation, a native co-worker a job's program calls, and an upkeep run. Nothing runs a
-  role's program outside a slot.
+  its branches, a translation, and an upkeep run. Nothing runs a role's program outside a slot. A subagent a
+  run's own program opens is part of that run and takes none (`docs/agent-roles.md`, 「Subagents」).
 - **A supervisor's turn takes none.** A supervisor is no role; its turns are bounded by its one program
   (`docs/supervisors.md`, 「Where a supervisor's turn runs」).
 - **A word's turn on a worker's own session takes none.** It is a turn spoken to a worker, not a run of
@@ -20,8 +20,8 @@ is and which one a run takes is `docs/role-agents.md`.
 - **A slot is asked under a role the store holds,** and is refused 422 under any other: an unknown role is
   an error, never a run on some default.
 - **A slot's source and owner are the caller's.** A slot is asked under the source label its caller sends —
-  `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks, `native` for a
-  native call — and under the owner and request key its caller names; the label is kept as sent.
+  `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks — and under the
+  owner and request key its caller names; the label is kept as sent.
 - **A slot is let in on one agent of its role, and goes out on that agent's road** (`docs/role-agents.md`,
   「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, carries
   no run and whose road can answer now. An ask may name a provider and a model together, or a model alone,
@@ -131,8 +131,7 @@ is and which one a run takes is `docs/role-agents.md`.
     starts next adopts (`docs/sessions.md`, 「A restart hands the session over」): the turn stands as seen the
     moment it is adopted, so its end, or its program found gone, gives the lease back;
   - the token holder's release, or the owner's, the end of the job whose run holds it among them.
-- **An active lease is never taken away for its age:** only these ends give one back, and a native call's the
-  evidence its own process ended (「Native co-worker slots」).
+- **An active lease is never taken away for its age:** only these ends give one back.
 - **An admission answers what the request is now:** `waiting` while it waits in the line, `active` once let
   in, and `released` or `cancelled` once given back, with who gave it back and why. A caller asks again only
   while it waits; a request given back by anyone stays given back.
@@ -165,7 +164,7 @@ is and which one a run takes is `docs/role-agents.md`.
 
 - **Whoever will soon launch runs of a role reserves slots of it:** "this owner will soon use so many slots
   of this role". A co-work runner reserves, while a stage runs, the slots the next stage's branches will
-  use; a job pre-reserves the native calls it will soon make.
+  use.
 - **Each reserved slot is a request carrying its reservation's token,** queued in the role's line, and
   reserved — not active — when its turn comes and the cap has room. The cap counts active and reserved
   slots together, so a reserved slot cannot be taken by another request, and the owner's actual request
@@ -173,8 +172,7 @@ is and which one a run takes is `docs/role-agents.md`.
 - **Reserving again with the same key** only changes the count: raising queues the missing slots, lowering
   releases the latest-queued first.
 - **A reservation releases only** when its owner releases it or there is evidence the owner ended — the
-  co-work runner by its order record, the research unit by its own run, a native reservation by the CLI
-  process that set it — never for time passing.
+  co-work runner by its order record, the research unit by its own run — never for time passing.
 - **A reservation holds slots and warms nothing.** No role is warmed: a run's prefix is read again by the
   next run while it is still cached, and nothing pings it in between (`docs/keepalive-schedule.md`).
 - **The line's own pass** runs when a slot frees, when a cap changes, and every five seconds, raising to
@@ -205,29 +203,6 @@ is and which one a run takes is `docs/role-agents.md`.
 - **Its stage stands on its slot:** waiting while its slot waits, running once let in and bound to its run,
   and ended once the slot is finished, with what it came to. `GET /delegations` lists them per asking
   supervisor (`docs/api.md`, 「slots, reservations and places」).
-
-## Native co-worker slots
-
-The worker settings' hook takes the slot for one native `Agent` call a job's program makes.
-
-- **The type a call names is the role,** and the hook reads it as one: a role the store does not hold, or one
-  not marked callable, is refused, and the caller does that part with its own tools.
-- **The provider is the caller's program's,** read off the environment the program hands its hook — the
-  provider that owns the program, and Claude Code where none does — since a native child runs inside that
-  program. The model and effort are those of the co-worker role's first agent on that provider; a role with no
-  agent on it is refused, and the caller does that part itself. A native call takes a seat of its role and no
-  road of its own: it is let in on the first free agent whatever that agent's road.
-- **Before the call** the hook puts in a request under the role, keyed by the session and tool-use id, and
-  waits in the role's line, however long that takes. A call that got its slot is allowed while its input is
-  edited: the caller's prompt is appended the way to read the code dependency graph.
-- **The call ends:** a call that received its result releases the lease; one that handed off to a co-worker
-  running in the background writes that agent id to the lease, which its stop releases. A failed call
-  releases the lease.
-- **Binding:** a waiting request binds to the waiting hook process, an active lease to the calling CLI
-  process, both with pid and start time; only evidence the process ended reclaims either.
-- **Pre-reserving:** `bmo-agency coworker pool reserve --role <role> --count <count>` sets a reservation of the
-  role for the native calls the calling program will soon make, and the same command's `release` releases
-  it. Its owner is the CLI process that called the command.
 
 ## A co-work branch
 

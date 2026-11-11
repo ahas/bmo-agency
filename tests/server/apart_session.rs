@@ -909,9 +909,10 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
   assert!(!args.iter().any(|arg| arg == "--tools"), "every built-in is shown: {args:?}");
   assert!(!args.iter().any(|arg| arg == "--strict-mcp-config"), "{args:?}");
 
-  for flag in ["--plugin-dir", "--agents", "--settings", "--system-prompt-file"] {
+  for flag in ["--plugin-dir", "--settings", "--system-prompt-file"] {
     assert!(after(&args, flag).is_some_and(|value| !value.is_empty()), "{flag}: {args:?}");
   }
+  assert!(!args.iter().any(|arg| arg == "--agents"), "no subagent definition is handed: {args:?}");
 
   assert_eq!(after(&args, "--setting-sources"), Some("project,local"), "{args:?}");
 

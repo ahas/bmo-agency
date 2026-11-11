@@ -45,8 +45,6 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
     role's sessions」); an agent added with none named keeps them;
   - **its compaction threshold,** `foldRatio`, the share of its model's window a run's session may fill
     before it is folded; where it sets none, the ratio its provider declares;
-  - **whether a run of another role may call it as a co-worker,** `callable` (`docs/agent-roles.md`,
-    「Co-workers」); an agent added with none named may not be;
   - **what it lays over its role's preset,** each none where the role's own stands: `prompt`, which then
     stands in place of the role's prompt; `bundles`, which then are the bundles its runs are given in place
     of the role's; and `skills`, the names of the skills its runs carry in place of the role's.
@@ -101,9 +99,6 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   request says why it waits, with the provider's own sentence.
 - **The slot request names its agent,** as its `seat`, from the moment it is let in, with the provider, model
   and effort it goes out on, and keeps them to its end.
-- **A native co-worker's call takes a seat and no road.** It stands inside its caller's program, which
-  already goes out on its own road, so it is let in on the first free callable agent of its role whatever
-  that agent's road and goes out on its caller's.
 - **A reservation holds seats of a role by count,** not agents by name: a reserved seat is one fewer agent a
   run may be let in on, and the request that takes the reservation's place is let in on whichever agent is
   then first free.

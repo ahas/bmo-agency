@@ -15,8 +15,8 @@ its turns, reads what it says and ends it. herdr is one backend behind the sessi
 - `docs/repositories.md`: what a repository row holds, what a run there is handed, a job and a pinned model.
 - `docs/job-review.md`: how a job's reports are examined by its orderer, stage by stage, before the job ends.
 - `docs/provider-order.md`: how a run gets its provider and model: the order, quota, falling over and waiting.
-- `docs/role-slots.md`: how a role's runs are let in under its cap: the line, reservations, delegated tasks,
-  native co-workers and the standing branch checkouts.
+- `docs/role-slots.md`: how a role's runs are let in under its cap: the line, reservations, delegated tasks
+  and the standing branch checkouts.
 - `docs/sessions.md`: how supervisor sessions and role sessions are kept, reused, folded and replaced.
 - `docs/keepalive-schedule.md`: when a supervisor's prefix is pinged warm.
 - `docs/PERSONAL-DATA.md`: the personal data the repository keeps out, and the check that holds it.

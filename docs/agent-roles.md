@@ -16,9 +16,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator,
-  the transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
-  role but what its row says.
+- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator
+  and the transliterator are roles alike.** Nothing tells one role from another but what its row says.
 
 ## What a role row holds
 
@@ -27,17 +26,18 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
     **its label**, the English words a log keeps of it (「A role's label」 below);
   - **its prompt,** written in English, which every run of the role opens with after the platform's harness
     opening; a role carrying none gives none;
-  - **its description,** one paragraph saying what the role is for and when to call it, which is what a
-    run that may call co-workers is shown of the role (「Co-workers」 below);
+  - **its description,** one sentence saying what the role is for, which a screen shows of it;
+  - **its provider prompts,** each a text a run of the role is given beside its prompt where its program
+    stands on that provider, kept by the role and the provider (「A role's provider prompts」 below);
   - **its bundles,** the function bundles its runs are given, each one the policy declares;
   - **its skills,** the names of the skills its runs carry on the worker line, or none set, which leaves its
     runs the whole plugin the release places for the role (`docs/role-agents.md`, 「What a run reads off its
     agent」);
   - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
     the translate line (`docs/launch-lines.md`);
-- **A role holds no road, no cap, no sessions setting, no compaction threshold and no word on being called.**
-  Whether a run keeps its session, the share at which that session is folded and whether a run of another
-  role may call it as a co-worker are each its agent's (`docs/role-agents.md`, 「What an agent row holds」).
+- **A role holds no road, no cap, no sessions setting and no compaction threshold.** Whether a run keeps its
+  session and the share at which that session is folded are each its agent's (`docs/role-agents.md`, 「What an
+  agent row holds」).
 - **A role holds no road and no cap.** The roads its runs go out on are its agents', one each, and how many
   of its runs go at once is the number of its agents that are switched on (`docs/role-agents.md`). A role
   with no agent runs nothing.
@@ -88,40 +88,33 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to the
   store once by its name, the first time the store is settled with it, with the prompt and the description
   its declaration gives. A role naming a prompt file under `prompts/roles/` takes that file's text as its
-  prompt and the one sentence its declaration states as its description; a role naming a co-worker
-  definition under `prompts/agents/worker/coworkers/` takes the definition's body as its prompt and its
-  front matter's description as its description, and states none of its own; a role naming neither takes
-  no prompt and the description its declaration states. Every seeded role carries a description. A role
-  the store holds is never touched by the policy again, and one the owner removed stays removed, so a
-  prompt or a description the policy gives a role the store already holds reaches the row only through
-  `PATCH /roles/{roleName}`. A role whose prompt file or definition cannot be read is not given and waits
-  for the next settling that can read it.
+  prompt and the one sentence its declaration states as its description; a role naming none takes no
+  prompt. Every seeded role carries a description. A role the store holds is never touched by the policy
+  again, and one the owner removed stays removed, so a prompt or a description the policy gives a role the
+  store already holds reaches the row only through `PATCH /roles/{roleName}`. A role whose prompt file
+  cannot be read is not given and waits for the next settling that can read it. A role's provider prompts
+  are given apart (「A role's provider prompts」).
 - **The seeded roles:**
 
-  | Role | Label | Line | Bundles | Cap | Prompt | Description | Sessions | Co-worker |
+  | Role | Label | Line | Bundles | Cap | Prompt | Provider prompts | Description | Sessions |
   |---|---|---|---|---|---|---|---|---|
-  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | none | policy | keep | no |
-  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | policy | keep | no |
-  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `doppelganger.md` | policy | keep | no |
-  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | policy | keep | no |
-  | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send`, `brain.lessons` | 2 | `producer.md` | policy | keep | no |
-  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 8 | definition | definition | keep | no |
-  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 6 | definition | definition | fresh | yes |
-  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 12 | definition | definition | fresh | yes |
-  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 12 | definition | definition | fresh | yes |
-  | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
-  | `seeker` | Seeker | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | policy | fresh | no |
-  | `translator` | Translator | translate | none | 4 | `translator.md` | policy | fresh | no |
-  | `transliterator` | Transliterator | search | none | 4 | none | policy | keep | no |
-  | `upkeep` | Upkeep | worker | none | 1 | none | policy | fresh | no |
+  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | none | none | policy | keep |
+  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | `claude-code`: `coder-claude-code.md` | policy | keep |
+  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `doppelganger.md` | none | policy | keep |
+  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | none | policy | keep |
+  | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send`, `brain.lessons` | 2 | `producer.md` | none | policy | keep |
+  | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | none | policy | fresh |
+  | `seeker` | Seeker | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | none | policy | fresh |
+  | `translator` | Translator | translate | none | 4 | `translator.md` | none | policy | fresh |
+  | `transliterator` | Transliterator | search | none | 4 | none | none | policy | keep |
+  | `upkeep` | Upkeep | worker | none | 1 | none | none | policy | fresh |
 
-  A prompt named by file is the file under `prompts/roles/`; `definition` is the co-worker definition of the
-  role's name under `prompts/agents/worker/coworkers/`. A `policy` description is the sentence the role's
-  declaration states.
+  A prompt and a provider prompt named by file are files under `prompts/roles/`. A `policy` description is
+  the sentence the role's declaration states.
 
 - **Each seeded role's agents are the policy's,** given with the row: as many agents
   as its declaration's count, each on the road it declares and with the sessions setting, the compaction
-  threshold and the callability the declaration states (`docs/role-agents.md`, 「The roles the policy
+  threshold the declaration states (`docs/role-agents.md`, 「The roles the policy
   seeds」), changed by the owner afterwards like any agent. The `doppelganger` and the `coder` declare no road,
   so their agents follow the supervisor that asks them until the owner sets an agent a road.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
@@ -261,21 +254,28 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   gives no bundle and carries no prompt: what such a run holds of a role is one of its agents and its
   sessions setting.
 
-## Co-workers
+## A role's provider prompts
 
-- **A co-worker is a run of a role, called by the role's name from another role's run** — a co-work order's
-  branch, a search's branch, or a native call from a job's program — and is let in on one of that role's
-  agents (`docs/role-slots.md`, 「Who takes a slot」).
-- **Only a role with a callable agent is called,** and **an unknown role is an error:** a call naming a role
-  the store does not hold, or one none of whose agents that are switched on is marked callable, is refused
-  with the name, and nothing starts. A CLI default type such as `general-purpose` is no role and is refused
-  the same way. The call is let in on a callable agent of the role and on no other.
-- **The definitions a job's program is handed** are the roles with a callable agent, each with its
-  description and the model and effort of the role's first callable agent on the provider that program stands
-  on; a role with no such agent on that provider is not defined there, and the caller does that part itself (`docs/role-slots.md`, 「Native
-  co-worker slots」).
-- **The builder role is the work order's own turn,** never called as a co-worker: a co-work order's builder
-  stage runs as `builder` in the order's checkout.
+- **A role may give its runs a text beside its prompt by the provider their program stands on:** a run of
+  the role whose program is that provider's carries the text after the role's prompt (or the agent's own
+  prompt where it lays one over the role's), on every line that composes the role's prompt into the run's
+  system prompt; a run on any other provider carries none of it. It is how one provider's way of working is
+  told to the runs on that provider alone: the coder's Claude Code runs are told how the program's own
+  subagents are used, which a run on another provider has no use for.
+- **Kept by the role and the provider,** the `role_provider_prompts` table (`docs/store.md`), each read at the
+  run's start, so a change holds from the next run; set and taken away through `PATCH /roles/{roleName}`'s
+  `providerPrompts`, a provider of this build each, and taken away with the role.
+- **The policy gives each one once,** its declaration's `provider_prompts` naming a file under
+  `prompts/roles/` by provider: given the first time the store is settled with it, to a role the store
+  already holds as much as to one seeded then, and never again, so one the owner changed stands as he left
+  it and one he took away stays away.
+
+## Subagents
+
+- **A run's program may open subagents of its own,** a provider's own facility such as Claude Code's agent
+  tool: they stand inside the run, on its road, and are no role's runs. Agency hands no subagent definition,
+  takes no slot for one and holds no record of one beyond what the run's own log says; whether and how a run
+  opens them is the run's own judgement about reaching its work's goal.
 
 ## A role's sessions
 
@@ -296,7 +296,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **A delegated task:** the role the ask names, `doppelganger` where it names none (`docs/tools.md`, 「The
   delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
-- **A co-worker:** the role the calling run names.
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
   names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`.
 - **A run standing for no one's work:** `upkeep`.

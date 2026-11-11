@@ -48,12 +48,6 @@ export function carriesWorkLine(name: AgentProviderName, line: string, providers
   return lines === undefined || lines.includes(line);
 }
 
-// The providers the common co-worker pool shows, counts, admits and warms, in the provider order:
-// those turned on that lend co-workers (docs/model-tiers.md, 「Common co-worker capacity」).
-export async function coworkerProviders(archive: Archive, providers: readonly AgentProvider[] = providerImplementations()): Promise<AgentProviderName[]> {
-  return (await enabledProviders(archive)).filter((name) => provider(name, providers).lendsCoworkers);
-}
-
 // Every program the providers are carried on, each once however many providers it serves.
 export function harnessImplementations(): AgentAdapter[] {
   return [...new Set(providerImplementations().map((one) => one.adapter))];

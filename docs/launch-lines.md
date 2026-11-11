@@ -61,7 +61,7 @@
   would throw on its first answer.
 - **Where the stream while it is still arriving says something in the program's own words, that too
   is read behind the interface**: a watcher learns which session a run is answering in, and what the
-  run's events say about the co-workers it opened, by handing each event to the harness rather than
+  run's events say about the subagents it opened, by handing each event to the harness rather than
   reading those words itself, and a harness whose program streams neither answers neither.
 - What is still outside the interface is the reading no second program has yet wanted: a run's own
   log, what it is doing this minute, the spans a job's time is broken into and what a run killed at
@@ -216,7 +216,7 @@
   「A restart hands the session over」). A turn that finds no pane to stand the program in, herdr down, fails
   as a transport failure and is run in no other shape.
 - **Worker line**: the line the `worker` role names and every role that names it — the coder, the
-  doppelganger, the producer, the builder, every co-worker and upkeep (`docs/agent-roles.md`, 「The roles
+  doppelganger, the helper, the producer and upkeep (`docs/agent-roles.md`, 「The roles
   the policy seeds」). A run on it goes out on the model, effort and thinking its role's order names for the
   provider the run goes out on (`docs/provider-order.md`), or a job's on its repository's pinned model
   (`docs/repositories.md`, 「A pinned model」), in
@@ -263,9 +263,8 @@
   what it holds and given with `--system-prompt-file`; so a run on an endpoint account opens on the base
   its endpoint's harness runs on rather than on the platform's opening (`docs/base-prompts.md`). The base
   is composed with the account the run goes out on, so the line's prefix is the account's as well as the
-  role's. Every co-worker definition's prompt, which stands as the co-worker's whole system prompt, opens
-  on the platform's harness opening, then the co-worker role's own prompt, and closes on the rules every
-  run on the line shares and the repository's own. A job carried by another provider whose program is a
+  role's. Where the role gives a provider prompt for the provider the run goes out on, it stands after the
+  role's prompt (`docs/agent-roles.md`, 「A role's provider prompts」). A job carried by another provider whose program is a
   harness of its own is handed
   the rules file alone, in the place that program keeps beside its own default prompt, never in place of
   it, and the platform's opening is not sent: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
@@ -284,24 +283,15 @@
   that repository's own placer (`bmo-skills place --bundle worker|coder|producer`) from the skills
   checkout that stands beside agency's in its workspace, or the one `BMO_SKILLS_DIR` names, before the
   deploy tree flips, so a skill the skills repository gains reaches the next job after the next
-  deployment; the copy a checkout of this repository carries stands for a tree no deployment placed — the
-  co-worker definitions as JSON, one for each role marked callable, with its description and the model
-  and the effort its own order gives on the provider the run's program stands on
-  (`docs/agent-roles.md`, 「Co-workers」), and the plugin skills a
-  type is started with, the settings the run is
+  deployment; the copy a checkout of this repository carries stands for a tree no deployment placed — and
+  the settings the run is
   held to — which is also where the Bash tool's wait for a job's command is set, its default and its
   most both the largest the program takes, so a command is waited on until it ends, and where the hook
   stands that reads every shell command a job runs
   before it runs and refuses one that would open a Claude Code session or write into the CLI's
   session records until the job has said what for with `bmo-agency live-claude --purpose`,
   which asks nobody and keeps a count of every run it lets through for the item's report
-  (`docs/live-claude-guard.md`), and where the hooks
-  stand that hold a native Claude Code subagent call until a slot of the role it names is let in and
-  give the slot back when the child ends (`docs/role-slots.md`, 「Native co-worker slots」); a job about to
-  open several native co-workers of one role reserves that many slots first with
-  `bmo-agency coworker pool reserve --role <role> --count <n>`, so its calls take them without waiting,
-  and gives them back with `bmo-agency coworker pool release` when done — they go back by themselves
-  once its CLI ends —
+  (`docs/live-claude-guard.md`) —
   and two namespaces of the tool host in one configuration: `web`, which every agent that may use
   the web is given, and `worker`, which serves the graph's reading verbs and the queue's two as
   tools (`docs/worker-mcp.md`), shown to a run by its role's bundles (`docs/agent-roles.md`, 「The
@@ -311,8 +301,7 @@
   and nothing else. So exactly one copy of each reaches a run, a checkout on another
   machine runs the same job, and changing any of it is a commit here rather than an edit to the
   machine. The deploy unit's `deploy.md` says what the whole of it adds up to and what to do when it moves.
-  Every one of those files — the settings and their hooks, the plugin, the rules and the co-worker
-  definitions — is read out of the release the job was launched on rather than through the deploy
+  Every one of those files — the settings and their hooks, the plugin and the rules — is read out of the release the job was launched on rather than through the deploy
   tree's link: the job carries that release in `BMO_DEPLOY_DIR` (`docs/agent-control.md`, 「The
   job's release」), so a deployment during the job changes none of them under it.
   The skills the CLI bundles itself stand beside the plugin's, and the worker settings'
@@ -348,7 +337,7 @@
 - **A run of the worker line on a registered model**: Claude Code pointed at agency's gateway under the
   registration's name (`docs/own-llm.md`, 「How requests go」), on the worker line above whole —
   the platform's harness opening with the role's prompt and the line's rules after it, the plugin, the
-  co-workers, the worker MCP server, the project and local setting sources and every tool the line
+  the worker MCP server, the project and local setting sources and every tool the line
   shows — and the settings the place writes over the line's own. What differs is the registration's
   gateway name, with its node where it has several, at `medium` effort with thinking on and `low` with it
   off — thinking as the order's entry names it, else as the registration's default — and its endpoint:
@@ -361,7 +350,7 @@
   the member the role's order entry or the repository's pin names, exactly as a run on a registration
   stands (`docs/own-llm.md`) — a worker's standing program and a role session's turn in a place of its own
   alike, a supervisor's double among them: the worker line whole — the platform's harness opening with the role's
-  prompt and its rules after it, its plugin, its co-workers, the worker MCP server, its settings and
+  prompt and its rules after it, its plugin, the worker MCP server, its settings and
   hooks — with the member's home, window, answer ceiling and request wait, and the gateway's key read
   from its file by the settings' key helper. The member's effort word goes out in the effort header; no
   login of the Claude road goes with it.
@@ -526,9 +515,8 @@
   configuration whole. These are the words a role's run and a supervisor's double are started with on the
   worker line, the line's own denied list in place of the chat line's.
 - **What stands beside the tools goes with them.** A run of the worker line takes its whole line on every road:
-  the worker settings and their hooks — the guard on every shell command a job runs and the slot hooks of
-  native co-workers among them — the plugin and its skills, the co-worker definitions resolved on the run's own
-  provider, and the project and local setting sources. A gateway road writes the place's settings over the
+  the worker settings and their hooks — the guard on every shell command a job runs among them — the plugin
+  and its skills, and the project and local setting sources. A gateway road writes the place's settings over the
   line's own, as every program standing in a place has them (`docs/own-llm.md`, 「Claude Code in the pane」).
 - **Nothing a gateway road's program cannot take is on any line.** The one built-in a gateway's model could not
   serve is the CLI's own web search, which runs on Anthropic's side, and it is denied on every line that shows

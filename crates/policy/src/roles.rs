@@ -64,11 +64,10 @@ pub struct OrderEntry {
 }
 
 /// One role a store is seeded with: its name, its label as a screen writes it, its line, the file under
-/// `prompts/roles/` whose text is its prompt or the co-worker definition under
-/// `prompts/agents/worker/coworkers/` whose body is its prompt and whose description is its description, the
-/// one sentence that is its description where it names no definition, the bundles it gives, the tool
-/// entries its runs are shown by name, its cap, whether its runs keep their sessions, whether a run may call
-/// it as a co-worker and its provider order.
+/// `prompts/roles/` whose text is its prompt, the files under `prompts/roles/` whose text a run of it is given
+/// beside that prompt where its program is a named provider's, the one sentence that is its description, the
+/// bundles it gives, the tool entries its runs are shown by name, its cap, whether its runs keep their
+/// sessions and its provider order.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Role {
@@ -77,9 +76,11 @@ pub struct Role {
   pub line: String,
   #[serde(default)]
   pub prompt: Option<String>,
+  /// The file under `prompts/roles/` whose text a run of it is given beside its prompt, by the provider whose
+  /// program the run stands on (docs/agent-roles.md, 「A role's provider prompts」).
   #[serde(default)]
-  pub definition: Option<String>,
-  /// What the role is for, in one sentence; none where a co-worker definition says it.
+  pub provider_prompts: std::collections::BTreeMap<String, String>,
+  /// What the role is for, in one sentence.
   #[serde(default)]
   pub description: Option<String>,
   pub bundles: Vec<String>,
@@ -90,9 +91,6 @@ pub struct Role {
   /// Whether its runs keep their sessions; `keep` where the declaration names none.
   #[serde(default)]
   pub sessions: Sessions,
-  /// Whether a run of another role may call it as a co-worker.
-  #[serde(default)]
-  pub callable: bool,
   pub order: Vec<OrderEntry>,
 }
 

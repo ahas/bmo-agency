@@ -22,7 +22,7 @@ pub struct AgentRole {
   pub max_concurrent: i64,
   /// The prompt its runs open with after the harness opening, where it carries one.
   pub prompt: Option<String>,
-  /// What it is for and when to call it, which a run that may call co-workers is shown.
+  /// What it is for, in one sentence a screen shows.
   pub description: Option<String>,
   /// Whether its runs keep their sessions (docs/agent-roles.md, 「A role's sessions」).
   pub sessions: Sessions,
@@ -32,8 +32,6 @@ pub struct AgentRole {
   pub order: Order,
   /// The share of its model's window a run's session may fill before it is folded.
   pub fold_ratio: f64,
-  /// Whether a run of another role may call it as a co-worker.
-  pub callable: bool,
   pub position: i64,
   /// Its agents, in the order a run looks for a free one (docs/role-agents.md).
   pub agents: Vec<RoleAgent>,
@@ -72,7 +70,6 @@ impl AgentRole {
       order: Order::of_row(&order, row.try_get("", "quota_share")?)
         .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       fold_ratio: row.try_get("", "fold_ratio")?,
-      callable: row.try_get::<i64>("", "callable")? != 0,
       position: row.try_get("", "position")?,
       agents: vec![],
     })
@@ -104,22 +101,6 @@ impl AgentRole {
       agents,
       ..self
     }
-  }
-
-  /// Whether a run of another role may call it: an agent of it is switched on and marked callable.
-  pub fn called(&self) -> bool {
-    self.agents.iter().any(|agent| agent.enabled && agent.callable)
-  }
-
-  /// The road a native call of it goes out on from a program standing on `provider`: that of its first
-  /// callable agent, by position, on that provider.
-  pub fn called_on(&self, provider: &str) -> Option<Entry> {
-    self
-      .agents
-      .iter()
-      .filter(|agent| agent.enabled && agent.callable)
-      .filter_map(RoleAgent::entry)
-      .find(|entry| entry.provider == provider)
   }
 
   /// The agent of this name among the role's, where it holds one.
@@ -193,10 +174,40 @@ pub async fn prompt_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<
   )
 }
 
-/// The roles a run may call as co-workers, in the order a screen lists them: those with an agent that is
-/// switched on and marked callable (docs/agent-roles.md, 「Co-workers」).
-pub async fn callable<C: ConnectionTrait>(db: &C) -> Result<Vec<AgentRole>, Fault> {
-  Ok(every(db).await?.into_iter().filter(AgentRole::called).collect())
+/// The text a run of the role is given beside its prompt where its program stands on `provider`
+/// (docs/agent-roles.md, 「A role's provider prompts」); none where the role holds none for that provider.
+pub async fn provider_prompt<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  provider: &str,
+) -> Result<Option<String>, Fault> {
+  Ok(
+    one(
+      db,
+      r#"SELECT "prompt" FROM "role_provider_prompts" WHERE "role" = $1 AND "provider" = $2"#,
+      vec![role.into(), provider.into()],
+    )
+    .await?
+    .map(|row| row.try_get::<String>("", "prompt"))
+    .transpose()?
+    .filter(|prompt| !prompt.trim().is_empty()),
+  )
+}
+
+/// Every provider prompt a role holds, by its provider.
+pub async fn provider_prompts<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+) -> Result<std::collections::BTreeMap<String, String>, Fault> {
+  all(
+    db,
+    r#"SELECT "provider", "prompt" FROM "role_provider_prompts" WHERE "role" = $1 ORDER BY "provider""#,
+    vec![role.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| Ok((row.try_get("", "provider")?, row.try_get("", "prompt")?)))
+  .collect()
 }
 
 /// The sentence an ask naming a role the store does not hold is refused with.

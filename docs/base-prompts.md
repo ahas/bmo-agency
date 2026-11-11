@@ -36,10 +36,6 @@
   the owner's standing rules, the rulebook against destroying the system and the repository's own rules
   where it has them — joined by a blank line (`docs/launch-lines.md`). On an account that names none it
   is handed the platform's harness opening in the base's place, with the same layers after it.
-  - Its co-workers' prompts are as on any run of the line: the platform's harness opening, the
-    co-worker role's own, then the same rules. A co-worker is a Claude Code subagent of the run's session
-    whose definition's prompt is its whole system prompt, so it opens on the platform's opening whatever
-    base its caller's account names.
 - **A turn of the pieces shape** is sent the platform's harness opening as its harness, then the pieces
   role whole, then its persona (`docs/supervisors.md`, 「What a turn is given」).
 - **The other lines read no base prompt:** the supervisor's harness is the platform's opening, which its
@@ -66,7 +62,7 @@ flowchart TD
     it away;
   - the tools' definitions, each with the instructions for calling it;
   - a system turn at the head of the conversation with the environment — working directory, whether
-    it is a git repository, platform, shell, OS version, the model's name — the co-worker types and
+    it is a git repository, platform, shell, OS version, the model's name — the subagent types and
     skills the run is given, and today's date;
   - the checkout's `CLAUDE.md` as a reminder in the first user turn, where the line reads its
     setting sources.

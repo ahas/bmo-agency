@@ -9,7 +9,6 @@ pub mod agents;
 pub mod borrow;
 pub mod claude_batch;
 pub mod claude_token;
-pub mod coworker_pool;
 pub mod dev_servers;
 pub mod hand_tokens;
 pub mod live_claude;

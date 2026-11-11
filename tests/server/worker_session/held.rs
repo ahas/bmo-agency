@@ -31,7 +31,6 @@ fn run_on(mode: &'static str, model: &str) -> SessionRun {
       mcp_config: PathBuf::new(),
       settings: PathBuf::new(),
       plugin_dir: PathBuf::new(),
-      agents_json: String::new(),
       tools_denied: String::new(),
       cwd: "/work".to_owned(),
     },

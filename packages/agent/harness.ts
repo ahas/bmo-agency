@@ -499,11 +499,6 @@ export interface AgentProvider {
   // and effort. A provider that publishes no such ceiling has none, and a mapping naming one is
   // refused rather than stored and ignored.
   capsAnswerTokens: boolean;
-  // Whether co-workers are borrowed on this provider (docs/model-tiers.md, 「Common co-worker
-  // capacity」): a provider offering several models lends them, each at its own tier, while one that
-  // is a single model on its own engine has no co-worker apart from the run itself, so the pool
-  // neither shows it, counts on it nor warms it, and a run on it opens none.
-  lendsCoworkers: boolean;
   // The logins agency chooses among for a run of this provider, or null where it holds none. The reply
   // of a provider that holds logins says whose reading it is, and what is written down — a session
   // record, a usage row, a cache state — says it too, because two logins report the very same

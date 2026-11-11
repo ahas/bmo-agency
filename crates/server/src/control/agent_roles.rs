@@ -2,7 +2,7 @@
 //! docs/api.md, 「roles」): each a row of the store with its own provider order, cap, sessions setting,
 //! compaction threshold and bundles. A field is judged before anything is written.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
 
 use axum::http::{Method, StatusCode};
@@ -127,6 +127,7 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "agents": role.agents,
     "maxConcurrent": role.max_concurrent,
     "followsSupervisor": role.order.follows_supervisor(),
+    "providerPrompts": agent_roles::provider_prompts(&ground.db, &role.name).await?,
   });
 
   if let (Some(shown), Value::Object(now)) = (shown.as_object_mut(), standing(ground, role).await?) {
@@ -149,12 +150,49 @@ struct Fields {
   description: Option<Option<String>>,
   sessions: Option<Sessions>,
   fold_ratio: Option<f64>,
-  callable: Option<bool>,
+  /// The provider prompts named, each by its provider, `None` where the body clears that provider's.
+  provider_prompts: BTreeMap<String, Option<String>>,
 }
 
 // What a role's row does not hold: a body naming one is told where it stands.
-const AGENTS_FIELDS: [&str; 7] =
-  ["order", "quotaShare", "maxConcurrent", "active", "sessions", "foldRatio", "callable"];
+const AGENTS_FIELDS: [&str; 6] =
+  ["order", "quotaShare", "maxConcurrent", "active", "sessions", "foldRatio"];
+
+const PROVIDER_PROMPTS_REFUSAL: &str =
+  "providerPrompts: An object naming providers, each with its prompt's text, or null to clear it.";
+
+// The provider prompts a body names written: each text set under its provider, each null taken away.
+async fn write_provider_prompts<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  named: &BTreeMap<String, Option<String>>,
+) -> Result<(), Refused> {
+  for (provider, text) in named {
+    match text {
+      Some(text) => {
+        run(
+          db,
+          r#"INSERT INTO "role_provider_prompts" ("role", "provider", "prompt", "updated_at")
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT ("role", "provider") DO UPDATE SET "prompt" = excluded."prompt",
+               "updated_at" = excluded."updated_at""#,
+          vec![role.into(), provider.as_str().into(), text.as_str().into(), now_ms().into()],
+        )
+        .await?;
+      }
+      None => {
+        run(
+          db,
+          r#"DELETE FROM "role_provider_prompts" WHERE "role" = $1 AND "provider" = $2"#,
+          vec![role.into(), provider.as_str().into()],
+        )
+        .await?;
+      }
+    }
+  }
+
+  Ok(())
+}
 
 fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused> {
   match value {
@@ -239,12 +277,11 @@ impl Fields {
       }
     }
 
-    // A role holds no road, no cap, no sessions setting, no threshold and no callability: its agents do
-    // (docs/role-agents.md).
+    // A role holds no road, no cap, no sessions setting and no threshold: its agents do (docs/role-agents.md).
     if let Some(named) = AGENTS_FIELDS.iter().find(|field| body.get(**field).is_some()) {
       return Err(unprocessable(format!(
-        "{named}: A role holds no order, cap, forced provider, sessions setting, compaction threshold or \
-         callability. Each is its agent's: add or change the agents at /role-agents."
+        "{named}: A role holds no order, cap, forced provider, sessions setting or compaction threshold. Each \
+         is its agent's: add or change the agents at /role-agents."
       )));
     }
 
@@ -254,6 +291,29 @@ impl Fields {
 
     if let Some(description) = body.get("description") {
       fields.description = Some(optional_text(description, &words.description)?);
+    }
+
+    // A provider prompt is named by a provider of this build, and is text or null (docs/agent-roles.md,
+    // 「A role's provider prompts」).
+    if let Some(named) = body.get("providerPrompts") {
+      let Some(named) = named.as_object() else {
+        return Err(unprocessable(PROVIDER_PROMPTS_REFUSAL));
+      };
+
+      for (provider, text) in named {
+        if super::harness::named(provider).is_err() {
+          return Err(unprocessable(format!("providerPrompts: {provider} is no provider of this build.")));
+        }
+
+        let text = match text {
+          Value::Null => None,
+          Value::String(text) if !text.trim().is_empty() => Some(text.clone()),
+          Value::String(_) => None,
+          _ => return Err(unprocessable(PROVIDER_PROMPTS_REFUSAL)),
+        };
+
+        fields.provider_prompts.insert(provider.clone(), text);
+      }
     }
 
     Ok(fields)
@@ -354,10 +414,10 @@ impl Route for RoleCreate {
     run(
       call.store(),
       r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable",
+           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio",
            "skills")
          VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "roles"), $6, $6, $7, $8, $9, $10,
-           $11, $12, $13, $14)"#,
+           $11, $12, $13)"#,
       vec![
         name.clone().into(),
         label.into(),
@@ -371,11 +431,11 @@ impl Route for RoleCreate {
         "[]".into(),
         ROLES.quota_share.into(),
         fields.fold_ratio.unwrap_or(order::DEFAULT_FOLD_RATIO).into(),
-        i64::from(fields.callable.unwrap_or(false)).into(),
         listed(fields.skills.flatten().as_deref())?.into(),
       ],
     )
     .await?;
+    write_provider_prompts(call.store(), &name, &fields.provider_prompts).await?;
 
     let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
 
@@ -404,7 +464,7 @@ impl Route for RoleChange {
     run(
       call.store(),
       r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "prompt" = $3, "updated_at" = $4, "sessions" = $6,
-           "description" = $7, "line" = $8, "fold_ratio" = $9, "callable" = $10, "skills" = $11
+           "description" = $7, "line" = $8, "fold_ratio" = $9, "skills" = $10
          WHERE "name" = $5"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
@@ -418,11 +478,11 @@ impl Route for RoleChange {
         fields.description.unwrap_or(held.description).into(),
         fields.line.unwrap_or(held.line).into(),
         fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
-        i64::from(fields.callable.unwrap_or(held.callable)).into(),
         listed(fields.skills.unwrap_or(held.skills).as_deref())?.into(),
       ],
     )
     .await?;
+    write_provider_prompts(call.store(), &name, &fields.provider_prompts).await?;
 
     let promoted = dispatch::promote_role(call.store(), &name, now_ms()).await.map_err(Refused::failed)?;
 
@@ -464,6 +524,12 @@ impl Route for RoleDelete {
     run(
       call.store(),
       r#"DELETE FROM "role_agents" WHERE "role" = $1"#,
+      vec![name.clone().into()],
+    )
+    .await?;
+    run(
+      call.store(),
+      r#"DELETE FROM "role_provider_prompts" WHERE "role" = $1"#,
       vec![name.clone().into()],
     )
     .await?;

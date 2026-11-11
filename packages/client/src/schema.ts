@@ -3066,6 +3066,8 @@ export interface components {
             };
             /** @description The stages the item's job runs in, in order; written as its work order. */
             steps?: string[];
+            /** @description The mark the steps check answered with, once the steps were checked against it. */
+            stepsCheck?: string | null;
         };
         /** @description Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome. */
         Job: {
@@ -3198,6 +3200,12 @@ export interface components {
             action: string;
             /** @description The words the action hands on; required for every action but `pass`. */
             text?: string | null;
+            /**
+             * Format: int64
+             * @description For `reject`: the stage, counted from one, the work goes back to; one already reached. None sends back the
+             *     stage under way.
+             */
+            stage?: number | null;
         };
         /** @description RoadBlockPage: */
         RoadBlockPage: {
@@ -3908,6 +3916,13 @@ export interface components {
              * @default false
              */
             followsSupervisor: boolean;
+            /**
+             * @description the text a run of it is given beside its prompt where its program stands on a provider, by provider
+             * @default {}
+             */
+            providerPrompts: {
+                [key: string]: string;
+            };
             /** Format: int64 */
             running: number;
             /** Format: int64 */
@@ -3951,8 +3966,6 @@ export interface components {
             keepsCache: boolean;
             /** @description whether its runs keep their sessions */
             sessions: components["schemas"]["RoleSessions"];
-            /** @description whether a run of another role may call it as a co-worker */
-            callable: boolean;
             /**
              * Format: double
              * @description its compaction threshold, or null where the ratio its provider declares stands
@@ -3993,6 +4006,10 @@ export interface components {
             prompt?: string | null;
             description?: string | null;
             skills?: string[] | null;
+            /** @description the text a run of it is given beside its prompt where its program stands on a provider, by provider */
+            providerPrompts?: {
+                [key: string]: string;
+            };
         };
         /**
          * @description RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
@@ -4005,6 +4022,10 @@ export interface components {
             prompt?: string | null;
             description?: string | null;
             skills?: string[] | null;
+            /** @description each provider's prompt set, or taken away where it is given as null; a provider left out stands as it is */
+            providerPrompts?: {
+                [key: string]: string | null;
+            };
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -4069,7 +4090,6 @@ export interface components {
             position?: number | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
-            callable?: boolean | null;
             /** Format: double */
             foldRatio?: number | null;
             prompt?: string | null;
@@ -4092,7 +4112,6 @@ export interface components {
             position?: number | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
-            callable?: boolean | null;
             /** Format: double */
             foldRatio?: number | null;
             prompt?: string | null;
@@ -4492,10 +4511,16 @@ export interface components {
                 [key: string]: string;
             };
             /**
-             * @description The stages the item's job runs in, in order, each examined before the next (docs/job-review.md); left out
-             *     for work of one stage.
+             * @description The stages the item's job runs in, in order, each examined before the next (docs/job-review.md): each one
+             *     the question its agent is asked at that stage, in your words. The job's worker cannot change them.
              */
             steps?: string[];
+            /**
+             * @description Left out the first time: the filing is then refused `steps-unchecked` with the skills and tools of the
+             *     agent the item runs on and what to check the steps against. Check them, and file again with the steps as
+             *     they then stand and this set to the mark that refusal named.
+             */
+            stepsCheck?: string | null;
         };
         /** @description StopJob: a job to stop as the supervisor asks it, everything but the agent its plugin was started for. */
         StopJob: {
@@ -4530,6 +4555,13 @@ export interface components {
             action: string;
             /** @description The question, the reason and the rework, what the check found, or what the owner is asked and why. */
             text?: string | null;
+            /**
+             * Format: int64
+             * @description For `reject` only: the stage, counted from one, the work goes back to — one already passed whose work the
+             *     report shows falls short, or the stage under way; left out, the stage under way is sent back. Its step is
+             *     handed over again with `text` as what is to be done, and the stages after it follow again.
+             */
+            stage?: number | null;
         };
         /** @description The body that releases an assignment the harness will not run. */
         ReleaseWorker: {

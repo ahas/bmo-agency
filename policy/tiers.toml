@@ -3,28 +3,3 @@
 
 # Every tier, in the order the tiers are shown and compared.
 ladder = ["Supervisor", "Frontier", "Reliable", "Fine", "Light", "Simple"]
-
-# The most places the pool may offer at one tier on one provider: the ceiling a capacity the owner sets is
-# held to (docs/coworker-pool.md, 「Concurrency limits」).
-capacity_most = 128
-
-# The tiers a co-worker is borrowed at, in the ladder's order, each with the places its pool offers on
-# every provider where nobody set any: the owner's Haiku-class 12 for the tiers that resolve to Haiku,
-# their Sonnet-class 6 for the rest. Supervisor is the supervisors' tier and Frontier the job worker's: the
-# builder stage is the worker itself, so neither is ever a borrowed co-worker and neither has a limit
-# (docs/model-tiers.md, 「Common co-worker capacity」).
-[[coworker]]
-tier = "Reliable"
-capacity = 6
-
-[[coworker]]
-tier = "Fine"
-capacity = 6
-
-[[coworker]]
-tier = "Light"
-capacity = 12
-
-[[coworker]]
-tier = "Simple"
-capacity = 12

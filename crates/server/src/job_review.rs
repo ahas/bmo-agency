@@ -594,7 +594,11 @@ impl Route for ReviewJob {
 
     let ground = call.shared_ground();
     let sessions = call.sessions();
-    let member = acted(ground, sessions, &ask.agent_name, ask.job_id, action, &text).await?;
+    if ask.stage.is_some() && action != Action::Reject {
+      return Err(bad(format!("a job's review: only reject names a stage, not {}", ask.action.trim())));
+    }
+
+    let member = acted(ground, sessions, &ask.agent_name, ask.job_id, action, &text, ask.stage).await?;
 
     Ok(answer(StatusCode::OK, member))
   }
@@ -611,6 +615,7 @@ async fn acted(
   id: i64,
   action: Action,
   text: &str,
+  back_to: Option<i64>,
 ) -> Result<Value, Refused> {
   let db = &ground.db;
   let mut standing = standing(db, id).await?;
@@ -651,16 +656,33 @@ async fn acted(
       turn_out(ground.clone(), sessions, id, &standing, QUESTION, words).await?;
     }
     Action::Reject => {
+      let back = sent_back_to(id, &standing, back_to)?;
+
+      if let Some(back) = back {
+        stage_reopened(&ground, &mut standing, back).await;
+      }
+
       entry(ground.vars(), id, &standing, "rejection", text, agent, json!({ "check": check })).await;
       standing.rejections += 1;
       standing.round += 1;
       run(
         db,
-        r#"UPDATE "jobs" SET "rejections" = $1, "review_round" = $2 WHERE "id" = $3"#,
-        vec![standing.rejections.into(), standing.round.into(), id.into()],
+        r#"UPDATE "jobs" SET "rejections" = $1, "review_round" = $2, "review_stage" = $3 WHERE "id" = $4"#,
+        vec![standing.rejections.into(), standing.round.into(), standing.stage.into(), id.into()],
       )
       .await?;
-      let words = fill_marks(&JOB_REVIEW.rejection_turn, &[("words", text)]);
+      let words = match back {
+        Some(back) => fill_marks(
+          &JOB_REVIEW.rejection_back_turn,
+          &[
+            ("words", text),
+            ("stage", &back.to_string()),
+            ("stages", &standing.stages.len().to_string()),
+            ("step", step_of(&standing, back)),
+          ],
+        ),
+        None => fill_marks(&JOB_REVIEW.rejection_turn, &[("words", text)]),
+      };
 
       turn_out(ground.clone(), sessions, id, &standing, WORK, words).await?;
     }
@@ -689,6 +711,38 @@ async fn acted(
   publish(&ground, "job.changed", member.clone());
 
   Ok(member)
+}
+
+// The stage a rejection sends the work back to, where it names one other than the stage under way: one the
+// job has reached, of a job of several stages (docs/job-review.md, 「Stages」). The final report stands past
+// every stage, so each of them is one it may name.
+fn sent_back_to(id: i64, standing: &Standing, named: Option<i64>) -> Result<Option<i64>, Refused> {
+  let Some(named) = named else { return Ok(None) };
+  let stages = standing.stages.len() as i64;
+  let reached = standing.stage.unwrap_or(stages);
+
+  if stages < 2 || named < 1 || named > reached {
+    return Err(refused(
+      StatusCode::BAD_REQUEST,
+      "bad-request",
+      format!("job {id}'s work goes back only to a stage it has reached, 1 to {reached}, not {named}"),
+    ));
+  }
+
+  Ok((Some(named) != standing.stage).then_some(named))
+}
+
+// The work sent back to a stage already passed: that stage under way again and every stage after it reached so
+// far waiting again, on the job service's tasks as on the job.
+async fn stage_reopened(ground: &Ground, standing: &mut Standing, back: i64) {
+  let reached = standing.stage.unwrap_or(standing.stages.len() as i64);
+
+  for later in (back + 1)..=reached {
+    task_moved(ground.vars(), standing.item, later, "waiting").await;
+  }
+
+  task_moved(ground.vars(), standing.item, back, "current").await;
+  standing.stage = Some(back);
 }
 
 // A check passed: the next check told, or the stage passed and the next stage, the final report or the job's end

@@ -1,20 +1,4 @@
-//! The standing branch checkouts' list as the routes write it (docs/role-slots.md, 「The list」), and the
-//! provider a native co-worker's program stands on.
-
-use super::harness::named;
-
-/// The provider a native co-worker's slot and model stand on where its program stands on no provider that
-/// lends co-workers of its own: Claude Code, whose program a native call runs inside.
-pub const NATIVE_PROVIDER: &str = "claude-code";
-
-/// The provider the native co-workers of a program standing on `provider` take their slots and models on:
-/// that provider where it lends co-workers, Claude Code where it lends none or is not one of this build.
-pub fn native_provider(provider: &str) -> &'static str {
-  named(provider)
-    .ok()
-    .filter(|one| one.declared().lends_coworkers)
-    .map_or(NATIVE_PROVIDER, |one| one.name())
-}
+//! The standing branch checkouts' list as the routes write it (docs/role-slots.md, 「The list」).
 
 /// What a place's line was written with now noted under its key: the provider, model, effort and upstream,
 /// the place keeping the latest moment it was written, which a later write never moves back.

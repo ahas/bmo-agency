@@ -40,6 +40,15 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 
 ## Stages
 
+- **The stages are the orderer's, written as the item is filed** (`docs/api.md`, 「assignments and jobs」), each
+  the question the job's agent is asked at that stage; the job's worker changes none of them. Before the item
+  is filed its steps are checked against the agent the item runs on: the first filing is answered with that
+  agent's skills and tools and what to check the steps against — the orderer's own lessons, and work those
+  skills, tools or lessons say is always done for work like it — and the item is filed by the filing that
+  names the mark that answer gave. The shape the check names is three stages: one that finds the grounds the
+  implementation stands on, ending with a document and its voice briefing for the owner where its findings
+  are not simple, the work going on without waiting for him; one implementation stage however much it does;
+  and one that confirms what the implementation reported as not confirmed.
 - **The stages are read from the job service as the job is launched:** the steps of the item's work order
   (`GET /items/{itemId}/work-order`), in order, kept on the job so a later change of the work order moves no
   stage of a job already running. The work order's tasks are moved as the stages go: the stage under way is
@@ -50,6 +59,14 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 - **A stage passed hands the next one over** as a turn in the same session: the stage's number, how many there
   are, its step, and that this turn too ends with its report. The stage that holds the last step is said to be
   the last, so the worker closes the change there as its closing rules say.
+- **A rejection may send the work back to a stage already passed.** A stage's examination can find that an
+  earlier stage's work falls short — a check that shows the implementation wrong sends it back to the stage
+  that implemented it. The rejection names that stage, and the work goes back there: that stage is the one
+  under way again, every stage after it waits again, and the rework turn is handed that stage's step with the
+  rejection's words as what is to be done. Once it passes, the stages after it are handed over again in order,
+  each examined as before. A rejection naming no stage sends back the stage under way.
+- **Each stage answers how many times its work was sent back:** the `rejection` entries of the item's review
+  written under its number (「The record」), which the console shows on the stage's step.
 - **Once the last stage has passed, a job of more than one stage is asked for its final report** in one more
   turn: the account of the work whole, every stage in it. That report is examined as a stage's is, under no stage
   of its own; passed, the job ends. A job of one stage ends once that stage passes: its report is the final one.
@@ -76,7 +93,7 @@ jobs」), naming the job, one action and its words.
 | Action | Words | What follows |
 |---|---|---|
 | `ask` | A question for the worker on the check due | The question goes into the job's session as a turn; the worker's answer is written as the round's answer, and the orderer is told the same check again with the answer |
-| `reject` | Why the work goes back, and what is to be done | The rejection is counted and the words go into the job's session as a work turn; its report opens the next round, from the first check |
+| `reject` | Why the work goes back, and what is to be done; optionally the `stage` it goes back to | The rejection is counted and the words go into the job's session as a work turn — of the stage named where it names a stage already reached, of the stage under way otherwise; its report opens the next round, from the first check |
 | `pass` | Optional: what the check found | The check passes; the next check is told, or the stage passes and the next stage, the final report or the job's end follows |
 | `escalate` | What the owner is asked, and why | The work is put to the owner (「The owner's word」 below) |
 
@@ -84,9 +101,14 @@ jobs」), naming the job, one action and its words.
   the review policy's ceiling, ten (`policy/job-review.toml`, `escalate_after`), `escalate` is refused 409
   `escalation-early`: the supervisor's only moves are to ask, to send it back or to pass it, and the manual
   holds it to send back whatever falls short.
+- **A check that needs the job's own commit live is the orderer's to make possible.** A job never deploys and
+  moves no state of its item, so such a check is reported as not confirmed, naming the commit; the orderer
+  puts that commit live while the job stays under review and sends the stage that holds the check back with
+  the words that it is live. The job is never held to wait on its own deployment.
 - **Past the ceiling the choice is the supervisor's own:** send it back again, or put it to the owner.
 - **An action that does not fit the job is refused:** a job not under review is 409 `not-reviewing`, an action
-  outside the four 400 `bad-request`, an `ask`, `reject` or `escalate` without words 400 `bad-request`, a job
+  outside the four 400 `bad-request`, an `ask`, `reject` or `escalate` without words 400 `bad-request`, a
+  `reject` naming a stage the job has not reached, or a job of one stage, 400 `bad-request`, a job
   whose work waits on the owner's question 409 `awaits-owner` for every action but `reject` and `pass` once the
   owner has answered.
 - **Who may act:** the supervisor whose harness plugin calls, carrying a turn now (409 `no-turn` otherwise), as
@@ -133,7 +155,8 @@ jobs」), naming the job, one action and its words.
   - `opened` as the job is launched, naming the stages;
   - `report` for each report, the worker's words whole;
   - `question` and `answer` for each question and its answer;
-  - `rejection` for each time the work is sent back, the supervisor's words its reason;
+  - `rejection` for each time the work is sent back, the supervisor's words its reason, under the stage the
+    work went back to;
   - `pass` for each check passed, its label `check` naming it;
   - `escalation` and `ruling` for the work put to the owner and the owner's word;
   - `accepted` as the job's work is taken whole, before the job ends.

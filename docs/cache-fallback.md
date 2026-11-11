@@ -250,8 +250,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 #### Limit
 
-- **A job's run can launch co-workers,** and a run's spend catches the models they used too, so a
-  co-worker explicitly given a different version of the job's own family is read as a demotion though it
+- **A job's run can open subagents,** and a run's spend catches the models they used too, so a
+  subagent explicitly given a different version of the job's own family is read as a demotion though it
   is not a fall. In practice agents pick models by family name, so the case does not arise, and even a
   misread costs only one new session — the answer is not wrong — where a job quietly answering on a
   lower model and ending costs more.
@@ -484,7 +484,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
 - **Runs that do not walk their own role's order** — a repository's pinned model, a run of a role whose order
-  is empty on the road of the supervisor that asks it (the `doppelganger` role as seeded), a native co-worker on its caller's provider, a session whose caller names its
+  is empty on the road of the supervisor that asks it (the `doppelganger` role as seeded), a session whose caller names its
   provider and model — are `docs/provider-order.md`'s, 「Runs that do not walk their own role's order」; the
   account walk inside the Claude Code entry is the same for each of them.
 - **Every line asks it, and none keeps a walk of its own:** a supervisor's turn, a job's launch and its

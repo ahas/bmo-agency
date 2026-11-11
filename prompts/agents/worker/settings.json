@@ -6,7 +6,9 @@
   "workflowSizeGuideline": "small",
   "disableClaudeAiConnectors": true,
   "skipDangerousModePermissionPrompt": true,
-  "claudeMdExcludes": ["/home/*/.claude/CLAUDE.md"],
+  "claudeMdExcludes": [
+    "/home/*/.claude/CLAUDE.md"
+  ],
   "skillOverrides": {
     "artifact-design": "off",
     "artifact-diagramming": "off",
@@ -30,51 +32,6 @@
           {
             "type": "command",
             "command": "[ -z \"$BMO_SOURCE_DIR\" ] || [ -z \"$BMO_JOB_GUARD\" ] || sh -c \"$BMO_JOB_GUARD\" || true",
-            "timeout": 86400
-          }
-        ]
-      },
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
-            "timeout": 86400
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
-            "timeout": 86400
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
-            "timeout": 86400
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
             "timeout": 86400
           }
         ]

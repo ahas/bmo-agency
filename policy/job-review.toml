@@ -39,8 +39,16 @@ final_turn = "Every stage passed its review. Write the final report of the whole
 question_turn = "The supervisor examining your report asks, on its check {check}:\n\n{words}\n\nAnswer it in this turn. Where the question shows work missing, do that work before you answer, and say what you did."
 # The work sent back: `{words}`.
 rejection_turn = "The supervisor examining your report sent the work back:\n\n{words}\n\nDo what it asks now, in this checkout, then end this turn with your report of the work as it stands after it."
+# The work sent back to a stage already passed: `{words}`, `{stage}`, `{stages}` and `{step}`.
+rejection_back_turn = "The supervisor examining your report sent the work back to stage {stage} of {stages}: {step}\n\nWhat is to be done:\n\n{words}\n\nDo it now, in this checkout, then end this turn with your report of stage {stage} as it stands after it. The stages after it are handed to you again, in order, once it passes."
 # Opens a turn's prompt where the job's session could not be resumed: `{prompt}` the job's own, then the record.
 carried = "{prompt}\n\n## The review so far\n\nThis job's session could not be resumed, so its record stands here, oldest first:\n\n{record}"
+
+# What a supervisor filing an item is answered with before the item is filed, so its steps are checked against
+# the agent the item runs on: `{role}`, `{agent}`, `{skills}` and `{tools}` a line each, and `{mark}`, the mark the
+# next filing names.
+steps_check = "Check this item's steps before it is filed. It runs on {agent} as the {role} role.\n\nThe skills that agent holds:\n{skills}\n\nThe tools it holds:\n{tools}\n\nRead your brain for the lessons that bear on this work. Then set the steps as the stages its job runs in, each one the question that agent is asked at that stage, in your words; the agent cannot change them. The shape stands as three stages unless the work calls for another:\n1. Investigate: the grounds the implementation will stand on. Where the findings are not simple, the stage ends with an archive document of them and its voice briefing, handed to the owner, and the work goes on without waiting for him unless he asked to approve it.\n2. Implement: the goal carried out and tested, as one stage however many things it does: those are lines of its one step, never stages of their own, so there is no implement 1 and implement 2. The report names, under what was not confirmed, everything it could not confirm.\n3. Verify: everything the implement stage reported as not confirmed, confirmed until nothing of it is left; nothing more where it reported nothing.\nAdd a stage, or a line to one, for any work a skill, a tool or a lesson says is always done for work like this — a review with the design skills before the verify stage for design work, for one — and leave out what does not apply.\n\nThen call file_item again with the steps as they now stand and stepsCheck set to {mark}."
+steps_check_none = "(none)"
 
 # The checks every report is examined by, in order, each with what it requires.
 [[checks]]

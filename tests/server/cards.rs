@@ -2,7 +2,7 @@
 //! master (docs/own-llm.md, 「An engine the arbiter stands」): a run waiting with no clock until its demand is
 //! granted, a demand handed in stood on and left to its caller, work asked within a run's demand lending the
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
-//! with their lease, a native co-worker's card asked within the demand its caller's turn holds, a seat's
+//! with their lease, a seat's
 //! admission reading its demand as it stands, a seat standing on its caller's own demand with none asked,
 //! one card shared by the runs out at once on a registration, kept for the runs still out when one is
 //! let go and given back, granted or still waiting, once none is; and a turn's card wait carried as the
@@ -15,8 +15,8 @@ use std::time::Duration;
 
 use agency_server::cards::{
   Ask, Asking, CardWait, Gateway, SharedAsk, Sharing, WaitTold, give_back_lease, give_back_left,
-  give_back_on, give_back_with_leases, hold_on, holding, native_card, only_supervisor_of_room,
-  seat_card_on, share, supervisor_rank, taken_from, terms, until_taken, watch_turn,
+  give_back_on, give_back_with_leases, hold_on, holding, only_supervisor_of_room, seat_card_on, share,
+  supervisor_rank, taken_from, terms, until_taken, watch_turn,
 };
 use agency_server::control::registry::{change, registration, view};
 use agency_server::herdr_backend::TurnChanged;
@@ -430,89 +430,6 @@ async fn demands_left_behind_are_given_back_at_start_and_with_an_ended_lease() {
 
   assert_eq!(give_back_left(scratch.db(), &master).await.unwrap(), 1);
   assert!(ledger(scratch.db()).await.is_empty());
-}
-
-#[tokio::test]
-async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_holds() {
-  let scratch = Scratch::new().await;
-  let data = tempfile::tempdir().unwrap();
-  let (master, shared) = stand_in(1, false, &key_file(&data)).await;
-
-  change(
-    scratch.db(),
-    data.path(),
-    &json!({
-      "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "cardService": "lab-arena", "roleFiles": true,
-    }),
-  )
-  .await
-  .unwrap()
-  .unwrap();
-  granted(&shared, 30);
-  scratch
-    .run(
-      r#"INSERT INTO "card_demands" ("demand_id", "service", "registration", "holder", "asked_at")
-         VALUES (30, 'lab-arena', 'flash', 'worker-a', 1)"#,
-      vec![],
-    )
-    .await;
-
-  let seat = Request {
-    sequence: 1,
-    token: "seat-native".into(),
-    request_key: "native:s:t".into(),
-    owner: "native:s".into(),
-    source: "native".into(),
-    role: "scout".into(),
-    path: None,
-    ended_at: None,
-    outcome: None,
-    reservation: None,
-    provider: "registered".into(),
-    model: "flash".into(),
-    effort: None,
-    capacity: 1,
-    state: "active".into(),
-    enqueued_at: 1,
-    leased_at: Some(1),
-    child_id: None,
-    yielding: false,
-    place_key: None,
-    session: None,
-    title: None,
-    asked_by: None,
-    account: None,
-    agent_name: None,
-    agent_wanted: None,
-    seat: None,
-    held_for: None,
-    ended_by: None,
-  };
-  let held = native_card(scratch.db(), Some(&master), &seat, Some("worker-a"))
-    .await
-    .unwrap()
-    .unwrap();
-
-  assert_eq!(held.within, Some(30));
-  assert_eq!(shared.lock().unwrap().asked[0]["within"], 30);
-
-  let lease: Option<String> = store::one(
-    scratch.db(),
-    r#"SELECT "lease" FROM "card_demands" WHERE "demand_id" = $1"#,
-    vec![held.demand.into()],
-  )
-  .await
-  .unwrap()
-  .unwrap()
-  .try_get("", "lease")
-  .unwrap();
-
-  assert_eq!(lease.as_deref(), Some("seat-native"), "the seat's card is kept under its lease");
-
-  let refused = native_card(scratch.db(), None, &seat, Some("worker-a")).await;
-
-  assert!(matches!(&refused, Err(why) if why.detail.contains("AGENCY_ARBITER_URL")), "{refused:?}");
 }
 
 #[tokio::test]

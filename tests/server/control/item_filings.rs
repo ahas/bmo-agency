@@ -2,7 +2,7 @@
 //! only where the turn is the owner's, any such label the call names let go, the repository it names written as
 //! its `assigneeName`, where a launch reads it, and no item for an agent carrying no turn.
 
-use agency_server::control::item_filings::item_of;
+use agency_server::control::item_filings::{item_of, steps_check};
 use agency_server::mcp::tools;
 use agency_server::openapi::openapi;
 use agency_server::turn_marks::{self, Mark};
@@ -24,6 +24,7 @@ fn ask(labels: &[(&str, &str)]) -> ItemFilingAsk {
     requester_name: Some("a member".to_owned()),
     labels: labels.iter().map(|(key, value)| ((*key).to_owned(), (*value).to_owned())).collect(),
     steps: vec![],
+    steps_check: None,
   }
 }
 
@@ -193,4 +194,37 @@ async fn an_agent_carrying_no_turn_files_no_item() {
   let body: Value = answer.json().await.unwrap_or(Value::Null);
 
   assert_eq!((status, body["code"].as_str()), (409, Some("no-turn")), "{body}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_filing_s_steps_are_checked_against_the_agent_it_runs_on_and_its_mark_holds_while_they_move() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::ground_on(scratch.db().clone(), home.path());
+  let filing = ItemFilingAsk {
+    steps: vec!["Investigate the guard".to_owned()],
+    ..ask(&[("role", "coder")])
+  };
+  let (mark, words) = steps_check(&ground, &filing).await.unwrap();
+
+  assert!(words.contains("the coder role") && words.contains(&mark), "{words}");
+  assert!(
+    words.contains("Investigate") && words.contains("Implement") && words.contains("Verify"),
+    "{words}"
+  );
+
+  // The mark is the item's and its agent's, so the steps may move between the two filings.
+  let moved = ItemFilingAsk {
+    steps: vec!["Investigate".to_owned(), "Implement".to_owned(), "Verify".to_owned()],
+    ..filing.clone()
+  };
+
+  assert_eq!(steps_check(&ground, &moved).await.unwrap().0, mark);
+
+  let another = ItemFilingAsk {
+    title: "Mend another guard".to_owned(),
+    ..filing
+  };
+
+  assert_ne!(steps_check(&ground, &another).await.unwrap().0, mark);
 }

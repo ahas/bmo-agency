@@ -85,12 +85,10 @@ pub async fn reseated(db: &DatabaseConnection) {
   settled(db).await;
 }
 
-/// Every agent given what its role's row holds of the sessions setting, the compaction threshold and the
-/// callability, as the store gives a seeded role's agents theirs: for a test that lays agents down itself.
+/// Every agent given what its role's row holds of the sessions setting and the compaction threshold, as the
+/// store gives a seeded role's agents theirs: for a test that lays agents down itself.
 pub async fn settled(db: &DatabaseConnection) {
-  store::run(db, store::migration::m20261204_000001_role_agent_settings::SETTINGS_OF_ROLES, vec![])
-    .await
-    .unwrap();
+  store::run(db, store::seed::AGENT_SETTINGS, vec![]).await.unwrap();
 }
 
 /// A role's agents laid down afresh, one on each road its row's order names, in that order: a role whose runs

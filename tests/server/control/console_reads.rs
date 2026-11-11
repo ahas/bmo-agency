@@ -261,7 +261,7 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
   assert_eq!((status, refused["code"].clone()), (409, json!("seeded")), "{refused}");
 
   // A slot asked for a model alone goes out on the provider the role's agent of that model is on.
-  let (status, roles) = get(port, token, "/roles/scout").await;
+  let (status, roles) = get(port, token, "/roles/helper").await;
 
   assert_eq!(status, 200, "{roles}");
 
@@ -272,7 +272,7 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     reqwest::Method::POST,
     "/slot-requests",
     Some(
-      json!({ "role": "scout", "requestKey": "console:one", "owner": "console", "model": entry["model"] }),
+      json!({ "role": "helper", "requestKey": "console:one", "owner": "console", "model": entry["model"] }),
     ),
   )
   .await;
@@ -286,7 +286,7 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     reqwest::Method::POST,
     "/slot-requests",
     Some(
-      json!({ "role": "scout", "requestKey": "console:two", "owner": "console", "provider": "deepseek" }),
+      json!({ "role": "helper", "requestKey": "console:two", "owner": "console", "provider": "deepseek" }),
     ),
   )
   .await;
@@ -325,7 +325,10 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
   let (status, slots) = get(port, token, "/slots").await;
 
   assert_eq!(status, 200, "{slots}");
-  assert!(slots["items"].as_array().unwrap().iter().any(|role| role["role"] == "scout"), "{slots}");
+  assert!(
+    slots["items"].as_array().unwrap().iter().any(|role| role["role"] == "helper"),
+    "{slots}"
+  );
 
   sessions_on_one_slot(port, token, &entry).await;
 }
@@ -355,7 +358,7 @@ async fn sessions_on_one_slot(port: u16, token: &str, entry: &Value) {
     reqwest::Method::POST,
     "/slot-requests",
     Some(json!({
-      "role": "scout", "requestKey": "console:sessions", "owner": "console-sessions",
+      "role": "helper", "requestKey": "console:sessions", "owner": "console-sessions",
       "provider": entry["provider"], "model": entry["model"],
     })),
   )
@@ -445,7 +448,7 @@ async fn sessions_on_one_slot(port: u16, token: &str, entry: &Value) {
     reqwest::Method::POST,
     "/sessions",
     Some(
-      json!({ "scope": "role", "role": "scout", "provider": entry["provider"], "model": entry["model"] }),
+      json!({ "scope": "role", "role": "helper", "provider": entry["provider"], "model": entry["model"] }),
     ),
   )
   .await;

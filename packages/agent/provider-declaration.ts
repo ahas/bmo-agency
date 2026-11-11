@@ -6,7 +6,6 @@ import type { AgentProvider } from "./harness";
 export interface DeclaredProvider {
   label: string;
   caps_answer_tokens: boolean;
-  lends_coworkers: boolean;
   effort: {
     words: string[];
     none_held: boolean;
@@ -17,7 +16,7 @@ export interface DeclaredProvider {
 
 // What a provider takes from its file. The lines it carries name the deployment's lines, so they are
 // read by the deployment that composes the provider, never here.
-export type ProviderDeclaration = Pick<AgentProvider, "label" | "efforts" | "effortFault" | "capsAnswerTokens" | "lendsCoworkers">;
+export type ProviderDeclaration = Pick<AgentProvider, "label" | "efforts" | "effortFault" | "capsAnswerTokens">;
 
 export function providerDeclaration(file: unknown): ProviderDeclaration {
   const declared = file as DeclaredProvider;
@@ -29,6 +28,5 @@ export function providerDeclaration(file: unknown): ProviderDeclaration {
     efforts: [...(noneHeld ? [null] : []), ...words],
     effortFault: (effort) => (launch === "required" && effort === null) || (launch === "refused" && effort !== null) ? refusal : null,
     capsAnswerTokens: declared.caps_answer_tokens,
-    lendsCoworkers: declared.lends_coworkers,
   };
 }

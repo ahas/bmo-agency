@@ -23,7 +23,6 @@ interface MemberPolicy {
   label: string;
   lines: string[];
   caps_answer_tokens: boolean;
-  lends_coworkers: boolean;
   effort: {
     words: string[];
     none_held: boolean;
@@ -115,7 +114,6 @@ export function memberProvider(options: {
     effortFault: declared.effortFault,
     reasoning: options.reasoning,
     capsAnswerTokens: declared.capsAnswerTokens,
-    lendsCoworkers: declared.lendsCoworkers,
     logins: null,
     resident: claudeResidentAt(endpoint, { interrupt: ["escape"], words_mid_turn: true }),
     lines: policy.lines as RunLine[],

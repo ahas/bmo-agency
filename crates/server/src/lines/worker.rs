@@ -11,8 +11,6 @@ use harness_providers::Machine;
 use policy::base_prompts::BASE_PROMPTS;
 use policy::run_lines::RUN_LINES;
 use regex::Regex;
-use serde::Serialize;
-use serde::ser::SerializeMap;
 use sha2::{Digest, Sha256};
 
 use super::agent_plugin::Whose;
@@ -20,7 +18,6 @@ use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::{levels, named};
-use crate::control::pool::{NATIVE_PROVIDER, native_provider};
 use crate::places::Ground;
 use store::one;
 
@@ -63,7 +60,6 @@ pub struct WorkerRun {
   pub mcp_config: PathBuf,
   pub settings: PathBuf,
   pub plugin_dir: PathBuf,
-  pub agents_json: String,
   pub tools_denied: String,
   pub cwd: String,
 }
@@ -95,11 +91,10 @@ pub async fn reasoning_of(_ground: &Ground, _agent: &str) -> Result<Reasoning, R
   Ok(Reasoning::default())
 }
 
-/// A worker's rules: those its co-workers share — every worker's rules and the worker's own after them —
-/// and the worker's whole, which carry its prefix documents after those, written as one file: one shared
-/// by every worker with nothing of its own and one for each worker with something.
+/// A worker's rules — every worker's rules, the worker's own, its trailer and its prefix documents —
+/// written as one file: one shared by every worker with nothing of its own and one for each worker with
+/// something.
 pub struct StandingRules {
-  pub shared: String,
   pub text: String,
   pub file: PathBuf,
 }
@@ -145,9 +140,6 @@ pub fn standing_rules(
   ];
 
   parts.extend(own.clone());
-
-  let shared = parts.join("\n\n");
-
   parts.extend(trailer.map(str::to_owned));
   parts.extend(documents.map(str::to_owned));
 
@@ -159,7 +151,7 @@ pub fn standing_rules(
   };
   let file = system_prompt_file(trees, &name, &text)?;
 
-  Ok(StandingRules { shared, text, file })
+  Ok(StandingRules { text, file })
 }
 
 /// The documents a worker's row names for its session's prefix (docs/worker-bench.md, 「Prefix
@@ -346,93 +338,6 @@ pub fn harnessed_system_prompt(
   system_prompt_file(trees, &format!("worker-system-harness-{}", &digest[..12]), &text)
 }
 
-/// One co-worker definition as the program reads it, its fields in the order the line writes them.
-#[derive(Serialize)]
-struct Definition {
-  description: String,
-  prompt: String,
-  #[serde(skip_serializing_if = "Vec::is_empty")]
-  tools: Vec<String>,
-  #[serde(skip_serializing_if = "Vec::is_empty")]
-  skills: Vec<String>,
-  model: String,
-  effort: String,
-}
-
-// The definitions in the order the archive lists the roles.
-struct Definitions(Vec<(String, Definition)>);
-
-impl Serialize for Definitions {
-  fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-    let mut map = serializer.serialize_map(Some(self.0.len()))?;
-
-    for (name, definition) in &self.0 {
-      map.serialize_entry(name, definition)?;
-    }
-
-    map.end()
-  }
-}
-
-// The name the program files the plugin's skills under, and the skills it carries.
-fn plugin_skills(plugin_dir: &Path) -> Result<Vec<String>, Refusal> {
-  let manifest = read_required(&plugin_dir.join(".claude-plugin").join("plugin.json"))?;
-  let name = serde_json::from_str::<serde_json::Value>(&manifest)
-    .ok()
-    .and_then(|manifest| manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_owned))
-    .ok_or_else(|| fault(format!("{}: the plugin names no name", plugin_dir.display())))?;
-  let skills = std::fs::read_dir(plugin_dir.join("skills"))
-    .map_err(|why| fault(format!("{}: {why}", plugin_dir.display())))?;
-
-  Ok(
-    skills
-      .filter_map(Result::ok)
-      .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
-      .map(|entry| format!("{name}:{}", entry.file_name().to_string_lossy()))
-      .collect(),
-  )
-}
-
-/// The co-worker definitions a job's program is handed (docs/role-slots.md, 「Native co-worker slots」): every
-/// callable role whose order holds an entry for `provider` — the one its program stands on — on that entry's
-/// model and effort in Claude Code's word, its prompt — which stands in the place of the subagent's own —
-/// opened by the platform's harness and closed by the worker's rules, and every skill the plugin carries.
-pub async fn coworkers_json(
-  ground: &Ground,
-  trees: &Trees,
-  plugin_dir: &Path,
-  rules: &str,
-  provider: &str,
-) -> Result<String, Refusal> {
-  let words = named(provider).map_err(|refused| fault(refused.error))?;
-  let carried = plugin_skills(plugin_dir)?;
-  let harness = read_required(&trees.harness_path())?;
-  let mut definitions = vec![];
-
-  for role in crate::agent_roles::callable(&ground.db).await? {
-    let Some(entry) = role.called_on(provider) else { continue };
-    let effort = entry
-      .effort
-      .clone()
-      .map(|word| words.claude_effort(&word).map_or(word, str::to_owned))
-      .unwrap_or_default();
-
-    definitions.push((
-      role.name.clone(),
-      Definition {
-        description: role.description.clone().unwrap_or_default(),
-        prompt: format!("{harness}\n\n{}\n\n{rules}", role.prompt.as_deref().unwrap_or_default().trim()),
-        tools: vec![],
-        skills: carried.clone(),
-        model: entry.model.clone(),
-        effort,
-      },
-    ));
-  }
-
-  serde_json::to_string(&Definitions(definitions)).map_err(|why| fault(why.to_string()))
-}
-
 /// The worker line's MCP configuration, on the tool host — the web namespace and the worker's own — written
 /// where the line reads it when nothing has written it, and left as it stands otherwise: two trees writing
 /// one file would move the worker's prefix back and forth between them. A hosted tool those namespaces do
@@ -455,7 +360,7 @@ pub async fn worker_run(
   model: &str,
   cwd: &str,
 ) -> Result<WorkerRun, Refusal> {
-  worker_run_on(ground, trees, worker, account, model, cwd, NATIVE_PROVIDER).await
+  worker_run_on(ground, trees, worker, account, model, cwd, crate::worker_session::PROVIDER).await
 }
 
 /// The worker's run on its line in a program standing on `provider`, whose co-worker definitions are
@@ -497,6 +402,29 @@ pub async fn role_run(
 }
 
 // The run on the worker line for a checkout, or none, under the role named.
+// The role's prompt with the text its run is given where its program stands on `provider` after it
+// (docs/agent-roles.md, 「A role's provider prompts」); a store that cannot be read leaves the prompt as it is.
+async fn with_provider_prompt(
+  ground: &Ground,
+  role: &str,
+  provider: &str,
+  prompt: Option<String>,
+) -> Option<String> {
+  let added =
+    crate::agent_roles::provider_prompt(&ground.db, role, provider)
+      .await
+      .unwrap_or_else(|fault| {
+        eprintln!("agency: the {provider} prompt of the role {role} could not be read: {}", fault.detail);
+
+        None
+      });
+
+  match (prompt, added) {
+    (Some(prompt), Some(added)) => Some(format!("{}\n\n{}", prompt.trim_end(), added.trim())),
+    (prompt, added) => prompt.or(added),
+  }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn run_on_line(
   ground: &Ground,
@@ -529,12 +457,14 @@ async fn run_on_line(
     None => None,
   };
   let StandingRules {
-    shared,
     text: rules_text,
     file: rules,
   } = standing_rules(trees, folder.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
   let above = match role {
-    Some(role) => super::role_prompt(&ground.db, role, Some(cwd)).await,
+    Some(role) => {
+      with_provider_prompt(ground, role, provider, super::role_prompt(&ground.db, role, Some(cwd)).await)
+        .await
+    }
     None => None,
   };
   let system_prompt = worker_system_prompt(
@@ -593,7 +523,6 @@ async fn run_on_line(
     rules,
     mcp_config: mcp_config(ground, trees)?,
     settings: worker_dir.join("settings.json"),
-    agents_json: coworkers_json(ground, trees, &plugin_dir, &shared, native_provider(provider)).await?,
     plugin_dir,
     tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
     cwd: cwd.to_owned(),

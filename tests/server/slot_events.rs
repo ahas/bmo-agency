@@ -296,7 +296,7 @@ async fn a_slot_ask_reaches_the_boundary_stream() {
   let asked: Value = client
     .post(format!("http://127.0.0.1:{port}/slot-requests"))
     .bearer_auth(token)
-    .json(&json!({ "role": "scout", "requestKey": "events:one", "owner": "events" }))
+    .json(&json!({ "role": "helper", "requestKey": "events:one", "owner": "events" }))
     .send()
     .await
     .unwrap()

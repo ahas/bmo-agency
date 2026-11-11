@@ -159,10 +159,8 @@ quota is read is `docs/usage-windows.md`.
   seeded — goes out on the asking supervisor's own provider, model and effort as they stand when it is asked,
   and waits, never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An
   agent the owner sets a road goes out on that road instead.
-- **A native co-worker** stands inside its caller's program, so it goes out on the provider that program
-  stands on, at the model and effort of the co-worker role's first agent on that provider; where the role
-  has no agent on that provider, the call is refused and the caller does that part itself
-  (`docs/role-slots.md`, 「Native co-worker slots」).
+- **A subagent a run's program opens** stands inside that program and goes out on its road; it takes no
+  order of its own (`docs/agent-roles.md`, 「Subagents」).
 - **A session a caller starts naming a provider and a model** goes out on exactly that, as a named road: the
   provider must carry the line and hold the model, else it cannot answer, and the run never moves off it.
 

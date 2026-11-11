@@ -17,11 +17,11 @@ program is spoken to is `docs/agent-control.md`.
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
   tool bundles its runs are given, its provider order, the most of its runs that go at once, its session
   policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the doppelganger, the
-  producer, the voyager, the seeker, the translator, the transliterator and every co-worker — builder,
-  scout, screener, verifier and any the owner adds — are roles.
+  helper, the producer, the voyager, the seeker, the translator, the transliterator and any the owner adds
+  are roles.
 - **Nothing else is an agent.** No row stands for a worker, a runner or a gate: a job's worker is a run of
-  a role in a repository's checkout, a search is a run of the voyager role, and a co-worker is a run of a
-  co-worker role. No code lists the supervisors or the roles or answers a question about one by its name;
+  a role in a repository's checkout, a search is a run of the voyager role, and a subagent a run's program
+  opens is part of that run. No code lists the supervisors or the roles or answers a question about one by its name;
   every reader takes the row the work names and reads what it says.
 - **A repository is a place a run works in,** never an agent (`docs/repositories.md`). It keeps what is
   the repository's own — its prefix documents, the prompt that stands before a job's, its rules and the
@@ -31,7 +31,7 @@ program is spoken to is `docs/agent-control.md`.
 
 - **A run is one piece of work of one role at one path,** on the provider and model the role's order
   gives it at that moment (`docs/provider-order.md`): a job's turn, a delegated task, a search, a
-  translation, a co-work branch, a co-worker a run calls by its role's name.
+  translation, a co-work branch.
 - **A run occupies one slot of its role while it goes** (`docs/role-slots.md`). The role's cap is the only
   bound on how many of its runs go at once; nothing bounds them per provider, and runs do not take turns at
   a path.
@@ -116,7 +116,7 @@ flowchart TD
   it is shown, denied or allowed, the MCP configuration, the permission mode and the system prompt, and the
   session its role's setting gives it.
 - **Its role is the one the work names:** a job item's role, `worker` where the item names none; the role
-  a delegation or a co-worker call names; the role a session's caller names. A run that stands for no
+  a delegation names; the role a session's caller names. A run that stands for no
   piece of anyone's work holds the role the roles policy names for it — the usage reader's renewal turn
   `upkeep` (`policy/roles.toml`).
 - **What goes in** is a typed lead saying the paste after it is the run's task, then the run's words

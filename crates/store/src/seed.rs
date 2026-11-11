@@ -10,6 +10,13 @@ use sea_orm_migration::MigratorTrait;
 use crate::migration::{Migrator, TABLES};
 use crate::statements::{Fault, run};
 
+/// Every agent given what its role's row holds of the sessions setting and the compaction threshold, as a
+/// seeded role's agents are given theirs (docs/role-agents.md, 「What an agent row holds」).
+pub const AGENT_SETTINGS: &str = r#"UPDATE "role_agents" AS a
+  SET "sessions" = r."sessions", "fold_ratio" = COALESCE(a."fold_ratio", r."fold_ratio")
+  FROM "roles" AS r
+  WHERE r."name" = a."role""#;
+
 /// Everything a store is seeded with.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Seeds {
@@ -26,7 +33,8 @@ pub struct Seeds {
 /// One role a store is given once by its name (docs/agent-roles.md, 「The roles the policy seeds」): its
 /// label, the bundles it gives, its line, its provider order as the JSON list a row keeps with its quota
 /// share, its cap, the text of its prompt and its description, whether its runs keep their sessions,
-/// `keep` or `fresh`, its compaction threshold and whether a run may call it as a co-worker.
+/// `keep` or `fresh`, its compaction threshold, and the text a run of it is given beside its prompt by the
+/// provider its program stands on, each given once by the role and the provider.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RoleSeed {
   pub name: String,
@@ -40,7 +48,7 @@ pub struct RoleSeed {
   pub description: Option<String>,
   pub sessions: String,
   pub fold_ratio: f64,
-  pub callable: bool,
+  pub provider_prompts: Vec<(String, String)>,
 }
 
 /// One base prompt a store is given once by its name (docs/base-prompts.md, 「The seeds」), with the
@@ -109,6 +117,10 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   }
   for (place, role) in seeds.roles.iter().enumerate() {
     role_seed(&writing, role, place as i64, now * 1000).await?;
+
+    for (provider, text) in &role.provider_prompts {
+      provider_prompt_seed(&writing, &role.name, provider, text, now * 1000).await?;
+    }
   }
 
   writing.commit().await?;
@@ -242,8 +254,8 @@ async fn role_seed<C: ConnectionTrait>(
   run(
     db,
     r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-         "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT DO NOTHING"#,
+         "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING"#,
     vec![
       role.name.clone().into(),
       role.label.clone().into(),
@@ -258,7 +270,6 @@ async fn role_seed<C: ConnectionTrait>(
       role.order.clone().into(),
       role.quota_share.into(),
       role.fold_ratio.into(),
-      i64::from(role.callable).into(),
     ],
   )
   .await?;
@@ -274,15 +285,40 @@ async fn role_seed<C: ConnectionTrait>(
     vec![role.name.clone().into()],
   )
   .await?;
-  // Its agents take the sessions setting, the compaction threshold and the callability its declaration
-  // states (docs/role-agents.md, 「What an agent row holds」).
+  // Its agents take the sessions setting and the compaction threshold its declaration states
+  // (docs/role-agents.md, 「What an agent row holds」).
+  run(db, &format!(r#"{AGENT_SETTINGS} AND a."role" = $1"#), vec![role.name.clone().into()]).await?;
+
+  Ok(())
+}
+
+// A role's provider prompt is given once by the role and the provider, recorded as given, so one the owner
+// removes stays removed and one the owner changed stands as it is; it is given to a role already held as
+// much as to one seeded now (docs/agent-roles.md, 「A role's provider prompts」).
+async fn provider_prompt_seed<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  provider: &str,
+  text: &str,
+  at_ms: i64,
+) -> Result<(), Fault> {
+  let given = run(
+    db,
+    r#"INSERT INTO "role_provider_prompt_seeded" ("role", "provider") VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
+    vec![role.into(), provider.into()],
+  )
+  .await?;
+
+  if given == 0 {
+    return Ok(());
+  }
+
   run(
     db,
-    &format!(
-      r#"{} AND a."role" = $1"#,
-      crate::migration::m20261204_000001_role_agent_settings::SETTINGS_OF_ROLES.trim_end()
-    ),
-    vec![role.name.clone().into()],
+    r#"INSERT INTO "role_provider_prompts" ("role", "provider", "prompt", "updated_at")
+       SELECT $1, $2, $3, $4 WHERE EXISTS (SELECT 1 FROM "roles" WHERE "name" = $1)
+       ON CONFLICT DO NOTHING"#,
+    vec![role.into(), provider.into(), text.into(), at_ms.into()],
   )
   .await?;
 

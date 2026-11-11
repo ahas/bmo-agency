@@ -20,14 +20,13 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   and `git log --oneline -<n>` before any log; bound a read whose size you cannot say in advance
   (`head`, `-m`) rather than finding out by receiving it; and never chain reads into one command —
   such compounds are the largest answers a job's session receives.
-- **What would fill your session with what you do not need goes to one `scout`** through the Agent
-  tool: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
+- **What would fill your session with what you do not need goes to one searching subagent** through
+  the Agent tool, where your program has one: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
   open. A log is read first through what `bmo check` printed or `bmo test log`,
-  and handed on only where they leave the question open. Ask the scout for its conclusion — the
+  and handed on only where they leave the question open. Ask the subagent for its conclusion — the
   files and lines, the failure and its cause — and take back only that: what it read stays in its
-  own session, where every later turn of yours would otherwise read it again. In a co-work the
-  plan's branches do this instead.
-- Work you ask of a co-worker or of the supervisor's model runs elsewhere while another machine is free; when every other machine is busy, your own model stands down to run it and stays down until that work is finished, however long it takes, then comes back. So ask once, with everything bundled, and never ask the other model in a loop or poll it for progress.
+  own session, where every later turn of yours would otherwise read it again.
+- Work you ask of the supervisor's model runs elsewhere while another machine is free; when every other machine is busy, your own model stands down to run it and stays down until that work is finished, however long it takes, then comes back. So ask once, with everything bundled, and never ask the other model in a loop or poll it for progress.
 - **A sweep over a large file or many files runs first on the smallest input** — the first two
   hundred lines, one file of the loop — and you look at what it prints. An answer there says the
   command works and the rest is size; nothing printed where the small input should answer at once is a

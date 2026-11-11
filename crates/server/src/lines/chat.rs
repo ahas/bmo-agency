@@ -34,7 +34,6 @@ use super::token::{self, facts};
 use super::worker::{Reasoning, WorkerRun, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
-use crate::control::pool::native_provider;
 use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
@@ -1386,7 +1385,6 @@ pub async fn compose_stand_in(
         thinking,
         claude_effort,
         backend_effort,
-        own_coworkers: worker.is_some() && native_provider(&step.provider) == step.provider,
       };
       let (mut command, _) = gateway_command(
         ground,

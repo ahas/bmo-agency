@@ -97,8 +97,6 @@ pub fn worker_args(
     handed_path(&run.mcp_config)?,
     "--plugin-dir".to_owned(),
     handed_path(&run.plugin_dir)?,
-    "--agents".to_owned(),
-    run.agents_json.clone(),
   ]);
 
   match session {

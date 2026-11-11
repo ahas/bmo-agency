@@ -22,7 +22,7 @@ import { executionsRoot, hostCodeRoot } from "./agent-host";
 import { HEAD_MARK, HEAD_STOPPED, type AgentHome } from "./herdr-run";
 import { JOB_RUNNER_MARKER } from "./live-claude-guard";
 import { nodeHeadEnv, nodeHerdrSocket, nodeRootsOf } from "./work-node";
-import { processAlive } from "@agency/archive/native-coworker-pool";
+import { processAlive } from "@agency/archive/process-mark";
 import type { RunProcess } from "@agency/archive/run-store";
 import { dataRootCopy } from "@agency/support/roots";
 import { runPath } from "@agency/support/service-path";

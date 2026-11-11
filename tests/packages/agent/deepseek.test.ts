@@ -53,7 +53,6 @@ test("an agent's thinking off is DeepSeek's own none, and a level the run takes 
   expect(await deepSeekProvider.reasoning.effort("low", { thinking: null, effort: null }, "deepseek-flash")).toBe("low");
   expect(deepSeekProvider.efforts).toEqual([null, "none", "low", "medium", "high", "max"]);
   expect(deepSeekProvider.lines).toEqual(["chat", "gate", "worker", "search"]);
-  expect(deepSeekProvider.lendsCoworkers).toBe(true);
 });
 
 test("a pin naming one of its members is taken and another is refused", async () => {
