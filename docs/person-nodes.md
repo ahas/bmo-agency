@@ -27,21 +27,26 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 
 | What | Direction | How jake carries it |
 |---|---|---|
-| the node's herdr session socket | here → PC | a byte stream to the PC, joined there to the socket |
-| the tool host's port | PC → here | a reverse stream: a port the PC's agent listens on, each connection carried to the tool host here |
-| the home bridge's socket | PC → here | a reverse stream, as the tool host's |
-| the mirror | both ways | a channel to the serve program started on the PC: its standard input and output carried both ways |
+| the mirror | both ways | a byte stream to the far end's mirror port on the PC |
+| the node's herdr session socket | here → PC | a byte stream to the far end's herdr port, which the far end joins to the socket |
+| the tool host's port | PC → here | a stream back: the PC's agent listens on the port at its loopback, each connection joined to the tool host here |
+| the home bridge's socket | PC → here | a stream back to a port the near end opens here and joins to the bridge's socket; the far end's bridge socket joins the PC's loopback port |
 
-- **jake gains what this needs, as capabilities of the agent the machine's configuration allows:** a reverse stream,
-  to a target the hub's configuration names, from a port the agent listens on at the PC's loopback alone; a channel,
-  a command whose standard input is carried as well as its output, held for as long as the link holds it, with no
-  ceiling of time; and a stream's far end that is a local socket as well as a port.
+- **The far end stands on the PC as a service of the person's own,** started by the workplace's setup and kept
+  running there: the link's serve program, listening at the PC's loopback alone for the mirror and the herdr socket,
+  and joining the bridge's socket to the stream back. A machine reached through the hub keeps nothing open to the
+  world, since jake's agent dials out and listens at its loopback alone.
+- **The near end makes no SSH connection:** it reaches the far end's ports through the hub's byte streams, and asks
+  the hub to listen on the PC for the tool host and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
+  allows (jake's `docs/architecture.md`, 「Carrying a byte stream back」). What the mirror says is the SSH link's,
+  frame for frame.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place and its tool token.
 
 ## Order of the work
 
-1. jake: reverse streams, channels and socket ends (jake's `docs/protocol.md` and `docs/architecture.md`).
-2. agency: the link over jake, beside the SSH link, chosen by the node's kind.
+1. jake: streams back (jake's `docs/protocol.md` and `docs/architecture.md`).
+2. agency: the link's far end listening at the PC's loopback, and its near end over jake, beside the SSH link,
+   chosen by the node's kind.
 3. agency: the workplace laid down on a PC through jake.
 4. agency: an account's sessions and runs placed on its person's node.
