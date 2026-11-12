@@ -183,6 +183,8 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
     (47201, 47202, 47203, 47214)
   );
   assert_eq!(pc.ports, [3290]);
+  // An account's node asks its bridge for the policy's verbs alone (docs/person-nodes.md, 「Who reaches a node」).
+  assert_eq!(pc.bridge_verbs.as_ref(), Some(&policy::person_nodes::PERSON_NODES.bridge_verbs));
   // The supervisor's place goes there: its program sent, its running record brought back.
   assert_eq!(place_node(&roots.place("u7-bmo")).as_deref(), Some("u7"));
   assert!(pc.push.iter().any(|push| push.local == roots.place("u7-bmo")));
@@ -197,6 +199,8 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   assert_eq!(place_node(&roots.place("worker")).as_deref(), Some("n1"));
 
   let spec = Spec::read(&roots.spec_path("n1")).unwrap();
+
+  assert_eq!(spec.bridge_verbs, None, "a node of the deployment's own asks for any verb");
 
   assert_eq!(spec.ssh, LOGIN);
   assert_eq!(spec.root, "/home/tester/node-root");

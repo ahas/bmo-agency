@@ -114,7 +114,8 @@ side of a remote agent, the rotation, and what a dropped node does.
     root, which the node's bridge points at. What a node asks of the bridge — the CLI's `bin/bmo` — is the CLI's, not
     agency's, so the bridge runs it out of the CLI's own deploy tree, `$HOME/.local/share/bmo-cli/deploy`,
     never out of agency's (`docs/agent-control.md`, 「The job's release」), and that `bmo` hands each command
-    to the unit carrying it;
+    to the unit carrying it. A person's PC asks it for the verbs agency's policy names alone
+    (`docs/person-nodes.md`, 「Who reaches a node」);
   - the mirror, spoken with a serve program started at the far end.
 - **The far end makes sure of what stands on the node** whether a link holds it or not: the agent host
   of the node's data root, which the heads there ask, and the herdr session, each started apart from

@@ -60,6 +60,24 @@ pub fn script_in(deploy: &Path, asked: &str) -> Option<PathBuf> {
   Some(deploy.join(path))
 }
 
+/// Why a call is not run here, where the node may ask only for `verbs`: a script, or a call of the verbs' binary
+/// whose first word is none of them; none where the node may ask for any.
+pub fn refusal(asked: &Asked, verbs: Option<&[String]>) -> Option<String> {
+  let verbs = verbs?;
+  let verb = asked.args.first().map(String::as_str).unwrap_or_default();
+
+  if asked.script == VERBS_BINARY && verbs.iter().any(|allowed| allowed == verb) {
+    return None;
+  }
+
+  Some(format!(
+    "{} {} is not run for this node, which asks the bridge for {} alone, each its call's first word",
+    asked.script,
+    asked.args.join(" "),
+    verbs.join(", ")
+  ))
+}
+
 /// The variables a run hands over that this machine reads as the node meant them: the run's own and
 /// its place, every path in them read back as this machine's.
 pub fn carried_env(
@@ -109,11 +127,13 @@ pub async fn write_frame(
   to.write_all(bytes).await
 }
 
-/// One run asked over the bridge, answered on the same connection.
+/// One run asked over the bridge, answered on the same connection; where `verbs` names the verbs the node may
+/// ask for, any other call is refused.
 pub async fn answer(
   stream: UnixStream,
   deploy: PathBuf,
   node: String,
+  verbs: Option<Vec<String>>,
   from_node: impl Fn(&str) -> String,
 ) -> std::io::Result<()> {
   let (reading, mut writing) = stream.into_split();
@@ -130,6 +150,11 @@ pub async fn answer(
       return write_frame(&mut writing, EXIT, &2i32.to_be_bytes()).await;
     }
   };
+
+  if let Some(why) = refusal(&asked, verbs.as_deref()) {
+    write_frame(&mut writing, ERR, format!("node-link bridge: {why}\n").as_bytes()).await?;
+    return write_frame(&mut writing, EXIT, &2i32.to_be_bytes()).await;
+  }
 
   let Some(script) = script_in(&deploy, &asked.script) else {
     write_frame(

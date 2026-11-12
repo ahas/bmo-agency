@@ -648,8 +648,9 @@ pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
         tokio::spawn(async move {
           let deploy = spec.deploy.clone();
           let node = spec.node.clone();
+          let verbs = spec.bridge_verbs.clone();
 
-          let _ = bridge::answer(stream, deploy, node, move |path| spec.here(path)).await;
+          let _ = bridge::answer(stream, deploy, node, verbs, move |path| spec.here(path)).await;
         });
       }
     });

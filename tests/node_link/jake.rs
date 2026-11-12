@@ -79,7 +79,7 @@ async fn a_run_on_the_node_asks_the_home_bridge_and_ends_as_the_run_at_home_ende
   tokio::spawn(async move {
     let (stream, _) = listener.accept().await.unwrap();
 
-    node_link::bridge::answer(stream, deploy, "pc".into(), |path| path.replace("/n/data", "/h/data"))
+    node_link::bridge::answer(stream, deploy, "pc".into(), None, |path| path.replace("/n/data", "/h/data"))
       .await
       .unwrap();
   });

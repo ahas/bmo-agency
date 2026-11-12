@@ -89,7 +89,7 @@ async fn the_bridge_runs_a_deploy_script_with_the_runs_own_variables() {
   tokio::spawn(async move {
     let (stream, _) = listener.accept().await.expect("accept");
 
-    bridge::answer(stream, deploy, "n1".into(), |path| path.replace("/n/data", "/h/data"))
+    bridge::answer(stream, deploy, "n1".into(), None, |path| path.replace("/n/data", "/h/data"))
       .await
       .expect("answered");
   });
@@ -111,6 +111,61 @@ async fn the_bridge_runs_a_deploy_script_with_the_runs_own_variables() {
   assert_eq!(refused.2, 2);
 }
 
+// A person's node asks the bridge for the verbs its spec names alone: a call of one runs, and any other verb, a
+// verb named after an option and a script are each refused with exit 2 and run nothing (docs/person-nodes.md,
+// 「Who reaches a node」).
+#[tokio::test]
+async fn a_person_s_node_runs_the_verbs_its_spec_names_alone() {
+  use std::os::unix::fs::PermissionsExt;
+
+  let dir = tempfile::tempdir().expect("dir");
+  let deploy = dir.path().join("deploy");
+  let ran = dir.path().join("ran");
+  let bmo = deploy.join(bridge::VERBS_BINARY);
+
+  fs::create_dir_all(bmo.parent().unwrap()).expect("bin");
+  fs::create_dir_all(deploy.join("scripts")).expect("scripts");
+  fs::write(&bmo, format!("#!/bin/sh\necho \"$@\" >> {}\n", ran.display())).expect("bmo");
+  fs::set_permissions(&bmo, fs::Permissions::from_mode(0o755)).expect("mode");
+  fs::write(deploy.join("scripts/echo.ts"), "console.log('ran');\n").expect("script");
+
+  let socket = dir.path().join("bridge.sock");
+  let listener = bind(&socket).expect("bind");
+
+  tokio::spawn(async move {
+    while let Ok((stream, _)) = listener.accept().await {
+      let deploy = deploy.clone();
+      let verbs = Some(vec!["agent-status".to_owned(), "use".to_owned()]);
+
+      tokio::spawn(bridge::answer(stream, deploy, "pc".into(), verbs, str::to_owned));
+    }
+  });
+
+  let ask = |script: &str, args: &[&str]| json!({ "script": script, "args": args }).to_string();
+  let (_, _, code) = ask_bridge(&socket, &ask("bin/bmo", &["agent-status", "--place", "p"]), b"").await;
+
+  assert_eq!(code, 0);
+
+  for (script, args) in [
+    ("bin/bmo", &["node", "work", "setup", "pc"][..]),
+    ("bin/bmo", &["--via", "r", "use", "x"][..]),
+    ("bin/bmo", &[][..]),
+    ("scripts/echo.ts", &[][..]),
+  ] {
+    let (out, err, code) = ask_bridge(&socket, &ask(script, args), b"").await;
+
+    assert_eq!(code, 2, "{script} {args:?}");
+    assert!(out.is_empty(), "{script} {args:?}");
+    assert!(String::from_utf8_lossy(&err).contains("agent-status, use"), "{script} {args:?}");
+  }
+
+  assert_eq!(
+    fs::read_to_string(&ran).expect("ran"),
+    "agent-status --place p\n",
+    "only the named verb ran"
+  );
+}
+
 // A second bridge on the same directory, for a refusal.
 async fn socket_again(dir: &tempfile::TempDir) -> PathBuf {
   let socket = dir.path().join("bridge-2.sock");
@@ -120,7 +175,9 @@ async fn socket_again(dir: &tempfile::TempDir) -> PathBuf {
   tokio::spawn(async move {
     let (stream, _) = listener.accept().await.expect("accept");
 
-    bridge::answer(stream, deploy, "n1".into(), str::to_owned).await.expect("answered");
+    bridge::answer(stream, deploy, "n1".into(), None, str::to_owned)
+      .await
+      .expect("answered");
   });
 
   socket

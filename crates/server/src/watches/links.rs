@@ -543,6 +543,10 @@ pub async fn spec(
   }
 
   let bridge = join(&join(&node_root, "data"), "bridge.sock");
+  // A node an account's record names asks the bridge for the policy's verbs alone, so no session of a person's
+  // runs here what reaches the hub as this machine's user (docs/person-nodes.md, 「Who reaches a node」).
+  let owned = !crate::person_nodes::owners_of(db, node).await?.is_empty();
+  let bridge_verbs = owned.then(|| PERSON_NODES.bridge_verbs.clone());
 
   Ok(Ok(Spec {
     node: node.to_owned(),
@@ -583,6 +587,7 @@ pub async fn spec(
       .filter(|placed| !placed.checkout)
       .map(|placed| to_node(&placed.cwd))
       .collect(),
+    bridge_verbs,
     rewrite,
     jake,
   }))

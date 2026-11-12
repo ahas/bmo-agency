@@ -58,6 +58,10 @@ pub struct Spec {
   /// supervisor's own folder or a run's, which nothing else of the place makes there.
   #[serde(default)]
   pub folders: Vec<String>,
+  /// The verbs of the CLI's `bmo` the node may ask the home bridge to run, each the first word of its call, where
+  /// it is a person's node; none where it may ask for any, as a node of the deployment's own may.
+  #[serde(default)]
+  pub bridge_verbs: Option<Vec<String>>,
   /// A person's PC, reached through the jake hub alone in place of SSH (docs/person-nodes.md); none for an SSH
   /// node.
   #[serde(default)]
