@@ -315,6 +315,10 @@ fn a_head_record_and_a_start_left_by_a_process_that_is_gone_read_as_absent() {
 
 #[test]
 fn a_program_started_often_waits_its_bound_and_holds_the_place_meanwhile() {
+  // Built before the clock is read: a build that takes longer than the minute the starts are counted over would
+  // leave none of them recent.
+  head_binary();
+
   let root = Root::new();
   let said = root.data.path().join("started");
   let now = now_ms();
