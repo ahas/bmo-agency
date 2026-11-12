@@ -454,7 +454,7 @@ async fn a_turn_this_process_carries_is_left_to_its_own_end_though_its_place_s_r
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_back_when_the_turn_ends() {
+async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_stays_the_job_s_when_the_turn_ends() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = Arc::new(seeded(scratch.db(), home.path()).await);
@@ -495,32 +495,32 @@ async fn a_lease_of_a_job_s_turn_adopted_at_start_stands_as_seen_and_is_given_ba
   assert_eq!(leases, vec![(held.token.clone(), "job-31".to_owned(), true)]);
   assert_eq!(slot_now(&ground, &held.token).await.state, "active");
 
-  // The turn ends in the program's record: the job ends with it and its slot is given back.
+  // The turn ends in the program's record: its report goes to the job's review, and the job keeps its agent's
+  // seat while it is reviewed, since its agent answers for it until it ends (docs/role-agents.md).
   answered(&worker, "j", "The adopted job's report.");
 
-  let mut given = slot_now(&ground, &held.token).await;
+  let mut state = String::new();
 
   for _ in 0..80 {
-    if given.state != "active" {
+    let job = store::one(scratch.db(), r#"SELECT "state" FROM "jobs" WHERE "id" = 31"#, vec![])
+      .await
+      .unwrap()
+      .unwrap();
+
+    state = job.try_get::<String>("", "state").unwrap();
+
+    if state != "running" {
       break;
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(125)).await;
-    given = slot_now(&ground, &held.token).await;
   }
 
-  assert_eq!(
-    (given.state.as_str(), given.ended_by.as_deref()),
-    ("released", Some(dispatch::BY_OWNER)),
-    "{given:?}"
-  );
+  assert_eq!(state, "reviewing");
 
-  let job = store::one(scratch.db(), r#"SELECT "state" FROM "jobs" WHERE "id" = 31"#, vec![])
-    .await
-    .unwrap()
-    .unwrap();
+  let given = slot_now(&ground, &held.token).await;
 
-  assert_eq!(job.try_get::<String>("", "state").unwrap(), "reviewing");
+  assert_eq!((given.state.as_str(), given.ended_by.as_deref()), ("active", None), "{given:?}");
 
   let _ = program.kill();
   let _ = program.wait();
@@ -635,13 +635,10 @@ async fn a_job_s_turn_on_a_thrown_away_session_is_adopted_from_its_place_and_its
     ("reviewing".to_owned(), Some("The thrown-away session's report.".to_owned()))
   );
 
+  // Under review the job keeps its agent's seat.
   let given = slot_now(&ground, &held.token).await;
 
-  assert_eq!(
-    (given.state.as_str(), given.ended_by.as_deref()),
-    ("released", Some(dispatch::BY_OWNER)),
-    "{given:?}"
-  );
+  assert_eq!((given.state.as_str(), given.ended_by.as_deref()), ("active", None), "{given:?}");
   assert!(in_flight_turns(&scratch).await.is_empty());
 
   let _ = program.kill();
@@ -881,7 +878,11 @@ async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends
     job_state(&scratch, 43).await,
     ("reviewing".to_owned(), Some("The Claude Code job's report.".to_owned()))
   );
-  assert_eq!(slot_now(&ground, &held.token).await.state, "released");
+  assert_eq!(
+    slot_now(&ground, &held.token).await.state,
+    "active",
+    "the job keeps its agent's seat under review"
+  );
 
   let door =
     store::one(scratch.db(), r#"SELECT "body" FROM "agent_executions" WHERE "id" = 'door-43'"#, vec![])

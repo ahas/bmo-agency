@@ -838,7 +838,7 @@ impl Route for CreateJob {
     });
     // A job is never refused for quota (docs/api.md, 「assignments and jobs」): where nothing in its walk can
     // answer now, it is taken and waits `starting`, held with the reason, until a road can. The walk read
-    // here says which chose the job's road, and a role with no road at all to follow is the one refusal.
+    // here only says which chose the job's road: its agent's road is always one to follow.
     let resolution = road::for_job(
       call.ground(),
       Some(&role),
@@ -849,15 +849,6 @@ impl Route for CreateJob {
     )
     .await
     .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
-
-    // A job of a role whose switched-on agents all name no road goes out on the road of the supervisor that
-    // asks it; asked by no supervisor the store holds, and by one that names no provider, it has no road to
-    // go out on, and its launch is refused rather than held (docs/repositories.md, 「A job」).
-    if let Some(why) = &resolution.no_road {
-      return Err(
-        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, why.clone()).with_code("role-names-no-road"),
-      );
-    }
     let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId")
       .or_else(|| number(&item, "roomId"))

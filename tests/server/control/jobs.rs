@@ -496,11 +496,10 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   assigned(port, token, 42).await;
 }
 
-// A job of a role whose switched-on agents all name no road is refused at its start by a holder the store
-// holds no supervisor for, with the roads its agents are on and nothing written; the assignment stays held
-// (docs/repositories.md, 「A job」; docs/role-agents.md, 「Which agent a run takes」).
+// A job whose agent names no road is refused at its start, whatever holder asks it, since no supervisor asks a
+// job: nothing is written and the assignment stays held (docs/repositories.md, 「An agent an item names」).
 #[tokio::test(flavor = "multi_thread")]
-async fn a_job_of_a_role_whose_agents_name_no_road_is_refused_without_an_asking_supervisor() {
+async fn a_job_whose_agent_names_no_road_is_refused() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -537,12 +536,11 @@ async fn a_job_of_a_role_whose_agents_name_no_road_is_refused_without_an_asking_
   )
   .await;
 
-  assert_eq!((status, refused["code"].as_str()), (422, Some("role-names-no-road")), "{refused}");
+  assert_eq!((status, refused["code"].as_str()), (422, Some("agent-names-no-road")), "{refused}");
 
   let why = refused["error"].as_str().unwrap();
 
-  assert!(why.contains("switched-on agents are on no road"), "{why}");
-  assert!(why.contains("no supervisor asked this job"), "{why}");
+  assert!(why.contains(&format!("agent={AGENT}")), "{why}");
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 }
