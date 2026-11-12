@@ -311,8 +311,19 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     "a job waiting for a road holds no slot"
   );
 
-  // The login reopens, and the rest's change wakes the waiting job: it goes out at once, and its turn, with
-  // no herdr to stand it in, fails: the job ends saying why, in its report and in its log.
+  // Every agent of the role on that road carries another run, so once the login reopens and the rest's change
+  // wakes the job, it is not let in on a slot: it still stands `starting`, its hold now naming the slot it
+  // waits for (docs/api.md, 「assignments and jobs」).
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "seat")
+         SELECT 'busy-' || "name", 'busy-' || "name", 'busy', 'job', "role", '/elsewhere/', "provider", "model", '',
+           1, 'active', 0, 'foreground', "name"
+         FROM "role_agents" WHERE "role" = 'worker' AND "provider" = 'claude-code'"#,
+      vec![],
+    )
+    .await;
   scratch
     .run(r#"DELETE FROM "settings" WHERE "key" = 'rest_until:login-a'"#, vec![])
     .await;
@@ -320,6 +331,23 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   let (status, _) = post(port, token, "/events", json!({ "kind": "rest.changed", "data": {} })).await;
 
   assert_eq!(status, 201);
+
+  for _ in 0..100 {
+    held = get(port, token, &format!("/jobs/{id}")).await.1;
+
+    if held["heldFor"].as_str().is_some_and(|why| why.contains("slot")) {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  assert_eq!(held["state"], "starting", "{held}");
+  assert_eq!(held["heldFor"], "it waits for a slot of the worker role", "{held}");
+
+  // The agents are free again: the job is let in, its hold is let go, and its turn, with no herdr to stand
+  // it in, fails: the job ends saying why, in its report and in its log.
+  scratch.run(r#"DELETE FROM "role_slot_requests" WHERE "owner" = 'busy'"#, vec![]).await;
 
   let mut ended = Value::Null;
 
@@ -336,6 +364,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(ended["state"], "ended", "{ended}");
   assert_eq!(ended["outcome"], "failed", "{ended}");
   assert!(!ended["report"].as_str().unwrap_or_default().is_empty(), "{ended}");
+  assert_eq!(ended["heldFor"], Value::Null, "{ended}");
   assert_eq!(
     scratch
       .count(

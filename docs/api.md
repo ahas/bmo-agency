@@ -1405,7 +1405,10 @@ service.
   again as each usage reading, account change, rest or road fact comes in and on the policy's clock
   (`policy/roads.toml`, `[job]`), and goes out on the first road that can answer, `heldFor` then null. It
   holds no slot while it waits for a road (`docs/provider-order.md`, 「When every provider is out」): its slot
-  is asked as its turn goes out. A job's turn waiting for its card names that wait as its `heldFor` until the
+  is asked as its turn goes out. A job's turn not let in at its first ask for a slot of its role names that
+  wait as its `heldFor` — the agent it waits for, where its item names one, else its role — until it is let
+  in, so a job still `starting` with a `heldFor` waits rather than launches. A job's turn waiting for its card
+  names that wait as its `heldFor` until the
   card is granted (`docs/own-llm.md`, 「An engine the arbiter stands」). A job held so — for a road, for its
   card — or not let in at its first ask for a slot of its role, is told to its item's orderer once as the
   wait begins (`job-waiting`).

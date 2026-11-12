@@ -1910,13 +1910,24 @@ impl OnSession<'_> {
 
     loop {
       if let Some(let_in) = dispatch::acquire(ground, &held).await? {
+        if told {
+          hold_job(ground, id, None, false).await;
+        }
+
         return Ok(Some(dispatch::bind(&ground.db, &ground.events, &let_in, self.name, None).await?));
       }
 
-      // Not let in at its first ask: the wait is told to the item's orderer once.
+      // Not let in at its first ask: the job names the wait as its hold until it is let in, and the wait is
+      // told to the item's orderer once.
       if !told {
         told = true;
-        tell_waiting(ground, self.member, &format!("it waits for a slot of the {} role", self.role)).await;
+
+        let why = match self.agent {
+          Some(agent) => format!("it waits for the agent {agent} of the {} role", self.role),
+          None => format!("it waits for a slot of the {} role", self.role),
+        };
+
+        hold_job(ground, id, Some(&why), true).await;
       }
 
       if called_off(ground, id).await {
