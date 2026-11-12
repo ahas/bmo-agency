@@ -329,3 +329,43 @@ async fn every_supervisor_s_settings_stand_in_the_supervisors_settings_table_wit
     .run(r#"INSERT INTO "supervisor_settings" ("agent") VALUES ('another')"#, vec![])
     .await;
 }
+
+#[tokio::test]
+async fn a_job_s_lease_bound_to_a_turn_s_run_is_unbound_and_every_other_binding_kept() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that unbinds a job's seat from its turns.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261215_000001_job_seats_unbound")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "seat", "child_id", "child_seen",
+           "session")
+         VALUES
+           ('turn', 'turn', 'job-1', 'job', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground', 'coder-01',
+            'job-1', 1, NULL),
+           ('session', 'session', 'job-2', 'job', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground',
+            'coder-02', 's-2', 1, 's-2'),
+           ('unit', 'unit', 'owner:x', 'delegate', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground',
+            'coder-03', 'unit-3', 1, NULL)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  let bound = |token: &'static str| {
+    scratch.count(
+      r#"SELECT count(*) FROM "role_slot_requests" WHERE "token" = $1 AND "child_id" IS NOT NULL AND "child_seen" = 1"#,
+      vec![token.into()],
+    )
+  };
+
+  assert_eq!(bound("turn").await, 0, "a job's lease bound to its turn's run is unbound");
+  assert_eq!(bound("session").await, 1, "a lease bound to a role session is kept");
+  assert_eq!(bound("unit").await, 1, "another source's lease is kept");
+}

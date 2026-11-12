@@ -2,7 +2,8 @@
 //! checkout and lease kept; the orderer's moves refused where they do not fit — no turn, a job not under review,
 //! the owner asked before the ceiling; the checks passed one at a time, a job of one stage ending once its last
 //! check passes, a job of several going on to its next stage; and a rejection counted, its round moved on and its
-//! rework turned out.
+//! rework turned out; and the seat a job holds kept through its review and across a restart, so its next stage
+//! runs on its agent before a job waiting for that agent starts.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,14 +11,17 @@ use std::time::Duration;
 
 use agency_server::Service;
 use agency_server::config::Config;
+use agency_server::control::work;
 use agency_server::control::{Front, router};
 use agency_server::now_ms;
+use agency_server::order_run::dispatch::{self, Asked, Wanted};
 use agency_server::places::Ground;
 use agency_server::turn_marks::{self, Mark};
 use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
+use crate::support::grounds::{deepseek_balance, seeded};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -346,4 +350,95 @@ async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_a
 
   assert_eq!(member["review"]["parked"], false, "{member}");
   turn_marks::ended(agent, "run-e1");
+}
+
+// One turn's ask of a job's seat, as the job's turn asks it: under the job's owner, at its checkout, naming the
+// one agent its item names.
+fn turn_ask(job: i64, turn: i64, agent: &str) -> Asked<'_> {
+  Asked {
+    request_key: format!("job-{job}-{turn}-1"),
+    owner: format!("{}{job}", dispatch::JOB_OWNER),
+    wanted: Wanted {
+      role: "worker",
+      path: Some("/checkouts/seated"),
+      fixed: None,
+      agent: Some(agent),
+    },
+    ..Asked::default()
+  }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_next_stage_runs_on_its_agent_before_a_job_waiting_for_that_agent_starts() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let agents = agency_server::role_agents::of_role(db, "worker").await.unwrap();
+  let agent = agents[0].name.as_str();
+  let active = async |token: &str| dispatch::request(db, token).await.unwrap().unwrap().state == "active";
+
+  // The first job's first stage is let in on the agent its item names.
+  running(&scratch, "worker-first", 31, 71, &["Implement", "Verify"]).await;
+
+  let first = work::job_seat(&ground, 31, &turn_ask(31, 1, agent)).await.unwrap().unwrap();
+
+  assert_eq!(first.seat.as_deref(), Some(agent));
+
+  // A second job naming the same agent waits for it.
+  let second =
+    dispatch::enqueue(db, &ground.events, &turn_ask(32, 1, agent), dispatch::JOB, async |_, _| Ok(()))
+      .await
+      .unwrap();
+
+  assert!(dispatch::acquire(&ground, &second).await.unwrap().is_none());
+
+  // The first stage's turn runs, its run seen standing by the line's pass, then ends with its report: the pass
+  // reads that run gone, and agency restarts while the job stands under review.
+  let mut standing = std::collections::HashSet::new();
+
+  standing.insert("job-31".to_owned());
+
+  for seen in [standing, std::collections::HashSet::new()] {
+    let leases = dispatch::bound_leases(db).await.unwrap();
+
+    dispatch::release_ended(db, &ground.events, &leases, &seen).await.unwrap();
+  }
+
+  agency_server::job_review::reported(&ground, 31, "Stage 1 is implemented.", None).await;
+  dispatch::release_every_session(db, &ground.events).await.unwrap();
+  work::paused_seats_given_back(&ground).await;
+
+  assert!(active(&first.token).await, "the first job keeps its seat under review");
+
+  let asked_again = dispatch::request(db, &second.token).await.unwrap().unwrap();
+
+  assert!(
+    dispatch::acquire(&ground, &asked_again).await.unwrap().is_none(),
+    "the waiting job is not let in on a seat a reviewing job holds"
+  );
+
+  // The first job's next stage goes out on the seat it holds, asking nothing, while the second still waits.
+  let next = work::job_seat(&ground, 31, &turn_ask(31, 2, agent)).await.unwrap().unwrap();
+
+  assert_eq!(next.token, first.token, "the next stage runs on the seat its first stage held");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "role_slot_requests" WHERE "owner" = 'job-31'"#, vec![])
+      .await,
+    1,
+    "the next stage asks for no slot of its own"
+  );
+  assert_eq!(dispatch::request(db, &second.token).await.unwrap().unwrap().state, "waiting");
+
+  // Only the first job's end gives the agent to the job that waited for it.
+  agency_server::job_end::slot_given_back(db, &ground.events, 31, "ended").await;
+
+  let asked_again = dispatch::request(db, &second.token).await.unwrap().unwrap();
+  let let_in = dispatch::acquire(&ground, &asked_again).await.unwrap().unwrap();
+
+  assert_eq!(let_in.seat.as_deref(), Some(agent));
 }

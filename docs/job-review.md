@@ -25,9 +25,12 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 
 - **`reviewing`** stands between `running` and the job's end: a turn of the job ended answered, its report is
   written onto the item's review, and the job waits on its orderer's move. No turn runs, and the job keeps its
-  agent's seat: the agent answers for the job until it ends, so no other job is let in on it meanwhile
-  (`docs/role-agents.md`, 「Which agent a run takes」); the job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a
-  running job's (`docs/api.md`, 「assignments and jobs」).
+  agent's seat: the agent answers for the job until it ends, so no other job is let in on it meanwhile, however
+  long that job has waited for the agent (`docs/role-agents.md`, 「Which agent a run takes」). The seat is the
+  job's slot lease, bound to none of its turns, so the end of the turn that reported does not give it back,
+  and neither does a restart of agency while the job stands under review (`docs/role-slots.md`, 「The line」).
+  The job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a running
+  job's (`docs/api.md`, 「assignments and jobs」).
 - **A turn the review asks for runs the job again:** the job is `running` while it goes and `reviewing` once it
   has answered, as many times as the review asks. A turn that ends in anything but an answer — failed, blocked,
   stopped, cut — ends the job as any job's turn ends it, its review left as it stood.
@@ -144,8 +147,10 @@ jobs」), naming the job, one action and its words.
   or, on a program whose session record agency reads, that record is gone — a new session opens, and the turn's
   prompt opens with the item's prompt and the job's review so far, read from the job service, before the turn's
   own words.
-- **Each holds a slot of the job's role while it runs,** asked as the job's first turn asked it, and goes out on
-  the job's road as `docs/cache-fallback.md` resolves it.
+- **Each goes out on the seat the job holds,** asking for no slot of its own, so the job's next stage, question
+  or rework runs on its agent before any other job waiting for that agent starts; it goes out on the job's road
+  as `docs/cache-fallback.md` resolves it. Only a job its review paused, its seat given back
+  (「The owner's word」 above), asks for a slot of its role again, as its first turn asked it.
 - **What each turn is told is the policy's** (`policy/job-review.toml`): the words the review hands over, said
   to be the review's, and what the turn ends with — the answer to the question, or the report of the rework or
   of the stage.
@@ -170,7 +175,7 @@ jobs」), naming the job, one action and its words.
 ## The job's end
 
 - **Once the last report passes, the job ends `ended`** with that report as its report, and its end is told to
-  the orderer as `job-ended` (`docs/api.md`, 「assignments and jobs」): its assignment released, its slot already
-  given back, its lease kept for the item's close. The supervisor closes the item as its procedure says.
+  the orderer as `job-ended` (`docs/api.md`, 「assignments and jobs」): its assignment released, its slot given
+  back, its lease kept for the item's close. The supervisor closes the item as its procedure says.
 - **A job that ends any other way** — stopped, failed, blocked — ends as before, its review left as it stood on
   the item.

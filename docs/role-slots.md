@@ -113,11 +113,21 @@ is and which one a run takes is `docs/role-agents.md`.
   runs sessions one after another on one slot — a first answer, its rounds, a review — starts the next
   session on the slot before it ends the one before; ending the session the lease is still bound to gives
   the lease back.
-- **A lease a job's run holds is given back when that job ends,** whatever the lease is bound to and however
-  the job ended: its turn's end, its stop (`docs/api.md`, 「assignments and jobs」) or its reap as a job whose
-  process went away. Every write of a job's end gives back every request asked under the job's owner, as
-  that owner's release gives it back (「An owner's release」), with the reason the end carries, so a job that
-  has ended never keeps a slot of its role.
+- **A job's lease is the job's seat, held from its first turn's admission to the job's end.** A job's turns
+  each start and end a session of their own, and its review waits between them with none running, so the
+  lease is bound to no run: no turn's end, no pass of the line and no restart of agency gives it back, and it
+  stands in the store across a restart as it stood before. Every later turn of the job — a stage handed over,
+  a question or a rework of its review — goes out on that lease without asking again, so no request of
+  another job, however long it has waited, is let in on the job's agent between the job's turns
+  (`docs/role-agents.md`, 「Which agent a run takes」).
+- **A job's lease is given back when that job ends,** however it ended: its turn's end, its stop
+  (`docs/api.md`, 「assignments and jobs」) or its reap as a job whose process went away. Every write of a
+  job's end gives back every request asked under the job's owner, as that owner's release gives it back
+  (「An owner's release」), with the reason the end carries, so a job that has ended never keeps a slot of its
+  role.
+- **The one pause that gives a job's lease back before its end is its review's,** waiting on the owner past
+  its due time (`docs/job-review.md`, 「The owner's word」). Its agent is then free for other work, and before
+  its next turn the job asks for a slot again, in the line as any ask stands there.
 - **An admitted lease bound to nothing is given back only by its holder or its owner:** the line reads no end
   of a run that never named itself, so such a lease stands until its holder finishes it or its owner's release
   gives it back, however long that is.

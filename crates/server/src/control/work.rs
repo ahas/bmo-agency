@@ -1885,11 +1885,9 @@ struct OnSession<'a> {
 }
 
 impl OnSession<'_> {
-  // A slot of the job's role taken for one turn on its road, keyed by its checkout so one checkout carries one
-  // run at a time: asked, then asked again until the line lets it in, however long that takes. None where the
-  // job was stopped while it waited, its ask then cancelled.
+  // The seat one turn of the job goes out on, on its road and keyed by its checkout so one checkout carries one
+  // run at a time.
   async fn slot(&self, id: i64, taken: &Road, parts: &WorkParts) -> Result<Option<Request>, String> {
-    let ground = self.ground;
     let fixed = crate::order::Entry {
       provider: taken.provider.clone(),
       model: taken.model.clone(),
@@ -1910,52 +1908,69 @@ impl OnSession<'_> {
       title: Some(self.title),
       ..dispatch::Asked::default()
     };
-    // The job keeps the seat its first turn was let in on through every later turn and its review, until it ends
-    // or its review pauses it (docs/role-agents.md, 「Which agent a run takes」): a later turn goes on that seat.
-    if let Some(kept) = kept_seat(ground, id).await? {
-      return Ok(Some(dispatch::bind(&ground.db, &ground.events, &kept, self.name, None).await?));
+
+    job_seat(self.ground, id, &asked).await
+  }
+}
+
+/// The seat a turn of a job goes out on (docs/role-slots.md, 「The line」). The seat the job already holds is
+/// taken as it stands, asking nothing, so a later turn of the job — a stage handed over, a question or a rework
+/// of its review — runs before any other job waiting for its agent. A job that holds none, at its first turn or
+/// after its review paused it, asks for a slot of its role and asks again until the line lets it in, however
+/// long that takes. None where the job was stopped while it waited, its ask then cancelled.
+///
+/// The lease is bound to no run: the job's turns each start and end a session of their own and its review waits
+/// with none, so a lease bound to a turn's run would be given back as that turn ended. Only the job's end, or
+/// its review's pause, gives it back.
+pub async fn job_seat(
+  ground: &Ground,
+  id: i64,
+  asked: &dispatch::Asked<'_>,
+) -> Result<Option<Request>, String> {
+  if let Some(kept) = kept_seat(ground, id).await? {
+    return Ok(Some(kept));
+  }
+
+  let mut held =
+    dispatch::enqueue(&ground.db, &ground.events, asked, dispatch::JOB, async |_, _| Ok(())).await?;
+  let mut told = false;
+
+  loop {
+    paused_seats_given_back(ground).await;
+
+    if let Some(let_in) = dispatch::acquire(ground, &held).await? {
+      if told {
+        hold_job(ground, id, None, false).await;
+      }
+
+      return Ok(Some(let_in));
     }
 
-    let mut held =
-      dispatch::enqueue(&ground.db, &ground.events, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
-    let mut told = false;
+    // Not let in at its first ask: the job names the wait as its hold until it is let in, and the wait is
+    // told to the item's orderer once.
+    if !told {
+      told = true;
 
-    loop {
-      paused_seats_given_back(ground).await;
+      let role = asked.wanted.role;
+      let why = match asked.wanted.agent {
+        Some(agent) => format!("it waits for the agent {agent} of the {role} role"),
+        None => format!("it waits for a slot of the {role} role"),
+      };
 
-      if let Some(let_in) = dispatch::acquire(ground, &held).await? {
-        if told {
-          hold_job(ground, id, None, false).await;
-        }
-
-        return Ok(Some(dispatch::bind(&ground.db, &ground.events, &let_in, self.name, None).await?));
-      }
-
-      // Not let in at its first ask: the job names the wait as its hold until it is let in, and the wait is
-      // told to the item's orderer once.
-      if !told {
-        told = true;
-
-        let why = match self.agent {
-          Some(agent) => format!("it waits for the agent {agent} of the {} role", self.role),
-          None => format!("it waits for a slot of the {} role", self.role),
-        };
-
-        hold_job(ground, id, Some(&why), true).await;
-      }
-
-      if called_off(ground, id).await {
-        dispatch::finish(&ground.db, &ground.events, &held.token, "cancelled: the job was stopped", true)
-          .await?;
-
-        return Ok(None);
-      }
-
-      tokio::time::sleep(SLOT_ASK_EVERY).await;
-      held = dispatch::request(&ground.db, &held.token)
-        .await?
-        .ok_or("The job's slot request is gone")?;
+      hold_job(ground, id, Some(&why), true).await;
     }
+
+    if called_off(ground, id).await {
+      dispatch::finish(&ground.db, &ground.events, &held.token, "cancelled: the job was stopped", true)
+        .await?;
+
+      return Ok(None);
+    }
+
+    tokio::time::sleep(SLOT_ASK_EVERY).await;
+    held = dispatch::request(&ground.db, &held.token)
+      .await?
+      .ok_or("The job's slot request is gone")?;
   }
 }
 

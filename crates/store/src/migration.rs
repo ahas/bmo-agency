@@ -72,6 +72,7 @@ mod m20261211_000001_person_nodes;
 mod m20261212_000001_coworkers_gone;
 pub mod m20261213_000001_agent_order_gone;
 mod m20261214_000001_job_lines_by_agent;
+mod m20261215_000001_job_seats_unbound;
 
 use sea_orm_migration::prelude::*;
 
@@ -227,6 +228,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261212_000001_coworkers_gone::Migration),
       Box::new(m20261213_000001_agent_order_gone::Migration),
       Box::new(m20261214_000001_job_lines_by_agent::Migration),
+      Box::new(m20261215_000001_job_seats_unbound::Migration),
     ]
   }
 
