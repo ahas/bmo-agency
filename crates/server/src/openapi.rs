@@ -44,6 +44,17 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "GET",
+    path: "/quiet",
+    id: "getQuiet",
+    tag: "health",
+    summary: "The work the server holds that the next server could not pick up.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("Quiet"), false)],
+    codes: &[],
+  },
+  Operation {
+    method: "GET",
     path: "/events",
     id: "streamEvents",
     tag: "events",
@@ -418,7 +429,7 @@ pub const OPERATIONS: &[Operation] = &[
     }],
     body: Some("TurnSend"),
     answers: &[(201, Some("Turn"), false)],
-    codes: &["bad-request", "not-found"],
+    codes: &["bad-request", "not-found", "stopping"],
   },
   Operation {
     method: "GET",
@@ -2901,6 +2912,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "SupervisorList" => g.subschema_for::<SupervisorList>(),
     "Supervisor" => g.subschema_for::<Supervisor>(),
     "Health" => g.subschema_for::<Health>(),
+    "Quiet" => g.subschema_for::<Quiet>(),
     "Event" => g.subschema_for::<Event>(),
     "EventPage" => g.subschema_for::<EventPage>(),
     "Agent" => g.subschema_for::<Agent>(),
@@ -3158,7 +3170,7 @@ fn status_of(code: &str) -> u16 {
     "too-large" => 413,
     "failed" => 500,
     "upstream-failed" => 502,
-    "not-ready" | "no-login-open" | "no-word-road" => 503,
+    "not-ready" | "no-login-open" | "no-word-road" | "stopping" => 503,
     _ => 422,
   }
 }

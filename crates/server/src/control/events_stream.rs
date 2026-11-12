@@ -9,9 +9,9 @@
 //! The events agency publishes, read across the boundary (docs/api.md, 「Events」): one stream of server-sent
 //! events, each named by its kind and carrying its JSON, of the kinds the caller names or every kind where
 //! it names none, from the moment it is opened until the caller lets it go, the kept events after the
-//! number a resuming reader names sent first, after the notice where those are no longer kept; and the
-//! events a verb's own process published, posted to the server before the verb ends and published on its
-//! streams.
+//! number a resuming reader names sent first, after the notice where those are no longer kept, and ended with
+//! a `stopping` frame once the server drains; and the events a verb's own process published, posted to the
+//! server before the verb ends and published on its streams.
 
 use std::convert::Infallible;
 
@@ -36,6 +36,14 @@ fn missed_event(missed: &Missed) -> Event {
   let envelope = json!({ "kind": MISSED, "at": crate::now_ms(), "data": missed.data() });
 
   Event::default().event(MISSED).json_data(envelope).unwrap_or_default()
+}
+
+// The stream's last frame once the server drains: no id of its own, so the reader resumes from the last
+// number it read once the server stands (docs/api.md, 「events」).
+fn stopping_event() -> Event {
+  let envelope = json!({ "kind": crate::drain::STOPPING, "at": crate::now_ms() });
+
+  Event::default().event(crate::drain::STOPPING).json_data(envelope).unwrap_or_default()
 }
 
 fn sent(named: &Named) -> Event {
@@ -132,7 +140,21 @@ impl Route for EventStream {
         return Some((Ok::<_, Infallible>(sent(&named)), (subscription, Some(named.id))));
       }
     });
-    let stream = futures_util::stream::iter(first.into_iter().map(Ok::<_, Infallible>)).chain(live);
+    let drain = call.ground().drain.clone();
+    let stopped = {
+      let drain = drain.clone();
+
+      async move { drain.begun().await }
+    };
+    let last = futures_util::stream::once(async move {
+      drain.begun().await;
+
+      Ok::<_, Infallible>(stopping_event())
+    });
+    let stream = futures_util::stream::iter(first.into_iter().map(Ok::<_, Infallible>))
+      .chain(live)
+      .take_until(Box::pin(stopped))
+      .chain(last);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()).into_response())
   }

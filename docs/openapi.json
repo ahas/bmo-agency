@@ -231,6 +231,33 @@
         ]
       }
     },
+    "/quiet": {
+      "get": {
+        "operationId": "getQuiet",
+        "tags": [
+          "health"
+        ],
+        "summary": "The work the server holds that the next server could not pick up.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quiet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
     "/events": {
       "get": {
         "operationId": "streamEvents",
@@ -1122,12 +1149,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/Stopping"
           }
         },
         "x-codes": [
           "unauthorized",
           "bad-request",
-          "not-found"
+          "not-found",
+          "stopping"
         ],
         "parameters": [
           {
@@ -7242,6 +7273,57 @@
         ],
         "description": "Health:"
       },
+      "Quiet": {
+        "type": "object",
+        "properties": {
+          "quiet": {
+            "type": "boolean",
+            "description": "Whether the server holds no such work."
+          },
+          "work": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuietWork"
+            }
+          }
+        },
+        "required": [
+          "quiet",
+          "work"
+        ],
+        "description": "Quiet: the work the server holds that the next server could not pick up."
+      },
+      "QuietWork": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "type": "string"
+          },
+          "session": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "since": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          }
+        },
+        "required": [
+          "run",
+          "session",
+          "agent",
+          "turnId",
+          "since"
+        ],
+        "description": "QuietWork: a turn the server carries that no program's record names yet."
+      },
       "EventPage": {
         "type": "object",
         "properties": {
@@ -8305,6 +8387,13 @@
         "properties": {
           "prompt": {
             "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The caller's key for the turn: a repeat of the send with it attaches to the turn standing under it, or\nis answered with its end once it has ended."
           },
           "context": {
             "description": "The context as the answer echoes it; the parts below are what the turn reads."
@@ -16058,6 +16147,16 @@
       },
       "StepsUnchecked": {
         "description": "steps-unchecked",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Stopping": {
+        "description": "stopping",
         "content": {
           "application/json": {
             "schema": {

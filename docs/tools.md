@@ -154,6 +154,12 @@ belongs to no one service is a repository of its own, not a folder here.
   and tools on whichever road it goes out on (`docs/launch-lines.md`, 「What a line's program is allowed, by
   road」) — a shell among them, so it reaches other machines as a job does.
   - The call waits for the run's end with no timeout, and nothing bounds the run by a clock.
+  - **It waits by its run, not by one held call.** The turn is sent with the run's name as its key
+    (`docs/api.md`, 「sessions」), and a wait cut short — a connection refused or broken, or the server's
+    drain answering `503` `stopping` — is no outcome: the delegate sends again with the same key at its
+    steady pace until agency answers, which attaches it to the run standing under the key or answers the
+    run's end, across a restart of agency's server. Every other call it makes is asked again the same way
+    where agency was not reached or answered `stopping`.
 - **Once the run ends** the slot is finished with what the run came to, which ends the run's session. A call
   whose caller goes away while its slot still waits cancels the slot, so nothing is left standing in the line;
   one that goes away once its run was sent finishes the slot as it goes, which cuts the run and ends its

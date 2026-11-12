@@ -809,6 +809,59 @@ async fn a_stopped_gateway_stops_its_children_and_takes_its_status_away() {
   assert!(!world.folder().join(format!("config-{table}.yaml")).exists());
 }
 
+#[tokio::test]
+async fn a_stopped_gateway_takes_no_new_request_and_lets_the_one_in_hand_end_before_it_ends() {
+  let mut world = World::new(PAIR).await.start().await;
+  let table = world.serving(None).await;
+  let held = world.open("GET", "/held", &[], "").await;
+  let mut held = held.into_body();
+  let part = held.frame().await.unwrap().unwrap().into_data().unwrap();
+
+  assert_eq!(part, format!("{table}-first;").as_bytes());
+
+  world.terminate();
+
+  // The front takes no new connection from the stop on, and the gateway stands while its request is in hand.
+  let port = world.port;
+  let bound = Instant::now() + Duration::from_secs(20);
+
+  while TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
+    assert!(Instant::now() < bound, "the gateway took connections after its stop");
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+
+  assert!(
+    world.gateway.as_mut().unwrap().try_wait().unwrap().is_none(),
+    "the gateway ended with a request in hand"
+  );
+  assert!(world.events("stopped").is_empty(), "the child was stopped while it held a request");
+
+  std::fs::write(world.root().join(format!("release-{table}")), "").unwrap();
+
+  let mut rest = Vec::new();
+
+  while let Some(frame) = held.frame().await {
+    if let Ok(data) = frame.unwrap().into_data() {
+      rest.extend_from_slice(&data);
+    }
+  }
+
+  assert_eq!(rest, format!("{table}-second").as_bytes(), "the request in hand ended whole");
+
+  let gateway = world.gateway.as_mut().unwrap();
+  let bound = Instant::now() + Duration::from_secs(20);
+  let ended = loop {
+    if let Some(ended) = gateway.try_wait().unwrap() {
+      break ended;
+    }
+    assert!(Instant::now() < bound, "the gateway did not end once its request had");
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  };
+
+  assert_eq!(ended.code(), Some(0));
+  assert!(world.events("stopped").iter().any(|entry| entry["table"] == table.as_str()));
+}
+
 // A backend of the test's own: it keeps every chat request it is sent and answers each with one word.
 async fn echo_backend() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<Value>>>) {
   let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));

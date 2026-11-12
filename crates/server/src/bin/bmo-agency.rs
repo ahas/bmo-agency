@@ -94,6 +94,10 @@ enum Verb {
     #[arg(long)]
     dry_run: bool,
   },
+  /// The deployment's quiet: 0 where agency's server holds no work its restart would cut, 1 with a line for
+  /// each piece it holds, 2 where it could not tell (docs/sessions.md, 「A restart hands the session over」).
+  #[command(hide = true)]
+  Quiet,
   /// The agents and their settings: listed with no flag, or the provider and account orders, the accounts,
   /// the registered models, a key's road and login, a job worker's rows and an agent's own thinking, effort
   /// and gates read and changed.
@@ -505,6 +509,15 @@ async fn run(verb: Verb) -> ExitCode {
   match verb {
     Verb::Nouns => unreachable!("the nouns are printed before the machine is read"),
     Verb::Import { .. } => unreachable!("the import is answered before the machine is read"),
+    Verb::Quiet => {
+      let (code, lines) = agency_server::verbs::quiet::run(&data_root).await;
+
+      if !lines.is_empty() {
+        println!("{}", lines.join("\n"));
+      }
+
+      ExitCode::from(code)
+    }
     Verb::Agent(args) => match agents::run(&data_root, args).await {
       Ok(said) => {
         if !said.out.is_empty() {

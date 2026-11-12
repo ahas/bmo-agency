@@ -57,6 +57,7 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
     }))
     .unwrap(),
     TurnContext {
+      key: None,
       room: Some(RoomBlock {
         chat_id: -5,
         text: "the room's block".into(),

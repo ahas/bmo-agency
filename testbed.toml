@@ -80,18 +80,19 @@ binaries = [
 
 # Agency's own deploy tree, which every unit, tool and document of agency names and which holds nothing
 # of another service's, and the data root agency shares with the services that read its files
-# (docs/agent-control.md, 「The job's release」). The server, the agent host and the gateway carry the
-# restart mark; herdr's unit carries none, since herdr is a runtime agency stands on rather than one of
-# its programs: it is hand-installed, and no deployment links or restarts it.
+# (docs/agent-control.md, 「The job's release」). The server and the agent host carry the restart mark, the
+# gateway the binary mark, so a deployment that leaves its launcher as it stands leaves it serving
+# (docs/own-llm.md, 「The gateway」); herdr's unit carries none, since herdr is a runtime agency stands on
+# rather than one of its programs: it is hand-installed, and no deployment links or restarts it.
 [deploy]
 root = "~/.local/share/bmo-agency"
 link = "deploy"
 data_root = "~/.local/share/bmo/data"
 units = ["deploy/*.service"]
-# Answers 0 where no chat turn stands under way that the restart would cut: the receiver's
-# own plain `quiet` command, by its deployed path, waited on before the flip (the testbed's docs/deploy.md).
-# A running job is not counted: its turn in flight is kept across the restart and the lease pass takes its
-# item again (docs/sessions.md, 「A restart hands the session over」).
+# Answers 0 where agency's server holds no work its restart would cut: a turn it carries that no program has
+# taken yet, which the next server could not pick up (the testbed's docs/deploy.md). A turn a program carries
+# is not counted, since the next server picks it up and its caller re-attaches by its key, nor is a running
+# job, whose lease pass takes its item again (docs/sessions.md, 「A restart hands the session over」).
 quiet = "sh deploy/quiet"
 
 # The verbs' binary, linked into `.local/bin` under the home directory beside `bmo`, which serves the nouns it

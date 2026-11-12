@@ -85,8 +85,9 @@ them.
 - `policy/`: the TOML files agency's fixed numbers and words stand in, read by `crates/policy`.
 - `prompts/`: the prompts agency composes an agent's launch from.
 - `docs/`: the canonical documents.
-- `deploy/`: the service units. agency's server, the agent host and the model gateway carry the restart
-  mark; herdr's carries none, since herdr is a runtime agency stands on.
+- `deploy/`: the service units. agency's server and the agent host carry the restart mark, the model gateway
+  the binary mark, so a deployment restarts it only where its launcher changed; herdr's carries none, since
+  herdr is a runtime agency stands on.
 - `testbed.toml`: how the testbed tests, checks, builds and deploys the repository, the tools' placement
   among it.
 - `tests/`: every test.

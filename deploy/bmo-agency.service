@@ -19,8 +19,9 @@ Environment=BMO_DATA_DIR=%h/.local/share/bmo/data
 Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Restart=always
 RestartSec=2
-# A stop waits for the server to end on its SIGTERM, however long that takes; it is never escalated to a
-# kill.
+# A stop waits for the server to drain on its SIGTERM and end: it takes no new call, ends its event streams
+# and answers its turns' sends so their callers re-attach, and lets the calls in hand finish within the drain's
+# span (docs/sessions.md, 「A restart hands the session over」). It is never escalated to a kill.
 TimeoutStopSec=infinity
 
 [Install]

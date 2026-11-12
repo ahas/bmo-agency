@@ -376,8 +376,8 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
 
   assert!(!quiet.contains("--with-jobs"), "the deploy counts no job: {quiet}");
   let script = std::fs::read_to_string(trees.join("deploy/quiet")).unwrap();
-  assert!(script.contains(" quiet"), "{script}");
-  assert!(script.contains("grep -v ':chat:'"), "a chat turn is not spared: {script}");
+  assert!(script.contains("bmo-agency quiet"), "agency's own quiet is asked: {script}");
+  assert!(!script.contains("bmo-receiver"), "the receiver's quiet is its own: {script}");
   // A job's close ends at the merge, and the supervisor puts a repository's batch live through the hosted deploy
   // tool; a batch that fails comes back to the item whose commit broke it.
   let rules = std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md")).unwrap();

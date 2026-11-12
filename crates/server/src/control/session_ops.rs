@@ -11,6 +11,8 @@
 //! answered by the backend the server stands its places on. A fault is answered with its outcome code and
 //! an English sentence saying why.
 
+use std::sync::Arc;
+
 use agent_session::{
   Answer, Apart, Aside, Conversation, Fault, FaultKind, GateAsk, JobMark, RoomBlock, Scope, Session,
   SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
@@ -26,7 +28,8 @@ use crate::lines::Trees;
 use crate::lines::runner;
 use crate::lines::standing::session_ttl_ms;
 use crate::lines::worker::worker_run;
-use crate::places::AgentRow;
+use crate::places::{AgentRow, Ground};
+use crate::turn_keys::{Claim, KeptEnd, Settled, Waiting};
 use crate::worker_session::held as held_session;
 use crate::worker_session::held::SessionRun;
 use crate::worker_session::records;
@@ -53,6 +56,8 @@ fn faulted(fault: Fault) -> Response {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ContextRead {
+  #[serde(default)]
+  key: Option<String>,
   #[serde(default)]
   room: Option<RoomRead>,
   #[serde(default)]
@@ -195,7 +200,14 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
   let named =
     |value: Option<String>| value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
 
+  // A key names its turn for a caller to re-attach by, so one that names nothing is refused (docs/api.md,
+  // 「sessions」).
+  if read.key.as_deref().is_some_and(|key| key.trim().is_empty()) {
+    return Err(bad("key, when named, is a text that is not empty").with_field("key"));
+  }
+
   Ok(TurnContext {
+    key: named(read.key),
     room: read.room.map(|room| RoomBlock {
       chat_id: room.chat_id,
       text: room.text,
@@ -820,7 +832,10 @@ pub async fn carried<T: Send + 'static>(work: impl Future<Output = T> + Send + '
   }
 }
 
-/// One turn sent into a session and carried until it ends, whether or not its sender still waits.
+/// One turn sent into a session and carried until it ends, whether or not its sender still waits. A send
+/// naming a key attaches to the turn standing under it, or is answered with its end as kept; one cut by the
+/// server's drain is answered so its caller sends again under the same key once the server stands
+/// (docs/api.md, 「sessions」).
 pub struct SessionTurn;
 
 impl Route for SessionTurn {
@@ -837,45 +852,140 @@ impl Route for SessionTurn {
     };
     let asked = work_asked(&body)?;
     let sessions = backend(&call)?;
+    let ground = call.shared_ground();
+    let prompt = text(&body, "prompt")?.to_owned();
+    let context = body.get("context").cloned().unwrap_or_else(|| json!({}));
+    let key = turn.context.key.clone();
+
+    // A repeat of a keyed send is answered by the turn standing under its key, or its end as kept, before
+    // anything of the session is asked: the session of a turn picked up at the start ends with that turn.
+    let fresh = match &key {
+      Some(key) => match ground.turn_keys.claim(&ground.db, &session, key).await {
+        Claim::Kept(end) => return Ok(answer(StatusCode::CREATED, end.answer(&prompt, context))),
+        Claim::Standing(waiting) => return Ok(waited(&ground, Some(key), waiting, &prompt, context).await),
+        Claim::New(waiting) => Some(waiting),
+      },
+      None => None,
+    };
 
     // A role's session lays its own road on the turn; there is no worker scope to send one to.
-    match sessions.held_scope(&turn.session).await {
-      Ok((_, Scope::Worker)) => return Ok(faulted(retired(&session))),
+    let scoped = match sessions.held_scope(&turn.session).await {
+      Ok((_, Scope::Worker)) => Err(retired(&session)),
       Ok((agent, Scope::Apart(apart))) if turn.context.gate.is_none() => {
         turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
+        Ok(())
       }
-      _ => {}
+      _ => Ok(()),
+    };
+
+    if let Err(fault) = scoped {
+      if let Some(key) = &key {
+        ground.turn_keys.settle(&session, key, Settled::Refused(fault.clone()));
+      }
+
+      return Ok(faulted(fault));
     }
 
-    Ok(match carried(async move { sessions.send_turn(turn).await }).await {
-      Ok(end) => {
-        let state = match end.outcome {
-          agent_session::Outcome::Answered => "ended",
-          agent_session::Outcome::Blocked => "ended",
-          agent_session::Outcome::Stopped => "interrupted",
-          _ => "ended",
-        };
-        answer(
-          StatusCode::CREATED,
-          json!({
-            "id": end.turn,
-            "sessionId": session,
-            "prompt": text(&body, "prompt")?,
-            "context": body.get("context").cloned().unwrap_or_else(|| json!({})),
-            "state": state,
-            "delivery": if end.delivery == agent_session::Delivery::Taken { "delivered" } else { "blocked" },
-            "outcome": format!("{:?}", end.outcome).to_lowercase(),
-            "ending": end.ending,
-            "reason": end.reason,
-            "answer": end.answer,
-            "text": end.answer.as_ref().map(|answer| json!([answer])).unwrap_or_else(|| json!([])),
-            "waiting": Value::Null,
-          }),
-        )
+    // The turn is carried on a task of its own, so a sender that goes away, or the server's drain, drops only
+    // the wait; a keyed turn's end reaches every caller waiting on its key.
+    let sent = {
+      let ground = ground.clone();
+      let (session, key) = (session.clone(), key.clone());
+
+      tokio::spawn(async move {
+        let unsettled = key.map(|key| Unsettled {
+          ground: ground.clone(),
+          session: session.clone(),
+          key,
+          fault: None,
+        });
+        let sent = sessions.send_turn(turn).await;
+
+        if let (Some(mut unsettled), Err(fault)) = (unsettled, &sent) {
+          unsettled.fault = Some(fault.clone());
+        }
+
+        sent
+      })
+    };
+
+    Ok(match fresh {
+      Some(waiting) => waited(&ground, key.as_deref(), waiting, &prompt, context).await,
+      None => {
+        tokio::select! {
+          ended = sent => match ended {
+            Ok(Ok(end)) => {
+              answer(StatusCode::CREATED, KeptEnd::of(&session, "", &end).answer(&prompt, context))
+            }
+            Ok(Err(fault)) => faulted(fault),
+            Err(failed) => std::panic::resume_unwind(failed.into_panic()),
+          },
+          () = ground.drain.begun() => stopping(None),
+        }
       }
-      Err(fault) => faulted(fault),
     })
   }
+}
+
+// A keyed send's key while its turn is carried: the turn's own end settles it as it is handed back, and what
+// is left unsettled once the send is over — a refusal before the turn began, or the send's task failing — is
+// settled with that, so no caller waits on the key for ever.
+struct Unsettled {
+  ground: Arc<Ground>,
+  session: String,
+  key: String,
+  fault: Option<Fault>,
+}
+
+impl Drop for Unsettled {
+  fn drop(&mut self) {
+    let fault = self.fault.take().unwrap_or_else(|| Fault {
+      kind: FaultKind::Refused,
+      message: format!("{}: the turn's send failed before it ended", self.session),
+    });
+
+    // A turn whose end was handed back holds its key no longer, so this settles nothing there.
+    self.ground.turn_keys.settle(&self.session, &self.key, Settled::Refused(fault));
+  }
+}
+
+// A keyed turn waited on until it settles, answered as its send is; or the server's drain, answered so the
+// caller sends again under the key.
+async fn waited(
+  ground: &Ground,
+  key: Option<&str>,
+  waiting: Waiting,
+  prompt: &str,
+  context: Value,
+) -> Response {
+  tokio::select! {
+    settled = waiting.settled() => match settled {
+      Some(Settled::Ended(end)) => answer(StatusCode::CREATED, end.answer(prompt, context)),
+      Some(Settled::Refused(fault)) => faulted(fault),
+      // Let go of with no end only as the process goes: the turn stays kept in flight for the next server.
+      None => stopping(key),
+    },
+    () = ground.drain.begun() => stopping(key),
+  }
+}
+
+// A send's wait cut by the server's drain: the turn goes on, and the caller sends again under its key.
+fn stopping(key: Option<&str>) -> Response {
+  let retry = crate::drain::retry_after();
+  let mut answered = answer(
+    StatusCode::SERVICE_UNAVAILABLE,
+    json!({
+      "code": crate::drain::STOPPING,
+      "error": "agency is stopping; the turn goes on, and its send asked again with the same key attaches to it",
+      "key": key,
+    }),
+  );
+
+  if let Ok(value) = axum::http::HeaderValue::from_str(&retry.to_string()) {
+    answered.headers_mut().insert(axum::http::header::RETRY_AFTER, value);
+  }
+
+  answered
 }
 
 crate::moved!(SessionTurn);

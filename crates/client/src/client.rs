@@ -359,6 +359,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::GET, &["health"])).await
   }
 
+  /// `GET /quiet`: The work the server holds that the next server could not pick up.
+  pub async fn get_quiet(&self) -> Answer<Quiet> {
+    Self::answered(self.request(Method::GET, &["quiet"])).await
+  }
+
   /// `GET /events`: The agency's one stream.
   pub async fn stream_events(&self, query: &StreamEventsQuery) -> Answer<EventPage> {
     Self::answered(

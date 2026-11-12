@@ -1,6 +1,6 @@
-//! The declared pre-flip quiet, `deploy/quiet`, run over a stand-in receiver (docs/sessions.md, 「A restart
-//! hands the session over」): the receiver's 0 handed on, its 1 left with the lines that name no chat turn,
-//! and any other code it ends with handed on as it is, with what it printed.
+//! The declared pre-flip quiet, `deploy/quiet`, run from a release whose `bin/bmo-agency` is a stand-in
+//! (docs/sessions.md, 「A restart hands the session over」): the release's own `bmo-agency quiet` is asked, and
+//! its code and what it printed are the quiet's, whatever the code. What the verb answers is its own test's.
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
@@ -10,27 +10,32 @@ use std::time::{Duration, Instant};
 // How long the script, which runs one stand-in that ends at once, is given before it fails the test.
 const BOUND: Duration = Duration::from_secs(10);
 
-// The script run with a home whose deployed receiver prints `lines` and ends with `code`: the script's code
-// and what it printed.
+// The script run from a release whose verb prints `lines` and ends with `code`, as long as it was asked for
+// `quiet`: the script's code and what it printed.
 fn quiet_over(lines: &[&str], code: i32) -> (i32, String) {
-  let home = tempfile::tempdir().unwrap();
-  let bin = home.path().join(".local/share/bmo-receiver/deploy/bin");
+  let release = tempfile::tempdir().unwrap();
+  let bin = release.path().join("bin");
   std::fs::create_dir_all(&bin).unwrap();
-  let receiver = bin.join("bmo-receiver");
+  let verb = bin.join("bmo-agency");
   let printed: String = lines.iter().map(|line| format!("echo '{line}'\n")).collect();
-  std::fs::write(&receiver, format!("#!/bin/sh\n{printed}exit {code}\n")).unwrap();
-  std::fs::set_permissions(&receiver, std::fs::Permissions::from_mode(0o755)).unwrap();
+  std::fs::write(
+    &verb,
+    format!("#!/bin/sh\n[ \"$1\" = quiet ] || {{ echo \"asked $*\"; exit 9; }}\n{printed}exit {code}\n"),
+  )
+  .unwrap();
+  std::fs::set_permissions(&verb, std::fs::Permissions::from_mode(0o755)).unwrap();
 
-  run(home.path())
+  run(release.path())
 }
 
-fn run(home: &Path) -> (i32, String) {
+fn run(release: &Path) -> (i32, String) {
   let script = concat!(env!("CARGO_MANIFEST_DIR"), "/deploy/quiet");
   let mut child = Command::new("sh")
     .arg(script)
+    .current_dir(release)
     .env_clear()
     .env("PATH", std::env::var("PATH").unwrap_or_default())
-    .env("HOME", home)
+    .env("HOME", release)
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
     .spawn()
@@ -52,16 +57,11 @@ fn run(home: &Path) -> (i32, String) {
 }
 
 #[test]
-fn work_under_way_stands_only_where_a_line_names_something_other_than_a_chat_turn() {
-  assert_eq!(quiet_over(&["room:chat:7"], 1), (0, String::new()));
-  assert_eq!(quiet_over(&["room:chat:7", "room:job:9"], 1), (1, "room:job:9\n".to_owned()));
-}
-
-#[test]
-fn a_receiver_that_could_not_tell_is_handed_on_with_its_own_code_and_all_it_printed() {
+fn the_quiet_is_the_release_s_own_verb_its_code_and_its_lines_handed_on() {
+  assert_eq!(quiet_over(&[], 0), (0, String::new()));
   assert_eq!(
-    quiet_over(&["room:chat:7", "store unreadable"], 2),
-    (2, "room:chat:7\nstore unreadable\n".to_owned())
+    quiet_over(&["agency carries turn chat:-5:1 of bmo"], 1),
+    (1, "agency carries turn chat:-5:1 of bmo\n".to_owned())
   );
-  assert_eq!(quiet_over(&[], 3), (3, String::new()));
+  assert_eq!(quiet_over(&["the quiet route refused"], 2), (2, "the quiet route refused\n".to_owned()));
 }

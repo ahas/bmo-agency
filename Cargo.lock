@@ -73,6 +73,7 @@ dependencies = [
  "chrono",
  "clap",
  "diffy",
+ "dotenvy",
  "futures-util",
  "glob",
  "harness-machine",

@@ -17,6 +17,7 @@ pub mod node_pane;
 pub mod overtime;
 pub mod person_node;
 pub mod process_memory;
+pub mod quiet;
 pub mod reload;
 pub mod repository;
 pub mod run_list;

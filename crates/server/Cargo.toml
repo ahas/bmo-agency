@@ -26,6 +26,7 @@ cache-siren = { path = "../cache-siren" }
 chrono = { workspace = true, features = ["clock"] }
 clap.workspace = true
 diffy.workspace = true
+dotenvy.workspace = true
 futures-util.workspace = true
 glob.workspace = true
 harness-machine = { path = "../harness-machine" }

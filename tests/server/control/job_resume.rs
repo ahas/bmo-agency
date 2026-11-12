@@ -101,6 +101,7 @@ async fn the_start_launches_again_every_job_whose_turn_had_not_gone_out_and_leav
     &agency_server::turn_pickup::InFlight {
       session: "bmo-cli~1".into(),
       turn: 1,
+      key: None,
       run: "job-7105".into(),
       agent: "bmo-cli".into(),
       chat_id: Some(7),

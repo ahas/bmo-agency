@@ -56,6 +56,9 @@ pub struct InFlight {
   pub session: String,
   pub turn: i64,
   pub run: String,
+  /// The key its caller sent it under, which a repeat of the send attaches by (docs/api.md, 「sessions」).
+  #[serde(default)]
+  pub key: Option<String>,
   pub agent: String,
   #[serde(default)]
   pub chat_id: Option<i64>,
@@ -457,9 +460,11 @@ enum Said {
 struct Following {
   log: RunLog,
   source: String,
-  // A Claude Code pane's transcript, read as it grows, and how many of its lines are filed.
+  // A Claude Code pane's transcript, read as it grows, how many of its lines are filed, and where the turn's
+  // own lines begin in it.
   tail: Option<Tail>,
   fed: usize,
+  begins: usize,
   // A dsh pane's record, and how many of the turn's progress and answer lines are filed.
   place: Option<PathBuf>,
   place_fed: usize,
@@ -479,6 +484,7 @@ impl Following {
       source: String::new(),
       tail: None,
       fed: 0,
+      begins: 0,
       place: None,
       place_fed: 0,
       said: Said::Nothing,
@@ -498,8 +504,9 @@ impl Following {
     if let Some(pane) = pane {
       self.source = CLAUDE_CODE.to_owned();
 
-      let (tail, fed) = reading(ground, turn, &pane.transcript, pane.started_at).await;
+      let (mut tail, fed) = reading(ground, turn, &pane.transcript, pane.started_at).await;
 
+      self.begins = first_since(&tail.look(), pane.started_at);
       self.tail = Some(tail);
       self.fed = fed;
 
@@ -521,8 +528,9 @@ impl Following {
     if let Some((transcript, since)) = claude_place(place, turn) {
       self.source = CLAUDE_CODE.to_owned();
 
-      let (tail, fed) = reading(ground, turn, &transcript, since).await;
+      let (mut tail, fed) = reading(ground, turn, &transcript, since).await;
 
+      self.begins = first_since(&tail.look(), since);
       self.tail = Some(tail);
       self.fed = fed;
     }
@@ -562,12 +570,18 @@ impl Following {
         self.fed = raw.len();
       }
 
+      // What the turn has written so far answers the progress read under its own id.
+      shown(ground, turn, read_turn(&tail.look(), self.begins).text);
+
       return;
     }
 
     let Some(path) = &self.place else { return };
     let (written, records) = record_of(path);
     let Some(span) = span_named(&records, &turn.run) else { return };
+
+    shown(ground, turn, read_turn_on(&records[span.clone()], "", &self.source).2.text);
+
     let mut seen = 0usize;
     let mut fresh = vec![];
 
@@ -586,6 +600,11 @@ impl Following {
       self.place_fed += fresh.len();
     }
   }
+}
+
+// What a picked-up turn has written so far, shown to the progress read under its own id.
+fn shown(ground: &Ground, turn: &InFlight, text: String) {
+  ground.outputs.shown(&SessionId(turn.session.clone()), turn.turn, text);
 }
 
 // A transcript read from the line the run's log last took out of it, else from the turn's beginning: the
@@ -667,16 +686,16 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   for turn in turns {
     let name = place_name_of(&turn);
     let place = Place::of(&ground.roots.data, &name);
-    let mut now = standing(&place, &turn);
-    // A turn no place names may have gone out in a pane of its own.
-    let pane = match now {
-      Standing::Lost => own_pane(&ground.db, &turn.run).await,
-      _ => None,
-    };
 
-    if let Some(pane) = &pane {
-      now = standing_in_pane(pane);
+    // The turn answers the progress read under the id it went in with, and a repeat of its send attaches to
+    // it by its caller's key, from before its end is read until that end is handed back.
+    ground.outputs.begun(&SessionId(turn.session.clone()), turn.turn, &turn.run);
+
+    if let Some(key) = &turn.key {
+      ground.turn_keys.stand(&turn.session, key);
     }
+
+    let (now, pane) = found(ground, &place, &turn).await;
 
     match now {
       Standing::Ended(came) => {
@@ -689,6 +708,29 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
       // No program took a job's turn, so the job is launched again from the words it keeps; the pane of its
       // own that stands on nothing is closed with its rows.
       Standing::Lost if turn.job.is_some() => {
+        let session = SessionId(turn.session.clone());
+
+        ground.outputs.ended(&session, turn.turn);
+
+        // A job's caller is the job itself, launched again from the words it keeps; a send repeated under
+        // its key is answered failed as the turn's end.
+        if let Some(key) = &turn.key {
+          let end = TurnEnd::failed(&turn.run, LOST.to_owned(), None);
+
+          ground
+            .turn_keys
+            .ended(
+              &ground.db,
+              &turn.session,
+              key,
+              &TurnEnd {
+                turn: turn.turn,
+                ..end
+              },
+            )
+            .await;
+        }
+
         close_rows(ground, &turn.run, false).await;
         close_pane(ground, pane.as_ref()).await;
         forget(&ground.db, &turn.run, "no program took it; its job is launched again").await
@@ -716,6 +758,44 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   }
 
   Ok(count)
+}
+
+// Where a kept turn stands as the pickup reads it: in its place's record, else in a pane of its own, which a
+// turn no place names may have gone out in.
+async fn found(ground: &Ground, place: &Place, turn: &InFlight) -> (Standing, Option<OwnPane>) {
+  let now = standing(place, turn);
+
+  if now != Standing::Lost {
+    return (now, None);
+  }
+
+  match own_pane(&ground.db, &turn.run).await {
+    Some(pane) => (standing_in_pane(&pane), Some(pane)),
+    None => (Standing::Lost, None),
+  }
+}
+
+/// The turns this process carries that a restart would cut (docs/sessions.md, 「A restart hands the session
+/// over」, what the deployment's quiet counts): each no job's, and one no program's record names yet, so the
+/// pickup at the next start, reading as it does here, would find nothing to attach to. A job's turn is left
+/// out, since the lease pass takes its item again; and a turn this process does not carry, which the reap
+/// or the next start ends.
+pub async fn unresumable(ground: &Ground) -> Result<Vec<InFlight>, Refusal> {
+  let mut cut = vec![];
+
+  for turn in in_flight(&ground.db).await? {
+    if turn.job.is_some() || !carried_here(&turn.run) {
+      continue;
+    }
+
+    let place = Place::of(&ground.roots.data, &place_name_of(&turn));
+
+    if found(ground, &place, &turn).await.0 == Standing::Lost {
+      cut.push(turn);
+    }
+  }
+
+  Ok(cut)
 }
 
 // A turn the program goes on with, waited on with its place's program held, so no turn of this process
@@ -1263,10 +1343,17 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
     end.ending = Some(crate::herdr_backend::ending_of(&end).to_owned());
   }
 
+  ground.outputs.ended(&SessionId(turn.session.clone()), turn.turn);
   ground.events.publish(TurnEnded {
     session: turn.session.clone(),
+    key: turn.key.clone(),
     end: end.clone(),
   });
+
+  // Kept under the caller's key before the turn is let go of, so a repeat of its send is answered with it.
+  if let Some(key) = &turn.key {
+    ground.turn_keys.ended(db, &turn.session, key, &end).await;
+  }
 
   if let Some(job) = turn.job {
     crate::control::work::job_turn_ended(ground, job, end).await;

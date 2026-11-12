@@ -257,16 +257,24 @@ async fn main() -> ExitCode {
     eprintln!("llm-gateway: the stop signals could not be listened for");
     return ExitCode::FAILURE;
   };
-  tokio::select! {
-    served = axum::serve(listener, router(Arc::clone(&front))) => {
-      if let Err(fault) = served {
-        eprintln!("llm-gateway: {fault}");
-      }
-    }
-    _ = terminate.recv() => {}
-    _ = interrupt.recv() => {}
+  // A stop drains the front (docs/own-llm.md, 「The gateway」): from the signal on no connection is taken, and
+  // every request in hand ends as it would have, however long it takes, before the children are stopped.
+  let stopped = async move {
+    let named = tokio::select! {
+      _ = terminate.recv() => "SIGTERM",
+      _ = interrupt.recv() => "SIGINT",
+    };
+
+    println!("llm-gateway: {named}: draining the requests in hand");
+  };
+
+  if let Err(fault) =
+    axum::serve(listener, router(Arc::clone(&front))).with_graceful_shutdown(stopped).await
+  {
+    eprintln!("llm-gateway: {fault}");
   }
 
+  println!("llm-gateway: drained");
   refreshing.abort();
   front.close().await;
   let _ = std::fs::remove_file(&status_path);

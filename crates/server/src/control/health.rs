@@ -68,3 +68,34 @@ impl Route for Health {
 }
 
 crate::moved!(Health);
+
+/// The work the server holds that the next server could not pick up, which the deployment's quiet waits on
+/// (docs/api.md, 「health」; docs/sessions.md, 「A restart hands the session over」).
+pub struct Quiet;
+
+impl Route for Quiet {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/quiet";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let cut = crate::turn_pickup::unresumable(call.ground())
+      .await
+      .map_err(|refusal| Refused::new(StatusCode::INTERNAL_SERVER_ERROR, refusal.detail))?;
+    let work: Vec<Value> = cut
+      .iter()
+      .map(|turn| {
+        json!({
+          "run": turn.run,
+          "session": turn.session,
+          "agent": turn.agent,
+          "turnId": turn.turn,
+          "since": turn.started_at,
+        })
+      })
+      .collect();
+
+    Ok(answer(StatusCode::OK, json!({ "quiet": work.is_empty(), "work": work })))
+  }
+}
+
+crate::moved!(Quiet);

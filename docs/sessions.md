@@ -16,15 +16,20 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## A restart hands the session over
 
-- **A deployment waits for quiet before its flip** (`testbed.toml`, `quiet`): the receiver's plain
-  `quiet` command, run by its deployed path, says whether a chat turn stands under way that the
-  restart of agency would cut, and the testbed waits on it before it flips (the receiver's
-  `docs/boundary-api.md`, 「The service and its commands」; the testbed's `docs/deploy.md`). The
-  declared quiet, `deploy/quiet`, answers by the testbed's three codes: 0 where the receiver answers
-  0; where it answers 1, the lines it printed less those naming a chat turn, ending 0 where none is
-  left and 1 with them printed where some are; and any other code the receiver ends with, its own,
-  with everything it printed, so a receiver that could not read its state reaches the testbed as a
-  quiet that could not tell rather than as work under way.
+- **A deployment waits for agency's own quiet before its flip** (`testbed.toml`, `quiet`; the testbed's
+  `docs/deploy.md`): `bmo-agency quiet`, run from the release, asks the running server what it holds that
+  the next server could not pick up (`docs/api.md`, 「health」), and answers 1 with a line for each piece of
+  that work, 0 where there is none, and 2 where it could not tell.
+  - **What is counted:** a turn this server carries, no job's, that no program's record names yet, so the
+    pickup below would find nothing to attach to: a turn still in agency's own hands, waiting for its card,
+    for the handoff of the session it replaces, or for its program to stand and take it. The pickup's own
+    reading of the turn's place decides it, so the count and the pickup never disagree.
+  - **What is not:** a turn a program has taken, which the next server picks up and its caller re-attaches
+    to; a running job, below; and the receiver's own work, which an agency restart does not cut, since the
+    receiver re-attaches to its turns and its own quiet counts what it holds.
+  - **No server listening is quiet:** a server that is not running carries no turn, and the turns its
+    process left are the next start's to pick up. Nor does a server whose build answers no quiet route
+    hold a count to wait on. A server that answers with any other refusal could not tell.
 - **A running job survives an agency restart.** Its turn in flight is kept across the restart, its run
   goes on, and the lease pass takes the item again in the same checkout; the deploy therefore counts no
   job and waits on none.
@@ -33,6 +38,16 @@ statements below about either are kept for a rollback to the road a deployment l
   keeps the words of the turn it carries until that turn ends, and its slot request stands in the line, so
   the server that starts launches it again from them, its place in the line kept (`docs/api.md`,
   「assignments and jobs」).
+- **The server drains on its stop.** Asked to stop by `SIGTERM`, it takes no new call, ends every event
+  stream with a `stopping` frame, answers a turn's send still waiting with `503` `stopping` so its caller
+  re-attaches once the next server stands, and lets every other call in hand finish for the drain's span
+  (`policy/drain.toml`) before it exits; the turns it carries stay kept in flight for the next server.
+- **A caller re-attaches to a turn by its key.** A send that names a key holds the turn under it: a repeat
+  of the send with the same key on the same session, from the same caller or after a restart of either
+  side, attaches to the turn standing under it instead of sending another, and once the turn has ended
+  answers its end as kept, for the span the turn keys' policy keeps one (`policy/turn-keys.toml`). The
+  key goes with the turn kept in flight, so a turn picked up after agency's restart stands under it too
+  (`docs/api.md`, 「sessions」).
 - **The chat works in a folder whose name a release does not change.** Each program keeps the session
   it stands in by the folder it was stood in, and a program stood again on the same folder takes the
   session up again rather than opening a fresh one beside it:
@@ -53,7 +68,8 @@ statements below about either are kept for a rollback to the road a deployment l
   is picked up again, not lost:
   - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
-    agent, the room, the chat turn's run in the ledger and the job. Every turn agency carries is sent
+    caller's key where the send named one, the agent, the room, the chat turn's run in the ledger and the
+    job. Every turn agency carries is sent
     through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
     gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a delegation's,
     a supervisor's double's and a research run's among them. A turn stops being kept only once its end
@@ -117,9 +133,12 @@ statements below about either are kept for a rollback to the road a deployment l
     `restarted` and what the server then finds of the turn's program, and the same is written to its log,
     before any place that process left is taken down (`docs/agent-control.md`, 「Telling that a turn's
     program is gone」).
-  The progress read of a turn picked up this way answers `unknown-turn`; its caller reads its end on the
-  event stream. The state of a thrown-away session a picked-up turn still runs on is read by its id while
-  the turn goes on, from the execution row the turn left, and the session ends with the turn as any other.
+  A turn picked up this way answers under its own turn id as it did before the restart: the progress read
+  answers it running while it goes, with what its program's record has written of it so far, and ended once
+  its end is handed back; its end is published as `turn.ended` with that id and the caller's key; and a
+  send repeated with its key attaches to it, or answers its end once it has ended. The state of a
+  thrown-away session a picked-up turn still runs on is read by its id while the turn goes on, from the
+  execution row the turn left, and the session ends with the turn as any other.
 - **A program is stood afresh only between turns** (`docs/launch-lines.md`, 「What is fixed」). A
   program whose command changed while one of its turns works — a deployment that moved its line, its
   prompt or its environment — is left standing until the record says that turn ended: the turn that

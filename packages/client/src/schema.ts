@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/quiet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The work the server holds that the next server could not pick up. */
+        get: operations["getQuiet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -1794,6 +1811,25 @@ export interface components {
             reason: string | null;
             version: string;
         };
+        /** @description Quiet: the work the server holds that the next server could not pick up. */
+        Quiet: {
+            /** @description Whether the server holds no such work. */
+            quiet: boolean;
+            work: components["schemas"]["QuietWork"][];
+        };
+        /** @description QuietWork: a turn the server carries that no program's record names yet. */
+        QuietWork: {
+            run: string;
+            session: string;
+            agent: string;
+            /** Format: int64 */
+            turnId: number;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            since: number;
+        };
         /** @description EventPage: */
         EventPage: {
             items: components["schemas"]["Event"][];
@@ -2161,6 +2197,11 @@ export interface components {
          */
         TurnSend: {
             prompt: string;
+            /**
+             * @description The caller's key for the turn: a repeat of the send with it attaches to the turn standing under it, or
+             *     is answered with its end once it has ended.
+             */
+            key?: string | null;
             /** @description The context as the answer echoes it; the parts below are what the turn reads. */
             context?: unknown;
             room?: components["schemas"]["RoomBlockAsk"] | null;
@@ -4951,6 +4992,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description stopping */
+        Stopping: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description too-large */
         TooLarge: {
             headers: {
@@ -5038,6 +5088,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getQuiet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Quiet"];
                 };
             };
             401: components["responses"]["Unauthorized"];
@@ -5578,6 +5649,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["Stopping"];
         };
     };
     getSessionsTurn: {

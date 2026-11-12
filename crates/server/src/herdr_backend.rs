@@ -135,6 +135,9 @@ impl Event for TurnChanged {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct TurnEnded {
   pub session: String,
+  /// The key its caller sent it under, where it named one (docs/api.md, 「sessions」).
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub key: Option<String>,
   #[serde(flatten)]
   pub end: TurnEnd,
 }
@@ -316,8 +319,9 @@ pub struct HerdrSessions {
   questions: Questions,
   // The sessions whose turn going now hears no words pushed into it.
   deaf: Mutex<HashSet<SessionId>>,
-  // What each session's latest job turn wrote of its answer.
-  outputs: Outputs,
+  // What each session's turns wrote of their answers, shared with the pickup of the turns a process before
+  // this one left in flight.
+  outputs: Arc<Outputs>,
   // The thrown-away sessions whose first prompt has been handed the gate's reference, so their later turns
   // are asked over it and not over it again.
   referenced: Mutex<HashSet<SessionId>>,
@@ -675,6 +679,8 @@ fn gate_work_key(agent: &str) -> bool {
 
 impl HerdrSessions {
   pub fn new(places: Places) -> Self {
+    let outputs = places.ground.outputs.clone();
+
     Self {
       places,
       going: Mutex::default(),
@@ -687,7 +693,7 @@ impl HerdrSessions {
       turns: AtomicI64::new(0),
       questions: Questions::default(),
       deaf: Mutex::default(),
-      outputs: Outputs::default(),
+      outputs,
       referenced: Mutex::default(),
       left: Mutex::default(),
       cut: Mutex::default(),
@@ -2437,6 +2443,7 @@ impl HerdrSessions {
         turn: turn_id,
         run: run.clone(),
         agent: agent.clone(),
+        key: turn.context.key.clone(),
         chat_id: room.as_deref().and_then(|room| room.parse().ok()),
         ledger,
         job: turn.context.job.as_ref().map(|job| job.job),
@@ -2498,29 +2505,30 @@ impl HerdrSessions {
           }
 
           // A run of an account with a node goes the place-based road whatever its provider, so the link carries
-          // its place to the node (docs/person-nodes.md, 「Which node is a person's」).
-          let node = match crate::person_nodes::run_node(db, apart.role.as_deref(), &apart.cwd).await {
-            Ok(node) => node,
-            Err(why) => return Err(fault(FaultKind::Refused, why.detail)),
-          };
-          let came = if apart.provider == worker_session::PROVIDER && node.is_none() {
-            self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
-          } else {
-            let began = turn.context.began.unwrap_or(at);
+          // its place to the node (docs/person-nodes.md, 「Which node is a person's」). A node that cannot be
+          // read ends the turn refused, as any other turn refused once it began.
+          let came = match crate::person_nodes::run_node(db, apart.role.as_deref(), &apart.cwd).await {
+            Err(why) => Err(fault(FaultKind::Refused, why.detail)),
+            Ok(node) if apart.provider == worker_session::PROVIDER && node.is_none() => {
+              self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
+            }
+            Ok(node) => {
+              let began = turn.context.began.unwrap_or(at);
 
-            self
-              .apart_in_place(
-                &turn.session,
-                &agent,
-                apart,
-                work,
-                &turn.prompt,
-                began,
-                turn.context.job,
-                node,
-                shown,
-              )
-              .await
+              self
+                .apart_in_place(
+                  &turn.session,
+                  &agent,
+                  apart,
+                  work,
+                  &turn.prompt,
+                  began,
+                  turn.context.job,
+                  node,
+                  shown,
+                )
+                .await
+            }
           };
 
           if turn.context.job.is_some() {
@@ -2553,8 +2561,6 @@ impl HerdrSessions {
     if let Some((supervisor, _)) = &doubled {
       crate::turn_marks::ended(supervisor, &run);
     }
-    crate::turn_pickup::forget(&self.ground().db, &run, "its end reached its caller").await;
-
     // A replacement this turn found owed is made now that the turn has ended, apart from the answer going
     // back (docs/sessions.md, 「Session replacement」).
     match (&scope, self.shared()) {
@@ -2612,22 +2618,41 @@ impl HerdrSessions {
 
         close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
 
-        Ok(self.published(&turn.session, end))
+        let end = self.published(&turn.session, turn.context.key.as_deref(), end);
+
+        self.handed_back(&turn, &run, &end).await;
+        Ok(end)
       }
       Err(refused) => {
         let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
 
         end.turn = turn_id;
         close_chat_run(&self.ground().db, ledger, &end, None, None).await;
-        self.published(&turn.session, end);
+
+        let end = self.published(&turn.session, turn.context.key.as_deref(), end);
+
+        self.handed_back(&turn, &run, &end).await;
         Err(refused)
       }
     }
   }
 
+  // A turn's end handed back: kept under its caller's key, where it named one, for a repeat of its send, and
+  // only then no longer kept in flight, so a process that ends between the two leaves the turn for the next
+  // one's pickup rather than losing its end (docs/sessions.md, 「A restart hands the session over」).
+  async fn handed_back(&self, turn: &Turn, run: &str, end: &TurnEnd) {
+    let ground = self.ground();
+
+    if let Some(key) = &turn.context.key {
+      ground.turn_keys.ended(&ground.db, &turn.session.0, key, end).await;
+    }
+
+    crate::turn_pickup::forget(&ground.db, run, "its end reached its caller").await;
+  }
+
   // A turn's end published, its `ending` the word the door's last turn under the send ended on where the
   // turn did not answer, else its outcome's own.
-  fn published(&self, session: &SessionId, mut end: TurnEnd) -> TurnEnd {
+  fn published(&self, session: &SessionId, key: Option<&str>, mut end: TurnEnd) -> TurnEnd {
     // A turn stopped because its card was taken says so, whatever its program made of the stop.
     if let Some(by) = crate::cards::taken_from(&end.run) {
       end.ending = Some(crate::cards::CARD_TAKEN.to_owned());
@@ -2640,6 +2665,7 @@ impl HerdrSessions {
 
     self.ground().events.publish(TurnEnded {
       session: session.0.clone(),
+      key: key.map(str::to_owned),
       end: end.clone(),
     });
 
@@ -3360,7 +3386,16 @@ impl Sessions for HerdrSessions {
   // Every scope's turns keep what they write while they go, and a turn that has ended keeps its words
   // until the session's next turn begins.
   async fn output(&self, session: &SessionId, turn: Option<i64>) -> Result<Output, Fault> {
-    let (agent, scope) = self.scope_held(session)?;
+    // A thrown-away session carrying a turn picked up at the start stands until that turn ends, and its turn
+    // is read by its id meanwhile (docs/sessions.md, 「A restart hands the session over」).
+    // Once that turn's end is handed back its session is gone, and what it wrote still answers its id.
+    let (agent, scope) = match self.scope_held(session) {
+      Ok(held) => held,
+      Err(fault) => match carried_scope_of(self.ground(), session) {
+        Some((agent, scope)) => (agent, Scope::Apart(scope)),
+        None => return self.outputs.read(session, turn).filter(|_| turn.is_some()).ok_or(fault),
+      },
+    };
 
     self.admitted(&agent, &scope).await?;
 

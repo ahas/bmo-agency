@@ -174,9 +174,13 @@ seeds. The other crates and the server reach the store only through it.
     its one session across rooms owes one, and `room_handoff_owed:*` by the agent and the room, as JSON, the
     handover a room's own session owes and what its handoff turn goes out on (`docs/sessions.md`, 「Session
     replacement」);
-  - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
-    room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
-    by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
+  - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the caller's
+    key, the agent, the room, the chat turn's run in the ledger, the job and when it began, kept while the
+    turn goes and read by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
+  - a keyed turn's end, `turn_end:*` by the session and the caller's key, as JSON: the turn's id, how it
+    ended, its answer and when it ended, kept for the span `policy/turn-keys.toml` names so a send repeated
+    with the key is answered with it (`docs/api.md`, 「sessions」), and dropped past it by the
+    reconciliation's pass;
   - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
     stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
     highest number the store has dropped (`docs/api.md`, 「events」);

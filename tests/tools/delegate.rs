@@ -41,6 +41,12 @@ struct Stub {
   // Whether delegated runs hold the whole cap of the role asked, so a double's ask is refused as agency refuses
   // it.
   doubles_hold_the_cap: bool,
+  // How many sends of the turn agency's drain answers `stopping` before one is carried.
+  stops: usize,
+  // How many sends of the turn are held with no answer, as a server that goes down under them holds them.
+  parks: usize,
+  // The key each send of the turn named.
+  keys: Vec<Value>,
 }
 
 type Shared = Arc<Mutex<Stub>>;
@@ -126,11 +132,41 @@ async fn turn(
   Path(session): Path<String>,
   Json(body): Json<Value>,
 ) -> (StatusCode, Json<Value>) {
+  // A send held with no answer is held outside the stub's lock.
+  let parked = {
+    let mut stub = stub.lock().unwrap();
+    let parked = stub.parks > 0;
+
+    if parked {
+      stub.parks -= 1;
+    }
+
+    parked
+  };
+
+  if parked {
+    stub.lock().unwrap().sends.push(session.clone());
+    stub.lock().unwrap().keys.push(body["key"].clone());
+
+    return std::future::pending().await;
+  }
+
   let (works, answer) = {
     let mut stub = stub.lock().unwrap();
 
     stub.sends.push(session);
+    stub.keys.push(body["key"].clone());
     stub.turned = Some(body.clone());
+
+    if stub.stops > 0 {
+      stub.stops -= 1;
+
+      return (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({ "code": "stopping", "error": "agency is stopping", "key": body["key"] })),
+      );
+    }
+
     (stub.works, stub.answer.clone())
   };
 
@@ -150,14 +186,19 @@ async fn turn(
   )
 }
 
-async fn server(stub: Stub) -> (Api, Shared) {
-  let shared = Arc::new(Mutex::new(stub));
-  let app = Router::new()
+// Agency's routes the delegate asks, over the stub.
+fn app(shared: Shared) -> Router {
+  Router::new()
     .route("/slot-requests", post(ask_seat))
     .route("/slot-requests/{token}", patch(move_seat).get(read_seat))
     .route("/sessions", post(start))
     .route("/sessions/{id}/turns", post(turn))
-    .with_state(shared.clone());
+    .with_state(shared)
+}
+
+async fn server(stub: Stub) -> (Api, Shared) {
+  let shared = Arc::new(Mutex::new(stub));
+  let app = app(shared.clone());
   let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
   let port = listener.local_addr().unwrap().port();
 
@@ -574,4 +615,107 @@ async fn a_double_s_ask_says_so_and_is_refused_where_doubles_hold_the_whole_cap(
 
   assert!(answered.contains("done"), "a supervisor's own ask goes on: {answered}");
   assert!(stub.lock().unwrap().asked_seat.clone().unwrap().get("fromDouble").is_none());
+}
+
+#[tokio::test]
+async fn a_wait_cut_by_agency_s_drain_is_sent_again_under_the_run_s_key() {
+  let home = tempfile::tempdir().unwrap();
+  let (api, stub) = server(Stub {
+    waits: Some(0),
+    answer: Some("Read it.".into()),
+    stops: 2,
+    ..Stub::default()
+  })
+  .await;
+  let answer = delegate_with(&api, &session(home.path()), input("read the disk"), &Held::default()).await;
+  let text = serde_json::to_string(&answer).unwrap();
+
+  assert!(!answer.is_error && text.contains("Read it."), "{text}");
+
+  let stub = stub.lock().unwrap();
+  let run = stub.turned.clone().unwrap()["name"].clone();
+
+  // Every send went to the same run's session under the run's own name as its key.
+  assert_eq!(stub.sends, ["doppelganger@run:1"; 3]);
+  assert_eq!(stub.keys, [run.clone(), run.clone(), run]);
+  assert_eq!(stub.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
+}
+
+#[tokio::test]
+async fn a_wait_whose_server_goes_down_under_it_is_sent_again_under_the_run_s_key_to_the_server_after() {
+  let home = tempfile::tempdir().unwrap();
+  let shared: Shared = Arc::new(Mutex::new(Stub {
+    waits: Some(0),
+    answer: Some("Read it.".into()),
+    parks: 1,
+    ..Stub::default()
+  }));
+  // The first server stands on a runtime of its own, so taking it down cuts every connection it holds.
+  let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let first = tokio::runtime::Builder::new_multi_thread()
+    .worker_threads(1)
+    .enable_all()
+    .build()
+    .unwrap();
+
+  listener.set_nonblocking(true).unwrap();
+  first.spawn({
+    let app = app(shared.clone());
+
+    async move {
+      let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+
+      axum::serve(listener, app).await.unwrap()
+    }
+  });
+
+  let api = Api {
+    port,
+    token: None,
+    pace: Duration::from_millis(10),
+  };
+  let session = session(home.path());
+  let delegated =
+    tokio::spawn(
+      async move { delegate_with(&api, &session, input("read the disk"), &Held::default()).await },
+    );
+
+  // The run's send is held by the first server; the server goes down under it.
+  let bound = std::time::Instant::now() + Duration::from_secs(30);
+
+  while shared.lock().unwrap().sends.is_empty() {
+    assert!(std::time::Instant::now() < bound, "the run was never sent");
+    tokio::time::sleep(Duration::from_millis(10)).await;
+  }
+
+  first.shutdown_background();
+
+  // The server after it stands on the same port once the first has let it go, and the run's end is answered
+  // there.
+  let bound = std::time::Instant::now() + Duration::from_secs(30);
+  let listener = loop {
+    match tokio::net::TcpListener::bind(("127.0.0.1", port)).await {
+      Ok(listener) => break listener,
+      Err(why) => assert!(std::time::Instant::now() < bound, "the port was never let go: {why}"),
+    }
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+  };
+  let after = app(shared.clone());
+
+  tokio::spawn(async move { axum::serve(listener, after).await.unwrap() });
+
+  let answer = tokio::time::timeout(Duration::from_secs(30), delegated).await.unwrap().unwrap();
+  let text = serde_json::to_string(&answer).unwrap();
+
+  assert!(!answer.is_error && text.contains("Read it."), "{text}");
+
+  let stub = shared.lock().unwrap();
+  let run = stub.turned.clone().unwrap()["name"].clone();
+
+  // The cut was no outcome: the same run was sent again under its own name as its key, once to each server.
+  assert_eq!(stub.sends, ["doppelganger@run:1"; 2]);
+  assert_eq!(stub.keys, [run.clone(), run]);
+  assert_eq!(stub.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
 }

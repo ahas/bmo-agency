@@ -42,6 +42,7 @@ mod control {
   mod console_reads;
   mod consumer_calls;
   mod conversation_routes;
+  mod drain;
   mod endpoint_accounts;
   mod events_publish;
   mod executions;
@@ -77,6 +78,7 @@ mod control {
   mod supervisor_reset;
   mod supervisor_road;
   mod supervisor_settings;
+  mod turn_restart;
   mod worker_runtime;
 }
 mod conversational;
@@ -187,6 +189,7 @@ mod session_tools;
 mod slot_events;
 mod streaming;
 mod translate;
+mod turn_keys;
 mod turn_pickup;
 mod turn_pickup_clocks;
 mod usage_balances;
@@ -204,6 +207,7 @@ mod run_log {
 
 mod verbs {
   mod claude_batch;
+  mod quiet;
   mod reload;
 }
 

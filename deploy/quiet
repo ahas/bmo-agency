@@ -1,24 +1,6 @@
 #!/bin/sh
-# The pre-flip quiet: a chat turn is not work a restart must spare, since a cut turn is retried and the
-# room keeps its record. The receiver's own quiet names every chat turn it would otherwise count; only
-# the lines naming anything else stand. The testbed reads the code alone: 0 nothing under way, 1 work
-# under way, any other a quiet that could not tell, so a code other than 0 or 1 is handed on as it is.
-out=$("$HOME/.local/share/bmo-receiver/deploy/bin/bmo-receiver" \
-  --config "$HOME/.local/share/bmo-receiver/deploy/settings.toml" quiet)
-status=$?
-
-[ "$status" -eq 0 ] && exit 0
-
-if [ "$status" -ne 1 ]; then
-  [ -n "$out" ] && printf '%s\n' "$out"
-  exit "$status"
-fi
-
-rest=$(printf '%s\n' "$out" | grep -v ':chat:')
-
-if [ -z "$rest" ]; then
-  exit 0
-fi
-
-printf '%s\n' "$rest"
-exit 1
+# The pre-flip quiet: agency's own count of the work its restart would cut, the turns its server carries that
+# no program has taken yet (docs/sessions.md, 「A restart hands the session over」). The release's own verb
+# asks the server that runs now, and its code is the answer: 0 quiet, 1 work under way, any other could not
+# tell.
+exec bin/bmo-agency quiet

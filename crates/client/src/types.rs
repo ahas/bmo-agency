@@ -198,6 +198,27 @@ pub struct Health {
   pub version: String,
 }
 
+/// Quiet: the work the server holds that the next server could not pick up.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Quiet {
+  /// Whether the server holds no such work.
+  pub quiet: bool,
+  pub work: Vec<QuietWork>,
+}
+
+/// QuietWork: a turn the server carries that no program's record names yet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct QuietWork {
+  pub run: String,
+  pub session: String,
+  pub agent: String,
+  pub turn_id: i64,
+  /// epoch milliseconds
+  pub since: i64,
+}
+
 /// Event:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2229,6 +2250,10 @@ pub struct WorkPartsAsk {
 #[serde(rename_all = "camelCase")]
 pub struct TurnSend {
   pub prompt: String,
+  /// The caller's key for the turn: a repeat of the send with it attaches to the turn standing under it, or
+  /// is answered with its end once it has ended.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub key: Option<String>,
   /// The context as the answer echoes it; the parts below are what the turn reads.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context: Option<Value>,

@@ -75,6 +75,7 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
       session: "chat-agent@-5".into(),
       turn: 2,
       run: "chat:-5:2".into(),
+      key: None,
       agent: "chat-agent".into(),
       chat_id: Some(-5),
       ledger: Some(2),
