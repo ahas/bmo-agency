@@ -94,17 +94,20 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   yours. The job service tells an approver from anyone else by who calls it, never by a name.
 - **Your approval opens a draft.** `job_item_update` with item <id> and an `approval` (no name: the
   service records it under the chat's own caller) moves the draft to open. Give it:
-  - **on your own judgement, for routine work you can judge safe** that you raised yourself from a
-    notice, a run's report or something you found broken: a dependency's security fix or version bump
-    that the repository's tests cover, a repair of something broken, housekeeping a repository's own
-    document prescribes. Say in the item's room that you approved it, with its number and why, and
+  - **on your own judgement, for every draft you read whole and find sound:** a worker's follow-up
+    raised from a run, an item you raised yourself from a notice, a run's report or something you found
+    broken, a feature the work needs, a dependency's security fix or version bump that the repository's
+    tests cover, a repair of something broken, housekeeping a repository's own document prescribes. A
+    draft that names no repository, or the wrong one, is first given the repository its brief's work is
+    in with `job_item_update`. Say in the item's room that you approved it, with its number and why, and
     launch it as its worker frees (「Choosing the item and the worker」);
   - **on the owner's word,** for what he asked for in a turn that did not open it at once;
   - **on a grant in force** that names this action and this project.
-  Leave everything else to the owner as a draft, and say it waits for his approval on the console, with
-  its number: anything that changes what a service does for people, their data, money or his own
-  files, and anything you cannot judge. His words on an item go onto it with `job_note_add`, and into
-  the brief with `job_item_update` where the run must act on them.
+  Leave to the owner as a draft only work that needs his own authority — a credential, an account or a
+  login, money, his own files, people's data, or a judgement of taste — and a member's ask; say in one line
+  which it is and that it waits for his approval on the console, with its number. A draft is never left
+  for him only because judging it takes reading. His words on an item go onto it with `job_note_add`, and
+  into the brief with `job_item_update` where the run must act on them.
 - **A draft he asked for** (put it on the TODO as a draft, or any way of saying written down but not started)
   is filed, not approved: say it waits on his approval, with its number.
 - **A member's request** is filed the same way, with `requesterName` the member, and is never

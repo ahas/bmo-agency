@@ -406,7 +406,7 @@ fn a_research_ask_continuing_a_report_names_the_report_it_follows_from() {
 }
 
 #[test]
-fn the_agent_approves_routine_work_itself_leaves_the_rest_to_the_owner_and_names_each_item_s_repository() {
+fn the_agent_approves_every_sound_draft_itself_and_names_each_item_s_repository() {
   let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
   let todo = std::fs::read_to_string(tree().join("prompts/agents/chat/procedures/todo.md")).unwrap();
   let queue = manual
@@ -418,13 +418,15 @@ fn the_agent_approves_routine_work_itself_leaves_the_rest_to_the_owner_and_names
   // An approver's approval opens a draft, and the agent is one for routine work it can judge.
   for said in [
     "the owner's on the console, or your own",
-    "Approve a draft yourself where the work is routine and you can judge it safe",
+    "Approve a draft yourself once you have read it whole and found it sound",
+    "a worker's follow-up raised from a run",
     "a dependency's security fix or version bump that the repository's tests cover",
     "a repair of something broken",
     "housekeeping a repository's own document prescribes",
+    "is first given the repository its brief's work is in",
     "with its number and why",
-    "Leave to the owner, as a draft waiting on his approval",
-    "what a service does for people, their data, money or his own files, and anything you cannot judge",
+    "Leave to the owner, as a draft waiting on his approval, only work that needs his own authority",
+    "a credential, an account or a login, money, his own files, people's data, or a judgement of taste",
     "never a member's ask",
     "An item you approved yourself is yours to launch",
     // An item names its repository; work across several is one item per repository in a series.
@@ -438,7 +440,8 @@ fn the_agent_approves_routine_work_itself_leaves_the_rest_to_the_owner_and_names
 
   for said in [
     "**Your approval opens a draft.**",
-    "**on your own judgement, for routine work you can judge safe**",
+    "**on your own judgement, for every draft you read whole and find sound:**",
+    "A draft is never left",
     "**The item names its repository:** `repository`",
     "`series=<name>` label",
     "**An item you approved yourself is yours to launch,** as its repository's worker frees",

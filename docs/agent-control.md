@@ -3022,8 +3022,10 @@ with the session.
   not told yet agency queues one instruction for its orderer. The order carries the item's number and title,
   who raised it (its parent item, else its requester), its repository and the first lines of its brief
   (`policy/queue-idle.toml`, `draft_brief_lines` and at most `draft_brief_chars`); the supervisor's manual
-  says to judge it there: approve it where the work is routine and it can judge it safe, the approval
-  recorded as its own, or leave it a draft and say in one line why the owner should decide. The mark is let
+  says to judge it there: read it whole and approve it where it is sound, the approval recorded as its own,
+  giving it the repository its work is in where it names none; it leaves a draft only where the work needs
+  the owner's own authority (a credential, an account, money, his own files, people's data, a judgement of
+  taste), or is a member's ask, and says in one line which. The mark is let
   go once the item is no longer a draft — approved, dropped or merged.
 - **An item moved under a running job is told from the lease pass.** Where the pass renewing a running job's
   lease finds the lease gone and the item not open — held, dropped, merged, or leased by another holder — it
