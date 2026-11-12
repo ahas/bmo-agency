@@ -88,6 +88,7 @@ fn in_flight(
     session: format!("{agent}@worker"),
     turn,
     run: run.to_owned(),
+    key: None,
     agent: agent.to_owned(),
     chat_id,
     ledger,

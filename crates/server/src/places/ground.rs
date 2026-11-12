@@ -245,6 +245,14 @@ pub struct Ground {
   /// its turn's end is handed back, and its state answers by id meanwhile (docs/sessions.md, 「A restart
   /// hands the session over」).
   pub carried: Arc<Mutex<BTreeMap<SessionId, (String, Apart)>>>,
+  /// What every session's turns have written, the turns this process sent and those it picked up at its
+  /// start alike, read by the progress read (docs/api.md, 「sessions」).
+  pub outputs: Arc<crate::session_output::Outputs>,
+  /// The turns standing under their callers' keys, and the keyed turns' ends kept (docs/api.md,
+  /// 「sessions」).
+  pub turn_keys: Arc<crate::turn_keys::TurnKeys>,
+  /// Whether the server drains on its stop (docs/sessions.md, 「A restart hands the session over」).
+  pub drain: crate::drain::Drain,
   vars: BTreeMap<String, String>,
   env: BTreeMap<String, String>,
 }
@@ -298,6 +306,9 @@ impl Ground {
       herdr,
       source: trees.source_root(),
       carried: Arc::default(),
+      outputs: Arc::default(),
+      turn_keys: Arc::default(),
+      drain: crate::drain::Drain::default(),
       vars: machine.vars().map(|(name, value)| (name.to_owned(), value.to_owned())).collect(),
       env: machine
         .every_var()

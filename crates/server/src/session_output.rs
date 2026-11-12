@@ -88,6 +88,16 @@ impl Outputs {
     }
   }
 
+  /// The whole of what a turn has written so far, read afresh from its program's record, in place of what was
+  /// shown before: a turn picked up at the server's start, read off the record on every look.
+  pub fn shown(&self, session: &SessionId, turn: i64, text: String) {
+    if let Some(written) = self.written().get_mut(&(session.clone(), turn))
+      && !text.is_empty()
+    {
+      written.texts = vec![text];
+    }
+  }
+
   /// What the turn waits for now, or that it waits no longer.
   pub fn waiting(&self, session: &SessionId, turn: i64, waiting: Option<Waiting>) {
     if let Some(written) = self.written().get_mut(&(session.clone(), turn)) {

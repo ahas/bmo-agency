@@ -634,9 +634,13 @@ never the model's name.
   `code` `"401"` — and nothing of it is handed on. The key is compared in constant time. LiteLLM's own
   check stays behind it, so a request a child is handed carries the key the child holds.
 - **How it stands:** the gateway's unit is linked into the user's systemd directory and enabled by
-  the deployment, and carries the restart mark, so every deployment restarts it with agency's other
-  services. That restart is the one moment the front itself goes down, and the requests in hand then
-  are cut with it.
+  the deployment, and carries the binary mark, so a deployment restarts it only where it placed a
+  different `llm-gateway` binary; a deployment of agency that leaves the launcher as it stands leaves the
+  gateway serving.
+- **It drains on its stop.** Asked to stop by `SIGTERM` or `SIGINT`, the front takes no new connection and
+  lets every request in hand end, however long it takes, as an old child is drained at a change of table;
+  a stream whose bytes stop is still cut at the stall span. Only then are the children stopped and the
+  launcher ends, so a restart cuts no request in hand.
 - **A changed hook needs no restart:** the table's digest covers the hooks' contents, so the next
   reading of the registry starts a new child on them and hands over the way a changed registry does.
 

@@ -43,6 +43,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
 
     serde_json::to_value(TurnEnded {
       session: "supervisor-a@-7".into(),
+      key: None,
       end: TurnEnd::failed("run-1", reason, engine_error),
     })
     .unwrap()

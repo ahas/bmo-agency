@@ -500,6 +500,12 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     return Refused::new(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
   }
 
+  // A server that drains takes no new call; its caller asks again once the next server stands
+  // (docs/api.md, 「health」, the drain).
+  if front.ground.drain.draining() {
+    return draining();
+  }
+
   let Some(found) = front
     .routes
     .get(request.method())
@@ -534,6 +540,20 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
   }
 }
 
+// A call refused because the server drains, with when to ask again.
+fn draining() -> Response {
+  let mut refused =
+    Refused::new(StatusCode::SERVICE_UNAVAILABLE, "agency is stopping; ask again once it stands")
+      .with_code(crate::drain::STOPPING)
+      .into_response();
+
+  if let Ok(value) = axum::http::HeaderValue::from_str(&crate::drain::retry_after().to_string()) {
+    refused.headers_mut().insert(axum::http::header::RETRY_AFTER, value);
+  }
+
+  refused
+}
+
 /// The front's router: every request goes through the one dispatch.
 pub fn router(front: Front) -> Router {
   Router::new().fallback(dispatch).with_state(Arc::new(front))
@@ -559,7 +579,23 @@ pub async fn bind(port: u16) -> io::Result<TcpListener> {
   }
 }
 
-/// Serves the front on a listener until the process ends.
+/// Serves the front on a listener until the drain the ground carries ends it (docs/sessions.md, 「A restart
+/// hands the session over」): from the drain on no connection is taken, the event streams and the turns'
+/// sends are answered at once, and the calls in hand are given the drain's span; whatever still runs then is
+/// let go of with the process.
 pub async fn serve(listener: TcpListener, front: Front) -> io::Result<()> {
-  axum::serve(listener, router(front)).await
+  let drain = front.ground.drain.clone();
+  let served = axum::serve(listener, router(front)).with_graceful_shutdown({
+    let drain = drain.clone();
+
+    async move { drain.begun().await }
+  });
+
+  tokio::select! {
+    served = served => served,
+    () = drain.spent() => {
+      eprintln!("agency: calls still in hand at the drain's end are let go of");
+      Ok(())
+    }
+  }
 }

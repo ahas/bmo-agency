@@ -84,6 +84,18 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/health` | Readiness and version. |
+| GET | `/quiet` | The work the server holds that the next server could not pick up. |
+
+**The quiet** answers `Quiet`: `quiet`, true where the server holds no such work, and `work`, one entry for
+each turn it carries that is no job's and that no program's record names yet, each with its `run`,
+`session`, `agent`, `turnId` and `since`, the moment the turn began, in epoch milliseconds
+(`docs/sessions.md`, 「A restart hands the session over」). `bmo-agency quiet` reads it for the deployment.
+
+**The drain.** Asked to stop by `SIGTERM`, the server stops taking connections and answers any call that
+still reaches it `503` `stopping` with `Retry-After`; it ends every event stream with a `stopping` frame,
+answers a turn's send still waiting `503` `stopping` with the send's key, and lets every other call in hand
+finish within the drain's span, `short_calls_seconds` in `policy/drain.toml`, before it exits. A caller that
+reads `stopping` asks again once the server stands; nothing it was carried for is lost by the answer.
 
 ### events
 
@@ -112,6 +124,9 @@ deleted member. A reader narrows with `kinds`.
   number kept or null where none is; the page answers the same as `missed`, null otherwise. What happened
   between is not told again: the reader reads afresh the state it follows, then reads on from the
   events sent after the notice.
+- **Told when the server stops.** A server that drains ends every stream it serves with one `stopping`
+  frame, with no id of its own, its data `{"kind":"stopping","at"}`, and closes it; the reader opens the
+  stream again from the last number it read once the server stands, and loses nothing.
 
 ### hooks
 
@@ -555,7 +570,26 @@ would have, its run closed and its end published as `turn.ended`. Agency's own r
 turn either: a turn whose program keeps its record in its place is picked up by the server that starts
 next, and its end is published as `turn.ended` under the same `turnId`, a job's turn ending its job; a
 turn no record names ends failed (`docs/sessions.md`, 「A restart hands the session over」). The progress
-read of a turn picked up after a restart answers `unknown-turn`.
+read answers a turn picked up after a restart under its `turnId` as it answered it before.
+
+**A turn is re-attached to by its caller's key.** A send may name `key`, a text that is not empty and that
+its caller does not give to another turn of the session; anything else is refused 400. The key is kept with
+the turn while it goes and with its end once it has ended, and `turn.ended` carries it as `key`:
+
+- **A repeat of the send with the same key on the same session** sends nothing: it attaches to the turn
+  standing under the key, the one this server sent or the one it picked up at its start, and is answered
+  with that turn's end as the first send would have been, its `prompt` and `context` the repeat's own.
+- **A repeat after the turn has ended** is answered at once with its end, as kept: its `id`, `state`,
+  `delivery`, `outcome`, `ending`, `reason` and `answer`, `text` holding the answer. An end is kept for
+  `kept_seconds` in `policy/turn-keys.toml`; a repeat after that, or one naming a key no turn of the
+  session stood under, is a send of a new turn.
+- **A send refused before its turn began** — the session in a turn, unknown, or the turn's body refused —
+  keeps nothing under its key, and a repeat is asked as a new send.
+- **A send that names no key** is carried as before: its caller follows it by the `turnId` on
+  `turn.created` and `turn.ended`.
+- **A send cut by the server's drain** is answered `503` `stopping` with `key`, the key it named, and
+  `Retry-After`: the turn goes on in its program and is kept in flight, and the caller sends again with
+  the same key once the server stands.
 
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
 id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
@@ -1585,6 +1619,12 @@ input, so `bmo` finds it from any directory.
   are wrong; `--help` prints a noun's whole usage.
 - **`agent status` and `agent-status` are one noun:** the two-word spelling is read as the command's own
   `agent-status`, and both reach the same hooks and shell guard.
+- **`quiet` is the deployment's, not a noun `bmo` dispatches** (`docs/sessions.md`, 「A restart hands the
+  session over」): it asks the running server's `GET /quiet` on the port and under the token the environment
+  names, else the data root's `env/agency.env`, and ends with 0 where the server holds no work its restart
+  would cut, no server listens, or the server's build answers no such route (404), with 1 and a line for each
+  piece of work where it holds some, and with 2 where it could not tell: no token, another refusal, or an
+  answer that does not read.
 
 ## The harness plugin
 

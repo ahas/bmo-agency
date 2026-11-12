@@ -102,36 +102,86 @@ impl Api {
     }
   }
 
-  // One call to agency's server, answered whenever it answers: no timeout cuts the wait.
+  // One call to agency's server, answered whenever it answers: no timeout cuts the wait, and a cut is no
+  // answer (docs/tools.md, 「The delegate」). A call agency never took — the connection refused — or one its
+  // drain answered `stopping` is asked again at the pace until agency answers; a connection broken once the
+  // call was taken is asked again only where the call is `repeatable`, a keyed send among them, since another
+  // might be carried out twice.
   async fn call(
     &self,
     method: Method,
     path: &str,
     body: Option<Value>,
+    repeatable: bool,
   ) -> Result<(StatusCode, Value), String> {
-    let mut request =
-      reqwest::Client::new().request(method.clone(), format!("http://127.0.0.1:{}{path}", self.port));
+    loop {
+      let mut request =
+        reqwest::Client::new().request(method.clone(), format!("http://127.0.0.1:{}{path}", self.port));
 
-    if let Some(body) = body {
-      request = request.json(&body);
+      if let Some(body) = &body {
+        request = request.json(body);
+      }
+
+      if let Some(token) = &self.token {
+        request = request.bearer_auth(token);
+      }
+
+      let answered = match request.send().await {
+        Ok(answered) => answered,
+        Err(why) if why.is_connect() || repeatable => {
+          eprintln!("agency could not be asked {method} {path} ({why}); asking again");
+          tokio::time::sleep(self.pace).await;
+          continue;
+        }
+        Err(why) => return Err(format!("agency could not be asked {method} {path}: {why}")),
+      };
+      let status = answered.status();
+      let said = match answered.json().await {
+        Ok(said) => said,
+        // A body cut on its way is a cut like any other.
+        Err(why) if repeatable && why.is_body() => {
+          eprintln!("agency's answer to {method} {path} was cut ({why}); asking again");
+          tokio::time::sleep(self.pace).await;
+          continue;
+        }
+        Err(_) => Value::Null,
+      };
+
+      if stopping(status, &said) {
+        eprintln!("agency is stopping; asking {method} {path} again once it stands");
+        tokio::time::sleep(self.pace).await;
+        continue;
+      }
+
+      return Ok((status, said));
     }
-
-    if let Some(token) = &self.token {
-      request = request.bearer_auth(token);
-    }
-
-    let answered = request
-      .send()
-      .await
-      .map_err(|why| format!("agency could not be asked {method} {path}: {why}"))?;
-    let status = answered.status();
-
-    Ok((status, answered.json().await.unwrap_or(Value::Null)))
   }
 
   // A call whose answer must be a success: its body, or the error agency gave.
   async fn ok(&self, method: Method, path: &str, body: Option<Value>, what: &str) -> Result<Value, String> {
-    let (status, said) = self.call(method, path, body).await?;
+    self.answered(method, path, body, what, false).await
+  }
+
+  // The same, for a call that may be sent again after its connection broke.
+  async fn ok_again(
+    &self,
+    method: Method,
+    path: &str,
+    body: Option<Value>,
+    what: &str,
+  ) -> Result<Value, String> {
+    self.answered(method, path, body, what, true).await
+  }
+
+  async fn answered(
+    &self,
+    method: Method,
+    path: &str,
+    body: Option<Value>,
+    what: &str,
+    repeatable: bool,
+  ) -> Result<Value, String> {
+    let (status, said) = self.call(method, path, body, repeatable).await?;
 
     if status.is_success() {
       return Ok(said);
@@ -141,6 +191,12 @@ impl Api {
 
     Err(format!("{what}: agency answered {status}: {why}"))
   }
+}
+
+/// Whether agency answered a call with its drain's `stopping`, which asks the caller to ask again once it
+/// stands (docs/api.md, 「health」, the drain).
+pub fn stopping(status: StatusCode, said: &Value) -> bool {
+  status == StatusCode::SERVICE_UNAVAILABLE && said.get("code").and_then(Value::as_str) == Some("stopping")
 }
 
 /// A slot as the role's line answers it: its token, its state, the role it is of and the provider, model and
@@ -437,8 +493,10 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure(why);
   }
 
+  // The run's name is the turn's key, so a wait cut short attaches again to the run it sent.
   let body = json!({
     "prompt": format!("Work in {}.\n\n{instruction}", folder.display()),
+    "key": run,
     "resume": { "kind": "auto" },
     "name": run,
     "title": format!("delegated by {asker}: {title}"),
@@ -568,10 +626,11 @@ fn lacked_first(lacked: &[String], words: String) -> String {
   )
 }
 
-/// One run of the role, answered once it ends however long that takes.
-async fn send_turn(api: &Api, session: &str, body: &Value) -> Result<Value, String> {
+/// One run of the role, answered once it ends however long that takes: sent under its key, so a wait cut by
+/// a restart of agency's server is sent again and attaches to the same run (docs/tools.md, 「The delegate」).
+pub async fn send_turn(api: &Api, session: &str, body: &Value) -> Result<Value, String> {
   api
-    .ok(
+    .ok_again(
       Method::POST,
       &format!("/sessions/{session}/turns"),
       Some(body.clone()),

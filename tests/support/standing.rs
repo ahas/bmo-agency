@@ -22,6 +22,28 @@ impl Standing {
   pub fn pid(&self) -> u32 {
     self.child.id()
   }
+
+  /// Asked to stop as the service manager asks it, by `SIGTERM`, and waited on until it has ended: how it
+  /// ended, or none where it stood past `bound`.
+  pub fn stop(&mut self, bound: std::time::Duration) -> Option<std::process::ExitStatus> {
+    unsafe {
+      libc::kill(self.child.id() as i32, libc::SIGTERM);
+    }
+
+    let until = std::time::Instant::now() + bound;
+
+    loop {
+      if let Some(ended) = self.child.try_wait().unwrap() {
+        return Some(ended);
+      }
+
+      if std::time::Instant::now() >= until {
+        return None;
+      }
+
+      std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+  }
 }
 
 impl Drop for Standing {

@@ -202,6 +202,7 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
       session: "worker-a@worker".into(),
       turn: 1,
       run: "job-8".into(),
+      key: None,
       agent: "worker-a".into(),
       chat_id: None,
       ledger: None,

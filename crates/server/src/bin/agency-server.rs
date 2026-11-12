@@ -54,7 +54,12 @@ async fn main() -> ExitCode {
   let args = Args::parse();
 
   match serve(args).await {
-    Ok(()) => ExitCode::SUCCESS,
+    // Drained: the process ends now, with nothing left of it waited on (docs/sessions.md, 「A restart hands
+    // the session over」); the turns it carried stay kept in flight for the next server.
+    Ok(()) => {
+      println!("agency: drained");
+      std::process::exit(0)
+    }
     Err(why) => {
       eprintln!("agency: {why}");
       ExitCode::FAILURE
@@ -107,6 +112,9 @@ async fn serve(args: Args) -> Result<(), String> {
   let watch = herdr.clone().map(herdr::picture::Watch::start);
   let places = Places::new(Ground::new(&service, &machine, herdr), Arc::default());
   let ground = places.ground.clone();
+
+  // A stop drains the server rather than ending it where it stands.
+  agency_server::drain::on_stop(ground.drain.clone()).map_err(|why| format!("the stop signals: {why}"))?;
 
   places.clone().stand(watch.clone());
   // The gate's kinds read before the routes stand, so an agent's switches list its gates from the
@@ -344,6 +352,7 @@ fn clocks(ground: &Arc<Ground>) {
           .await
           .map_err(|refusal| refusal.detail)?;
         agency_server::turn_pickup::reap_dead(&ground).await;
+        agency_server::turn_keys::prune(&ground.db).await;
         agency_server::control::work::reap_stale(&ground)
           .await
           .map(|_| ())

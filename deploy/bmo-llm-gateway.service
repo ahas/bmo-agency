@@ -14,12 +14,13 @@ WorkingDirectory=%h/.local/share/bmo-agency/deploy
 ExecStart=%h/.local/share/bmo-agency/deploy/bin/llm-gateway
 Restart=always
 RestartSec=5
-# The launcher stops its children itself, and the unit waits for that however long it takes; a stop is
-# never escalated to a kill.
+# On its SIGTERM the launcher takes no new request, lets every request in hand end and then stops its
+# children itself (docs/own-llm.md, 「The gateway」), and the unit waits for that however long it takes; a
+# stop is never escalated to a kill.
 TimeoutStopSec=infinity
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=default.target
-# Linked, enabled and restarted by every deployment.
-X-BMO-Deploy=restart
+# Linked and enabled by every deployment, and restarted only by one that placed a different launcher.
+X-BMO-Deploy=binary
