@@ -528,6 +528,13 @@ When a demotion first catches — when a healthy session first drops — two thi
   standing under it, nor a reading of its own windows showing one at its ceiling that has not reset —
   `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」). A login that
   waits for a person is closed.
+- **A run on a model asks one thing more: that model does not rest on that login.** A model's rest is one
+  login's and one model's, so a login whose model rests is closed to runs on that model alone and stays
+  open to every other model, and its rest never counts toward the deployment's rest
+  (`docs/api.md`, 「Accounts」). It closes the model until its moment; one written while nothing named a
+  reset closes it until a reading of the login's windows is seen after it was written, and never longer
+  than such a reading stands, so the next reading decides. A line that asks for a login without naming a
+  model, the warming among them, reads no model's rest.
 - **An endpoint account is open while it is on, its key file is present and not empty, no rest stands
   under it, and the balance last read for it is above zero.** It has no windows to read, so only a rest
   written from a refusal or a spent balance closes it, and only a refusal of its key or its balance marks
@@ -567,12 +574,28 @@ When a demotion first catches — when a healthy session first drops — two thi
   is put to rest as it is passed, under that login, so nothing that reads the failure afterwards writes a
   rest under another. Where that rest closes the last open login, agency publishes it once as
   `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it.
+- **What rests for a limit is what the answer and the windows say reached it,** read in this order:
+  - **One model's own limit.** An answer that names the run's own model as the limit reached — Claude
+    Code's "You've reached your Fable limit" on a run of a Fable model and its kin, the name being a word
+    of the model's id — rests that model on that login and nothing else: the login stays open to every
+    other model, and the run moves to the next login that carries the model. The rest runs until the reset
+    the answer names, else until the soonest reset the login's windows name, else until the next reading.
+  - **The login's own ceiling.** An answer that names its reset rests the login until then. One that names
+    none rests the login only where the windows confirm it, a window of the login's own read at its ceiling
+    and not reset, until that window opens (「The account judgement」).
+  - **Neither.** A limit the windows do not confirm, and that names no model of the run, never rests the
+    login: the run's model rests on that login until the next reading decides, as one with no reset does.
+  - Each rest is said once in the machine's log, naming the login, the model where it is one model's, and
+    until when, or that the next reading decides; the run's failure carries the same, so the job it ends
+    says which model on which login rests and until when, and so does every run its rest holds back.
 - **An endpoint account is walked like any other, and its refusals are read as account failures.** The
   endpoint answers in HTTP status codes rather than in a subscription's words:
   - a 401, the key refused, is its login gone, so the account is marked as waiting for a person;
   - a 402, the balance spent, is marked the same way, since only the owner topping the balance up
     opens it again;
-  - a 429, too many requests at once, is a limit, so the account rests for a short while;
+  - a 429, too many requests at once, is a limit that names no reset, so the run's model rests on the
+    account for a short while, no longer than a reading of a login's windows stands, since no reader asks
+    an endpoint account;
   - in each case the work moves to the next open account, as from any login.
 - **A login gone, or its token for the work nodes, is told the way the login watch tells it:** marked as
   waiting for a person and published once as `account-login-notice`. Agency says nothing in a room

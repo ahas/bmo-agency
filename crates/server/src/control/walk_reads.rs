@@ -24,7 +24,7 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
   let provider = named(name)?;
   let declared = provider.declared();
   let missing = harness::missing(&ground.db, &ground.machine(), provider).await?;
-  let quota = crate::order::quota(ground, provider, policy::roles::ROLES.quota_share, None).await;
+  let quota = crate::order::quota(ground, provider, policy::roles::ROLES.quota_share, None, None).await;
 
   Ok(json!({
     "name": name,

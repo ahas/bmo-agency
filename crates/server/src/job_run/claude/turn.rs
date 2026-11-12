@@ -405,10 +405,13 @@ pub fn failure_of(failure: &Failure) -> contract::Failure {
       resets_at,
       account,
       silenced,
+      model,
+      ..
     } => contract::Failure::Limit {
       resets_at: *resets_at,
       account: account.clone(),
       silenced: *silenced,
+      model: model.clone(),
     },
     Failure::Account { failure, detail } => contract::Failure::Account {
       failure: match failure {
@@ -556,9 +559,9 @@ pub fn ended(run: &str, walked: Result<Settled, Failure>, beside: Beside) -> Tur
 /// a user that is no user's id, is refused; every other way the turn ends is its end.
 pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, Fault> {
   let work = asked.work;
-  let provider = match asked.seat {
-    WorkSeat::Worker(_) => &work.provider,
-    WorkSeat::Apart(apart) => &apart.provider,
+  let (provider, model) = match asked.seat {
+    WorkSeat::Worker(_) => (work.provider.as_str(), work.model.as_str()),
+    WorkSeat::Apart(apart) => (apart.provider.as_str(), apart.model.as_str()),
   };
 
   if provider != PROVIDER {
@@ -591,6 +594,7 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, 
   let walked = on_accounts(
     &Walking {
       ground: asked.ground,
+      model,
     },
     &work.work_key,
     user,

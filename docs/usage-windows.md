@@ -162,6 +162,12 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   back; one that names none, while its reading stands — younger than its reader's span and later than the
   account's unread mark (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no
   window for it to read, and the judgement asks it nothing here.
+- **The rest a run's limit begins** reads its login's windows where the answer names no reset
+  (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」): a login's own ceiling rests
+  the login only where a window of its own stands at its ceiling, until that window resets; one model's
+  limit rests that model on the login until the soonest reset any of its windows names. Where no window
+  names one, the next reading decides: a model's rest written then holds until a reading of its login is
+  seen after it, no longer than a reading stands.
 - **The provider order** reads every window of a provider's slots for what the provider has left
   (「What reads a provider's quota」 below).
 - **The fallback's view and the quota source** read each slot's two headline windows (`docs/api.md`,
@@ -195,10 +201,10 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
 - **A provider with usage windows has left what its window with the least left has left:** one less the
   used fraction of that window, the five-hour and the weekly window weighed alike. Codex's windows are
   read under the empty account (「The Codex reader」).
-- **Claude Code's quota is read account by account:** each open account's own window with the least left,
-  so the provider has quota while one of its open accounts has quota above the row's share, and the account
-  walk offers that account first (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account
-  has no window, and has quota while the account judgement holds it open.
+- **Claude Code's quota is read account by account:** each account open to the run's model, by its own
+  window with the least left, so the provider has quota while one of those accounts has quota above the
+  row's share, and the account walk offers that account first (`docs/cache-fallback.md`, 「The account
+  judgement」). An endpoint account has no window, and has quota while the account judgement holds it open.
 - **A window read at its ceiling and not reset is no quota left,** whatever the share.
 - **A provider whose member reads its quota from a balance — DeepSeek —** has quota while the balance its
   reader last kept is above zero, and none once it is at or below zero; a balance never read reads as

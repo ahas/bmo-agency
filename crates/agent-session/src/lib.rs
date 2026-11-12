@@ -332,11 +332,14 @@ pub struct RequestUsage {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Failure {
-  /// The login's window is full; where none of the logins answers, the rest closed the road.
+  /// A limit reached: the login's window full, or, where `model` is named, that model's own limit on the
+  /// login, which rests that model alone; where none of the logins answers, the rest closed the road.
   Limit {
     resets_at: Option<i64>,
     account: Option<String>,
     silenced: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
   },
   /// What the login said of itself rather than of the work.
   Account {
@@ -373,6 +376,14 @@ impl Failure {
   /// The failure in a sentence, as a turn's end gives it as its reason.
   pub fn words(&self) -> String {
     match self {
+      Self::Limit {
+        resets_at,
+        model: Some(model),
+        ..
+      } => match resets_at {
+        Some(at) => format!("the login's {model} limit is reached until {at}"),
+        None => format!("the login's {model} limit is reached until its next usage reading"),
+      },
       Self::Limit { resets_at, .. } => match resets_at {
         Some(at) => format!("the login's window is full until {at}"),
         None => "the login's window is full".to_owned(),

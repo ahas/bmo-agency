@@ -320,6 +320,8 @@ fn every_failure_a_job_turn_comes_to_ends_failed_by_its_kind_with_its_words() {
         resets_at: Some(1_700),
         account: Some("acct-a".into()),
         silenced: true,
+        named: None,
+        model: None,
       },
       json!({ "kind": "limit", "resets_at": 1_700, "account": "acct-a", "silenced": true }),
     ),

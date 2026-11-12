@@ -1,19 +1,23 @@
 //! The one judgement every Claude run is offered a login by, on a scratch store of the test's own and the
 //! windows agency keeps in it (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」): a
 //! login whose window is kept full is closed while the reading stands and not once it is stale, a run none of whose
-//! logins answers goes out on none, a full window rests the login it was met on and no other, the rest that
-//! closes the last open login is published once, a standing program left on a closed login is taken
-//! down, and a login near its end is renewed in a step of its own: no run holds the account's lock across its
-//! turn, and a second run on it says its wait in its job's log, goes out once that renewal is done, never
-//! after the first run's turn, and ends as the login's failure where the renewal found the login gone.
+//! logins answers goes out on none, a full window rests the login it was met on and no other, one model's
+//! limit rests that model on its login and no other model, a limit the windows do not confirm never rests the
+//! login, the rest that closes the last open login is published once, a standing program left on a closed
+//! login is taken down, and a login near its end is renewed in a step of its own: no run holds the account's
+//! lock across its turn, and a second run on it says its wait in its job's log, goes out once that renewal is
+//! done, never after the first run's turn, and ends as the login's failure where the renewal found the login
+//! gone.
 
 use crate::integration::common;
 
-use agency_server::control::claude_accounts::{Account, CREDENTIAL_FILE, Judging, open_accounts, walk_for};
+use agency_server::control::claude_accounts::{
+  Account, CREDENTIAL_FILE, Judging, open_accounts, rest_until, walk_for, walk_for_user,
+};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use agency_server::job_run::claude::failure::{AccountFailure, Failure};
+use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_errored};
 use agency_server::job_run::claude::renewal::{Renewing, lock_path};
 use agency_server::job_run::claude::turn::JobWaits;
 use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
@@ -22,12 +26,20 @@ use agency_server::now_ms;
 use agency_server::places::{Ground, locks};
 use agency_server::rest::DeploymentResting;
 use agency_server::run_log::{RunLog, Target};
-use cache_siren::{Slot, Window};
+use cache_siren::{Keeping, Slot, Window};
 use common::Scratch;
 use harness_providers::Machine;
 use serde_json::json;
 
 const HOUR: i64 = 3_600;
+
+// The model the bench's runs go out on, and another model of the same logins.
+const FABLE: &str = "claude-fable-5-2";
+const OPUS: &str = "claude-opus-5-5";
+
+// What the CLI answers on a run whose model has reached its own limit.
+const FABLE_LIMIT: &str =
+  "You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.";
 
 // The program a standing place runs, as its record names it.
 const PROGRAM: &str = "claude";
@@ -88,27 +100,7 @@ impl Bench {
 
   // One login's weekly window kept as read: the share used, its reset and when it was seen.
   async fn read(&self, account: &str, used: f64, resets_at: i64, seen_at: i64) {
-    let week = Window {
-      name: "seven_day".into(),
-      utilization: used,
-      resets_at: Some(resets_at),
-      duration_minutes: Some(10_080),
-      limit_name: None,
-    };
-
-    self
-      .ground
-      .windows
-      .replace(
-        Slot {
-          mode: "claude-code",
-          account,
-        },
-        &[week],
-        seen_at,
-      )
-      .await
-      .unwrap();
+    week(&self.ground.windows, account, used, resets_at, seen_at).await;
   }
 
   fn judging(&self) -> Judging<'_> {
@@ -116,8 +108,13 @@ impl Bench {
   }
 
   fn walking(&self) -> Walking<'_> {
+    self.walking_on(FABLE)
+  }
+
+  fn walking_on<'a>(&'a self, model: &'a str) -> Walking<'a> {
     Walking {
       ground: &self.ground,
+      model,
     }
   }
 
@@ -135,13 +132,67 @@ impl Bench {
   async fn walk(&self) -> Vec<String> {
     walk_for(self.judging()).await.unwrap().into_iter().map(|account| account.id).collect()
   }
+
+  // The logins a run on a model is offered now.
+  async fn walk_on(&self, model: &str) -> Vec<String> {
+    walk_for_user(self.judging(), None, Some(model))
+      .await
+      .unwrap()
+      .into_iter()
+      .map(|account| account.id)
+      .collect()
+  }
 }
 
-// A turn that meets a full window on the logins named, and answers on any other; every login it was
-// handed is kept.
+// One login's weekly window written into a keeping as its reader would.
+async fn week(windows: &Keeping, account: &str, used: f64, resets_at: i64, seen_at: i64) {
+  let week = Window {
+    name: "seven_day".into(),
+    utilization: used,
+    resets_at: Some(resets_at),
+    duration_minutes: Some(10_080),
+    limit_name: None,
+  };
+
+  windows
+    .replace(
+      Slot {
+        mode: "claude-code",
+        account,
+      },
+      &[week],
+      seen_at,
+    )
+    .await
+    .unwrap();
+}
+
+// A turn that meets a limit on the logins named, and answers on any other; every login it was handed is
+// kept. The limit is a full window with its reset unless the turn says otherwise, and where the turn holds
+// a keeping, the login's weekly window is read full as the limit is met, as the reader finds it.
 struct Turn {
   full: Vec<&'static str>,
   tried: Vec<Option<String>>,
+  said: Option<&'static str>,
+  fills: Option<(Keeping, i64)>,
+}
+
+impl Turn {
+  fn full_on(full: Vec<&'static str>) -> Self {
+    Self {
+      full,
+      tried: vec![],
+      said: None,
+      fills: None,
+    }
+  }
+
+  fn saying(full: Vec<&'static str>, said: &'static str) -> Self {
+    Self {
+      said: Some(said),
+      ..Self::full_on(full)
+    }
+  }
 }
 
 impl Renewing for Turn {}
@@ -153,11 +204,16 @@ impl Attempt<String> for Turn {
     self.tried.push(id.clone());
 
     match id {
-      Some(id) if self.full.contains(&id.as_str()) => Err(Failure::Limit {
-        resets_at: Some(now() + HOUR),
-        account: None,
-        silenced: false,
-      }),
+      Some(id) if self.full.contains(&id.as_str()) => {
+        if let Some((windows, resets_at)) = &self.fills {
+          week(windows, &id, 1.0, *resets_at, now()).await;
+        }
+
+        Err(match self.said {
+          Some(said) => of_errored(said, "bmo"),
+          None => Failure::limit(Some(now() + HOUR), None),
+        })
+      }
       Some(id) => Ok(id),
       None => Ok("the machine's own".to_owned()),
     }
@@ -212,20 +268,10 @@ async fn a_run_none_of_whose_logins_answers_goes_out_on_none() {
 
   assert!(open_accounts(bench.judging()).await.unwrap().is_empty());
 
-  let mut turn = Turn {
-    full: vec![],
-    tried: vec![],
-  };
+  let mut turn = Turn::full_on(vec![]);
   let walked = on_accounts(&bench.walking(), "bmo", None, &mut turn).await;
 
-  assert_eq!(
-    walked,
-    Err(Failure::Limit {
-      resets_at: Some(reopens),
-      account: None,
-      silenced: false,
-    })
-  );
+  assert_eq!(walked, Err(Failure::limit(Some(reopens), None)));
   assert!(turn.tried.is_empty());
   assert_eq!(bench.setting("rest_until:main").await, None);
 }
@@ -235,10 +281,7 @@ async fn a_run_none_of_whose_logins_answers_goes_out_on_none() {
 #[tokio::test]
 async fn a_full_window_rests_the_login_it_was_met_on_and_no_other() {
   let bench = Bench::new().await;
-  let mut turn = Turn {
-    full: vec!["main"],
-    tried: vec![],
-  };
+  let mut turn = Turn::full_on(vec!["main"]);
 
   assert_eq!(on_accounts(&bench.walking(), "bmo", None, &mut turn).await, Ok("default".to_owned()));
   assert_eq!(turn.tried, [Some("main".to_owned()), Some("default".to_owned())]);
@@ -251,15 +294,97 @@ async fn a_full_window_rests_the_login_it_was_met_on_and_no_other() {
     .run(r#"DELETE FROM "settings" WHERE "key" LIKE 'rest_until%'"#, vec![])
     .await;
 
-  let mut turn = Turn {
-    full: vec!["main", "default"],
-    tried: vec![],
-  };
+  let mut turn = Turn::full_on(vec!["main", "default"]);
   let walked = on_accounts(&bench.walking(), "bmo", None, &mut turn).await;
 
   assert!(matches!(walked, Err(Failure::Limit { account: Some(ref last), .. }) if last == "main"));
   assert!(bench.setting("rest_until:main").await.is_some());
   assert!(bench.setting("rest_until:default").await.is_some());
+}
+
+// One model's own limit rests that model on the login it was met on and nothing else: the run moves to the
+// next login that carries the model, no rest of the login is written, and a run on another model still goes
+// out on that login. The rest runs until the soonest reset the login's windows name, where the answer named
+// none, and the failure says which model on which login rests until when.
+#[tokio::test]
+async fn one_models_limit_rests_that_model_alone_and_another_model_goes_out_on_the_login() {
+  let bench = Bench::new().await;
+  let resets = now() + 3 * 24 * HOUR;
+
+  bench.read("main", 0.85, resets, now()).await;
+
+  let mut turn = Turn::saying(vec!["main"], FABLE_LIMIT);
+
+  assert_eq!(on_accounts(&bench.walking(), "bmo", None, &mut turn).await, Ok("default".to_owned()));
+  assert_eq!(turn.tried, [Some("main".to_owned()), Some("default".to_owned())]);
+  assert_eq!(bench.setting("rest_until:main").await, None);
+
+  let rest: serde_json::Value =
+    serde_json::from_str(&bench.setting(&format!("model_rest:main:{FABLE}")).await.unwrap()).unwrap();
+
+  assert_eq!(rest["until"], json!(resets));
+  assert_eq!(bench.walk_on(FABLE).await, ["default"]);
+  assert_eq!(bench.walk_on(OPUS).await, ["main", "default"]);
+  assert_eq!(bench.walk().await, ["main", "default"]);
+
+  let mut opus = Turn::full_on(vec![]);
+
+  assert_eq!(
+    on_accounts(&bench.walking_on(OPUS), "bmo", None, &mut opus).await,
+    Ok("main".to_owned())
+  );
+  assert_eq!(opus.tried, [Some("main".to_owned())]);
+
+  let mut both = Turn::saying(vec!["default"], FABLE_LIMIT);
+  let walked = on_accounts(&bench.walking(), "bmo", None, &mut both).await.unwrap_err();
+
+  assert!(
+    matches!(&walked, Failure::Limit { model: Some(model), account: Some(on), .. } if model == FABLE && on == "default"),
+    "{walked:?}"
+  );
+  assert!(
+    walked.message().contains(&format!("{FABLE} rests on account default until")),
+    "{}",
+    walked.message()
+  );
+  assert_eq!(bench.walk_on(FABLE).await, Vec::<String>::new());
+  assert_eq!(bench.walk_on(OPUS).await, ["main", "default"]);
+}
+
+// A limit that names no model and no reset rests the login where its windows confirm the ceiling, until the
+// full window resets; where they do not, the login stays open to every other model and the run's model waits
+// on the next reading, which then decides.
+#[tokio::test]
+async fn a_login_ceiling_the_windows_confirm_rests_the_login_and_no_other_limit_does() {
+  let bench = Bench::new().await;
+  let resets = now() + 2 * 24 * HOUR;
+
+  bench.read("main", 0.5, resets, now() - 60).await;
+
+  let mut turn = Turn {
+    fills: Some((bench.ground.windows.clone(), resets)),
+    ..Turn::saying(vec!["main"], "You've hit your limit")
+  };
+
+  assert_eq!(on_accounts(&bench.walking(), "bmo", None, &mut turn).await, Ok("default".to_owned()));
+  assert_eq!(rest_until(bench.judging(), "main").await.unwrap(), Some(resets));
+  assert_eq!(bench.setting(&format!("model_rest:main:{FABLE}")).await, None);
+  assert_eq!(bench.walk_on(OPUS).await, ["default"]);
+
+  let unconfirmed = now() + 4 * 24 * HOUR;
+
+  bench.read("default", 0.5, unconfirmed, now() - 60).await;
+
+  let mut turn = Turn::saying(vec!["default"], "You've hit your limit");
+
+  assert!(on_accounts(&bench.walking(), "bmo", None, &mut turn).await.is_err());
+  assert_eq!(bench.setting("rest_until:default").await, None);
+  assert_eq!(bench.walk_on(OPUS).await, ["default"]);
+  assert_eq!(bench.walk_on(FABLE).await, Vec::<String>::new());
+
+  bench.read("default", 0.5, unconfirmed, now() + 1).await;
+
+  assert_eq!(bench.walk_on(FABLE).await, ["default"]);
 }
 
 // The walk's rest that closes the last open login is published once as `deployment-resting`, and a run
@@ -268,10 +393,7 @@ async fn a_full_window_rests_the_login_it_was_met_on_and_no_other() {
 async fn the_rest_that_closes_the_last_login_is_published_once() {
   let bench = Bench::new().await;
   let mut resting = bench.ground.events.subscribe::<DeploymentResting>();
-  let both_full = || Turn {
-    full: vec!["main", "default"],
-    tried: vec![],
-  };
+  let both_full = || Turn::full_on(vec!["main", "default"]);
 
   assert!(matches!(
     on_accounts(&bench.walking(), "bmo", None, &mut both_full()).await,

@@ -41,6 +41,7 @@ fn limit() -> TurnEnd {
       resets_at: None,
       account: None,
       silenced: false,
+      model: None,
     }),
     ..TurnEnd::failed("job-7", "the login's window is full", None)
   }

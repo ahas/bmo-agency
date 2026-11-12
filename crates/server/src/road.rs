@@ -486,7 +486,7 @@ async fn step(
     return cannot(closed);
   }
 
-  let quota = order::quota(ground, provider, ask.order.quota_share, ask.user).await;
+  let quota = order::quota(ground, provider, ask.order.quota_share, ask.user, Some(&entry.model)).await;
 
   if !quota.has && !provider.holds_logins() {
     let reason = fill_marks(
@@ -504,7 +504,7 @@ async fn step(
   }
 
   let account = if provider.holds_logins() {
-    match logins(ground, ask, name, &quota).await? {
+    match logins(ground, ask, name, &entry.model, &quota).await? {
       Ok(account) => account,
       Err(closed) => return cannot(closed),
     }
@@ -706,8 +706,9 @@ async fn balance_spent(ground: &Ground, provider: &dyn Provider) -> Option<Close
   })
 }
 
-// The login a provider that holds logins offers the run first: the open login with quota above the share
-// that the quota read counted first, else the account judgement's first. Where every login is closed, the
+// The login a provider that holds logins offers the run on `model` first: of the logins open to that model,
+// the one with quota above the share that the quota read counted first, else the account judgement's first.
+// A login whose model rests is closed to this run and open to others. Where every login is closed, the
 // provider is, with every login's own reason, what a person does for the first a person can reopen, and the
 // moment the first that rests reopens; where logins are open but none has quota above the share, the
 // provider is closed for its quota.
@@ -715,11 +716,12 @@ async fn logins(
   ground: &Ground,
   ask: &Ask<'_>,
   name: &str,
+  model: &str,
   quota: &order::Quota,
 ) -> Result<Result<Option<String>, Closed>, String> {
   let judging = Judging::of(ground);
   let refused = |refused: crate::control::Refused| refused.error;
-  let open = claude_accounts::walk_for_user(judging, ask.user).await.map_err(refused)?;
+  let open = claude_accounts::walk_for_user(judging, ask.user, Some(model)).await.map_err(refused)?;
 
   if !open.is_empty() {
     if !quota.has {
@@ -753,14 +755,18 @@ async fn logins(
   let mut reopens_at: Option<i64> = None;
 
   for account in &carried {
-    let Some(why) = claude_accounts::closed_why(judging, account, now).await.map_err(refused)? else {
+    let Some(why) =
+      claude_accounts::closed_why(judging, account, Some(model), now).await.map_err(refused)?
+    else {
       continue;
     };
 
     reasons.push(why.reason(account));
     command = command.or_else(|| why.command(account, &machine));
 
-    if let claude_accounts::LoginClosed::Resting(until) = why {
+    if let claude_accounts::LoginClosed::Resting(until)
+    | claude_accounts::LoginClosed::ModelResting { until, .. } = why
+    {
       reopens_at = Some(reopens_at.map_or(until, |first| first.min(until)));
     }
   }

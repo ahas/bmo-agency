@@ -196,7 +196,9 @@ seeds. The other crates and the server reach the store only through it.
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
-    `rest_kind`;
+    `rest_kind`; and one model's rest on one login, `model_rest:<account>:<model>`, as JSON: its `until`
+    in epoch seconds, none where it waits for the login's next reading, and the moment it was `written`
+    (`docs/cache-fallback.md`, 「The account judgement」);
   - an account's unread mark, `usage_windows_unread:*` by the account, the moment its reader first found
     its token could not be read with (`docs/usage-windows.md`, 「The Claude account reader」);
   - the data move's mark, `users_moved_at`, and the user who administers the platform,
