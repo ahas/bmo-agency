@@ -1,5 +1,5 @@
-//! The sessions roles keep (docs/sessions.md, 「A role's session」): one row a session a role's run opened,
-//! kept by the role, the path, the provider and the model together and the command's key beside them, taken by
+//! The sessions agents keep (docs/sessions.md, 「A role's session」): one row a session an agent's run opened,
+//! kept by the agent and the path, with the role, the provider, the model and the command's key beside them, taken by
 //! a run as it starts so no two runs share it, and written again with the session that answered once the run
 //! has answered. A session past its cache lifetime, or whose last turn filled the model's window, is dropped
 //! as it is taken, and the run opens a new one.
@@ -18,6 +18,16 @@ use crate::worker_session::warmth::{set_aside_lifetime_ms, warm};
 // The flag a command names the session it opens with, and the one its system prompt's file is handed by.
 const OPENS: &str = "--session-id";
 const SYSTEM_PROMPT_FILE: &str = "--system-prompt-file";
+
+/// The agent a role's run at `path` is let in on, whose session it keeps (docs/sessions.md, 「A role's session」):
+/// the seat its slot holds there; none where it cannot be told.
+pub async fn agent_at<C: ConnectionTrait>(db: &C, role: &str, path: &str) -> Option<String> {
+  crate::role_agents::seated_at(db, Some(role), Some(path))
+    .await
+    .ok()
+    .flatten()
+    .map(|agent| agent.name)
+}
 
 /// The sessions setting a role's run opens its session by: its agent's, found by the folder the run works in
 /// (docs/role-agents.md, 「What a run reads off its agent」); a run whose agent cannot be told keeps nothing.
@@ -87,10 +97,12 @@ pub fn key_of(line: &str, cwd: &str, system: &Path, mcp_config: &Path, tools: &s
   format!("{:x}", hash.finalize())
 }
 
-/// What a role's session is kept by: the role, the path its run works at, the provider and model it went out
-/// on, the effort and login, and the command's key.
+/// What a session is kept by: the agent whose run answered on it, none where the run's agent cannot be told; the
+/// role, the path its run works at, the provider and model it went out on, the effort and login, and the
+/// command's key.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionKey {
+  pub agent: Option<String>,
   pub role: String,
   pub path: String,
   pub provider: String,
@@ -160,7 +172,7 @@ pub async fn take<C: ConnectionTrait>(db: &C, key: &SessionKey, now: i64) -> Res
     db,
     r#"SELECT * FROM "role_sessions"
        WHERE "role" = $1 AND "path" = $2 AND "provider" = $3 AND "model" = $4 AND "command_key" = $5
-         AND "dropped" = 0 AND "held" = 0 AND "answered_at" IS NOT NULL
+         AND "agent" IS NOT DISTINCT FROM $6 AND "dropped" = 0 AND "held" = 0 AND "answered_at" IS NOT NULL
        ORDER BY "answered_at" DESC LIMIT 1"#,
     vec![
       key.role.clone().into(),
@@ -168,6 +180,7 @@ pub async fn take<C: ConnectionTrait>(db: &C, key: &SessionKey, now: i64) -> Res
       key.provider.clone().into(),
       key.model.clone().into(),
       key.command.clone().into(),
+      key.agent.clone().into(),
     ],
   )
   .await?
@@ -328,8 +341,8 @@ pub async fn keep<C: ConnectionTrait>(
   run(
     db,
     r#"INSERT INTO "role_sessions" ("role", "path", "provider", "model", "effort", "account", "command_key",
-         "session", "opened_at", "answered_at", "runs", "context_tokens", "context_share")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12)"#,
+         "session", "opened_at", "answered_at", "runs", "context_tokens", "context_share", "agent")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12, $13)"#,
     vec![
       key.role.clone().into(),
       key.path.clone().into(),
@@ -343,6 +356,7 @@ pub async fn keep<C: ConnectionTrait>(
       answered.at.into(),
       answered.context_tokens.into(),
       answered.context_share.into(),
+      key.agent.clone().into(),
     ],
   )
   .await?;

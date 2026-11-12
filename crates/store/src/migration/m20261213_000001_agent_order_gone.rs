@@ -1,6 +1,7 @@
 //! A role's agents in no order of priority (docs/role-agents.md, 「Which agent a run takes」): their place among
 //! their role's dropped, since a job's agent is named by the supervisor that orders it and a run that names none
-//! takes any free agent of its role; and the agents a seeded role is given written with no place.
+//! takes any free agent of its role; the agents a seeded role is given written with no place; and a kept session
+//! written with the agent whose it is (docs/sessions.md, 「A role's session」).
 
 use sea_orm_migration::prelude::*;
 

@@ -282,8 +282,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Whether a run goes on in the session an earlier run left is its agent's setting,** the agent row's
   `sessions`: `keep` or `fresh`. Nothing reads a line's name or a run's caller to decide it; a run whose
   agent cannot be told keeps none.
-- **`keep`: a run resumes the session the last answered run of the same role left at the same path on the
-  same provider and model, while that session is valid** — inside the cache lifetime the provider declares
+- **`keep`: a run resumes the session its own agent's last answered run left at the same path, on the same
+  provider and model, while that session is valid** — inside the cache lifetime the provider declares
   for the model, and on the prefix it was opened on — and opens a new one otherwise (`docs/sessions.md`,
   「A role's session」).
 - **`fresh`: every run opens a session of its own,** which no later run resumes.

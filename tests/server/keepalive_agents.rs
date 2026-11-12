@@ -164,6 +164,7 @@ async fn a_ping_holds_its_session_and_leaves_it_answered_at_its_own_moment() {
   let ground = seeded(scratch.db(), home.path()).await;
   let db = &ground.db;
   let key = |path: &str| SessionKey {
+    agent: None,
     role: "coder".to_owned(),
     path: path.to_owned(),
     provider: "claude-code".to_owned(),

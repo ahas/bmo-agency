@@ -11,6 +11,7 @@ use crate::support::scratch::Scratch;
 
 fn key(role: &str, path: &str, model: &str) -> SessionKey {
   SessionKey {
+    agent: None,
     role: role.into(),
     path: path.into(),
     provider: "claude-code".into(),
@@ -60,6 +61,25 @@ async fn a_kept_session_is_resumed_by_the_next_run_of_its_role_path_provider_and
   other_command.command = "another command".into();
   assert_eq!(take(db, &other_command, now).await.unwrap(), None, "another command keeps its own");
   assert_eq!(take(db, &held, now).await.unwrap().as_deref(), Some("session-one"));
+}
+
+// A session is its agent's: another agent of the same role on the same road at the same folder opens its own, and
+// the agent's next run there takes up its own (docs/sessions.md, 「A role's session」).
+#[tokio::test]
+async fn a_kept_session_is_its_agent_s_and_no_other_agent_resumes_it() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let now = now_ms();
+  let of = |agent: &str| SessionKey {
+    agent: Some(agent.into()),
+    ..key("coder", "/checkouts/one", "deepseek-flash")
+  };
+
+  keep(db, &of("coder-05"), "session-five", answered_at(now)).await.unwrap();
+
+  assert_eq!(take(db, &of("coder-04"), now).await.unwrap(), None, "another agent keeps its own");
+  assert_eq!(take(db, &key("coder", "/checkouts/one", "deepseek-flash"), now).await.unwrap(), None);
+  assert_eq!(take(db, &of("coder-05"), now).await.unwrap().as_deref(), Some("session-five"));
 }
 
 #[tokio::test]

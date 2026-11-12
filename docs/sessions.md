@@ -334,10 +334,13 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## A role's session
 
-- **A role's session is kept by four things together: the role, the path, the provider and the model.** A
-  run of a `keep` role (`docs/agent-roles.md`, 「A role's sessions」) resumes the session the last answered
-  run of the same role left at the same path on the same provider and model, while it is valid, and opens a
-  new one otherwise. Two runs that differ in any of the four never share a session.
+- **A session is the agent's, kept by the agent and the path together,** with the role, the provider and the
+  model the agent's run stands on beside them. An agent is one worker, not a kind of seat
+  (`docs/role-agents.md`, 「What an agent is」): a run of a `keep` agent (`docs/agent-roles.md`, 「A role's
+  sessions」) resumes the session that same agent's last answered run left at the same path, while it is
+  valid, and opens a new one otherwise, so the agent takes up its own work where it left it there. Two agents
+  never share a session, whatever role and road they hold in common; a run whose agent cannot be told keeps
+  no session (`docs/agent-roles.md`, 「A role's sessions」).
 - **The path is the folder the run works in:** a repository's checkout for a job, a support worktree for a
   job there, the task's folder for a delegation or a worker ask, a place for a co-work branch, the line's own
   directory for a search. A session is kept per folder by the program itself, so a folder that moved is a
