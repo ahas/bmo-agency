@@ -44,10 +44,12 @@ pub mod job_notices;
 pub mod job_review;
 
 /// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), the walk of the logins that
-/// carries it, the reset a worker's sessions are carried out by, and the OpenRouter tap and what it read.
+/// carries it and the renewal of a login near its end before a turn goes out on it, the reset a worker's
+/// sessions are carried out by, and the OpenRouter tap and what it read.
 pub mod job_run {
   pub mod claude {
     pub mod failure;
+    pub mod renewal;
     pub mod reset;
     pub mod turn;
     pub mod walk;

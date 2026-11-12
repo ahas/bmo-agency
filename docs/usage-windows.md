@@ -77,9 +77,10 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   configuration directory, the way every run on the account goes out, on the model and effort the provider's
   usage declaration names for it — the cheapest the login offers — with a one-word turn, no tools, and its
   answer thrown away. The run holds the role the roles policy names for agency's own runs, `upkeep`, and
-  opens the session that role's setting gives it. The CLI renews the token for itself as the run goes out, a
-  token run out taking the account's renewal lock like any run near its login's end
-  (`docs/cache-fallback.md`, 「A login that is about to end」), and the next pass asks with what it wrote. The
+  opens the session that role's setting gives it. The CLI renews the token for itself as the run goes out, and
+  the run holds the account's renewal lock while it runs, waiting for it where a run near its login's end
+  holds it for the same renewal (`docs/cache-fallback.md`, 「A login that is about to end」); the next pass
+  asks with what it wrote. The
   reader never refreshes a token itself: a refresh token is replaced at every renewal and every pane on the
   login shares it, so a second refresher beside the CLI would leave those panes holding a credential it had
   replaced.

@@ -82,6 +82,11 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A note in the bot's own words** is written into a run's log across the boundary by whoever carries
   the run, such as the job unit telling which road a turn went out on or why the run ended. It stands
   beside the run's own lines, under the run's supervisor or role, room and job, and is kept whole.
+- **A job never stands running with an empty log.** Whatever its run waits on before its program
+  starts, it says in one note of its log as the wait starts and in another as it goes out: a road to
+  open, a slot of its role or the agent its item names, another turn in the standing program it goes into,
+  and the renewal of its login by another run (`docs/cache-fallback.md`, 「A login that is about to end」),
+  as well as its own renewal of that login.
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「sessions」, forgetting a room).
 

@@ -2,17 +2,26 @@
 //! windows agency keeps in it (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」): a
 //! login whose window is kept full is closed while the reading stands and not once it is stale, a run none of whose
 //! logins answers goes out on none, a full window rests the login it was met on and no other, the rest that
-//! closes the last open login is published once, and a standing program left on a closed login is taken
-//! down.
+//! closes the last open login is published once, a standing program left on a closed login is taken
+//! down, and a login near its end is renewed in a step of its own: no run holds the account's lock across its
+//! turn, and a second run on it says its wait in its job's log, goes out once that renewal is done, never
+//! after the first run's turn, and ends as the login's failure where the renewal found the login gone.
 
 use crate::integration::common;
 
-use agency_server::control::claude_accounts::{Account, Judging, open_accounts, walk_for};
-use agency_server::job_run::claude::failure::Failure;
+use agency_server::control::claude_accounts::{Account, CREDENTIAL_FILE, Judging, open_accounts, walk_for};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use agency_server::job_run::claude::failure::{AccountFailure, Failure};
+use agency_server::job_run::claude::renewal::{Renewing, lock_path};
+use agency_server::job_run::claude::turn::JobWaits;
 use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use agency_server::keepalive::logins::retire_closed;
-use agency_server::places::Ground;
+use agency_server::now_ms;
+use agency_server::places::{Ground, locks};
 use agency_server::rest::DeploymentResting;
+use agency_server::run_log::{RunLog, Target};
 use cache_siren::{Slot, Window};
 use common::Scratch;
 use harness_providers::Machine;
@@ -134,6 +143,8 @@ struct Turn {
   full: Vec<&'static str>,
   tried: Vec<Option<String>>,
 }
+
+impl Renewing for Turn {}
 
 impl Attempt<String> for Turn {
   async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
@@ -321,4 +332,286 @@ async fn a_standing_program_on_a_closed_login_is_taken_down_where_no_turn_is_in_
   assert!(!closed.exists());
   assert!(working.exists());
   assert!(open.exists());
+}
+
+// How often a run in these tests looks again while it waits on another run's renewal.
+const LOOK: Duration = Duration::from_millis(1);
+
+// The bound on a test of two runs, which only a run that never goes out reaches.
+const BOUND: Duration = Duration::from_secs(30);
+
+// What the test lets each run do and hears from it, shared by the two runs and the test.
+#[derive(Clone, Default)]
+struct Stage {
+  said: Arc<Mutex<Vec<String>>>,
+  holds: Arc<tokio::sync::Notify>,
+  waits: Arc<tokio::sync::Notify>,
+  renewal_may_end: Arc<tokio::sync::Notify>,
+  second_out: Arc<tokio::sync::Notify>,
+  turn_may_end: Arc<tokio::sync::Notify>,
+}
+
+impl Stage {
+  fn hear(&self, line: String) {
+    self.said.lock().unwrap().push(line);
+  }
+
+  fn said(&self) -> Vec<String> {
+    self.said.lock().unwrap().clone()
+  }
+
+  fn place(&self, line: &str) -> usize {
+    let said = self.said();
+
+    said
+      .iter()
+      .position(|one| one == line)
+      .unwrap_or_else(|| panic!("{line:?} was not said: {said:?}"))
+  }
+}
+
+// The run that takes the account's lock: its renewal waits for the test's word and then writes a credential
+// far from its end, or fails on the login; its turn notes whether the lock is still held and, on `main`, ends
+// only on the test's word.
+struct First {
+  stage: Stage,
+  data: std::path::PathBuf,
+  fails: bool,
+}
+
+impl Renewing for First {
+  async fn renew(&mut self, _ground: &Ground, account: &Account) -> Result<(), Failure> {
+    self.stage.hear(format!("first renews {}", account.id));
+    self.stage.holds.notify_one();
+    self.stage.renewal_may_end.notified().await;
+
+    if self.fails {
+      return Err(Failure::Account {
+        failure: AccountFailure::Login,
+        detail: "the refresh was refused".to_owned(),
+      });
+    }
+
+    let file = account.credential_file().unwrap();
+
+    std::fs::write(file, credential(now_ms() as i64 + HOUR * 1000)).unwrap();
+    self.stage.hear("first renewed".to_owned());
+    Ok(())
+  }
+
+  fn look(&self) -> Duration {
+    LOOK
+  }
+}
+
+impl Attempt<String> for First {
+  async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
+    let account = account.unwrap();
+    let held = locks::held(&lock_path(&self.data, &account));
+
+    self.stage.hear(format!("first goes out on {}, the lock held: {held}", account.id));
+
+    if account.id == "main" {
+      self.stage.turn_may_end.notified().await;
+    }
+
+    self.stage.hear("first's turn ends".to_owned());
+    Ok(account.id)
+  }
+}
+
+// The job the second run is a run of, whose log its waits are written into.
+const SECOND_JOB: i64 = 7;
+
+// The run that finds the lock held: it says what it says into the stage and, as a job's turn does, into its
+// job's log, and it never renews.
+struct Second {
+  stage: Stage,
+  db: sea_orm::DatabaseConnection,
+  log: RunLog,
+}
+
+impl Second {
+  fn of(stage: &Stage, bench: &Bench) -> Self {
+    Self {
+      stage: stage.clone(),
+      db: bench.scratch.db().clone(),
+      log: RunLog::new(Target {
+        agent: "worker".to_owned(),
+        run: format!("job-{SECOND_JOB}"),
+        chat_id: None,
+        job_id: Some(SECOND_JOB),
+      }),
+    }
+  }
+}
+
+// The notes the second run's job's log holds, in the order they were written.
+async fn job_notes(bench: &Bench) -> Vec<String> {
+  store::all(
+    bench.scratch.db(),
+    r#"SELECT "text" FROM "agent_log" WHERE "job_id" = $1 AND "kind" = 'note' ORDER BY "id""#,
+    vec![SECOND_JOB.into()],
+  )
+  .await
+  .unwrap()
+  .iter()
+  .map(|row| row.try_get("", "text").unwrap())
+  .collect()
+}
+
+impl Renewing for Second {
+  async fn renew(&mut self, _ground: &Ground, account: &Account) -> Result<(), Failure> {
+    panic!("the second run renewed {}", account.id)
+  }
+
+  // The test hears of the wait once its line is in the job's log.
+  async fn say(&mut self, words: &str) {
+    self.stage.hear(format!("second: {words}"));
+    JobWaits::of(&self.db, &mut self.log).say(words).await;
+
+    if words.starts_with("Waiting") {
+      self.stage.waits.notify_one();
+    }
+  }
+
+  fn look(&self) -> Duration {
+    LOOK
+  }
+}
+
+impl Attempt<String> for Second {
+  async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
+    let id = account.unwrap().id;
+
+    self.stage.hear(format!("second goes out on {id}"));
+    self.stage.second_out.notify_one();
+    Ok(id)
+  }
+}
+
+// A credential file of a subscription login that renews itself, its access token ending at `ends`.
+fn credential(ends: i64) -> String {
+  json!({ "claudeAiOauth": { "accessToken": "a", "refreshToken": "r", "expiresAt": ends } }).to_string()
+}
+
+// The bench with `main`'s login a minute from its end, inside the margin the CLI renews it within.
+async fn near_its_end() -> Bench {
+  let bench = Bench::new().await;
+
+  let file = bench.homes.path().join("main").join(CREDENTIAL_FILE);
+
+  std::fs::write(file, credential(now_ms() as i64 + 60_000)).unwrap();
+
+  bench
+}
+
+// Two runs on one login near its end: the first takes the lock, renews and lets the lock go before its turn,
+// and the second, waiting on that renewal and saying so in its job's log, goes out on what it wrote while the
+// first's turn is still running, the lock free all through that turn.
+#[tokio::test]
+async fn a_second_run_goes_out_after_the_renewal_not_after_the_first_run_s_turn() {
+  let bench = near_its_end().await;
+  let main = walk_for(bench.judging())
+    .await
+    .unwrap()
+    .into_iter()
+    .find(|one| one.id == "main")
+    .unwrap();
+  let stage = Stage::default();
+  let mut first = First {
+    stage: stage.clone(),
+    data: bench.data.path().to_owned(),
+    fails: false,
+  };
+  let mut second = Second::of(&stage, &bench);
+  let walking = bench.walking();
+  let runs = async {
+    tokio::join!(
+      on_accounts(&walking, "bmo", None, &mut first),
+      async {
+        stage.holds.notified().await;
+        on_accounts(&walking, "bmo", None, &mut second).await
+      },
+      async {
+        stage.waits.notified().await;
+
+        let waiting = job_notes(&bench).await;
+
+        stage.renewal_may_end.notify_one();
+        stage.second_out.notified().await;
+
+        // The first run's turn is still running here: the lock is free and the second's log says it all.
+        let held_in_turn = locks::held(&lock_path(bench.data.path(), &main));
+        let gone_out = job_notes(&bench).await;
+
+        stage.turn_may_end.notify_one();
+        (waiting, held_in_turn, gone_out)
+      }
+    )
+  };
+  let (first_walked, second_walked, (waiting, held_in_turn, gone_out)) =
+    tokio::time::timeout(BOUND, runs).await.expect("both runs ended");
+  let wait = "Waiting for another run to renew the login of Claude account main";
+  let out = "Claude account main: another run renewed its login, going out on what it wrote";
+
+  assert_eq!(waiting, [wait], "the wait is in the job's log while it waits");
+  assert!(!held_in_turn, "no run holds the account's lock across its turn");
+  assert_eq!(
+    gone_out,
+    [wait, out],
+    "the job's log says it went out, before the first run's turn ends"
+  );
+  assert_eq!(first_walked, Ok("main".to_owned()));
+  assert_eq!(second_walked, Ok("main".to_owned()));
+  assert!(stage.place("first renewed") < stage.place("first goes out on main, the lock held: false"));
+  assert!(stage.place("second goes out on main") < stage.place("first's turn ends"));
+  assert!(
+    stage.place("second: Waiting for another run to renew the login of Claude account main")
+      < stage.place("first renewed")
+  );
+  assert!(
+    stage.place("second: Claude account main: another run renewed its login, going out on what it wrote")
+      < stage.place("second goes out on main")
+  );
+}
+
+// A renewal that finds the login gone is recorded before the lock is let go, so the run waiting on it, and a
+// run after them, end on that login as its failure, never going out on it nor renewing it again, and each is
+// carried to the next login.
+#[tokio::test]
+async fn a_renewal_that_finds_the_login_gone_ends_the_run_waiting_on_it() {
+  let bench = near_its_end().await;
+  let stage = Stage::default();
+  let mut first = First {
+    stage: stage.clone(),
+    data: bench.data.path().to_owned(),
+    fails: true,
+  };
+  let mut second = Second::of(&stage, &bench);
+  let walking = bench.walking();
+  let runs = async {
+    tokio::join!(
+      on_accounts(&walking, "bmo", None, &mut first),
+      async {
+        stage.holds.notified().await;
+        on_accounts(&walking, "bmo", None, &mut second).await
+      },
+      async {
+        stage.waits.notified().await;
+        stage.renewal_may_end.notify_one();
+      }
+    )
+  };
+  let (first_walked, second_walked, ()) = tokio::time::timeout(BOUND, runs).await.expect("both runs ended");
+
+  assert_eq!(first_walked, Ok("default".to_owned()));
+  assert_eq!(second_walked, Ok("default".to_owned()));
+  assert!(!stage.said().contains(&"second goes out on main".to_owned()));
+
+  // A run after them renews nothing on the credential whose renewal was refused and is carried on at once.
+  let mut third = Second::of(&stage, &bench);
+
+  assert_eq!(on_accounts(&walking, "bmo", None, &mut third).await, Ok("default".to_owned()));
+  assert!(!stage.said().contains(&"second goes out on main".to_owned()));
 }

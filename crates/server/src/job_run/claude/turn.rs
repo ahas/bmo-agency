@@ -24,9 +24,11 @@ use agent_session::{
   self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, SessionId, TurnEnd,
   WentOut, WorkParts,
 };
+use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
 use super::failure::{AccountFailure, Failure, RunEnding, of_unanswered};
+use super::renewal::Renewing;
 use super::reset::carry_out_worker_reset;
 use super::walk::{Attempt, Walking, on_accounts};
 use crate::Refusal;
@@ -628,6 +630,34 @@ struct Attempting<'r, 'a> {
   beside: Beside,
 }
 
+/// A job's log as what the renewal step before its program says its wait into: each line a note of the
+/// job's own log, so a job waiting on its login's renewal never stands running with an empty log
+/// (docs/run-records.md, 「Agent log」).
+pub struct JobWaits<'l> {
+  db: &'l DatabaseConnection,
+  log: &'l mut RunLog,
+}
+
+impl<'l> JobWaits<'l> {
+  /// The job's log its waits are written into, on the store it is kept in.
+  pub fn of(db: &'l DatabaseConnection, log: &'l mut RunLog) -> Self {
+    Self { db, log }
+  }
+}
+
+impl Renewing for JobWaits<'_> {
+  async fn say(&mut self, words: &str) {
+    self.log.write(self.db, Line::note(words)).await;
+  }
+}
+
+// A job's turn says its wait for the login's renewal into the job's log.
+impl Renewing for Attempting<'_, '_> {
+  async fn say(&mut self, words: &str) {
+    JobWaits::of(&self.asked.ground.db, self.log).say(words).await;
+  }
+}
+
 impl Attempt<Settled> for Attempting<'_, '_> {
   // On a work node the login is the account's token for the nodes (docs/work-nodes.md, 「The logins on a
   // node」): one marked gone is passed over without a run, and a run there that fails on its login has
@@ -1003,7 +1033,22 @@ impl Attempting<'_, '_> {
     }
 
     let lock = locks::agent_lock_path(&ground.roots.data, &held::scope_of(worker));
-    let held_lock = locks::hold(lock).await.map_err(|why| Failure::error(format!("agent lock: {why}")))?;
+    // Another turn in the same program is waited out, the wait said in the job's log as it starts and ends.
+    let held_lock = match locks::try_hold(&lock) {
+      Some(held_lock) => held_lock,
+      None => {
+        self
+          .log
+          .write(db, Line::note(format!("Waiting for another turn in {worker}'s program to end")))
+          .await;
+
+        let held_lock =
+          locks::hold(lock).await.map_err(|why| Failure::error(format!("agent lock: {why}")))?;
+
+        self.log.write(db, Line::note(format!("{worker}'s program is free, going out"))).await;
+        held_lock
+      }
+    };
     let session = SessionRun {
       mode: held::MODE,
       line,

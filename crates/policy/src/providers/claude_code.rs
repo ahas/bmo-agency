@@ -37,6 +37,9 @@ pub struct Usage {
   /// How long, in seconds, an account that still cannot be read waits after one renewal was asked before
   /// another is.
   pub renewal_pause_seconds: u64,
+  /// How close to the moment its credential file states a login is near its end, in seconds: the CLI's
+  /// own margin, inside which a run of it renews the token as it goes out.
+  pub renewal_margin_seconds: u64,
   pub windows: Vec<String>,
 }
 

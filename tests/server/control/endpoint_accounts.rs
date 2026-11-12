@@ -13,6 +13,7 @@ use agency_server::control::claude_accounts::{
   Account, Credential, CredentialKind, EndpointModels, Judging, accounts, open_accounts,
 };
 use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_errored};
+use agency_server::job_run::claude::renewal::Renewing;
 use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use agency_server::now_ms;
 use agency_server::places::Ground;
@@ -208,6 +209,8 @@ struct Turn {
   tried: Vec<String>,
 }
 
+impl Renewing for Turn {}
+
 impl Attempt<String> for Turn {
   async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
     let id = account.map(|account| account.id).unwrap_or_default();
@@ -226,6 +229,8 @@ struct Refusing {
   failure: Failure,
   tried: Vec<String>,
 }
+
+impl Renewing for Refusing {}
 
 impl Attempt<String> for Refusing {
   async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {

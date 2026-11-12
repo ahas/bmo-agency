@@ -15,6 +15,7 @@ use crate::control::claude_accounts::Account;
 use crate::door::apart::{self, Apart, answered, new_session};
 use crate::door::turn::Watch;
 use crate::job_run::claude::failure::Failure;
+use crate::job_run::claude::renewal::Renewing;
 use crate::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use crate::lines::claude::{ApartRun, Command, Runs, apart_args, command_env};
 use crate::lines::worker::{effort_of, rulebook, system_prompt_file};
@@ -407,6 +408,8 @@ struct OnLogin<'a> {
   system: std::path::PathBuf,
   input: &'a str,
 }
+
+impl Renewing for OnLogin<'_> {}
 
 impl Attempt<String> for OnLogin<'_> {
   async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {

@@ -16,26 +16,16 @@ use cache_siren::codex::CodexReader;
 use cache_siren::{Keeping, Reader, Slot, Window};
 use harness_providers::balance::{OffersBalance, key_in_file};
 use harness_providers::{Machine, Provider};
-use policy::providers::claude_code::CLAUDE_CODE;
-use policy::roles::ROLES;
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
 use crate::control::claude_accounts::{Account, Credential, SEED_ACCOUNT, accounts};
-use crate::door::apart::{self, Apart, answered, new_session};
 use crate::door::record::Reply;
-use crate::door::turn::Quiet;
-use crate::job_run::claude::failure::Failure;
-use crate::job_run::claude::walk::renewed;
-use crate::lines::Trees;
-use crate::lines::claude::{ApartRun, Command, Runs, apart_args, command_env};
+use crate::job_run::claude::renewal;
 use crate::now_ms;
-use crate::places::Ground;
+use crate::places::{Ground, locks};
 
 const CODEX: &str = "codex";
-
-// The work, the line and the agent a login's renewal run goes out as.
-const RENEWAL: &str = "login-renewal";
 
 /// Every registered Claude account with usage windows, on or off, as the store holds it now: an endpoint
 /// account is paid by the request and is never asked of the reader.
@@ -91,10 +81,9 @@ impl Renewals for LoginRenewals {
   }
 }
 
-/// One run of Claude Code on a directory account's own login, so the CLI renews its token as it goes out:
-/// a run apart under the account's configuration directory, under its renewal lock, on the model and
-/// effort the usage declaration names, its one word put in with no tool shown and its answer thrown away.
-/// A token or endpoint account, and a login waiting for a person, is never run on.
+/// One run of Claude Code on a directory account's own login, so the CLI renews its token as it goes out
+/// (`renewal::run`), under the account's renewal lock, waited for where a run near its login's end holds it
+/// for the same renewal. A token or endpoint account, and a login waiting for a person, is never run on.
 pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
   let account = accounts(&ground.db)
     .await
@@ -111,58 +100,11 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
     return Err("its login waits for a person to sign in again".to_owned());
   }
 
-  let usage = &CLAUDE_CODE.usage;
-  let session = new_session();
-  let args = apart_args(
-    &ApartRun {
-      line: RENEWAL,
-      model: &usage.renewal_model,
-      effort: &usage.renewal_effort,
-      system_prompt: None,
-      mcp_config: None,
-      tools_shown: "",
-      tools_allowed: "",
-      host_commands: false,
-    },
-    &session,
-  )
-  .map_err(|why| why.detail)?;
-  let env = command_env(ground.env(), Some(&account), &Runs::Here, false).map_err(|why| why.detail)?;
-  let cwd = Trees::of(ground).agents.join(RENEWAL);
+  let _held = locks::hold(renewal::lock_path(&ground.roots.data, &account))
+    .await
+    .map_err(|why| format!("the account's renewal lock: {why}"))?;
 
-  std::fs::create_dir_all(&cwd).map_err(|why| why.to_string())?;
-
-  let apart = Apart {
-    agent: RENEWAL,
-    role: ROLES.renewal.as_str(),
-    line: RENEWAL,
-    provider: crate::lines::runner::PROVIDER,
-    title: format!("{RENEWAL} · {id} · {}", usage.renewal_model),
-    command: Command {
-      args,
-      cwd: cwd.to_string_lossy().into_owned(),
-      env,
-    },
-    session,
-    prompt: usage.renewal_words.clone(),
-    model: usage.renewal_model.clone(),
-    effort: usage.renewal_effort.clone(),
-    account: None,
-    parent: None,
-    root: None,
-    run: None,
-    resume: None,
-    resume_else: None,
-  };
-  let ending = renewed(&ground.roots.data, &account, async {
-    apart::run(ground, apart, &mut Quiet)
-      .await
-      .map_err(|message| Failure::Transport { message })
-  })
-  .await
-  .map_err(|failure| failure.message())?;
-
-  answered(ending, RENEWAL).map(drop).map_err(|failure| failure.message())
+  renewal::run(ground, &account).await.map_err(|failure| failure.message())
 }
 
 /// One provider's balance as its member declares the reading: its own road where it can answer on this

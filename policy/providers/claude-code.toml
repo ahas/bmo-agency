@@ -64,13 +64,18 @@ url = "https://api.anthropic.com/oauth/usage"
 pass_seconds = 60
 fresh_passes = 30
 refused_pause_seconds = 300
-# The run of the CLI the reader asks on a directory account's login found expired or refused, which the CLI
-# renews as it goes out: the model and effort it goes out on, the cheapest the login offers; the one word
-# that is its turn; and how long, while the account still cannot be read, before another is asked.
+# The run of the CLI that renews a directory account's login as it goes out, asked by the reader on a login
+# found expired or refused and by a run going out on a login near its end (docs/cache-fallback.md, 「A login
+# that is about to end」): the model and effort it goes out on, the cheapest the login offers; the one word
+# that is its turn; and how long, while the account still cannot be read, before the reader asks another.
 renewal_model = "haiku"
 renewal_effort = "low"
 renewal_words = "ok"
 renewal_pause_seconds = 300
+# How close to the moment its credential file states a login is near its end: the CLI's own margin, inside
+# which it renews its token as a run goes out and before which it passes the token by, so a renewal run
+# asked inside it renews.
+renewal_margin_seconds = 300
 # The windows taken out of an answer: the ones every subscription login keeps.
 windows = ["five_hour", "seven_day"]
 

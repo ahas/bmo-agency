@@ -1692,6 +1692,7 @@ async fn wait_for_road(
     .is_some()
     {
       held_for(ground, job.id, None).await;
+      noted_line(ground, job.id, "A road is open, going out").await;
 
       return Ok(true);
     }
@@ -2118,6 +2119,11 @@ pub async fn job_seat(
   let mut held =
     dispatch::enqueue(&ground.db, &ground.events, asked, dispatch::JOB, async |_, _| Ok(())).await?;
   let mut told = false;
+  let role = asked.wanted.role;
+  let seat = match asked.wanted.agent {
+    Some(agent) => format!("the agent {agent} of the {role} role"),
+    None => format!("a slot of the {role} role"),
+  };
 
   loop {
     paused_seats_given_back(ground).await;
@@ -2125,23 +2131,19 @@ pub async fn job_seat(
     if let Some(let_in) = dispatch::acquire(ground, &held).await? {
       if told {
         hold_job(ground, id, None, false).await;
+        noted_line(ground, id, &format!("Let in on {seat}, going out")).await;
       }
 
       return Ok(Some(let_in));
     }
 
-    // Not let in at its first ask: the job names the wait as its hold until it is let in, and the wait is
-    // told to the item's orderer once.
+    // Not let in at its first ask: the job names the wait as its hold until it is let in, the wait is told
+    // to the item's orderer once, and the job's log says it.
     if !told {
       told = true;
 
-      let role = asked.wanted.role;
-      let why = match asked.wanted.agent {
-        Some(agent) => format!("it waits for the agent {agent} of the {role} role"),
-        None => format!("it waits for a slot of the {role} role"),
-      };
-
-      hold_job(ground, id, Some(&why), true).await;
+      hold_job(ground, id, Some(&format!("it waits for {seat}")), true).await;
+      noted_line(ground, id, &format!("Waiting for {seat}")).await;
     }
 
     if called_off(ground, id).await {

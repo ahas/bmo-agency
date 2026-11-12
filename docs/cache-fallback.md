@@ -412,13 +412,29 @@ When a demotion first catches — when a healthy session first drops — two thi
   as shapes rather than fields, since the file's shape is the CLI's and free to move. A token file
   states no ending, so what stands for its year is the day the file was written.
 - **A login whose end cannot be read is left standing and nothing is said about it.**
-- **One renewal, not several.** Runs of one account share that account's configuration directory, and
-  two of them renewing at once would leave each holding a credential the other has replaced. So a run
-  whose login is near its end takes that account's own lock on the way out: the holder is the run whose
-  CLI renews, and the others wait and then go out on what that renewal wrote. The lock is held only
-  while the login is inside the last half hour of its life. A waiting run waits for its event, not for a
-  span: the credential file showing the renewal written, the holder letting the lock go, or the holder's
-  process ending, whichever comes first.
+- **A renewal is timed against the CLI's own margin.** The CLI renews a token only as a run goes out
+  inside the last minutes before the moment its file states, and passes it by before them, so a login
+  counts as near its end only inside that margin, which the provider's usage declaration names.
+- **One renewal, not several, and never across a turn.** Runs of one account share that account's
+  configuration directory, and two of them renewing at once would leave each holding a credential the
+  other has replaced. So a run going out on a login near its end renews it first, in a short step of its
+  own and not in its turn. The run that takes the account's own lock renews the login with one run of the
+  CLI on it whose only purpose is that renewal, the same run the usage reader asks for
+  (`docs/usage-windows.md`, 「The Claude account reader」), and lets the lock go before its turn goes out.
+  No run holds the lock across a turn, so a run that finds the lock held waits for a renewal of seconds,
+  never for another run's work.
+- **A waiting run waits for its event, not for a span:** it goes out once the credential file shows the
+  renewal written or the holder lets the lock go, the holder's process ending among the ways. A run that
+  waits says so in its log as the wait starts and again as it goes out (`docs/run-records.md`, 「Agent
+  log」).
+- **A renewal that fails on the login ends the runs waiting on it.** The holder records the refusal
+  beside the account's lock, against the moment the credential it could not renew states, before it lets
+  the lock go. So it, every run that waited on it, and every run after them while that credential stands
+  end as that login's failure without another renewal, and the walk marks the login, tells the owner once
+  and carries each run to the next login. A credential written since, by a person signing in again,
+  states another moment, and the record no longer holds. A renewal that meets a full window rests the
+  login as a turn would. A renewal that fails any other way is said, and the run goes out regardless, its
+  own CLI renewing as it goes out.
 - **A long-lived token removes the renewal:** an account pointed at one needs no browser for a year, so
   none of the above happens for it; it is warned about before that year is out like any other account.
 - **An endpoint account has no login to end.** Its key states no ending and is renewed by nobody, so it

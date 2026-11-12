@@ -4,26 +4,22 @@
 //! answers goes out on none. Where a turn fails on the login rather than on the work, the next login
 //! carries it: a full window is put to rest as it is passed over, and a login that is gone is marked and
 //! published once, as is the rest that closed the last login (docs/api.md, 「Events」). A login near its
-//! credential's end is renewed by one run at a time, under the account's own lock.
+//! credential's end is renewed before the turn goes out on it, in a step of its own (`super::renewal`): one
+//! short run of the CLI by one run at a time under the account's own lock, which no run holds across its
+//! turn; a renewal that fails on the login, or that the run waited on and saw fail so, is that login's
+//! failure like a turn's, and the walk carries the run on to the next login.
 
 use std::future::Future;
-use std::time::Duration;
 
 use super::failure::{AccountFailure, Failure};
+use super::renewal::{Renewing, renewed};
 use crate::control::claude_accounts::{
-  self, Account, Judging, account_open, carried_for_user, credential_expiry, hold_in_use, in_use,
-  reopens_at, walk_for_user,
+  self, Account, Judging, account_open, carried_for_user, hold_in_use, in_use, reopens_at, walk_for_user,
 };
 use crate::keepalive::logins;
 use crate::now_ms;
-use crate::places::{Ground, locks};
+use crate::places::Ground;
 use crate::rest::{self, DeploymentResting, RestKind};
-
-// How close to its end a login has to be for a run to take the account's lock on the way out.
-const REFRESH_WINDOW_MS: f64 = 30.0 * 60_000.0;
-
-// How often a run waiting on another run's renewal looks at the credential again.
-const REFRESH_LOOK: Duration = Duration::from_millis(500);
 
 // How long a full window rests where the run named no reset moment.
 pub const REST_FALLBACK_MS: i64 = 3_600_000;
@@ -44,8 +40,8 @@ fn refused(why: crate::control::Refused) -> Failure {
   Failure::error(why.error)
 }
 
-/// What a turn does on one login of the walk.
-pub trait Attempt<T> {
+/// What a turn does on one login of the walk, the login renewed first where it is near its end.
+pub trait Attempt<T>: Renewing {
   /// The turn on this login, or on the run as it stands where none is named.
   fn attempt(&mut self, account: Option<Account>) -> impl Future<Output = Result<T, Failure>>;
 
@@ -102,7 +98,10 @@ pub async fn on_accounts<T, A: Attempt<T>>(
   let mut last = Failure::error(format!("claude {key}: no login answered"));
 
   for (place, account) in walk.iter().enumerate() {
-    let tried = renewed(&walking.ground.roots.data, account, attempt.attempt(Some(account.clone()))).await;
+    let tried = match renewed(walking.ground, account, attempt).await {
+      Ok(()) => attempt.attempt(Some(account.clone())).await,
+      Err(failed) => Err(failed),
+    };
 
     match tried {
       Ok(result) => {
@@ -176,45 +175,6 @@ async fn closed(walking: &Walking<'_>, key: &str, carried: &[Account]) -> Result
       detail: format!("claude {key}: every login that carries this run waits for a person ({names})"),
     },
   })
-}
-
-/// The login is renewed by one run and not by several: where its credential is close to its end, this run
-/// takes the account's own lock on the way out and the others wait for what it wrote. A waiting run waits
-/// for that renewal, not for a span: it goes out once the credential is no longer near its end, or takes
-/// the lock once the holder lets it go, its process ending among the ways.
-pub async fn renewed<T>(
-  data_root: &std::path::Path,
-  account: &Account,
-  go: impl Future<Output = Result<T, Failure>>,
-) -> Result<T, Failure> {
-  let due =
-    || credential_expiry(account).is_some_and(|expiry| expiry - now_ms() as f64 <= REFRESH_WINDOW_MS);
-
-  if !due() {
-    return go.await;
-  }
-
-  let path = data_root.join("locks").join(format!("claude-account-{}.lock", account.id));
-  let held = loop {
-    if let Some(held) = locks::try_hold(&path) {
-      break Some(held);
-    }
-
-    if !due() {
-      break None;
-    }
-
-    tokio::time::sleep(REFRESH_LOOK).await;
-  };
-
-  if !due() {
-    println!("claude account {}: another run renewed its login, using what it wrote", account.id);
-  }
-
-  let result = go.await;
-
-  drop(held);
-  result
 }
 
 // What a run that answered leaves behind: the login it went out on becomes the one in use where no login
