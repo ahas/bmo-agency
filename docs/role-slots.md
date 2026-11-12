@@ -32,7 +32,7 @@ is and which one a run takes is `docs/role-agents.md`.
 - **A slot of a role whose agents name no road goes out on the road of the supervisor that asks it,** the one
   its ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
   refused 422 with why, and nothing starts. In a role that holds agents of both kinds, a slot naming no road
-  is let in on the first free agent by position, on that agent's own road or, for an agent that names none,
+  is let in on any free agent, on that agent's own road or, for an agent that names none,
   on its asking supervisor's (`docs/role-agents.md`, 「Which agent a run takes」).
 
 ## Accounts

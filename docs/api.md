@@ -276,7 +276,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | PATCH | `/roles/{roleName}` | Change any field of a role. |
 | DELETE | `/roles/{roleName}` | Remove a role no run holds or waits for and no default names. |
 | GET | `/roles/{roleName}/sessions` | The sessions the role's runs opened, newest first. |
-| GET | `/role-agents` | Every agent of every role, by role and position, or one role's. |
+| GET | `/role-agents` | Every agent of every role, by role and name, or one role's. |
 | POST | `/role-agents` | Add an agent to a role. |
 | PATCH | `/role-agents/{agentName}` | Change any field of an agent. |
 | DELETE | `/role-agents/{agentName}` | Remove an agent that carries no run. |
@@ -318,9 +318,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   it stands. A role removed takes its provider prompts with it. 404 `not-found` for a role the store
   does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
   under.
-- **Role agents.** `GET /role-agents` answers `items`, every agent by role and by its place among its role's,
+- **Role agents.** `GET /role-agents` answers `items`, every agent by role and by name,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
-  `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`, `position`,
+  `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`,
   `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
   names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
@@ -1262,10 +1262,14 @@ service.
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
     tells the orderer of each such draft once (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - an agent carrying no turn now files no item: 409 `no-turn`;
+  - **it names its agent** (`docs/repositories.md`, 「An agent an item names」): a call whose `agent` label is
+    missing, empty or `auto` is refused 409 `agent-unnamed`, nothing filed, its sentence listing the agents of
+    the role it would run as — its `role` label's, else the role a job runs as —, each with its road and
+    whether it is free or carries a run, and asking the supervisor to name one from what it has learned; an
+    agent the agency does not register is refused 422 `unknown-agent`;
   - **its steps are checked before it is filed** (`docs/job-review.md`, 「Stages」): a call whose
     `stepsCheck` is not the mark the check answers is refused 409 `steps-unchecked`, nothing filed, its
-    sentence naming the agent the item runs on — its `agent` label's, else an agent of its `role` label's
-    role, else of the role a job runs as —, the skills and the tools that agent holds, what the steps are
+    sentence naming the agent the item runs on, the skills and the tools that agent holds, what the steps are
     checked against and the mark. The mark is read off the item's title and brief and that agent alone, so
     the steps may change before the call that names it;
   - `steps`, where it names any, are the stages the item's job runs in (`docs/job-review.md`, 「Stages」):
@@ -1382,29 +1386,18 @@ service.
   the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a job's run reads the brain only through what the gate picked here.
-- **A job goes out on the road of an agent of its role** (`docs/role-agents.md`, 「Which agent a run takes」):
-  the first of the role's agents, by position, that is switched on, carries no run and whose road can answer
-  now. Two choices stand over that: the model its item names, its label `model=<provider>/<model>` other
-  than `auto` (`docs/repositories.md`, 「A model an item names」), over everything; and its repository's
-  pinned model, where the repository pins one (`docs/repositories.md`, 「A pinned model」); either is let in
-  on an agent of the role that stands on that road alone. The job answers `chosenBy`, which chose its
-  provider and model: `item`, `pin` or `order`, the first of them that stands in that order, `order` being
-  the role's agents, the road of the supervisor that asks the job where all of them name no road. A job row
-  that holds `forced` answers it as it stands; no job is given it.
-- **A role whose switched-on agents all name no road has no road of its own:** the job goes out on the road
-  of the supervisor that asks it, its `holderName`, and waits for that provider rather than moving off it.
-  A `holderName` the store holds no supervisor for, or a supervisor that names no provider, leaves no road
-  to follow: `POST /jobs` is refused 422 `role-names-no-road`, the sentence naming the role and the roads
-  its agents are on, nothing written and the assignment left held (`docs/repositories.md`, 「A job」). A role
-  with no agent switched on is closed, and its jobs wait for one rather than being refused.
-- **An item's `model` is read off the item `POST /jobs` is handed,** its `labels`, and judged as a
-  repository's pin is: a value that is no `<provider>/<model>`, a provider agency does not carry or whose
-  program does not carry the worker line, or a model it does not hold refuses the launch 422
-  `unknown-model`, the sentence quoting the label, nothing written and the assignment left held; the item's
-  orderer is told once for that label (`item-unlaunchable`, `docs/agent-control.md`, 「An item's change is
-  told to its orderer」), and the mark is let go as a job of the item is launched.
-- **A job is never refused for quota:** where none of its role's agents has quota, or the item's model or
-  the pin cannot answer, `POST /jobs` takes the job all the same and answers 201. The job
+- **A job goes out on the road of the agent its item names** (`docs/repositories.md`, 「An agent an item
+  names」), let in on that agent alone. The item's `agent` label is read off the item `POST /jobs` is handed,
+  its `labels`: an item that names none, or names `auto`, refuses the launch 422 `agent-unnamed`, the sentence
+  naming the role it would run as and listing that role's agents, each with its road and whether it is free,
+  so the supervisor names one and launches again; an agent the agency does not register refuses it 422
+  `unknown-agent`, and one that names no road 422 `agent-names-no-road`. A refusal writes nothing and leaves
+  the assignment held; the item's orderer is told once for that label (`item-unlaunchable`,
+  `docs/agent-control.md`, 「An item's change is told to its orderer」), and the mark is let go as a job of the
+  item is launched. The item's `model` label is not read. The job answers `chosenBy` `item`, its agent having
+  chosen its provider and model; a job row that holds `forced`, `pin` or `order` answers it as it stands, and
+  no job is given one now.
+- **A job is never refused for quota:** where its agent's road has no quota or cannot answer, `POST /jobs` takes the job all the same and answers 201. The job
   is written `starting`, holds its assignment, its checkout and its item's lease, and waits, answering
   `heldFor`, its sentence naming every provider's reason — the owner's switch, a spent balance or quota,
   each Claude login's own, with the moment the first of them reopens — and what a person must do for the
@@ -1414,7 +1407,8 @@ service.
   holds no slot while it waits for a road (`docs/provider-order.md`, 「When every provider is out」): its slot
   is asked as its turn goes out. A job's turn not let in at its first ask for a slot of its role names that
   wait as its `heldFor` — the agent it waits for, where its item names one, else its role — until it is let
-  in, so a job still `starting` with a `heldFor` waits rather than launches. A job's turn waiting for its card
+  in, so a job with a `heldFor` — still `starting`, or `running` toward a turn its review asked for — waits for its
+  turn and works on nothing meanwhile. A job's turn waiting for its card
   names that wait as its `heldFor` until the
   card is granted (`docs/own-llm.md`, 「An engine the arbiter stands」). A job held so — for a road, for its
   card — or not let in at its first ask for a slot of its role, is told to its item's orderer once as the

@@ -123,11 +123,11 @@ pub fn unlaunchable(item: i64, title: &str, assignee: &str, orderer: &Orderer) -
   instruction("item-unlaunchable", item, orderer, format!("Item #{item} names no repository"), order)
 }
 
-/// An item whose launch was refused for its `model` label, a provider or model agency does not hold.
-pub fn model_refused(item: i64, title: &str, label: &str, why: &str, orderer: &Orderer) -> Value {
+/// An item whose launch was refused for its `agent` label: none named, or one no job can run on.
+pub fn agent_refused(item: i64, title: &str, label: &str, why: &str, orderer: &Orderer) -> Value {
   let number = item.to_string();
   let order = fill_marks(
-    &JOB_NOTICES.model_order,
+    &JOB_NOTICES.agent_order,
     &[("item", &number), ("title", title), ("label", label), ("why", why)],
   );
 
@@ -135,7 +135,7 @@ pub fn model_refused(item: i64, title: &str, label: &str, why: &str, orderer: &O
     "item-unlaunchable",
     item,
     orderer,
-    format!("Item #{item} names a model no job can run on"),
+    format!("Item #{item} names no agent a job can run on"),
     order,
   )
 }

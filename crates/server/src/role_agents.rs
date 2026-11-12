@@ -26,7 +26,6 @@ pub struct RoleAgent {
   pub thinking: Option<String>,
   pub answer_tokens: Option<i64>,
   pub enabled: bool,
-  pub position: i64,
   /// Whether its session's cache is kept warm between runs.
   pub keeps_cache: bool,
   /// Whether its runs keep their sessions (docs/agent-roles.md, 「A role's sessions」).
@@ -70,7 +69,6 @@ impl RoleAgent {
       thinking: text("thinking")?,
       answer_tokens: row.try_get("", "answer_tokens")?,
       enabled: row.try_get::<i64>("", "enabled")? != 0,
-      position: row.try_get("", "position")?,
       keeps_cache: row.try_get::<i64>("", "keeps_cache")? != 0,
       sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
       fold_ratio: row.try_get("", "fold_ratio")?,
@@ -99,20 +97,20 @@ impl RoleAgent {
   }
 }
 
-/// Every agent the store holds, by role and then by its place among its role's.
+/// Every agent the store holds, by role and then by name.
 pub async fn every<C: ConnectionTrait>(db: &C) -> Result<Vec<RoleAgent>, Fault> {
-  all(db, r#"SELECT * FROM "role_agents" ORDER BY "role", "position", "name""#, vec![])
+  all(db, r#"SELECT * FROM "role_agents" ORDER BY "role", "name""#, vec![])
     .await?
     .iter()
     .map(RoleAgent::of)
     .collect()
 }
 
-/// A role's agents, in the order a run looks for a free one.
+/// A role's agents, by name: they stand in no order of priority, and a run naming no agent takes any that is free.
 pub async fn of_role<C: ConnectionTrait>(db: &C, role: &str) -> Result<Vec<RoleAgent>, Fault> {
   all(
     db,
-    r#"SELECT * FROM "role_agents" WHERE "role" = $1 ORDER BY "position", "name""#,
+    r#"SELECT * FROM "role_agents" WHERE "role" = $1 ORDER BY "name""#,
     vec![role.into()],
   )
   .await?
@@ -155,15 +153,15 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
   run(
     db,
     r#"INSERT INTO "role_agents"
-         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled", "position",
+         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled",
           "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions",
           "owner_account")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
          "answer_tokens" = excluded."answer_tokens", "enabled" = excluded."enabled",
-         "position" = excluded."position", "keeps_cache" = excluded."keeps_cache",
+         "keeps_cache" = excluded."keeps_cache",
          "fold_ratio" = excluded."fold_ratio", "prompt" = excluded."prompt", "bundles" = excluded."bundles",
          "skills" = excluded."skills", "sessions" = excluded."sessions",
          "owner_account" = excluded."owner_account""#,
@@ -176,7 +174,6 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       agent.thinking.clone().into(),
       agent.answer_tokens.into(),
       i64::from(agent.enabled).into(),
-      agent.position.into(),
       i64::from(agent.keeps_cache).into(),
       agent.fold_ratio.into(),
       agent.prompt.clone().into(),
@@ -190,6 +187,41 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
   .await?;
 
   Ok(())
+}
+
+/// A role's agents as a supervisor naming one for a job reads them (docs/repositories.md, 「An agent an item
+/// names」): a line an agent, with its road, and whether it is switched off or carries a run now.
+pub async fn listing<C: ConnectionTrait>(db: &C, role: &str) -> Result<String, Fault> {
+  let carrying = carrying(db, role).await?;
+  let lines: Vec<String> = of_role(db, role)
+    .await?
+    .iter()
+    .map(|agent| {
+      let road = match (&agent.provider, &agent.model) {
+        (Some(provider), Some(model)) => {
+          let effort = agent.effort.as_deref().map(|effort| format!(" at {effort}")).unwrap_or_default();
+
+          format!("{provider}/{model}{effort}")
+        }
+        _ => "the asking supervisor's road".to_owned(),
+      };
+      let standing = if !agent.enabled {
+        "switched off"
+      } else if carrying.contains(&agent.name) {
+        "carries a run now"
+      } else {
+        "free"
+      };
+
+      format!("- {}: {road}, {standing}", agent.name)
+    })
+    .collect();
+
+  Ok(if lines.is_empty() {
+    format!("(the {role} role holds no agent)")
+  } else {
+    lines.join("\n")
+  })
 }
 
 /// The agent removed; whether the store held it.

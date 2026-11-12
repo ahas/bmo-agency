@@ -8,7 +8,7 @@ orderer_depth = 16
 any_worker = "any free checkout"
 paused_order = "Item #{item} ({title}) is open in the queue {queue}, which is paused or under a hold and gives no lease."
 unlaunchable_order = "Item #{item} ({title}) names {assignee} as its repository, which no checkout agency holds is of."
-model_order = "Item #{item} ({title}) carries the label model={label}, and its launch was refused: {why}"
+agent_order = "Item #{item} ({title}) carries the label agent={label}, and its launch was refused: {why}"
 moved_order = "Item #{item} ({title}) is now {state}{merged} while its job {job} still runs on {worker}."
 closed_order = "Item #{item} ({title}) was closed as done by {by}."
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"

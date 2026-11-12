@@ -41,8 +41,9 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 ## Stages
 
 - **The stages are the orderer's, written as the item is filed** (`docs/api.md`, 「assignments and jobs」), each
-  the question the job's agent is asked at that stage; the job's worker changes none of them. Before the item
-  is filed its steps are checked against the agent the item runs on: the first filing is answered with that
+  the question the job's agent is asked at that stage; the job's worker changes none of them. The item names
+  the agent it runs on, which the orderer chooses (`docs/repositories.md`, 「An agent an item names」); before
+  it is filed its steps are checked against that agent: the first filing is answered with that
   agent's skills and tools and what to check the steps against — the orderer's own lessons, and work those
   skills, tools or lessons say is always done for work like it — and the item is filed by the filing that
   names the mark that answer gave. The shape the check names is three stages: one that finds the grounds the

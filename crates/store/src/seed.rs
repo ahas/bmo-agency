@@ -280,7 +280,7 @@ async fn role_seed<C: ConnectionTrait>(
     db,
     &format!(
       r#"{} AND r."name" = $1"#,
-      crate::migration::m20261203_000001_role_agents::AGENTS_OF_ROLES.trim_end()
+      crate::migration::m20261213_000001_agent_order_gone::AGENTS_OF_ROLES.trim_end()
     ),
     vec![role.name.clone().into()],
   )

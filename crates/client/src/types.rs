@@ -3192,8 +3192,6 @@ pub struct RoleAgent {
   pub answer_tokens: Option<i64>,
   /// an agent switched off takes no run
   pub enabled: bool,
-  /// its place among its role's agents, lowest first
-  pub position: i64,
   /// whether the session its last answered run kept is pinged before its cache cools
   pub keeps_cache: bool,
   /// whether its runs keep their sessions
@@ -3214,7 +3212,7 @@ pub struct RoleAgent {
   pub carries: bool,
 }
 
-/// RoleAgentPage: the agents, by role and position.
+/// RoleAgentPage: the agents, by role and name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleAgentPage {
@@ -3250,8 +3248,6 @@ pub struct RoleAgentChange {
   pub answer_tokens: Option<Option<i64>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub position: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub keeps_cache: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

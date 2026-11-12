@@ -2999,9 +2999,9 @@ with the session.
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
   agency holds never awaits a launch and would sit for good: its orderer is told once what it names, the
   mark let go once the item is no longer open or names a checkout agency holds. An item whose launch is
-  refused for its `model` label, a provider or model agency does not hold
-  (`docs/repositories.md`, 「A model an item names」), is told to its orderer once for that label, with the
-  refusal's reason; the mark keeps the label told, so the same label refused again is not told again and
+  refused for its `agent` label — none named, one the agency does not register, or one that names no road
+  (`docs/repositories.md`, 「An agent an item names」) — is told to its orderer once for that label, with the
+  refusal's reason, which lists the agents it may name; the mark keeps the label told, so the same label refused again is not told again and
   another one is, and it is let go once a job of the item is launched. The supervisor's manual says what
   to correct, and when to say in one line why it stays.
 - **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job

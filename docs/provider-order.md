@@ -145,16 +145,13 @@ quota is read is `docs/usage-windows.md`.
 
 ## Runs that do not walk their own role's order
 
-- **An item's own model,** its `model` label other than `auto`, carries that item's job instead of its
-  role's agents' roads and instead of its repository's pin, and the job waits while it has no quota or
-  cannot answer; nothing falls back (`docs/repositories.md`, 「A model an item names」).
-- **A repository's pinned model** carries every job in the repository whose item names no model, instead of
-  the role's agents' roads, and its work waits while the pin has no quota or cannot answer; nothing falls
-  back (`docs/repositories.md`, 「A pinned model」).
-- **A job's provider and model are chosen by the first that stands** of its item's `model`, its repository's
-  pin and its role's agents' roads, and the job says which. The road it chose is one an agent of its role is
-  on, or its slot is refused with the roads the role's agents are on (`docs/role-agents.md`, 「Which agent a
-  run takes」).
+- **A job goes out on the road of the agent its item names,** that agent's provider, model and effort, and
+  waits while that road has no quota or cannot answer; nothing falls back (`docs/repositories.md`, 「An agent
+  an item names」). Every job names one, so neither its item's `model` label nor its repository's pin carries a
+  job.
+- **A repository's pinned model** carries a run in the repository that names no agent — its worker's session
+  or standby — instead of the role's agents' roads, and that run waits while the pin has no quota or cannot
+  answer; nothing falls back (`docs/repositories.md`, 「A pinned model」).
 - **A run of a role whose agents name no road** — the supervisor's double, the `doppelganger` role, as
   seeded — goes out on the asking supervisor's own provider, model and effort as they stand when it is asked,
   and waits, never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An

@@ -9,7 +9,7 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
   for (order, marks) in [
     (&JOB_NOTICES.paused_order, &["{item}", "{title}", "{queue}"][..]),
     (&JOB_NOTICES.unlaunchable_order, &["{item}", "{title}", "{assignee}"][..]),
-    (&JOB_NOTICES.model_order, &["{item}", "{title}", "{label}", "{why}"][..]),
+    (&JOB_NOTICES.agent_order, &["{item}", "{title}", "{label}", "{why}"][..]),
     (
       &JOB_NOTICES.moved_order,
       &["{item}", "{title}", "{state}", "{merged}", "{job}", "{worker}"][..],

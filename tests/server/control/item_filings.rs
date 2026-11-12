@@ -201,9 +201,39 @@ async fn a_filing_s_steps_are_checked_against_the_agent_it_runs_on_and_its_mark_
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = crate::support::grounds::ground_on(scratch.db().clone(), home.path());
+
+  crate::support::rows::seats(scratch.db(), "coder", &[("claude-code", "claude-opus-5")]).await;
+
+  // A filing that names no agent, or `auto`, is answered with the agents of the role it would run as, for the
+  // supervisor to name one; one the agency does not register is refused (docs/repositories.md, 「An agent an item
+  // names」).
+  for labels in [&[("role", "coder")][..], &[("role", "coder"), ("agent", "auto")][..]] {
+    let unnamed = steps_check(&ground, &ask(labels)).await.unwrap_err();
+    let said = &unnamed.error;
+
+    assert_eq!(
+      (unnamed.status.as_u16(), unnamed.code.as_deref()),
+      (409, Some("agent-unnamed")),
+      "{said}"
+    );
+    assert!(
+      said.contains("The agents of the coder role:") && said.contains("- coder-01: "),
+      "{said}"
+    );
+  }
+
+  let unknown = steps_check(&ground, &ask(&[("agent", "nobody-07")])).await.unwrap_err();
+
+  assert_eq!(
+    (unknown.status.as_u16(), unknown.code.as_deref()),
+    (422, Some("unknown-agent")),
+    "{}",
+    unknown.error
+  );
+
   let filing = ItemFilingAsk {
     steps: vec!["Investigate the guard".to_owned()],
-    ..ask(&[("role", "coder")])
+    ..ask(&[("agent", "coder-01")])
   };
   let (mark, words) = steps_check(&ground, &filing).await.unwrap();
 

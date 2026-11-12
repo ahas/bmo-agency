@@ -657,19 +657,19 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
 }
 
 #[tokio::test]
-async fn an_item_whose_model_label_was_refused_is_told_once_for_that_label() {
-  use agency_server::watches::queue_idle::{MODEL_TOLD_PREFIX, model_told_let_go, tell_model_refused};
+async fn an_item_whose_agent_label_was_refused_is_told_once_for_that_label() {
+  use agency_server::watches::queue_idle::{AGENT_TOLD_PREFIX, agent_told_let_go, tell_agent_refused};
 
   use crate::support::peers::stand;
 
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let (peers, vars) = stand().await;
-  let item = json!({ "title": "on a named model", "scope": "-9500", "labels": { "model": "nowhere/x" } });
-  let why = "Item #95 names model=nowhere/x, which no job can run on";
+  let item = json!({ "title": "on a named agent", "scope": "-9500", "labels": { "agent": "nobody-07" } });
+  let why = "Item #95 names agent=nobody-07, which is no agent the agency registers";
 
-  assert!(tell_model_refused(db, &vars, 95, &item, "nowhere/x", why).await.unwrap());
-  assert!(!tell_model_refused(db, &vars, 95, &item, "nowhere/x", why).await.unwrap(), "told once");
+  assert!(tell_agent_refused(db, &vars, 95, &item, "nobody-07", why).await.unwrap());
+  assert!(!tell_agent_refused(db, &vars, 95, &item, "nobody-07", why).await.unwrap(), "told once");
   assert_eq!(kinds(&peers), vec![("item-unlaunchable:95".to_owned(), json!(-9500))]);
 
   let said = peers.lock().unwrap().instructed()[0]["said"]["order"]
@@ -677,13 +677,13 @@ async fn an_item_whose_model_label_was_refused_is_told_once_for_that_label() {
     .unwrap_or_default()
     .to_owned();
 
-  assert!(said.contains("model=nowhere/x"), "{said}");
+  assert!(said.contains("agent=nobody-07"), "{said}");
 
   // Another label refused is told again; a launch of the item lets the mark go.
-  assert!(tell_model_refused(db, &vars, 95, &item, "nowhere/y", why).await.unwrap());
-  model_told_let_go(db, 95).await;
+  assert!(tell_agent_refused(db, &vars, 95, &item, "auto", why).await.unwrap());
+  agent_told_let_go(db, 95).await;
   assert!(
-    agency_server::queue::settings::get(db, &format!("{MODEL_TOLD_PREFIX}95"))
+    agency_server::queue::settings::get(db, &format!("{AGENT_TOLD_PREFIX}95"))
       .await
       .unwrap()
       .is_none()

@@ -36,13 +36,21 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   the item's `assigneeName`, so only that repository's worker takes it; a name the agency does not hold
   is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
   the repositories to choose from. Host work names none.
-- **The item names its agent where the owner names one for this piece of work:** the label
-  `agent=<name>`, an agent as the agency registers it, of any role — `coder-03`, `worker-01`, `producer-01`.
-  Its job runs as that agent's role, on that agent's road, and is let in on that agent alone, waiting for it
-  while it is busy rather than taking another. When the owner says who does the work, or on what model, write
-  it on the item as this label with `file_item`'s labels or `job_item_update` before you launch, so every
-  relaunch keeps it; an agent's road is what names the model, so the older `model=<provider>/<model>` label
-  is not written any more. No `agent` label leaves the agent to the role's order.
+- **Every item names its agent, and you choose it:** the label `agent=<name>`, an agent as the agency
+  registers it, of any role — `coder-03`, `worker-01`, `producer-01`. Its job runs as that agent's role, on that
+  agent's road, and is let in on that agent alone, waiting for it while it is busy rather than taking another;
+  nothing in the agency picks one for you, and no agent stands before another. Where the owner names who does
+  the work, or on what model, his word is the label. Otherwise choose it yourself: read your brain by the
+  work's situation for what you learned of which agent does such work well and which falls short, weigh which
+  agents are free now, and name one. An item filed with none is answered `agent-unnamed` with the agents of
+  the role it would run as, each with its road and whether it is free; choose among them and file again. An
+  agent's road is what names the model, so the older `model=<provider>/<model>` label is not written and not
+  read.
+- **Look at the agent again as you launch.** Where the one the item names is busy and your lessons say another
+  that is free does such work as well, or what you learned since filing says another fits it better, name that
+  one with `job_item_update` before `run_job`; the owner's own word is never changed. A launch whose item names
+  no agent is refused `agent-unnamed` with the same list. What a run showed of an agent — work done well, or
+  short — is a lesson you write once the run is relayed, so the next choice reads it.
 - **Work across several repositories is one item per repository,** each with the same brief and the
   same `series=<name>` label, the name one short word for the whole of it, so the items read as one
   piece of work in the queue.

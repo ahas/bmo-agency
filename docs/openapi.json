@@ -3338,6 +3338,9 @@
           "404": {
             "$ref": "#/components/responses/UnknownRepository"
           },
+          "422": {
+            "$ref": "#/components/responses/AgentUnnamed"
+          },
           "502": {
             "$ref": "#/components/responses/UpstreamFailed"
           }
@@ -3347,6 +3350,9 @@
           "bad-request",
           "no-turn",
           "unknown-repository",
+          "agent-unnamed",
+          "unknown-agent",
+          "steps-unchecked",
           "upstream-failed"
         ],
         "requestBody": {
@@ -4660,7 +4666,7 @@
             "$ref": "#/components/responses/Gone"
           },
           "422": {
-            "$ref": "#/components/responses/UnknownModel"
+            "$ref": "#/components/responses/AgentUnnamed"
           }
         },
         "x-codes": [
@@ -4668,7 +4674,9 @@
           "bad-request",
           "conflict",
           "gone",
-          "unknown-model",
+          "agent-unnamed",
+          "unknown-agent",
+          "agent-names-no-road",
           "unknown-role"
         ],
         "requestBody": {
@@ -6223,7 +6231,7 @@
         "tags": [
           "roles"
         ],
-        "summary": "Every agent of every role, by role and position, or one role's.",
+        "summary": "Every agent of every role, by role and name, or one role's.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -13559,11 +13567,6 @@
             "type": "boolean",
             "description": "an agent switched off takes no run"
           },
-          "position": {
-            "type": "integer",
-            "format": "int64",
-            "description": "its place among its role's agents, lowest first"
-          },
           "keepsCache": {
             "type": "boolean",
             "description": "whether the session its last answered run kept is pinged before its cache cools"
@@ -13630,7 +13633,6 @@
           "thinking",
           "answerTokens",
           "enabled",
-          "position",
           "keepsCache",
           "sessions",
           "foldRatio",
@@ -13893,7 +13895,7 @@
         "required": [
           "items"
         ],
-        "description": "RoleAgentPage: the agents, by role and position."
+        "description": "RoleAgentPage: the agents, by role and name."
       },
       "RoleAgentAsk": {
         "type": "object",
@@ -13944,13 +13946,6 @@
               "boolean",
               "null"
             ]
-          },
-          "position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           },
           "keepsCache": {
             "type": [
@@ -14044,13 +14039,6 @@
               "boolean",
               "null"
             ]
-          },
-          "position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           },
           "keepsCache": {
             "type": [
@@ -15486,6 +15474,26 @@
       }
     },
     "responses": {
+      "AgentNamesNoRoad": {
+        "description": "agent-names-no-road",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "AgentUnnamed": {
+        "description": "agent-unnamed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AwaitsOwner": {
         "description": "awaits-owner",
         "content": {
@@ -15726,6 +15734,16 @@
           }
         }
       },
+      "StepsUnchecked": {
+        "description": "steps-unchecked",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "TooLarge": {
         "description": "too-large",
         "content": {
@@ -15746,8 +15764,8 @@
           }
         }
       },
-      "UnknownModel": {
-        "description": "unknown-model",
+      "UnknownAgent": {
+        "description": "unknown-agent",
         "content": {
           "application/json": {
             "schema": {

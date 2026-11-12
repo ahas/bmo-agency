@@ -4,7 +4,7 @@
 
 use agency_server::job_end::delivered_with;
 use agency_server::job_notices::{
-  awaits_close, closed, failed, model_refused, moved, owner_hears_failure, paused, question, question_due,
+  agent_refused, awaits_close, closed, failed, moved, owner_hears_failure, paused, question, question_due,
   tell_waiting, unlaunchable, waiting,
 };
 use agency_server::queue::orderer::Orderer;
@@ -137,8 +137,8 @@ fn every_queue_order_carries_its_data_and_no_instruction() {
     (paused(12, "Fix it", "todo", &orderer), &["#12", "Fix it", "todo"][..]),
     (unlaunchable(12, "Fix it", "w9", &orderer), &["#12", "Fix it", "w9"][..]),
     (
-      model_refused(12, "Fix it", "nowhere/x", "unknown model", &orderer),
-      &["#12", "Fix it", "nowhere/x", "unknown model"][..],
+      agent_refused(12, "Fix it", "nobody-07", "no agent the agency registers", &orderer),
+      &["#12", "Fix it", "agent=nobody-07", "no agent the agency registers"][..],
     ),
     (moved(&item, 34, "w1", &orderer), &["#12", "Fix it", "held", "34", "w1"][..]),
     (closed(&item, "member", &orderer), &["#12", "Fix it", "member"][..]),

@@ -27,7 +27,6 @@ fn agent(enabled: bool, keeps_cache: bool) -> RoleAgent {
     thinking: None,
     answer_tokens: None,
     enabled,
-    position: 1,
     keeps_cache,
     sessions: policy::roles::Sessions::Keep,
     fold_ratio: None,

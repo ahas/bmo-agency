@@ -16,7 +16,6 @@ use sea_orm::{QueryResult, Value as DbValue};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
-use crate::control::claude_accounts::Judging;
 use crate::events::Named;
 use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
@@ -25,7 +24,7 @@ use crate::order::Entry;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
-use crate::repositories::{AGENT_LABEL, MODEL_LABEL, Pin, ROLE_LABEL};
+use crate::repositories::{AGENT_LABEL, Pin, ROLE_LABEL};
 use crate::road::{self, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
@@ -826,21 +825,17 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
-    let item_agent = item_agent(db, item_id, &item).await?;
-    let role: String = match (&item_agent, item_role(db, item_id, &item).await?) {
-      (Some(agent), _) => agent.role.clone(),
-      (None, Some(named)) => named,
-      (None, None) => {
-        held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
-      }
-    };
-    let item_model = match &item_agent {
-      Some(agent) => agent.entry().map(|entry| Pin {
-        provider: entry.provider,
-        model: entry.model,
-      }),
-      None => item_model(&call.shared_ground(), item_id, &item).await?,
-    };
+    // Every job names its agent, which carries its role and its road (docs/repositories.md, 「An agent an item
+    // names」); a role label is still judged, and decides nothing more.
+    let asked_role = item_role(db, item_id, &item).await?.unwrap_or_else(|| {
+      held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
+    });
+    let item_agent = item_agent(&call.shared_ground(), item_id, &item, &asked_role).await?;
+    let role = item_agent.role.clone();
+    let item_model = item_agent.entry().map(|entry| Pin {
+      provider: entry.provider,
+      model: entry.model,
+    });
     // A job is never refused for quota (docs/api.md, 「assignments and jobs」): where nothing in its walk can
     // answer now, it is taken and waits `starting`, held with the reason, until a road can. The walk read
     // here says which chose the job's road, and a role with no road at all to follow is the one refusal.
@@ -888,14 +883,14 @@ impl Route for CreateJob {
         item_model.as_ref().map(|named| named.provider.clone()).into(),
         item_model.as_ref().map(|named| named.model.clone()).into(),
         resolution.chosen_by.map(|chosen| chosen.word().to_owned()).into(),
-        item_agent.as_ref().map(|agent| agent.name.clone()).into(),
+        Some(item_agent.name.clone()).into(),
       ],
     )
     .await?
     .ok_or_else(|| Refused::failed("the job was written but not answered"))?;
     let id: i64 = row.try_get("", "id")?;
 
-    crate::watches::queue_idle::model_told_let_go(db, item_id).await;
+    crate::watches::queue_idle::agent_told_let_go(db, item_id).await;
 
     run(
       db,
@@ -1754,37 +1749,65 @@ pub async fn item_model_of_job(ground: &Ground, id: i64) -> Option<Pin> {
 }
 
 /// The agent the item `POST /jobs` is handed names with its `agent` label (docs/repositories.md, 「An agent an
-/// item names」): none for `auto` or no label, 422 `unknown-agent` for one the agency does not register, and 422
-/// `agent-names-no-road` for one that follows a supervisor's road, since no supervisor asks a job.
+/// item names」): 422 `agent-unnamed` for none or `auto`, listing the agents of the role it would run as so its
+/// supervisor names one; 422 `unknown-agent` for one the agency does not register; and 422 `agent-names-no-road`
+/// for one that follows a supervisor's road, since no supervisor asks a job. A refusal is told to the item's
+/// orderer once for that label.
 async fn item_agent(
-  db: &sea_orm::DatabaseConnection,
+  ground: &Arc<Ground>,
   item_id: i64,
   item: &Value,
-) -> Result<Option<crate::role_agents::RoleAgent>, Refused> {
+  role: &str,
+) -> Result<crate::role_agents::RoleAgent, Refused> {
   let label = item["labels"][AGENT_LABEL].as_str().map(str::trim).unwrap_or_default();
+  let db = &ground.db;
+  let (sentence, code) = if label.is_empty() || label == crate::repositories::AUTO {
+    let agents = crate::role_agents::listing(db, role).await?;
+    let sentence = policy::fill_marks(
+      &policy::job_review::JOB_REVIEW.agent_unnamed,
+      &[("item", &format!("Item #{item_id}")), ("role", role), ("agents", &agents)],
+    );
 
-  if label.is_empty() || label == crate::repositories::AUTO {
-    return Ok(None);
-  }
-
-  match crate::role_agents::named(db, label).await {
-    Ok(Some(agent)) if agent.entry().is_none() => Err(
-      Refused::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        format!("Item #{item_id} names {AGENT_LABEL}={label}, which follows a supervisor's road and no supervisor asks a job"),
-      )
-      .with_code("agent-names-no-road"),
-    ),
-    Ok(Some(agent)) => Ok(Some(agent)),
-    Ok(None) => Err(
-      Refused::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
+    (sentence, "agent-unnamed")
+  } else {
+    match crate::role_agents::named(db, label).await? {
+      Some(agent) if agent.entry().is_some() => return Ok(agent),
+      Some(_) => (
+        format!(
+          "Item #{item_id} names {AGENT_LABEL}={label}, which follows a supervisor's road and no supervisor asks a job"
+        ),
+        "agent-names-no-road",
+      ),
+      None => (
         format!("Item #{item_id} names {AGENT_LABEL}={label}, which is no agent the agency registers"),
+        "unknown-agent",
+      ),
+    }
+  };
+
+  if !ground.testing() {
+    let ground = ground.clone();
+    let item = item.clone();
+    let told = if label.is_empty() { crate::repositories::AUTO.to_owned() } else { label.to_owned() };
+    let why = sentence.clone();
+
+    tokio::spawn(async move {
+      if let Err(fault) = crate::watches::queue_idle::tell_agent_refused(
+        &ground.db,
+        ground.vars(),
+        item_id,
+        &item,
+        &told,
+        &why,
       )
-      .with_code("unknown-agent"),
-    ),
-    Err(why) => Err(Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.to_string())),
+      .await
+      {
+        eprintln!("job of item #{item_id}: its refused agent was not told: {fault}");
+      }
+    });
   }
+
+  Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, sentence).with_code(code))
 }
 
 /// The role the item `POST /jobs` is handed names with its `role` label (docs/repositories.md, 「A role an item
@@ -1812,53 +1835,6 @@ async fn item_role(
     ),
     Err(why) => Err(Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.to_string())),
   }
-}
-
-/// The model the item `POST /jobs` is handed names with its `model` label, judged as a repository's pin is
-/// (docs/repositories.md, 「A model an item names」): none for `auto` or no label, and 422 `unknown-model` with
-/// the label's text for one agency does not hold, its orderer told once for that label.
-async fn item_model(ground: &Arc<Ground>, item_id: i64, item: &Value) -> Result<Option<Pin>, Refused> {
-  let label = item["labels"][MODEL_LABEL].as_str();
-  let judged = match Pin::of_label(label) {
-    Ok(None) => return Ok(None),
-    Ok(Some(named)) => crate::order::judge_one(
-      Judging::of(ground),
-      &ground.machine(),
-      crate::queue::routes::job_line(),
-      &named.view(),
-    )
-    .await
-    .map(Some),
-    Err(why) => Err(why),
-  };
-
-  judged.map_err(|why| {
-    let label = label.unwrap_or_default().trim().to_owned();
-    let sentence = format!("Item #{item_id} names {MODEL_LABEL}={label}, which no job can run on: {why}");
-
-    if !ground.testing() {
-      let ground = ground.clone();
-      let item = item.clone();
-      let why = sentence.clone();
-
-      tokio::spawn(async move {
-        if let Err(fault) = crate::watches::queue_idle::tell_model_refused(
-          &ground.db,
-          ground.vars(),
-          item_id,
-          &item,
-          &label,
-          &why,
-        )
-        .await
-        {
-          eprintln!("job of item #{item_id}: its refused model was not told: {fault}");
-        }
-      });
-    }
-
-    Refused::new(StatusCode::UNPROCESSABLE_ENTITY, sentence).with_code("unknown-model")
-  })
 }
 
 /// The role a job runs as: the one its row names, `worker` where it names none (docs/repositories.md, 「A

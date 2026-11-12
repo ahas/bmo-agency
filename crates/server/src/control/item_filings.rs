@@ -98,30 +98,49 @@ fn skill_line(skills: &std::path::Path, name: &str) -> String {
   }
 }
 
-/// What an item's steps are checked against before it is filed (docs/job-review.md, 「Stages」): the agent its
-/// labels name, or its role, else the role a job runs as; the skills and the tools that agent holds; and the mark
-/// a filing that checked them names, read off the item and that agent alone, so the steps may change between the
-/// two filings. Answers the mark and the words the supervisor is told.
-pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String, String), Refused> {
-  let agent = match given(ask.labels.get("agent")) {
-    Some(name) => crate::role_agents::named(&ground.db, name).await?,
-    None => None,
+/// The agent an item is filed for, which its `agent` label names (docs/repositories.md, 「An agent an item
+/// names」): a filing that names none, or `auto`, is refused 409 `agent-unnamed` with the agents of the role it
+/// would run as — its `role` label's, else the role a job runs as — so the supervisor names one from what it has
+/// learned; one the agency does not register is refused 422 `unknown-agent`.
+pub async fn filed_agent(
+  ground: &Ground,
+  ask: &ItemFilingAsk,
+) -> Result<crate::role_agents::RoleAgent, Refused> {
+  let label = given(ask.labels.get("agent")).filter(|name| *name != crate::repositories::AUTO);
+  let Some(name) = label else {
+    let role = given(ask.labels.get("role"))
+      .unwrap_or_else(|| crate::agent_roles::job_role())
+      .to_owned();
+    let agents = crate::role_agents::listing(&ground.db, &role).await?;
+    let sentence =
+      fill_marks(&JOB_REVIEW.agent_unnamed, &[("item", "The item"), ("role", &role), ("agents", &agents)]);
+
+    return Err(Refused::new(StatusCode::CONFLICT, sentence).with_code("agent-unnamed"));
   };
-  let role_name = agent
-    .as_ref()
-    .map(|agent| agent.role.clone())
-    .or_else(|| given(ask.labels.get("role")).map(str::to_owned))
-    .unwrap_or_else(|| crate::agent_roles::job_role().to_owned());
+
+  crate::role_agents::named(&ground.db, name).await?.ok_or_else(|| {
+    Refused::new(
+      StatusCode::UNPROCESSABLE_ENTITY,
+      format!("The item names agent={name}, which is no agent the agency registers"),
+    )
+    .with_code("unknown-agent")
+  })
+}
+
+/// What an item's steps are checked against before it is filed (docs/job-review.md, 「Stages」): the agent its
+/// labels name, refused where they name none (「filed_agent」); the skills and the tools that agent holds; and
+/// the mark a filing that checked them names, read off the item and that agent alone, so the steps may change
+/// between the two filings. Answers the mark and the words the supervisor is told.
+pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String, String), Refused> {
+  let agent = filed_agent(ground, ask).await?;
+  let role_name = agent.role.clone();
   let role = crate::agent_roles::named(&ground.db, &role_name).await?;
   let trees = Trees::of(ground);
   let plugin = Some(trees.agent_dir(&role_name).join("plugin"))
     .filter(|dir| dir.exists())
     .unwrap_or_else(|| trees.agent_dir("worker").join("plugin"));
   let skills_dir = plugin.join("skills");
-  let named_skills = agent
-    .as_ref()
-    .and_then(|agent| agent.skills.clone())
-    .or_else(|| role.as_ref().and_then(|role| role.skills.clone()));
+  let named_skills = agent.skills.clone().or_else(|| role.as_ref().and_then(|role| role.skills.clone()));
   let skills: Vec<String> = match named_skills {
     Some(named) => named,
     None => {
@@ -140,8 +159,8 @@ pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String
     }
   };
   let bundles = agent
-    .as_ref()
-    .and_then(|agent| agent.bundles.clone())
+    .bundles
+    .clone()
     .or_else(|| role.as_ref().map(|role| role.bundles.clone()))
     .unwrap_or_default();
   let listed = |lines: Vec<String>| {
@@ -150,9 +169,7 @@ pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String
   let skill_lines = listed(skills.iter().map(|name| skill_line(&skills_dir, name)).collect());
   let tool_lines =
     listed(bundles.iter().map(|bundle| format!("- {}", ROLES.bundle_label(bundle))).collect());
-  let agent_name = agent
-    .as_ref()
-    .map_or_else(|| format!("an agent of {role_name}"), |agent| agent.name.clone());
+  let agent_name = agent.name.clone();
   let digest =
     Sha256::digest(format!("{}\n{}\n{agent_name}\n{role_name}", ask.title.trim(), ask.brief.trim()));
   let mark = format!("{digest:x}")[..12].to_owned();

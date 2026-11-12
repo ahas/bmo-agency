@@ -52,8 +52,21 @@ async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) 
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
+// Every job's item names its agent (docs/repositories.md, 「An agent an item names」): the worker role's first, as
+// the store seeds it, where a test names no other.
+const AGENT: &str = "worker-01";
+
 fn item() -> Value {
-  json!({ "title": "A harmless item", "brief": "Answer that nothing is to be done.", "notes": [] })
+  item_of(AGENT)
+}
+
+fn item_of(agent: &str) -> Value {
+  json!({
+    "title": "A harmless item",
+    "brief": "Answer that nothing is to be done.",
+    "notes": [],
+    "labels": { "agent": agent },
+  })
 }
 
 async fn assigned(port: u16, token: &str, item_id: i64) -> i64 {
@@ -83,7 +96,7 @@ fn tool_host(socket: &std::path::Path) {
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 }
 
-async fn run_job(port: u16, token: &str, assignment: i64, item_id: i64) -> (u16, Value) {
+async fn run_job(port: u16, token: &str, assignment: i64, item_id: i64, item: Value) -> (u16, Value) {
   post(
     port,
     token,
@@ -93,7 +106,7 @@ async fn run_job(port: u16, token: &str, assignment: i64, item_id: i64) -> (u16,
       "itemId": item_id,
       "leaseId": 1,
       "holderName": "harness",
-      "item": item(),
+      "item": item,
     }),
   )
   .await
@@ -182,6 +195,17 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   // The worker's agents stand one on each road of its row, Claude Code's among them, once the server has
   // settled the store.
   crate::support::rows::seated_on_order(scratch.db(), "worker").await;
+  // The job's item names the agent on Claude Code's road, the one provider of the order the owner has on.
+  let on_claude = store::one(
+    scratch.db(),
+    r#"SELECT "name" FROM "role_agents" WHERE "role" = 'worker' AND "provider" = 'claude-code'"#,
+    vec![],
+  )
+  .await
+  .unwrap()
+  .expect("an agent of the worker role stands on Claude Code")
+  .try_get::<String>("", "name")
+  .unwrap();
 
   // An item naming a role the store does not hold is refused, and nothing is held for it.
   let (status, refused) = post(
@@ -222,12 +246,9 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
 
   assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
 
-  // An item naming a model agency does not hold, or a label that names no provider and model, is refused
-  // with the label's text before any road is asked, nothing written and the assignment left held.
-  for (label, quoted) in [
-    ("nowhere/some-model", "model=nowhere/some-model"),
-    ("just-a-model", "model=just-a-model"),
-  ] {
+  // An item naming no agent, or `auto`, is refused before any road is asked, nothing written and the assignment
+  // left held, its sentence listing the agents of the role it would run as for its supervisor to name one.
+  for labels in [json!({}), json!({ "agent": "auto" }), json!({ "model": "claude-code/claude-opus-5" })] {
     let (status, refused) = post(
       port,
       token,
@@ -237,13 +258,15 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
         "itemId": 41,
         "leaseId": 1,
         "holderName": "harness",
-        "item": { "title": "A harmless item", "brief": "Nothing.", "notes": [], "labels": { "model": label } },
+        "item": { "title": "A harmless item", "brief": "Nothing.", "notes": [], "labels": labels },
       }),
     )
     .await;
+    let said = refused["error"].as_str().unwrap_or_default();
 
-    assert_eq!((status, refused["code"].as_str()), (422, Some("unknown-model")), "{refused}");
-    assert!(refused["error"].as_str().unwrap().contains(quoted), "{refused}");
+    assert_eq!((status, refused["code"].as_str()), (422, Some("agent-unnamed")), "{refused}");
+    assert!(said.contains("The agents of the worker role:"), "{refused}");
+    assert!(said.contains(&format!("- {AGENT}: ")), "{refused}");
   }
 
   // An item naming an agent the agency does not register, one that follows a supervisor's road, or a role the
@@ -276,7 +299,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
 
   // Nothing in the order can answer: the job is taken all the same and waits `starting`, held with every
   // provider's reason and the moment the first login reopens, its assignment running and no slot held.
-  let (status, job) = run_job(port, token, assignment, 41).await;
+  let (status, job) = run_job(port, token, assignment, 41, item_of(&on_claude)).await;
 
   assert_eq!(status, 201, "{job}");
   assert_eq!(job["state"], "starting", "{job}");
@@ -311,9 +334,9 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     "a job waiting for a road holds no slot"
   );
 
-  // Every agent of the role on that road carries another run, so once the login reopens and the rest's change
-  // wakes the job, it is not let in on a slot: it still stands `starting`, its hold now naming the slot it
-  // waits for (docs/api.md, 「assignments and jobs」).
+  // The agent the item names carries another run, so once the login reopens and the rest's change wakes the
+  // job, it is not let in on a slot: it still stands `starting`, its hold now naming the agent it waits for
+  // (docs/api.md, 「assignments and jobs」).
   scratch
     .run(
       r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
@@ -335,7 +358,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   for _ in 0..100 {
     held = get(port, token, &format!("/jobs/{id}")).await.1;
 
-    if held["heldFor"].as_str().is_some_and(|why| why.contains("slot")) {
+    if held["heldFor"].as_str().is_some_and(|why| why.contains("waits for the agent")) {
       break;
     }
 
@@ -343,7 +366,11 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   }
 
   assert_eq!(held["state"], "starting", "{held}");
-  assert_eq!(held["heldFor"], "it waits for a slot of the worker role", "{held}");
+  assert_eq!(
+    held["heldFor"],
+    format!("it waits for the agent {on_claude} of the worker role"),
+    "{held}"
+  );
 
   // The agents are free again: the job is let in, its hold is let go, and its turn, with no herdr to stand
   // it in, fails: the job ends saying why, in its report and in its log.

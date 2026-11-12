@@ -48,7 +48,7 @@ pub async fn repository(db: &DatabaseConnection, name: &str, path: &str, with: &
   insert(db, "repositories", columns).await;
 }
 
-/// A role's agents laid down afresh, one a road named, in the order named: its seats, each on one provider and
+/// A role's agents laid down afresh, one a road named, named in the order named: its seats, each on one provider and
 /// model (docs/role-agents.md). A role given none carries no run.
 pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) {
   store::run(db, r#"DELETE FROM "role_agents" WHERE "role" = $1"#, vec![role.into()])
@@ -58,13 +58,12 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
   for (place, (provider, model)) in roads.iter().enumerate() {
     store::run(
       db,
-      r#"INSERT INTO "role_agents" ("name", "role", "provider", "model", "position") VALUES ($1, $2, $3, $4, $5)"#,
+      r#"INSERT INTO "role_agents" ("name", "role", "provider", "model") VALUES ($1, $2, $3, $4)"#,
       vec![
         format!("{role}-{:02}", place + 1).into(),
         role.into(),
         (*provider).into(),
         (*model).into(),
-        (place as i64 + 1).into(),
       ],
     )
     .await
@@ -79,7 +78,7 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
 /// role's row itself.
 pub async fn reseated(db: &DatabaseConnection) {
   store::run(db, r#"DELETE FROM "role_agents""#, vec![]).await.unwrap();
-  store::run(db, store::migration::m20261203_000001_role_agents::AGENTS_OF_ROLES, vec![])
+  store::run(db, store::migration::m20261213_000001_agent_order_gone::AGENTS_OF_ROLES, vec![])
     .await
     .unwrap();
   settled(db).await;
@@ -100,10 +99,10 @@ pub async fn seated_on_order(db: &DatabaseConnection, role: &str) {
   store::run(
     db,
     r#"INSERT INTO "role_agents"
-         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "position")
+         ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens")
        SELECT r."name" || '-' || lpad(listed.place::text, 2, '0'), r."name", listed.entry ->> 'provider',
               listed.entry ->> 'model', listed.entry ->> 'effort', listed.entry ->> 'thinking',
-              (listed.entry ->> 'answerTokens')::bigint, listed.place
+              (listed.entry ->> 'answerTokens')::bigint
        FROM "roles" r
        CROSS JOIN LATERAL jsonb_array_elements(r."provider_order"::jsonb) WITH ORDINALITY AS listed(entry, place)
        WHERE r."name" = $1"#,

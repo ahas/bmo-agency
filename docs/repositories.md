@@ -68,15 +68,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   its repository (`docs/worker-slots.md`, 「The queue with support checkouts」). Jobs on three repositories
   whose role has two agents switched on run two at a time, each in its own repository's checkout on its
   agent's provider and model; the third waits for a slot.
-- **It runs on the road of an agent of its role:** the first of the role's agents, by position, that is
-  switched on, carries no run and whose road can answer now (`docs/role-agents.md`, 「Which agent a run
-  takes」), unless its item names a model or its repository pins one (below).
-- **A role whose switched-on agents all name no road has no road of its own:** the job goes out on the road
-  of the supervisor that asks it, its `holderName`, as `docs/provider-order.md` says of such a role, and
-  waits for that provider rather than moving off it. A `holderName` the store holds no supervisor for, or a
-  supervisor that names no provider, leaves no road to follow: the launch is refused 422
-  `role-names-no-road` with the role and the roads its agents are on, and nothing is written. A role with no
-  agent switched on is closed, and its jobs wait for one (`docs/role-slots.md`, 「The cap」).
+- **It runs on the road of the agent its item names,** and on no other (「An agent an item names」 below):
+  that agent's provider, model and effort, let in on that agent alone (`docs/role-agents.md`, 「Which agent a
+  run takes」).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
@@ -85,59 +79,43 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 
 ## An agent an item names
 
-- **An item names the agent its job runs on** with its label `agent=<name>`, an agent of any role as the
-  agency registers it (`docs/role-agents.md`): the owner's word on who does the work. The job runs as that
-  agent's role, goes out on that agent's road — its provider, model and effort — and is let in on that agent
-  alone, waiting for it however long it is busy or its provider cannot answer, never on another agent of the
-  role and never on another road. An agent that names no road of its own cannot carry a job, since no supervisor
-  asked it; the launch is refused 422 `agent-names-no-road` with the agent's name. An agent the agency does not
-  register refuses the launch 422 `unknown-agent` with the label's text. An `agent` label that is `auto` or
-  empty, or none at all, names no agent, and the role and the road are found as below.
-- **A role an item names** with its label `role=<name>`, a role the store holds, is the owner's word on the role
-  alone: the launch runs as it over the role the launcher judged, on whichever agent of that role is first free.
-  A role the store does not hold refuses the launch 422 `unknown-role` with the label's text. An agent label
-  stands over a role label.
-
-## A model an item names
-
-- **An item may still name a provider and model alone** with its label `model=<provider>/<model>`, the older
-  word, which an `agent` label stands over; the console files the agent, and the launch reads `model` for the
-  items that still carry one. It names
-  the model the item was filed to run on: a provider agency carries whose program carries the worker line,
-  and a model it holds — the values a repository's pin takes, judged the same way (「A pinned model」 below);
-  a registered model is `registered/<name>`. The provider is what stands before the first `/`, the model all
-  after it. A `model` label that is `auto` or empty, or none at all, names no model, and the job goes out as
-  「A job」 above says.
-- **It carries that item's job alone,** whatever role it runs as: the run goes out on the named provider
-  and model instead of the road its role's first free agent holds and instead of its repository's pin, and
-  is let in on an agent of its role that stands on that road (`docs/role-agents.md`, 「Which agent a run
-  takes」), at the effort that agent names.
-- **A named model that is unavailable makes the job wait,** as a pin does: it is held with the reason and
-  goes out once the named provider can answer again, and it never falls back to another provider or
-  model, since the item chose it.
-- **A named model agency does not hold refuses the launch** with the label's text, and the item's orderer
-  is told once (`docs/agent-control.md`, 「An item's change is told to its orderer」); a label that does not
-  read as a provider and a model is refused alike.
-- **The job holds a slot of its role,** the agent it is let in on, like any other run.
-- **What chose a job's provider and model is the first of three that stands:** its item's `model`, else
-  its repository's pin, else its role's agents in their order. The job says which (`chosenBy`, `docs/api.md`, 「assignments and
-  jobs」).
+- **Every item names the agent its job runs on** with its label `agent=<name>`, an agent of any role as the
+  agency registers it (`docs/role-agents.md`). The supervisor that files the item names it, and may name
+  another before it launches it, choosing from what it has learned of the work and of its agents, unless the
+  owner named one himself; nothing in the agency chooses one for it. The job runs as that agent's role, goes
+  out on that agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it
+  however long it is busy or its provider cannot answer, never on another agent of the role and never on
+  another road.
+- **A launch whose item names no agent is refused** 422 `agent-unnamed`, an `agent` label that is `auto` or
+  empty alike, with the agents of the role it would run as and the item's orderer told once
+  (`docs/agent-control.md`, 「An item's change is told to its orderer」). An agent that names no road of its
+  own cannot carry a job, since no supervisor asked it; the launch is refused 422 `agent-names-no-road` with
+  the agent's name. An agent the agency does not register refuses the launch 422 `unknown-agent` with the
+  label's text.
+- **A role an item names** with its label `role=<name>` must be a role the store holds, and one it does not
+  hold refuses the launch 422 `unknown-role` with the label's text; the agent's own role is the job's role, so
+  the label decides nothing more.
+- **An item's `model` label,** the older word for its provider and model, is not read: the agent the item names
+  carries its road.
+- **What chose a job's provider and model is its item's agent,** which the job says (`chosenBy` `item`,
+  `docs/api.md`, 「assignments and jobs」).
 
 ## A pinned model
 
 - **A repository may pin a model:** a provider and one model of it — a model the Claude CLI's catalogue
   names on Claude Code, a member of a provider's own road, or an offered registration on the registry's
   provider (`docs/provider-order.md`, 「Models a provider holds」).
-- **A pin carries every job in the repository whose item names no model,** whatever role the job runs as:
-  the run goes out on the pinned provider and model, let in on an agent of its role that stands on that
-  road alone, at the effort that agent names. A pin no agent of the role stands on refuses the job's slot
-  with the roads the role's agents hold (`docs/role-agents.md`, 「Which agent a run takes」).
+- **A pin carries the runs in the repository that name no agent,** its worker's session and standby,
+  whatever role they run as: the run goes out on the pinned provider and model, let in on an agent of its role
+  that stands on that road alone, at the effort that agent names. A pin no agent of the role stands on refuses
+  the run's slot with the roads the role's agents hold (`docs/role-agents.md`, 「Which agent a run takes」). A
+  job names its agent, whose road it goes out on, so no pin carries a job.
 - **A pinned model that is unavailable makes the repository's work wait.** Where the pinned provider has no
-  quota, cannot answer now, or the pinned registration's engine is down, the job is
+  quota, cannot answer now, or the pinned registration's engine is down, the run is
   held with the reason and goes out once the pin can answer again; it never falls back to another
   provider or model.
-- **A pinned job still holds a slot of its role,** the agent on the pinned road it is let in on.
-- **The pin is set and cleared on the repository's row;** the next job reads it.
+- **A pinned run still holds a slot of its role,** the agent on the pinned road it is let in on.
+- **The pin is set and cleared on the repository's row;** the next run reads it.
 
 ## The words said to a repository
 

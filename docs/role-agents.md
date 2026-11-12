@@ -18,8 +18,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   road and that no supervisor asked. It also takes a run whose ask names a road no agent of its role stands
   on — an item's model, a repository's pin — on that road. A role all of whose agents name no road refuses
   a run that names no road and that no supervisor asks, with why. The doppelganger's agents are seeded so.
-- **A role holds no order, no cap and no forced provider.** How many of a role's runs go at once is the
-  number of its agents that are switched on, and which road a run takes is its agent's.
+- **A role holds no order, no cap and no forced provider, and its agents stand in no order of priority.** How
+  many of a role's runs go at once is the number of its agents that are switched on, and which road a run takes
+  is its agent's. Which agent does a job's work is named by the supervisor that orders it, never chosen by the
+  agency (「Which agent a run takes」).
 - **An agent belongs to an account** (`STRUCTURE.md`, 「Accounts, companies and units」): `ownerAccount`, the id of
   the login account whose seat it is, or none for the deployment's own. A run is let in only on the agents of its
   own account — the account of the supervisor that asks it, or none — so one account's runs never take another
@@ -36,8 +38,6 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   - **its road:** `provider` and `model`, both or neither, with `effort`, `thinking` (`on`, `off` or the
     provider's own) and `answerTokens`, each where it is set;
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
-  - **its place among its role's agents,** `position`, lowest first: the order a run looks for a free agent
-    in;
   - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
     kept is pinged before its cache cools, so its next run there resumes it warm
     (`docs/keepalive-schedule.md`, 「An agent's kept session」);
@@ -80,33 +80,35 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 
 ## Which agent a run takes
 
-- **A run is let in on the first agent of its role, by position, that is switched on, carries no run, and
-  whose road can answer now.** An agent carries a run while a slot request let in on it stands active. In a
-  role that holds both, an agent on a road of its own and an agent that names none stand in the one order: a
-  run a supervisor asks takes whichever comes first, the second kind on that supervisor's road, and a run no
-  supervisor asks passes the agents that name no road over.
+- **A job names its agent, always.** Its item names the agent with its `agent` label, set by the supervisor
+  that files and launches it from what it has learned of the work and of its agents, or by the owner's own
+  word; a job whose item names none is refused at its launch (`docs/repositories.md`, 「An agent an item
+  names」). Nothing in the agency picks an agent for a job.
 - **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
   only on it, on its own road, and waits for it however long it carries a run or its provider cannot answer;
-  it is never let in on another agent of the role. A job whose item names an agent asks so
-  (`docs/repositories.md`, 「An agent an item names」).
+  it is never let in on another agent of the role. Every job asks so.
+- **A run that names no agent is let in on any agent of its role that is switched on, carries no run, and
+  whose road can answer now,** taken by name where several are free; the agents hold no order of priority. An
+  agent carries a run while a slot request let in on it stands active. A run a supervisor asks may take an
+  agent that names no road, on that supervisor's road, and a run no supervisor asks passes the agents that name
+  no road over.
 - **A run that names a road takes an agent of that road alone.** An ask naming a provider and a model, or a
   model alone, is let in only on an agent whose road is that one, and waits for such an agent however long
   it takes; where no agent of the role stands on that road it is let in on an agent that names none, and
-  where the role holds no such agent either it is refused with the roads the role's agents hold. A job names the road it found free: it reads its role's roads with the agents that carry no run
-  first, so it asks for the first free agent's road.
+  where the role holds no such agent either it is refused with the roads the role's agents hold.
 - **A run waits where no agent of its role is free for it,** in its role's line, in the order asked
   (`docs/role-slots.md`, 「The line」). Where the only agents free are ones whose provider cannot answer, the
   request says why it waits, with the provider's own sentence.
 - **The slot request names its agent,** as its `seat`, from the moment it is let in, with the provider, model
   and effort it goes out on, and keeps them to its end.
 - **A reservation holds seats of a role by count,** not agents by name: a reserved seat is one fewer agent a
-  run may be let in on, and the request that takes the reservation's place is let in on whichever agent is
-  then first free.
+  run may be let in on, and the request that takes the reservation's place is let in on any agent then
+  free.
 
 ## Changing the agents
 
-- **`GET /role-agents`** lists every agent, by role and position, each with every field of its row and the
-  run it carries now, or none; `role` narrows it to one role's.
+- **`GET /role-agents`** lists every agent, by role and name, each with every field of its row and the run
+  it carries now, or none; `role` narrows it to one role's.
 - **`POST /role-agents`** adds an agent to a role: `role` required, every other field optional. It refuses a
   role the store does not hold, a name out of the pattern or already taken, a provider agency does not
   carry, a model its provider does not hold, a provider without a model or a model without a provider, a

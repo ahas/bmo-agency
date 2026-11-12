@@ -63,6 +63,9 @@ pub struct JobReview {
   pub steps_check: String,
   /// What a list of the steps check names where it holds nothing.
   pub steps_check_none: String,
+  /// What a supervisor filing or launching an item that names no agent is answered with: `{item}`, the item it
+  /// is for, `{role}` and `{agents}`, the role's agents a line each.
+  pub agent_unnamed: String,
 }
 
 /// One check a report is examined by.

@@ -132,7 +132,7 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
   for (name, account) in [("coder-07", Some("7")), ("coder-01", None)] {
     scratch
       .run(
-        r#"INSERT INTO "role_agents" ("name", "role", "position", "owner_account") VALUES ($1, 'coder', 1, $2)"#,
+        r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'coder', $2)"#,
         vec![name.into(), account.into()],
       )
       .await;

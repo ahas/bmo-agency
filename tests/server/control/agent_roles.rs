@@ -272,12 +272,12 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(
     (
       &first["name"],
-      &first["position"],
+      &first.get("position"),
       &first["enabled"],
       &first["followsSupervisor"],
       &first["carries"]
     ),
-    (&json!("reviewer-01"), &json!(1), &json!(true), &json!(false), &json!(false)),
+    (&json!("reviewer-01"), &None, &json!(true), &json!(false), &json!(false)),
     "{first}"
   );
 
@@ -290,13 +290,8 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   .await;
   assert_eq!(status, 201, "{second}");
   assert_eq!(
-    (
-      &second["provider"],
-      &second["followsSupervisor"],
-      &second["position"],
-      &second["prompt"]
-    ),
-    (&Value::Null, &json!(true), &json!(2), &json!("Review as the local one.")),
+    (&second["provider"], &second["followsSupervisor"], &second["prompt"]),
+    (&Value::Null, &json!(true), &json!("Review as the local one.")),
     "{second}"
   );
 

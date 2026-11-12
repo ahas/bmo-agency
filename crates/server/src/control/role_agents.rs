@@ -113,10 +113,6 @@ async fn judged(
     agent.enabled = enabled.as_bool().ok_or_else(|| unprocessable("enabled: true or false."))?;
   }
 
-  if let Some(position) = body.get("position") {
-    agent.position = whole(position).ok_or_else(|| unprocessable("position: a whole number."))?;
-  }
-
   if let Some(sessions) = body.get("sessions") {
     agent.sessions = sessions
       .as_str()
@@ -212,7 +208,7 @@ async fn seats_changed(
   Ok(())
 }
 
-/// `GET /role-agents`: every agent, by role and position, narrowed to one role's by `role`.
+/// `GET /role-agents`: every agent, by role and name, narrowed to one role's by `role`.
 pub struct RoleAgentList;
 
 impl Route for RoleAgentList {
@@ -262,7 +258,6 @@ impl Route for RoleAgentCreate {
       return Err(Refused::new(StatusCode::CONFLICT, format!("An agent is already named {name}.")));
     }
 
-    let last = held.agents.iter().map(|agent| agent.position).max().unwrap_or(0);
     let fresh = RoleAgent {
       name,
       role,
@@ -272,7 +267,6 @@ impl Route for RoleAgentCreate {
       thinking: None,
       answer_tokens: None,
       enabled: true,
-      position: last + 1,
       keeps_cache: false,
       sessions: policy::roles::Sessions::default(),
       fold_ratio: None,

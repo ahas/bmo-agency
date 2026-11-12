@@ -1517,7 +1517,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every agent of every role, by role and position, or one role's. */
+        /** Every agent of every role, by role and name, or one role's. */
         get: operations["listRoleAgents"];
         put?: never;
         /** Add an agent to a role. */
@@ -3957,11 +3957,6 @@ export interface components {
             answerTokens: number | null;
             /** @description an agent switched off takes no run */
             enabled: boolean;
-            /**
-             * Format: int64
-             * @description its place among its role's agents, lowest first
-             */
-            position: number;
             /** @description whether the session its last answered run kept is pinged before its cache cools */
             keepsCache: boolean;
             /** @description whether its runs keep their sessions */
@@ -4070,7 +4065,7 @@ export interface components {
              */
             share: number | null;
         };
-        /** @description RoleAgentPage: the agents, by role and position. */
+        /** @description RoleAgentPage: the agents, by role and name. */
         RoleAgentPage: {
             items: components["schemas"]["RoleAgent"][];
         };
@@ -4086,8 +4081,6 @@ export interface components {
             /** Format: int64 */
             answerTokens?: number | null;
             enabled?: boolean | null;
-            /** Format: int64 */
-            position?: number | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
             /** Format: double */
@@ -4108,8 +4101,6 @@ export interface components {
             /** Format: int64 */
             answerTokens?: number | null;
             enabled?: boolean | null;
-            /** Format: int64 */
-            position?: number | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
             /** Format: double */
@@ -4570,6 +4561,24 @@ export interface components {
         };
     };
     responses: {
+        /** @description agent-names-no-road */
+        AgentNamesNoRoad: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description agent-unnamed */
+        AgentUnnamed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description awaits-owner */
         AwaitsOwner: {
             headers: {
@@ -4786,6 +4795,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description steps-unchecked */
+        StepsUnchecked: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description too-large */
         TooLarge: {
             headers: {
@@ -4804,8 +4822,8 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description unknown-model */
-        UnknownModel: {
+        /** @description unknown-agent */
+        UnknownAgent: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6615,6 +6633,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["UnknownRepository"];
             409: components["responses"]["NoTurn"];
+            422: components["responses"]["AgentUnnamed"];
             502: components["responses"]["UpstreamFailed"];
         };
     };
@@ -7332,7 +7351,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
-            422: components["responses"]["UnknownModel"];
+            422: components["responses"]["AgentUnnamed"];
         };
     };
     readJobsByJobId: {

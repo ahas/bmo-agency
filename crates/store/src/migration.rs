@@ -70,6 +70,7 @@ mod m20261209_000001_account_seats;
 mod m20261210_000001_job_review;
 mod m20261211_000001_person_nodes;
 mod m20261212_000001_coworkers_gone;
+pub mod m20261213_000001_agent_order_gone;
 
 use sea_orm_migration::prelude::*;
 
@@ -223,6 +224,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261210_000001_job_review::Migration),
       Box::new(m20261211_000001_person_nodes::Migration),
       Box::new(m20261212_000001_coworkers_gone::Migration),
+      Box::new(m20261213_000001_agent_order_gone::Migration),
     ]
   }
 

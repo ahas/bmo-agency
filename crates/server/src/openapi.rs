@@ -1325,7 +1325,15 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("ItemFilingAsk"),
     answers: &[(201, Some("ItemFiled"), false)],
-    codes: &["bad-request", "no-turn", "unknown-repository", "upstream-failed"],
+    codes: &[
+      "bad-request",
+      "no-turn",
+      "unknown-repository",
+      "agent-unnamed",
+      "unknown-agent",
+      "steps-unchecked",
+      "upstream-failed",
+    ],
   },
   Operation {
     method: "POST",
@@ -1898,7 +1906,15 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
-    codes: &["bad-request", "conflict", "gone", "unknown-model", "unknown-role"],
+    codes: &[
+      "bad-request",
+      "conflict",
+      "gone",
+      "agent-unnamed",
+      "unknown-agent",
+      "agent-names-no-road",
+      "unknown-role",
+    ],
   },
   Operation {
     method: "GET",
@@ -2474,7 +2490,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/role-agents",
     id: "listRoleAgents",
     tag: "roles",
-    summary: "Every agent of every role, by role and position, or one role's.",
+    summary: "Every agent of every role, by role and name, or one role's.",
     params: &[Param {
       name: "role",
       place: "query",
