@@ -941,8 +941,24 @@ async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_
   scratch.run(r#"DELETE FROM "role_slot_requests""#, vec![]).await;
   nothing_started().await;
 
-  // The agent free, the supervisor's launch goes.
-  let (status, job) = launch().await;
+  // The agent free, two launches onto it at once: one goes and the other is refused.
+  std::fs::create_dir_all(home.path().join("helper-two")).unwrap();
+  repository(scratch.db(), "helper-two", &home.path().join("helper-two").to_string_lossy(), &[]).await;
 
-  assert_eq!(status, 201, "{job}");
+  let (status, other) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 82, "holderName": "harness", "assigneeName": "helper-two", "item": item() }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{other}");
+
+  let other = other["id"].as_i64().unwrap();
+  let (first, second) = tokio::join!(launch(), run_job(port, token, other, 82, item()));
+  let mut statuses = [first.0, second.0];
+
+  statuses.sort_unstable();
+  assert_eq!(statuses, [201, 409], "{} {}", first.1, second.1);
 }

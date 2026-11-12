@@ -12,7 +12,7 @@ use agent_session::{
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use sea_orm::{QueryResult, Value as DbValue};
+use sea_orm::{QueryResult, TransactionTrait, Value as DbValue};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
@@ -832,22 +832,6 @@ impl Route for CreateJob {
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
     });
     let item_agent = item_agent(&call.shared_ground(), item_id, &item, &asked_role).await?;
-
-    // Agency starts no job by itself: a launch onto an agent that carries a run is refused now rather than
-    // queued to start once the agent frees (docs/role-agents.md, 「Which agent a run takes」).
-    if let Some(carried) = agent_carries(db, &item_agent.name).await? {
-      return Err(
-        Refused::new(
-          StatusCode::CONFLICT,
-          format!(
-            "Item #{item_id} names the agent {}, which carries {carried}; launch it once the agent is free",
-            item_agent.name
-          ),
-        )
-        .with_code("agent-busy"),
-      );
-    }
-
     let role = item_agent.role.clone();
     let item_model = item_agent.entry().map(|entry| Pin {
       provider: entry.provider,
@@ -871,8 +855,33 @@ impl Route for CreateJob {
       .or_else(|| number(&item, "roomId"))
       .or_else(|| item.get("scope").and_then(Value::as_str).and_then(|scope| scope.trim().parse().ok()))
       .or_else(|| number(&item, "scope"));
+    // Agency starts no job by itself (docs/role-agents.md, 「Which agent a run takes」): a launch onto an agent
+    // that carries a run is refused now rather than queued to start once the agent frees. The agent's row is
+    // held while it is read and the job written, so two launches onto one free agent never both go.
+    let written = db.begin().await.map_err(|why| Refused::failed(why.to_string()))?;
+
+    one(
+      &written,
+      r#"SELECT 1 FROM "role_agents" WHERE "name" = $1 FOR UPDATE"#,
+      vec![item_agent.name.clone().into()],
+    )
+    .await?;
+
+    if let Some(carried) = agent_carries(&written, &item_agent.name).await? {
+      return Err(
+        Refused::new(
+          StatusCode::CONFLICT,
+          format!(
+            "Item #{item_id} names the agent {}, which carries {carried}; launch it once the agent is free",
+            item_agent.name
+          ),
+        )
+        .with_code("agent-busy"),
+      );
+    }
+
     let row = one(
-      db,
+      &written,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
               "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role", "item_provider",
               "item_model", "chosen_by", "item_agent")
@@ -898,6 +907,7 @@ impl Route for CreateJob {
     .ok_or_else(|| Refused::failed("the job was written but not answered"))?;
     let id: i64 = row.try_get("", "id")?;
 
+    written.commit().await.map_err(|why| Refused::failed(why.to_string()))?;
     crate::watches::queue_idle::agent_told_let_go(db, item_id).await;
 
     run(
@@ -923,7 +933,10 @@ crate::moved!(CreateJob);
 /// What an agent carries now, in words a launch's refusal names it by (docs/repositories.md, 「An agent an item
 /// names」): a job standing on it — starting, running, or under a review that has not paused it — else the run
 /// a slot request let in on it stands for. None where it carries nothing.
-async fn agent_carries(db: &sea_orm::DatabaseConnection, agent: &str) -> Result<Option<String>, Refused> {
+async fn agent_carries<C: sea_orm::ConnectionTrait>(
+  db: &C,
+  agent: &str,
+) -> Result<Option<String>, Refused> {
   let job = one(
     db,
     r#"SELECT "id", "item_id" FROM "jobs"
