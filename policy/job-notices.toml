@@ -29,3 +29,11 @@ waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on 
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."
 question_due_code = "job-question-due"
 failed_code = "job-failed"
+# Agency's outbox: how often its sender sends what is due; the wait after a failed try, doubled after each
+# failure up to the most; how long a standing notice waits after it was last told before it is told again; and
+# how long one try waits for the receiver's answer.
+send_seconds = 5
+retry_first_seconds = 5
+retry_most_seconds = 300
+retell_seconds = 300
+answer_seconds = 30

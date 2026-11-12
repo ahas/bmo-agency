@@ -135,6 +135,12 @@ seeds. The other crates and the server reach the store only through it.
   - the lines one BMO handed another: `relays`, one row a line — the sending and receiving BMOs, the room,
     the line, the kind, `relay` or `chat`, the state it came to, the answer or the reason, and when it was
     sent in epoch milliseconds (`docs/relays.md`, 「The record」);
+  - the notices owed to an orderer or the owner: `notices`, agency's outbox, one row a notice keyed by its kind
+    — the receiver's route it goes by (an instruction, an owner notice or a withdrawal), the body it is told
+    with as JSON, how it is kept once told (let go, kept or standing), the mark it was owed for, the
+    receiver's id of the copy told last, when it was owed, when it was last told, when it is due next, how
+    many tries it took and the last one's failure — written as a notice is owed and sent until the receiver
+    takes it (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - the settings, below.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
   kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
@@ -176,12 +182,12 @@ seeds. The other crates and the server reach the store only through it.
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
   - the queue's notices (`docs/agent-control.md`, 「An idle queue is told to the owner」 and 「An item's change
     is told to its orderer」): the idle alarm's `queue_idle_alarm`, `queue_idle_told` and
-    `queue_idle_minutes`; the marks of a notice told, by the item, the job or the question it tells of,
-    `queue_item_waiting:*`, `queue_item_told:*`, `queue_paused_told:*`, `queue_unlaunchable_told:*`,
-    `queue_agent_told:*` (the item's refused `agent` label), `queue_no_candidate_told:*` (the role and
-    model told as having no candidate), `queue_draft_told:*`, `queue_wait_told:*`, `job_moved_told:*`, `job_close_mark:*` and `question_told:*` (the receiver's
-    instruction id); and the job service's event cursor, `job_events_after`, which is the mark of every
-    notice told from its events;
+    `queue_idle_minutes`; the moment an item was first seen awaiting a launch, `queue_item_waiting:*`; the
+    marks of a notice owed once, by the item or the job it tells of, `queue_paused_told:*`,
+    `queue_unlaunchable_told:*`, `queue_agent_told:*` (the item's refused `agent` label),
+    `queue_no_candidate_told:*` (the role and model told as having no candidate), `queue_draft_told:*`,
+    `queue_wait_told:*`, `job_moved_told:*` and `job_close_mark:*`; and the job service's event cursor,
+    `job_events_after`, past which no event's notice is left unwritten;
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);

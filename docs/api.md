@@ -1344,8 +1344,8 @@ service.
   writes the final report and moves the item to `done`, which ends the lease (the job service's 「States and
   moves」), or, where the item is not to close, gives that lease back itself, and the next renewal finds it
   gone and stops. A lease the job service no longer holds is not taken again for an ended job. An item the
-  lease pass still finds leased at the pass after the one that first found its job ended is told once to its
-  orderer (`job-awaits-close`).
+  lease pass still finds leased at the pass after the one that first found its job ended is owed to its
+  orderer as a standing notice, told again until the lease ends (`job-awaits-close`).
 - **An item whose commit waits to go live stays leased until it is live.** Where the job's close handed a commit
   over, the item's labels say so (the job service's `docs/cli.md`, 「`bmo-job job close`」), and the requester
   does not move it to `done` at the job's end: it puts the commit live, and closes the item once the deployment
@@ -1633,12 +1633,13 @@ handoff, with `reason` and `room` where the turn names one, while agency still n
 waited on (`docs/sessions.md`, 「A restart hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open`, `GET /items` with `state` `draft` and `GET /items` with `state` `held` are read, and its events as a page, `GET /events` with `Accept:
 application/json` past the cursor agency keeps, narrowed to `item.changed`, `question.created`,
-`question.due` and `reply.created`; an idle queue is told once through the receiver's `POST /owner/notices`
-with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told once to
+`question.due` and `reply.created`; an idle queue is told through the receiver's `POST /owner/notices`
+with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told to
 the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event
 of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due` and
-`job-failed`, and an instruction for a question a settling reply answered is withdrawn with `DELETE
-/instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
+`job-failed`, each owed in agency's outbox and sent again until the receiver takes it, a standing one told
+again under its kind while its condition holds; and an instruction for a question a settling reply answered,
+or for a standing notice whose condition ended, is withdrawn with `DELETE /instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
 kind, event and code); the items a held item waits on are read with `GET /items/{itemId}`; the orderer is found by reading the item and the items it was raised from with `GET
 /items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`; every few seconds, for the jobs standing

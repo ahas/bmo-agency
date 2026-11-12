@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use agency_server::queue::orderer::Orderer;
 use agency_server::watches::queue_idle::{
-  DRAFT_TOLD_PREFIX, Draft, LAUNCH_TOLD_PREFIX, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
+  DRAFT_TOLD_PREFIX, Draft, LAUNCH_OWED, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
   approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started,
   launch_instruction, launches_due, notice, pass, room_of, unlaunchable, waiting,
 };
@@ -426,8 +426,9 @@ async fn a_told_item_that_stops_waiting_is_let_go_so_it_is_told_again_once_free(
   for id in [11, 12] {
     scratch
       .run(
-        r#"INSERT INTO "settings" ("key", "value") VALUES ($1, '1000')"#,
-        vec![format!("{LAUNCH_TOLD_PREFIX}{id}").into()],
+        r#"INSERT INTO "notices" ("key", "route", "body", "keep", "owed_at", "told_at", "due_at")
+           VALUES ($1, 'instruction', '{}', 'standing', 1000, 1000, 9000000000000000)"#,
+        vec![format!("{LAUNCH_OWED}{id}").into()],
       )
       .await;
   }
@@ -436,13 +437,13 @@ async fn a_told_item_that_stops_waiting_is_let_go_so_it_is_told_again_once_free(
 
   let marked = |id: i64| {
     scratch.count(
-      r#"SELECT COUNT(*) AS "count" FROM "settings" WHERE "key" = $1"#,
-      vec![format!("{LAUNCH_TOLD_PREFIX}{id}").into()],
+      r#"SELECT COUNT(*) AS "count" FROM "notices" WHERE "key" = $1"#,
+      vec![format!("{LAUNCH_OWED}{id}").into()],
     )
   };
 
   assert_eq!(marked(11).await, 1, "item 11 still waits on its free worker");
-  assert_eq!(marked(12).await, 0, "item 12's worker is busy, its mark let go");
+  assert_eq!(marked(12).await, 0, "item 12's worker is busy, its notice let go");
 }
 
 #[tokio::test]

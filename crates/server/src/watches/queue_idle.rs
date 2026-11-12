@@ -1,11 +1,11 @@
 //! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): open work in the
 //! job service that a free checkout could take, and no job started for the idle minutes, told to the owner once
-//! for each idle stretch through the receiver's owner notice. The same minute pass tells each item's orderer
-//! what calls for its judgement (「An item's change is told to its orderer」): an open item waiting a minute on
-//! a free checkout, an open item its paused queue holds, an open item whose assignee no checkout is of, a
-//! draft awaiting approval, and a held item every item it waits on has ended, each once; and it reads the job
-//! service's events for the rest. The owner's switch silences the idle notice and the launch notice until the
-//! next job starts.
+//! for each idle stretch through the receiver's owner notice. The same minute pass owes each item's orderer
+//! what calls for its judgement (「An item's change is told to its orderer」), each in agency's outbox: an open
+//! item waiting a minute on a free checkout, standing while it waits so, and, each once, an open item its paused
+//! queue holds, an open item whose assignee no checkout is of, a draft awaiting approval, and a held item every
+//! item it waits on has ended; and it reads the job service's events for the rest. The owner's switch silences
+//! the idle notice and the launch notice until the next job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,7 +17,8 @@ use serde_json::{Value, json};
 use store::{all, one};
 
 use crate::Refusal;
-use crate::job_notices::{self, Receiver};
+use crate::job_notices;
+use crate::outbox::{self, Keep, Notice, Receiver};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
 use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL, named_by};
@@ -33,8 +34,8 @@ pub const TOLD_KEY: &str = "queue_idle_told";
 pub const MINUTES_KEY: &str = "queue_idle_minutes";
 /// The settings rows, one an item by its number, of when an item was first seen waiting on a free checkout.
 pub const SEEN_PREFIX: &str = "queue_item_waiting:";
-/// The settings rows, one an item by its number, of when the orderer was told the item awaits a launch.
-pub const LAUNCH_TOLD_PREFIX: &str = "queue_item_told:";
+/// The prefix of the key an item awaiting a launch is owed under, its number after it.
+pub const LAUNCH_OWED: &str = "item-awaits-launch:";
 /// The settings rows, one an item by its number, of when the orderer was told the item waits on its paused
 /// queue.
 pub const PAUSED_TOLD_PREFIX: &str = "queue_paused_told:";
@@ -484,9 +485,10 @@ async fn orderer(service: Option<&JobService>, item: &Value) -> Result<Orderer, 
   }
 }
 
-/// The items awaiting a launch told to their orderer once each while they wait, and the rows kept for them
-/// brought up to date: a waiting item first seen now marked, and both rows of an item no longer waiting let go,
-/// so it is told again once its checkout and its agent are free again.
+/// The items awaiting a launch owed to their orderer while they wait, and the rows kept for them brought up to
+/// date: a waiting item first seen now marked, and both the mark and the standing notice of an item no longer
+/// waiting, or of every item while the switch is off, let go, so it is told again once its checkout and its agent
+/// are free again.
 pub async fn tell_launches(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -494,7 +496,10 @@ pub async fn tell_launches(
   now: i64,
 ) -> Result<(), String> {
   // A deployment that carries no receiver has no supervisor to tell.
-  let Some(receiver) = Receiver::of(vars) else { return Ok(()) };
+  if Receiver::of(vars).is_none() {
+    return Ok(());
+  }
+
   let service = JobService::of(vars);
   let fault = |why: Refusal| why.detail;
   let mut seen = marks(db, SEEN_PREFIX).await.map_err(fault)?;
@@ -513,21 +518,27 @@ pub async fn tell_launches(
     settings::forget(db, &format!("{SEEN_PREFIX}{id}")).await.map_err(fault)?;
   }
 
-  kept_marks(db, LAUNCH_TOLD_PREFIX, &awaiting).await?;
+  let mut told = BTreeMap::new();
 
-  let told = marks(db, LAUNCH_TOLD_PREFIX).await.map_err(fault)?;
+  for (item, owed) in outbox::owed(db, LAUNCH_OWED).await? {
+    match item.parse::<i64>() {
+      Ok(id) if awaiting.contains(&id) && !standing.silenced => {
+        told.insert(id, owed.owed_at);
+      }
+      _ => outbox::let_go_as_read(db, vars, &format!("{LAUNCH_OWED}{item}"), &owed).await?,
+    }
+  }
+
   let seats = seats(standing);
 
   for item in launches_due(standing, &seen, &told, now) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
     let seat = seats.get(&item.id).map(String::as_str);
+    let notice = Notice::instruction(launch_instruction(item, seat, &orderer), Keep::Standing);
 
-    receiver.instruct(&launch_instruction(item, seat, &orderer)).await?;
-    settings::set(db, &format!("{LAUNCH_TOLD_PREFIX}{}", item.id), &now.to_string())
-      .await
-      .map_err(fault)?;
+    outbox::owe(db, vars, notice).await?;
     println!(
-      "queue: item #{} waited on {} for a launch, told to its orderer",
+      "queue: item #{} waited on {} for a launch, owed to its orderer",
       item.id,
       item.assignee.as_deref().unwrap_or(&JOB_NOTICES.any_worker)
     );
@@ -544,7 +555,10 @@ pub async fn tell_stuck(
   standing: &Standing,
   now: i64,
 ) -> Result<(), String> {
-  let Some(receiver) = Receiver::of(vars) else { return Ok(()) };
+  if Receiver::of(vars).is_none() {
+    return Ok(());
+  }
+
   let service = JobService::of(vars);
   let fault = |why: Refusal| why.detail;
   let paused: BTreeSet<i64> = standing.paused.iter().map(|item| item.id).collect();
@@ -553,13 +567,13 @@ pub async fn tell_stuck(
   for item in standing.paused.iter().filter(|item| !told.contains(&item.id)) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
 
-    receiver
-      .instruct(&job_notices::paused(item.id, &item.title, &item.queue, &orderer))
-      .await?;
+    let notice = job_notices::paused(item.id, &item.title, &item.queue, &orderer);
+
+    outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
     settings::set(db, &format!("{PAUSED_TOLD_PREFIX}{}", item.id), &now.to_string())
       .await
       .map_err(fault)?;
-    println!("queue: item #{} waits on its paused queue {}, told to its orderer", item.id, item.queue);
+    println!("queue: item #{} waits on its paused queue {}, owed to its orderer", item.id, item.queue);
   }
 
   let stuck = unlaunchable(standing);
@@ -570,14 +584,14 @@ pub async fn tell_stuck(
     let assignee = item.assignee.as_deref().unwrap_or_default();
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
 
-    receiver
-      .instruct(&job_notices::unlaunchable(item.id, &item.title, assignee, &orderer))
-      .await?;
+    let notice = job_notices::unlaunchable(item.id, &item.title, assignee, &orderer);
+
+    outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
     settings::set(db, &format!("{UNLAUNCHABLE_TOLD_PREFIX}{}", item.id), &now.to_string())
       .await
       .map_err(fault)?;
     println!(
-      "queue: item #{} names {assignee}, which no checkout is of, told to its orderer",
+      "queue: item #{} names {assignee}, which no checkout is of, owed to its orderer",
       item.id
     );
   }
@@ -614,7 +628,10 @@ pub async fn tell_no_candidate(
   model: &str,
   agents: &str,
 ) -> Result<bool, String> {
-  let Some(receiver) = Receiver::of(vars) else { return Ok(false) };
+  if Receiver::of(vars).is_none() {
+    return Ok(false);
+  }
+
   let fault = |why: Refusal| why.detail;
   let key = format!("{NO_CANDIDATE_TOLD_PREFIX}{id}");
   let pair = format!("{role} {model}");
@@ -630,12 +647,12 @@ pub async fn tell_no_candidate(
   let orderer = orderer(JobService::of(vars).as_ref(), &item).await?;
   let title = item["title"].as_str().unwrap_or_default();
 
-  receiver
-    .instruct(&job_notices::no_candidate(id, title, role, model, agents, &orderer))
-    .await?;
+  let notice = job_notices::no_candidate(id, title, role, model, agents, &orderer);
+
+  outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
   settings::set(db, &key, &pair).await.map_err(fault)?;
   println!(
-    "queue: item #{id} names model={model} for the {role} role, which no agent runs, told to its orderer"
+    "queue: item #{id} names model={model} for the {role} role, which no agent runs, owed to its orderer"
   );
 
   Ok(true)
@@ -652,7 +669,10 @@ pub async fn tell_agent_refused(
   label: &str,
   why: &str,
 ) -> Result<bool, String> {
-  let Some(receiver) = Receiver::of(vars) else { return Ok(false) };
+  if Receiver::of(vars).is_none() {
+    return Ok(false);
+  }
+
   let fault = |why: Refusal| why.detail;
   let key = format!("{AGENT_TOLD_PREFIX}{id}");
 
@@ -667,9 +687,11 @@ pub async fn tell_agent_refused(
   let orderer = orderer(JobService::of(vars).as_ref(), &item).await?;
   let title = item["title"].as_str().unwrap_or_default();
 
-  receiver.instruct(&job_notices::agent_refused(id, title, label, why, &orderer)).await?;
+  let notice = job_notices::agent_refused(id, title, label, why, &orderer);
+
+  outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
   settings::set(db, &key, label).await.map_err(fault)?;
-  println!("queue: item #{id} names agent={label}, which no job can run on, told to its orderer");
+  println!("queue: item #{id} names agent={label}, which no job can run on, owed to its orderer");
 
   Ok(true)
 }
@@ -884,7 +906,7 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
 /// Each draft awaiting approval told to its orderer, once: the told rows of items no longer a draft let go, and
 /// a row kept for each told now.
 pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
-  let (Some(service), Some(receiver)) = (JobService::of(vars), Receiver::of(vars)) else {
+  let (Some(service), Some(_)) = (JobService::of(vars), Receiver::of(vars)) else {
     return Ok(());
   };
   let fault = |why: Refusal| why.detail;
@@ -899,11 +921,11 @@ pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String
   for draft in drafts_due(&drafts, &told) {
     let orderer = service.orderer_of(&draft.as_item()).await?;
 
-    receiver.instruct(&approval_instruction(draft, &orderer)).await?;
+    outbox::owe(db, vars, Notice::instruction(approval_instruction(draft, &orderer), Keep::Once)).await?;
     settings::set(db, &format!("{DRAFT_TOLD_PREFIX}{}", draft.id), &crate::now_ms().to_string())
       .await
       .map_err(fault)?;
-    println!("queue: draft #{} awaits approval, told to its orderer", draft.id);
+    println!("queue: draft #{} awaits approval, owed to its orderer", draft.id);
   }
 
   Ok(())
@@ -913,7 +935,7 @@ pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String
 /// of items no longer held, or no longer naming what they wait on, let go, and a row kept for each told now. An
 /// item waited on that the job service does not answer for ends no wait.
 pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
-  let (Some(service), Some(receiver)) = (JobService::of(vars), Receiver::of(vars)) else {
+  let (Some(service), Some(_)) = (JobService::of(vars), Receiver::of(vars)) else {
     return Ok(());
   };
   let fault = |why: Refusal| why.detail;
@@ -945,19 +967,13 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
 
     let orderer = service.orderer_of(&follower.as_item()).await?;
 
-    receiver
-      .instruct(&job_notices::wait_ended(
-        follower.id,
-        &follower.title,
-        &follower.label,
-        &waited,
-        &orderer,
-      ))
-      .await?;
+    let notice = job_notices::wait_ended(follower.id, &follower.title, &follower.label, &waited, &orderer);
+
+    outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
     settings::set(db, &format!("{WAIT_TOLD_PREFIX}{}", follower.id), &crate::now_ms().to_string())
       .await
       .map_err(fault)?;
-    println!("queue: held item #{} waits on nothing more, told to its orderer", follower.id);
+    println!("queue: held item #{} waits on nothing more, owed to its orderer", follower.id);
   }
 
   Ok(())
@@ -996,12 +1012,14 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     return Ok(());
   }
 
-  let Some(receiver) = Receiver::of(vars) else { return Ok(()) };
+  if Receiver::of(vars).is_none() {
+    return Ok(());
+  }
 
-  receiver.notify_owner(&notice(&standing)).await?;
+  outbox::owe(db, vars, Notice::owner(now, notice(&standing))).await?;
   settings::set(db, TOLD_KEY, &now.to_string()).await.map_err(|why| why.detail)?;
   println!(
-    "queue: idle for {} minutes with {} items a free checkout could take, told to the owner",
+    "queue: idle for {} minutes with {} items a free checkout could take, owed to the owner",
     standing.minutes,
     waiting(&standing).len()
   );

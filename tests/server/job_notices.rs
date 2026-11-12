@@ -12,6 +12,7 @@ use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
 use crate::support::peers::{item, stand};
+use crate::support::scratch::Scratch;
 use crate::support::wording::assert_no_instruction;
 
 fn member(item: i64, outcome: Option<&str>, room: Option<i64>) -> Value {
@@ -29,6 +30,7 @@ fn member(item: i64, outcome: Option<&str>, room: Option<i64>) -> Value {
 
 #[tokio::test]
 async fn a_job_s_wait_is_told_to_its_orderer_in_the_room_up_the_chain() {
+  let scratch = Scratch::new().await;
   let (peers, vars) = stand().await;
 
   {
@@ -39,8 +41,8 @@ async fn a_job_s_wait_is_told_to_its_orderer_in_the_room_up_the_chain() {
     held.items.insert(42, item(42, "leased", json!({})));
   }
 
-  tell_waiting(&vars, 41, "w1", "no provider of the order has quota").await;
-  tell_waiting(&vars, 42, "w1", "it waits for a slot of the worker role").await;
+  tell_waiting(scratch.db(), &vars, 41, "w1", "no provider of the order has quota").await;
+  tell_waiting(scratch.db(), &vars, 42, "w1", "it waits for a slot of the worker role").await;
 
   let told = peers.lock().unwrap().instructed();
 
@@ -64,6 +66,7 @@ async fn a_job_s_wait_is_told_to_its_orderer_in_the_room_up_the_chain() {
 
 #[tokio::test]
 async fn a_job_s_end_on_a_derived_item_is_told_to_the_orderer_of_its_parent_s_parent() {
+  let scratch = Scratch::new().await;
   let (peers, vars) = stand().await;
 
   {
@@ -76,7 +79,7 @@ async fn a_job_s_end_on_a_derived_item_is_told_to_the_orderer_of_its_parent_s_pa
     held.items.insert(52, item(52, "leased", json!({ "raisedBy": 51 })));
   }
 
-  delivered_with(&vars, &member(52, None, None)).await;
+  delivered_with(scratch.db(), &vars, &member(52, None, None)).await;
 
   let held = peers.lock().unwrap();
   let told = held.instructed();
@@ -91,13 +94,14 @@ async fn a_job_s_end_on_a_derived_item_is_told_to_the_orderer_of_its_parent_s_pa
 
 #[tokio::test]
 async fn a_failed_job_in_another_room_is_told_to_the_owner_as_well_and_not_in_his_own() {
+  let scratch = Scratch::new().await;
   let (peers, vars) = stand().await;
 
   peers.lock().unwrap().items.insert(60, item(60, "leased", json!({ "scope": "-600" })));
   peers.lock().unwrap().items.insert(61, item(61, "leased", json!({})));
 
-  delivered_with(&vars, &member(60, Some("failed"), None)).await;
-  delivered_with(&vars, &member(61, Some("blocked"), None)).await;
+  delivered_with(scratch.db(), &vars, &member(60, Some("failed"), None)).await;
+  delivered_with(scratch.db(), &vars, &member(61, Some("blocked"), None)).await;
 
   let held = peers.lock().unwrap();
   let notices = held.noticed();

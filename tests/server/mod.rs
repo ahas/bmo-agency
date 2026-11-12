@@ -107,6 +107,7 @@ mod host_run;
 mod job_leases;
 mod job_list;
 mod job_notices;
+mod outbox;
 mod job_run {
   mod claude {
     mod failure;
@@ -207,6 +208,7 @@ mod watches {
   mod links;
   mod machine;
   mod machine_turn;
+  mod notices_owed;
   mod pressure;
   mod pull_requests;
   mod queue_idle;

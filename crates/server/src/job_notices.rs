@@ -1,7 +1,7 @@
 //! What an item's orderer and the owner are told of a change in the queue (docs/agent-control.md, 「An item's
 //! change is told to its orderer」): each instruction an order under the sort `job` in the orderer's room, with
-//! a kind and an event of its row and the item's or the question's number; each owner notice a code with its
-//! fields; and the receiver they are queued with.
+//! a kind and an event of its row and the item's or the question's number; and each owner notice a code with
+//! its fields. Each is owed in agency's outbox (`crate::outbox`), which tells the receiver.
 
 use std::collections::BTreeMap;
 
@@ -10,70 +10,8 @@ use policy::job_notices::JOB_NOTICES;
 use policy::machine_turn::MACHINE_TURN;
 use serde_json::{Value, json};
 
-use crate::job_end::{address, token};
+use crate::outbox::{self, Keep, Notice};
 use crate::queue::orderer::{JobService, Orderer};
-
-/// The receiver as the queue's notices reach it: its address and token.
-#[derive(Clone, Debug)]
-pub struct Receiver {
-  url: String,
-  token: String,
-}
-
-impl Receiver {
-  /// The receiver the deployment names; none where it names none, or the ground is a test's.
-  pub fn of(vars: &BTreeMap<String, String>) -> Option<Self> {
-    let (Some(url), Some(token)) = (
-      address(vars, "BMO_RECEIVER_URL"),
-      token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
-    ) else {
-      return None;
-    };
-
-    Some(Self { url, token })
-  }
-
-  async fn post(&self, path: &str, body: &Value) -> Result<Value, String> {
-    let answer = reqwest::Client::new()
-      .post(format!("{}{path}", self.url))
-      .bearer_auth(&self.token)
-      .json(body)
-      .send()
-      .await
-      .map_err(|why| why.to_string())?;
-
-    if !answer.status().is_success() {
-      return Err(format!("the receiver answered {} to {path}", answer.status().as_u16()));
-    }
-
-    Ok(answer.json().await.unwrap_or(Value::Null))
-  }
-
-  /// An instruction queued: the id the receiver answers it with, where it answers one.
-  pub async fn instruct(&self, body: &Value) -> Result<Option<i64>, String> {
-    Ok(self.post("/instructions", body).await?["id"].as_i64())
-  }
-
-  /// An owner notice queued.
-  pub async fn notify_owner(&self, body: &Value) -> Result<(), String> {
-    self.post("/owner/notices", body).await.map(|_| ())
-  }
-
-  /// A pending instruction withdrawn; one already handed or gone is no refusal.
-  pub async fn withdraw(&self, id: i64) -> Result<(), String> {
-    let answer = reqwest::Client::new()
-      .delete(format!("{}/instructions/{id}", self.url))
-      .bearer_auth(&self.token)
-      .send()
-      .await
-      .map_err(|why| why.to_string())?;
-
-    match answer.status() {
-      status if status.is_success() || status == reqwest::StatusCode::NOT_FOUND => Ok(()),
-      status => Err(format!("the receiver answered {} to the withdrawal", status.as_u16())),
-    }
-  }
-}
 
 /// An instruction for an orderer: an order under the sort `job` in its room, the owner's private room where it
 /// names none, of the row `event` about `number`, so a newer one of the same kind replaces one still pending.
@@ -359,10 +297,17 @@ pub fn failed(member: &Value, room: Option<i64>) -> Value {
   })
 }
 
-/// A job's wait told to its item's orderer as it begins (「A job's wait is told as it begins」); a deployment
-/// naming no job service or no receiver tells nothing, and a call that fails is said and fails nothing.
-pub async fn tell_waiting(vars: &BTreeMap<String, String>, item: i64, worker: &str, why: &str) {
-  let (Some(service), Some(receiver)) = (JobService::of(vars), Receiver::of(vars)) else {
+/// A job's wait owed to its item's orderer as it begins (「A job's wait is told as it begins」); a deployment
+/// naming no job service or no receiver tells nothing, and a notice that could not be owed is said and fails
+/// nothing.
+pub async fn tell_waiting(
+  db: &sea_orm::DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  item: i64,
+  worker: &str,
+  why: &str,
+) {
+  let (Some(service), Some(_)) = (JobService::of(vars), outbox::Receiver::of(vars)) else {
     return;
   };
 
@@ -370,14 +315,14 @@ pub async fn tell_waiting(vars: &BTreeMap<String, String>, item: i64, worker: &s
     return;
   }
 
-  let told = async {
+  let owed = async {
     let (_, orderer) = service.orderer_of_id(item).await?;
 
-    receiver.instruct(&waiting(item, worker, why, &orderer)).await
+    outbox::owe(db, vars, Notice::instruction(waiting(item, worker, why, &orderer), Keep::Once)).await
   };
 
-  match told.await {
-    Ok(_) => println!("job of item #{item}: its wait told to its orderer"),
-    Err(why) => eprintln!("job of item #{item}: its wait was not told: {why}"),
+  match owed.await {
+    Ok(()) => println!("job of item #{item}: its wait owed to its orderer"),
+    Err(why) => eprintln!("job of item #{item}: its wait was not owed: {why}"),
   }
 }

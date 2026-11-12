@@ -2959,22 +2959,50 @@ with the session.
   beside it. The data of every order stands in `policy/job-notices.toml`, beside the launch and draft orders
   of `policy/queue-idle.toml`: an order carries that data and a short marker, never an instruction, and
   what each kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」).
-- **Told once for each transition.** Each notice keeps a mark in agency's settings table, keyed by the item,
-  the job or the question and, where one transition can come again, by the state it reached; the mark is let
-  go once the item, the job or the question has moved on, so neither a restart nor the next pass repeats a
-  notice, and a transition that comes again is told again. No clock decides whether a notice is due beyond
-  the launch's own minute below: every one is keyed by the transition it tells.
+- **Every notice is owed before it is told.** A notice is first written as a row of agency's outbox, the
+  store's `notices` table (`docs/store.md`), keyed by its kind: an instruction's `kind`, or an owner notice's
+  code with the job, the question or the moment it tells of. The row carries the body it is told with, and a
+  newer notice of the same kind replaces the row, as the receiver replaces the pending copy of the same kind.
+  The row is sent as it is written, and then by agency's sender every `send_seconds`
+  (`policy/job-notices.toml`), again and again, the wait between tries doubling from `retry_first_seconds` to
+  at most `retry_most_seconds`, until the receiver takes it: an instruction once the receiver answers its
+  instruction id, an owner notice once it answers success, a withdrawal once it answers success or that the
+  instruction is gone. A transport error, a 5xx, a 401, 403, 408 or 429 is never a notice's end; any other
+  answer refusing the notice is said in agency's log and ends that copy. A restart of agency or of the receiver
+  loses no notice: the rows stand in the store, and the sender's first pass after agency starts sends every
+  one still owed.
+- **A row told is let go, kept, or kept standing.** How each kind is kept once the receiver took it:
+  - **let go**, the notice told at least once and done: a job's end and failure, a job's wait, a checkout
+    given up, an item moved under its job, closed by another, waiting on a paused queue, unlaunchable, without
+    a candidate, a draft awaiting approval, a wait ended, a question past its due time, and an idle queue;
+  - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
+    `DELETE /instructions/{id}`: a job's question, withdrawn once a settling reply comes;
+  - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
+    again at every start of agency and every `retell_seconds` after it was last told, under the same kind, so
+    the receiver replaces the copy still pending rather than queueing a second one. These are a check of a
+    job's review due with no move of the orderer's, a job's commit handed over and not live, an item awaiting
+    a launch on a free checkout and agent, and an ended job's item left leased. Once the condition ends the
+    row is let go, and the copy told last withdrawn where the receiver still holds it pending.
+- **Owed for each transition.** A notice told once keeps a mark in agency's settings table, keyed by the item,
+  the job or the question and, where one transition can come again, by the state it reached; a standing
+  notice's row is its own mark. The mark is written with the notice's row, not when the receiver takes it,
+  and let go once the item, the job or the question has moved on, so neither a restart nor the next pass
+  owes a notice twice, and a transition that comes again is owed again. No clock decides whether a
+  notice is owed beyond the launch's own minute below: every one is keyed by the transition it tells.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
   (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `question.created`, `question.due`
   and `reply.created`, past its cursor), keeping the last event's number as the settings row
   `job_events_after`. A pass with no cursor, or one the job service answers 410 because the cursor left its
-  window, reads to the end and keeps the last number, telling nothing of what it passed. The cursor is the
-  mark of every notice told from the events, kept after each page, so each event is told of once. An item's
-  event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item.
+  window, reads to the end and keeps the last number, telling nothing of what it passed. The cursor advances
+  only past events whose notices are written: a page's events are taken in order, and an event whose notice
+  could not be written — its orderer not read, the store refusing the row — ends the pass there, the cursor
+  kept at the event before it, so the next pass takes that event again. Taking an event again owes nothing
+  twice: a row replaces its own kind, and a question past its due time or ruled moves the job's review once.
+  An item's event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), standing while it waits so; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
 | An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
@@ -2982,24 +3010,25 @@ with the session.
 | A held item whose `follows` or `waiting-on` label names items that are all `done` now, none with its commit still waiting to go live | the orderer | instruction | `item-wait-ended:<item>`, `item-wait-ended:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
-| A job's close that handed its commit over and waits on its deployment, its item labelled `close-phase` `waiting-live` with `close-commit` — told once for each commit | the orderer | instruction, from the events | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
+| A job's close that handed its commit over and waits on its deployment, its item labelled `close-phase` `waiting-live` with `close-commit` — owed for each commit | the orderer | instruction, from the events, standing until the item leaves `waiting-live` or no job of agency's runs on it | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
-| A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes | `job-review:<item>`, `job-review:#<item>` |
+| A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |
 | A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner | owner notice, beside the orderer's instruction | code `job-failed` |
-| An ended job's item still leased at the lease pass after the one that first found it so | the orderer | instruction, from the lease pass | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |
+| An ended job's item still leased at the lease pass after the one that first found it so | the orderer | instruction, from the lease pass, standing while the lease stands | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |
 | An idle queue | the owner | owner notice (「An idle queue is told to the owner」) | code `queue-idle` |
 
 - **An item that could go is told to its orderer on its own.** Where an open item waits to go, and it is
   still waiting a minute after agency first saw it so, agency queues one instruction for its orderer
   naming the item, its title and its worker, and, for an item naming a model, the agent it would take; the
   supervisor's manual says to launch it or say in one line
-  why not. The moment it was first seen waiting and the moment it was told are kept by the item's number,
-  each let go once the item no longer waits to go, so an item that stopped waiting because its checkout or
-  its agent took another run is told again once they are free. An item naming a model waits to go on one agent
+  why not. The moment it was first seen waiting is kept by the item's number and the notice's row by its kind,
+  the row standing, told again while the item waits to go; both are let go once the item no longer waits to
+  go, so an item that stopped waiting because its checkout or its agent took another run is told again once
+  they are free. An item naming a model waits to go on one agent
   of its candidates: going through the waiting items in the queue's order, it is set on the first of its free
   candidates by name that no item before it is set on, else on the first of its free candidates, so free agents
   of one model are offered different items at once. Of the items that wait to go on one agent,
@@ -3069,9 +3098,10 @@ with the session.
 - **A job's question goes to the owner through its orderer.** A `question.created` event is told to the
   orderer of the question's item, else to the room its `scope` names: the order carries the question, its
   item and its choices, and the supervisor's manual says to put it to the owner in his own chat and never
-  answer it for him. The instruction's id the receiver answers is kept by the question, and a settling
-  reply (`reply.created` whose `settles` holds) withdraws it with the receiver's
-  `DELETE /instructions/{id}`; a withdrawn instruction already handed is no refusal. A `question.due` event,
+  answer it for him. The instruction's id the receiver answers is kept on the question's row, and a
+  settling reply (`reply.created` whose `settles` holds) lets the row go, withdrawing it with the receiver's
+  `DELETE /instructions/{id}`, or, where the question was not told yet, telling it no more; a withdrawn
+  instruction already handed is no refusal. A `question.due` event,
   the question still open past its due time, is an owner notice `job-question-due` with the question, its
   item, its text and its choices, since only the owner can answer it; it is told once for the question.
 - **A job's wait is told as it begins.** A job held for a road (its `heldFor` written) or not let in at its
@@ -3081,10 +3111,10 @@ with the session.
   to its orderer as every end is, and, where the orderer is a room other than the owner's private room, also
   queued as an owner notice `job-failed` naming the job, the item, the checkout, the outcome and the room, so
   the owner hears of a failure in a room he may not read.
-- **An ended job's item left unclosed is told once.** An ended job keeps its item's lease for the close; the
+- **An ended job's item left unclosed stays owed.** An ended job keeps its item's lease for the close; the
   first lease pass that finds the lease still standing marks it, and the next pass that still finds it
-  standing tells the orderer once to close the item or give the lease back. The mark is let go once the
-  lease ends.
+  standing owes the orderer a standing notice to close the item or give the lease back. The mark and the
+  notice are let go once the lease ends.
 
 ### Pressure told as a fact
 

@@ -3,8 +3,9 @@
 //! withdrawn once a reply settles it, a question past its due time told to the owner, each once; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed.
 
+use agency_server::outbox::owed;
 use agency_server::queue::settings;
-use agency_server::watches::job_events::{CURSOR_KEY, QUESTION_TOLD_PREFIX, pass};
+use agency_server::watches::job_events::{CURSOR_KEY, DEPLOY_OWED, QUESTION_OWED, pass};
 use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
@@ -167,10 +168,9 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
     assert!(held.withdrawn().is_empty(), "a word that settles nothing withdraws nothing");
   }
 
-  assert_eq!(
-    settings::get(db, &format!("{QUESTION_TOLD_PREFIX}5")).await.unwrap().as_deref(),
-    Some("1")
-  );
+  let question = owed(db, &format!("{QUESTION_OWED}5")).await.unwrap().remove("").unwrap();
+
+  assert!(question.told_at.is_some(), "the question's row kept, told");
 
   peers.lock().unwrap().events.push(event(
     25,
@@ -178,7 +178,7 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
     json!({ "id": 2, "questionId": 5, "settles": true, "choice": "a" }),
   ));
   pass(db, &vars).await.unwrap();
-  assert_eq!(settings::get(db, &format!("{QUESTION_TOLD_PREFIX}5")).await.unwrap(), None);
+  assert!(owed(db, &format!("{QUESTION_OWED}5")).await.unwrap().is_empty(), "its row let go");
 
   let held = peers.lock().unwrap();
 
@@ -206,4 +206,87 @@ async fn a_cursor_past_the_window_reads_again_from_the_oldest_telling_nothing_it
 
   assert!(peers.lock().unwrap().instructed().is_empty());
   assert_eq!(settings::get(db, CURSOR_KEY).await.unwrap().as_deref(), Some("31"));
+}
+
+#[tokio::test]
+async fn an_event_whose_notice_could_not_be_owed_holds_the_cursor_before_it_until_it_is() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "40").await.unwrap();
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.items.insert(82, item(82, "leased", json!({ "scope": "-820" })));
+    // The item the second question stands on cannot be read: its orderer is not found.
+    held.failing.insert("/items/83".to_owned());
+    held.events = vec![
+      event(41, "question.created", json!({ "id": 8, "itemId": 82, "text": "first", "choices": [] })),
+      event(
+        42,
+        "question.created",
+        json!({ "id": 9, "itemId": 83, "text": "second", "choices": [] }),
+      ),
+      closed(43, 84, Some("someone")),
+    ];
+  }
+
+  assert!(pass(db, &vars).await.is_err());
+  assert_eq!(settings::get(db, CURSOR_KEY).await.unwrap().as_deref(), Some("41"));
+  assert_eq!(peers.lock().unwrap().instructed().len(), 1, "only the event before it told");
+
+  peers.lock().unwrap().failing.clear();
+  pass(db, &vars).await.unwrap();
+
+  let kinds: Vec<Value> =
+    peers.lock().unwrap().instructed().iter().map(|told| told["kind"].clone()).collect();
+
+  assert_eq!(
+    kinds,
+    [
+      json!("question-awaits-answer:8"),
+      json!("question-awaits-answer:9"),
+      json!("item-closed:84")
+    ]
+  );
+  assert_eq!(settings::get(db, CURSOR_KEY).await.unwrap().as_deref(), Some("43"));
+}
+
+#[tokio::test]
+async fn a_commit_waiting_to_go_live_stays_owed_until_its_item_no_longer_waits() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let waiting = |id: i64, commit: &str| {
+    event(
+      id,
+      "item.changed",
+      item(
+        90,
+        "leased",
+        json!({ "previousState": "leased", "labels": { "close-phase": "waiting-live", "close-commit": commit } }),
+      ),
+    )
+  };
+
+  settings::set(db, CURSOR_KEY, "50").await.unwrap();
+  peers.lock().unwrap().events = vec![waiting(51, "abc"), waiting(52, "abc"), waiting(53, "def")];
+  pass(db, &vars).await.unwrap();
+
+  let owed = agency_server::outbox::owed(db, DEPLOY_OWED).await.unwrap();
+
+  assert_eq!(owed["90"].mark, "def", "owed once a commit, and afresh for the next");
+  assert_eq!(peers.lock().unwrap().instructed().len(), 2);
+
+  peers.lock().unwrap().events.push(event(
+    54,
+    "item.changed",
+    item(90, "leased", json!({ "previousState": "leased", "labels": {} })),
+  ));
+  pass(db, &vars).await.unwrap();
+
+  assert!(agency_server::outbox::owed(db, DEPLOY_OWED).await.unwrap().is_empty());
+  assert_eq!(peers.lock().unwrap().withdrawn(), ["2"], "the copy told last withdrawn");
 }

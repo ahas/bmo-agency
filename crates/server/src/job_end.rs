@@ -1,11 +1,11 @@
 //! A job's end giving back its slot, reaching its orderer, and its lease kept for the item's close or given
 //! back (docs/api.md, 「assignments and jobs」): the slot every request of the job's run held, given back
-//! whatever its lease is bound to; the report a run left, queued for the item's orderer through the receiver's
-//! instruction route, and a failure in another room told to the owner as well; the job service's lease on the
+//! whatever its lease is bound to; the report a run left, owed to the item's orderer in agency's outbox, which
+//! queues it through the receiver's instruction route, and a failure in another room owed to the owner as well; the job service's lease on the
 //! item kept standing where the job ended, so the item stays leased until its close ends the lease, and given
 //! back where it was stopped, so the item is open again for a rerun. A run's end is written where the run
 //! ends, so neither the room's session being replaced nor the harness that launched the job being gone loses
-//! it: the receiver keeps the row until a turn takes it.
+//! it: the outbox keeps the notice until the receiver takes it, and the receiver keeps it until a turn does.
 
 use std::collections::BTreeMap;
 
@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use store::run;
 
 use crate::order_run::dispatch;
+use crate::outbox::{Keep, Notice};
 use crate::places::Ground;
 
 fn setting<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str> {
@@ -104,11 +105,11 @@ pub async fn delivered(ground: &Ground, member: &Value) {
     return;
   }
 
-  delivered_with(ground.vars(), member).await;
+  delivered_with(&ground.db, ground.vars(), member).await;
 }
 
 /// The same, kept from the settings the deployment names, so a test reaches it with a map of its own.
-pub async fn delivered_with(vars: &BTreeMap<String, String>, member: &Value) {
+pub async fn delivered_with(db: &DatabaseConnection, vars: &BTreeMap<String, String>, member: &Value) {
   if test_ground(vars) {
     eprintln!("job {}: its end was not delivered: the ground is a test's", id_of(member));
 
@@ -119,7 +120,7 @@ pub async fn delivered_with(vars: &BTreeMap<String, String>, member: &Value) {
     return_lease(vars, member).await;
   }
 
-  tell_room(vars, member).await;
+  tell_room(db, vars, member).await;
 }
 
 /// The lease a stopped job's item was held by, given back, so the item is open again for a rerun. A lease
@@ -154,30 +155,29 @@ async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
   }
 }
 
-/// The job's report queued for the item's orderer: an instruction that waits in the receiver for the next
-/// turn, naming the item and carrying the report whole; and a failure in a room other than the owner's own
-/// told to the owner as well. No address is a deployment that carries no receiver, and then no one is told.
-async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
-  let (Some(url), Some(token)) = (
-    address(vars, "BMO_RECEIVER_URL"),
-    token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
-  ) else {
+/// The job's report owed to the item's orderer: an instruction that waits in the receiver for the next turn,
+/// naming the item and carrying the report whole; and a failure in a room other than the owner's own owed to the
+/// owner as well. No receiver named is a deployment that carries none, and then no one is told.
+async fn tell_room(db: &DatabaseConnection, vars: &BTreeMap<String, String>, member: &Value) {
+  if crate::outbox::Receiver::of(vars).is_none() {
     eprintln!("job {}: its end was not told to the room: no receiver is named", id_of(member));
 
     return;
-  };
-  let orderer = orderer(vars, member).await;
-  let body = instruction_body(member, &orderer);
-
-  if let Err(why) = post_instruction(&url, &token, &body).await {
-    eprintln!("job {}: its end was not told to the room: {why}", id_of(member));
   }
 
-  if crate::job_notices::owner_hears_failure(member, &orderer)
-    && let Some(receiver) = crate::job_notices::Receiver::of(vars)
-    && let Err(why) = receiver.notify_owner(&crate::job_notices::failed(member, orderer.room)).await
-  {
-    eprintln!("job {}: its failure was not told to the owner: {why}", id_of(member));
+  let orderer = orderer(vars, member).await;
+  let ended = Notice::instruction(instruction_body(member, &orderer), Keep::Once);
+
+  if let Err(why) = crate::outbox::owe(db, vars, ended).await {
+    eprintln!("job {}: its end was not owed to the room: {why}", id_of(member));
+  }
+
+  if crate::job_notices::owner_hears_failure(member, &orderer) {
+    let failed = Notice::owner(id_of(member), crate::job_notices::failed(member, orderer.room));
+
+    if let Err(why) = crate::outbox::owe(db, vars, failed).await {
+      eprintln!("job {}: its failure was not owed to the owner: {why}", id_of(member));
+    }
   }
 }
 

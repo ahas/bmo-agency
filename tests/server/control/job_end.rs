@@ -208,7 +208,7 @@ async fn an_ended_job_keeps_its_lease_through_the_close_and_its_item_never_passe
 
   // The end as the server delivers it: the lease kept for the close, and the room told.
   delivered(&ground(&scratch, home.path()), &ended).await;
-  delivered_with(&vars, &ended).await;
+  delivered_with(scratch.db(), &vars, &ended).await;
 
   {
     let heard = heard.lock().unwrap();
@@ -258,7 +258,9 @@ async fn a_stopped_job_gives_its_lease_back_so_its_item_is_open_for_a_rerun() {
 
   stopped["state"] = json!("stopped");
 
-  delivered_with(&peers(&address), &stopped).await;
+  let scratch = Scratch::new().await;
+
+  delivered_with(scratch.db(), &peers(&address), &stopped).await;
 
   let heard = heard.lock().unwrap();
   let lease = heard
@@ -315,7 +317,7 @@ async fn a_test_ground_reaches_no_peer_even_one_it_names() {
   ]
   .into();
 
-  delivered_with(&vars, &member(Some("The work is done."), None)).await;
+  delivered_with(scratch.db(), &vars, &member(Some("The work is done."), None)).await;
   assert!(agency_server::job_leases::pass(scratch.db(), &vars).await.unwrap().is_empty());
   agency_server::watches::queue_idle::pass(scratch.db(), &vars).await.unwrap();
 

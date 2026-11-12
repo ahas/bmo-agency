@@ -67,6 +67,7 @@ pub mod mcp;
 pub mod openapi;
 pub mod order;
 pub mod order_run;
+pub mod outbox;
 pub mod peers;
 pub mod person_nodes;
 pub mod places;
@@ -104,6 +105,7 @@ pub mod watches {
   pub mod links;
   pub mod machine;
   pub mod machine_turn;
+  pub mod notices_owed;
   pub mod pressure;
   pub mod pull_requests;
   pub mod queue_idle;

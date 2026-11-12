@@ -1,6 +1,7 @@
 //! A stand-in for the job service and the receiver in one, as the queue's notices reach them: items by their
 //! number, the queues, the leases that stand, the events past a cursor and the window's oldest, and every call
-//! heard; the receiver answers each instruction with an id of its own.
+//! heard; the receiver answers each instruction with an id of its own; and the paths that fail while a test
+//! holds them failing.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -35,6 +36,8 @@ pub struct Held {
   pub window_from: i64,
   pub calls: Vec<Heard>,
   pub instructions: i64,
+  /// The paths answered 503 while they stand here: a peer restarting under the call.
+  pub failing: BTreeSet<String>,
 }
 
 pub type Peers = Arc<Mutex<Held>>;
@@ -98,6 +101,10 @@ async fn answer(
   });
 
   let path = uri.path().to_owned();
+
+  if held.failing.contains(&path) {
+    return StatusCode::SERVICE_UNAVAILABLE.into_response();
+  }
 
   match (method.as_str(), path.as_str()) {
     ("POST", "/instructions") => {

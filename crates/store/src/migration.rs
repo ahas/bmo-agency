@@ -74,6 +74,7 @@ pub mod m20261213_000001_agent_order_gone;
 mod m20261214_000001_job_lines_by_agent;
 mod m20261215_000001_job_seats_unbound;
 mod m20261216_000001_job_machine_turn;
+mod m20261217_000001_notices;
 
 use sea_orm_migration::prelude::*;
 
@@ -97,7 +98,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 53] = [
+pub const OWN_TABLES: [&str; 54] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -151,6 +152,7 @@ pub const OWN_TABLES: [&str; 53] = [
   "turn_liveness",
   "stream_events",
   "relays",
+  "notices",
 ];
 
 pub struct Migrator;
@@ -231,6 +233,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261214_000001_job_lines_by_agent::Migration),
       Box::new(m20261215_000001_job_seats_unbound::Migration),
       Box::new(m20261216_000001_job_machine_turn::Migration),
+      Box::new(m20261217_000001_notices::Migration),
     ]
   }
 

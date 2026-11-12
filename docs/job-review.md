@@ -92,6 +92,13 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   the round, the rejections so far, the check due now and what it requires, and the words to examine — the
   report, the answer to its last question, or the owner's word. The supervisor writes its own questions from
   what it read; nothing composes them for it.
+- **The check due stays owed until the orderer moves.** Its instruction is a standing notice
+  (`docs/agent-control.md`, 「An item's change is told to its orderer」): told again at every start of agency
+  and every `retell_seconds` after it was last told (`policy/job-notices.toml`), under the same kind, so the
+  receiver replaces the copy still pending, for as long as the job stands under review with that check due,
+  no turn going out and no owner's question out. A move of the orderer's lets it go once the move is made,
+  and agency's sender, before each of its passes, lets go of one whose job no longer stands so, however that
+  came; a check that moved to the next is owed afresh.
 - **A check passed moves to the next;** the second passed passes the stage.
 
 ## What the orderer may do

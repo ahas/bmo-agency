@@ -17,7 +17,8 @@ use store::{one, run};
 
 use crate::control::work::{SPENT_ADDED, carry_review_turn, job, publish, written_end};
 use crate::control::{Call, Refused, Route, answer};
-use crate::job_notices::{Receiver, instruction};
+use crate::job_notices::instruction;
+use crate::outbox::{self, Keep, Notice, Receiver};
 use crate::places::Ground;
 use crate::queue::orderer::JobService;
 use crate::road::Road;
@@ -414,7 +415,11 @@ async fn orderer_of(
   Some((member, orderer))
 }
 
-// The check due now told to the orderer, with the words it examines under their heading.
+/// The prefix of the key a job's check is owed under, its item's number after it.
+pub const CHECK_OWED: &str = "job-review:";
+
+// The check due now owed to the orderer, with the words it examines under their heading: a standing notice, told
+// again until the orderer moves (docs/job-review.md, 「The checks」).
 async fn tell_check(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -423,10 +428,10 @@ async fn tell_check(
   heading: &str,
   words: &str,
 ) {
-  let Some(receiver) = Receiver::of(vars) else {
+  if Receiver::of(vars).is_none() {
     eprintln!("job {id}: its review was not told: no receiver is named");
     return;
-  };
+  }
   let Some((member, orderer)) = orderer_of(db, vars, id).await else {
     return;
   };
@@ -461,8 +466,59 @@ async fn tell_check(
     order,
   );
 
-  if let Err(why) = receiver.instruct(&body).await {
-    eprintln!("job {id}: its review's check was not told: {why}");
+  if let Err(why) = outbox::owe(db, vars, Notice::instruction(body, Keep::Standing)).await {
+    eprintln!("job {id}: its review's check was not owed: {why}");
+  }
+}
+
+/// The checks owed to an orderer let go where no job of their item stands under review with a check due, no turn
+/// going out and no owner's question out, however the job came to move on: what the sender's clock runs before
+/// it sends, so no check is told again once it is no longer due.
+pub async fn checks_owed(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
+  let owed = outbox::owed(db, CHECK_OWED).await?;
+
+  if owed.is_empty() {
+    return Ok(());
+  }
+
+  let due: std::collections::BTreeSet<String> = store::all(
+    db,
+    r#"SELECT DISTINCT "item_id" FROM "jobs" WHERE "state" = 'reviewing' AND "review_check" IS NOT NULL
+         AND "review_turn" IS NULL AND "review_question" IS NULL"#,
+    vec![],
+  )
+  .await
+  .map_err(|why| why.detail)?
+  .iter()
+  .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
+  .map(|item| item.to_string())
+  .collect();
+
+  for (item, row) in owed.iter().filter(|(item, _)| !due.contains(*item)) {
+    outbox::let_go_as_read(db, vars, &format!("{CHECK_OWED}{item}"), row).await?;
+    println!("job review: the check owed for item #{item} let go, no longer due");
+  }
+
+  Ok(())
+}
+
+// The check owed for a job's item as it stood before its orderer's move.
+async fn check_owed(db: &DatabaseConnection, item: i64) -> Option<outbox::Owed> {
+  outbox::owed(db, &format!("{CHECK_OWED}{item}")).await.ok()?.remove("")
+}
+
+// The check owed for a job's item let go once its orderer's move is made, as it stood before the move: a move that
+// owed a check afresh leaves that one standing.
+async fn check_moved(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  item: i64,
+  owed: Option<outbox::Owed>,
+) {
+  let Some(owed) = owed else { return };
+
+  if let Err(why) = outbox::let_go_as_read(db, vars, &format!("{CHECK_OWED}{item}"), &owed).await {
+    eprintln!("job review: the check owed for item #{item} was not let go: {why}");
   }
 }
 
@@ -646,6 +702,8 @@ async fn acted(
   }
 
   let check = standing.check.clone().unwrap_or_default();
+  let owed = check_owed(db, standing.item).await;
+  let item = standing.item;
 
   match action {
     Action::Ask => {
@@ -704,6 +762,8 @@ async fn acted(
       escalated(&ground, agent, id, &standing, text).await?;
     }
   }
+
+  check_moved(db, ground.vars(), item, owed).await;
 
   let (member, _) = job(db, id).await?;
 
@@ -1019,9 +1079,10 @@ pub async fn question_due(db: &DatabaseConnection, vars: &BTreeMap<String, Strin
     standing.worker
   );
 
-  let Some(receiver) = Receiver::of(vars) else {
+  if Receiver::of(vars).is_none() {
     return;
-  };
+  }
+
   let Ok((member, _)) = job(db, id).await else {
     return;
   };
@@ -1043,8 +1104,8 @@ pub async fn question_due(db: &DatabaseConnection, vars: &BTreeMap<String, Strin
     order,
   );
 
-  if let Err(why) = receiver.instruct(&body).await {
-    eprintln!("job {id}: its checkout given up was not told: {why}");
+  if let Err(why) = outbox::owe(db, vars, Notice::instruction(body, Keep::Once)).await {
+    eprintln!("job {id}: its checkout given up was not owed: {why}");
   }
 }
 

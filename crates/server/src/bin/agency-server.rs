@@ -177,6 +177,15 @@ async fn serve(args: Args) -> Result<(), String> {
     Err(why) => eprintln!("agency: the slot leases bound to role sessions: {why}"),
   }
 
+  // Every notice owed to an orderer or the owner stands in the outbox: each standing one is told again as the
+  // server starts, and each one still owed is tried at once (docs/agent-control.md, 「An item's change is told to
+  // its orderer」).
+  match agency_server::outbox::restarted(&ground.db).await {
+    Ok(0) => {}
+    Ok(due) => println!("agency: {due} notices owed to orderers are due again with this start"),
+    Err(why) => eprintln!("agency: the notices owed: {why}"),
+  }
+
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
@@ -316,6 +325,20 @@ fn clocks(ground: &Arc<Ground>) {
 
         Ok(())
       }
+    })
+    .await
+  });
+
+  let owed = ground.clone();
+
+  // The outbox's sender: the standing notices whose condition ended let go first, then every row due sent.
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::job_notices::JOB_NOTICES.send_seconds);
+
+    every("notices owed", Duration::ZERO, period, move || {
+      let ground = owed.clone();
+
+      async move { agency_server::watches::notices_owed::pass(&ground.db, ground.vars()).await.map(|_| ()) }
     })
     .await
   });

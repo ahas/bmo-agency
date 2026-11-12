@@ -42,6 +42,16 @@ pub struct JobNotices {
   pub question_due_code: String,
   /// The code of the owner's notice of a job that failed in another room.
   pub failed_code: String,
+  /// How often agency's sender sends the notices due, in seconds.
+  pub send_seconds: u64,
+  /// The wait after a notice's first failed try, in seconds, doubled after each try that fails after it.
+  pub retry_first_seconds: u64,
+  /// The longest wait between two tries of a notice, in seconds.
+  pub retry_most_seconds: u64,
+  /// How long a standing notice waits after it was last told before it is told again, in seconds.
+  pub retell_seconds: u64,
+  /// How long one try waits for the receiver's answer, in seconds; a notice is held to one sender for twice it.
+  pub answer_seconds: u64,
 }
 
 crate::part!(pub JOB_NOTICES: JobNotices = "job-notices.toml");

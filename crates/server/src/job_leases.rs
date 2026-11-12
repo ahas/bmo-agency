@@ -20,7 +20,8 @@ use store::{all, run};
 
 use crate::Refusal;
 use crate::job_end::{address, token};
-use crate::job_notices::{self, Receiver};
+use crate::job_notices;
+use crate::outbox::{self, Keep, Notice, Receiver};
 use crate::queue::orderer::JobService;
 use crate::queue::settings;
 use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL};
@@ -71,6 +72,8 @@ pub const MOVED_TOLD_PREFIX: &str = "job_moved_told:";
 /// The settings rows, one an ended job by its id, of its item's close: `seen` once a pass found the lease
 /// still standing, `told` once the orderer was told.
 pub const CLOSE_PREFIX: &str = "job_close_mark:";
+/// The prefix of the key an ended job's unclosed item is owed under, the item's number after it.
+pub const CLOSE_OWED: &str = "job-awaits-close:";
 
 /// What a pass did with one running job's lease.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,15 +115,17 @@ pub async fn pass(
   };
   let tells = Tells {
     db,
+    vars,
     service: JobService {
       url: url.clone(),
       token: token.clone(),
     },
-    receiver: Receiver::of(vars),
+    receiver: Receiver::of(vars).is_some(),
   };
   let mut kept = vec![];
   let mut running = BTreeSet::new();
   let mut ended = BTreeSet::new();
+  let mut unclosed = BTreeSet::new();
 
   for row in rows {
     let (Ok(id), Ok(item), Ok(lease), Ok(holder), Ok(worker), Ok(state)) = (
@@ -159,9 +164,10 @@ pub async fn pass(
         }
       };
 
-      // A lease that ended lets its close mark go with this pass.
+      // A lease that ended lets its close mark go with this pass; one not read keeps its item owed as it stood.
       if done != Kept::Closed {
         ended.insert(id);
+        unclosed.insert(item);
       }
 
       kept.push((id, done));
@@ -205,7 +211,7 @@ pub async fn pass(
     kept.push((id, done));
   }
 
-  tells.let_go(&running, &ended).await;
+  tells.let_go(&running, &ended, &unclosed).await;
 
   Ok(kept)
 }
@@ -308,8 +314,10 @@ impl Service<'_> {
 // What the pass tells an item's orderer, and the marks it keeps so each is told once.
 struct Tells<'a> {
   db: &'a DatabaseConnection,
+  vars: &'a BTreeMap<String, String>,
   service: JobService,
-  receiver: Option<Receiver>,
+  /// Whether the deployment names a receiver: where it names none, nothing is told.
+  receiver: bool,
 }
 
 impl Tells<'_> {
@@ -323,10 +331,13 @@ impl Tells<'_> {
     }
   }
 
-  // An item that moved under a running job, told to its orderer once for that job and that state, and for a
-  // merge to the carrying item's orderer too where it answers another room.
+  // An item that moved under a running job, owed to its orderer once for that job and that state, and for a
+  // merge to the carrying item's orderer too where it answers another room, under a key of that room's.
   async fn moved(&self, job: i64, worker: &str, item: &Value) {
-    let Some(receiver) = &self.receiver else { return };
+    if !self.receiver {
+      return;
+    }
+
     let key = format!("{MOVED_TOLD_PREFIX}{job}");
     let state = job_notices::moved_state(item);
 
@@ -334,52 +345,62 @@ impl Tells<'_> {
       return;
     }
 
-    let told = async {
+    let owed = async {
       let orderer = self.service.orderer_of(item).await?;
+      let notice = Notice::instruction(job_notices::moved(item, job, worker, &orderer), Keep::Once);
 
-      receiver.instruct(&job_notices::moved(item, job, worker, &orderer)).await?;
+      outbox::owe(self.db, self.vars, notice).await?;
 
       if let Some(into) = item["mergedInto"].as_i64() {
         let (_, carrying) = self.service.orderer_of_id(into).await?;
 
         if carrying.room != orderer.room {
-          receiver.instruct(&job_notices::moved(item, job, worker, &carrying)).await?;
+          let notice = Notice::instruction(job_notices::moved(item, job, worker, &carrying), Keep::Once);
+          let key =
+            format!("{}@{}", notice.key, carrying.room.map_or("owner".to_owned(), |room| room.to_string()));
+
+          outbox::owe(self.db, self.vars, notice.keyed(key)).await?;
         }
       }
 
       Ok::<_, String>(())
     };
 
-    match told.await {
+    match owed.await {
       Ok(()) => {
         self.set(&key, &state).await;
-        println!("job {job}: its item moved to {state} under it, told to its orderer");
+        println!("job {job}: its item moved to {state} under it, owed to its orderer");
       }
-      Err(why) => eprintln!("job {job}: its item's move was not told: {why}"),
+      Err(why) => eprintln!("job {job}: its item's move was not owed: {why}"),
     }
   }
 
-  // An ended job's item still leased: marked at the first pass that finds it so, told to its orderer once at
-  // the next.
+  // An ended job's item still leased: marked at the first pass that finds it so, owed to its orderer at the next
+  // as a standing notice, told again until the lease ends.
   async fn unclosed(&self, job: i64, item: i64, lease: i64) {
-    let Some(receiver) = &self.receiver else { return };
+    if !self.receiver {
+      return;
+    }
+
     let key = format!("{CLOSE_PREFIX}{job}");
 
     match self.mark(&key).await.as_deref() {
       None => self.set(&key, "seen").await,
       Some("seen") => {
-        let told = async {
+        let owed = async {
           let (_, orderer) = self.service.orderer_of_id(item).await?;
+          let notice =
+            Notice::instruction(job_notices::awaits_close(item, lease, &orderer), Keep::Standing);
 
-          receiver.instruct(&job_notices::awaits_close(item, lease, &orderer)).await
+          outbox::owe(self.db, self.vars, notice).await
         };
 
-        match told.await {
-          Ok(_) => {
+        match owed.await {
+          Ok(()) => {
             self.set(&key, "told").await;
-            println!("job {job}: item #{item} still leased after its end, told to its orderer");
+            println!("job {job}: item #{item} still leased after its end, owed to its orderer");
           }
-          Err(why) => eprintln!("job {job}: item #{item} awaiting its close was not told: {why}"),
+          Err(why) => eprintln!("job {job}: item #{item} awaiting its close was not owed: {why}"),
         }
       }
       Some(_) => {}
@@ -387,8 +408,26 @@ impl Tells<'_> {
   }
 
   // The marks of jobs that moved on let go: a moved item's once its job no longer runs, a close's once its job's
-  // lease is no longer kept.
-  async fn let_go(&self, running: &BTreeSet<i64>, ended: &BTreeSet<i64>) {
+  // lease is no longer kept, and with it the standing notice of its item, where no other ended job keeps that
+  // item's lease.
+  async fn let_go(&self, running: &BTreeSet<i64>, ended: &BTreeSet<i64>, unclosed: &BTreeSet<i64>) {
+    match outbox::owed(self.db, CLOSE_OWED).await {
+      Ok(owed) => {
+        for (item, row) in owed {
+          if item.parse::<i64>().is_ok_and(|item| unclosed.contains(&item)) {
+            continue;
+          }
+
+          let key = format!("{CLOSE_OWED}{item}");
+
+          if let Err(why) = outbox::let_go_as_read(self.db, self.vars, &key, &row).await {
+            eprintln!("jobs' leases: the notice {key} was not let go: {why}");
+          }
+        }
+      }
+      Err(why) => eprintln!("jobs' leases: the notices of unclosed items were not read: {why}"),
+    }
+
     for (prefix, standing) in [(MOVED_TOLD_PREFIX, running), (CLOSE_PREFIX, ended)] {
       let Ok(marked) = settings::numbered(self.db, prefix).await else { continue };
 

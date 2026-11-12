@@ -31,3 +31,13 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
 
   assert!(!JOB_NOTICES.question_due_code.is_empty() && !JOB_NOTICES.failed_code.is_empty());
 }
+
+#[test]
+fn the_outbox_sends_often_waits_longer_after_each_failure_and_retells_a_standing_notice() {
+  assert!(JOB_NOTICES.send_seconds > 0 && JOB_NOTICES.answer_seconds > 0);
+  assert!(
+    0 < JOB_NOTICES.retry_first_seconds
+      && JOB_NOTICES.retry_first_seconds <= JOB_NOTICES.retry_most_seconds
+  );
+  assert!(JOB_NOTICES.retell_seconds >= JOB_NOTICES.send_seconds);
+}
