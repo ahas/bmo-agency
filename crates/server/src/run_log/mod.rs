@@ -69,6 +69,8 @@ pub struct RunLog {
   keeps_launch: bool,
   // The calls a pane program's record says began and has not yet said settled.
   pane_calls: PaneCalls,
+  // Whether a job's lines were put under the agent its item names, read once before its first line.
+  agent_named: bool,
 }
 
 /// What a line keeps of its text: the first `limit` characters, counted as the store counts them, and
@@ -92,6 +94,7 @@ impl RunLog {
       codex: None,
       keeps_launch: false,
       pane_calls: PaneCalls::default(),
+      agent_named: false,
     }
   }
 
@@ -142,6 +145,21 @@ impl RunLog {
 
   async fn kept(&mut self, db: &DatabaseConnection, line: &Line) -> Result<i64, Refusal> {
     let job_id = self.target.job_id;
+
+    // A job's lines stand under the agent its item names, the one doing the work, not the checkout it runs in
+    // (docs/run-records.md, 「Agent log」); a job that names none keeps the name it was opened under.
+    if let (Some(job), false) = (job_id, self.agent_named) {
+      let named = one(db, r#"SELECT "item_agent" FROM "jobs" WHERE "id" = $1"#, vec![job.into()])
+        .await?
+        .and_then(|row| row.try_get::<Option<String>>("", "item_agent").ok().flatten())
+        .filter(|agent| !agent.trim().is_empty());
+
+      if let Some(agent) = named {
+        self.target.agent = agent;
+      }
+
+      self.agent_named = true;
+    }
     let sequence = match job_id {
       None => None,
       Some(job) => {

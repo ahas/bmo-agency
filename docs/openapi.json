@@ -11111,6 +11111,14 @@
             "description": "The role the job runs as.",
             "default": null
           },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent that does the job's work, the one its item's `agent` label named; none for a job launched before\nitems named one. Its log's lines stand under this name.",
+            "default": null
+          },
           "sessionId": {
             "type": [
               "string",
@@ -11225,6 +11233,7 @@
           "workerName",
           "repositoryName",
           "roleName",
+          "agentName",
           "sessionId",
           "runId",
           "runName",

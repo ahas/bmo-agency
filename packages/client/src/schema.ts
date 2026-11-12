@@ -3091,6 +3091,12 @@ export interface components {
              * @default null
              */
             roleName: string | null;
+            /**
+             * @description The agent that does the job's work, the one its item's `agent` label named; none for a job launched before
+             *     items named one. Its log's lines stand under this name.
+             * @default null
+             */
+            agentName: string | null;
             sessionId: string | null;
             /** Format: int64 */
             runId: number | null;

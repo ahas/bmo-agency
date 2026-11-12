@@ -141,6 +141,11 @@ impl Route for RunLogLines {
 
 crate::moved!(RunLogLines);
 
+// The lines that are one agent's: those standing under its name, and, for a role, those of every agent of the role
+// (docs/run-records.md, 「Agent log」).
+const OWN_LINES: &str =
+  r#"("agent" = $1 OR "agent" IN (SELECT "name" FROM "role_agents" WHERE "role" = $1))"#;
+
 // How long after the moment named a line may stand for the run a screen opens on: a gate works its start
 // back from its verdict and can be a second or two out.
 const ANCHOR_WINDOW_MS: i64 = 120_000;
@@ -184,8 +189,8 @@ impl Route for AgentLogLines {
         Some(chat) => {
           one(
             db,
-            r#"SELECT "id", "run" FROM "agent_log"
-               WHERE "agent" = $1 AND "chat_id" = $4 AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#,
+            &format!(r#"SELECT "id", "run" FROM "agent_log"
+               WHERE {OWN_LINES} AND "chat_id" = $4 AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#),
             vec![agent.clone().into(), at.into(), (at + ANCHOR_WINDOW_MS).into(), chat.into()],
           )
           .await?
@@ -193,8 +198,8 @@ impl Route for AgentLogLines {
         None => {
           one(
             db,
-            r#"SELECT "id", "run" FROM "agent_log"
-               WHERE "agent" = $1 AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#,
+            &format!(r#"SELECT "id", "run" FROM "agent_log"
+               WHERE {OWN_LINES} AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#),
             vec![agent.clone().into(), at.into(), (at + ANCHOR_WINDOW_MS).into()],
           )
           .await?
@@ -207,8 +212,10 @@ impl Route for AgentLogLines {
           let run: String = found.try_get("", "run")?;
           let before_run = one(
             db,
-            r#"SELECT MAX("id") AS "id" FROM "agent_log"
-               WHERE "agent" = $1 AND "id" < $2 AND "run" <> $3"#,
+            &format!(
+              r#"SELECT MAX("id") AS "id" FROM "agent_log"
+               WHERE {OWN_LINES} AND "id" < $2 AND "run" <> $3"#
+            ),
             vec![agent.clone().into(), id.into(), run.clone().into()],
           )
           .await?
@@ -216,8 +223,10 @@ impl Route for AgentLogLines {
           .unwrap_or(0);
           let head = one(
             db,
-            r#"SELECT MIN("id") AS "id" FROM "agent_log"
-               WHERE "agent" = $1 AND "run" = $2 AND "id" > $3"#,
+            &format!(
+              r#"SELECT MIN("id") AS "id" FROM "agent_log"
+               WHERE {OWN_LINES} AND "run" = $2 AND "id" > $3"#
+            ),
             vec![agent.clone().into(), run.into(), before_run.into()],
           )
           .await?
@@ -233,7 +242,7 @@ impl Route for AgentLogLines {
         rows = all(
           db,
           &format!(
-            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 ORDER BY "id" DESC LIMIT $2"#
+            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} ORDER BY "id" DESC LIMIT $2"#
           ),
           vec![agent.clone().into(), window.into()],
         )
@@ -243,14 +252,14 @@ impl Route for AgentLogLines {
         rows = all(
           db,
           &format!(
-            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
+            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
           ),
           vec![agent.clone().into(), (first - 1).into(), window.into()],
         )
         .await?;
         has_older = one(
           db,
-          r#"SELECT 1 AS "one" FROM "agent_log" WHERE "agent" = $1 AND "id" < $2 LIMIT 1"#,
+          &format!(r#"SELECT 1 AS "one" FROM "agent_log" WHERE {OWN_LINES} AND "id" < $2 LIMIT 1"#),
           vec![agent.clone().into(), first.into()],
         )
         .await?
@@ -260,7 +269,7 @@ impl Route for AgentLogLines {
       rows = all(
         db,
         &format!(
-          r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
+          r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
         ),
         vec![agent.clone().into(), after.into(), window.into()],
       )
@@ -271,7 +280,7 @@ impl Route for AgentLogLines {
           all(
             db,
             &format!(
-              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" < $2 ORDER BY "id" DESC LIMIT $3"#
+              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" < $2 ORDER BY "id" DESC LIMIT $3"#
             ),
             vec![agent.clone().into(), before.into(), window.into()],
           )
@@ -281,7 +290,7 @@ impl Route for AgentLogLines {
           all(
             db,
             &format!(
-              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 ORDER BY "id" DESC LIMIT $2"#
+              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} ORDER BY "id" DESC LIMIT $2"#
             ),
             vec![agent.clone().into(), window.into()],
           )

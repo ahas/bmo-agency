@@ -684,7 +684,9 @@ keep the metadata their writer filed, and a pane program's shell call carries Cl
 `toolUseResult.bashEditDiff` there, with the files, their hunks, the count of files whose hunks were left
 out and the paths the call changed.
 
-- **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape:
+- **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape. A role's
+  name reads the lines under it and the lines of every agent of that role, a job's lines standing under the agent
+  its item names (`docs/run-records.md`, 「Agent log」):
   - no cursor reads the newest page, oldest line first, and `hasMore` says older lines wait;
   - `before` reads the page before that line id, oldest line first, and `hasMore` says older lines wait;
   - `after` reads the page after that line id, oldest line first, and `hasMore` says newer lines wait;
@@ -1194,6 +1196,9 @@ by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that 
 the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
+- **A job names the agent that does its work** as `agentName`, the agent its item's `agent` label named, none for
+  a job launched before items named one; its log's lines stand under that name (`docs/run-records.md`,
+  「Agent log」).
 - **A job and an assignment name where they run twice:** `workerName`, the checkout — the repository's base,
   a support worktree or a checkout on a node — and `repositoryName`, the repository that checkout is of, or
   null for a checkout no repository holds any longer. `GET /assignments` narrows by `repositoryName` and by

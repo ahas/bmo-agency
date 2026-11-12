@@ -1768,6 +1768,10 @@ pub struct Job {
   /// The role the job runs as.
   #[serde(default)]
   pub role_name: Option<String>,
+  /// The agent that does the job's work, the one its item's `agent` label named; none for a job launched before
+  /// items named one. Its log's lines stand under this name.
+  #[serde(default)]
+  pub agent_name: Option<String>,
   pub session_id: Option<String>,
   pub run_id: Option<i64>,
   pub run_name: Option<String>,

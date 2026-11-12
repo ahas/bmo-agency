@@ -253,3 +253,75 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
 
   assert_eq!((status, none["items"].as_array().unwrap().len()), (200, 0));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_s_log_reads_its_agents_lines_and_a_job_s_lines_stand_under_its_item_s_agent() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let now = agency_server::now_ms();
+
+  scratch
+    .run(r#"INSERT INTO "role_agents" ("name", "role") VALUES ('agent-a', 'role-a')"#, vec![])
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt", "item_agent")
+         VALUES (40, 4, 1, 'runner', 1, 'checkout-a', 'running', $1, 'the work', 'agent-a')"#,
+      vec![now.into()],
+    )
+    .await;
+
+  // A job's line is written under the agent its item named, not the checkout it runs in.
+  let mut log = agency_server::run_log::RunLog::new(agency_server::run_log::Target {
+    agent: "checkout-a".to_owned(),
+    run: "job-40".to_owned(),
+    chat_id: None,
+    job_id: Some(40),
+  });
+
+  log
+    .write(scratch.db(), agency_server::run_log::lines::Line::note("the job's note".to_owned()))
+    .await
+    .unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text")
+         VALUES ('role-a', 'unit-r', $1, 'text', 'the role own line'), ('stranger', 'unit-s', $1, 'text', 'not hers')"#,
+      vec![now.into()],
+    )
+    .await;
+
+  let texts = |page: &Value| -> Vec<String> {
+    page["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|line| line["text"].as_str().unwrap_or_default().to_owned())
+      .collect()
+  };
+  let (status, agent) = get(port, token, "/log/agents/agent-a/lines").await;
+
+  assert_eq!(status, 200, "{agent}");
+  assert_eq!(texts(&agent), ["the job's note"], "under the item's agent");
+
+  let (status, checkout) = get(port, token, "/log/agents/checkout-a/lines").await;
+
+  assert_eq!((status, texts(&checkout).len()), (200, 0), "nothing under the checkout");
+
+  let (status, role) = get(port, token, "/log/agents/role-a/lines").await;
+
+  assert_eq!(status, 200, "{role}");
+  assert_eq!(
+    texts(&role),
+    ["the job's note", "the role own line"],
+    "the role reads its agents' lines with its own"
+  );
+}

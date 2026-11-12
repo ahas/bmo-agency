@@ -505,7 +505,7 @@ const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assign
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
   "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for", "chosen_by", "review_stages",
-  "review_stage", "review_round", "review_check", "rejections", "review_question", "review_parked""#;
+  "review_stage", "review_round", "review_check", "rejections", "review_question", "review_parked", "item_agent""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
 fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -539,6 +539,7 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "assignmentId": row.try_get::<i64>("", "assignment_id")?,
     "workerName": row.try_get::<String>("", "worker_name")?,
     "roleName": row.try_get::<String>("", "role")?,
+    "agentName": row.try_get::<Option<String>>("", "item_agent")?,
     "sessionId": row.try_get::<Option<String>>("", "session_id")?,
     "runId": row.try_get::<Option<i64>>("", "run_id")?,
     "runName": row.try_get::<Option<String>>("", "run_name")?,
