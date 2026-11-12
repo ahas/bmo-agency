@@ -2973,7 +2973,7 @@ with the session.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
@@ -3001,6 +3001,11 @@ with the session.
   (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never its whole
   series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
   notice and does not wait for the idle minutes.
+- **The notice is how a busy agent's next job starts.** An agent carries a run while a job naming it stands
+  `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, and an item naming
+  it is not told until it carries none. A launch while it carries one is refused `agent-busy`
+  (`docs/repositories.md`, 「An agent an item names」), and agency never starts the item by itself: the
+  orderer launches it once this notice tells it the agent is free.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository

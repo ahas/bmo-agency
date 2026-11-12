@@ -872,3 +872,77 @@ async fn a_session_s_end_frees_the_holds_it_took_and_leaves_a_running_job_s() {
     "a running job's assignment is left to that job's end"
   );
 }
+
+// Agency starts no job by itself (docs/role-agents.md, 「Which agent a run takes」): a launch onto an agent that
+// carries a job, or any other run, is refused at once naming what it carries, with nothing written and nothing
+// left waiting to start it later; once the agent is free, or the job on it paused, the launch goes.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_to_start_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  std::fs::create_dir_all(home.path().join("helper")).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // Another job stands on the agent under review, its review not paused.
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt", "item_agent", "review_parked")
+         VALUES (900, 80, 0, 'harness', 0, 'elsewhere', 'reviewing', 0, 'work', $1, false)"#,
+      vec![AGENT.into()],
+    )
+    .await;
+
+  let assignment = assigned(port, token, 81).await;
+  let launch = || run_job(port, token, assignment, 81, item());
+  let (status, refused) = launch().await;
+
+  assert_eq!((status, refused["code"].as_str()), (409, Some("agent-busy")), "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("job 900 of item #80"), "{refused}");
+
+  let nothing_started = async || {
+    assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs" WHERE "item_id" = 81"#, vec![]).await, 0);
+    assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "role_slot_requests""#, vec![]).await, 0);
+    assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
+  };
+
+  nothing_started().await;
+
+  // Paused under its review, that job answers for the agent no longer; a run let in on the agent refuses the
+  // launch as well.
+  scratch
+    .run(r#"UPDATE "jobs" SET "review_parked" = true WHERE "id" = 900"#, vec![])
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "seat", "title")
+         VALUES ('busy', 'busy', 'owner:x', 'delegate', 'worker', '/elsewhere/', 'p', 'm', '', 1, 'active', 0,
+           'foreground', $1, 'a delegated task')"#,
+      vec![AGENT.into()],
+    )
+    .await;
+
+  let (status, refused) = launch().await;
+
+  assert_eq!((status, refused["code"].as_str()), (409, Some("agent-busy")), "{refused}");
+  assert!(
+    refused["error"].as_str().unwrap().contains("a delegate run, a delegated task"),
+    "{refused}"
+  );
+  scratch.run(r#"DELETE FROM "role_slot_requests""#, vec![]).await;
+  nothing_started().await;
+
+  // The agent free, the supervisor's launch goes.
+  let (status, job) = launch().await;
+
+  assert_eq!(status, 201, "{job}");
+}

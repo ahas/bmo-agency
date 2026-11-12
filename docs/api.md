@@ -1399,7 +1399,11 @@ service.
   `unknown-agent`, and one that names no road 422 `agent-names-no-road`. A refusal writes nothing and leaves
   the assignment held; the item's orderer is told once for that label (`item-unlaunchable`,
   `docs/agent-control.md`, 「An item's change is told to its orderer」), and the mark is let go as a job of the
-  item is launched. The item's `model` label is not read. The job answers `chosenBy` `item`, its agent having
+  item is launched. A launch naming an agent that carries a job, or any other run let in on it, is refused
+  409 `agent-busy` at once, its sentence naming the agent and the job or run it carries: nothing is written,
+  the assignment stays held, and no request waits to start it later. The orderer is told once the agent is
+  free (`item-awaits-launch`), and launches it then. The item's `model` label is not read. The job answers
+  `chosenBy` `item`, its agent having
   chosen its provider and model; a job row that holds `forced`, `pin` or `order` answers it as it stands, and
   no job is given one now.
 - **A job is never refused for quota:** where its agent's road has no quota or cannot answer, `POST /jobs` takes the job all the same and answers 201. The job

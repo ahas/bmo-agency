@@ -4677,6 +4677,7 @@
           "agent-unnamed",
           "unknown-agent",
           "agent-names-no-road",
+          "agent-busy",
           "unknown-role"
         ],
         "requestBody": {
@@ -15483,6 +15484,16 @@
       }
     },
     "responses": {
+      "AgentBusy": {
+        "description": "agent-busy",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AgentNamesNoRoad": {
         "description": "agent-names-no-road",
         "content": {

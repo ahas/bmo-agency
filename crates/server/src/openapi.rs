@@ -1913,6 +1913,7 @@ pub const OPERATIONS: &[Operation] = &[
       "agent-unnamed",
       "unknown-agent",
       "agent-names-no-road",
+      "agent-busy",
       "unknown-role",
     ],
   },
@@ -3089,6 +3090,7 @@ fn status_of(code: &str) -> u16 {
     | "no-turn"
     | "not-owner"
     | "worker-on-node"
+    | "agent-busy"
     | "double-waits-on-doubles" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,

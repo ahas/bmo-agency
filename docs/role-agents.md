@@ -86,12 +86,18 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   names」). Nothing in the agency picks an agent for a job.
 - **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
   only on it, on its own road, and waits for it however long it carries a run or its provider cannot answer;
-  it is never let in on another agent of the role. Every job asks so.
+  it is never let in on another agent of the role. Every job asks so, and a job's launch is refused while its
+  agent carries a run (「Agency starts no job by itself」 below).
 - **An agent carries one job from its first turn to its end.** The seat a job's first turn is let in on stays
   the job's through every turn after it and every wait between them — its review, a stage passed and the next
   handed over — and is given back only as the job ends, stopped, failed or done, or as its review pauses it
-  (`docs/job-review.md`, 「The owner's word」). A job named for an agent that carries another waits its turn,
-  however long the other job takes.
+  (`docs/job-review.md`, 「The owner's word」). Its next stage, asked by its supervisor's review, runs on that
+  seat at once, before any other run of the role (`docs/role-slots.md`, 「The line」).
+- **Agency starts no job by itself.** A launch naming an agent that carries a job, or any other run, is
+  refused at once (`docs/repositories.md`, 「An agent an item names」), never queued to start later, and no turn
+  of work goes out unless a supervisor's launch or review move asks for it now. When the agent comes free its
+  supervisor is told, and the supervisor launches (`docs/agent-control.md`, 「An item's change is told to its
+  orderer」).
 - **A run that names no agent is let in on any agent of its role that is switched on, carries no run, and
   whose road can answer now,** taken by name where several are free; the agents hold no order of priority. An
   agent carries a run while a slot request let in on it stands active. A run a supervisor asks may take an

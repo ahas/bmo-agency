@@ -4567,6 +4567,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description agent-busy */
+        AgentBusy: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description agent-names-no-road */
         AgentNamesNoRoad: {
             headers: {

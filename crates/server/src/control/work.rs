@@ -832,6 +832,22 @@ impl Route for CreateJob {
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
     });
     let item_agent = item_agent(&call.shared_ground(), item_id, &item, &asked_role).await?;
+
+    // Agency starts no job by itself: a launch onto an agent that carries a run is refused now rather than
+    // queued to start once the agent frees (docs/role-agents.md, 「Which agent a run takes」).
+    if let Some(carried) = agent_carries(db, &item_agent.name).await? {
+      return Err(
+        Refused::new(
+          StatusCode::CONFLICT,
+          format!(
+            "Item #{item_id} names the agent {}, which carries {carried}; launch it once the agent is free",
+            item_agent.name
+          ),
+        )
+        .with_code("agent-busy"),
+      );
+    }
+
     let role = item_agent.role.clone();
     let item_model = item_agent.entry().map(|entry| Pin {
       provider: entry.provider,
@@ -903,6 +919,47 @@ impl Route for CreateJob {
 }
 
 crate::moved!(CreateJob);
+
+/// What an agent carries now, in words a launch's refusal names it by (docs/repositories.md, 「An agent an item
+/// names」): a job standing on it — starting, running, or under a review that has not paused it — else the run
+/// a slot request let in on it stands for. None where it carries nothing.
+async fn agent_carries(db: &sea_orm::DatabaseConnection, agent: &str) -> Result<Option<String>, Refused> {
+  let job = one(
+    db,
+    r#"SELECT "id", "item_id" FROM "jobs"
+       WHERE "item_agent" = $1
+         AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked"))
+       ORDER BY "id" LIMIT 1"#,
+    vec![agent.into()],
+  )
+  .await?;
+
+  if let Some(job) = job {
+    let id: i64 = job.try_get("", "id")?;
+    let item: i64 = job.try_get("", "item_id")?;
+
+    return Ok(Some(format!("job {id} of item #{item}")));
+  }
+
+  let run = one(
+    db,
+    r#"SELECT "source", "title" FROM "role_slot_requests" WHERE "seat" = $1 AND "state" = 'active'
+       ORDER BY "sequence" LIMIT 1"#,
+    vec![agent.into()],
+  )
+  .await?;
+
+  let Some(run) = run else {
+    return Ok(None);
+  };
+  let source: String = run.try_get("", "source")?;
+  let title: Option<String> = run.try_get("", "title")?;
+
+  Ok(Some(match title.filter(|title| !title.trim().is_empty()) {
+    Some(title) => format!("a {source} run, {title}"),
+    None => format!("a {source} run"),
+  }))
+}
 
 /// The work parts a run of `role` at a checkout is carried with on a road: its provider and model, and the
 /// effort and answer ceiling the road's entry names for it.

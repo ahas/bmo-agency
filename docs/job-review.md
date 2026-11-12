@@ -137,7 +137,8 @@ jobs」), naming the job, one action and its words.
   it.
 - **A job that gave its checkout up takes it again before its next turn:** the same checkout, held for the job
   as a launch holds one, waiting for it to come free however long that takes, since the job's session and its
-  commits stand there; and its agent's seat, waiting for the agent as a launch does.
+  commits stand there; and its agent's seat, asked in the line for that agent and waited for however long that
+  takes, since the review's move asked for that turn.
 
 ## The turns the review asks for
 
