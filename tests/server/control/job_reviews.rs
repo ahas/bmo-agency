@@ -105,6 +105,28 @@ async fn review(port: u16, agent: &str, job: i64, action: &str, text: Option<&st
   .await
 }
 
+// The seat of the agent a job's turn was let in on, standing let in as a job's slot request does.
+async fn seated(scratch: &Scratch, job: i64) {
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "seat")
+         VALUES ($1, $1, $2, 'job', 'coder', '/checkouts/', 'deepseek', 'deepseek-flash', '', 1, 'active', 0,
+           'foreground', 'coder-05')"#,
+      vec![format!("seat-{job}").into(), format!("job-{job}").into()],
+    )
+    .await;
+}
+
+async fn seat_state(scratch: &Scratch, job: i64) -> i64 {
+  scratch
+    .count(
+      r#"SELECT COUNT(*) FROM "role_slot_requests" WHERE "owner" = $1 AND "state" = 'active'"#,
+      vec![format!("job-{job}").into()],
+    )
+    .await
+}
+
 // Waits until the job stands in `state`, however its turn comes to it.
 async fn until_state(port: u16, job: i64, state: &str) -> Value {
   for _ in 0..200 {
@@ -139,8 +161,12 @@ async fn an_answered_turn_puts_the_job_under_review_and_keeps_its_checkout() {
   let port = front(ground.clone()).await;
 
   running(&scratch, "worker-r", 21, 61, &[]).await;
+  seated(&scratch, 21).await;
   agency_server::job_review::reported(&ground, 21, "Done: the guard is mended and its test passes.", None)
     .await;
+
+  // Its agent answers for it until it ends: the seat its turn was let in on stays the job's under review.
+  assert_eq!(seat_state(&scratch, 21).await, 1);
 
   let member = read(port, 21).await;
 
@@ -265,6 +291,7 @@ async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_a
 
   carrying(agent, "run-e1");
   running(&scratch, "worker-v", 25, 65, &[]).await;
+  seated(&scratch, 25).await;
   agency_server::job_review::reported(&ground, 25, "Done, but one matter is the owner's.", None).await;
 
   // Past the ceiling the work may be put to the owner: refused here only because this ground names no job
@@ -293,6 +320,11 @@ async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_a
     "{member}"
   );
   assert_eq!(call(port, reqwest::Method::GET, "/assignments/25", None).await.1["state"], "released");
+
+  // Paused so, it answers for its agent no longer: the seat is given back for a job waiting on that agent.
+  assert_eq!(seat_state(&scratch, 25).await, 1);
+  agency_server::control::work::paused_seats_given_back(&ground).await;
+  assert_eq!(seat_state(&scratch, 25).await, 0);
 
   // The owner's answer comes back as the check due, and the review moves again.
   agency_server::job_review::ruled(

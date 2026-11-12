@@ -1918,11 +1918,19 @@ impl OnSession<'_> {
       title: Some(self.title),
       ..dispatch::Asked::default()
     };
+    // The job keeps the seat its first turn was let in on through every later turn and its review, until it ends
+    // or its review pauses it (docs/role-agents.md, 「Which agent a run takes」): a later turn goes on that seat.
+    if let Some(kept) = kept_seat(ground, id).await? {
+      return Ok(Some(dispatch::bind(&ground.db, &ground.events, &kept, self.name, None).await?));
+    }
+
     let mut held =
       dispatch::enqueue(&ground.db, &ground.events, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
     let mut told = false;
 
     loop {
+      paused_seats_given_back(ground).await;
+
       if let Some(let_in) = dispatch::acquire(ground, &held).await? {
         if told {
           hold_job(ground, id, None, false).await;
@@ -1959,6 +1967,53 @@ impl OnSession<'_> {
   }
 }
 
+/// The seat a job holds now, kept from an earlier turn: its newest slot request still let in.
+async fn kept_seat(ground: &Ground, id: i64) -> Result<Option<Request>, String> {
+  let row = one(
+    &ground.db,
+    r#"SELECT "token" FROM "role_slot_requests" WHERE "owner" = $1 AND "state" = 'active'
+       ORDER BY "sequence" DESC LIMIT 1"#,
+    vec![format!("{}{id}", dispatch::JOB_OWNER).into()],
+  )
+  .await
+  .map_err(|why| why.to_string())?;
+  let Some(token) = row
+    .map(|row| row.try_get::<String>("", "token"))
+    .transpose()
+    .map_err(|why| why.to_string())?
+  else {
+    return Ok(None);
+  };
+
+  dispatch::request(&ground.db, &token).await
+}
+
+/// The seats of jobs their review paused given back (docs/job-review.md, 「The owner's word」): a job whose owner's
+/// question passed its due time gave its checkout up and answers for its agent no longer until it takes them
+/// again, so a job waiting for that agent is let in on it.
+pub async fn paused_seats_given_back(ground: &Ground) {
+  let paused = all(
+    &ground.db,
+    r#"SELECT j."id" FROM "jobs" j
+       WHERE j."state" = 'reviewing' AND j."review_parked"
+         AND EXISTS (SELECT 1 FROM "role_slot_requests" r WHERE r."owner" = $1 || j."id" AND r."state" = 'active')"#,
+    vec![dispatch::JOB_OWNER.into()],
+  )
+  .await;
+
+  for row in paused.unwrap_or_default() {
+    if let Ok(id) = row.try_get::<i64>("", "id") {
+      crate::job_end::slot_given_back(
+        &ground.db,
+        &ground.events,
+        id,
+        "paused: its review waits on the owner",
+      )
+      .await;
+    }
+  }
+}
+
 impl Carrier for OnSession<'_> {
   async fn carry(&mut self, taken: &Road, entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
     let ground = self.ground;
@@ -1969,7 +2024,8 @@ impl Carrier for OnSession<'_> {
 
     self.roads += 1;
 
-    let Some(lease) = self.slot(id, taken, &parts).await? else {
+    // The seat stays the job's past this turn: its end, or its review's pause, gives it back.
+    let Some(_seat) = self.slot(id, taken, &parts).await? else {
       return Err(format!("job {id} was stopped while it waited for a slot of the {} role", self.role));
     };
     // A turn of the review continues the job's own session on the road that session stands on; on another road
@@ -1988,15 +2044,6 @@ impl Carrier for OnSession<'_> {
 
     if let Ok(end) = &carried {
       crate::job_review::session_left(&ground.db, id, taken, end).await;
-    }
-
-    let outcome = match &carried {
-      Ok(end) => format!("{:?}", end.outcome).to_lowercase(),
-      Err(why) => format!("failed: {why}"),
-    };
-
-    if let Err(why) = dispatch::finish(&ground.db, &ground.events, &lease.token, &outcome, false).await {
-      eprintln!("job {id}: its slot was not given back: {why}");
     }
 
     carried

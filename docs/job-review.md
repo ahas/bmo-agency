@@ -24,8 +24,9 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 ## The states of a job under review
 
 - **`reviewing`** stands between `running` and the job's end: a turn of the job ended answered, its report is
-  written onto the item's review, and the job waits on its orderer's move. No turn runs and no slot of the role
-  is held; the job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a
+  written onto the item's review, and the job waits on its orderer's move. No turn runs, and the job keeps its
+  agent's seat: the agent answers for the job until it ends, so no other job is let in on it meanwhile
+  (`docs/role-agents.md`, 「Which agent a run takes」); the job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a
   running job's (`docs/api.md`, 「assignments and jobs」).
 - **A turn the review asks for runs the job again:** the job is `running` while it goes and `reviewing` once it
   has answered, as many times as the review asks. A turn that ends in anything but an answer — failed, blocked,
@@ -124,15 +125,16 @@ jobs」), naming the job, one action and its words.
   seconds. The question is told to the orderer as every job's question is (`question-awaits-answer`), and the
   orderer puts it to the owner.
 - **While it waits the job stays under review** and every action of the orderer's is refused `awaits-owner`.
-- **Past its due time with no answer, the job gives its checkout up:** its assignment is released, so the
-  repository's checkout takes the next launch, and the orderer is told `job-review-parked`, to launch the work
-  that can go now. The item stays leased, so no launch takes it as new work, and the job keeps its session.
+- **Past its due time with no answer, the job gives its checkout and its agent's seat up:** its assignment is
+  released, so the repository's checkout takes the next launch, its agent is free for other work, and the
+  orderer is told `job-review-parked`, to launch the work that can go now; this is the one pause in which an
+  agent leaves a job before its end. The item stays leased, so no launch takes it as new work, and the job keeps its session.
 - **The owner's settling answer is written as the round's ruling** and told to the orderer as the check due, with
   the owner's words; the orderer then sends the work back, folding the owner's word into the rework, or passes
   it.
 - **A job that gave its checkout up takes it again before its next turn:** the same checkout, held for the job
   as a launch holds one, waiting for it to come free however long that takes, since the job's session and its
-  commits stand there.
+  commits stand there; and its agent's seat, waiting for the agent as a launch does.
 
 ## The turns the review asks for
 

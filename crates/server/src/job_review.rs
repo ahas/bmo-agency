@@ -518,7 +518,6 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
     if asked { "an answer" } else { "a report" },
     standing.round
   );
-  crate::job_end::slot_given_back(db, &ground.events, id, "reviewing").await;
   entry(
     ground.vars(),
     id,
