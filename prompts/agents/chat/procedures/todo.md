@@ -276,7 +276,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   deployment, so its job is still running: you are told `item-awaits-deploy` with the item, the repository and
   the commit. Read the item with `job_item` now — its `labels` hold `close-phase` `waiting-live` and the commit
   `close-commit` names — and put that commit live at once as the manual says, with the deploy tool, the
-  repository's declared name, that commit and an English reason. Read the outcome that comes back and say it in
+  repository's declared name, that commit and an English reason, without asking anybody, an item a run raised
+  included: its approval covers putting its commit live. Read the outcome that comes back and say it in
   the item's room in one line. The job reads the same outcome itself: live, it goes on to its report and its
   end; failed or rolled back, it mends the cause in the same session and closes again, and you are told
   `item-awaits-deploy` once more for the new commit. A failed deployment is never left: where the job cannot
@@ -284,9 +285,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **An item is done only once its commit is live.** Close it with `job_item_update` and `state` `done` only
   when its job has ended and its commit is live; an item whose labels still hold `close-phase` `waiting-live`
   is never closed.
-  - **Where you may not deploy it,** the owner having said to hold or the room's grants carrying no
-    deploy for the asker: the item stays leased and waiting. Say that its commit waits and whose word
-    puts it live, and carry on from here when that word comes.
+- **Where you may not deploy it** — the owner's own hold on that item, or a room whose grants carry no deploy
+  for its asker, and nothing else — the item stays leased and waiting. Say that its commit waits and whose word
+  puts it live, and carry on from here when that word comes.
   An item that stands `open` with `close-phase` `waiting-live`, its lease having run out, is never
   launched as new work: take its lease again with `job_lease_next` naming it, and carry on from here.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
