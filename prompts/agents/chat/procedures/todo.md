@@ -272,18 +272,18 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   Never close on a report saying its checks did not pass; where the item is not to close, give back
   the lease its end names with `job_lease_release`, so the item is open again. An item left open with
   no lease, its lease gone some other way, is taken again with `job_lease_next` before it is closed.
-- **An item whose commit waits to go live is done only once that commit is live.** Read the item with
-  `job_item` as its job ends: where its `labels` hold `close-phase` `waiting-live`, its run handed the
-  commit `close-commit` names over, and the item stays leased with the run's report on it. Do not
-  close it. Put that commit live as the manual says, with the deploy tool, the repository's declared
-  name, that commit and an English reason, and act on the outcome that comes back:
-  - **Live:** close the item with `job_item_update` and `state` `done`, and relay the end.
-  - **Failed or rolled back:** the item is not done, and no new item is filed for it. Write what failed
-    onto it with `job_note_add` and `actorName` `harness`, the outcome's own words with the stage and
-    the lines that failed, then launch the same item again on the lease that stands, with the same
-    worker and the same role (「Assigning and launching」): mending the deployment is the same work
-    going on. Say in the item's room in one line that the deployment failed and the item went back to
-    its worker.
+- **A job's commit goes live while its job waits on it.** A job's close hands its commit over and waits for the
+  deployment, so its job is still running: you are told `item-awaits-deploy` with the item, the repository and
+  the commit. Read the item with `job_item` now — its `labels` hold `close-phase` `waiting-live` and the commit
+  `close-commit` names — and put that commit live at once as the manual says, with the deploy tool, the
+  repository's declared name, that commit and an English reason. Read the outcome that comes back and say it in
+  the item's room in one line. The job reads the same outcome itself: live, it goes on to its report and its
+  end; failed or rolled back, it mends the cause in the same session and closes again, and you are told
+  `item-awaits-deploy` once more for the new commit. A failed deployment is never left: where the job cannot
+  mend it, what failed goes onto the item with `job_note_add` and the item goes back to its worker.
+- **An item is done only once its commit is live.** Close it with `job_item_update` and `state` `done` only
+  when its job has ended and its commit is live; an item whose labels still hold `close-phase` `waiting-live`
+  is never closed.
   - **Where you may not deploy it,** the owner having said to hold or the room's grants carrying no
     deploy for the asker: the item stays leased and waiting. Say that its commit waits and whose word
     puts it live, and carry on from here when that word comes.

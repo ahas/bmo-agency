@@ -20,6 +20,9 @@ pub struct JobNotices {
   pub moved_order: String,
   /// An item closed by somebody else: `{item}`, `{title}` and `{by}`.
   pub closed_order: String,
+  /// A job's commit handed over to go live, its job waiting on the outcome: `{item}`, `{title}`, `{repository}`
+  /// and `{commit}`.
+  pub deploy_order: String,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.

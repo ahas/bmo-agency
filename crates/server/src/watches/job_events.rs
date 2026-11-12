@@ -17,6 +17,8 @@ use crate::queue::settings;
 pub const CURSOR_KEY: &str = "job_events_after";
 /// The settings rows, one a question by its number, of the receiver's id of the instruction it was told with.
 pub const QUESTION_TOLD_PREFIX: &str = "question_told:";
+/// The settings rows, one an item by its number, of the commit whose going live its orderer was told of.
+pub const DEPLOY_TOLD_PREFIX: &str = "deploy_told:";
 /// The kinds read.
 pub const KINDS: &str = "item.changed,question.created,question.due,reply.created";
 
@@ -124,6 +126,22 @@ async fn told(
 
   match event["kind"].as_str().unwrap_or_default() {
     "item.changed" => {
+      // A close that handed its commit over and waits on its deployment, told once for that commit.
+      if data["labels"]["close-phase"] == "waiting-live"
+        && let Some(commit) = data["labels"]["close-commit"].as_str().filter(|commit| !commit.is_empty())
+        && let Some(id) = data["id"].as_i64()
+      {
+        let key = format!("{DEPLOY_TOLD_PREFIX}{id}");
+
+        if settings::get(db, &key).await.map_err(|why| why.detail)?.as_deref() != Some(commit) {
+          let orderer = service.orderer_of(data).await?;
+
+          receiver.instruct(&job_notices::awaits_deploy(data, commit, &orderer)).await?;
+          settings::set(db, &key, commit).await.map_err(|why| why.detail)?;
+          println!("queue: item #{id}'s commit {commit} waits to go live, told to its orderer");
+        }
+      }
+
       let moved_to_done =
         data["state"] == "done" && data["previousState"].as_str().is_some_and(|was| was != "done");
 

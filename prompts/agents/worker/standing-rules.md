@@ -82,8 +82,10 @@ says, and every subagent a job's program opens and every line the owner types in
 
 ## Going live
 
-- **A job never deploys.** Its close hands its commit over as waiting to go live, and the supervisor
-  puts it live through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a
-  harness's shell. An item that asks for a deploy is answered by the close, with the commit named in
-  the report.
+- **A job never deploys, and never ends before its commit is live.** Its close hands its commit over
+  and then waits, with no clock, for the deployment the supervisor runs through the testbed's hosted
+  deploy tool; the testbed's own deploy verb refuses a harness's shell. Run the close as a background
+  task and wait for it. It ends `live` — then report — or `not live` with the deployment's own reason:
+  a failed deployment is this job's to mend, so find the cause, fix it, commit, push and close again.
+  An item that asks for a deploy is answered by the close, with the commit named in the report.
 

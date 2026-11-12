@@ -11,6 +11,9 @@ unlaunchable_order = "Item #{item} ({title}) names {assignee} as its repository,
 agent_order = "Item #{item} ({title}) carries the label agent={label}, and its launch was refused: {why}"
 moved_order = "Item #{item} ({title}) is now {state}{merged} while its job {job} still runs on {worker}."
 closed_order = "Item #{item} ({title}) was closed as done by {by}."
+# A job's close handed its commit over and waits for the deployment that carries it: `{item}`, `{title}`,
+# `{repository}` and `{commit}`.
+deploy_order = "Item #{item} ({title}): its job's close handed commit {commit} of {repository} over to go live, and the job waits on that deployment's outcome."
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."

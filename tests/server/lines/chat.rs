@@ -378,12 +378,12 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
   let script = std::fs::read_to_string(trees.join("deploy/quiet")).unwrap();
   assert!(script.contains(" quiet"), "{script}");
   assert!(script.contains("grep -v ':chat:'"), "a chat turn is not spared: {script}");
-  // A job's close hands its commit over, and the supervisor puts it live through the hosted deploy tool.
-  assert!(
-    std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md"))
-      .unwrap()
-      .contains("A job never deploys.")
-  );
+  // A job's close hands its commit over and waits for it, and the supervisor puts it live through the hosted deploy
+  // tool.
+  let rules = std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md")).unwrap();
+
+  assert!(rules.contains("A job never deploys, and never ends before its commit is live."));
+  assert!(rules.contains("a failed deployment is this job's to mend"));
 }
 
 #[test]

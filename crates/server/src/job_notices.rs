@@ -189,6 +189,30 @@ pub fn closed(item: &Value, by: &str, orderer: &Orderer) -> Value {
   instruction("item-closed", id, orderer, format!("Item #{id} was closed by {by}"), order)
 }
 
+/// A job's commit handed over to go live while its job waits on the deployment's outcome
+/// (docs/agent-control.md, 「An item's change is told to its orderer」).
+pub fn awaits_deploy(item: &Value, commit: &str, orderer: &Orderer) -> Value {
+  let id = id_of(item);
+  let number = id.to_string();
+  let order = fill_marks(
+    &JOB_NOTICES.deploy_order,
+    &[
+      ("item", &number),
+      ("title", title_of(item)),
+      ("repository", item["assigneeName"].as_str().unwrap_or("the host")),
+      ("commit", commit),
+    ],
+  );
+
+  instruction(
+    "item-awaits-deploy",
+    id,
+    orderer,
+    format!("Item #{id}'s commit {commit} waits to go live"),
+    order,
+  )
+}
+
 /// A run's question, for the orderer to put to the owner.
 pub fn question(question: &Value, orderer: &Orderer) -> Value {
   let id = id_of(question);
