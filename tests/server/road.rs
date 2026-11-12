@@ -57,6 +57,7 @@ fn resolution(steps: Vec<Step>) -> Resolution {
     uncarried: vec![],
     fixed: false,
     chosen_by: None,
+    no_road: None,
   }
 }
 
@@ -205,7 +206,7 @@ async fn the_seeded_worker_role_goes_out_on_deepseeks_flash_model_first() {
 
   deepseek_balance(&ground, 5.0).await;
 
-  let resolution = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let resolution = for_job(&ground, None, None, None, &[], None).await.unwrap();
 
   assert_eq!(resolution.row, "worker");
   assert_eq!(
@@ -213,6 +214,82 @@ async fn the_seeded_worker_role_goes_out_on_deepseeks_flash_model_first() {
     Some("deepseek-flash"),
     "{resolution:?}"
   );
+}
+
+// A job of a role whose switched-on agents all name no road follows the supervisor that asks it, and one no
+// supervisor asks has no road, which its start refuses. A role with no agent switched on is closed and waits
+// (docs/role-agents.md, 「Which agent a run takes」; docs/repositories.md, 「A job」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_of_a_role_whose_agents_name_no_road_follows_the_supervisor_that_asks_it_or_is_refused() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::seats(scratch.db(), "worker", &[("deepseek", "deepseek-flash")]).await;
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = NULL, "model" = NULL WHERE "role" = 'worker'"#,
+      vec![],
+    )
+    .await;
+  crate::support::rows::supervisor(
+    scratch.db(),
+    "asking",
+    &[(
+      "provider_order",
+      r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"}]"#.into(),
+    )],
+  )
+  .await;
+
+  let asked = for_job(&ground, None, None, None, &[], Some("asking")).await.unwrap();
+
+  assert_eq!(taken(&asked), Some(("deepseek".to_owned(), "deepseek-flash".to_owned())), "{asked:?}");
+  assert_eq!(asked.chosen_by, Some(ChosenBy::Order));
+  assert_eq!(asked.no_road, None);
+
+  // The asking supervisor's provider cannot answer now: the job walks that road and waits for it, and its
+  // start refuses it for nothing, the sentence kept for what it describes.
+  deepseek_balance(&ground, 0.0).await;
+
+  let waiting = for_job(&ground, None, None, None, &[], Some("asking")).await.unwrap();
+
+  assert!(waiting.road().is_none(), "{waiting:?}");
+  assert_eq!(waiting.no_road, None, "a provider that cannot answer now is waited for, not refused");
+  assert_eq!(waiting.steps.len(), 1, "the asking supervisor's road alone is walked: {waiting:?}");
+  assert!(
+    waiting
+      .closed()
+      .iter()
+      .any(|closed| closed.provider == "deepseek" && closed.reason.contains("balance is spent")),
+    "{waiting:?}"
+  );
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let unasked = for_job(&ground, None, None, None, &[], None).await.unwrap();
+
+  assert!(unasked.road().is_none(), "{unasked:?}");
+
+  let why = unasked.no_road.clone().expect("the sentence its start refuses it with");
+
+  assert!(why.contains("switched-on agents are on no road"), "{why}");
+  assert!(why.contains("no supervisor asked this job"), "{why}");
+
+  // A supervisor the store does not hold asked it: it has no road to follow either.
+  let stranger = for_job(&ground, None, None, None, &[], Some("nobody")).await.unwrap();
+
+  assert!(stranger.road().is_none(), "{stranger:?}");
+  assert!(stranger.no_road.is_some());
+
+  // A role with no agent switched on is closed: it waits for one, and its start refuses it for nothing.
+  crate::support::rows::seats(scratch.db(), "worker", &[]).await;
+
+  let closed = for_job(&ground, None, None, None, &[], Some("asking")).await.unwrap();
+
+  assert!(closed.road().is_none(), "{closed:?}");
+  assert_eq!(closed.no_road, None, "a closed role waits for an agent");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -230,7 +307,7 @@ async fn a_repositorys_pinned_model_is_walked_alone_and_its_work_waits_rather_th
     )
     .await;
 
-  let pinned = for_job(&ground, None, Some("pinned"), None, &[]).await.unwrap();
+  let pinned = for_job(&ground, None, Some("pinned"), None, &[], None).await.unwrap();
 
   assert!(pinned.fixed);
   assert_eq!(pinned.steps.len(), 1, "the pin alone is walked: {pinned:?}");
@@ -239,7 +316,7 @@ async fn a_repositorys_pinned_model_is_walked_alone_and_its_work_waits_rather_th
     "the role's order could answer, and the pin's work waits all the same"
   );
 
-  let unpinned = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let unpinned = for_job(&ground, None, None, None, &[], None).await.unwrap();
 
   assert_eq!(unpinned.road().map(|road| road.provider.as_str()), Some("deepseek"));
 }
@@ -277,11 +354,11 @@ async fn a_job_goes_out_on_its_item_s_model_then_the_pin_then_its_role_s_agents_
     )
     .await;
 
-  let order = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let order = for_job(&ground, None, None, None, &[], None).await.unwrap();
 
   assert_eq!((taken(&order), order.chosen_by), (deepseek("deepseek-flash"), Some(ChosenBy::Order)));
 
-  let pinned = for_job(&ground, None, Some("pinned"), None, &[]).await.unwrap();
+  let pinned = for_job(&ground, None, Some("pinned"), None, &[], None).await.unwrap();
 
   assert_eq!((taken(&pinned), pinned.chosen_by), (deepseek("pinned-model"), Some(ChosenBy::Pin)));
 
@@ -289,18 +366,18 @@ async fn a_job_goes_out_on_its_item_s_model_then_the_pin_then_its_role_s_agents_
   // stands over it.
   seat_worker(&scratch, ("deepseek", "seated-model")).await;
 
-  let seated = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let seated = for_job(&ground, None, None, None, &[], None).await.unwrap();
 
   assert_eq!((taken(&seated), seated.chosen_by), (deepseek("seated-model"), Some(ChosenBy::Order)));
   assert_eq!(seated.steps.len(), 1, "the agents' one road alone is walked: {seated:?}");
 
-  let pinned = for_job(&ground, None, Some("pinned"), None, &[]).await.unwrap();
+  let pinned = for_job(&ground, None, Some("pinned"), None, &[], None).await.unwrap();
 
   assert_eq!((taken(&pinned), pinned.chosen_by), (deepseek("pinned-model"), Some(ChosenBy::Pin)));
 
   // The item's model stands over the pin.
   let item = pin("deepseek", "item-model");
-  let named = for_job(&ground, None, Some("pinned"), Some(&item), &[]).await.unwrap();
+  let named = for_job(&ground, None, Some("pinned"), Some(&item), &[], None).await.unwrap();
 
   assert_eq!((taken(&named), named.chosen_by), (deepseek("item-model"), Some(ChosenBy::Item)));
 }
@@ -315,7 +392,7 @@ async fn an_agents_road_or_an_item_s_model_that_cannot_answer_waits_and_never_fa
 
   // The item names a registration whose engine is not there: the order could answer, and the job waits.
   let item = pin("registered", "no-such-registration");
-  let named = for_job(&ground, None, None, Some(&item), &[]).await.unwrap();
+  let named = for_job(&ground, None, None, Some(&item), &[], None).await.unwrap();
 
   assert!(named.road().is_none(), "{named:?}");
   assert_eq!(named.steps.len(), 1, "the item's model alone is walked: {named:?}");
@@ -326,7 +403,7 @@ async fn an_agents_road_or_an_item_s_model_that_cannot_answer_waits_and_never_fa
   seat_worker(&scratch, ("deepseek", "seated-model")).await;
   deepseek_balance(&ground, 0.0).await;
 
-  let spent = for_job(&ground, None, None, None, &[]).await.unwrap();
+  let spent = for_job(&ground, None, None, None, &[], None).await.unwrap();
 
   assert!(spent.road().is_none(), "{spent:?}");
   assert_eq!(spent.steps.len(), 1, "the agents' one road alone is walked: {spent:?}");

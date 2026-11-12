@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
-use crate::order::Order;
+use crate::order::{Entry, Order};
 
 /// The mark a supervisor of an account leads its system prompt with (docs/agent-ownership.md, 「What the
 /// supervisor's row carries」): a short digest of the account, which says nothing of it.
@@ -95,6 +95,23 @@ impl Supervisor {
   /// where the row names none.
   pub fn warms_on(&self, provider: &str) -> bool {
     self.warming.get(provider).copied().unwrap_or(false)
+  }
+
+  /// The road it stands on now, which a run that follows it goes out on: the provider, model and effort its
+  /// last turn went out on, else its order's first; none where it names no provider
+  /// (docs/provider-order.md, 「Runs that do not walk their own role's order」).
+  pub fn road(&self) -> Option<Entry> {
+    let stands = self.last_mode.clone().filter(|mode| !mode.is_empty()).zip(self.last_model.clone()).map(
+      |(provider, model)| Entry {
+        effort: self.last_effort.clone().filter(|effort| !effort.is_empty()),
+        thinking: self.order.entry(&provider).and_then(|entry| entry.thinking.clone()),
+        answer_tokens: self.order.entry(&provider).and_then(|entry| entry.answer_tokens),
+        provider,
+        model,
+      },
+    );
+
+    stands.or_else(|| self.order.first().cloned())
   }
 }
 

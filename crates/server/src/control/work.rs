@@ -21,6 +21,7 @@ use crate::events::Named;
 use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
 use crate::now_ms;
+use crate::order::Entry;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
@@ -842,11 +843,26 @@ impl Route for CreateJob {
     };
     // A job is never refused for quota (docs/api.md, 「assignments and jobs」): where nothing in its walk can
     // answer now, it is taken and waits `starting`, held with the reason, until a road can. The walk read
-    // here only says which chose the job's road.
-    let resolution =
-      road::for_job(call.ground(), Some(&role), Some(&worker_name), item_model.as_ref(), &[])
-        .await
-        .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
+    // here says which chose the job's road, and a role with no road at all to follow is the one refusal.
+    let resolution = road::for_job(
+      call.ground(),
+      Some(&role),
+      Some(&worker_name),
+      item_model.as_ref(),
+      &[],
+      Some(holder.as_str()),
+    )
+    .await
+    .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
+
+    // A job of a role whose switched-on agents all name no road goes out on the road of the supervisor that
+    // asks it; asked by no supervisor the store holds, and by one that names no provider, it has no road to
+    // go out on, and its launch is refused rather than held (docs/repositories.md, 「A job」).
+    if let Some(why) = &resolution.no_road {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, why.clone()).with_code("role-names-no-road"),
+      );
+    }
     let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId")
       .or_else(|| number(&item, "roomId"))
@@ -902,7 +918,7 @@ impl Route for CreateJob {
 crate::moved!(CreateJob);
 
 /// The work parts a run of `role` at a checkout is carried with on a road: its provider and model, and the
-/// effort the role's order names for that provider.
+/// effort and answer ceiling the road's entry names for it.
 pub(crate) async fn role_work_parts(
   ground: &Ground,
   role: &str,
@@ -910,15 +926,14 @@ pub(crate) async fn role_work_parts(
   room: i64,
   name: &str,
   title: &str,
-  taken: &Road,
+  entry: &Entry,
 ) -> Result<WorkParts, String> {
-  let provider = taken.provider.clone();
-  // The role's entry for the provider names the effort; the road names the model, its repository's pin's
-  // where it pins one.
-  let entry = crate::order::role_entry(&ground.db, role, &provider).await.ok();
-  let effort = entry.as_ref().and_then(|entry| entry.effort.clone());
-  let answer_tokens = entry.as_ref().and_then(|entry| entry.answer_tokens);
-  let model = taken.model.clone();
+  // The entry names the provider, model, effort and answer ceiling the turn goes out with, whichever road it
+  // is: an agent's own, an item's model, a repository's pin, or the road a role that names none follows.
+  let provider = entry.provider.clone();
+  let effort = entry.effort.clone();
+  let answer_tokens = entry.answer_tokens;
+  let model = entry.model.clone();
   let row = AgentRow::named(&ground.db, worker_name)
     .await
     .map_err(|why| why.detail)?
@@ -1336,15 +1351,23 @@ fn ended_by(
 
 /// What carries one turn of a job on one road: the worker's session through the session contract, or a
 /// test's stand-in for it. A turn that could not be carried at all is its error; any turn that was is its
-/// end, however it ended.
+/// end, however it ended. The entry is the road's, with the effort and answer ceiling the turn goes out on.
 pub trait Carrier {
-  fn carry(&mut self, taken: &Road, prompt: &str) -> impl Future<Output = Result<TurnEnd, String>>;
+  fn carry(
+    &mut self,
+    taken: &Road,
+    entry: &Entry,
+    prompt: &str,
+  ) -> impl Future<Output = Result<TurnEnd, String>>;
 }
 
-/// The job a walk of roads carries: its id, its worker and the prompt it was launched with.
+/// The job a walk of roads carries: its id, its worker, the holder that asked it, its `holderName`, and the
+/// prompt it was launched with. A holder the store holds a supervisor for is the supervisor a role that names
+/// no road follows.
 pub struct Carried<'a> {
   pub id: i64,
   pub worker: &'a str,
+  pub holder: &'a str,
   pub prompt: &'a str,
 }
 
@@ -1575,10 +1598,13 @@ async fn wait_for_road(
   // Asked again as each usage reading, account change, rest or road fact comes in, and on the policy's clock
   // where none does.
   let mut moved = crate::order::quota_watch(ground);
-  let sentence = resolution.sentence();
+  let sentence = resolution.no_road.clone().unwrap_or_else(|| resolution.sentence());
 
   held_for(ground, job.id, Some(&sentence)).await;
-  road::went(ground, resolution, None, &[]).await;
+  // A role with no road to follow has no walk to report: the sentence is the whole of it.
+  if resolution.no_road.is_none() {
+    road::went(ground, resolution, None, &[]).await;
+  }
   noted_line(ground, job.id, &sentence).await;
 
   let every = std::time::Duration::from_secs(policy::roads::ROADS.job.wait_seconds);
@@ -1595,11 +1621,19 @@ async fn wait_for_road(
     }
 
     let item = item_model_of_job(ground, job.id).await;
+    let asked_by = Some(job.holder).filter(|name| !name.is_empty());
 
-    if road::for_job(ground, Some(&role_of_job(ground, job.id).await), Some(job.worker), item.as_ref(), &[])
-      .await?
-      .road()
-      .is_some()
+    if road::for_job(
+      ground,
+      Some(&role_of_job(ground, job.id).await),
+      Some(job.worker),
+      item.as_ref(),
+      &[],
+      asked_by,
+    )
+    .await?
+    .road()
+    .is_some()
     {
       held_for(ground, job.id, None).await;
 
@@ -1626,6 +1660,7 @@ pub async fn carry_job<C: Carrier>(
 
   let role = role_of_job(ground, job.id).await;
   let role = Some(role.as_str());
+  let asked_by = Some(job.holder).filter(|name| !name.is_empty());
   let item = item_model_of_job(ground, job.id).await;
   let item = item.as_ref();
   let mut left: Vec<Closed> = vec![];
@@ -1636,11 +1671,14 @@ pub async fn carry_job<C: Carrier>(
   let mut last: Option<Ended> = None;
 
   loop {
-    let resolution = road::for_job(ground, role, Some(job.worker), item, &left).await?;
-    let Some(taken) = resolution.road().cloned() else {
+    let resolution = road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?;
+    let Some((taken, entry)) = resolution.going().map(|(road, entry)| (road.clone(), entry.clone())) else {
       // Every road that can answer now was already tried in this job: it ends as its last turn did.
       if let Some((state, outcome, report, _)) = last.take()
-        && road::for_job(ground, role, Some(job.worker), item, &[]).await?.road().is_some()
+        && road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
+          .await?
+          .road()
+          .is_some()
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
@@ -1659,7 +1697,7 @@ pub async fn carry_job<C: Carrier>(
     roads.push((taken.clone(), why));
     kept_roads(ground, job.id, &roads, &values, resolution.chosen_by).await;
 
-    let end = carrier.carry(&taken, &prompt).await?;
+    let end = carrier.carry(&taken, &entry, &prompt).await?;
 
     spent = summed(spent, turn_spent(&end));
 
@@ -1946,12 +1984,12 @@ impl OnSession<'_> {
 }
 
 impl Carrier for OnSession<'_> {
-  async fn carry(&mut self, taken: &Road, prompt: &str) -> Result<TurnEnd, String> {
+  async fn carry(&mut self, taken: &Road, entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
     let ground = self.ground;
     let member = self.member;
     let id = member["id"].as_i64().unwrap_or_default();
     let parts =
-      role_work_parts(ground, self.role, self.worker, self.room, self.name, self.title, taken).await?;
+      role_work_parts(ground, self.role, self.worker, self.room, self.name, self.title, entry).await?;
 
     self.roads += 1;
 
@@ -2120,6 +2158,7 @@ async fn launched(
 ) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
+  let holder = member["holderName"].as_str().unwrap_or_default().to_owned();
   let item = member["itemId"].as_i64().unwrap_or_default();
 
   println!("job {id}: starting on worker {worker_name} for item {item}");
@@ -2170,6 +2209,7 @@ async fn launched(
     &Carried {
       id,
       worker: &worker_name,
+      holder: &holder,
       prompt: &prompt,
     },
     &mut carrier,

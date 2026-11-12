@@ -469,6 +469,57 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   assigned(port, token, 42).await;
 }
 
+// A job of a role whose switched-on agents all name no road is refused at its start by a holder the store
+// holds no supervisor for, with the roads its agents are on and nothing written; the assignment stays held
+// (docs/repositories.md, 「A job」; docs/role-agents.md, 「Which agent a run takes」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_of_a_role_whose_agents_name_no_road_is_refused_without_an_asking_supervisor() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  std::fs::create_dir_all(home.path().join("helper")).unwrap();
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // The worker's agents are switched on and name no road.
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = NULL, "model" = NULL WHERE "role" = 'worker'"#,
+      vec![],
+    )
+    .await;
+
+  let assignment = assigned(port, token, 60).await;
+  let (status, refused) = post(
+    port,
+    token,
+    "/jobs",
+    json!({
+      "assignmentId": assignment,
+      "itemId": 60,
+      "leaseId": 1,
+      "holderName": "harness",
+      "item": item(),
+    }),
+  )
+  .await;
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("role-names-no-road")), "{refused}");
+
+  let why = refused["error"].as_str().unwrap();
+
+  assert!(why.contains("switched-on agents are on no road"), "{why}");
+  assert!(why.contains("no supervisor asked this job"), "{why}");
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
+  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
+}
+
 // A job's small-model instruction (docs/worker-bench.md, 「A small-model instruction」): refused naming the
 // field it lacks, kept and answered whole, rendered under the item's title ahead of its brief, and
 // composed into the one line a work-order step is written as.

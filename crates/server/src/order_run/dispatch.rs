@@ -361,28 +361,10 @@ pub async fn fixed_road<C: ConnectionTrait>(
     ));
   };
 
-  supervisor_road(&supervisor)
+  supervisor
+    .road()
     .map(Some)
     .ok_or_else(|| format!("The supervisor {} names no provider to go out on", supervisor.name))
-}
-
-/// The road a supervisor stands on now, which a run that follows it goes out on: the provider, model and
-/// effort its last turn went out on, else its order's first; none where it names no provider.
-fn supervisor_road(supervisor: &crate::supervisors::Supervisor) -> Option<Entry> {
-  let stands = supervisor
-    .last_mode
-    .clone()
-    .filter(|mode| !mode.is_empty())
-    .zip(supervisor.last_model.clone())
-    .map(|(provider, model)| Entry {
-      effort: supervisor.last_effort.clone().filter(|effort| !effort.is_empty()),
-      thinking: supervisor.order.entry(&provider).and_then(|entry| entry.thinking.clone()),
-      answer_tokens: supervisor.order.entry(&provider).and_then(|entry| entry.answer_tokens),
-      provider,
-      model,
-    });
-
-  stands.or_else(|| supervisor.order.first().cloned())
 }
 
 /// The request a token names.
@@ -634,7 +616,7 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
         .await
         .map_err(faulted)?
         .as_ref()
-        .and_then(supervisor_road),
+        .and_then(|supervisor| supervisor.road()),
       _ => None,
     };
     // One road is asked of its provider once, whichever agents stand on it.

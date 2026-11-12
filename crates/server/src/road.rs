@@ -154,6 +154,10 @@ pub struct Resolution {
   pub fixed: bool,
   /// What chose a job's provider and model; none for a run that is no job.
   pub chosen_by: Option<ChosenBy>,
+  /// Why a job of a role all of whose switched-on agents name no road has no road to go out on: no
+  /// supervisor asked it, or the one it named names no provider. Its start refuses the job with this
+  /// sentence (docs/repositories.md, 「A job」); none for a run that has a walk.
+  pub no_road: Option<String>,
 }
 
 /// What chose a job's provider and model, the first that stands of three (docs/repositories.md, 「A model an
@@ -182,7 +186,15 @@ impl ChosenBy {
 impl Resolution {
   /// The road work goes out on now: the first of the walk that can answer.
   pub fn road(&self) -> Option<&Road> {
-    self.open().next()
+    self.going().map(|(road, _)| road)
+  }
+
+  /// The road work goes out on now, with the entry it goes out on there.
+  pub fn going(&self) -> Option<(&Road, &Entry)> {
+    self.steps.iter().find_map(|step| match &step.answer {
+      Answer::Can(road) => Some((road, &step.entry)),
+      _ => None,
+    })
   }
 
   /// The step the road work goes out on now stands on, with its entry.
@@ -293,14 +305,17 @@ impl Resolution {
 
 /// Where a job of a role at a checkout goes out now, the first that stands of three (docs/repositories.md, 「A
 /// model an item names」): the model its item names, else its repository's pinned model, each walked alone,
-/// waited for and never left; else the roads of its role's agents, in their order. The role is the job role
-/// where none is named. The providers the job already left count as unable to answer.
+/// waited for and never left; else the roads of its role's agents, in their order. A role whose switched-on
+/// agents all name no road follows the supervisor that asks the job, the one its `asked_by` names, and has no
+/// road where that names none (docs/provider-order.md, 「Runs that do not walk their own role's order」). The
+/// role is the job role where none is named. The providers the job already left count as unable to answer.
 pub async fn for_job(
   ground: &Ground,
   role: Option<&str>,
   checkout: Option<&str>,
   item: Option<&Pin>,
   left: &[Closed],
+  asked_by: Option<&str>,
 ) -> Result<Resolution, String> {
   let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
   let held = crate::agent_roles::named(&ground.db, role)
@@ -320,17 +335,60 @@ pub async fn for_job(
     (None, Some(pin)) => (Some(held.order.entry_on(&pin)), ChosenBy::Pin),
     (None, None) => (None, ChosenBy::Order),
   };
+  // Where the role has no road of its own, the road it follows is its asker's, a one-entry order that waits
+  // for that provider and never moves off it. An ask no supervisor makes, and one whose supervisor names no
+  // provider, has no road to follow, which its start refuses.
+  let (fixed, follow, no_road) = match (fixed, held.names_no_road()) {
+    (Some(fixed), _) => (Some(fixed), None, None),
+    (None, false) => (None, None, None),
+    (None, true) => {
+      let supervisor = match asked_by {
+        Some(name) => crate::supervisors::named(&ground.db, name).await.map_err(|why| why.detail)?,
+        None => None,
+      };
+
+      match supervisor.as_ref().and_then(|supervisor| supervisor.road()) {
+        Some(entry) => (
+          None,
+          Some(Order {
+            entries: vec![entry],
+            forced: None,
+            ..held.order.clone()
+          }),
+          None,
+        ),
+        None => (None, None, Some(no_road_sentence(&held.name, asked_by, supervisor.is_some()))),
+      }
+    }
+  };
+  let order = follow.as_ref().unwrap_or(&held.order);
   let ask = Ask {
     left,
     fixed: fixed.as_ref(),
-    ..Ask::of(Row::Role(&held.name), &held.line, &held.order)
+    ..Ask::of(Row::Role(&held.name), &held.line, order)
   };
   let resolution = resolve(ground, &ask).await?;
 
   Ok(Resolution {
     chosen_by: Some(chosen_by),
+    no_road,
     ..resolution
   })
+}
+
+// Why a job of a role all of whose switched-on agents name no road cannot start: the road its agents are on,
+// the supervisor whose road it follows where one asked, and the reason none stands
+// (docs/repositories.md, 「A job」).
+fn no_road_sentence(role: &str, asked_by: Option<&str>, asked_a_supervisor: bool) -> String {
+  let why = match asked_by.filter(|_| asked_a_supervisor) {
+    Some(name) => format!("the supervisor {name} names no provider to go out on"),
+    None => "no supervisor asked this job".to_owned(),
+  };
+
+  format!(
+    "The {role} role's switched-on agents are on no road, so a job of it goes out on the road of the \
+     supervisor that asks it, and {why}"
+  )
 }
 
 /// Where a row's run goes out now (docs/provider-order.md, 「Choosing the provider」): a road the caller fixes
@@ -382,6 +440,7 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
     uncarried,
     fixed: ask.fixed.is_some(),
     chosen_by: None,
+    no_road: None,
   })
 }
 

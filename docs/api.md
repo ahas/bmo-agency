@@ -1389,7 +1389,14 @@ service.
   pinned model, where the repository pins one (`docs/repositories.md`, 「A pinned model」); either is let in
   on an agent of the role that stands on that road alone. The job answers `chosenBy`, which chose its
   provider and model: `item`, `pin` or `order`, the first of them that stands in that order, `order` being
-  the role's agents. A job row that holds `forced` answers it as it stands; no job is given it.
+  the role's agents, the road of the supervisor that asks the job where all of them name no road. A job row
+  that holds `forced` answers it as it stands; no job is given it.
+- **A role whose switched-on agents all name no road has no road of its own:** the job goes out on the road
+  of the supervisor that asks it, its `holderName`, and waits for that provider rather than moving off it.
+  A `holderName` the store holds no supervisor for, or a supervisor that names no provider, leaves no road
+  to follow: `POST /jobs` is refused 422 `role-names-no-road`, the sentence naming the role and the roads
+  its agents are on, nothing written and the assignment left held (`docs/repositories.md`, 「A job」). A role
+  with no agent switched on is closed, and its jobs wait for one rather than being refused.
 - **An item's `model` is read off the item `POST /jobs` is handed,** its `labels`, and judged as a
   repository's pin is: a value that is no `<provider>/<model>`, a provider agency does not carry or whose
   program does not carry the worker line, or a model it does not hold refuses the launch 422

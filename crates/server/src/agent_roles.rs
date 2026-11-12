@@ -47,6 +47,13 @@ impl AgentRole {
       .filter(|agent| agent.enabled && agent.owner_account.as_deref() == account)
       .count() as i64
   }
+
+  /// Whether its switched-on agents all name no road, so a run of it follows the supervisor that asks it
+  /// (docs/role-agents.md, 「Which agent a run takes」). False for a role with no agent switched on, whose runs
+  /// wait until the owner switches one on (docs/role-slots.md, 「The cap」).
+  pub fn names_no_road(&self) -> bool {
+    self.order.entries.is_empty() && self.agents.iter().any(|agent| agent.enabled)
+  }
 }
 
 impl AgentRole {

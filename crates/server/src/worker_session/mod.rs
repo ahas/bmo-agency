@@ -288,7 +288,8 @@ async fn idle_turn_stands(
     return Ok(false);
   }
 
-  let resolution = crate::road::for_job(ground, None, Some(worker), None, &[]).await.map_err(fault)?;
+  let resolution =
+    crate::road::for_job(ground, None, Some(worker), None, &[], None).await.map_err(fault)?;
 
   if resolution.road().is_none_or(|taken| taken.provider != PROVIDER) {
     return Ok(false);

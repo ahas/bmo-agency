@@ -275,8 +275,10 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
 async fn job_road(ground: &Ground) -> Result<String, Refusal> {
   let fault = |refused: crate::control::Refused| crate::lines::fault(refused.error);
 
-  if let Some(taken) =
-    road::for_job(ground, None, None, None, &[]).await.map_err(crate::lines::fault)?.road()
+  if let Some(taken) = road::for_job(ground, None, None, None, &[], None)
+    .await
+    .map_err(crate::lines::fault)?
+    .road()
   {
     return Ok(taken.provider.clone());
   }
@@ -300,7 +302,7 @@ async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Op
   else {
     return Ok(None);
   };
-  let resolution = road::for_job(ground, None, Some(worker), None, &[])
+  let resolution = road::for_job(ground, None, Some(worker), None, &[], None)
     .await
     .map_err(crate::lines::fault)?;
   let Some(taken) = resolution.road() else { return Ok(Some(pin)) };

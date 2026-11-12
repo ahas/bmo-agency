@@ -13,6 +13,7 @@ use crate::support::grounds::{OrderEntry, deepseek_balance, set_provider_order};
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work::{Carried, Carrier, carry_job, continued, road_stopped};
+use agency_server::order::Entry;
 use agency_server::places::Ground;
 use agency_server::road::Road;
 use agency_server::seeds::deployment;
@@ -48,12 +49,12 @@ fn limit() -> TurnEnd {
 /// A stand-in for the worker's session: each turn it is handed kept, each answered by the next end it holds.
 struct Ends {
   ends: VecDeque<TurnEnd>,
-  turns: Vec<(Road, String)>,
+  turns: Vec<(Road, Entry, String)>,
 }
 
 impl Carrier for Ends {
-  async fn carry(&mut self, taken: &Road, prompt: &str) -> Result<TurnEnd, String> {
-    self.turns.push((taken.clone(), prompt.to_owned()));
+  async fn carry(&mut self, taken: &Road, entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
+    self.turns.push((taken.clone(), entry.clone(), prompt.to_owned()));
 
     self.ends.pop_front().ok_or_else(|| "no end is left".to_owned())
   }
@@ -113,6 +114,7 @@ fn job() -> Carried<'static> {
   Carried {
     id: 7,
     worker: "helper",
+    holder: "harness",
     prompt: "# An item\n\nDo the work.",
   }
 }
@@ -132,12 +134,12 @@ async fn a_turn_whose_road_stopped_answering_goes_out_again_on_the_next_road_and
 
   assert_eq!((state.as_str(), outcome), ("ended", None));
   assert_eq!(
-    carrier.turns.iter().map(|(road, _)| road.provider.as_str()).collect::<Vec<_>>(),
+    carrier.turns.iter().map(|(road, _, _)| road.provider.as_str()).collect::<Vec<_>>(),
     vec!["deepseek", "claude-code"]
   );
-  assert_eq!(carrier.turns[0].1, job().prompt, "the first road takes the job's own prompt");
-  assert!(carrier.turns[1].1.contains("already ran on deepseek"), "{}", carrier.turns[1].1);
-  assert!(carrier.turns[1].1.ends_with(job().prompt), "{}", carrier.turns[1].1);
+  assert_eq!(carrier.turns[0].2, job().prompt, "the first road takes the job's own prompt");
+  assert!(carrier.turns[1].2.contains("already ran on deepseek"), "{}", carrier.turns[1].2);
+  assert!(carrier.turns[1].2.ends_with(job().prompt), "{}", carrier.turns[1].2);
 
   let report = report.unwrap_or_default();
 
@@ -266,7 +268,7 @@ async fn a_job_whose_item_names_its_model_goes_out_on_it_over_the_pin_and_never_
     carrier
       .turns
       .iter()
-      .map(|(road, _)| (road.provider.as_str(), road.model.as_str()))
+      .map(|(road, _, _)| (road.provider.as_str(), road.model.as_str()))
       .collect::<Vec<_>>(),
     vec![("claude-code", "item-model")],
     "the item's model alone, over the pin, and nothing after its road stopped answering"
@@ -390,6 +392,70 @@ async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it()
   carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
   assert_eq!(carrier.turns[0].0.model, "pinned-model");
   assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("pin"));
+}
+
+// A job of a role whose switched-on agents all name no road goes out on the road of the supervisor that asks
+// it, at that supervisor's effort, and the road it went out on is kept on the job
+// (docs/provider-order.md, 「Runs that do not walk their own role's order」; docs/role-agents.md, 「Which agent
+// a run takes」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_of_a_role_whose_agents_name_no_road_goes_out_on_the_road_of_the_supervisor_that_asks_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+
+  // The worker's agents are switched on and name no road.
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = NULL, "model" = NULL WHERE "role" = 'worker'"#,
+      vec![],
+    )
+    .await;
+  // The supervisor that asks stands on DeepSeek's flash model at the high effort.
+  crate::support::rows::supervisor(
+    scratch.db(),
+    "asking",
+    &[(
+      "provider_order",
+      r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"}]"#.into(),
+    )],
+  )
+  .await;
+  scratch
+    .run(r#"UPDATE "jobs" SET "holder_name" = 'asking' WHERE "id" = 7"#, vec![])
+    .await;
+  deepseek_balance(&ground, 5.0).await;
+
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", "Done.")]),
+    turns: vec![],
+  };
+  let carried = Carried {
+    id: 7,
+    worker: "helper",
+    holder: "asking",
+    prompt: "# An item\n\nDo the work.",
+  };
+  let (state, outcome, _, _) = carry_job(&ground, &carried, &mut carrier).await.unwrap().expect("an end");
+
+  assert_eq!((state.as_str(), outcome), ("ended", None));
+
+  let (taken, entry, _) = &carrier.turns[0];
+
+  assert_eq!((taken.provider.as_str(), taken.model.as_str()), ("deepseek", "deepseek-flash"));
+  assert_eq!(entry.effort.as_deref(), Some("high"), "the supervisor's effort");
+  assert_eq!(job_column(&scratch, "chosen_by").await.as_deref(), Some("order"));
+
+  let roads: String = store::one(scratch.db(), r#"SELECT "roads" FROM "jobs" WHERE "id" = 7"#, vec![])
+    .await
+    .unwrap()
+    .unwrap()
+    .try_get("", "roads")
+    .unwrap();
+  let roads: serde_json::Value = serde_json::from_str(&roads).unwrap();
+
+  assert_eq!(roads[0]["provider"], "deepseek");
+  assert_eq!(roads[0]["model"], "deepseek-flash");
 }
 
 #[test]
@@ -569,7 +635,7 @@ struct Standing {
 }
 
 impl Carrier for Standing {
-  async fn carry(&mut self, taken: &Road, _prompt: &str) -> Result<TurnEnd, String> {
+  async fn carry(&mut self, taken: &Road, _entry: &Entry, _prompt: &str) -> Result<TurnEnd, String> {
     self.providers.push(taken.provider.clone());
     self.stood = self.at.join(".git").exists() && git(&self.at, &["rev-parse", "HEAD"]) == self.head;
 
@@ -588,6 +654,7 @@ async fn a_first_launch_on_a_fresh_support_makes_its_worktree_before_the_pane_ro
   let job = || Carried {
     id: 8,
     worker: "web-w2",
+    holder: "harness",
     prompt: "# An item\n\nDo the work.",
   };
   let mut carrier = Standing {
@@ -631,7 +698,7 @@ struct Starts {
 }
 
 impl Carrier for Starts {
-  async fn carry(&mut self, _taken: &Road, _prompt: &str) -> Result<TurnEnd, String> {
+  async fn carry(&mut self, _taken: &Road, _entry: &Entry, _prompt: &str) -> Result<TurnEnd, String> {
     self.lines.lock().unwrap().push("start".to_owned());
 
     Ok(TurnEnd::answered("job-7", "Done."))

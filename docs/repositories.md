@@ -71,6 +71,12 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **It runs on the road of an agent of its role:** the first of the role's agents, by position, that is
   switched on, carries no run and whose road can answer now (`docs/role-agents.md`, 「Which agent a run
   takes」), unless its item names a model or its repository pins one (below).
+- **A role whose switched-on agents all name no road has no road of its own:** the job goes out on the road
+  of the supervisor that asks it, its `holderName`, as `docs/provider-order.md` says of such a role, and
+  waits for that provider rather than moving off it. A `holderName` the store holds no supervisor for, or a
+  supervisor that names no provider, leaves no road to follow: the launch is refused 422
+  `role-names-no-road` with the role and the roads its agents are on, and nothing is written. A role with no
+  agent switched on is closed, and its jobs wait for one (`docs/role-slots.md`, 「The cap」).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
