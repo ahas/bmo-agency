@@ -8,9 +8,9 @@ use std::sync::{Arc, Mutex};
 
 use agency_server::queue::orderer::Orderer;
 use agency_server::watches::queue_idle::{
-  DRAFT_TOLD_PREFIX, Draft, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, approval_instruction,
-  awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started, launch_instruction, launches_due,
-  notice, pass, room_of, unlaunchable, waiting,
+  DRAFT_TOLD_PREFIX, Draft, LAUNCH_TOLD_PREFIX, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
+  approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started,
+  launch_instruction, launches_due, notice, pass, room_of, unlaunchable, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -128,6 +128,72 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
 
   quiet.silenced = true;
   assert!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE).is_empty(), "silenced");
+}
+
+fn for_agent(id: i64, assignee: &str, agent: &str) -> Open {
+  Open {
+    agent: Some(agent.to_owned()),
+    ..open(id, Some(assignee))
+  }
+}
+
+#[test]
+fn an_item_whose_agent_carries_a_run_waits_on_that_agent_and_awaits_once_it_is_free() {
+  let items = vec![for_agent(1, "w1", "coder-a"), open(2, Some("w1"))];
+  let mut busy = standing(items.clone(), &["w1"]);
+
+  busy.carrying = vec!["coder-a".to_owned()];
+  assert_eq!(awaiting_launch(&busy), vec![&open(2, Some("w1"))], "its agent carries a run");
+  assert_eq!(
+    awaiting_launch(&standing(items, &["w1"])),
+    vec![&for_agent(1, "w1", "coder-a"), &open(2, Some("w1"))],
+    "its agent free again"
+  );
+}
+
+#[test]
+fn a_free_agent_is_offered_its_first_item_a_pass_and_the_next_once_that_one_is_told() {
+  let quiet = standing(
+    vec![
+      for_agent(7, "w2", "coder-a"),
+      for_agent(5, "w1", "coder-a"),
+      for_agent(6, "w1", "coder-b"),
+    ],
+    &["w1", "w2"],
+  );
+  let seen = BTreeMap::from([(5, 0), (6, 0), (7, 0)]);
+
+  assert_eq!(
+    launches_due(&quiet, &seen, &BTreeSet::new(), MINUTE),
+    vec![&for_agent(5, "w1", "coder-a"), &for_agent(6, "w1", "coder-b")],
+    "one item an agent, the lowest number"
+  );
+  assert_eq!(
+    launches_due(&quiet, &seen, &BTreeSet::from([5, 6]), MINUTE),
+    vec![&for_agent(7, "w2", "coder-a")],
+    "the next once the first is told and the agent still free"
+  );
+
+  let raised = standing(
+    vec![
+      for_agent(5, "w1", "coder-a"),
+      Open {
+        priority: 1,
+        ..for_agent(9, "w1", "coder-a")
+      },
+    ],
+    &["w1"],
+  );
+  let seen = BTreeMap::from([(5, 0), (9, 0)]);
+
+  assert_eq!(
+    launches_due(&raised, &seen, &BTreeSet::new(), MINUTE)
+      .iter()
+      .map(|item| item.id)
+      .collect::<Vec<_>>(),
+    [9],
+    "an item whose priority was raised goes before a lower number"
+  );
 }
 
 #[test]
@@ -330,6 +396,47 @@ async fn stand(peers: &Peers) -> BTreeMap<String, String> {
     ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
   ]
   .into()
+}
+
+#[tokio::test]
+async fn a_told_item_that_stops_waiting_is_let_go_so_it_is_told_again_once_free() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let peers = Peers::default();
+  let vars = stand(&peers).await;
+
+  repository(db, "w1", "/checkouts/w1", &[]).await;
+  repository(db, "w2", "/checkouts/w2", &[]).await;
+  supervisor(db, "chat", &[]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (20, 1, 'runner', 1, 'w2', 'running', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+
+  for id in [11, 12] {
+    scratch
+      .run(
+        r#"INSERT INTO "settings" ("key", "value") VALUES ($1, '1000')"#,
+        vec![format!("{LAUNCH_TOLD_PREFIX}{id}").into()],
+      )
+      .await;
+  }
+
+  pass(db, &vars).await.unwrap();
+
+  let marked = |id: i64| {
+    scratch.count(
+      r#"SELECT COUNT(*) AS "count" FROM "settings" WHERE "key" = $1"#,
+      vec![format!("{LAUNCH_TOLD_PREFIX}{id}").into()],
+    )
+  };
+
+  assert_eq!(marked(11).await, 1, "item 11 still waits on its free worker");
+  assert_eq!(marked(12).await, 0, "item 12's worker is busy, its mark let go");
 }
 
 #[tokio::test]

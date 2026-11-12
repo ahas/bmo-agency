@@ -208,6 +208,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.
+- **What others wait on goes first.** Where an item cannot start until another open item is done, that other
+  item goes before everything nothing waits on: raise its `priority` with `job_item_update` above the items
+  queued on the same agent, and launch it as soon as its agent is free. Never leave a blocker queued behind
+  its own series while what waits on it sits; a free agent is offered its items in the queue's order, the
+  highest priority first.
 - **One run at a time.** `assign_worker` refuses a worker already held or running (`no-worker-free`);
   do not force it, and do not take a lease you cannot launch. Wait for that run to end, then choose
   again. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so

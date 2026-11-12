@@ -50,6 +50,12 @@ pub struct Open {
   pub title: String,
   /// The checkout it is to go to, where it names one.
   pub assignee: Option<String>,
+  /// The agent its `agent` label names, where it names one: its job waits for that agent alone.
+  pub agent: Option<String>,
+  /// Its priority in its queue, the higher first.
+  pub priority: i64,
+  /// Its place in its queue among items of one priority, the lower first.
+  pub position: i64,
   /// The room it was asked in, where it names one: its `roomId`, else the room its `scope` names.
   pub room: Option<i64>,
   /// The item it was raised from, where it names one.
@@ -78,6 +84,8 @@ pub struct Standing {
   pub free: Vec<String>,
   /// Every checkout agency holds, free or not, the built-in worker among them.
   pub known: Vec<String>,
+  /// The agents a job or a slot carries a run on now.
+  pub carrying: Vec<String>,
   /// When the last job started, in epoch milliseconds, where one has.
   pub last_start: Option<i64>,
   /// When the owner was last told, in epoch milliseconds, where he was.
@@ -95,7 +103,7 @@ pub fn waiting(standing: &Standing) -> Vec<&Open> {
 }
 
 /// The open items awaiting a launch: those whose own assignee is a free checkout, and those naming none while
-/// any checkout is free.
+/// any checkout is free; an item whose `agent` label names an agent carrying a run waits on that agent instead.
 pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
   standing
     .open
@@ -104,6 +112,7 @@ pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
       Some(worker) => standing.free.contains(worker),
       None => !standing.free.is_empty(),
     })
+    .filter(|item| item.agent.as_ref().is_none_or(|agent| !standing.carrying.contains(agent)))
     .collect()
 }
 
@@ -117,7 +126,9 @@ pub fn unlaunchable(standing: &Standing) -> Vec<&Open> {
 }
 
 /// The items the orderer is to be told of at `now`: each awaiting a launch since `seen` names it for the launch
-/// seconds and more, not told yet, and the switch on.
+/// seconds and more, not told yet, and the switch on; of the items naming one agent, only the first in the
+/// queue's order — the highest priority, then the earliest place, then the lowest number — so a free agent is
+/// offered its next item rather than its whole series.
 pub fn launches_due<'a>(
   standing: &'a Standing,
   seen: &BTreeMap<i64, i64>,
@@ -128,11 +139,16 @@ pub fn launches_due<'a>(
     return vec![];
   }
 
-  awaiting_launch(standing)
+  let mut due: Vec<&Open> = awaiting_launch(standing)
     .into_iter()
     .filter(|item| !told.contains(&item.id))
     .filter(|item| seen.get(&item.id).is_some_and(|since| now - since >= QUEUE_IDLE.launch_seconds * 1000))
-    .collect()
+    .collect();
+  let mut offered = BTreeSet::new();
+
+  due.sort_by_key(|item| (std::cmp::Reverse(item.priority), item.position, item.id));
+  due.retain(|item| item.agent.as_ref().is_none_or(|agent| offered.insert(agent.clone())));
+  due
 }
 
 /// The instruction an item awaiting a launch is queued with for its orderer.
@@ -286,9 +302,9 @@ async fn orderer(service: Option<&JobService>, item: &Value) -> Result<Orderer, 
   }
 }
 
-/// The items awaiting a launch told to their orderer once each, and the rows kept for them brought up to date:
-/// a waiting item first seen now marked, one no longer waiting let go, and a told item that is no longer open
-/// let go.
+/// The items awaiting a launch told to their orderer once each while they wait, and the rows kept for them
+/// brought up to date: a waiting item first seen now marked, and both rows of an item no longer waiting let go,
+/// so it is told again once its checkout and its agent are free again.
 pub async fn tell_launches(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -301,7 +317,6 @@ pub async fn tell_launches(
   let fault = |why: Refusal| why.detail;
   let mut seen = marks(db, SEEN_PREFIX).await.map_err(fault)?;
   let awaiting: BTreeSet<i64> = awaiting_launch(standing).iter().map(|item| item.id).collect();
-  let open: BTreeSet<i64> = standing.open.iter().map(|item| item.id).collect();
 
   for id in &awaiting {
     if !seen.contains_key(id) {
@@ -316,7 +331,7 @@ pub async fn tell_launches(
     settings::forget(db, &format!("{SEEN_PREFIX}{id}")).await.map_err(fault)?;
   }
 
-  let told = kept_marks(db, LAUNCH_TOLD_PREFIX, &open).await?;
+  let told = kept_marks(db, LAUNCH_TOLD_PREFIX, &awaiting).await?;
 
   for item in launches_due(standing, &seen, &told, now) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
@@ -488,6 +503,20 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
   .iter()
   .filter_map(|row| row.try_get::<String>("", "worker_name").ok())
   .collect();
+  let mut carrying: Vec<String> = all(
+    db,
+    r#"SELECT DISTINCT "item_agent" FROM "jobs"
+       WHERE ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked"))
+         AND "item_agent" IS NOT NULL"#,
+    vec![],
+  )
+  .await?
+  .iter()
+  .filter_map(|row| row.try_get::<String>("", "item_agent").ok())
+  .collect();
+
+  carrying.extend(crate::role_agents::carrying_any(db).await?);
+
   let workers = crate::queue::workers::workers(db, std::path::Path::new("")).await?;
   let known = workers.iter().map(|worker| worker.name.clone()).collect();
   let free = workers
@@ -504,6 +533,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     paused,
     free,
     known,
+    carrying,
     last_start,
     told: setting_number(db, TOLD_KEY).await?,
     silenced: settings::get(db, SWITCH_KEY).await?.is_some_and(|value| value.trim() == "off"),
@@ -584,6 +614,13 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
           id: item["id"].as_i64()?,
           title: item["title"].as_str().unwrap_or_default().to_owned(),
           assignee: item["assigneeName"].as_str().filter(|name| !name.is_empty()).map(str::to_owned),
+          agent: item["labels"]["agent"]
+            .as_str()
+            .map(str::trim)
+            .filter(|name| !name.is_empty() && *name != crate::repositories::AUTO)
+            .map(str::to_owned),
+          priority: item["priority"].as_i64().unwrap_or_default(),
+          position: item["position"].as_i64().unwrap_or_default(),
           room: room_of(item),
           parent: parent_of(item),
           paused: !taking.contains(&queue.as_str()),

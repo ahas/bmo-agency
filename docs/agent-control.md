@@ -2916,7 +2916,8 @@ them run a browser, and whose a place is.
   the job service's unattended labels — a pull request's review among them — so its state is the whole of
   whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, a
   checkout it may go to is free — its repository's checkout no job holds where it names one, any free
-  checkout where it names none — and its role has a free slot. An item a job of agency's is still at work
+  checkout where it names none —, the agent its `agent` label names, where it names one, carries no run
+  (`docs/repositories.md`, 「An agent an item names」), and its role has a free slot. An item a job of agency's is still at work
   on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody.
   Where one item waits so and no job has started on this machine for the idle minutes
   (`policy/queue-idle.toml`, five, or the owner's own row `queue_idle_minutes` of the settings table), the
@@ -2992,8 +2993,12 @@ with the session.
   still waiting a minute after agency first saw it so, agency queues one instruction for its orderer
   naming the item, its title and its worker; the supervisor's manual says to launch it or say in one line
   why not. The moment it was first seen waiting and the moment it was told are kept by the item's number,
-  the first let go once the item no longer waits to go, the second once the item is no longer open. It
-  stands beside the idle stretch's notice and does not wait for the idle minutes.
+  each let go once the item no longer waits to go, so an item that stopped waiting because its checkout or
+  its agent took another run is told again once they are free. Of the items that wait to go on one agent,
+  one is told a pass, the first in the queue's order not yet told — the highest priority, then the earliest
+  place, then the lowest number: a free agent is offered its next item, and another a minute later while it
+  stays free, never its whole series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
+  notice and does not wait for the idle minutes.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
