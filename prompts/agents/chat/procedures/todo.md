@@ -208,10 +208,6 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   or `job_item_update`, which the launch obeys over your judgement; the owner's word on the agent is the
   `agent=<name>` label, which stands over both. Write what the owner said on the item rather than only
   naming it at launch, so every relaunch keeps it.
-- **Coding work goes to a coder on claude-code / claude-opus-5-5 alone,** the owner's word: an item running as
-  `coder` names, and is launched on, such an agent only, never a coder of another provider or model. Where the
-  agent its label names is busy, give it another such coder that is free and change the label to it; where none
-  is free, the item waits for one, and a coder on another road is never taken in its place.
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.
