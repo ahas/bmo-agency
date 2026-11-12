@@ -1,15 +1,17 @@
 //! Which jobs stand in the machine's turn (docs/role-agents.md, 「When an agent is busy」): testing, waiting to
-//! test, deploying or waiting for their deployment. The testbed's lanes, a testing close's line and the job
-//! service's items under a close are read every few seconds, and each standing job's mark is kept on its row,
-//! where every reading of a busy agent leaves the seat of a marked job out.
+//! test, deploying or waiting for their deployment. The testbed's lanes, a testing close's line, the job
+//! service's items under a close and the deployment of each commit a close handed over are read every few
+//! seconds, and each standing job's mark is kept on its row, where every reading of a busy agent leaves the seat
+//! of a marked job out.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use bmo_testbed_client::{Page, Queue};
 use policy::machine_turn::MACHINE_TURN;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
+use serde_json::Value;
 use store::{Fault, all, run};
 
 use crate::order_run::dispatch::JOB_OWNER;
@@ -27,6 +29,18 @@ const TESTBED: &str = "bmo-testbed";
 /// The phases of a close as its label on the item names them.
 const TESTING: &str = "testing";
 const WAITING_LIVE: &str = "waiting-live";
+
+/// The label the close writes the commit it handed over in, beside `waiting-live`.
+const CLOSE_COMMIT: &str = "close-commit";
+
+/// The testbed declaration at a checkout's root, and the records a deployment keeps under its deploy root (the
+/// testbed's docs/deploy.md, 「The places」).
+const DECLARATION: &str = "testbed.toml";
+const DEPLOYED: &str = "deployed.json";
+const PROGRESS: &str = "deploy-progress.json";
+
+/// The outcome a deployment that put its commit live ends with.
+const LIVE: &str = "live";
 
 /// What `bmo-testbed status --json` prints, as far as the machine's turn reads it: the page of both lanes, and
 /// the close line of the repository it ran in, null outside one. The close line's entries are the testbed's own
@@ -50,8 +64,8 @@ struct CloseEntry {
 }
 
 /// One reading of the machine's turn: the checkouts that hold a lane or a close line's turn or wait in line for
-/// one, and the items whose close has handed its commit over to wait for its deployment. A reading that failed
-/// leaves its part empty.
+/// one, and the items whose close has handed over a commit that is not live yet. A reading that failed leaves its
+/// part empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reading {
   pub checkouts: BTreeSet<String>,
@@ -77,10 +91,10 @@ impl Reading {
     Ok(lanes.chain(close).map(|checkout| trimmed(checkout).to_owned()).collect())
   }
 
-  /// Whether a job in `state`, working in `path` on `item`, stands in the machine's turn: the testbed names its
-  /// checkout or a folder under it, or its turn has ended with its item's commit waiting for its deployment.
-  pub fn holds(&self, state: &str, path: Option<&str>, item: i64) -> bool {
-    if state == "reviewing" && self.awaiting_live.contains(&item) {
+  /// Whether a job working in `path` on `item` stands in the machine's turn: the testbed names its checkout or a
+  /// folder under it, or its item's close waits for a commit that is not live yet.
+  pub fn holds(&self, path: Option<&str>, item: i64) -> bool {
+    if self.awaiting_live.contains(&item) {
       return true;
     }
 
@@ -96,6 +110,94 @@ impl Reading {
 
 fn trimmed(path: &str) -> &str {
   path.trim().trim_end_matches('/')
+}
+
+/// Whether a commit a close handed over still waits to go live, by its repository's deployment record, naming the
+/// commit that runs, and its progress record, the run under way or the last one ended: it waits until the
+/// record's commit is it or, as `held` answers for that record's commit, holds it; and no longer once a run of
+/// that very commit ended other than live, since the close then sends its job back to work. A record that does
+/// not read and a `held` that cannot tell leave it waiting no longer, so its job is at work.
+pub fn waits_live(
+  commit: &str,
+  deployed: Option<&str>,
+  progress: Option<&Value>,
+  held: Option<bool>,
+) -> bool {
+  let run_of_it = progress.filter(|run| run["commit"].as_str() == Some(commit));
+
+  if run_of_it
+    .and_then(|run| run["ending"]["outcome"].as_str())
+    .is_some_and(|outcome| outcome != LIVE)
+  {
+    return false;
+  }
+
+  deployed.is_some_and(|deployed| deployed != commit) && held == Some(false)
+}
+
+/// The deploy root the testbed declaration in `checkout` names, a leading `~/` read against `home`.
+fn deploy_root(checkout: &Path, home: &Path) -> Option<PathBuf> {
+  #[derive(Deserialize)]
+  struct Declaration {
+    deploy: Option<Deploy>,
+  }
+
+  #[derive(Deserialize)]
+  struct Deploy {
+    root: Option<String>,
+  }
+
+  let declared: Declaration =
+    toml::from_str(&std::fs::read_to_string(checkout.join(DECLARATION)).ok()?).ok()?;
+  let root = declared.deploy?.root?;
+
+  Some(root.strip_prefix("~/").map_or_else(|| PathBuf::from(&root), |rest| home.join(rest)))
+}
+
+fn read_json(path: &Path) -> Option<Value> {
+  serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
+}
+
+/// Whether `commit` is `deployed` or an ancestor of it, as git answers in `checkout`; none where git cannot
+/// tell, a commit the checkout does not hold among them.
+async fn held_by(checkout: &Path, commit: &str, deployed: &str) -> Option<bool> {
+  let status = tokio::process::Command::new("git")
+    .args(["merge-base", "--is-ancestor", commit, deployed])
+    .current_dir(checkout)
+    .stdin(std::process::Stdio::null())
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()
+    .await
+    .ok()?;
+
+  match status.code() {
+    Some(0) => Some(true),
+    Some(1) => Some(false),
+    _ => None,
+  }
+}
+
+/// Whether the commit a close in `checkout` handed over still waits to go live, by its repository's deployment.
+pub async fn waiting_live(checkout: &Path, commit: &str, home: &Path) -> bool {
+  let Some(root) = deploy_root(checkout, home) else {
+    return false;
+  };
+  let deployed =
+    read_json(&root.join(DEPLOYED)).and_then(|record| record["commit"].as_str().map(str::to_owned));
+  let progress = read_json(&root.join(PROGRESS));
+  let held = match deployed.as_deref() {
+    Some(deployed) if deployed != commit => held_by(checkout, commit, deployed).await,
+    _ => None,
+  };
+
+  waits_live(commit, deployed.as_deref(), progress.as_ref(), held)
+}
+
+/// Where an item's close stands: the phase its label names and the commit it handed over, where it names one.
+struct Close {
+  phase: String,
+  commit: Option<String>,
 }
 
 /// One job a reading may mark: running or under review, or marked still.
@@ -151,8 +253,8 @@ async fn testing(folder: &Path) -> Result<BTreeSet<String>, String> {
   Reading::testing_in(&String::from_utf8_lossy(&printed.stdout))
 }
 
-/// The items the job service holds under a close, each with the phase its label names.
-async fn closing(service: &JobService) -> Result<BTreeMap<i64, String>, String> {
+/// The items the job service holds under a close, each with where its close stands.
+async fn closing(service: &JobService) -> Result<BTreeMap<i64, Close>, String> {
   let answer = reqwest::Client::new()
     .get(format!("{}/items", service.url))
     .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
@@ -173,18 +275,23 @@ async fn closing(service: &JobService) -> Result<BTreeMap<i64, String>, String> 
       .into_iter()
       .flatten()
       .filter_map(|item| {
-        let phase = item["labels"][MACHINE_TURN.close_label.as_str()].as_str()?;
+        let labels = &item["labels"];
+        let close = Close {
+          phase: labels[MACHINE_TURN.close_label.as_str()].as_str()?.to_owned(),
+          commit: labels[CLOSE_COMMIT].as_str().filter(|commit| !commit.is_empty()).map(str::to_owned),
+        };
 
-        Some((item["id"].as_i64()?, phase.to_owned()))
+        Some((item["id"].as_i64()?, close))
       })
       .collect(),
   )
 }
 
 /// One pass: the machine's turn read and each standing job marked by it. The lanes are read once; a running
-/// job whose item's close names it testing has its repository's close line read in its checkout. A test's
-/// ground reads nothing; a reading that fails marks nothing from it, so a job no reading names is at work.
-pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data_root: &Path) {
+/// job whose item's close names it testing has its repository's close line read in its checkout, and a job whose
+/// item's close waits for its commit to go live has that commit's deployment read. A test's ground reads
+/// nothing; a reading that fails marks nothing from it, so a job no reading names is at work.
+pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data_root: &Path, home: &Path) {
   if crate::job_end::test_ground(vars) {
     return;
   }
@@ -201,10 +308,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data
     }),
     None => BTreeMap::new(),
   };
-  let mut reading = Reading {
-    awaiting_live: closes.iter().filter(|(_, phase)| *phase == WAITING_LIVE).map(|(id, _)| *id).collect(),
-    ..Reading::default()
-  };
+  let mut reading = Reading::default();
 
   match testing(data_root).await {
     Ok(checkouts) => reading.checkouts.extend(checkouts),
@@ -212,15 +316,19 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data
   }
 
   for job in &jobs {
-    let Some(path) = job.path.as_deref() else { continue };
-
-    if job.state != "running" || closes.get(&job.item).map(String::as_str) != Some(TESTING) {
+    let (Some(path), Some(close)) = (job.path.as_deref(), closes.get(&job.item)) else {
       continue;
-    }
+    };
 
-    match testing(Path::new(path)).await {
-      Ok(checkouts) => reading.checkouts.extend(checkouts),
-      Err(why) => eprintln!("machine turn: the close line at {path} was not read: {why}"),
+    match (close.phase.as_str(), close.commit.as_deref()) {
+      (TESTING, _) if job.state == "running" => match testing(Path::new(path)).await {
+        Ok(checkouts) => reading.checkouts.extend(checkouts),
+        Err(why) => eprintln!("machine turn: the close line at {path} was not read: {why}"),
+      },
+      (WAITING_LIVE, Some(commit)) if waiting_live(Path::new(path), commit, home).await => {
+        reading.awaiting_live.insert(job.item);
+      }
+      _ => {}
     }
   }
 
@@ -235,8 +343,8 @@ pub async fn mark(db: &DatabaseConnection, reading: &Reading) -> Result<Vec<i64>
   let mut changed = vec![];
 
   for job in standing(db).await? {
-    let in_turn = matches!(job.state.as_str(), "running" | "reviewing")
-      && reading.holds(&job.state, job.path.as_deref(), job.item);
+    let in_turn =
+      matches!(job.state.as_str(), "running" | "reviewing") && reading.holds(job.path.as_deref(), job.item);
 
     if in_turn != job.marked {
       run(

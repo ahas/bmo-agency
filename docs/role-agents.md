@@ -124,8 +124,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A job is at work except while it stands in the machine's turn,** in one of four states and in no other:
   - testing, or waiting to test: its checkout holds a lane of the testbed's turn or its repository's close
     line, or waits in line for one, as the testbed's own record names the checkout's root;
-  - deploying, or waiting for its deployment: its turn has ended with its close's commit handed over and
-    waiting to go live, the deployment of that commit under way or not yet begun, while its review stands.
+  - deploying, or waiting for its deployment: its close has handed its commit over and waits for it to go
+    live, the deployment of that commit under way or not yet begun, whether the close still runs in the job's
+    turn or the turn has ended under review.
 
   Writing, reading, a review round, a question waiting on the owner and every other state are work, and keep
   its agent busy as long as the job stands.
@@ -143,10 +144,18 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   that checkout or under it; the job service's items carrying the label `close-phase`, which the close writes
   `testing` while it tests and `waiting-live` once its commit is handed over; and, for a running job whose
   item's close is testing, the close line the same status prints run in the job's checkout. A label alone
-  marks no job, since one can outlive the close that wrote it: `testing` only sends agency to the close line,
-  and `waiting-live` marks a job only once its turn has ended under review, a job sent back to work while its
-  commit waits being at work. Each job's mark is kept on its row until the next reading. A reading that fails
-  marks nothing, so a job no reading names is at work.
+  marks no job, since one outlives the close that wrote it: `testing` only sends agency to the close line, and
+  `waiting-live` sends it to the deployment of the commit the label `close-commit` names.
+- **A handed-over commit waits while its repository's deployment says it is not live.** Agency reads the
+  repository's deploy root from the `[deploy]` table of the testbed declaration in the job's checkout, and
+  under it the deployment record, which names the commit that runs, and the progress record, which names the
+  run under way or the last one ended, with its outcome (the testbed's `docs/deploy.md`, 「The places」). The
+  commit no longer waits once the record's commit is that commit or one that holds it, as git answers in the
+  job's checkout, and no longer once a run of that very commit ended other than live, since the close then
+  sends the job back to work. A checkout with no deploy root, a record that does not read and a git that cannot
+  tell leave the job at work.
+- **Each job's mark is kept on its row until the next reading.** A reading that fails marks nothing, so a job
+  no reading names is at work.
 
 ## Changing the agents
 

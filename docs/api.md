@@ -1625,7 +1625,9 @@ kind, event and code); the items a held item waits on are read with `GET /items/
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`; every few seconds, for the jobs standing
 in the machine's turn (`docs/role-agents.md`, 「When an agent is busy」), the job service's `GET /items` with
 `label` `close-phase` and the testbed's lanes as `bmo-testbed status --json` prints them, read through the
-types of the testbed's published client `bmo-testbed-client`; and once an hour GitHub's search through
+types of the testbed's published client `bmo-testbed-client`, and, for a job whose commit waits to go live, its
+repository's deployment record `deployed.json` and progress record `deploy-progress.json` under the deploy root
+the testbed declaration in its checkout names; and once an hour GitHub's search through
 `gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). For a control call
 on agent management that carries a signed-in person's headers, the web's account service is asked for that
 person's console sections with `GET /users/{user}/sections` (「Who a caller acts for」 above), reached at

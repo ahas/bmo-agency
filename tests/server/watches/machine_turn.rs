@@ -3,7 +3,7 @@
 //! first job goes on with its seat once its test ends.
 
 use agency_server::order_run::dispatch::{self, Asked, Wanted};
-use agency_server::watches::machine_turn::{Reading, mark};
+use agency_server::watches::machine_turn::{Reading, mark, waits_live};
 use agency_server::watches::queue_idle::{Open, awaiting_launch, held};
 
 use crate::support::grounds::{deepseek_balance, seeded};
@@ -37,7 +37,7 @@ fn item_for(id: i64, assignee: &str, agent: &str) -> Open {
 }
 
 #[test]
-fn the_testbed_names_a_checkout_by_its_root_and_a_handed_over_commit_frees_only_a_job_under_review() {
+fn the_testbed_names_a_checkout_by_its_root_and_a_commit_waiting_to_go_live_frees_its_job() {
   let printed = r#"{
     "queues": { "items": [
       { "name": "wide", "width": 24,
@@ -56,20 +56,44 @@ fn the_testbed_names_a_checkout_by_its_root_and_a_handed_over_commit_frees_only_
     awaiting_live: [71].into(),
   };
 
-  assert!(reading.holds("running", Some("/checkouts/first"), 1), "a lane's holder");
-  assert!(
-    reading.holds("running", Some("/checkouts/third/"), 2),
-    "a waiter in a folder under the checkout"
-  );
-  assert!(reading.holds("running", Some("/checkouts/fourth"), 3), "a waiter in the close line");
-  assert!(!reading.holds("running", Some("/checkouts/fir"), 4), "a name that only begins the same");
-  assert!(
-    !reading.holds("running", Some("/checkouts/second"), 5),
-    "a checkout the testbed does not name"
-  );
-  assert!(reading.holds("reviewing", None, 71), "a reviewed job whose commit waits to go live");
-  assert!(!reading.holds("running", None, 71), "a job back at work while its commit still waits");
+  assert!(reading.holds(Some("/checkouts/first"), 1), "a lane's holder");
+  assert!(reading.holds(Some("/checkouts/third/"), 2), "a waiter in a folder under the checkout");
+  assert!(reading.holds(Some("/checkouts/fourth"), 3), "a waiter in the close line");
+  assert!(!reading.holds(Some("/checkouts/fir"), 4), "a name that only begins the same");
+  assert!(!reading.holds(Some("/checkouts/second"), 5), "a checkout the testbed does not name");
+  assert!(reading.holds(None, 71), "a job whose close's commit waits to go live");
   assert!(Reading::testing_in("not json").is_err());
+}
+
+#[test]
+fn a_handed_over_commit_waits_until_its_repository_runs_it_or_a_run_of_it_ends_not_live() {
+  let handed = "b".repeat(40);
+  let older = "a".repeat(40);
+  let newer = "c".repeat(40);
+  let run = |commit: &str, outcome: Option<&str>| serde_json::json!({ "commit": commit, "ending": outcome.map(|outcome| serde_json::json!({ "outcome": outcome })) });
+
+  assert!(
+    waits_live(&handed, Some(&older), Some(&run(&older, Some("live"))), Some(false)),
+    "its deployment not yet begun"
+  );
+  assert!(
+    waits_live(&handed, Some(&older), Some(&run(&handed, None)), Some(false)),
+    "its deployment under way"
+  );
+  assert!(
+    !waits_live(&handed, Some(&handed), Some(&run(&handed, Some("live"))), None),
+    "it went live, the close's label left behind"
+  );
+  assert!(
+    !waits_live(&handed, Some(&newer), Some(&run(&newer, Some("live"))), Some(true)),
+    "a later commit holding it went live"
+  );
+  assert!(
+    !waits_live(&handed, Some(&older), Some(&run(&handed, Some("rolled-back"))), Some(false)),
+    "its deployment ended not live, so its job is back at work"
+  );
+  assert!(!waits_live(&handed, None, None, None), "a record that does not read");
+  assert!(!waits_live(&handed, Some(&newer), None, None), "a git that cannot tell");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -173,4 +197,60 @@ async fn an_agent_whose_only_job_waits_in_the_testbed_s_line_is_offered_its_next
   assert_eq!(mark(db, &first_tested).await.unwrap(), vec![41]);
   assert_eq!(state(&first.token).await, "active", "the first job goes on on its seat");
   assert!(busy().await, "an agent whose job is back at work is busy");
+}
+
+#[tokio::test]
+async fn a_close_s_commit_is_read_against_the_deployment_its_checkout_declares() {
+  let home = tempfile::tempdir().unwrap();
+  let checkout = home.path().join("checkout");
+  let root = home.path().join("deploy-root");
+
+  std::fs::create_dir_all(&checkout).unwrap();
+  std::fs::create_dir_all(&root).unwrap();
+
+  let git = |args: &[&str]| {
+    let done = std::process::Command::new("git")
+      .args(args)
+      .current_dir(&checkout)
+      .env("GIT_AUTHOR_NAME", "tester")
+      .env("GIT_AUTHOR_EMAIL", "tester@example.com")
+      .env("GIT_COMMITTER_NAME", "tester")
+      .env("GIT_COMMITTER_EMAIL", "tester@example.com")
+      .output()
+      .unwrap();
+
+    assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+    String::from_utf8(done.stdout).unwrap().trim().to_owned()
+  };
+  let commit = |message: &str| {
+    git(&["commit", "-q", "--allow-empty", "-m", message]);
+    git(&["rev-parse", "HEAD"])
+  };
+  let deployed = |commit: &str| {
+    std::fs::write(root.join("deployed.json"), serde_json::json!({ "commit": commit }).to_string())
+      .unwrap();
+  };
+
+  git(&["init", "-q"]);
+  std::fs::write(checkout.join("testbed.toml"), "[deploy]\nroot = \"~/deploy-root\"\n").unwrap();
+
+  let live = commit("live");
+  let handed = commit("handed over");
+  let waits =
+    async || agency_server::watches::machine_turn::waiting_live(&checkout, &handed, home.path()).await;
+
+  deployed(&live);
+  assert!(waits().await, "the record runs an older commit");
+
+  let later = commit("later");
+
+  deployed(&later);
+  assert!(!waits().await, "the record runs a commit that holds it");
+
+  deployed(&"d".repeat(40));
+  assert!(!waits().await, "the record runs a commit the checkout does not hold");
+
+  std::fs::write(checkout.join("testbed.toml"), "[test]\n").unwrap();
+  deployed(&live);
+  assert!(!waits().await, "a checkout that declares no deploy root");
 }

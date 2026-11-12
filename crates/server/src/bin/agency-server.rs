@@ -306,7 +306,13 @@ fn clocks(ground: &Arc<Ground>) {
       let ground = turn.clone();
 
       async move {
-        agency_server::watches::machine_turn::pass(&ground.db, ground.vars(), &ground.roots.data).await;
+        agency_server::watches::machine_turn::pass(
+          &ground.db,
+          ground.vars(),
+          &ground.roots.data,
+          &ground.roots.home,
+        )
+        .await;
 
         Ok(())
       }
