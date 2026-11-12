@@ -1,11 +1,18 @@
 # How a job's reports are examined by its orderer before the job goes on or ends (docs/job-review.md): how many
 # times the work is sent back before it may be put to the owner, how long the owner's question waits before the
-# job gives its checkout up, the name the record's own entries are written under, the two checks in their order
-# with what each requires, what the orderer is told, and what each turn the review asks for is told. Each line
-# names the marks it is filled with.
+# job gives its checkout up, the name the record's own entries are written under, how a work order that cannot be
+# read is asked again, the two checks in their order with what each requires, what the orderer is told, and what
+# each turn the review asks for is told. Each line names the marks it is filled with.
 escalate_after = 10
 owner_wait_seconds = 600
 actor = "agency"
+# How a work order that could not be read is asked again (docs/job-review.md, 「Stages」): after a pause that
+# doubles from the first to the longest, however long it takes, with the job's `heldFor` naming the wait. A
+# deployment may name the first pause in `BMO_WORK_ORDER_PAUSE_MS` instead.
+# `{item}` is the item and `{why}` what the read came to.
+work_order_first_ms = 2000
+work_order_longest_ms = 60000
+work_order_wait = "it waits for item #{item}'s work order, which could not be read: {why}"
 # What the orderer is told: `{job}`, `{item}`, `{worker}`, `{stage}`, `{round}`, `{rejections}`, `{check}`,
 # `{requirement}`, `{heading}`, `{words}` and `{moves}`.
 review_order = "The job {job} of item #{item} on {worker} is under review: {stage}, round {round}, its work sent back {rejections} times so far.\n\nThe check due now is {check}: {requirement}\n\n{heading}\n\n{words}\n\nAnswer with review_job on job {job}: {moves}."

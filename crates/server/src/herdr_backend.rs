@@ -330,8 +330,9 @@ pub struct HerdrSessions {
   // wakes a turn waiting for one of them (docs/sessions.md, 「Session replacement」).
   replacing: Mutex<HashSet<String>>,
   replaced: tokio::sync::Notify,
-  // The room sessions whose prompt a turn found moved, each owing the handover that turn deferred.
-  room_owed: Mutex<HashMap<(String, i64), (Speaker, Due)>>,
+  // The room sessions whose owed handover is being made now, by the agent and the room, so two passes never
+  // make one twice. What is owed is written down (docs/sessions.md, 「Session replacement」).
+  settling_rooms: Mutex<HashSet<(String, i64)>>,
   // This backend as the server shares it, for the work a turn's end leaves to run apart from the answer.
   me: std::sync::OnceLock<std::sync::Weak<HerdrSessions>>,
 }
@@ -698,7 +699,7 @@ impl HerdrSessions {
       cut: Mutex::default(),
       replacing: Mutex::default(),
       replaced: tokio::sync::Notify::new(),
-      room_owed: Mutex::default(),
+      settling_rooms: Mutex::default(),
       me: std::sync::OnceLock::new(),
     }
   }
@@ -798,9 +799,12 @@ impl HerdrSessions {
   }
 
   /// A pass over every conversational agent: one whose session owes a replacement, or holds a prompt that has
-  /// moved under it, is replaced while it is quiet. Run at the server's start, when documents are reloaded,
-  /// and on the keepalive clock, so a moved document is settled before anyone asks.
+  /// moved under it, is replaced while it is quiet, and every room whose own session owes a handover is handed
+  /// over while it carries no turn. Run at the server's start, when documents are reloaded, and on the
+  /// keepalive clock, so a moved document is settled before anyone asks.
   pub async fn settle_pass(&self) {
+    self.settle_rooms().await;
+
     let ground = self.ground();
     let db = &ground.db;
     let agents = match crate::conversational::agents_where(db, |settings| {
@@ -854,16 +858,70 @@ impl HerdrSessions {
     }
   }
 
-  /// A room session's handover a turn deferred, made now that the turn has ended: the session writes its
-  /// note in one more turn and the next generation opens on it; one that writes no note opens the next
-  /// generation all the same, so it reads the documents that moved.
+  /// Every room whose own session owes a handover made while the room carries no turn, one picked up across
+  /// agency's restart included: at the server's start and on the keepalive clock, so a handover a restart cut
+  /// off between the turn that found it and its making is made all the same.
+  async fn settle_rooms(&self) {
+    let db = self.ground().db.clone();
+    let owing = match crate::supervisor_turn::replacement::rooms_owing(&db).await {
+      Ok(owing) => owing,
+      Err(why) => {
+        return eprintln!("agency: the rooms whose sessions owe a handover were not read: {}", why.detail);
+      }
+    };
+    let kept = crate::turn_pickup::in_flight(&db).await.unwrap_or_default();
+
+    for (agent, chat_id) in owing {
+      let busy = id_of(&agent, &Scope::Room(chat_id.to_string()))
+        .is_some_and(|session| self.turn_run(&session).is_some())
+        || kept.iter().any(|turn| turn.agent == agent && turn.chat_id == Some(chat_id));
+
+      if !busy {
+        self.settle_room(&agent, chat_id).await;
+      }
+    }
+  }
+
+  /// A room session's handover a turn deferred, made now that the turn has ended, read from where it was
+  /// written down: the session writes its note in one more turn and the next generation opens on it; one that
+  /// writes no note opens the next generation all the same, so it reads the documents that moved. One owed on a
+  /// session the room no longer holds is let go, that session replaced already. The debt is let go once the
+  /// handover is made, so a restart under it leaves it owed.
   async fn settle_room(&self, agent: &str, chat_id: i64) {
-    let owed = self
-      .room_owed
+    let ground = self.places.ground.clone();
+    let db = ground.db.clone();
+    let owed = match crate::supervisor_turn::replacement::room_owed(&db, agent, chat_id).await {
+      Ok(Some(owed)) => owed,
+      Ok(None) => return,
+      Err(why) => {
+        return eprintln!(
+          "supervisor {agent} in chat {chat_id}: the handover owed was not read: {}",
+          why.detail
+        );
+      }
+    };
+    let key = (agent.to_owned(), chat_id);
+
+    if !self
+      .settling_rooms
       .lock()
       .unwrap_or_else(|poisoned| poisoned.into_inner())
-      .remove(&(agent.to_owned(), chat_id));
-    let Some((speaker, due)) = owed else { return };
+      .insert(key.clone())
+    {
+      return;
+    }
+
+    self.room_handed_over(agent, chat_id, owed).await;
+    self.settling_rooms.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&key);
+  }
+
+  // The handover a room's session owed made and let go.
+  async fn room_handed_over(
+    &self,
+    agent: &str,
+    chat_id: i64,
+    owed: crate::supervisor_turn::replacement::RoomOwed,
+  ) {
     let ground = self.places.ground.clone();
     let hold = self.places.kept.reset.clone();
     let db = ground.db.clone();
@@ -872,6 +930,26 @@ impl HerdrSessions {
       .ok()
       .flatten()
       .and_then(|session| session.harness.map(|harness| harness.id));
+    let settled = async {
+      if let Err(why) = crate::supervisor_turn::replacement::settle_room(&db, agent, chat_id).await {
+        eprintln!("supervisor {agent} in chat {chat_id}: the handover owed was not let go: {}", why.detail);
+      }
+    };
+
+    if before.as_deref() != Some(owed.session.as_str()) {
+      println!(
+        "supervisor {agent} in chat {chat_id}: the handover owed is let go: its session was replaced already"
+      );
+      return settled.await;
+    }
+
+    let Some((speaker, due)) = owed.due() else {
+      eprintln!(
+        "supervisor {agent} in chat {chat_id}: the handover owed names the provider {}, which this build does not hold",
+        owed.provider
+      );
+      return settled.await;
+    };
 
     hand_over(&ground, &hold, &speaker, chat_id, due).await;
 
@@ -887,6 +965,8 @@ impl HerdrSessions {
         why.detail
       );
     }
+
+    settled.await;
   }
 
   // The context an agent's resident program stands at where it carries its own turns, as its record says of its
@@ -1365,11 +1445,15 @@ impl HerdrSessions {
         why: Why::Documents,
       };
 
-      self
-        .room_owed
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert((agent.to_owned(), chat_id), (pinned.speaker.clone(), due));
+      let owed = crate::supervisor_turn::replacement::RoomOwed::of(&pinned.speaker, &due);
+
+      if let Err(why) = crate::supervisor_turn::replacement::owe_room(&db, agent, chat_id, &owed).await {
+        eprintln!(
+          "supervisor {agent} in chat {chat_id}: the handover owed was not written down: {}",
+          why.detail
+        );
+      }
+
       log.write(&db, Line::note(SUPERVISOR_RUNNER.log.system_moved_owed.clone())).await;
     }
 

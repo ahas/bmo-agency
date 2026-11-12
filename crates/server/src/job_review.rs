@@ -266,31 +266,20 @@ async fn task_moved(vars: &BTreeMap<String, String>, item: i64, stage: i64, stat
 }
 
 /// The review opened as a job is launched: its stages read from the item's work order and kept on the job, the
-/// first stage's task made current, the `opened` entry written, and the words the first prompt closes with.
-pub async fn opened(ground: &Ground, id: i64) -> String {
+/// first stage's task made current, the `opened` entry written, and the words the first prompt closes with. A
+/// review already opened, by the launch of a process before this one, is opened no second time: the words are
+/// those of the stages it kept. None where the job was stopped while its work order could not be read.
+pub async fn opened(ground: &Ground, id: i64) -> Option<String> {
   let Ok(standing) = standing(&ground.db, id).await else {
-    return JOB_REVIEW.one_stage.clone();
+    return Some(JOB_REVIEW.one_stage.clone());
   };
-  let stages: Vec<String> = match service_of(ground.vars()) {
-    Some(service) => {
-      match call(&service, reqwest::Method::GET, &format!("/items/{}/work-order", standing.item), None)
-        .await
-      {
-        Ok(order) => order["steps"]
-          .as_array()
-          .into_iter()
-          .flatten()
-          .filter_map(Value::as_str)
-          .map(str::trim)
-          .filter(|step| !step.is_empty())
-          .map(str::to_owned)
-          .collect(),
-        Err(why) => {
-          eprintln!("job {id}: its item's work order was not read, so it runs as one stage: {why}");
-          vec![]
-        }
-      }
-    }
+
+  if standing.stage.is_some() || standing.turn.is_some() {
+    return Some(opening(&standing));
+  }
+
+  let stages = match service_of(ground.vars()) {
+    Some(service) => work_order(ground, &service, id, standing.item).await?,
     None => vec![],
   };
 
@@ -311,11 +300,10 @@ pub async fn opened(ground: &Ground, id: i64) -> String {
     round: 1,
     ..standing
   };
-  let plan = plan_of(&stages);
   let shown = if stages.is_empty() {
     plan_of(std::slice::from_ref(&JOB_REVIEW.stage_one))
   } else {
-    plan.clone()
+    plan_of(&stages)
   };
 
   entry(
@@ -329,16 +317,90 @@ pub async fn opened(ground: &Ground, id: i64) -> String {
   )
   .await;
 
-  if stages.len() < 2 {
+  if stages.len() > 1 {
+    task_moved(ground.vars(), standing.item, 1, "current").await;
+  }
+
+  Some(opening(&standing))
+}
+
+// The words a job's first prompt closes with, from the stages its review keeps.
+fn opening(standing: &Standing) -> String {
+  if standing.stages.len() < 2 {
     return JOB_REVIEW.one_stage.clone();
   }
 
-  task_moved(ground.vars(), standing.item, 1, "current").await;
-
   fill_marks(
     &JOB_REVIEW.first_stage,
-    &[("stages", &stages.len().to_string()), ("plan", &plan), ("step", step_of(&standing, 1))],
+    &[
+      ("stages", &standing.stages.len().to_string()),
+      ("plan", &plan_of(&standing.stages)),
+      ("step", step_of(standing, 1)),
+    ],
   )
+}
+
+/// The variable a deployment names the first pause in milliseconds before a work order is asked again in, in
+/// place of the policy's.
+pub const WORK_ORDER_PAUSE: &str = "BMO_WORK_ORDER_PAUSE_MS";
+
+// The steps of an item's work order, read from the job service (docs/job-review.md, 「Stages」): none where it holds
+// no work order, and asked again after a doubling pause, however long it takes, where it could not be read, the
+// job held with the wait meanwhile. None where the job was stopped while it waited.
+async fn work_order(ground: &Ground, service: &JobService, id: i64, item: i64) -> Option<Vec<String>> {
+  let path = format!("/items/{item}/work-order");
+  let first = ground
+    .vars()
+    .get(WORK_ORDER_PAUSE)
+    .and_then(|ms| ms.trim().parse().ok())
+    .unwrap_or(JOB_REVIEW.work_order_first_ms);
+  let mut pause = std::time::Duration::from_millis(first);
+  let longest = std::time::Duration::from_millis(JOB_REVIEW.work_order_longest_ms.max(first));
+  let mut held = false;
+
+  loop {
+    match call(service, reqwest::Method::GET, &path, None).await {
+      Ok(order) => {
+        if held {
+          crate::control::work::hold_job(ground, id, None, false).await;
+        }
+
+        return Some(steps_of(&order));
+      }
+      Err(why) => {
+        eprintln!("job {id}: its item's work order was not read, so it is asked again: {why}");
+
+        if !held {
+          let wait = fill_marks(&JOB_REVIEW.work_order_wait, &[("item", &item.to_string()), ("why", &why)]);
+
+          crate::control::work::hold_job(ground, id, Some(&wait), true).await;
+          held = true;
+        }
+      }
+    }
+
+    if crate::control::work::called_off(ground, id).await {
+      crate::control::work::hold_job(ground, id, None, false).await;
+
+      return None;
+    }
+
+    tokio::time::sleep(pause).await;
+    pause = (pause * 2).min(longest);
+  }
+}
+
+// The steps a work order holds, in order, each trimmed and none empty; none of a work order that is not there.
+fn steps_of(order: &Value) -> Vec<String> {
+  order["steps"]
+    .as_array()
+    .into_iter()
+    .flatten()
+    .filter_map(Value::as_str)
+    .map(str::trim)
+    .filter(|step| !step.is_empty())
+    .map(str::to_owned)
+    .collect()
 }
 
 /// The session a job's turn answered on, kept so the review's next turn continues it.
@@ -887,7 +949,8 @@ async fn passed(
 }
 
 // A turn the review asks for, started apart from the answer: the job written running with the kind of turn it
-// is, its checkout taken again first where it gave it up.
+// is and the turn's words, which it keeps until the turn comes back from its session, its checkout taken again
+// first where it gave it up.
 async fn turn_out(
   ground: Arc<Ground>,
   sessions: Option<crate::herdr_backend::Shared>,
@@ -898,39 +961,69 @@ async fn turn_out(
 ) -> Result<(), Refused> {
   run(
     &ground.db,
-    r#"UPDATE "jobs" SET "review_turn" = $1, "review_check" = CASE WHEN $1 = 'question' THEN "review_check" END
+    r#"UPDATE "jobs" SET "review_turn" = $1, "review_check" = CASE WHEN $1 = 'question' THEN "review_check" END,
+         "turn_words" = $3
        WHERE "id" = $2"#,
-    vec![kind.into(), id.into()],
+    vec![kind.into(), id.into(), words.clone().into()],
   )
   .await?;
   let turn = Turn {
     words,
     resume: standing.session.clone(),
   };
-  let parked = standing.parked;
-  let assignment = standing.assignment;
-  let worker = standing.worker.clone();
+  let standing = standing.clone();
 
-  tokio::spawn(async move {
-    if parked {
-      reclaimed(&ground.db, id, assignment, &worker).await;
-    }
-
-    if let Err(why) = run(
-      &ground.db,
-      r#"UPDATE "jobs" SET "state" = 'running' WHERE "id" = $1 AND "state" = 'reviewing'"#,
-      vec![id.into()],
-    )
-    .await
-    {
-      eprintln!("job {id}: its review's turn was not started: {}", why.detail);
-      return;
-    }
-
-    carry_review_turn(ground, sessions, id, turn).await;
-  });
+  tokio::spawn(async move { gone_out(ground, sessions, id, &standing, turn).await });
 
   Ok(())
+}
+
+// A turn the review asked for carried: the job's checkout taken again first where it gave it up, the job written
+// running, and the turn carried as the job's first turn is.
+async fn gone_out(
+  ground: Arc<Ground>,
+  sessions: Option<crate::herdr_backend::Shared>,
+  id: i64,
+  standing: &Standing,
+  turn: Turn,
+) {
+  if standing.parked {
+    reclaimed(&ground.db, id, standing.assignment, &standing.worker).await;
+  }
+
+  if let Err(why) = run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "state" = 'running' WHERE "id" = $1 AND "state" = 'reviewing'"#,
+    vec![id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: its review's turn was not started: {}", why.detail);
+    return;
+  }
+
+  carry_review_turn(ground, sessions, id, turn).await;
+}
+
+/// A turn the review asked for that had not gone out when agency restarted, carried again from the words the job
+/// keeps (docs/api.md, 「assignments and jobs」): its checkout taken again where the job had still to take it,
+/// and the turn carried on the session the job's last turn left, as it would have gone out.
+pub async fn resumed_turn(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
+  let words = store::one(&ground.db, r#"SELECT "turn_words" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()
+    .and_then(|row| row.try_get::<Option<String>>("", "turn_words").ok().flatten());
+  let (Ok(standing), Some(words)) = (standing(&ground.db, id).await, words) else {
+    eprintln!("job {id}: the turn its review asked for could not be read again");
+    return;
+  };
+  let turn = Turn {
+    words,
+    resume: standing.session.clone(),
+  };
+
+  gone_out(ground, sessions, id, &standing, turn).await;
 }
 
 // How often a job that gave its checkout up looks again whether the checkout is free.

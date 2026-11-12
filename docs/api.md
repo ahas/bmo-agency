@@ -1376,11 +1376,24 @@ service.
   as its launch would have, its run closed, its assignment released, its slot given back, its lease kept for
   the item's close and its end told to the room. The pass below leaves a job whose turn is kept in flight to
   it.
+- **A job whose turn had not gone out when agency restarted is launched again.** A job keeps the words of
+  the turn it carries until that turn comes back from its session: its first prompt once it is composed, a
+  turn its review asks for as the review asks it, and the words a turn carried onto the next road goes out
+  with. A server that starts, after it has picked up the turns in flight and before the
+  pass below, launches again every job this process does not carry and no turn kept in flight names that is
+  still `starting`, or that keeps the words of a turn while it is `running` — waiting for a road or a slot, or
+  between one road and the next — or `reviewing` with its review's turn still taking its checkout back. Each goes out as its launch would have, on the road its walk answers
+  now, from the words it keeps; a first prompt not yet composed is composed again, its review opened only
+  once. Its slot request still waiting in the line is taken up again rather than asked anew, so the job
+  keeps its place, and a seat it was let in on stays its own; a request asked on another road than the one
+  the job now takes is cancelled and the job asks again. A job's turn the pickup finds no program took is
+  one such, its kept turn let go. A `running` job whose checkout stands on another machine is not launched
+  again, since a turn that went out there is no record this machine keeps.
 - **A job left running with no live execution ends as stopped on the pass.** The process that ran it can
   go away with agency's own restart before the run writes its end, on a program that keeps no record the
   next server can read it from. On start, after the turns in flight are picked up, and on the reconcile
   pass that keeps the execution rows, a job still `starting` or `running` whose turn is not kept in flight
-  is read against the records the store already keeps: an open execution row of its run's on its role's line begun at the job's start is a live
+  and that the start did not launch again is read against the records the store already keeps: an open execution row of its run's on its role's line begun at the job's start is a live
   execution, and an open run in the ledger is a live run. A job with neither — or whose run is already
   closed — ends as `stopped` with a report saying the process that ran it went away, its open run is closed,
   its assignment released, its slot given back, and its lease returned and its report told to the room

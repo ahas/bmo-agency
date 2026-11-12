@@ -1427,3 +1427,179 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
   let _ = program.kill();
   let _ = program.wait();
 }
+
+// A pane of its own a kept turn went out in, its program this test's own process, which stands while the test
+// runs, and its transcript the one given.
+fn own_pane_of(transcript: &std::path::Path, started_at: i64) -> OwnPane {
+  let identity = agent_host::identity::ProcessIdentity::of(std::process::id() as i32).unwrap();
+
+  OwnPane {
+    execution: "own".into(),
+    pane: None,
+    transcript: transcript.to_path_buf(),
+    session: "s".into(),
+    program: Some(agency_server::door::liveness::Program {
+      pid: identity.pid,
+      birth: Some(identity.birth),
+    }),
+    started_at,
+    provider: "claude-code".into(),
+    model: "claude-sonnet-5".into(),
+    effort: None,
+    role: None,
+    line: None,
+    cwd: None,
+  }
+}
+
+#[test]
+fn a_turn_in_a_pane_of_its_own_its_program_never_took_is_lost_however_long_the_program_stands() {
+  let home = tempfile::tempdir().unwrap();
+  let transcript = home.path().join("session.jsonl");
+  let began = now_ms() - 60_000;
+  let pane = own_pane_of(&transcript, began);
+
+  // No transcript at all: the program never took the words.
+  assert_eq!(standing_in_pane(&pane), Standing::Lost);
+
+  // Words of an earlier turn before the execution began say nothing of this one.
+  transcribe(
+    &transcript,
+    &[
+      json!({ "type": "user", "timestamp": stamp(began - 10_000), "message": { "content": "an older turn" } }),
+    ],
+  );
+  assert_eq!(standing_in_pane(&pane), Standing::Lost);
+
+  // Once the words stand in the transcript since the execution began, the turn goes on while its program does.
+  transcribe(
+    &transcript,
+    &[json!({ "type": "user", "timestamp": stamp(began + 10), "message": { "content": "the work" } })],
+  );
+  assert_eq!(standing_in_pane(&pane), Standing::Going);
+}
+
+#[tokio::test]
+async fn an_adopted_turn_no_job_holds_is_cut_at_the_bound_of_an_adopted_turn() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let bound = policy::resident_turn::RESIDENT_TURN.adopted_bound_minutes as i64 * 60_000;
+  let mut turn = in_flight("voyager-run", "voyager", 1, Some(7), None, None);
+
+  assert_eq!(over_bound(&ground, &turn, turn.started_at + bound - 1).await, None);
+
+  let cut = over_bound(&ground, &turn, turn.started_at + bound).await.expect("cut at the bound");
+
+  assert!(cut.contains(&(bound / 60_000).to_string()), "the reason names the bound: {cut}");
+
+  // A job's turn is held to the job's own bound, which is no shorter here, and marks its job stopped.
+  turn.job = Some(5);
+  running_job(&scratch, 5, now_ms()).await;
+  assert_eq!(over_bound(&ground, &turn, turn.started_at + bound - 1).await, None);
+}
+
+#[tokio::test]
+async fn a_turn_its_pane_of_its_own_never_took_is_ended_at_start_and_a_job_s_is_launched_again() {
+  use agency_server::control::work::{RESUMED, resume_launches};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let began = now_ms() - 20 * 60 * 1000;
+
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+
+  // Two turns in panes of their own whose programs never took their words: a research run's, which no job
+  // holds, and a job's. Each program stands — this process — and each transcript holds nothing since its
+  // execution began.
+  let identity = agent_host::identity::ProcessIdentity::of(std::process::id() as i32).unwrap();
+
+  for (run, agent, job) in [("research-1", "voyager", None), ("job-7191", "worker-a", Some(7191))] {
+    let execution = format!("own-{run}");
+    let transcript = home.path().join(format!("{run}.jsonl"));
+
+    scratch
+      .run(
+        r#"INSERT INTO "agent_executions" ("id", "body") VALUES ($1, $2)"#,
+        vec![
+          execution.clone().into(),
+          json!({ "id": execution, "agent": null, "line": "worker", "provider": "claude-code",
+                  "parent": run, "state": "running", "startedAt": began, "endedAt": null })
+          .to_string()
+          .into(),
+        ],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "turn_liveness" ("execution", "run", "line", "session", "phase", "program_pid",
+             "program_birth", "records", "opened_at", "written_at")
+           VALUES ($1, $2, 'worker', 's', 'working', $3, $4, $5, $6, $6)"#,
+        vec![
+          execution.into(),
+          run.into(),
+          i64::from(identity.pid).into(),
+          identity.birth.clone().into(),
+          json!([transcript]).to_string().into(),
+          began.into(),
+        ],
+      )
+      .await;
+
+    keep(scratch.db(), &in_flight(run, agent, 1, Some(7), None, job)).await;
+  }
+
+  running_job(&scratch, 7191, began).await;
+  scratch
+    .run(r#"UPDATE "jobs" SET "turn_words" = 'the work' WHERE "id" = 7191"#, vec![])
+    .await;
+
+  let mut ended = ground.events.subscribe::<TurnEnded>();
+
+  assert_eq!(at_start(&ground).await.unwrap(), 2);
+
+  // The research run's turn ends failed for its caller, and the job's is let go: neither is kept, and each
+  // execution the turn opened is closed.
+  assert!(!kept_now(&scratch, "research-1").await);
+  assert!(!kept_now(&scratch, "job-7191").await);
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) AS "n" FROM "agent_executions" WHERE ("body"::jsonb)->>'endedAt' IS NULL"#,
+        vec![],
+      )
+      .await,
+    0
+  );
+
+  let end = ended.ready().expect("the research run's end is published");
+
+  assert_eq!(end.session, "voyager@worker");
+  assert!(end.end.reason.unwrap_or_default().contains("no record its program keeps names it"));
+  assert!(ended.ready().is_none(), "the job's turn publishes no end: its job goes on");
+
+  // The job is launched again from the words it keeps, carried before the pass that ends a job left running
+  // reads it, so that pass leaves it. This ground stands no places, so the launch itself ends failed saying so.
+  assert_eq!(resume_launches(&ground, None).await, 1);
+  assert!(logged(&scratch, "job-7191", RESUMED).await);
+  reap_stale(&ground).await.unwrap();
+
+  for _ in 0..100 {
+    if job_state(&scratch, 7191).await.0 != "running" {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+  }
+
+  let (state, report) = job_state(&scratch, 7191).await;
+  let report = report.unwrap_or_default();
+
+  assert_eq!(state, "stopped");
+  assert!(report.contains("agency stands no places"), "the launch ran again: {report}");
+  assert!(
+    !report.contains(agency_server::control::work::REAPED),
+    "the job was not reaped: {report}"
+  );
+}

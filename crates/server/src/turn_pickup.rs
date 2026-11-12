@@ -7,7 +7,8 @@
 //! the hooks' calls and the session's transcript. A turn whose end the program wrote is handed back through
 //! the path a live turn's end takes, a turn the program is still working on, or has not taken yet, is
 //! attached to and waited on with the program held, its thrown-away session's place kept until its end is
-//! handed back and ended then, and a turn nothing names is ended as lost.
+//! handed back and ended then, one no job holds cut at the bound of an adopted turn, and a turn nothing names,
+//! or its program never took, is ended as lost.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -28,7 +29,7 @@ use crate::door::inbox::{
 };
 use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
 use crate::door::record::{
-  CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, read_round, read_turn,
+  CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round, read_turn,
   turn_closed_since, turn_error,
 };
 use crate::door::tool_clock::{InProcessCut, ToolClock, Watch as ToolWatch};
@@ -370,10 +371,16 @@ async fn carried_apart(ground: &Ground, turn: &InFlight, place: &Place, pane: Op
 }
 
 /// Where a turn in a pane of its own stands, read from its session's transcript since its execution began:
-/// going while the round there is still working and its program stands; ended once the round has ended,
-/// its answer or its error read from it; ended failed where the program is gone with the round open.
+/// lost where the program never took it, no words handed over standing there, whatever the program is doing;
+/// going while the round there is still working and its program stands; ended once the round has ended, its
+/// answer or its error read from it; ended failed where the program is gone with the round open.
 pub fn standing_in_pane(pane: &OwnPane) -> Standing {
   let lines = transcript_since(&pane.transcript, pane.started_at).unwrap_or_default();
+
+  if !prompted_since(&lines, 0) {
+    return Standing::Lost;
+  }
+
   let round = read_round(&lines);
 
   match round.state {
@@ -649,8 +656,9 @@ fn claude_place(place: &Place, turn: &InFlight) -> Option<(PathBuf, i64)> {
 
 /// Every turn the process before this one left in flight, read at start from the place its program carries
 /// it in: handed back where it ended, attached to where it goes on, the lease bound to its run then standing
-/// as seen and its open execution rows kept as this process's own, ended as lost where nothing names it. A
-/// job's lost turn is left to the pass that ends a job left running.
+/// as seen and its open execution rows kept as this process's own, ended as lost where nothing names it or
+/// its program never took it, the pane of its own closed then. A job's lost turn is let go, and its job is
+/// launched again from the words it keeps.
 pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
   let turns = in_flight(&ground.db).await?;
   let count = turns.len();
@@ -677,10 +685,17 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
         hand_back(ground, &place, &turn, came, true).await;
         close_pane(ground, pane.as_ref()).await;
       }
+      // No program took a job's turn, so the job is launched again from the words it keeps; the pane of its
+      // own that stands on nothing is closed with its rows.
       Standing::Lost if turn.job.is_some() => {
-        forget(&ground.db, &turn.run, "nothing names it at start; its job is left to the reap").await
+        close_rows(ground, &turn.run, false).await;
+        close_pane(ground, pane.as_ref()).await;
+        forget(&ground.db, &turn.run, "no program took it; its job is launched again").await
       }
-      Standing::Lost => hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned()), false).await,
+      Standing::Lost => {
+        hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned()), false).await;
+        close_pane(ground, pane.as_ref()).await;
+      }
       Standing::Going => {
         // The adopted turn stands as seen: the lease bound to its run is given back by its end, or by its
         // program found gone, and never waits on a sight of it this process would not have.
@@ -775,8 +790,8 @@ pub async fn waited(
       Standing::Going => {}
     }
 
-    // A job's turn past its bound is cut and its item released, as the door cuts a live one: the stop
-    // mark is written first, so the end of the turn reads it and the job ends stopped.
+    // A turn past its bound is cut, as the door cuts a live one: a job's with its item released, its stop
+    // mark written first, so the end of the turn reads it and the job ends stopped.
     if let Some(why) = over_bound(ground, turn, now).await {
       // The turn's program is cut short as the door cuts one past its bound, so it does not go on
       // working a job whose item and queue have been released.
@@ -952,14 +967,25 @@ pub async fn cut_tools(
   lines
 }
 
-/// A job's turn past the clock's bound: the job marked stopped with the reason, so the turn's end reads it
-/// and the job ends stopped with its item's lease given back. None for a turn within its bound or one that
-/// is no job's.
+/// A picked-up turn past its bound, with why it is cut; none for one within it. A job's turn is held to the
+/// job's own bound and its job marked stopped with the reason, so the turn's end reads it and the job ends
+/// stopped with its item's lease given back. A turn no job holds is held to the bound of an adopted turn, since
+/// its caller went away with the process before (docs/sessions.md, 「A restart hands the session over」).
 pub async fn over_bound(ground: &Ground, turn: &InFlight, now: i64) -> Option<String> {
-  let job = turn.job?;
-  let bound_ms = i64::try_from(TOOL_CLOCK.turn.bound_minutes)
-    .unwrap_or(i64::MAX / 60_000)
-    .saturating_mul(60_000);
+  let Some(job) = turn.job else {
+    let minutes = RESIDENT_TURN.adopted_bound_minutes.max(1);
+
+    if now.saturating_sub(turn.started_at) < minutes_ms(minutes) {
+      return None;
+    }
+
+    let why = fill_marks(&RESIDENT_TURN.adopted_cut, &[("minutes", &minutes.to_string())]);
+
+    println!("{}: {why}", turn.run);
+
+    return Some(why);
+  };
+  let bound_ms = minutes_ms(TOOL_CLOCK.turn.bound_minutes);
 
   if now.saturating_sub(turn.started_at) < bound_ms {
     return None;
@@ -978,6 +1004,11 @@ pub async fn over_bound(ground: &Ground, turn: &InFlight, now: i64) -> Option<St
   );
 
   Some(why)
+}
+
+// A number of minutes in milliseconds, held at the largest a moment holds.
+fn minutes_ms(minutes: u64) -> i64 {
+  i64::try_from(minutes).unwrap_or(i64::MAX / 60_000).saturating_mul(60_000)
 }
 
 // A picked-up turn ended by the surface's own interrupt: the keys its provider cuts a turn with, typed into

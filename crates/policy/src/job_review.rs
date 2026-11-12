@@ -11,6 +11,12 @@ pub struct JobReview {
   pub owner_wait_seconds: i64,
   /// The name the record's own entries are written under.
   pub actor: String,
+  /// The first pause before a work order that could not be read is asked again, in milliseconds.
+  pub work_order_first_ms: u64,
+  /// The longest the pause doubles to.
+  pub work_order_longest_ms: u64,
+  /// The job's wait while its work order cannot be read: `{item}` and `{why}`.
+  pub work_order_wait: String,
   /// The checks every report is examined by, in order.
   pub checks: Vec<Check>,
   /// What the orderer is told of the check due now.

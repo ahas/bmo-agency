@@ -62,6 +62,13 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   (`GET /items/{itemId}/work-order`), in order, kept on the job so a later change of the work order moves no
   stage of a job already running. The work order's tasks are moved as the stages go: the stage under way is
   `current`, a stage its review passed is `done`.
+- **A work order that cannot be read is asked again, never read as none.** An item the job service answers
+  404 for holds no work order, and its job is one stage; any other failure — the job service not answering,
+  or answering an error — is asked again after a pause that doubles from the policy's first to its longest
+  (`policy/job-review.toml`), however long it takes. The job stays `starting` meanwhile, its `heldFor`
+  naming the wait, told to its item's orderer once as the wait begins (`job-waiting`), and goes no further
+  where it is stopped while it waits. A job launched again after agency's restart keeps the stages its review
+  was opened with and writes no second `opened` entry (`docs/api.md`, 「assignments and jobs」).
 - **The first turn is handed the first stage alone.** Its prompt is the item's, as any job's, with the plan of
   every stage shown and the one stage it is to do named, and it says that the turn ends with the report of that
   stage, after which the stage is examined.

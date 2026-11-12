@@ -24,6 +24,11 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A running job survives an agency restart.** Its turn in flight is kept across the restart, its run
   goes on, and the lease pass takes the item again in the same checkout; the deploy therefore counts no
   job and waits on none.
+- **A job whose turn has not gone out survives it too.** A job waiting for a road, for a slot of its role or
+  for its checkout, or still composing its first prompt, is carried by no turn a program holds; the job's row
+  keeps the words of the turn it carries until that turn ends, and its slot request stands in the line, so
+  the server that starts launches it again from them, its place in the line kept (`docs/api.md`,
+  「assignments and jobs」).
 - **The chat works in a folder whose name a release does not change.** Each program keeps the session
   it stands in by the folder it was stood in, and a program stood again on the same folder takes the
   session up again rather than opening a fresh one beside it:
@@ -66,10 +71,12 @@ statements below about either are kept for a rollback to the road a deployment l
       provider, a job's among them (`docs/agents.md`, 「A run in a pane of its own」) — through the
       execution its run opened: the pane's turn goes in under the run's own name (`docs/launch-lines.md`),
       so the turn's liveness row names the run, and that row holds the pane, the program and the session's
-      transcript. The turn is going while its program stands and the transcript's round from the row's
-      start is still working, has ended once that round has, its answer or its error read from it, and ends
-      failed where the program is gone with the round still open; the pane is closed once its end is handed
-      back;
+      transcript. The turn is the program's only once the program took it: words handed over stand in the
+      transcript since the execution began. A turn it took is going while its program stands and the
+      transcript's round from the row's start is still working, has ended once that round has, its answer
+      or its error read from it, and ends failed where the program is gone with the round still open; a
+      turn it never took is lost, whatever the program is doing. The pane is closed once the turn's end is
+      handed back, or once the turn is found lost;
   - a turn whose end its program has written is handed back through the path a live turn's end takes:
     what of its record the run log lacks is filed there with its end, its execution row and the place's
     run are closed, a chat turn's road, spend and ledger run are written, its end is published as
@@ -79,6 +86,11 @@ statements below about either are kept for a rollback to the road a deployment l
     holds the place's program, so no turn of its own goes in meanwhile, waits on what the program writes
     down, and hands the end back once it is written; a program that goes away meanwhile ends the turn
     failed;
+  - **an attached turn no job holds is held to the bound of an adopted turn** (`policy/resident-turn.toml`):
+    its caller went away with the process before, so nobody would ever cut it, and one that has not ended
+    within the bound from its start is interrupted with its surface's own keys and ended failed with the
+    bound's reason, its pane closed where it has one of its own. A job's turn is held to the job's own
+    bound below;
   - a picked-up turn is logged as it goes: what its program's record gained is filed into its run log as a
     live turn's is, so a screen following the log follows the picked-up turn rather than standing at the
     last line the process before wrote; a line marks where the log takes the turn up, and where no record
@@ -93,8 +105,10 @@ statements below about either are kept for a rollback to the road a deployment l
     process of its own is cut by words put into the turn, a stop cuts a blocked call, and a turn past
     its bound is cut with its item marked stopped, so the item's lease is given back and its assignment
     released; the turn's tool lines are kept in the run's log and the unit's own;
-  - a turn nothing in its place names is ended failed for its caller, and a job's is left to the pass that
-    ends a job left running.
+  - a turn nothing in its place names is ended failed for its caller; a job's is let go and its job launched
+    again from the words its row keeps, since no program took them (`docs/api.md`, 「assignments and
+    jobs」). Either way the pane of its own, where it has one, is closed, so no program stands on a turn
+    nobody waits for.
   - every turn's liveness row the process before it left open is closed first, with the ending
     `restarted` and what the server then finds of the turn's program, and the same is written to its log,
     before any place that process left is taken down (`docs/agent-control.md`, 「Telling that a turn's
@@ -437,6 +451,15 @@ statements below about either are kept for a rollback to the road a deployment l
   - **Which sessions owe one is read off the documents, not waited for:** agency composes the agent's
     system prompt on its own, so a deployment that moved a document is found at the server's start
     and settled before anyone asks.
+  - **What is owed is written down, never held in memory alone,** since the session already records the
+    new prompt's hash and a restart would otherwise forget the debt. The one session across rooms owes
+    its replacement under the agent (`handoff_owed:<agent>`); a room's own session owes its handover under
+    the agent and the room (`room_handoff_owed:<agent>:<room>`, `docs/store.md`), with what its handoff
+    turn goes out on: the supervisor, the provider, model and system prompt the finding turn was sent, the
+    generation's settings, the session and its place. A room's handover is made once the turn that found it
+    ends, and otherwise at the server's start and on the keepalive clock while the room carries no turn,
+    one picked up across a restart included; one whose room no longer holds the session it was owed on is
+    let go, since that session was replaced already.
 - **A session going away is asked for its handoff before it is let go.** No summary of a session's
   conversation is made or kept for its successor: the successor opens on the note the old session
   wrote as it closed. A room's own session whose prompt moved or whose window filled writes that note

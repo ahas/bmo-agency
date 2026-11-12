@@ -362,3 +362,138 @@ async fn a_replacement_owed_is_kept_with_its_first_reason_until_it_is_settled() 
   settle(db, "chat-agent").await.unwrap();
   assert_eq!(owed(db, "chat-agent").await.unwrap(), None);
 }
+
+// A room's handover owed as a turn that found its room session's prompt moved writes it down.
+fn room_owed(session: &str, system: &str) -> agency_server::supervisor_turn::replacement::RoomOwed {
+  agency_server::supervisor_turn::replacement::RoomOwed {
+    supervisor: "chat-agent".into(),
+    label: Some("the chat agent".into()),
+    pinned_model: None,
+    provider: "claude-code".into(),
+    model: "claude-sonnet-5".into(),
+    system: system.into(),
+    generation: indexmap::IndexMap::from([("effort".to_owned(), json!("high"))]),
+    session: session.into(),
+    placement: None,
+  }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_room_s_handover_owed_is_written_down_read_back_whole_and_kept_until_it_is_settled() {
+  use agency_server::supervisor_turn::replacement::{
+    owe_room, room_owed as read, rooms_owing, settle_room,
+  };
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  assert_eq!(read(db, "chat-agent", 5).await.unwrap(), None);
+  owe_room(db, "chat-agent", 5, &room_owed("s-1", "the first prompt")).await.unwrap();
+  owe_room(db, "chat-agent", 5, &room_owed("s-1", "the prompt last sent")).await.unwrap();
+  owe_room(db, "chat-agent", -9, &room_owed("s-2", "another room")).await.unwrap();
+
+  // A later finding writes over the first, so the handoff turn goes out on the prompt last sent.
+  let owed = read(db, "chat-agent", 5).await.unwrap().expect("owed");
+
+  assert_eq!(owed, room_owed("s-1", "the prompt last sent"));
+
+  let (speaker, due) = owed.due().expect("its provider is one this build holds");
+
+  assert_eq!(speaker.shown(), "the chat agent");
+  assert_eq!((due.provider.name(), due.session.as_str()), ("claude-code", "s-1"));
+
+  let mut owing = rooms_owing(db).await.unwrap();
+
+  owing.sort();
+  assert_eq!(owing, vec![("chat-agent".to_owned(), -9), ("chat-agent".to_owned(), 5)]);
+
+  settle_room(db, "chat-agent", 5).await.unwrap();
+  assert_eq!(read(db, "chat-agent", 5).await.unwrap(), None);
+  assert_eq!(rooms_owing(db).await.unwrap(), vec![("chat-agent".to_owned(), -9)]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_room_s_handover_owed_before_a_restart_is_read_by_the_next_process_and_let_go_once_its_session_is_gone()
+ {
+  use agency_server::supervisor_turn::replacement::{owe_room, room_owed as read};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/nowhere".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  // The process before wrote the debt down and went away; the room no longer holds the session it was owed on.
+  owe_room(scratch.db(), "chat-agent", 5, &room_owed("s-gone", "the prompt last sent"))
+    .await
+    .unwrap();
+
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
+
+  // The next process's pass while the room is quiet reads what the last one wrote, and lets it go.
+  sessions.settle_pass().await;
+
+  assert_eq!(read(scratch.db(), "chat-agent", 5).await.unwrap(), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_room_s_handover_owed_before_a_restart_is_made_by_the_next_process_while_the_room_is_quiet() {
+  use agency_server::supervisor_turn::replacement::{owe_room, room_owed as read};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let agent = "chat-agent";
+  let chat = -9_000_000_000_003;
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/nowhere".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  supervisor(
+    scratch.db(),
+    agent,
+    &[("session_scope", "room".into()), ("turn_shape", "pieces".into())],
+  )
+  .await;
+  scratch
+    .run(
+      r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at", "harness_session", "harness_road", "system_hash")
+         VALUES ($1, $2, 1, 1, 's-1', 'claude-code::claude-sonnet-5', 'the new prompt')"#,
+      vec![agent.into(), chat.into()],
+    )
+    .await;
+
+  // The turn that found the room's prompt moved wrote the handover down on the session it went on, and the
+  // process went away before the turn's end could make it.
+  owe_room(scratch.db(), agent, chat, &room_owed("s-1", "the prompt last sent"))
+    .await
+    .unwrap();
+
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
+
+  // The next process's pass makes it while the room carries no turn: the old session is asked for its note,
+  // and with no program here to write one, the next generation opens all the same, holding no harness session.
+  sessions.settle_pass().await;
+
+  let held = sessions::session(scratch.db(), agent, chat).await.unwrap().expect("the room's session");
+
+  assert_eq!(held.generation, 2, "the next generation opened");
+  assert!(held.harness.is_none(), "the next generation opens a fresh harness session");
+  assert_eq!(read(scratch.db(), agent, chat).await.unwrap(), None, "the debt is settled");
+}

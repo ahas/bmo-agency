@@ -59,3 +59,11 @@ end_poll_ms = 20
 # nor the provider declares a share of its own (docs/sessions.md, 「Session compaction」). Inside a turn,
 # Claude Code compacts at its own default share of its model's window, a job worker's as every other.
 fold_ratio = 0.85
+
+# How long a turn picked up across agency's restart that no job holds may go from its start before it is cut
+# (docs/sessions.md, 「A restart hands the session over」): its caller went away with the process before, so
+# nothing else would ever end it. A job's turn is held to the job's own bound (`tool-clock.toml`, `[turn]`).
+adopted_bound_minutes = 240
+
+# Why such a turn was cut, as its end says. `{minutes}` is the bound in minutes.
+adopted_cut = "cut at the {minutes}-minute bound of a turn picked up after agency restarted: its caller went away with the process before, so the turn is ended"

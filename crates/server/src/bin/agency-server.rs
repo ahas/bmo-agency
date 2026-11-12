@@ -140,6 +140,17 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the executions: {}", why.detail);
   }
 
+  // The session contract over the places stands before any job is launched again.
+  let front = control::Front::new(token, ground.clone())?.with_places(places, watch.clone());
+
+  // A job whose turn had not gone out when the last process went away is launched again from what its row
+  // keeps, before the pass that ends a job left running reads it (docs/api.md, 「assignments and jobs」).
+  let resumed = agency_server::control::work::resume_launches(&ground, front.sessions()).await;
+
+  if resumed > 0 {
+    println!("agency: {resumed} jobs whose turn had not gone out launched again");
+  }
+
   if let Err(why) = agency_server::control::work::reap_stale(&ground).await {
     eprintln!("agency: the jobs left running: {}", why.error);
   }
@@ -209,8 +220,6 @@ async fn serve(args: Args) -> Result<(), String> {
       eprintln!("agency: the quota source: {why}");
     }
   });
-
-  let front = control::Front::new(token, ground)?.with_places(places, watch);
 
   // The replacements the supervisors' sessions owe, made while they are quiet: once as the server starts, so
   // a deployment that moved a document is settled before anyone asks, and on the keepalive clock after

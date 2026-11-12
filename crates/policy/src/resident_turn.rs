@@ -27,6 +27,11 @@ pub struct ResidentTurn {
   /// How full a session's context may be before it is folded once its turn is over, where neither the
   /// fold-ratio table nor the session's provider names a share.
   pub fold_ratio: f64,
+  /// How long a turn picked up across agency's restart that no job holds may go from its start before it is
+  /// cut.
+  pub adopted_bound_minutes: u64,
+  /// Why such a turn was cut; `{minutes}` is the bound in minutes.
+  pub adopted_cut: String,
 }
 
 crate::part!(pub RESIDENT_TURN: ResidentTurn = "resident-turn.toml");

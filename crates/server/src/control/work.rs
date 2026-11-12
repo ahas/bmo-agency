@@ -1070,6 +1070,132 @@ pub async fn carry_review_turn(
   finish(&ground, id, ended).await;
 }
 
+/// The words of the turn a job carries, kept on its row until that turn comes back from its session, or let go
+/// (docs/api.md, 「assignments and jobs」): a server that starts launches a job whose turn had not gone out again
+/// from them. A store that would not take them is said and stops nothing.
+pub(crate) async fn keep_turn_words(db: &sea_orm::DatabaseConnection, id: i64, words: Option<&str>) {
+  if let Err(why) = run(
+    db,
+    r#"UPDATE "jobs" SET "turn_words" = $1 WHERE "id" = $2"#,
+    vec![words.map(str::to_owned).into(), id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: the words of its turn were not kept: {why}");
+  }
+}
+
+// The words of the turn a job carries, as its row keeps them.
+async fn kept_turn_words(db: &sea_orm::DatabaseConnection, id: i64) -> Option<String> {
+  one(db, r#"SELECT "turn_words" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()?
+    .try_get::<Option<String>>("", "turn_words")
+    .ok()
+    .flatten()
+}
+
+/// Every job whose turn had not gone out when the process before this one went away, launched again from what
+/// its row keeps (docs/api.md, 「assignments and jobs」): one still `starting`, one `running` with the words of
+/// a turn that never came back from its session, and one `reviewing` whose review's turn was still taking its
+/// checkout back. A job this process carries, or whose turn is kept in flight for the pickup, is left; so is a
+/// `running` job whose checkout stands on another machine. Each is marked carried before this answers, so the
+/// pass that ends a job left running, which runs next, leaves it. Answers how many were launched again.
+pub async fn resume_launches(
+  ground: &Arc<Ground>,
+  sessions: Option<crate::herdr_backend::Shared>,
+) -> usize {
+  let rows = match all(
+    &ground.db,
+    r#"SELECT "id", "state", "worker_name", "run_name", "run_id", "report", "turn_words" FROM "jobs"
+       WHERE "state" = 'starting'
+          OR ("state" = 'running' AND "turn_words" IS NOT NULL)
+          OR ("state" = 'reviewing' AND "review_turn" IS NOT NULL AND "turn_words" IS NOT NULL)
+       ORDER BY "id""#,
+    vec![],
+  )
+  .await
+  {
+    Ok(rows) => rows,
+    Err(why) => {
+      eprintln!("agency: the jobs whose turn had not gone out were not read: {why}");
+      return 0;
+    }
+  };
+  let mut resumed = 0;
+
+  for row in rows {
+    let Ok(id) = row.try_get::<i64>("", "id") else { continue };
+    let state: String = row.try_get("", "state").unwrap_or_default();
+    let worker: String = row.try_get("", "worker_name").unwrap_or_default();
+    let run_name: Option<String> = row.try_get("", "run_name").ok().flatten();
+    let run_id: Option<i64> = row.try_get("", "run_id").ok().flatten();
+    let reported = row.try_get::<Option<String>>("", "report").ok().flatten().is_some();
+
+    if is_carrying(id) {
+      continue;
+    }
+
+    if let Some(run_name) = run_name.as_deref().filter(|name| !name.is_empty())
+      && crate::turn_pickup::kept(&ground.db, run_name).await
+    {
+      continue;
+    }
+
+    if state == "running" && on_node(ground, &worker).await {
+      println!("job {id}: not launched again: its worker {worker} stands on another machine");
+      continue;
+    }
+
+    // A turn that went out and never came back left its run in the ledger open: it is closed as cut, and the
+    // job's next turn opens its own.
+    if state == "running"
+      && let Some(run_id) = run_id.filter(|run| *run > 0)
+      && run_ledger::read(&ground.db, run_id)
+        .await
+        .is_ok_and(|held| held.is_some_and(|held| held.finished_at.is_none()))
+    {
+      closed(ground, run_id, crate::run_sweep::CUT, None, None).await;
+    }
+
+    carrying().insert(id);
+    noted_line(ground, id, RESUMED).await;
+    println!("job {id}: launched again after agency restarted, {state}");
+
+    let ground = ground.clone();
+    let sessions = sessions.clone();
+
+    // A job that never reported carries its first turn; one that did carries the turn its review asked for.
+    if reported {
+      tokio::spawn(async move {
+        crate::job_review::resumed_turn(ground, sessions, id).await;
+        carrying().remove(&id);
+      });
+    } else {
+      tokio::spawn(async move { launch(ground, sessions, id).await });
+    }
+
+    resumed += 1;
+  }
+
+  resumed
+}
+
+/// What a job launched again after agency's restart says in its log.
+pub const RESUMED: &str =
+  "agency restarted before this job's turn went out, so the job is launched again from what its row keeps.";
+
+// Whether a job's checkout stands on another machine, whose runs are no record this machine keeps.
+async fn on_node(ground: &Ground, worker: &str) -> bool {
+  crate::queue::workers::worker_row(&ground.db, worker, &ground.source)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|checkout| checkout.node)
+    .is_some_and(|node| !node.trim().is_empty())
+}
+
 /// A job's turn that ended after the process that launched it went away, ended as the launch would have
 /// ended it (docs/api.md, 「assignments and jobs」): its run closed with the turn's end, the job ended with
 /// its report, its assignment released, its lease returned and its end told to the room.
@@ -1638,7 +1764,7 @@ async fn ended_outside(ground: &Ground, id: i64) -> bool {
 }
 
 // Whether a job stopped from outside, or asked to stop, is to go no further while it waits.
-async fn called_off(ground: &Ground, id: i64) -> bool {
+pub(crate) async fn called_off(ground: &Ground, id: i64) -> bool {
   ended_outside(ground, id).await
     || crate::queue::stops::job_stop_reason(&ground.db, id).await.ok().flatten().is_some()
 }
@@ -1727,6 +1853,8 @@ pub async fn carry_job<C: Carrier>(
   let mut prompt = job.prompt.to_owned();
   let mut last: Option<Ended> = None;
 
+  keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
+
   loop {
     let resolution = road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?;
     let Some((taken, entry)) = resolution.going().map(|(road, entry)| (road.clone(), entry.clone())) else {
@@ -1774,6 +1902,7 @@ pub async fn carry_job<C: Carrier>(
     .await;
     road::leave(ground, &taken, &stopped).await;
     prompt = continued(&taken, &stopped, job.prompt);
+    keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
     left.push(Closed::plain(&taken.provider, stopped));
     last = Some(("ended".to_owned(), outcome, report, None));
   }
@@ -2116,8 +2245,12 @@ pub async fn job_seat(
     return Ok(Some(kept));
   }
 
-  let mut held =
-    dispatch::enqueue(&ground.db, &ground.events, asked, dispatch::JOB, async |_, _| Ok(())).await?;
+  let mut held = match waiting_seat(ground, id, asked).await? {
+    Some(waiting) => waiting,
+    None => {
+      dispatch::enqueue(&ground.db, &ground.events, asked, dispatch::JOB, async |_, _| Ok(())).await?
+    }
+  };
   let mut told = false;
   let role = asked.wanted.role;
   let seat = match asked.wanted.agent {
@@ -2179,6 +2312,51 @@ async fn kept_seat(ground: &Ground, id: i64) -> Result<Option<Request>, String> 
   };
 
   dispatch::request(&ground.db, &token).await
+}
+
+// The job's request still waiting in the line, left by a launch of the process before this one (docs/api.md,
+// 「assignments and jobs」): taken up again where it asks for the road and the agent this turn asks for, so the
+// job keeps its place, and cancelled otherwise, so the job asks again.
+async fn waiting_seat(
+  ground: &Ground,
+  id: i64,
+  asked: &dispatch::Asked<'_>,
+) -> Result<Option<Request>, String> {
+  let row = one(
+    &ground.db,
+    r#"SELECT "token" FROM "role_slot_requests" WHERE "owner" = $1 AND "state" = 'waiting'
+       ORDER BY "sequence" DESC LIMIT 1"#,
+    vec![format!("{}{id}", dispatch::JOB_OWNER).into()],
+  )
+  .await
+  .map_err(|why| why.to_string())?;
+  let Some(token) = row.and_then(|row| row.try_get::<String>("", "token").ok()) else {
+    return Ok(None);
+  };
+  let Some(waiting) = dispatch::request(&ground.db, &token).await? else {
+    return Ok(None);
+  };
+  let road = asked.wanted.fixed.as_ref().map(|fixed| (fixed.provider.as_str(), fixed.model.as_str()));
+  let same = road.is_none_or(|(provider, model)| waiting.provider == provider && waiting.model == model)
+    && waiting.agent_wanted.as_deref() == asked.wanted.agent
+    && waiting.role == asked.wanted.role;
+
+  if same {
+    println!("job {id}: its slot request {} waiting in the line is taken up again", waiting.token);
+
+    return Ok(Some(waiting));
+  }
+
+  dispatch::finish(
+    &ground.db,
+    &ground.events,
+    &waiting.token,
+    "cancelled: the job asks again on another road",
+    true,
+  )
+  .await?;
+
+  Ok(None)
 }
 
 /// The seats of jobs their review paused given back (docs/job-review.md, 「The owner's word」): a job whose owner's
@@ -2332,6 +2510,8 @@ impl OnSession<'_> {
       })
       .await;
 
+    // The turn came back from its session, answered or not: its words are no longer the job's to go out with.
+    keep_turn_words(&ground.db, id, None).await;
     self.ended(&session.id).await;
 
     let end = match sent {
@@ -2391,12 +2571,19 @@ async fn launched(
   // prompt; a job with no instruction stands as it was. The first prompt closes with what the review opens
   // with; a turn the review asks for goes out with its own words instead.
   let (prompt, resume, carried) = match turn {
-    None => {
-      let prompt = referenced(ground, member.get("instruction"), &prompt).await;
-      let opening = crate::job_review::opened(ground, id).await;
+    // A first turn launched again after agency's restart goes out with the words it kept, its reference and its
+    // review's opening already in them.
+    None => match kept_turn_words(&ground.db, id).await {
+      Some(words) => (words, None, None),
+      None => {
+        let prompt = referenced(ground, member.get("instruction"), &prompt).await;
+        let Some(opening) = crate::job_review::opened(ground, id).await else {
+          return Ok(None);
+        };
 
-      (format!("{prompt}\n\n{opening}"), None, None)
-    }
+        (format!("{prompt}\n\n{opening}"), None, None)
+      }
+    },
     Some(turn) => {
       let carried = crate::job_review::carried(ground, &member, &prompt, &turn.words).await;
 

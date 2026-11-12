@@ -104,7 +104,7 @@ seeds. The other crates and the server reach the store only through it.
     stages, the stage, round and check under way, its rejections, the owner's question its work waits on and
     whether it gave its checkout up meanwhile (`docs/job-review.md`) —, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
-    input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
+    input, output, cache-read and cache-write tokens) and their sum, the prompt it was launched with, and the words of the turn it carries until that turn ends, which a server that starts launches a job whose turn had not gone out again from (`docs/sessions.md`, 「A restart hands the session over」); and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run — its supervisor or its role and path, its room, its unit, how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
@@ -168,6 +168,10 @@ seeds. The other crates and the server reach the store only through it.
   - the Claude account chosen to run on and the one in use, `claude_account_chosen` and
     `claude_account_in_use`;
   - a supervisor's session record, `agent_session:*`;
+  - the replacements supervisors' sessions owe, kept until they are made: `handoff_owed:*` by the agent, why
+    its one session across rooms owes one, and `room_handoff_owed:*` by the agent and the room, as JSON, the
+    handover a room's own session owes and what its handoff turn goes out on (`docs/sessions.md`, 「Session
+    replacement」);
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);

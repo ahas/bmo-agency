@@ -54,6 +54,8 @@ mod control {
   mod job_log;
   mod job_notes;
   mod job_reaper;
+  mod job_restart;
+  mod job_resume;
   mod job_reviews;
   mod job_roads;
   mod job_stops;
