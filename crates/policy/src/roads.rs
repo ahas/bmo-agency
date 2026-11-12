@@ -37,6 +37,8 @@ pub struct Logins {
   pub off: String,
   /// With `{until}`.
   pub resting: String,
+  /// One model resting on the login, with `{model}` and `{until}`.
+  pub model_resting: String,
   pub person: String,
   pub key: String,
   pub balance: String,

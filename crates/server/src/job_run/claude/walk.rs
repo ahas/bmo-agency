@@ -2,12 +2,14 @@
 //! accounts」): the logins the run is offered, in order, for the user it is made for, each carrying the
 //! turn on its own session; a login that cannot answer is never offered, and a run none of whose logins
 //! answers goes out on none. Where a turn fails on the login rather than on the work, the next login
-//! carries it, and the turn hears of every login passed over with the words the run came back with: a full
-//! window is put to rest as it is passed over; a login gone or refusing the run — a request for `/login`, a
+//! carries it, and the turn hears of every login passed over with the words the run came back with: a limit
+//! rests what the answer and the login's windows say reached it — the run's model on that login, or the
+//! login's own ceiling — as it is passed over; a login gone or refusing the run — a request for `/login`, a
 //! 403 — is marked and published once as waiting for a person, and, where its credential would lift that
 //! mark at once, rests alone for the provider's span so the credential's own moment cannot put it back in
-//! the walk before then; the rest that closed the last login to a limit is published once too (docs/api.md, 「Events」). A run every login of which refused it ends on the login
-//! failure naming each with its words, which a person settles by signing in again. A login near its
+//! the walk before then; the rest that closed the last login to a limit is published once too (docs/api.md,
+//! 「Events」). A run every login of which refused it ends on the login failure naming each with its words,
+//! which a person settles by signing in again. A login near its
 //! credential's end is renewed before the turn goes out on it, in a step of its own (`super::renewal`): one
 //! short run of the CLI by one run at a time under the account's own lock, which no run holds across its
 //! turn; a renewal that fails on the login, or that the run waited on and saw fail so, is that login's
@@ -15,10 +17,11 @@
 
 use std::future::Future;
 
-use super::failure::{AccountFailure, Failure};
+use super::failure::{AccountFailure, Failure, names_model};
 use super::renewal::{Renewing, renewed};
 use crate::control::claude_accounts::{
-  self, Account, Judging, account_open, carried_for_user, hold_in_use, in_use, reopens_at, walk_for_user,
+  self, Account, Judging, account_open, carried_for_user, full_window_until, hold_in_use, in_use,
+  next_reset, reopens_at, walk_for_user,
 };
 use crate::keepalive::logins;
 use crate::now_ms;
@@ -26,13 +29,11 @@ use crate::places::Ground;
 use crate::rest::{self, DeploymentResting, RestKind};
 use policy::providers::claude_code::CLAUDE_CODE;
 
-// How long a full window rests where the run named no reset moment.
-pub const REST_FALLBACK_MS: i64 = 3_600_000;
-
 /// What the walk stands on: the ground, whose bus a login gone and the rest that silenced the deployment
-/// are published on.
+/// are published on, and the model the run goes out on, which a login whose model rests is closed to.
 pub struct Walking<'a> {
   pub ground: &'a Ground,
+  pub model: &'a str,
 }
 
 impl Walking<'_> {
@@ -86,7 +87,7 @@ pub async fn on_accounts<T, A: Attempt<T>>(
   attempt: &mut A,
 ) -> Result<T, Failure> {
   let db = &walking.ground.db;
-  let mut walk = walk_for_user(walking.judging(), user).await.map_err(refused)?;
+  let mut walk = walk_for_user(walking.judging(), user, Some(walking.model)).await.map_err(refused)?;
 
   walk.retain(|account| attempt.takes(account));
 
@@ -138,37 +139,29 @@ pub async fn on_accounts<T, A: Attempt<T>>(
           None | Some(AccountFailure::Outage) => return Err(failed),
           Some(failure) => failure,
         };
-        // A full window is the login's the run went out on, named on the failure so whatever reads it
-        // after the walk writes nothing under another.
-        let resets_at = match &mut failed {
-          Failure::Limit {
-            resets_at,
-            account: on,
-            ..
-          } => {
-            *on = Some(account.id.clone());
-            *resets_at
-          }
-          _ => None,
-        };
-        let untold = pass_over(walking, account, failure, resets_at).await?;
 
-        // A silence the walk had no road to tell is left on the failure for whatever reads it.
-        if let Failure::Limit { silenced, .. } = &mut failed {
-          *silenced = untold;
+        match failure {
+          AccountFailure::Limit => rest_limit(walking, account, &mut failed).await?,
+          _ => pass_over(walking, account, failure).await?,
         }
 
         let said = said_of(&failed, key);
         let next = walk.get(place + 1);
+        let state = match (&failed, failure) {
+          (
+            Failure::Limit {
+              model: Some(model), ..
+            },
+            _,
+          ) => format!("is at its {model} limit"),
+          (_, AccountFailure::Limit) => "is at its ceiling".to_owned(),
+          (_, AccountFailure::NodeToken) => "needs a token for the work nodes".to_owned(),
+          _ => format!("refused the run ({said})"),
+        };
 
         println!(
-          "claude {key}: {} {}{}",
+          "claude {key}: {} {state}{}",
           account.id,
-          match failure {
-            AccountFailure::Limit => "is at its ceiling".to_owned(),
-            AccountFailure::NodeToken => "needs a token for the work nodes".to_owned(),
-            _ => format!("refused the run ({said})"),
-          },
           next.map_or_else(
             || ", and no login is left".to_owned(),
             |next| format!(", carried by {}", next.id)
@@ -223,17 +216,13 @@ fn every_refused(key: &str, refusals: &[(&Account, String)]) -> Failure {
 // What a run every login of which is closed comes to, said once in the machine's log: the limit the first
 // of them reopens from, or, where none rests, the login a person has to sign in again.
 async fn closed(walking: &Walking<'_>, key: &str, carried: &[Account]) -> Result<Failure, Failure> {
-  let reopens = reopens_at(walking.judging(), carried).await.map_err(refused)?;
+  let reopens = reopens_at(walking.judging(), carried, Some(walking.model)).await.map_err(refused)?;
   let names = carried.iter().map(|account| account.id.as_str()).collect::<Vec<_>>().join(", ");
 
   println!("claude {key}: no login answers now ({names}), none is launched");
 
   Ok(match reopens {
-    Some(at) => Failure::Limit {
-      resets_at: Some(at),
-      account: None,
-      silenced: false,
-    },
+    Some(at) => Failure::limit(Some(at), None),
     None => Failure::Account {
       failure: AccountFailure::Login,
       detail: format!("claude {key}: every login that carries this run waits for a person ({names})"),
@@ -266,17 +255,66 @@ async fn hold_where_moved(ground: &Ground, account: &str) -> Result<(), Failure>
   hold_in_use(db, account).await.map_err(refused)
 }
 
-// What passing a login over leaves behind: a full window is a rest for that login alone; a login gone or
-// refusing the run waits for a person, published once, and rests alone for the provider's span where its
-// credential would lift that mark at once; and a token
-// for the work nodes gone waits for a person on the nodes alone. It answers whether the rest it wrote
-// silenced the deployment with nobody told, which a walk publishing on its bus never leaves.
+// What a limit met on a login rests as it is passed over (docs/cache-fallback.md, 「Automatic walks only on
+// providers, in order」): the run's model alone where the answer names it, until the reset the answer or the
+// login's windows name; the login where the answer names its reset or the windows confirm its ceiling; and
+// otherwise the run's model, until the next reading decides. The failure is left naming the login the run
+// went out on, so whatever reads it after the walk writes nothing under another, the model where one model
+// rests, and until when; a silence the walk had no road to tell is left on it for whatever reads it.
+async fn rest_limit(walking: &Walking<'_>, account: &Account, failed: &mut Failure) -> Result<(), Failure> {
+  let Failure::Limit {
+    resets_at,
+    account: on,
+    silenced,
+    named,
+    model,
+  } = failed
+  else {
+    return Ok(());
+  };
+  let windows = &walking.ground.windows;
+  let now = now_ms().div_euclid(1000);
+  let one_model = named.as_deref().is_some_and(|named| names_model(named, walking.model));
+
+  *on = Some(account.id.clone());
+
+  if !one_model {
+    let ceiling = match *resets_at {
+      Some(at) => Some(at),
+      None => full_window_until(windows, &account.id, now).await,
+    };
+
+    if let Some(until) = ceiling {
+      *resets_at = Some(until);
+      *silenced = write_rest(walking.ground, &account.id, RestKind::Limit, until).await?;
+
+      return Ok(());
+    }
+  }
+
+  let until = match *resets_at {
+    Some(at) => Some(at),
+    None if one_model => next_reset(windows, &account.id, now).await,
+    None => None,
+  };
+
+  rest::write_model_rest(&walking.ground.db, &account.id, walking.model, until, now)
+    .await
+    .map_err(|why| Failure::error(why.detail))?;
+  *resets_at = until;
+  *model = Some(walking.model.to_owned());
+
+  Ok(())
+}
+
+// What passing a login over for anything but a limit leaves behind: a login gone or refusing the run waits
+// for a person, published once, and rests alone for the provider's span where its credential would lift that
+// mark at once; and a token for the work nodes gone waits for a person on the nodes alone.
 async fn pass_over(
   walking: &Walking<'_>,
   account: &Account,
   failure: AccountFailure,
-  resets_at: Option<i64>,
-) -> Result<bool, Failure> {
+) -> Result<(), Failure> {
   let db = &walking.ground.db;
   let now = now_ms();
 
@@ -291,7 +329,7 @@ async fn pass_over(
       .await
       .map_err(|why| Failure::error(why.detail))?;
 
-    return Ok(false);
+    return Ok(());
   }
 
   if failure == AccountFailure::Login {
@@ -314,22 +352,14 @@ async fn pass_over(
     // A subscription's credential states a moment ahead at almost any time, which lifts the mark at once:
     // the rest is what keeps such a login out of the walk until a person can have signed in. A credential past
     // its moment, and an endpoint's key, hold the mark themselves.
-    if !account.login_back(now) {
-      return Ok(false);
+    if account.login_back(now) {
+      let until = (now + CLAUDE_CODE.login.refused_rest_minutes * 60_000).div_euclid(1000);
+
+      write_rest(walking.ground, &account.id, RestKind::Refused, until).await?;
     }
-
-    let until = (now + CLAUDE_CODE.login.refused_rest_minutes * 60_000).div_euclid(1000);
-
-    return write_rest(walking.ground, &account.id, RestKind::Refused, until).await;
   }
 
-  if failure != AccountFailure::Limit {
-    return Ok(false);
-  }
-
-  let until = resets_at.unwrap_or_else(|| (now + REST_FALLBACK_MS).div_euclid(1000));
-
-  write_rest(walking.ground, &account.id, RestKind::Limit, until).await
+  Ok(())
 }
 
 /// A login's own rest — a full window's, or a refusal's — written under that login by the one writer of rests

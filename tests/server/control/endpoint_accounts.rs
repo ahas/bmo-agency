@@ -10,7 +10,7 @@ use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::claude_account_changes::{BasePromptGiven, CredentialGiven, add, update};
 use agency_server::control::claude_accounts::{
-  Account, Credential, CredentialKind, EndpointModels, Judging, accounts, open_accounts,
+  Account, Credential, CredentialKind, EndpointModels, Judging, accounts, open_accounts, walk_for_user,
 };
 use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_errored};
 use agency_server::job_run::claude::renewal::Renewing;
@@ -22,6 +22,9 @@ use cache_siren::Keeping;
 use harness_providers::Machine;
 
 use crate::support::scratch::Scratch;
+
+// The model the walks' runs go out on.
+const MODEL: &str = "claude-opus-5-5";
 
 // A directory account `main` and an endpoint account `deep`, each with a home of its own, and the
 // endpoint's key written into its file.
@@ -269,7 +272,10 @@ async fn an_endpoints_refusal_marks_or_rests_its_account_and_the_walk_moves_on()
     let service =
       Service::new(logins.scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
     let ground = Ground::new(&service, &machine, None);
-    let walking = Walking { ground: &ground };
+    let walking = Walking {
+      ground: &ground,
+      model: MODEL,
+    };
 
     // The endpoint first in the walk, so the refusal is met before the account that answers.
     logins
@@ -286,21 +292,31 @@ async fn an_endpoints_refusal_marks_or_rests_its_account_and_the_walk_moves_on()
     assert_eq!(turn.tried, ["deep", "main"], "{said}");
 
     let deep = logins.deep().await;
-    let rest = logins
-      .scratch
-      .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" = 'rest_until:deep'"#, vec![])
-      .await;
+    let count = |key: String| {
+      let scratch = &logins.scratch;
+
+      async move {
+        scratch
+          .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" = $1"#, vec![key.into()])
+          .await
+      }
+    };
+    let rest = count("rest_until:deep".to_owned()).await;
+    let model_rest = count(format!("model_rest:deep:{MODEL}")).await;
+    let walk = walk_for_user(Judging::of(&ground), None, Some(MODEL)).await.unwrap();
+
+    // Either way the account is closed to the next run on the model.
+    assert_eq!(walk.into_iter().map(|account| account.id).collect::<Vec<_>>(), ["main"], "{said}");
+    assert_eq!(rest, 0, "{said}: no rest of the account's own");
 
     if rested {
-      assert_eq!(rest, 1, "{said}: the endpoint rests");
+      assert_eq!(model_rest, 1, "{said}: the run's model rests on the endpoint until a reading decides");
       assert_eq!(deep.needs_login_at, None, "{said}: a short limit is no login gone");
     } else {
-      assert_eq!(rest, 0, "{said}: a refused key or balance is no usage rest");
+      assert_eq!(model_rest, 0, "{said}: a refused key or balance is no usage rest");
       assert!(deep.needs_login_at.is_some(), "{said}: the account waits for a person");
+      assert_eq!(logins.open(&Keeping::new(logins.scratch.db().clone(), vec![])).await, ["main"]);
     }
-
-    // Either way the account is closed to the next run.
-    assert_eq!(logins.open(&Keeping::new(logins.scratch.db().clone(), vec![])).await, ["main"]);
   }
 }
 
@@ -316,7 +332,10 @@ async fn a_turn_that_does_not_take_an_endpoint_account_passes_it_over_and_writes
   let service =
     Service::new(logins.scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
-  let walking = Walking { ground: &ground };
+  let walking = Walking {
+    ground: &ground,
+    model: MODEL,
+  };
 
   // The endpoint first in the walk: the turn goes out on the directory account alone.
   logins

@@ -3,11 +3,16 @@
 //! until the first of them comes back. Agency reads it and writes it; the rest that closes the last login
 //! is published once, and whether a supervisor whose road is on another provider answers a room meanwhile —
 //! read off its road (`GET /supervisors/{supervisorName}/road`) — and what anyone is told of it, are its
-//! consumers'.
+//! consumers'. Beside the logins' rests stand the models' (docs/cache-fallback.md, 「The account
+//! judgement」): one model resting on one login, which closes that login to that model's runs alone and
+//! never counts toward the deployment's rest.
 
+use axum::http::StatusCode;
+use cache_siren::Slot;
+use cache_siren::claude::MODE as CLAUDE_CODE_MODE;
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use store::{all, one};
 
 use crate::Refusal;
@@ -20,6 +25,8 @@ use crate::queue::settings;
 const REST_UNTIL: &str = "rest_until";
 // Why the rest began: `limit` or `outage`.
 const REST_KIND: &str = "rest_kind";
+// One model's rest on one login, by the login and the model.
+const MODEL_REST: &str = "model_rest:";
 
 async fn setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, Refusal> {
   let row = one(db, r#"SELECT "value" FROM "settings" WHERE "key" = $1"#, vec![key.into()]).await?;
@@ -113,8 +120,8 @@ async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Optio
 }
 
 /// Why the deployment rested, where its rest has just passed: every rest whose moment is behind `now` cleared,
-/// and the kind of the silence that ended — the service's outage or a limit — where the deployment was silent
-/// and rests no longer; none otherwise.
+/// every model's rest that closes nothing any longer among them, and the kind of the silence that ended —
+/// the service's outage or a limit — where the deployment was silent and rests no longer; none otherwise.
 pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option<RestKind>, Refusal> {
   let db = judging.db;
   let unnamed = moment(db, REST_UNTIL).await?;
@@ -148,6 +155,18 @@ pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option
 
   for key in &passed {
     settings::forget(db, key).await?;
+  }
+
+  // A model's rest that closes nothing any longer goes too; it never silenced the deployment, so its passing
+  // ends no silence.
+  for whose in settings::named(db, MODEL_REST).await? {
+    let key = format!("{MODEL_REST}{whose}");
+
+    if let Some(rest) = settings::get(db, &key).await?
+      && model_rest_closes(judging, &rest, now).await?.is_none()
+    {
+      settings::forget(db, &key).await?;
+    }
   }
 
   if passed.is_empty() || !was_silent || resting(judging, now).await? {
@@ -273,4 +292,94 @@ pub async fn write_rest(
   );
 
   Ok(silenced)
+}
+
+/// One model's rest on one login as it is kept: the login and the model, until when in epoch seconds,
+/// none where the login's next reading decides, and the moment it was written.
+#[derive(Debug, Deserialize, Serialize)]
+struct ModelRest {
+  account: String,
+  model: String,
+  until: Option<i64>,
+  written: i64,
+}
+
+fn model_rest_key(account: &str, model: &str) -> String {
+  format!("{MODEL_REST}{account}:{model}")
+}
+
+/// One model's rest on one login written down, until a moment in epoch seconds, or, with none, until a
+/// reading of the login's windows is seen after `now`, and said once in the machine's log.
+pub async fn write_model_rest(
+  db: &DatabaseConnection,
+  account: &str,
+  model: &str,
+  until: Option<i64>,
+  now: i64,
+) -> Result<(), Refusal> {
+  let rest = ModelRest {
+    account: account.to_owned(),
+    model: model.to_owned(),
+    until,
+    written: now,
+  };
+  let value = serde_json::to_string(&rest).map_err(|why| {
+    Refusal::new(
+      StatusCode::INTERNAL_SERVER_ERROR,
+      "model-rest-unwritten",
+      format!("a model's rest: {why}"),
+    )
+  })?;
+
+  settings::set(db, &model_rest_key(account, model), &value).await?;
+  println!(
+    "account {account}: model {model} rests until {}",
+    until
+      .map_or_else(|| "its next usage reading".to_owned(), crate::control::claude_accounts::moment_words)
+  );
+
+  Ok(())
+}
+
+/// Until when, in epoch seconds, a model rests on a login at `now`; none where it does not.
+pub async fn model_rest_until(
+  judging: Judging<'_>,
+  account: &str,
+  model: &str,
+  now: i64,
+) -> Result<Option<i64>, Refusal> {
+  match settings::get(judging.db, &model_rest_key(account, model)).await? {
+    Some(rest) => model_rest_closes(judging, &rest, now).await,
+    None => Ok(None),
+  }
+}
+
+// Until when a kept model's rest closes its model at `now`, in epoch seconds: its own moment while it is
+// ahead; with none, until a reading of the login's windows is seen after it was written, no longer than
+// such a reading stands, so the next reading decides. A rest that cannot be read closes nothing.
+async fn model_rest_closes(judging: Judging<'_>, kept: &str, now: i64) -> Result<Option<i64>, Refusal> {
+  let Ok(rest) = serde_json::from_str::<ModelRest>(kept) else {
+    eprintln!("a model's rest could not be read: {kept}");
+    return Ok(None);
+  };
+
+  if let Some(until) = rest.until {
+    return Ok((until > now).then_some(until));
+  }
+
+  let reading = judging
+    .windows
+    .read(Slot {
+      mode: CLAUDE_CODE_MODE,
+      account: &rest.account,
+    })
+    .await?;
+
+  if reading.windows.iter().any(|kept| kept.seen_at > rest.written) {
+    return Ok(None);
+  }
+
+  let until = rest.written + i64::try_from(reading.fresh.as_secs()).unwrap_or(i64::MAX);
+
+  Ok((until > now).then_some(until))
 }

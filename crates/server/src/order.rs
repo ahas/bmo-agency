@@ -323,12 +323,19 @@ pub fn least_left(
     .min_by(|one, other| one.0.total_cmp(&other.0))
 }
 
-/// What a provider has left now, against a share, read afresh out of what agency keeps.
-pub async fn quota(ground: &Ground, provider: &dyn Provider, share: f64, user: Option<i64>) -> Quota {
+/// What a provider has left now, against a share, read afresh out of what agency keeps; of a provider that
+/// holds logins, what the logins open to `model` have left, or every open login where none is named.
+pub async fn quota(
+  ground: &Ground,
+  provider: &dyn Provider,
+  share: f64,
+  user: Option<i64>,
+  model: Option<&str>,
+) -> Quota {
   let now = now_ms().div_euclid(1000);
 
   if provider.holds_logins() {
-    return logins_quota(ground, provider, share, user, now).await;
+    return logins_quota(ground, provider, share, user, model, now).await;
   }
 
   if provider.balance().is_some() {
@@ -390,10 +397,11 @@ async fn logins_quota(
   provider: &dyn Provider,
   share: f64,
   user: Option<i64>,
+  model: Option<&str>,
   now: i64,
 ) -> Quota {
   let judging = Judging::of(ground);
-  let Ok(open) = claude_accounts::walk_for_user(judging, user).await else {
+  let Ok(open) = claude_accounts::walk_for_user(judging, user, model).await else {
     return Quota::default();
   };
   let mut best: Option<Quota> = None;

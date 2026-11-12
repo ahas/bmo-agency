@@ -523,13 +523,15 @@ pub async fn rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i6
   Ok(own.max(full_window_until(judging.windows, account, now_ms().div_euclid(1000)).await))
 }
 
-// The moment the latest of an account's windows read at its ceiling resets, where one is and has not reset
-// by `now`. A full window that names its reset closes the login until then however old its reading is,
-// since only a newer reading, which replaces it, can say it came back early. A full window that named no
-// reset closes it only where the reading stands — within the span its reader says a reading stands, and
-// after the account's unread mark — for the policy's fallback after it was read. A keeping that cannot be
-// read is said with its cause and closes nothing: the next run meets the refusal that rests the login.
-async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option<i64> {
+/// The moment the latest of an account's windows read at its ceiling resets, where one is and has not reset
+/// by `now`: what closes the login by its windows, and the windows' confirmation that a limit a run met is
+/// the login's own ceiling. A full window that names its reset closes the login until then however old its
+/// reading is, since only a newer reading, which replaces it, can say it came back early. A full window that
+/// named no reset closes it only where the reading stands — within the span its reader says a reading
+/// stands, and after the account's unread mark — for the policy's fallback after it was read. A keeping that
+/// cannot be read is said with its cause and closes nothing: the next run meets the refusal that rests the
+/// login.
+pub async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option<i64> {
   let reading = match windows
     .read(Slot {
       mode: CLAUDE_CODE_MODE,
@@ -564,6 +566,30 @@ async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option
   }
 
   until
+}
+
+/// The soonest moment, after `now`, any window kept of an account resets: what the account's windows say of
+/// when its usage next moves, read whatever the reading's age, since a reset moment stays true until it
+/// passes. None where no window kept names one ahead.
+pub async fn next_reset(windows: &Keeping, account: &str, now: i64) -> Option<i64> {
+  let slot = Slot {
+    mode: CLAUDE_CODE_MODE,
+    account,
+  };
+  let reading = match windows.read(slot).await {
+    Ok(reading) => reading,
+    Err(fault) => {
+      eprintln!("claude account {account}: its windows could not be read: {fault}");
+      return None;
+    }
+  };
+
+  reading
+    .windows
+    .iter()
+    .filter_map(|kept| kept.window.resets_at)
+    .filter(|reset| *reset > now)
+    .min()
 }
 
 /// Whether an account answers nothing until its own window resets.
@@ -687,6 +713,8 @@ pub enum LoginClosed {
   Person,
   /// A window of its own is full, or a rest stands under it, until this epoch second.
   Resting(i64),
+  /// The model the run asks for rests on it, until this epoch second; it stays open to every other model.
+  ModelResting { model: String, until: i64 },
   /// An endpoint account whose balance, as last read, is at or below zero.
   Balance,
 }
@@ -700,14 +728,16 @@ impl LoginClosed {
       Self::Key => &words.key,
       Self::Person => &words.person,
       Self::Resting(_) => &words.resting,
+      Self::ModelResting { .. } => &words.model_resting,
       Self::Balance => &words.balance,
     };
-    let until = match self {
-      Self::Resting(until) => moment_words(*until),
-      _ => String::new(),
+    let (until, model) = match self {
+      Self::Resting(until) => (moment_words(*until), ""),
+      Self::ModelResting { model, until } => (moment_words(*until), model.as_str()),
+      _ => (String::new(), ""),
     };
 
-    policy::fill_marks(line, &[("account", &account.name), ("until", &until)])
+    policy::fill_marks(line, &[("account", &account.name), ("until", &until), ("model", model)])
   }
 
   /// What a person does to open it again, where a person can: the sign-in command with the account's own
@@ -740,12 +770,14 @@ pub fn moment_words(at: i64) -> String {
   chrono::DateTime::from_timestamp(at, 0).map_or_else(|| at.to_string(), |moment| moment.to_rfc3339())
 }
 
-/// Why a login cannot answer now, or none where it can: it is on, an endpoint account's key file is there
-/// and not empty, its login has not gone, no window of its own is full, and an endpoint account's balance
-/// as last read is above zero. This is the one judgement every run of every line is offered a login by.
+/// Why a login cannot answer now a run on `model`, or on no model in particular where none is named; none
+/// where it can: it is on, an endpoint account's key file is there and not empty, its login has not gone, no
+/// window of its own is full, an endpoint account's balance as last read is above zero, and the model named
+/// does not rest on it. This is the one judgement every run of every line is offered a login by.
 pub async fn closed_why(
   judging: Judging<'_>,
   account: &Account,
+  model: Option<&str>,
   now: i64,
 ) -> Result<Option<LoginClosed>, Refused> {
   if !account.enabled {
@@ -773,11 +805,26 @@ pub async fn closed_why(
     }
   }
 
+  if let Some(model) = model
+    && let Some(until) =
+      crate::rest::model_rest_until(judging, &account.id, model, now.div_euclid(1000)).await?
+  {
+    return Ok(Some(LoginClosed::ModelResting {
+      model: model.to_owned(),
+      until,
+    }));
+  }
+
   Ok(None)
 }
 
-async fn open_now(judging: Judging<'_>, account: &Account, now: i64) -> Result<bool, Refused> {
-  Ok(closed_why(judging, account, now).await?.is_none())
+async fn open_now(
+  judging: Judging<'_>,
+  account: &Account,
+  model: Option<&str>,
+  now: i64,
+) -> Result<bool, Refused> {
+  Ok(closed_why(judging, account, model, now).await?.is_none())
 }
 
 /// The logins the road offers a run pinned to none, in order: the account the owner chose where one was
@@ -788,7 +835,7 @@ pub async fn open_accounts(judging: Judging<'_>) -> Result<Vec<Account>, Refused
   let mut open = Vec::new();
 
   for account in road_order(judging.db).await? {
-    if open_now(judging, &account, now).await? {
+    if open_now(judging, &account, None, now).await? {
       open.push(account);
     }
   }
@@ -822,14 +869,18 @@ pub async fn carried_for_user(db: &DatabaseConnection, user: Option<i64>) -> Res
   Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
 }
 
-/// The logins a run is offered for the user it is made for: of the logins it may go out on, those that answer
-/// now.
-pub async fn walk_for_user(judging: Judging<'_>, user: Option<i64>) -> Result<Vec<Account>, Refused> {
+/// The logins a run on `model` is offered for the user it is made for: of the logins it may go out on, those
+/// that answer that model now, or any model where none is named.
+pub async fn walk_for_user(
+  judging: Judging<'_>,
+  user: Option<i64>,
+  model: Option<&str>,
+) -> Result<Vec<Account>, Refused> {
   let now = now_ms();
   let mut open = Vec::new();
 
   for account in carried_for_user(judging.db, user).await? {
-    if open_now(judging, &account, now).await? {
+    if open_now(judging, &account, model, now).await? {
       open.push(account);
     }
   }
@@ -839,19 +890,32 @@ pub async fn walk_for_user(judging: Judging<'_>, user: Option<i64>) -> Result<Ve
 
 /// The logins the platform's own work is offered, in order.
 pub async fn walk_for(judging: Judging<'_>) -> Result<Vec<Account>, Refused> {
-  walk_for_user(judging, None).await
+  walk_for_user(judging, None, None).await
 }
 
-/// The moment, in epoch seconds, the first of these logins that rests on its limit answers again; none
-/// where none of them rests, every one of them waiting for a person instead.
-pub async fn reopens_at(judging: Judging<'_>, closed: &[Account]) -> Result<Option<i64>, Refused> {
+/// The moment, in epoch seconds, the first of these logins that rests on its limit, or whose `model` rests on
+/// it, answers that model again; none where none of them rests, every one of them waiting for a person
+/// instead.
+pub async fn reopens_at(
+  judging: Judging<'_>,
+  closed: &[Account],
+  model: Option<&str>,
+) -> Result<Option<i64>, Refused> {
   let now = now_ms().div_euclid(1000);
   let mut first = None;
 
   for account in closed {
-    if let Some(until) = rest_until(judging, &account.id).await?.filter(|until| *until > now) {
-      first = Some(first.map_or(until, |first: i64| first.min(until)));
-    }
+    let own = rest_until(judging, &account.id).await?.filter(|until| *until > now);
+    let until = match (own, model) {
+      (Some(until), _) => until,
+      (None, Some(model)) => match crate::rest::model_rest_until(judging, &account.id, model, now).await? {
+        Some(until) => until,
+        None => continue,
+      },
+      (None, None) => continue,
+    };
+
+    first = Some(first.map_or(until, |first: i64| first.min(until)));
   }
 
   Ok(first)
@@ -863,7 +927,7 @@ pub async fn account_open(judging: Judging<'_>, id: &str, now: i64) -> Result<bo
     return Ok(false);
   };
 
-  open_now(judging, &account, now).await
+  open_now(judging, &account, None, now).await
 }
 
 /// The login the road's runs go out on now, where one is held and is still on.

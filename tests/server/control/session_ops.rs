@@ -446,7 +446,8 @@ fn a_turns_end_writes_its_reply_in_camel_case_and_the_rest_in_snake_case() {
     failure(Failure::Limit {
       resets_at: Some(1_700),
       account: Some("acct-a".into()),
-      silenced: false
+      silenced: false,
+      model: None,
     }),
     json!({ "kind": "limit", "resets_at": 1_700, "account": "acct-a", "silenced": false })
   );

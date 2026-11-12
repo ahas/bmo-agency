@@ -24,6 +24,7 @@ unlisted = "it lists no model {model}"
 # One login's own reason, by what closes it.
 off = "{account} is turned off"
 resting = "{account} is at its limit until {until}"
+model_resting = "{account} is at its {model} limit until {until}"
 person = "{account} waits for a person to sign in again"
 key = "{account} has no key in its key file"
 balance = "{account} has spent its balance"

@@ -494,7 +494,7 @@ async fn apart_on_claude(
     system,
     input,
   };
-  let text = on_accounts(&Walking { ground }, KEY, None, &mut attempt)
+  let text = on_accounts(&Walking { ground, model }, KEY, None, &mut attempt)
     .await
     .map_err(|failure| failure.message())?;
 

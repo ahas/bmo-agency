@@ -10,6 +10,8 @@ fn a_full_window_is_a_limit_with_the_reset_it_names() {
       resets_at: Some(1_791_430_000),
       account: None,
       silenced: false,
+      named: None,
+      model: None,
     }
   );
   assert_eq!(
@@ -18,8 +20,26 @@ fn a_full_window_is_a_limit_with_the_reset_it_names() {
       resets_at: None,
       account: None,
       silenced: false,
+      named: Some("session".into()),
+      model: None,
     }
   );
+}
+
+// The CLI names one model's limit by the model's family word, a word of its id; a window's name, a version
+// number or no name at all names no model.
+#[test]
+fn a_limit_named_for_a_model_is_told_from_the_logins_own() {
+  let fable =
+    "You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.";
+
+  assert_eq!(limit_named(fable).as_deref(), Some("Fable"));
+  assert_eq!(of_errored(fable, "job-worker"), Failure::limit(None, Some("Fable".into())));
+  assert_eq!(limit_named("You've hit your limit · resets 7pm"), None);
+  assert!(names_model("Fable", "claude-fable-5-2"));
+  assert!(!names_model("Fable", "claude-opus-5-5"));
+  assert!(!names_model("session", "claude-fable-5-2"));
+  assert!(!names_model("5 hour", "claude-opus-5-5"));
 }
 
 #[test]
@@ -81,6 +101,8 @@ fn a_failure_travels_by_its_kind() {
       resets_at: Some(5),
       account: None,
       silenced: false,
+      named: None,
+      model: None,
     })
     .unwrap(),
     serde_json::json!({ "kind": "limit", "resetsAt": 5 })
@@ -146,6 +168,8 @@ fn an_endpoints_refusals_are_read_as_its_accounts_and_never_as_the_works() {
       resets_at: None,
       account: None,
       silenced: false,
+      named: None,
+      model: None,
     }
   );
   assert_eq!(

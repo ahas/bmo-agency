@@ -52,6 +52,7 @@ fn limit() -> TurnEnd {
       resets_at: None,
       account: None,
       silenced: false,
+      model: None,
     }),
     ..TurnEnd::failed("job-7", "the login's window is full", None)
   }
@@ -120,7 +121,7 @@ struct Walks<'g> {
 }
 
 impl Carrier for Walks<'_> {
-  async fn carry(&mut self, _taken: &Road, _entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
+  async fn carry(&mut self, taken: &Road, _entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
     let mut walked = Walked {
       ground: self.ground,
       refusing: self.refusing.clone(),
@@ -136,6 +137,7 @@ impl Carrier for Walks<'_> {
     let end = match on_accounts(
       &Walking {
         ground: self.ground,
+        model: &taken.model,
       },
       "coder",
       None,

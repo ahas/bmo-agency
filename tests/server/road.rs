@@ -166,8 +166,8 @@ async fn a_window_provider_has_quota_while_its_least_left_stands_above_the_share
     .await
     .unwrap();
 
-  let spent = quota(&ground, codex, 0.05, None).await;
-  let enough = quota(&ground, codex, 0.01, None).await;
+  let spent = quota(&ground, codex, 0.05, None, None).await;
+  let enough = quota(&ground, codex, 0.01, None, None).await;
 
   assert!(!spent.has, "2% left stands at or below a 5% share: {spent:?}");
   assert_eq!(spent.window.as_deref(), Some("codex:primary"));
@@ -576,4 +576,99 @@ async fn a_road_a_walk_left_on_a_503_is_passed_over_by_the_next_run_and_the_work
   // The block opened, the order's head carries the next run again.
   agency_server::queue::routes::clear_block_by_id(scratch.db(), block.id).await.unwrap();
   assert_eq!(taken(&resolve(&ground, &ask).await.unwrap()), deepseek());
+}
+
+// A run that meets the CLI's own words for one model's limit on every login it is handed.
+struct ModelLimited;
+
+impl agency_server::job_run::claude::renewal::Renewing for ModelLimited {}
+
+impl agency_server::job_run::claude::walk::Attempt<()> for ModelLimited {
+  async fn attempt(
+    &mut self,
+    _account: Option<agency_server::control::claude_accounts::Account>,
+  ) -> Result<(), agency_server::job_run::claude::failure::Failure> {
+    Err(agency_server::job_run::claude::failure::of_errored(
+      "You've reached your Fable limit. Run /usage-credits to continue or switch models with /model.",
+      "job-worker",
+    ))
+  }
+}
+
+// One model's limit met on the deployment's one login rests that model there and nothing else: a job on
+// another model of the same login still goes out on it, while a job on the model that rests waits, its
+// reason naming the login, the model and until when. The login's own window has room, so the login never
+// rests.
+#[tokio::test(flavor = "multi_thread")]
+async fn one_model_s_limit_leaves_the_login_s_other_models_running() {
+  use agency_server::job_run::claude::failure::Failure;
+  use agency_server::job_run::claude::walk::{Walking, on_accounts};
+
+  const FABLE: &str = "claude-fable-5-2";
+  const OPUS: &str = "claude-opus-5-5";
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let now = agency_server::now_ms() / 1000;
+  let resets = now + 2 * 3_600;
+
+  // The login has about 15% of its own window left.
+  ground
+    .windows
+    .replace(
+      Slot {
+        mode: "claude-code",
+        account: "default",
+      },
+      &[Window {
+        name: "five_hour".into(),
+        utilization: 0.85,
+        resets_at: Some(resets),
+        duration_minutes: Some(300),
+        limit_name: None,
+      }],
+      now,
+    )
+    .await
+    .unwrap();
+
+  let walking = Walking {
+    ground: &ground,
+    model: FABLE,
+  };
+  let walked = on_accounts(&walking, "job-worker", None, &mut ModelLimited).await;
+
+  assert!(
+    matches!(&walked, Err(Failure::Limit { model: Some(model), account: Some(on), resets_at: Some(at), .. })
+      if model == FABLE && on == "default" && *at == resets),
+    "{walked:?}"
+  );
+
+  let rests: i64 = scratch
+    .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" LIKE 'rest_until%'"#, vec![])
+    .await;
+
+  assert_eq!(rests, 0, "the login itself never rests for one model's limit");
+
+  let opus = for_job(&ground, None, None, Some(&pin("claude-code", OPUS)), &[], None).await.unwrap();
+
+  assert_eq!(
+    opus.road(),
+    Some(&Road {
+      provider: "claude-code".into(),
+      model: OPUS.into(),
+      account: Some("default".into()),
+    }),
+    "{opus:?}"
+  );
+
+  let fable = for_job(&ground, None, None, Some(&pin("claude-code", FABLE)), &[], None).await.unwrap();
+
+  assert!(fable.road().is_none(), "{fable:?}");
+  assert!(
+    fable.sentence().contains(&format!("is at its {FABLE} limit until")),
+    "{}",
+    fable.sentence()
+  );
 }

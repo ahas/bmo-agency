@@ -38,10 +38,13 @@ pub enum RunEnding {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Failure {
-  /// The login's window is full, with the moment it resets where the run said one, and the login it is
-  /// once the walk names the one the run went out on: none where the run went out on none. `silenced`
-  /// is the walk's word that the rest it wrote closed the last open login and nobody has told the owner
-  /// yet, which leaves that line to whatever reads the failure.
+  /// A limit reached, with the moment it resets where the run said one, and the name the answer gave the
+  /// limit where it gave one ("Fable" of "You've reached your Fable limit"). Once the walk has read it,
+  /// `account` is the login the run went out on, none where the run went out on none; `model` is the model
+  /// that rests on that login where the limit was one model's rather than the login's own; and `resets_at`
+  /// is the moment the rest it wrote ends, none where the login's next reading decides. `silenced` is the
+  /// walk's word that the rest it wrote closed the last open login and nobody has told the owner yet,
+  /// which leaves that line to whatever reads the failure.
   #[serde(rename_all = "camelCase")]
   Limit {
     resets_at: Option<i64>,
@@ -49,6 +52,10 @@ pub enum Failure {
     account: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     silenced: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    named: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
   },
   /// A failure of the login itself, read where the run was read.
   Account {
@@ -96,6 +103,18 @@ impl Failure {
     }
   }
 
+  /// A limit as a run's answer states it: the moment it resets and the name it gives the limit, where it
+  /// says either; no login and no model named yet.
+  pub fn limit(resets_at: Option<i64>, named: Option<String>) -> Self {
+    Self::Limit {
+      resets_at,
+      account: None,
+      silenced: false,
+      named,
+      model: None,
+    }
+  }
+
   /// Which of the login's failures this is, where it is one.
   pub fn account_failure(&self) -> Option<AccountFailure> {
     match self {
@@ -108,6 +127,22 @@ impl Failure {
   /// The words the failure is known by.
   pub fn message(&self) -> String {
     match self {
+      Self::Limit {
+        resets_at,
+        account: Some(account),
+        model,
+        ..
+      } => {
+        let until = resets_at.map_or_else(
+          || "until its next usage reading".to_owned(),
+          |at| format!("until {}", crate::control::claude_accounts::moment_words(at)),
+        );
+
+        match model {
+          Some(model) => format!("claude usage limit reached: {model} rests on account {account} {until}"),
+          None => format!("claude usage limit reached: account {account} rests {until}"),
+        }
+      }
       Self::Limit { .. } => "claude usage limit reached".to_owned(),
       Self::Account { detail, .. } => detail.clone(),
       Self::Died { message, .. } => message.clone(),
@@ -173,6 +208,13 @@ static LIMIT_WORDINGS: LazyLock<[Regex; 3]> = LazyLock::new(|| {
   ]
 });
 
+// The name the CLI's answer gives the limit it reached, where it gives one: "Fable" of "You've reached your
+// Fable limit", "session" of "You've hit your session limit".
+static LIMIT_NAMED: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(r"(?i)you'?ve (?:hit|reached) your ([^\n]{0,40}?)\s*limit")
+    .expect("the limit's name is a pattern")
+});
+
 static LIMIT_RESET: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"(?i)limit reached\|(\d{9,11})").expect("the reset wording is a pattern"));
 
@@ -217,6 +259,28 @@ pub fn limit_reset_from_text(text: &str) -> Option<i64> {
     .captures(text)
     .and_then(|found| found.get(1))
     .and_then(|epoch| epoch.as_str().parse().ok())
+}
+
+/// The name a run's words give the limit they say was reached, where they give one.
+pub fn limit_named(text: &str) -> Option<String> {
+  LIMIT_NAMED
+    .captures(text)
+    .and_then(|found| found.get(1))
+    .map(|named| named.as_str().trim().to_owned())
+    .filter(|named| !named.is_empty())
+}
+
+/// Whether a limit's name is the model's own: the CLI names a model's limit by its family word, which is
+/// one of the words of the model's id ("Fable" of `claude-fable-5-2`). A word that holds no letter, a
+/// version number, names no model.
+pub fn names_model(named: &str, model: &str) -> bool {
+  let parts: Vec<String> = model.split(['-', '_', '.']).map(str::to_lowercase).collect();
+
+  named
+    .split_whitespace()
+    .map(str::to_lowercase)
+    .filter(|word| word.chars().any(char::is_alphabetic))
+    .any(|word| parts.contains(&word))
 }
 
 /// How much of a failed run's output is kept, everywhere it is kept.
@@ -310,11 +374,7 @@ pub fn of_unanswered(evidence: &str, key: &str) -> Failure {
   let error_text = format!("{evidence}\n");
 
   if mentions_limit(&error_text) {
-    return Failure::Limit {
-      resets_at: limit_reset_from_text(&error_text),
-      account: None,
-      silenced: false,
-    };
+    return Failure::limit(limit_reset_from_text(&error_text), limit_named(&error_text));
   }
 
   let said = failure_text(evidence);
@@ -346,11 +406,7 @@ fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
     });
   }
 
-  (status == Some(429)).then_some(Failure::Limit {
-    resets_at: None,
-    account: None,
-    silenced: false,
-  })
+  (status == Some(429)).then(|| Failure::limit(None, None))
 }
 
 /// What a turn whose program wrote its own error in the answer's place comes to: the endpoint refusing its
@@ -364,11 +420,7 @@ pub fn of_errored(error: &str, key: &str) -> Failure {
   }
 
   if mentions_limit(error) {
-    return Failure::Limit {
-      resets_at: limit_reset_from_text(error),
-      account: None,
-      silenced: false,
-    };
+    return Failure::limit(limit_reset_from_text(error), limit_named(error));
   }
 
   if API_STATUS
