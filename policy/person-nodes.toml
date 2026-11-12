@@ -18,3 +18,8 @@ bridge_relay_base = 47213
 # How often a run of an account waits on its node asks again whether the node's link has been heard from, in
 # seconds.
 wait_seconds = 5
+
+# The administrator's grants (docs/person-nodes.md, 「Who reaches a node」): the resources every tool session agency
+# issues for a caller of the deployment's own holds, and no account's caller does. The node service's tool reads
+# node.admin as reaching every node.
+administrator_grants = ["node.admin"]

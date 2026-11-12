@@ -35,7 +35,9 @@ belongs to no one service is a repository of its own, not a folder here.
   the parts of the session record agency's tools read, the answer, and the tree they read from.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
-  data root stands in those variables as `BMO_DATA_DIR`. Agency's own values stand under the issuer's
+  data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's, on a
+  record whose caller acts for no account, and none on an account's (`docs/person-nodes.md`, 「Who reaches a
+  node」). Agency's own values stand under the issuer's
   `labels`: the line, the store's address and the agent's place where it is a resident program, and on a
   supervisor's double's record `doubleOf`, the supervisor it stands for (「The delegate」 below); an apart
   session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do

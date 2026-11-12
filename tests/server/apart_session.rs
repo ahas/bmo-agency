@@ -712,7 +712,8 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
 
 // A delegation's run is its supervisor's double: its record is held under the supervisor's name with the chat
 // line's capabilities, namespaces and the supervisor bundles beside its line's and its role's, and names the
-// supervisor as the turn's agent; the start answers the same as `carries` (docs/tools.md, 「The delegate」).
+// supervisor as the turn's agent, and holds the administrator's grant only where the supervisor is of no account;
+// the start answers the same as `carries` (docs/tools.md, 「The delegate」).
 #[tokio::test]
 async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
   let scratch = Scratch::new().await;
@@ -788,6 +789,21 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
     "a role's run alone holds its role's"
   );
   assert!(!alone.namespaces.contains(&"voice".to_owned()));
+  // The supervisor belongs to no account, so its double holds the administrator's grant; an account's
+  // supervisor's double holds none (docs/person-nodes.md, 「Who reaches a node」).
+  assert_eq!(record["grants"], json!([{ "resource": "node.admin" }]), "{record}");
+
+  crate::support::rows::supervisor(scratch.db(), "u7", &[("owner_account", 7i64.into())]).await;
+  env.insert(agency_server::lines::token::RECORD_SUPERVISOR.into(), "u7".into());
+  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
+    .await
+    .unwrap()
+    .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+  assert_eq!(record["holderName"], json!("u7"), "{record}");
+  assert_eq!(record["grants"], json!([]), "{record}");
 }
 
 // A road whose program is Claude Code on agency's gateway: DeepSeek's member, its key where the settings' key

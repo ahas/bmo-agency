@@ -93,3 +93,38 @@ impl Route for ClearPersonNode {
 }
 
 crate::moved!(ClearPersonNode);
+
+fn given(call: &Call, name: &str) -> Option<String> {
+  call.query(name).map(|value| value.trim().to_owned()).filter(|value| !value.is_empty())
+}
+
+/// `GET /nodes/{nodeName}/access`: whether a caller, named as its tool session's record names it, reaches a node.
+pub struct NodeAccess;
+
+impl Route for NodeAccess {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/nodes/{nodeName}/access";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let node = call
+      .param("nodeName")
+      .map(str::trim)
+      .filter(|node| !node.is_empty())
+      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "a node is required"))?
+      .to_owned();
+    let agent =
+      given(&call, "agent").ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "agent is required"))?;
+    let role = given(&call, "role");
+    let checkout = given(&call, "checkout");
+    let caller = person_nodes::Caller {
+      agent: &agent,
+      role: role.as_deref(),
+      checkout: checkout.as_deref(),
+    };
+    let access = person_nodes::access(call.store(), &call.ground().roots.data, &node, caller).await?;
+
+    Ok(answer(StatusCode::OK, json!(access)))
+  }
+}
+
+crate::moved!(NodeAccess);

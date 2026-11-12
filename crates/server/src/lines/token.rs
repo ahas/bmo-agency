@@ -11,13 +11,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use bmo_pocket_client::{Failure, Pocket, SessionRequest};
+use bmo_pocket_client::{Failure, Granted, Pocket, SessionRequest};
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
 use serde_json::{Map, Value, json};
 
 use super::fault;
 use crate::Refusal;
+use crate::person_nodes::{Caller, administrator_grants, caller_account};
 use crate::places::Ground;
 
 /// The variable a program carries its token in, which every configuration's bearer header reads.
@@ -176,11 +177,12 @@ async fn capabilities(
 }
 
 // A record for a run of `lines`, held by `holder`, with the namespaces and shown entries those lines
-// declare, an empty grant list, the data root every call reads, and the labels agency's tools read.
+// declare, the grants its caller holds, the data root every call reads, and the labels agency's tools read.
 fn record(
   lines: &[&str],
   holder: &str,
   capabilities: Vec<String>,
+  grants: Vec<String>,
   variables: BTreeMap<String, String>,
   labels: Map<String, Value>,
   ttl_ms: Option<u64>,
@@ -191,7 +193,7 @@ fn record(
     holder_name: holder.to_owned(),
     namespaces: namespaces_of(lines),
     capabilities: capabilities.into_iter().collect(),
-    grants: Vec::new(),
+    grants: grants.into_iter().map(|resource| Granted { resource }).collect(),
     shown,
     variables,
     variables_file: None,
@@ -242,13 +244,32 @@ pub async fn issue(
   labels.insert("archive".to_owned(), json!(crate::archive_place(&ground.roots.data)));
   labels.insert("place".to_owned(), json!(place));
 
+  let folder = checkout.to_string_lossy();
+  let grants = granted(
+    ground,
+    Caller {
+      agent,
+      role: role.as_deref(),
+      checkout: Some(&folder),
+    },
+  )
+  .await?;
+
   if let Some(role) = role {
     labels.insert("role".to_owned(), json!(role));
   }
 
-  let request = record(&[line], agent, capabilities, variables, labels, None);
+  let request = record(&[line], agent, capabilities, grants, variables, labels, None);
 
   issue_record(ground, &request).await.map(Some)
+}
+
+// The administrator's grants a record for `caller` holds: the policy's where it acts for no account, none
+// where it acts for one (docs/person-nodes.md, 「Who reaches a node」).
+async fn granted(ground: &Ground, caller: Caller<'_>) -> Result<Vec<String>, Refusal> {
+  let account = caller_account(&ground.db, &ground.roots.data, caller).await?;
+
+  Ok(administrator_grants(account.as_deref()))
 }
 
 /// The deployment's variables the line hands every record of its runs, each the deployment sets.
@@ -478,6 +499,15 @@ pub async fn issue_for_run(
     variables.insert(BRAIN_AGENT.to_owned(), supervisor);
   }
 
+  let grants = granted(
+    ground,
+    Caller {
+      agent: &agent,
+      role: role.as_deref(),
+      checkout: Some(cwd),
+    },
+  )
+  .await?;
   let mut labels = Map::new();
   labels.insert("line".to_owned(), json!(line));
   labels.insert("checkout".to_owned(), json!(cwd));
@@ -506,7 +536,15 @@ pub async fn issue_for_run(
     Some(_) => vec![line, SUPERVISOR_LINE],
     None => vec![line],
   };
-  let request = record(&lines, &agent, capabilities, variables, labels, Some(deadline.saturating_sub(now)));
+  let request = record(
+    &lines,
+    &agent,
+    capabilities,
+    grants,
+    variables,
+    labels,
+    Some(deadline.saturating_sub(now)),
+  );
 
   issue_record(ground, &request).await.map(Some)
 }

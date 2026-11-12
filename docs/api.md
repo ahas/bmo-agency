@@ -1177,6 +1177,7 @@ where the shell stands in an agent's program, else the owner.
 | GET | `/person-nodes` | Every account's node, by account. |
 | PUT | `/person-nodes/{ownerAccount}` | An account's node set: `node`. |
 | DELETE | `/person-nodes/{ownerAccount}` | An account's node taken away. |
+| GET | `/nodes/{nodeName}/access` | Whether a caller reaches a node: its owners, the caller's account and the administrator's grant. |
 
 - **An account's node is where its runs stand** (`docs/person-nodes.md`, 「Which node is a person's」): each record is
   `ownerAccount`, `node` and `setAt` in epoch milliseconds. The service that binds an account to its machine sets it
@@ -1184,6 +1185,17 @@ where the shell stands in an agent's program, else the owner.
 - **The node is one the node service keeps as a hub node reserved for no service:** another is 422
   `not-a-hub-node`, and a node service
   that cannot answer is 502 `upstream-failed`. Taking away a record no account holds is 404 `not-found`.
+- **Whether a caller reaches a node is what the node service's tool asks** before it runs a command there
+  (`docs/person-nodes.md`, 「Who reaches a node」). The caller is named as its tool session's record names it:
+  `agent`, the record's holder, required, and `role` and `checkout`, the record's labels, where it holds them. The
+  answer is `node`; `owners`, the accounts whose record names the node, none for a node no record names;
+  `agent`; `account`, the account the caller acts for, null for the deployment's own; `administrator`, whether it
+  holds the administrator's grant, which every caller of the deployment's own holds and no account's does; and
+  `reaches`, true where it holds that grant or its account is among the owners. The node is not asked of the node
+  service: a node it does not keep is answered as one no record names. A missing `agent` is 400.
+- **The administrator's grant is written into the records agency issues** (`docs/tools.md`, 「The session record」):
+  a record for a caller of the deployment's own holds each grant `policy/person-nodes.toml` names, judged as this
+  read judges, and an account's record holds none.
 
 ### assignments and jobs
 

@@ -64,6 +64,7 @@ mod control {
   mod models;
   mod own_llm;
   mod pane_death;
+  mod person_node_routes;
   mod registry;
   mod repository_addition;
   mod repository_removal;

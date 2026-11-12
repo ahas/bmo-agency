@@ -1635,6 +1635,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/nodes/{nodeName}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a caller reaches a node: its owners, the caller's account and the administrator's grant. */
+        get: operations["getNodeAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/slots": {
         parameters: {
             query?: never;
@@ -4302,6 +4319,18 @@ export interface components {
         /** @description The body that sets an account's node: a hub node the node service keeps. */
         PersonNodeAsk: {
             node: string;
+        };
+        /** @description NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there. */
+        NodeAccess: {
+            node: string;
+            /** @description The accounts whose record names the node; none for a node that is no person's. */
+            owners: string[];
+            agent: string;
+            /** @description The account the caller acts for; null for the deployment's own. */
+            account: string | null;
+            /** @description Whether the caller holds the administrator's grant, which reaches every node. */
+            administrator: boolean;
+            reaches: boolean;
         };
         /** @description Slots: every role's slots. */
         Slots: {
@@ -8611,6 +8640,33 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getNodeAccess: {
+        parameters: {
+            query: {
+                agent: string;
+                role?: string;
+                checkout?: string;
+            };
+            header?: never;
+            path: {
+                nodeName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeAccess"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
     listSlots: {

@@ -3478,6 +3478,21 @@ pub struct PersonNodeAsk {
   pub node: String,
 }
 
+/// NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeAccess {
+  pub node: String,
+  /// The accounts whose record names the node; none for a node that is no person's.
+  pub owners: Vec<String>,
+  pub agent: String,
+  /// The account the caller acts for; null for the deployment's own.
+  pub account: Option<String>,
+  /// Whether the caller holds the administrator's grant, which reaches every node.
+  pub administrator: bool,
+  pub reaches: bool,
+}
+
 /// Repository: one repository as its row holds it, with its checkouts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

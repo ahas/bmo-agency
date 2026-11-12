@@ -32,6 +32,41 @@ desktop coding agent whose models and tools are served from elsewhere.
   not stood until then. Nothing of it runs on this machine or another account's node. A run of no account, or of an
   account with no node, is placed as before.
 
+## Who reaches a node
+
+- **An agent runs a command on a node through the node service's tool alone,** the tool host's `bmo/node_exec`
+  (the node service's `docs/tools.md`), asked with `bmo use bmo/node_exec`. jake's console, the hub's exec route
+  asked by hand and a script holding the hub's token are no way an agent takes. Agency's own setup, check and sync
+  of a PC's workplace and the link it holds reach the hub for the deployment (「The workplace on a PC」, 「The link
+  over jake」), and run no command an agent names.
+- **A caller reaches the nodes its own account owns, and the deployment's own reaches every node.** The tool judges
+  each call; agency supplies what it judges by, from its records:
+  - **the node's owners,** the accounts whose record names the node; a node no record names is no person's and is
+    reached by the deployment's own alone;
+  - **the account the caller acts for,** read off its agent: the supervisor it is, or the one a double stands for,
+    whose record is held under that supervisor's name, and its `ownerAccount`; else the role agent of that name and
+    its `ownerAccount`; else the seat its run holds at its role and folder (`docs/role-agents.md`, 「What a run
+    reads off its agent」) and that seat's `ownerAccount`. A caller none of these names an account of is the
+    deployment's own: the owner's supervisors, his jobs, his runs;
+  - **the administrator's grant,** which a caller of the deployment's own holds and an account's caller never
+    does. Agency writes it into the record of every session it issues for the deployment's own: the grants
+    `policy/person-nodes.toml` names, the resource the node tool reads as reaching every node. A record holds what
+    was true when it was issued, and a session issued again reads its caller afresh.
+- **One read answers all three for a caller and a node,** `GET /nodes/{nodeName}/access` (`docs/api.md`,
+  「person-nodes」), judged as the record's grant is: the node's owners, the caller's account, whether it holds the
+  administrator's grant, and whether it reaches the node.
+- **The hub's control token is read by the units that reach a hub, and by no agent:** the node tool, run by the
+  tool host for a call a caller makes; agency's server and its node verbs, for a PC's workplace and its link; and
+  the node service, for its checks and its readings. No session is handed the token or the path of its file: no
+  record, run variable, place or link spec of a session names it, and the link sends none of it to a PC. An
+  account's sessions stand on its PC (「Which node is a person's」), where the token never is, so their shells
+  reach a node through the tool alone.
+- **The file's mode keeps no process of this machine from it,** since the units and the sessions here run as one
+  user. The sessions here are the deployment's own, which hold the administrator's grant and reach every node
+  through the tool already. Two roads still bring an account's session to this machine's user: a run of an account
+  with no node is placed here, and the home bridge runs here whatever CLI verb a PC asks
+  (「What stands and what is left」).
+
 ## What the PC needs
 
 - **A Linux shell:** WSL on a Windows PC, a Linux PC as it stands. herdr and the programs run there, as on every work
@@ -115,5 +150,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
+| who reaches a node | the administrator's grant written into every record agency issues for the deployment's own; the read of a node's owners and a caller's account, grant and reach; no session handed the hub's token or its file's path, and an account's sessions standing on its PC | a run of an account with no node stands on this machine as its user, and the home bridge runs any CLI verb a PC asks as that user, so either reaches the hub's token file without the tool; keeping it from them needs the token held by a user of its own that only the units reaching a hub run as |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

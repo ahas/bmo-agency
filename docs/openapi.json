@@ -6753,6 +6753,71 @@
         ]
       }
     },
+    "/nodes/{nodeName}/access": {
+      "get": {
+        "operationId": "getNodeAccess",
+        "tags": [
+          "person-nodes"
+        ],
+        "summary": "Whether a caller reaches a node: its owners, the caller's account and the administrator's grant.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ],
+        "parameters": [
+          {
+            "name": "nodeName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the node"
+            }
+          },
+          {
+            "name": "agent",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the caller's tool session's holder"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the role its record's labels name"
+            }
+          },
+          {
+            "name": "checkout",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the folder its record's labels name"
+            }
+          }
+        ]
+      }
+    },
     "/slots": {
       "get": {
         "operationId": "listSlots",
@@ -14729,6 +14794,47 @@
           "node"
         ],
         "description": "The body that sets an account's node: a hub node the node service keeps."
+      },
+      "NodeAccess": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The accounts whose record names the node; none for a node that is no person's."
+          },
+          "agent": {
+            "type": "string"
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account the caller acts for; null for the deployment's own."
+          },
+          "administrator": {
+            "type": "boolean",
+            "description": "Whether the caller holds the administrator's grant, which reaches every node."
+          },
+          "reaches": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "node",
+          "owners",
+          "agent",
+          "account",
+          "administrator",
+          "reaches"
+        ],
+        "description": "NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there."
       },
       "Slots": {
         "type": "object",

@@ -1,12 +1,15 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): its record, the supervisors and role runs
-//! of the account placed there, the hub node it must be, and a run's wait while the node's link is not heard.
+//! of the account placed there, the hub node it must be, a run's wait while the node's link is not heard, and who
+//! reaches a node (「Who reaches a node」).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeKind, NodeRead, NodeRow, NodeService};
-use agency_server::person_nodes::{self, run_node, supervisors_placed, until_heard};
+use agency_server::person_nodes::{
+  self, Caller, administrator_grants, run_node, supervisors_placed, until_heard,
+};
 use agency_server::places::AgentRow;
 use agency_server::role_agents::composed_as;
 use agency_server::watches::links::link_heard;
@@ -188,4 +191,80 @@ async fn a_run_waits_asking_again_until_its_node_is_heard_and_goes_on_at_once_wh
   )
   .await;
   assert_eq!(asked.load(Ordering::SeqCst), 1);
+}
+
+// "an account's caller reaches its own account's node alone, and the deployment's own reaches every node"
+#[tokio::test]
+async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_the_deployment_s_own_reaches_every_node()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let data = tempfile::tempdir().unwrap();
+
+  rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
+  rows::supervisor(db, "bmo", &[]).await;
+  for (name, account) in [("coder-07", Some("7")), ("coder-01", None)] {
+    scratch
+      .run(
+        r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'coder', $2)"#,
+        vec![name.into(), account.into()],
+      )
+      .await;
+  }
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "seat")
+         VALUES ('seven', 'seven', 'u7', 'job', 'coder', '/work/seven/', 'p', 'm', '', 1, 'active', 0,
+           'foreground', 'coder-07')"#,
+      vec![],
+    )
+    .await;
+  person_nodes::set(db, "7", "pc-7").await.unwrap();
+  person_nodes::set(db, "9", "pc-7").await.unwrap();
+
+  let access = |node: &'static str, agent: &'static str, role: Option<&'static str>, checkout| {
+    let data = data.path().to_owned();
+
+    async move {
+      person_nodes::access(
+        db,
+        &data,
+        node,
+        Caller {
+          agent,
+          role,
+          checkout,
+        },
+      )
+      .await
+      .unwrap()
+    }
+  };
+
+  let own = access("pc-7", "u7", None, None).await;
+
+  assert_eq!(own.owners, ["7", "9"]);
+  assert_eq!(own.account.as_deref(), Some("7"));
+  assert!(own.reaches && !own.administrator);
+  assert!(!access("pc-8", "u7", None, None).await.reaches, "another node is not its account's");
+
+  let deployment = access("pc-8", "bmo", None, None).await;
+
+  assert!(deployment.owners.is_empty());
+  assert!(deployment.administrator && deployment.reaches && deployment.account.is_none());
+
+  // A role agent is read by its name, and a run holding no agent's name by the seat at its role and folder.
+  assert_eq!(access("pc-7", "coder-07", None, None).await.account.as_deref(), Some("7"));
+  assert!(access("pc-7", "coder-01", None, None).await.administrator);
+  assert_eq!(
+    access("pc-8", "worker", Some("coder"), Some("/work/seven")).await.account.as_deref(),
+    Some("7")
+  );
+  assert!(!access("pc-8", "worker", Some("coder"), Some("/work/seven")).await.reaches);
+  assert!(access("pc-8", "worker", Some("coder"), Some("/work/other")).await.administrator);
+
+  // The grants a record holds follow the same judgement.
+  assert_eq!(administrator_grants(Some("7")), Vec::<String>::new());
+  assert_eq!(administrator_grants(None), ["node.admin"]);
 }

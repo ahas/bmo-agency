@@ -1,6 +1,7 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): the record agency keeps of the node an
 //! account's runs stand on, set by the service that binds the account to its machine; the supervisors and role
-//! runs placed there by it; and the wait of a run of it while the node's link is not heard.
+//! runs placed there by it; the wait of a run of it while the node's link is not heard; and who reaches a node
+//! (「Who reaches a node」).
 
 use std::path::Path;
 use std::time::Duration;
@@ -123,6 +124,100 @@ pub async fn run_node<C: ConnectionTrait>(
   };
 
   node_of(db, &account).await
+}
+
+/// The accounts whose record names `node`, by account; none for a node that is no person's.
+pub async fn owners_of<C: ConnectionTrait>(db: &C, node: &str) -> Result<Vec<String>, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT "owner_account" FROM "person_nodes" WHERE "node" = $1 ORDER BY "owner_account""#,
+    vec![node.into()],
+  )
+  .await?;
+
+  Ok(rows.iter().map(|row| row.try_get("", "owner_account")).collect::<Result<_, _>>()?)
+}
+
+/// A caller as its tool session's record names it: the record's holder, and the role and the folder its labels
+/// hold, where they hold them.
+#[derive(Clone, Copy, Debug)]
+pub struct Caller<'a> {
+  pub agent: &'a str,
+  pub role: Option<&'a str>,
+  pub checkout: Option<&'a str>,
+}
+
+/// The account a caller acts for, or none for the deployment's own: the supervisor it is or a double stands for,
+/// else the role agent of its name, else the seat its run holds at its role and folder, each by its
+/// `ownerAccount`. A thrown-away session's place is read as its session's agent.
+pub async fn caller_account<C: ConnectionTrait>(
+  db: &C,
+  data_root: &Path,
+  caller: Caller<'_>,
+) -> Result<Option<String>, Refusal> {
+  let agent =
+    crate::apart_places::session_agent(data_root, caller.agent).unwrap_or_else(|| caller.agent.to_owned());
+
+  if let Some(supervisor) = crate::supervisors::named(db, &agent).await? {
+    return Ok(supervisor.owner_account.map(|account| account.to_string()));
+  }
+
+  if let Some(seat) = crate::role_agents::named(db, &agent).await? {
+    return Ok(seat.owner_account);
+  }
+
+  if caller.role.is_none() && caller.checkout.is_none() {
+    return Ok(None);
+  }
+
+  let seat = crate::role_agents::seated_at(db, caller.role, caller.checkout).await?;
+
+  Ok(seat.and_then(|seat| seat.owner_account))
+}
+
+/// The administrator's grants a tool session's record holds: the policy's for a caller of the deployment's own,
+/// none for an account's.
+pub fn administrator_grants(account: Option<&str>) -> Vec<String> {
+  match account {
+    Some(_) => Vec::new(),
+    None => policy::person_nodes::PERSON_NODES.administrator_grants.clone(),
+  }
+}
+
+/// Whether a caller reaches a node (docs/api.md, 「person-nodes」).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Access {
+  pub node: String,
+  pub owners: Vec<String>,
+  pub agent: String,
+  /// The account the caller acts for; none for the deployment's own.
+  pub account: Option<String>,
+  /// Whether it holds the administrator's grant, which reaches every node.
+  pub administrator: bool,
+  pub reaches: bool,
+}
+
+/// Whether `caller` reaches `node`: where it holds the administrator's grant, or its account owns the node.
+pub async fn access<C: ConnectionTrait>(
+  db: &C,
+  data_root: &Path,
+  node: &str,
+  caller: Caller<'_>,
+) -> Result<Access, Refusal> {
+  let owners = owners_of(db, node).await?;
+  let account = caller_account(db, data_root, caller).await?;
+  let administrator = account.is_none();
+  let reaches = administrator || account.as_ref().is_some_and(|account| owners.contains(account));
+
+  Ok(Access {
+    node: node.to_owned(),
+    owners,
+    agent: caller.agent.to_owned(),
+    account,
+    administrator,
+    reaches,
+  })
 }
 
 /// Waits, asking every `every`, until `heard` says the node's link has been heard from.
