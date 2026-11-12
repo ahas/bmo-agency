@@ -12,8 +12,13 @@ const BASE_LIBRARIES: &[&str] = &["bmo-chat", "bmo-chat-client", "bmo-ui"];
 
 /// The upstreams' published clients, which agency calls every upstream through (docs/api.md, 「Calls
 /// agency makes」). A client is added here when agency starts calling its service.
-const UPSTREAM_CLIENTS: &[&str] =
-  &["bmo-brain-client", "bmo-gate-client", "bmo-node-client", "bmo-pocket-client"];
+const UPSTREAM_CLIENTS: &[&str] = &[
+  "bmo-brain-client",
+  "bmo-gate-client",
+  "bmo-node-client",
+  "bmo-pocket-client",
+  "bmo-testbed-client",
+];
 
 /// An upstream's published library, which agency builds on as its repository publishes it rather than
 /// calling its service (docs/api.md, 「Calls agency makes」).

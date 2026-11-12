@@ -44,6 +44,7 @@ base_libraries = [
   "bmo-cache-warmer-schedule",
   "bmo-node-client",
   "bmo-pocket-client",
+  "bmo-testbed-client",
 ]
 
 # The repository whose root holds the shared versions the manifests and the lock hold to.

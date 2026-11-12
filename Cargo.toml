@@ -42,6 +42,7 @@ bmo-chat = { path = "../../base/chat/provider" }
 bmo-gate-client = { path = "../gate/crates/client" }
 bmo-node-client = { path = "../node/crates/client" }
 bmo-pocket-client = { path = "../pocket/client" }
+bmo-testbed-client = { path = "../testbed/client", default-features = false }
 brush-parser = "0.4.0"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }

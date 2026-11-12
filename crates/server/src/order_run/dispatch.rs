@@ -761,11 +761,11 @@ async fn admission<C: ConnectionTrait>(
 
   let since = ask(db, token).await?;
 
-  // The first agent it may take that carries no run and whose road answers now is its seat. Where every agent
-  // it may take carries a run it waits and says nothing; where the free ones' roads cannot answer it keeps its
+  // The first agent it may take that is free and whose road answers now is its seat. Where every agent it may
+  // take is busy it waits and says nothing; where the free ones' roads cannot answer it keeps its
   // place, says why and stands in no one's way.
-  let carrying = crate::role_agents::carrying(db, &held.role).await.map_err(faulted)?;
-  let free: Vec<&Seat> = seats.iter().filter(|seat| !carrying.contains(&seat.agent)).collect();
+  let busy = crate::role_agents::busy(db, &held.role).await.map_err(faulted)?;
+  let free: Vec<&Seat> = seats.iter().filter(|seat| !busy.contains(&seat.agent)).collect();
   let picked = free
     .iter()
     .find_map(|seat| seat.road.as_ref().ok().map(|entry| (seat.agent.clone(), entry.clone())));
@@ -1018,12 +1018,17 @@ pub async fn double_would_wait<C: ConnectionTrait>(
   }))
 }
 
-/// How many slots of a role are taken: its runs let in and its reserved slots together.
+/// How many slots of a role are taken: its runs let in at work and its reserved slots together, a job standing in
+/// the machine's turn counted against no cap (docs/role-slots.md, 「The cap」).
 pub async fn used<C: ConnectionTrait>(db: &C, role: &str, account: Option<&str>) -> Result<i64, Fault> {
   let row = one(
     db,
-    r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests"
-       WHERE "role" = $1 AND "state" IN ('active', 'reserved') AND "account" IS NOT DISTINCT FROM $2"#,
+    &format!(
+      r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests"
+         WHERE "role" = $1 AND "state" IN ('active', 'reserved') AND "account" IS NOT DISTINCT FROM $2
+           AND {}"#,
+      crate::watches::machine_turn::AT_WORK
+    ),
     vec![role.into(), account.map(str::to_owned).into()],
   )
   .await

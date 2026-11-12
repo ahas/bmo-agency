@@ -1,0 +1,4 @@
+# Which jobs stand in the machine's turn (docs/role-agents.md, 「When an agent is busy」): how often the testbed's
+# lanes and the job service's items under a close are read, and the label the close writes on its item.
+read_seconds = 5
+close_label = "close-phase"

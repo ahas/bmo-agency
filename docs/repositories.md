@@ -85,8 +85,10 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   owner named one himself; nothing in the agency chooses one for it. The job runs as that agent's role, goes
   out on that agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it
   however long its provider cannot answer, never on another agent of the role and never on another road.
-- **A launch naming an agent that carries a job, or any other run, is refused** 409 `agent-busy` at once, with
-  the agent and what it carries; nothing queues it to start later. A busy agent's next job is launched by the
+- **A launch naming an agent that is busy is refused** 409 `agent-busy` at once, with the agent and what it
+  carries at work; nothing queues it to start later. An agent whose every job stands in the machine's turn —
+  testing, waiting to test, deploying or waiting for its deployment — is free, and the launch goes through
+  (`docs/role-agents.md`, 「When an agent is busy」). A busy agent's next job is launched by the
   supervisor once the agent is free, as the queue's notice tells it (`docs/agent-control.md`, 「An item's change
   is told to its orderer」).
 - **A launch whose item names no agent is refused** 422 `agent-unnamed`, an `agent` label that is `auto` or

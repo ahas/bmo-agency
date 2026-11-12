@@ -190,9 +190,9 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
 }
 
 /// A role's agents as a supervisor naming one for a job reads them (docs/repositories.md, 「An agent an item
-/// names」): a line an agent, with its road, and whether it is switched off or carries a run now.
+/// names」): a line an agent, with its road, and whether it is switched off or busy now.
 pub async fn listing<C: ConnectionTrait>(db: &C, role: &str) -> Result<String, Fault> {
-  let carrying = carrying(db, role).await?;
+  let busy = busy(db, role).await?;
   let lines: Vec<String> = of_role(db, role)
     .await?
     .iter()
@@ -207,7 +207,7 @@ pub async fn listing<C: ConnectionTrait>(db: &C, role: &str) -> Result<String, F
       };
       let standing = if !agent.enabled {
         "switched off"
-      } else if carrying.contains(&agent.name) {
+      } else if busy.contains(&agent.name) {
         "carries a run now"
       } else {
         "free"
@@ -234,6 +234,41 @@ pub async fn carrying_any<C: ConnectionTrait>(db: &C) -> Result<Vec<String>, Fau
   all(
     db,
     r#"SELECT "seat" FROM "role_slot_requests" WHERE "state" = 'active' AND "seat" IS NOT NULL"#,
+    vec![],
+  )
+  .await?
+  .iter()
+  .map(|row| row.try_get::<String>("", "seat").map_err(Fault::from))
+  .collect()
+}
+
+/// The agents busy now, by name (docs/role-agents.md, 「When an agent is busy」): the seats a slot request let in
+/// on carries a run at work on, a job standing in the machine's turn leaving its seat free.
+pub async fn busy<C: ConnectionTrait>(db: &C, role: &str) -> Result<Vec<String>, Fault> {
+  all(
+    db,
+    &format!(
+      r#"SELECT DISTINCT "seat" FROM "role_slot_requests"
+         WHERE "role" = $1 AND "state" = 'active' AND "seat" IS NOT NULL AND {}"#,
+      crate::watches::machine_turn::AT_WORK
+    ),
+    vec![role.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| row.try_get::<String>("", "seat").map_err(Fault::from))
+  .collect()
+}
+
+/// Every agent, of any role, busy now (docs/role-agents.md, 「When an agent is busy」).
+pub async fn busy_any<C: ConnectionTrait>(db: &C) -> Result<Vec<String>, Fault> {
+  all(
+    db,
+    &format!(
+      r#"SELECT DISTINCT "seat" FROM "role_slot_requests"
+         WHERE "state" = 'active' AND "seat" IS NOT NULL AND {}"#,
+      crate::watches::machine_turn::AT_WORK
+    ),
     vec![],
   )
   .await?

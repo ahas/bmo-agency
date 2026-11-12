@@ -930,9 +930,10 @@ impl Route for CreateJob {
 
 crate::moved!(CreateJob);
 
-/// What an agent carries now, in words a launch's refusal names it by (docs/repositories.md, 「An agent an item
-/// names」): a job standing on it — starting, running, or under a review that has not paused it — else the run
-/// a slot request let in on it stands for. None where it carries nothing.
+/// What an agent carries at work now, in words a launch's refusal names it by (docs/repositories.md, 「An agent an
+/// item names」): a job standing on it — starting, running, or under a review that has not paused it — else the
+/// run a slot request let in on it stands for, a job standing in the machine's turn leaving it free
+/// (docs/role-agents.md, 「When an agent is busy」). None where it is free.
 async fn agent_carries<C: sea_orm::ConnectionTrait>(
   db: &C,
   agent: &str,
@@ -940,7 +941,7 @@ async fn agent_carries<C: sea_orm::ConnectionTrait>(
   let job = one(
     db,
     r#"SELECT "id", "item_id" FROM "jobs"
-       WHERE "item_agent" = $1
+       WHERE "item_agent" = $1 AND NOT "machine_turn"
          AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked"))
        ORDER BY "id" LIMIT 1"#,
     vec![agent.into()],
@@ -956,8 +957,11 @@ async fn agent_carries<C: sea_orm::ConnectionTrait>(
 
   let run = one(
     db,
-    r#"SELECT "source", "title" FROM "role_slot_requests" WHERE "seat" = $1 AND "state" = 'active'
-       ORDER BY "sequence" LIMIT 1"#,
+    &format!(
+      r#"SELECT "source", "title" FROM "role_slot_requests" WHERE "seat" = $1 AND "state" = 'active' AND {}
+         ORDER BY "sequence" LIMIT 1"#,
+      crate::watches::machine_turn::AT_WORK
+    ),
     vec![agent.into()],
   )
   .await?;

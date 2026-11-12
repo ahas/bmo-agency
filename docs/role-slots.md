@@ -23,8 +23,8 @@ is and which one a run takes is `docs/role-agents.md`.
   `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks — and under the
   owner and request key its caller names; the label is kept as sent.
 - **A slot is let in on one agent of its role, and goes out on that agent's road** (`docs/role-agents.md`,
-  「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, carries
-  no run and whose road can answer now. An ask may name a provider and a model together, or a model alone,
+  「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, is free
+  (`docs/role-agents.md`, 「When an agent is busy」) and whose road can answer now. An ask may name a provider and a model together, or a model alone,
   whose provider is the one the role's first agent of that model is on; it is then let in only on an agent of
   that road and waits for one; an ask naming a road no agent of the role is on is let in on an agent that
   names no road, and is refused where the role holds none. The agent gives
@@ -46,9 +46,11 @@ is and which one a run takes is `docs/role-agents.md`.
 
 ## The cap
 
-- **A role's cap is the most of its runs that are let in at once: the number of its agents that are switched
-  on.** A run beyond it waits for a slot and none is refused, but for a double's own ask where delegated runs
-  hold the whole cap (「A delegated task」 below).
+- **A role's cap is the most of its runs that are let in at work at once: the number of its agents that are
+  switched on.** A run beyond it waits for a slot and none is refused, but for a double's own ask where
+  delegated runs hold the whole cap (「A delegated task」 below). A job standing in the machine's turn keeps its
+  seat and counts against no cap (`docs/role-agents.md`, 「When an agent is busy」), so its agent's next job is
+  let in beside it.
 - **The cap is the role's alone.** It is counted over every run of the role wherever it works, each run on
   an agent of its own; no path carries a limit of its own.
 - **Runs do not take turns at a path.** A run occupies a slot of its role wherever it works; two runs at
@@ -119,7 +121,9 @@ is and which one a run takes is `docs/role-agents.md`.
   stands in the store across a restart as it stood before. Every later turn of the job — a stage handed over,
   a question or a rework of its review — goes out on that lease without asking again, so no request of
   another job, however long it has waited, is let in on the job's agent between the job's turns
-  (`docs/role-agents.md`, 「Which agent a run takes」).
+  (`docs/role-agents.md`, 「Which agent a run takes」). Only while the job stands in the machine's turn —
+  testing, waiting to test, deploying or waiting for its deployment — is another job let in on its agent
+  beside it, the job keeping its lease all the same (`docs/role-agents.md`, 「When an agent is busy」).
 - **A job's lease is given back when that job ends,** however it ended: its turn's end, its stop
   (`docs/api.md`, 「assignments and jobs」) or its reap as a job whose process went away. Every write of a
   job's end gives back every request asked under the job's owner, as that owner's release gives it back

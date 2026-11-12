@@ -84,7 +84,8 @@ pub struct Standing {
   pub free: Vec<String>,
   /// Every checkout agency holds, free or not, the built-in worker among them.
   pub known: Vec<String>,
-  /// The agents a job or a slot carries a run on now.
+  /// The agents busy now: a job or a slot carries a run at work on them (docs/role-agents.md, 「When an agent is
+  /// busy」).
   pub carrying: Vec<String>,
   /// When the last job started, in epoch milliseconds, where one has.
   pub last_start: Option<i64>,
@@ -516,7 +517,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     db,
     r#"SELECT DISTINCT "item_agent" FROM "jobs"
        WHERE ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked"))
-         AND "item_agent" IS NOT NULL"#,
+         AND "item_agent" IS NOT NULL AND NOT "machine_turn""#,
     vec![],
   )
   .await?
@@ -524,7 +525,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
   .filter_map(|row| row.try_get::<String>("", "item_agent").ok())
   .collect();
 
-  carrying.extend(crate::role_agents::carrying_any(db).await?);
+  carrying.extend(crate::role_agents::busy_any(db).await?);
 
   let workers = crate::queue::workers::workers(db, std::path::Path::new("")).await?;
   let known = workers.iter().map(|worker| worker.name.clone()).collect();

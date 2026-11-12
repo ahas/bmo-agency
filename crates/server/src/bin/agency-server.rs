@@ -297,6 +297,23 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  let turn = ground.clone();
+
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::machine_turn::MACHINE_TURN.read_seconds);
+
+    every("machine's turn", Duration::ZERO, period, move || {
+      let ground = turn.clone();
+
+      async move {
+        agency_server::watches::machine_turn::pass(&ground.db, ground.vars(), &ground.roots.data).await;
+
+        Ok(())
+      }
+    })
+    .await
+  });
+
   let idle = ground.clone();
 
   tokio::spawn(async move {

@@ -961,4 +961,24 @@ async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_
 
   statuses.sort_unstable();
   assert_eq!(statuses, [201, 409], "{} {}", first.1, second.1);
+
+  // The job that went stands in the machine's turn: its agent is free, and the next launch onto it goes
+  // through (docs/role-agents.md, 「When an agent is busy」).
+  scratch.run(r#"UPDATE "jobs" SET "machine_turn" = true"#, vec![]).await;
+  std::fs::create_dir_all(home.path().join("helper-three")).unwrap();
+  repository(scratch.db(), "helper-three", &home.path().join("helper-three").to_string_lossy(), &[]).await;
+
+  let (status, third) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 83, "holderName": "harness", "assigneeName": "helper-three", "item": item() }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{third}");
+
+  let (status, launched) = run_job(port, token, third["id"].as_i64().unwrap(), 83, item()).await;
+
+  assert_eq!(status, 201, "{launched}");
 }

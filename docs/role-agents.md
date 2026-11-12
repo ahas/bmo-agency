@@ -8,8 +8,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 ## What an agent is
 
 - **An agent is one seat of one role.** A run of a role is let in on one agent of that role and on no other
-  thing: the agent it is let in on is the seat it holds, and an agent carries one run at a time. A role with
-  three agents runs three of its runs at once, and a role with none runs nothing.
+  thing: the agent it is let in on is the seat it holds, and an agent busy with one run takes no other
+  (「When an agent is busy」 below). A role with three agents has three of its runs at work at once, and a role
+  with none runs nothing.
 - **An agent's road is fixed.** It names one provider, one model of it and the effort and thinking its runs
   go out with there. Its runs go out on that road and never on another: an agent whose provider cannot answer
   now, or has no quota, takes no run until it can, and no run of its moves to another provider.
@@ -85,22 +86,22 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   word; a job whose item names none is refused at its launch (`docs/repositories.md`, 「An agent an item
   names」). Nothing in the agency picks an agent for a job.
 - **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
-  only on it, on its own road, and waits for it however long it carries a run or its provider cannot answer;
+  only on it, on its own road, and waits for it however long it is busy or its provider cannot answer;
   it is never let in on another agent of the role. Every job asks so, and a job's launch is refused while its
-  agent carries a run (「Agency starts no job by itself」 below).
+  agent is busy (「Agency starts no job by itself」 below).
 - **An agent carries one job from its first turn to its end.** The seat a job's first turn is let in on stays
   the job's through every turn after it and every wait between them — its review, a stage passed and the next
   handed over — and is given back only as the job ends, stopped, failed or done, or as its review pauses it
   (`docs/job-review.md`, 「The owner's word」). Its next stage, asked by its supervisor's review, runs on that
   seat at once, before any other run of the role (`docs/role-slots.md`, 「The line」).
-- **Agency starts no job by itself.** A launch naming an agent that carries a job, or any other run, is
-  refused at once (`docs/repositories.md`, 「An agent an item names」), never queued to start later, and no turn
-  of work goes out unless a supervisor's launch or review move asks for it now. When the agent comes free its
+- **Agency starts no job by itself.** A launch naming an agent that is busy is refused at once
+  (`docs/repositories.md`, 「An agent an item names」), never queued to start later, and no turn of work goes
+  out unless a supervisor's launch or review move asks for it now. When the agent comes free its
   supervisor is told, and the supervisor launches (`docs/agent-control.md`, 「An item's change is told to its
   orderer」).
-- **A run that names no agent is let in on any agent of its role that is switched on, carries no run, and
-  whose road can answer now,** taken by name where several are free; the agents hold no order of priority. An
-  agent carries a run while a slot request let in on it stands active. A run a supervisor asks may take an
+- **A run that names no agent is let in on any agent of its role that is switched on, is free, and whose
+  road can answer now,** taken by name where several are free; the agents hold no order of priority. A run a
+  supervisor asks may take an
   agent that names no road, on that supervisor's road, and a run no supervisor asks passes the agents that name
   no road over.
 - **A run that names a road takes an agent of that road alone.** An ask naming a provider and a model, or a
@@ -115,6 +116,37 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A reservation holds seats of a role by count,** not agents by name: a reserved seat is one fewer agent a
   run may be let in on, and the request that takes the reservation's place is let in on any agent then
   free.
+
+## When an agent is busy
+
+- **An agent is busy while a run it carries is at work.** It carries a run while a slot request let in on it
+  stands active, and any run but a job's is at work for as long as it stands.
+- **A job is at work except while it stands in the machine's turn,** in one of four states and in no other:
+  - testing, or waiting to test: its checkout holds a lane of the testbed's turn or its repository's close
+    line, or waits in line for one, as the testbed's own record names the checkout's root;
+  - deploying, or waiting for its deployment: its turn has ended with its close's commit handed over and
+    waiting to go live, the deployment of that commit under way or not yet begun, while its review stands.
+
+  Writing, reading, a review round, a question waiting on the owner and every other state are work, and keep
+  its agent busy as long as the job stands.
+- **An agent whose every job stands in the machine's turn is free for another job.** The queue's notice offers
+  it its next awaiting item, one whose checkout is free (`docs/agent-control.md`, 「An item's change is told to
+  its orderer」), and a launch onto it goes through. The new job is a session of its own in its own checkout,
+  on the same agent's road.
+- **Each job keeps its agent, its seat, its session, its role and its road throughout.** When a job's test
+  ends, or its deployment ends not live and it goes back to work, it simply goes on, so an agent may carry two
+  jobs or more at once; it is offered nothing new until every job it carries stands in the machine's turn
+  again. A job standing in the machine's turn counts against no cap (`docs/role-slots.md`, 「The cap」).
+- **Which jobs stand in the machine's turn is read, never guessed** from a job's tool lines or its command
+  words. Agency reads it every few seconds (`policy/machine-turn.toml`): the testbed's lanes as
+  `bmo-testbed status --json` prints them, each holder and waiter matched by its checkout to the job working in
+  that checkout or under it; the job service's items carrying the label `close-phase`, which the close writes
+  `testing` while it tests and `waiting-live` once its commit is handed over; and, for a running job whose
+  item's close is testing, the close line the same status prints run in the job's checkout. A label alone
+  marks no job, since one can outlive the close that wrote it: `testing` only sends agency to the close line,
+  and `waiting-live` marks a job only once its turn has ended under review, a job sent back to work while its
+  commit waits being at work. Each job's mark is kept on its row until the next reading. A reading that fails
+  marks nothing, so a job no reading names is at work.
 
 ## Changing the agents
 

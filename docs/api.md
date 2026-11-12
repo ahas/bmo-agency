@@ -1399,8 +1399,9 @@ service.
   `unknown-agent`, and one that names no road 422 `agent-names-no-road`. A refusal writes nothing and leaves
   the assignment held; the item's orderer is told once for that label (`item-unlaunchable`,
   `docs/agent-control.md`, 「An item's change is told to its orderer」), and the mark is let go as a job of the
-  item is launched. A launch naming an agent that carries a job, or any other run let in on it, is refused
-  409 `agent-busy` at once, its sentence naming the agent and the job or run it carries: nothing is written,
+  item is launched. A launch naming an agent that is busy (`docs/role-agents.md`, 「When an agent is busy」) is
+  refused 409 `agent-busy` at once, its sentence naming the agent and the job or run it carries at work, an
+  agent whose every job stands in the machine's turn being free: nothing is written,
   the assignment stays held, and no request waits to start it later. The orderer is told once the agent is
   free (`item-awaits-launch`), and launches it then. The item's `model` label is not read. The job answers
   `chosenBy` `item`, its agent having
@@ -1621,7 +1622,10 @@ of its own, or to the owner through `POST /owner/notices` with the codes `job-qu
 /instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
 kind, event and code); the orderer is found by reading the item and the items it was raised from with `GET
 /items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
-`POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
+`POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`; every few seconds, for the jobs standing
+in the machine's turn (`docs/role-agents.md`, 「When an agent is busy」), the job service's `GET /items` with
+`label` `close-phase` and the testbed's lanes as `bmo-testbed status --json` prints them, read through the
+types of the testbed's published client `bmo-testbed-client`; and once an hour GitHub's search through
 `gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). For a control call
 on agent management that carries a signed-in person's headers, the web's account service is asked for that
 person's console sections with `GET /users/{user}/sections` (「Who a caller acts for」 above), reached at

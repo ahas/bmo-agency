@@ -62,6 +62,7 @@ dependencies = [
  "bmo-gate-client",
  "bmo-node-client",
  "bmo-pocket-client",
+ "bmo-testbed-client",
  "brush-parser",
  "cache-siren",
  "chrono",
@@ -493,6 +494,16 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "bmo-testbed-client"
+version = "0.1.0-rev.11"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "strum 0.28.0",
 ]
 
 [[package]]

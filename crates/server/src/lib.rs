@@ -103,6 +103,7 @@ pub mod watches {
   pub mod job_events;
   pub mod links;
   pub mod machine;
+  pub mod machine_turn;
   pub mod pressure;
   pub mod pull_requests;
   pub mod queue_idle;

@@ -26,7 +26,10 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 - **`reviewing`** stands between `running` and the job's end: a turn of the job ended answered, its report is
   written onto the item's review, and the job waits on its orderer's move. No turn runs, and the job keeps its
   agent's seat: the agent answers for the job until it ends, so no other job is let in on it meanwhile, however
-  long that job has waited for the agent (`docs/role-agents.md`, 「Which agent a run takes」). The seat is the
+  long that job has waited for the agent (`docs/role-agents.md`, 「Which agent a run takes」). A review round is
+  work and keeps the agent busy; only a job whose commit waits for its deployment while it stands under review
+  leaves its agent free for another job beside it, still keeping its seat (`docs/role-agents.md`, 「When an
+  agent is busy」). The seat is the
   job's slot lease, bound to none of its turns, so the end of the turn that reported does not give it back,
   and neither does a restart of agency while the job stands under review (`docs/role-slots.md`, 「The line」).
   The job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a running

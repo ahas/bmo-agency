@@ -3001,9 +3001,12 @@ with the session.
   (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never its whole
   series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
   notice and does not wait for the idle minutes.
-- **The notice is how a busy agent's next job starts.** An agent carries a run while a job naming it stands
-  `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, and an item naming
-  it is not told until it carries none. A launch while it carries one is refused `agent-busy`
+- **The notice is how a busy agent's next job starts.** An agent is busy while a job naming it stands
+  `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, unless every such
+  job stands in the machine's turn — testing, waiting to test, deploying or waiting for its deployment
+  (`docs/role-agents.md`, 「When an agent is busy」) — and an item naming it is not told until it is free; an
+  agent whose only jobs stand in the machine's turn is offered its next item whose checkout is free. A launch
+  while it is busy is refused `agent-busy`
   (`docs/repositories.md`, 「An agent an item names」), and agency never starts the item by itself: the
   orderer launches it once this notice tells it the agent is free.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease

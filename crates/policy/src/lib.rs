@@ -22,6 +22,7 @@ pub mod job_prompt;
 pub mod job_review;
 pub mod keepalive;
 pub mod machine_room;
+pub mod machine_turn;
 pub mod model_catalogue;
 pub mod node_states;
 pub mod person_nodes;

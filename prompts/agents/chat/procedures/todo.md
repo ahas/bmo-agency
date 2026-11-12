@@ -218,8 +218,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   highest priority first.
 - **One run at a time.** `assign_worker` refuses a worker already held or running (`no-worker-free`);
   do not force it, and do not take a lease you cannot launch. Wait for that run to end, then choose
-  again. A launch onto an agent that carries a job or another run is refused `agent-busy` with what it
-  carries, and nothing waits to start it later: give the hold back with `release_worker` and the lease
+  again. A launch onto a busy agent, one whose job or other run is at work, is refused `agent-busy` with
+  what it carries, and nothing waits to start it later; an agent whose every job is testing, waiting to
+  test, deploying or waiting for its deployment is free, and is offered its next item: give the hold back with `release_worker` and the lease
   with `job_lease_release`, and launch the item when `item-awaits-launch` tells you its agent is free. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so
   nothing will free up; correct the item's `assigneeName` to the name the refusal lists and assign it
   again.
