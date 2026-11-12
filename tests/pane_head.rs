@@ -3,6 +3,8 @@
 //! process, through the same handler and socket the host serves; the program is a stand-in shell.
 
 use std::fs;
+use std::io::Read;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -16,6 +18,10 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 
 const SH: &str = "/bin/sh";
+
+// How long a head the test runs to its end is given: it asks the host once and ends, or becomes what it was
+// told to become.
+const HEAD_ENDS_MS: u64 = 10_000;
 
 // The head's binary, built once for this test binary.
 fn head_binary() -> &'static str {
@@ -53,12 +59,36 @@ fn signal(pid: i32, signal: i32) {
   }
 }
 
-// A process that stands until it is ended, to hold a place.
+// The command started as the leader of a process group of its own, so the test can end it with whatever
+// it started.
+fn own_group(command: &mut Command) {
+  // SAFETY: setpgid in the child before exec.
+  unsafe {
+    command.pre_exec(|| {
+      libc::setpgid(0, 0);
+      Ok(())
+    });
+  }
+}
+
+// A process that stands until it is ended, to hold a place. Its own sleep outlasts every bound the tests
+// set, so no build or start on a loaded machine outlives the hold; it is killed with the thread that
+// started it, so a test binary that dies leaves none behind.
 struct Holder(Child);
 
 impl Holder {
   fn new() -> Self {
-    Self(Command::new("sleep").arg("60").spawn().unwrap())
+    let mut sleep = Command::new("sleep");
+
+    sleep.arg("3600");
+    // SAFETY: prctl in the child before exec.
+    unsafe {
+      sleep.pre_exec(|| {
+        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+        Ok(())
+      });
+    }
+    Self(sleep.spawn().unwrap())
   }
 
   fn identity(&self) -> Value {
@@ -195,7 +225,7 @@ impl Root {
   }
 
   fn run(&self, agent: &str, pane: &str, more: &[(&str, &str)]) -> Output {
-    self.head(agent, pane, more).output().unwrap()
+    run_to_end(self.head(agent, pane, more))
   }
 
   fn spawn(&self, agent: &str, pane: &str, more: &[(&str, &str)]) -> Reaped {
@@ -219,6 +249,34 @@ impl Root {
       },
     )
     .unwrap()
+  }
+}
+
+/// A head run to its end within `HEAD_ENDS_MS`, with what it wrote. A head still running past the bound
+/// fails the test naming what it became, and its group is ended either way, so nothing it left behind
+/// holds its streams.
+fn run_to_end(mut head: Command) -> Output {
+  head.stdout(Stdio::piped()).stderr(Stdio::piped());
+  own_group(&mut head);
+
+  let mut head = Reaped(head.spawn().unwrap());
+  let status = head.ended(HEAD_ENDS_MS);
+  let became = cmdline(head.pid());
+
+  signal(-head.pid(), libc::SIGKILL);
+
+  let Some(status) = status else {
+    panic!("the head had not ended after {HEAD_ENDS_MS} ms: it became `{became}`");
+  };
+  let mut stdout = Vec::new();
+  let mut stderr = Vec::new();
+
+  head.0.stdout.take().unwrap().read_to_end(&mut stdout).unwrap();
+  head.0.stderr.take().unwrap().read_to_end(&mut stderr).unwrap();
+  Output {
+    status,
+    stdout,
+    stderr,
   }
 }
 
@@ -441,11 +499,11 @@ fn a_head_opened_for_a_host_beside_the_program_lets_go_and_no_host_is_a_line_and
   assert!(within(3_000, || cmdline(view.pid()).starts_with("tail ")));
 
   let nowhere = tempfile::tempdir().unwrap();
-  let unanswered = Command::new(head_binary())
-    .arg("chat")
-    .env("BMO_DATA_DIR", nowhere.path())
-    .output()
-    .unwrap();
+  let mut unanswered = Command::new(head_binary());
+
+  unanswered.arg("chat").env("BMO_DATA_DIR", nowhere.path()).stdin(Stdio::null());
+
+  let unanswered = run_to_end(unanswered);
 
   assert!(unanswered.status.success());
   assert!(String::from_utf8_lossy(&unanswered.stdout).contains("does not answer"));
@@ -473,13 +531,7 @@ fn the_loop_starts_the_head_again_after_a_signal_and_stops_only_on_head_stopped(
       .envs(more.iter().copied())
       .stdin(Stdio::null())
       .stdout(Stdio::null());
-    // SAFETY: setpgid in the child before exec, so the test can end the loop's whole group.
-    unsafe {
-      std::os::unix::process::CommandExt::pre_exec(&mut shell, || {
-        libc::setpgid(0, 0);
-        Ok(())
-      });
-    }
+    own_group(&mut shell);
     Reaped(shell.spawn().unwrap())
   };
 
