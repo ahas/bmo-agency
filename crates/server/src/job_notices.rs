@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use policy::fill_marks;
 use policy::job_notices::JOB_NOTICES;
+use policy::machine_turn::MACHINE_TURN;
 use serde_json::{Value, json};
 
 use crate::job_end::{address, token};
@@ -187,6 +188,34 @@ pub fn closed(item: &Value, by: &str, orderer: &Orderer) -> Value {
     fill_marks(&JOB_NOTICES.closed_order, &[("item", &number), ("title", title_of(item)), ("by", by)]);
 
   instruction("item-closed", id, orderer, format!("Item #{id} was closed by {by}"), order)
+}
+
+/// A held item whose every item it waits on has ended, `label` the label naming them and `waited` each of
+/// them as the job service answers it (docs/agent-control.md, 「An item's change is told to its orderer」).
+pub fn wait_ended(item: i64, title: &str, label: &str, waited: &[Value], orderer: &Orderer) -> Value {
+  let number = item.to_string();
+  let waited = waited
+    .iter()
+    .map(|other| {
+      let state = other["state"].as_str().unwrap_or_default();
+      let state = match other["labels"][MACHINE_TURN.close_label.as_str()].as_str() {
+        Some(phase) => format!("{state}, {} {phase}", MACHINE_TURN.close_label),
+        None => state.to_owned(),
+      };
+
+      fill_marks(
+        &JOB_NOTICES.waited_item,
+        &[("item", &id_of(other).to_string()), ("title", title_of(other)), ("state", &state)],
+      )
+    })
+    .collect::<Vec<_>>()
+    .join("; ");
+  let order = fill_marks(
+    &JOB_NOTICES.wait_ended_order,
+    &[("item", &number), ("title", title), ("label", label), ("waited", &waited)],
+  );
+
+  instruction("item-wait-ended", item, orderer, format!("Item #{item} waits on nothing more"), order)
 }
 
 /// A job's commit handed over to go live while its job waits on the deployment's outcome

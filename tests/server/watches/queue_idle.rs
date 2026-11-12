@@ -1,7 +1,8 @@
 //! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): approved work a
 //! free worker could take and no job started for the idle minutes, told to the owner once for each stretch
 //! through the receiver, and silenced by the owner's switch until the next job starts; and a draft awaiting
-//! approval told once to the supervisor that ordered it, in its room or its parent's up the `raised-by` chain.
+//! approval told once to the supervisor that ordered it, in its room or its parent's up the `raised-by` chain;
+//! and a held item every item it waits on has ended told once to its orderer while it stays held.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -801,4 +802,175 @@ async fn an_item_whose_agent_label_was_refused_is_told_once_for_that_label() {
       .is_none()
   );
   assert_eq!(kinds(&peers).len(), 2);
+}
+
+#[test]
+fn a_held_item_names_what_it_waits_on_and_an_item_waited_on_ends_once_done_and_not_waiting_live() {
+  use agency_server::watches::queue_idle::{follower_of, wait_over};
+
+  let one = follower_of(&json!({ "id": 2650, "title": "after", "state": "held",
+    "labels": { "held_kind": "pause", "follows": "2649" }, "scope": "-9100" }))
+  .unwrap();
+
+  assert_eq!(
+    (one.label.as_str(), one.waits_on.as_slice(), one.room),
+    ("follows=2649", &[2649][..], Some(-9100))
+  );
+
+  let several =
+    follower_of(&json!({ "id": 2693, "labels": { "waiting-on": "#2664, 2665" }, "raisedBy": 2600 }))
+      .unwrap();
+
+  assert_eq!((several.waits_on.as_slice(), several.parent), (&[2664, 2665][..], Some(2600)));
+  assert_eq!(
+    follower_of(&json!({ "id": 1, "labels": { "held_kind": "pause" } })),
+    None,
+    "no wait label"
+  );
+  assert_eq!(
+    follower_of(&json!({ "id": 1, "labels": { "follows": "2649, soon" } })),
+    None,
+    "a part naming no item"
+  );
+  assert_eq!(
+    follower_of(&json!({ "labels": { "follows": "2649" } })),
+    None,
+    "a member with no number"
+  );
+
+  assert!(wait_over(&json!({ "state": "done" })));
+  assert!(wait_over(
+    &json!({ "state": "done", "labels": { "close-phase": "live", "close-commit": "abc" } })
+  ));
+  assert!(
+    wait_over(&json!({ "state": "done", "labels": { "close-phase": "testing" } })),
+    "no commit waits"
+  );
+  assert!(
+    wait_over(
+      &json!({ "state": "done", "labels": { "close-phase": "waiting-live", "close-commit": "abc" } })
+    ),
+    "done is past its deployment, whatever the close label still reads"
+  );
+  assert!(!wait_over(
+    &json!({ "state": "leased", "labels": { "close-phase": "waiting-live", "close-commit": "abc" } })
+  ));
+  assert!(!wait_over(&json!({ "state": "leased" })));
+  assert!(!wait_over(&json!({ "state": "open" })));
+}
+
+#[test]
+fn a_held_item_whose_wait_ended_is_told_with_what_it_waited_on_and_no_instruction() {
+  let waited = [
+    json!({ "id": 2649, "title": "the first", "state": "done" }),
+    json!({ "id": 2651, "title": "the second", "state": "done",
+            "labels": { "close-phase": "live", "close-commit": "abc" } }),
+  ];
+  let told =
+    agency_server::job_notices::wait_ended(2650, "after", "follows=2649,2651", &waited, &room(Some(-9100)));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(
+    (&told["sort"], &told["kind"], &told["room"]),
+    (&json!("job"), &json!("item-wait-ended:2650"), &json!(-9100))
+  );
+  assert_eq!(told["events"], json!(["item-wait-ended:#2650"]));
+
+  for word in ["#2650", "after", "follows=2649,2651", "#2649", "the first", "#2651", "close-phase live"] {
+    assert!(order.contains(word), "{word}: {order}");
+  }
+
+  assert_no_instruction(order);
+}
+
+#[tokio::test]
+async fn a_held_item_is_told_once_its_wait_ends_and_let_go_once_it_is_no_longer_held() {
+  use agency_server::watches::queue_idle::WAIT_TOLD_PREFIX;
+
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.queues = vec![json!({ "name": "todo", "state": "open", "holds": [] })];
+    // 100 is done; 101 is leased; 102 is done with its commit waiting to go live; 103 is done and live.
+    held.items.insert(100, item(100, "done", json!({})));
+    held.items.insert(101, item(101, "leased", json!({})));
+    held.items.insert(
+      102,
+      item(
+        102,
+        "leased",
+        json!({ "labels": { "close-phase": "waiting-live", "close-commit": "abc" } }),
+      ),
+    );
+    held.items.insert(
+      103,
+      item(103, "done", json!({ "labels": { "close-phase": "live", "close-commit": "def" } })),
+    );
+    // The held items waiting on them, and one open item naming a done one.
+    let follows =
+      |on: &str, room: &str| json!({ "labels": { "held_kind": "pause", "follows": on }, "scope": room });
+
+    held.items.insert(110, item(110, "held", follows("100", "-1100")));
+    held
+      .items
+      .insert(111, item(111, "held", json!({ "labels": { "waiting-on": "101" }, "raisedBy": 110 })));
+    held.items.insert(112, item(112, "held", follows("102", "-1120")));
+    held.items.insert(113, item(113, "held", follows("100, #103", "-1130")));
+    held.items.insert(114, item(114, "held", follows("100,101", "-1140")));
+    held.items.insert(115, item(115, "open", follows("100", "-1150")));
+    held.items.insert(116, item(116, "held", follows("999", "-1160")));
+  }
+
+  let ended = |peers: &crate::support::peers::Peers| -> Vec<(String, Value)> {
+    kinds(peers)
+      .into_iter()
+      .filter(|(kind, _)| kind.starts_with("item-wait-ended:"))
+      .collect()
+  };
+
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  assert_eq!(
+    ended(&peers),
+    vec![
+      ("item-wait-ended:110".to_owned(), json!(-1100)),
+      ("item-wait-ended:113".to_owned(), json!(-1130))
+    ],
+    "a held item following done items is told once; following a leased one, one waiting to go live, an item \
+     the job service does not answer for, or not held, it is not"
+  );
+
+  // The leased item is done: every item that waited on it alone or with others is told, in its orderer's room.
+  peers.lock().unwrap().items.get_mut(&101).unwrap()["state"] = json!("done");
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  assert_eq!(
+    ended(&peers)[2..],
+    [
+      ("item-wait-ended:111".to_owned(), json!(-1100)),
+      ("item-wait-ended:114".to_owned(), json!(-1140))
+    ]
+  );
+
+  // Lifted, an item's mark is let go; one still held keeps its mark and is not told again.
+  peers.lock().unwrap().items.get_mut(&110).unwrap()["state"] = json!("open");
+  pass(db, &vars).await.unwrap();
+
+  let mark = |id: i64| async move {
+    agency_server::queue::settings::get(db, &format!("{WAIT_TOLD_PREFIX}{id}"))
+      .await
+      .unwrap()
+  };
+
+  assert_eq!(mark(110).await, None, "no longer held, its mark let go");
+  assert!(mark(113).await.is_some(), "still held, its mark kept");
+  assert_eq!(ended(&peers).len(), 4, "told once while it stays held");
 }

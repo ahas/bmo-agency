@@ -928,3 +928,28 @@ async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server
     assert!(servers.contains(&server.to_owned()), "the chat line names {server}: {servers:?}");
   }
 }
+
+#[test]
+fn a_held_item_whose_wait_ended_has_its_hold_lifted_and_is_launched() {
+  let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
+  let todo = std::fs::read_to_string(tree().join("prompts/agents/chat/procedures/todo.md")).unwrap();
+  let notices = manual
+    .lines()
+    .find(|line| line.starts_with("- What a queue notice asks of you is the kind its event names"))
+    .expect("the manual's queue notices line");
+
+  assert!(
+    notices.contains("a held item whose wait has ended (item-wait-ended)")
+      && notices.contains("has its hold lifted with job_item_update and is launched"),
+    "{notices}"
+  );
+
+  for said in [
+    "**`item-wait-ended`:**",
+    "Agency starts nothing itself, so the hold",
+    "`held_kind` and `held_reason` dropped",
+    "leave it held and say in one line why not",
+  ] {
+    assert!(todo.contains(said), "{said}");
+  }
+}

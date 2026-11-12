@@ -1612,7 +1612,7 @@ program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter 
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, while agency still names the session, and
 waited on (`docs/sessions.md`, 「A restart hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
-`open` and `GET /items` with `state` `draft` are read, and its events as a page, `GET /events` with `Accept:
+`open`, `GET /items` with `state` `draft` and `GET /items` with `state` `held` are read, and its events as a page, `GET /events` with `Accept:
 application/json` past the cursor agency keeps, narrowed to `item.changed`, `question.created`,
 `question.due` and `reply.created`; an idle queue is told once through the receiver's `POST /owner/notices`
 with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told once to
@@ -1620,7 +1620,7 @@ the item's orderer through `POST /instructions`, as an order under the sort `job
 of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due` and
 `job-failed`, and an instruction for a question a settling reply answered is withdrawn with `DELETE
 /instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
-kind, event and code); the orderer is found by reading the item and the items it was raised from with `GET
+kind, event and code); the items a held item waits on are read with `GET /items/{itemId}`; the orderer is found by reading the item and the items it was raised from with `GET
 /items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`; every few seconds, for the jobs standing
 in the machine's turn (`docs/role-agents.md`, 「When an agent is busy」), the job service's `GET /items` with

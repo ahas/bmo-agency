@@ -2977,6 +2977,7 @@ with the session.
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
+| A held item whose `follows` or `waiting-on` label names items that are all `done` now, none with its commit still waiting to go live | the orderer | instruction | `item-wait-ended:<item>`, `item-wait-ended:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
 | A job's close that handed its commit over and waits on its deployment, its item labelled `close-phase` `waiting-live` with `close-commit` — told once for each commit | the orderer | instruction, from the events | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
@@ -3030,6 +3031,17 @@ with the session.
   the owner's own authority (a credential, an account, money, his own files, people's data, a judgement of
   taste), or is a member's ask, and says in one line which. The mark is let
   go once the item is no longer a draft — approved, dropped or merged.
+- **A held item whose wait has ended is told to its orderer.** An item filed to start only after others is
+  held, `state` `held`, with a label naming what it waits on (`policy/job-notices.toml`, `wait_labels`:
+  `follows` and `waiting-on`), one item's number or several separated by commas. In the same minute pass
+  agency reads the job service's items with `state` `held` and, for each that carries such a label and is not
+  told yet, the items it names with `GET /items/{itemId}`. Once every one of them stands `done` — an item
+  whose commit waits to go live stays leased until it is live, so `done` is past its deployment whatever its
+  close label still reads —, agency queues one instruction for its orderer, carrying the item's number and title, the label,
+  and each item it waited on with its title and state. Agency never lifts the hold or starts the item
+  itself: the supervisor's manual says to lift the hold and launch the item, or say in one line why not. A
+  label any part of which names no item number, or an item named that the job service does not answer for,
+  ends no wait. The mark is let go once the item is no longer held or no longer carries such a label.
 - **An item moved under a running job is told from the lease pass.** Where the pass renewing a running job's
   lease finds the lease gone and the item not open — held, dropped, merged, or leased by another holder — it
   takes no lease and tells the orderer once for that job and that state: the job runs on an item that moved,

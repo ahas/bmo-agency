@@ -20,6 +20,12 @@ pub struct JobNotices {
   pub moved_order: String,
   /// An item closed by somebody else: `{item}`, `{title}` and `{by}`.
   pub closed_order: String,
+  /// The labels a held item names the items it waits on with.
+  pub wait_labels: Vec<String>,
+  /// A held item whose every item it waits on has ended: `{item}`, `{title}`, `{label}` and `{waited}`.
+  pub wait_ended_order: String,
+  /// One item a held item waited on, as `{waited}` lists it: `{item}`, `{title}` and `{state}`.
+  pub waited_item: String,
   /// A job's commit handed over to go live, its job waiting on the outcome: `{item}`, `{title}`, `{repository}`
   /// and `{commit}`.
   pub deploy_order: String,

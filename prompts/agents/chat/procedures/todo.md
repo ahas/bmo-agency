@@ -369,6 +369,12 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   it with `job_item_update` where you may, else say in one line why it waits for the owner.
 - **`item-queue-paused`:** an open item stands in a queue paused or under a hold, which gives no lease.
   Say in one line that it waits on the queue; do not work around the queue.
+- **`item-wait-ended`:** a held item waits on nothing more: every item its `follows` or `waiting-on` label
+  names is done, and none of their commits still waits to go live. Agency starts nothing itself, so the hold
+  is yours to lift: read the item with `job_item`, then `job_item_update` with `state` `open` and its
+  `labels` `held_kind` and `held_reason` dropped (null in the merge patch), and launch it as 「Choosing the
+  item and the worker」 says. Where it still may not start — the owner's own hold, a reason its notes give
+  beyond the wait — leave it held and say in one line why not.
 - **`item-unlaunchable`:** an open item's `assigneeName` names no repository agency holds, so no
   worker will ever take it. Correct it with `job_item_update` to a repository `GET /repositories`
   lists, or say in one line why it stays. Told of an item's `model` label, its launch was refused

@@ -2,9 +2,10 @@
 //! job service that a free checkout could take, and no job started for the idle minutes, told to the owner once
 //! for each idle stretch through the receiver's owner notice. The same minute pass tells each item's orderer
 //! what calls for its judgement (「An item's change is told to its orderer」): an open item waiting a minute on
-//! a free checkout, an open item its paused queue holds, an open item whose assignee no checkout is of, and a
-//! draft awaiting approval, each once; and it reads the job service's events for the rest. The owner's switch
-//! silences the idle notice and the launch notice until the next job starts.
+//! a free checkout, an open item its paused queue holds, an open item whose assignee no checkout is of, a
+//! draft awaiting approval, and a held item every item it waits on has ended, each once; and it reads the job
+//! service's events for the rest. The owner's switch silences the idle notice and the launch notice until the
+//! next job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -42,6 +43,8 @@ pub const UNLAUNCHABLE_TOLD_PREFIX: &str = "queue_unlaunchable_told:";
 pub const AGENT_TOLD_PREFIX: &str = "queue_agent_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the draft awaits approval.
 pub const DRAFT_TOLD_PREFIX: &str = "queue_draft_told:";
+/// The settings rows, one an item by its number, of when the orderer was told the held item's wait has ended.
+pub const WAIT_TOLD_PREFIX: &str = "queue_wait_told:";
 
 /// An open item as the alarm reads it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -266,6 +269,69 @@ pub fn approval_instruction(draft: &Draft, orderer: &Orderer) -> Value {
     format!("Item #{} awaits approval", draft.id),
     order,
   )
+}
+
+/// A held item that names the items it waits on, as the pass reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Follower {
+  pub id: i64,
+  pub title: String,
+  /// The labels naming what it waits on, each as `name=value`.
+  pub label: String,
+  /// The items it waits on, by their number.
+  pub waits_on: Vec<i64>,
+  /// The room it was asked in, where it names one itself.
+  pub room: Option<i64>,
+  /// The item it was raised from, where it names one.
+  pub parent: Option<i64>,
+}
+
+impl Follower {
+  /// The item as the orderer's resolver reads it.
+  pub fn as_item(&self) -> Value {
+    json!({ "id": self.id, "roomId": self.room, "raisedBy": self.parent })
+  }
+}
+
+/// A job service item read as one that waits on others: none for a member that carries no number or no wait
+/// label, or whose wait label has a part naming no item number. A label is the job service's own
+/// comma-separated list of numbers, each with or without its `#`.
+pub fn follower_of(item: &Value) -> Option<Follower> {
+  let mut label = Vec::new();
+  let mut waits_on = Vec::new();
+
+  for name in &JOB_NOTICES.wait_labels {
+    let value = match &item["labels"][name.as_str()] {
+      Value::String(value) => value.clone(),
+      Value::Number(value) => value.to_string(),
+      _ => continue,
+    };
+
+    for part in value.split(',') {
+      waits_on.push(part.trim().trim_start_matches('#').parse::<i64>().ok().filter(|id| *id > 0)?);
+    }
+
+    label.push(format!("{name}={value}"));
+  }
+
+  if waits_on.is_empty() {
+    return None;
+  }
+
+  Some(Follower {
+    id: item["id"].as_i64()?,
+    title: item["title"].as_str().unwrap_or_default().to_owned(),
+    label: label.join(" and "),
+    waits_on,
+    room: room_of(item),
+    parent: parent_of(item),
+  })
+}
+
+/// Whether an item waited on has ended: it stands `done`. An item whose commit waits to go live stays leased
+/// until that commit is live, so `done` is already past its deployment, whatever its close label still reads.
+pub fn wait_over(item: &Value) -> bool {
+  item["state"] == "done"
 }
 
 // The item numbers a family of rows is kept for, each with its moment.
@@ -669,9 +735,63 @@ pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String
   Ok(())
 }
 
-/// One pass of the alarm: the queue read; each item awaiting a launch, each open item that cannot go and each
-/// draft awaiting approval told to its orderer once; the job service's events told; and an idle queue told to
-/// the owner once, the moments kept.
+/// Each held item every item it waits on has ended told to its orderer, once while it stays held: the told rows
+/// of items no longer held, or no longer naming what they wait on, let go, and a row kept for each told now. An
+/// item waited on that the job service does not answer for ends no wait.
+pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
+  let (Some(service), Some(receiver)) = (JobService::of(vars), Receiver::of(vars)) else {
+    return Ok(());
+  };
+  let fault = |why: Refusal| why.detail;
+  let followers: Vec<Follower> = every_page(&service, "/items", &[("state", "held")])
+    .await?
+    .iter()
+    .filter_map(follower_of)
+    .collect();
+  let standing: BTreeSet<i64> = followers.iter().map(|follower| follower.id).collect();
+  let told = kept_marks(db, WAIT_TOLD_PREFIX, &standing).await?;
+  let mut read: BTreeMap<i64, Option<Value>> = BTreeMap::new();
+
+  for follower in followers.iter().filter(|follower| !told.contains(&follower.id)) {
+    let mut waited = Vec::new();
+
+    for id in &follower.waits_on {
+      if !read.contains_key(id) {
+        read.insert(*id, read_job(&service, &format!("/items/{id}"), &[]).await.ok());
+      }
+
+      waited.push(read[id].clone());
+    }
+
+    let Some(waited) = waited.into_iter().collect::<Option<Vec<Value>>>() else { continue };
+
+    if !waited.iter().all(wait_over) {
+      continue;
+    }
+
+    let orderer = service.orderer_of(&follower.as_item()).await?;
+
+    receiver
+      .instruct(&job_notices::wait_ended(
+        follower.id,
+        &follower.title,
+        &follower.label,
+        &waited,
+        &orderer,
+      ))
+      .await?;
+    settings::set(db, &format!("{WAIT_TOLD_PREFIX}{}", follower.id), &crate::now_ms().to_string())
+      .await
+      .map_err(fault)?;
+    println!("queue: held item #{} waits on nothing more, told to its orderer", follower.id);
+  }
+
+  Ok(())
+}
+
+/// One pass of the alarm: the queue read; each item awaiting a launch, each open item that cannot go, each
+/// draft awaiting approval and each held item whose wait has ended told to its orderer once; the job service's
+/// events told; and an idle queue told to the owner once, the moments kept.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
   let Some(service) = JobService::of(vars) else { return Ok(()) };
   let open = open_items(&service).await?;
@@ -688,6 +808,10 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
 
   if let Err(why) = tell_drafts(db, vars).await {
     eprintln!("queue: a draft awaiting approval was not told: {why}");
+  }
+
+  if let Err(why) = tell_waits(db, vars).await {
+    eprintln!("queue: a held item whose wait has ended was not told: {why}");
   }
 
   if let Err(why) = crate::watches::job_events::pass(db, vars).await {
