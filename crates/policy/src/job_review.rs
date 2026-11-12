@@ -66,6 +66,9 @@ pub struct JobReview {
   /// What a supervisor filing or launching an item that names no agent is answered with: `{item}`, the item it
   /// is for, `{role}` and `{agents}`, the role's agents a line each.
   pub agent_unnamed: String,
+  /// What a supervisor filing or launching an item whose model no agent of its role runs is answered with:
+  /// `{item}`, `{model}`, `{role}` and `{agents}`, the role's agents a line each.
+  pub no_candidate: String,
 }
 
 /// One check a report is examined by.

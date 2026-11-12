@@ -258,3 +258,48 @@ async fn a_filing_s_steps_are_checked_against_the_agent_it_runs_on_and_its_mark_
 
   assert_ne!(steps_check(&ground, &another).await.unwrap().0, mark);
 }
+
+// A filing naming a model and a role is checked against the first agent of the role on that model and names them
+// all; one naming a model no agent of the role runs is refused with the role's agents (docs/repositories.md, 「An
+// agent an item names」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_filing_naming_a_model_is_checked_against_its_candidates_and_refused_where_the_role_has_none() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::ground_on(scratch.db().clone(), home.path());
+
+  crate::support::rows::seats(
+    scratch.db(),
+    "coder",
+    &[
+      ("claude-code", "claude-opus-5"),
+      ("deepseek", "deepseek-flash"),
+      ("claude-code", "claude-opus-5"),
+    ],
+  )
+  .await;
+
+  let (mark, words) = steps_check(&ground, &ask(&[("model", "claude-opus-5"), ("role", "coder")]))
+    .await
+    .unwrap();
+
+  assert!(
+    words.contains("model=claude-opus-5 (coder-01, coder-03)") && words.contains(&mark),
+    "{words}"
+  );
+
+  let lacking = steps_check(&ground, &ask(&[("model", "gpt-5.6-sol"), ("role", "coder")]))
+    .await
+    .unwrap_err();
+  let said = &lacking.error;
+
+  assert_eq!(
+    (lacking.status.as_u16(), lacking.code.as_deref()),
+    (422, Some("no-candidate")),
+    "{said}"
+  );
+  assert!(
+    said.contains("model=gpt-5.6-sol") && said.contains("- coder-02: deepseek/deepseek-flash"),
+    "{said}"
+  );
+}

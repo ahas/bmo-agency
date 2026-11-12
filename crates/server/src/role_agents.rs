@@ -95,6 +95,65 @@ impl RoleAgent {
   pub fn on(&self, provider: &str, model: &str) -> bool {
     self.provider.as_deref() == Some(provider) && self.model.as_deref() == Some(model)
   }
+
+  /// Whether its road runs the model an item's `model` label names (docs/repositories.md, 「An agent an item
+  /// names」): the label is its model as the road names it, or its provider and model as `<provider>/<model>`.
+  /// A model's own name may hold a `/`, so the whole label is matched as a model before it is split.
+  pub fn runs(&self, named: &str) -> bool {
+    let (Some(provider), Some(model)) = (self.provider.as_deref(), self.model.as_deref()) else {
+      return false;
+    };
+
+    model == named || named.split_once('/') == Some((provider, model))
+  }
+
+  /// Whether it is a candidate for an item naming this model in this role, for a launch of this account: switched
+  /// on, of the role and the account, and on a road that runs the model (docs/role-agents.md, 「Which agent a run
+  /// takes」).
+  pub fn candidate_for(&self, role: &str, model: &str, account: Option<&str>) -> bool {
+    self.enabled && self.role == role && self.owner_account.as_deref() == account && self.runs(model)
+  }
+}
+
+/// A role's agents with their roads, as a refusal for a model none of them runs names them: one an agent, its
+/// road, and whether it is switched off.
+pub fn roads_held(role: &str, agents: &[RoleAgent]) -> String {
+  let lines: Vec<String> = agents
+    .iter()
+    .filter(|agent| agent.role == role)
+    .map(|agent| {
+      let road = match (&agent.provider, &agent.model) {
+        (Some(provider), Some(model)) => format!("{provider}/{model}"),
+        _ => "the asking supervisor's road".to_owned(),
+      };
+      let off = if agent.enabled { "" } else { ", switched off" };
+
+      format!("- {}: {road}{off}", agent.name)
+    })
+    .collect();
+
+  if lines.is_empty() {
+    format!("(the {role} role holds no agent)")
+  } else {
+    lines.join("\n")
+  }
+}
+
+/// The candidates of a role for an item naming a model, for a launch of this account, by name
+/// (docs/role-agents.md, 「Which agent a run takes」).
+pub async fn candidates<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  model: &str,
+  account: Option<&str>,
+) -> Result<Vec<RoleAgent>, Fault> {
+  Ok(
+    of_role(db, role)
+      .await?
+      .into_iter()
+      .filter(|agent| agent.candidate_for(role, model, account))
+      .collect(),
+  )
 }
 
 /// Every agent the store holds, by role and then by name.

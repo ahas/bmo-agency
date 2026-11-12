@@ -68,9 +68,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   its repository (`docs/worker-slots.md`, 「The queue with support checkouts」). Jobs on three repositories
   whose role has two agents switched on run two at a time, each in its own repository's checkout on its
   agent's provider and model; the third waits for a slot.
-- **It runs on the road of the agent its item names,** and on no other (「An agent an item names」 below):
-  that agent's provider, model and effort, let in on that agent alone (`docs/role-agents.md`, 「Which agent a
-  run takes」).
+- **It runs on the road of the agent its item names, or its launch takes for its model,** and on no other
+  (「An agent an item names」 below): that agent's provider, model and effort, let in on that agent alone
+  (`docs/role-agents.md`, 「Which agent a run takes」).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
@@ -79,31 +79,44 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 
 ## An agent an item names
 
-- **Every item names the agent its job runs on** with its label `agent=<name>`, an agent of any role as the
-  agency registers it (`docs/role-agents.md`). The supervisor that files the item names it, and may name
-  another before it launches it, choosing from what it has learned of the work and of its agents, unless the
-  owner named one himself; nothing in the agency chooses one for it. The job runs as that agent's role, goes
-  out on that agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it
-  however long its provider cannot answer, never on another agent of the role and never on another road.
-- **A launch naming an agent that is busy is refused** 409 `agent-busy` at once, with the agent and what it
-  carries at work; nothing queues it to start later. An agent whose every job stands in the machine's turn —
-  testing, waiting to test, deploying or waiting for its deployment — is free, and the launch goes through
-  (`docs/role-agents.md`, 「When an agent is busy」). A busy agent's next job is launched by the
-  supervisor once the agent is free, as the queue's notice tells it (`docs/agent-control.md`, 「An item's change
-  is told to its orderer」).
-- **A launch whose item names no agent is refused** 422 `agent-unnamed`, an `agent` label that is `auto` or
-  empty alike, with the agents of the role it would run as and the item's orderer told once
-  (`docs/agent-control.md`, 「An item's change is told to its orderer」). An agent that names no road of its
-  own cannot carry a job, since no supervisor asked it; the launch is refused 422 `agent-names-no-road` with
-  the agent's name. An agent the agency does not register refuses the launch 422 `unknown-agent` with the
-  label's text.
+- **Every item names the agent its job runs on, or the model and the role it runs on.** The label
+  `agent=<name>` names an agent of any role as the agency registers it (`docs/role-agents.md`); the labels
+  `model=<model>` and `role=<role>` name a model and the role whose agents run it. The supervisor that files the
+  item names them, and may change them before it launches it, choosing from what it has learned of the work and
+  of its agents, unless the owner named them himself. The job runs as its agent's role, goes out on that
+  agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it however
+  long its provider cannot answer, never on another agent of the role and never on another road.
+- **An `agent` label stands over a `model` label.** Where an item carries both, the agent it names is the job's
+  and the `model` label is not read.
+- **A model an item names is taken at the launch.** The `model` label names the model as an agent's road names
+  it, `claude-opus-5`, or with its provider before it, `claude-code/claude-opus-5`; the role is the item's
+  `role` label's, else the role a job runs as. The launch takes the first agent by name of that role,
+  switched on, of the launching supervisor's account, whose road runs that model, and free; the choice and the
+  job's writing are one step, so two launches at once take two different agents (`docs/role-agents.md`,
+  「Which agent a run takes」). The agent taken is the job's as if the item had named it: nothing about its agent,
+  role or road changes after the launch.
+- **A launch whose agent is busy is refused** 409 `agent-busy` at once, with the agent and what it carries at
+  work, or, for a model, with every candidate and what each carries; nothing queues it to start later. An
+  agent whose every job stands in the machine's turn — testing, waiting to test, deploying or waiting for its
+  deployment — is free, and the launch goes through (`docs/role-agents.md`, 「When an agent is busy」). A busy
+  agent's next job is launched by the supervisor once the agent, or for a model any candidate, is free, as the
+  queue's notice tells it (`docs/agent-control.md`, 「An item's change is told to its orderer」).
+- **A model no agent of the role runs is refused** 422 `no-candidate`, at the filing (`docs/api.md`,
+  「assignments and jobs」) and at the launch alike, its sentence naming the role, the model and the role's agents
+  with their roads; the item is never launched on another agent in its place, and its orderer is told
+  (`item-no-candidate`, `docs/agent-control.md`, 「An item's change is told to its orderer」).
+- **A launch whose item names neither an agent nor a model is refused** 422 `agent-unnamed`, an `agent` or a
+  `model` label that is `auto` or empty alike, with the agents of the role it would run as and the item's
+  orderer told once (`docs/agent-control.md`, 「An item's change is told to its orderer」). An agent that names
+  no road of its own cannot carry a job, since no supervisor asked it; the launch is refused 422
+  `agent-names-no-road` with the agent's name. An agent the agency does not register refuses the launch 422
+  `unknown-agent` with the label's text.
 - **A role an item names** with its label `role=<name>` must be a role the store holds, and one it does not
-  hold refuses the launch 422 `unknown-role` with the label's text; the agent's own role is the job's role, so
-  the label decides nothing more.
-- **An item's `model` label,** the older word for its provider and model, is not read: the agent the item names
-  carries its road.
-- **What chose a job's provider and model is its item's agent,** which the job says (`chosenBy` `item`,
-  `docs/api.md`, 「assignments and jobs」).
+  hold refuses the launch 422 `unknown-role` with the label's text. Beside an `agent` label the agent's own
+  role is the job's role, so the label decides nothing more; beside a `model` label it is the role the
+  candidates are of.
+- **What chose a job's provider and model is its agent,** named by its item or taken for its item's model,
+  which the job says (`chosenBy` `item`, `docs/api.md`, 「assignments and jobs」).
 
 ## A pinned model
 
@@ -114,7 +127,7 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   whatever role they run as: the run goes out on the pinned provider and model, let in on an agent of its role
   that stands on that road alone, at the effort that agent names. A pin no agent of the role stands on refuses
   the run's slot with the roads the role's agents hold (`docs/role-agents.md`, 「Which agent a run takes」). A
-  job names its agent, whose road it goes out on, so no pin carries a job.
+  job goes out on its agent's road, so no pin carries a job.
 - **A pinned model that is unavailable makes the repository's work wait.** Where the pinned provider has no
   quota, cannot answer now, or the pinned registration's engine is down, the run is
   held with the reason and goes out once the pin can answer again; it never falls back to another

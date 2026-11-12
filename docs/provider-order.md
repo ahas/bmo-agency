@@ -145,10 +145,10 @@ quota is read is `docs/usage-windows.md`.
 
 ## Runs that do not walk their own role's order
 
-- **A job goes out on the road of the agent its item names,** that agent's provider, model and effort, and
-  waits while that road has no quota or cannot answer; nothing falls back (`docs/repositories.md`, 「An agent
-  an item names」). Every job names one, so neither its item's `model` label nor its repository's pin carries a
-  job.
+- **A job goes out on the road of its agent,** the one its item names or its launch took for its item's model,
+  that agent's provider, model and effort, and waits while that road has no quota or cannot answer; nothing
+  falls back (`docs/repositories.md`, 「An agent an item names」). Every job has one from its launch, so no
+  repository's pin carries a job.
 - **A repository's pinned model** carries a run in the repository that names no agent — its worker's session
   or standby — instead of the role's agents' roads, and that run waits while the pin has no quota or cannot
   answer; nothing falls back (`docs/repositories.md`, 「A pinned model」).

@@ -204,7 +204,7 @@ fn a_free_agent_is_offered_its_first_item_a_pass_and_the_next_once_that_one_is_t
 
 #[test]
 fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_its_data() {
-  let told = launch_instruction(&open(2265, Some("w1")), &room(None));
+  let told = launch_instruction(&open(2265, Some("w1")), None, &room(None));
   let order = told["said"]["order"].as_str().unwrap();
 
   assert_eq!(told["room"], Value::Null, "an item naming no room is the owner's private room's");
@@ -214,11 +214,11 @@ fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_its_data() {
   let asked = open(2268, Some("w1"));
 
   assert_eq!(
-    launch_instruction(&asked, &room(room_of(&json!({ "scope": "-9000000000003" }))))["room"],
+    launch_instruction(&asked, None, &room(room_of(&json!({ "scope": "-9000000000003" }))))["room"],
     json!(-9_000_000_000_003_i64)
   );
 
-  let anyone = launch_instruction(&open(2269, None), &room(None));
+  let anyone = launch_instruction(&open(2269, None), None, &room(None));
   let anyone = anyone["said"]["order"].as_str().unwrap();
 
   assert!(anyone.contains(&policy::job_notices::JOB_NOTICES.any_worker), "{anyone}");
@@ -973,4 +973,199 @@ async fn a_held_item_is_told_once_its_wait_ends_and_let_go_once_it_is_no_longer_
   assert_eq!(mark(110).await, None, "no longer held, its mark let go");
   assert!(mark(113).await.is_some(), "still held, its mark kept");
   assert_eq!(ended(&peers).len(), 4, "told once while it stays held");
+}
+
+// A coder agent on a road of Claude Code's, switched on.
+fn coder(name: &str, model: &str) -> agency_server::role_agents::RoleAgent {
+  agency_server::role_agents::RoleAgent {
+    name: name.to_owned(),
+    role: "coder".to_owned(),
+    owner_account: None,
+    provider: Some("claude-code".to_owned()),
+    model: Some(model.to_owned()),
+    effort: None,
+    thinking: None,
+    answer_tokens: None,
+    enabled: true,
+    keeps_cache: false,
+    sessions: Default::default(),
+    fold_ratio: None,
+    prompt: None,
+    bundles: None,
+    skills: None,
+    added_at: 0,
+  }
+}
+
+fn on_model(id: i64, model: &str) -> Open {
+  Open {
+    model: Some(model.to_owned()),
+    role: Some("coder".to_owned()),
+    ..open(id, Some("w1"))
+  }
+}
+
+// Two coders on one model and one on another, those named carrying a run.
+fn coders(open: Vec<Open>, carrying: &[&str]) -> Standing {
+  Standing {
+    agents: vec![coder("coder-a", "opus"), coder("coder-b", "opus"), coder("coder-c", "local")],
+    carrying: carrying.iter().map(|name| (*name).to_owned()).collect(),
+    ..standing(open, &["w1", "w2"])
+  }
+}
+
+#[test]
+fn an_item_naming_a_model_awaits_while_an_agent_of_its_role_on_it_is_free_and_names_the_one_it_would_take()
+{
+  use agency_server::watches::queue_idle::seats;
+
+  let items = vec![on_model(1, "opus")];
+
+  assert!(
+    awaiting_launch(&coders(items.clone(), &["coder-a", "coder-b"])).is_empty(),
+    "every candidate busy"
+  );
+
+  let one_free = coders(items.clone(), &["coder-a"]);
+
+  assert_eq!(awaiting_launch(&one_free), vec![&on_model(1, "opus")]);
+  assert_eq!(seats(&one_free), BTreeMap::from([(1, "coder-b".to_owned())]));
+
+  let told = launch_instruction(&on_model(1, "opus"), Some("coder-b"), &room(None));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert!(
+    order.contains("coder-b") && order.contains("model=opus") && order.contains("coder"),
+    "{order}"
+  );
+  assert_no_instruction(order);
+
+  // An agent label stands over the model: the item waits on that agent alone.
+  let named = Open {
+    agent: Some("coder-c".to_owned()),
+    ..on_model(2, "opus")
+  };
+
+  assert!(awaiting_launch(&coders(vec![named.clone()], &["coder-c"])).is_empty(), "its agent busy");
+  assert_eq!(seats(&coders(vec![named], &["coder-a"])), BTreeMap::from([(2, "coder-c".to_owned())]));
+
+  // Candidates are of the item's own role.
+  let worker = Open {
+    role: Some("worker".to_owned()),
+    ..on_model(3, "opus")
+  };
+
+  assert!(awaiting_launch(&coders(vec![worker], &[])).is_empty(), "no worker runs the model");
+}
+
+#[test]
+fn free_agents_of_one_model_are_offered_different_items_and_one_free_agent_its_items_one_at_a_time() {
+  use agency_server::watches::queue_idle::seats;
+
+  let items = vec![on_model(6, "opus"), on_model(5, "opus")];
+  let seen = BTreeMap::from([(5, 0), (6, 0)]);
+  let both = coders(items.clone(), &[]);
+
+  assert_eq!(seats(&both), BTreeMap::from([(5, "coder-a".to_owned()), (6, "coder-b".to_owned())]));
+  assert_eq!(launches_due(&both, &seen, &BTreeMap::new(), MINUTE).len(), 2, "one item a free agent");
+
+  let one = coders(items, &["coder-b"]);
+
+  assert_eq!(
+    launches_due(&one, &seen, &BTreeMap::new(), MINUTE),
+    vec![&on_model(5, "opus")],
+    "the first in the queue's order"
+  );
+  assert_eq!(
+    launches_due(&one, &seen, &BTreeMap::from([(5, 0)]), MINUTE),
+    vec![&on_model(6, "opus")],
+    "the next once the first is told and the agent still free"
+  );
+}
+
+#[test]
+fn an_item_naming_a_model_no_agent_of_its_role_runs_has_no_candidate() {
+  use agency_server::role_agents::roads_held;
+  use agency_server::watches::queue_idle::without_candidate;
+
+  let named = Open {
+    agent: Some("coder-a".to_owned()),
+    ..on_model(3, "gpt")
+  };
+  let mut held = coders(vec![on_model(1, "gpt"), on_model(2, "opus"), named, on_model(4, "local")], &[]);
+
+  held.agents[2].enabled = false;
+
+  assert_eq!(
+    without_candidate(&held),
+    vec![&on_model(1, "gpt"), &on_model(4, "local")],
+    "none, or switched off"
+  );
+  assert!(!awaiting_launch(&held).contains(&&on_model(1, "gpt")));
+
+  let roads = roads_held("coder", &held.agents);
+
+  assert!(roads.contains("- coder-a: claude-code/opus\n"), "{roads}");
+  assert!(roads.contains("- coder-c: claude-code/local, switched off"), "{roads}");
+}
+
+#[tokio::test]
+async fn an_item_whose_model_no_agent_runs_is_told_once_and_let_go_once_an_agent_runs_it() {
+  use agency_server::watches::queue_idle::NO_CANDIDATE_TOLD_PREFIX;
+
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  crate::support::rows::seats(db, "worker", &[("deepseek", "deepseek-flash")]).await;
+  peers.lock().unwrap().queues = vec![json!({ "name": "todo", "state": "open", "holds": [] })];
+  peers.lock().unwrap().items.insert(
+    96,
+    item(
+      96,
+      "open",
+      json!({ "scope": "-9600", "labels": { "model": "rare-model", "role": "worker" } }),
+    ),
+  );
+
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  let told: Vec<(String, Value)> = kinds(&peers)
+    .into_iter()
+    .filter(|(kind, _)| kind.starts_with("item-no-candidate"))
+    .collect();
+
+  assert_eq!(told, vec![("item-no-candidate:96".to_owned(), json!(-9600))], "told once, in its room");
+
+  let order = peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .find(|body| body["kind"] == "item-no-candidate:96")
+    .unwrap()["said"]["order"]
+    .as_str()
+    .unwrap_or_default()
+    .to_owned();
+
+  assert!(
+    order.contains("model=rare-model") && order.contains("the worker role:\n- worker-01"),
+    "{order}"
+  );
+  assert_no_instruction(&order);
+
+  // An agent of the role moved onto the model: the mark is let go.
+  scratch
+    .run(r#"UPDATE "role_agents" SET "provider" = 'claude-code', "model" = 'rare-model' WHERE "name" = 'worker-01'"#, vec![])
+    .await;
+  pass(db, &vars).await.unwrap();
+  assert!(
+    agency_server::queue::settings::get(db, &format!("{NO_CANDIDATE_TOLD_PREFIX}96"))
+      .await
+      .unwrap()
+      .is_none()
+  );
 }

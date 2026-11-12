@@ -20,6 +20,8 @@ use crate::Refusal;
 use crate::job_notices::{self, Receiver};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
+use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL, named_by};
+use crate::role_agents::RoleAgent;
 
 pub use crate::queue::orderer::{RAISED_BY, parent_of, room_of};
 
@@ -41,6 +43,8 @@ pub const UNLAUNCHABLE_TOLD_PREFIX: &str = "queue_unlaunchable_told:";
 /// The settings rows, one an item by its number, of the `agent` label whose refused launch the orderer was
 /// told of.
 pub const AGENT_TOLD_PREFIX: &str = "queue_agent_told:";
+/// The settings rows, one an item by its number, of the role and the model the orderer was told no agent runs.
+pub const NO_CANDIDATE_TOLD_PREFIX: &str = "queue_no_candidate_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the draft awaits approval.
 pub const DRAFT_TOLD_PREFIX: &str = "queue_draft_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the held item's wait has ended.
@@ -55,6 +59,11 @@ pub struct Open {
   pub assignee: Option<String>,
   /// The agent its `agent` label names, where it names one: its job waits for that agent alone.
   pub agent: Option<String>,
+  /// The model its `model` label names, where it names one: with no agent named, its job waits for a free agent
+  /// of its role on that model.
+  pub model: Option<String>,
+  /// The role its `role` label names, where it names one.
+  pub role: Option<String>,
   /// Its priority in its queue, the higher first.
   pub priority: i64,
   /// Its place in its queue among items of one priority, the lower first.
@@ -72,12 +81,28 @@ pub struct Open {
 impl Open {
   /// The item as the orderer's resolver reads it.
   pub fn as_item(&self) -> Value {
-    json!({ "id": self.id, "roomId": self.room, "raisedBy": self.parent })
+    json!({ "id": self.id, "title": self.title, "roomId": self.room, "raisedBy": self.parent })
+  }
+
+  /// The role its job runs as: its `role` label's, else the role a job runs as.
+  pub fn role(&self) -> &str {
+    self.role.as_deref().unwrap_or_else(|| crate::agent_roles::job_role())
+  }
+
+  /// The model its job is to take an agent for: its `model` label's where no `agent` label names one
+  /// (docs/repositories.md, 「An agent an item names」).
+  pub fn asked_model(&self) -> Option<&str> {
+    self.model.as_deref().filter(|_| self.agent.is_none())
+  }
+
+  // Its place in the queue's order: the highest priority, then the earliest place, then the lowest number.
+  fn place(&self) -> (std::cmp::Reverse<i64>, i64, i64) {
+    (std::cmp::Reverse(self.priority), self.position, self.id)
   }
 }
 
 /// What the queue stands at as one pass reads it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Standing {
   /// The open items in the queues that take leases.
   pub open: Vec<Open>,
@@ -90,6 +115,8 @@ pub struct Standing {
   /// The agents busy now: a job or a slot carries a run at work on them (docs/role-agents.md, 「When an agent is
   /// busy」).
   pub carrying: Vec<String>,
+  /// Every agent the store holds, by role and then by name.
+  pub agents: Vec<RoleAgent>,
   /// When the last job started, in epoch milliseconds, where one has.
   pub last_start: Option<i64>,
   /// When the owner was last told, in epoch milliseconds, where he was.
@@ -100,6 +127,25 @@ pub struct Standing {
   pub minutes: i64,
 }
 
+impl Standing {
+  /// The agents of a role, switched on, whose road runs a model, by name: the candidates of an item naming that
+  /// model (docs/role-agents.md, 「Which agent a run takes」).
+  pub fn candidates<'a>(&'a self, role: &'a str, model: &'a str) -> impl Iterator<Item = &'a RoleAgent> {
+    self
+      .agents
+      .iter()
+      .filter(move |agent| agent.enabled && agent.role == role && agent.runs(model))
+  }
+
+  /// The candidates of a role for a model that carry no run now.
+  pub fn free_candidates<'a>(&'a self, role: &'a str, model: &'a str) -> impl Iterator<Item = &'a str> {
+    self
+      .candidates(role, model)
+      .map(|agent| agent.name.as_str())
+      .filter(|name| !self.carrying.iter().any(|busy| busy == name))
+  }
+}
+
 /// The open items a free checkout could take: those going to a free checkout, and those naming none while one
 /// is free.
 pub fn waiting(standing: &Standing) -> Vec<&Open> {
@@ -107,7 +153,8 @@ pub fn waiting(standing: &Standing) -> Vec<&Open> {
 }
 
 /// The open items awaiting a launch: those whose own assignee is a free checkout, and those naming none while
-/// any checkout is free; an item whose `agent` label names an agent carrying a run waits on that agent instead.
+/// any checkout is free; an item whose `agent` label names an agent carrying a run waits on that agent instead,
+/// and one naming a model and no agent waits until one agent of its role on that model is free.
 pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
   standing
     .open
@@ -116,7 +163,59 @@ pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
       Some(worker) => standing.free.contains(worker),
       None => !standing.free.is_empty(),
     })
-    .filter(|item| item.agent.as_ref().is_none_or(|agent| !standing.carrying.contains(agent)))
+    .filter(|item| match (&item.agent, item.asked_model()) {
+      (Some(agent), _) => !standing.carrying.contains(agent),
+      (None, Some(model)) => standing.free_candidates(item.role(), model).next().is_some(),
+      (None, None) => true,
+    })
+    .collect()
+}
+
+/// The agent each item awaiting a launch waits to go on, by the item's number: the agent its `agent` label names;
+/// for an item naming a model, going through the items in the queue's order, the first of its free candidates by
+/// name that no item before it is set on, else the first of them, so free agents of one model are offered
+/// different items at once. An item naming neither waits on no agent.
+pub fn seats(standing: &Standing) -> BTreeMap<i64, String> {
+  let mut awaiting = awaiting_launch(standing);
+  let mut set: BTreeMap<i64, String> = BTreeMap::new();
+
+  awaiting.sort_by_key(|item| item.place());
+
+  for item in awaiting {
+    let seat = match (&item.agent, item.asked_model()) {
+      (Some(agent), _) => Some(agent.as_str()),
+      (None, Some(model)) => {
+        let free: Vec<&str> = standing.free_candidates(item.role(), model).collect();
+
+        free
+          .iter()
+          .find(|name| !set.values().any(|taken| taken == *name))
+          .or(free.first())
+          .copied()
+      }
+      (None, None) => None,
+    };
+
+    if let Some(seat) = seat {
+      set.insert(item.id, seat.to_owned());
+    }
+  }
+
+  set
+}
+
+/// The open items naming a model, and no agent, that no agent of their role switched on runs, so no launch
+/// takes them (docs/repositories.md, 「An agent an item names」).
+pub fn without_candidate(standing: &Standing) -> Vec<&Open> {
+  standing
+    .open
+    .iter()
+    .chain(&standing.paused)
+    .filter(|item| {
+      item
+        .asked_model()
+        .is_some_and(|model| standing.candidates(item.role(), model).next().is_none())
+    })
     .collect()
 }
 
@@ -145,11 +244,12 @@ pub fn launches_due<'a>(
   }
 
   let awaiting = awaiting_launch(standing);
-  let mut offered: BTreeSet<String> = awaiting
+  let seats = seats(standing);
+  let mut offered: BTreeSet<&String> = awaiting
     .iter()
-    .filter_map(|item| Some((item.agent.as_ref()?, told.get(&item.id)?)))
+    .filter_map(|item| Some((seats.get(&item.id)?, told.get(&item.id)?)))
     .filter(|(_, at)| now - **at < QUEUE_IDLE.next_offer_seconds * 1000)
-    .map(|(agent, _)| agent.clone())
+    .map(|(agent, _)| agent)
     .collect();
   let mut due: Vec<&Open> = awaiting
     .into_iter()
@@ -157,15 +257,16 @@ pub fn launches_due<'a>(
     .filter(|item| seen.get(&item.id).is_some_and(|since| now - since >= QUEUE_IDLE.launch_seconds * 1000))
     .collect();
 
-  due.sort_by_key(|item| (std::cmp::Reverse(item.priority), item.position, item.id));
-  due.retain(|item| item.agent.as_ref().is_none_or(|agent| offered.insert(agent.clone())));
+  due.sort_by_key(|item| item.place());
+  due.retain(|item| seats.get(&item.id).is_none_or(|agent| offered.insert(agent)));
   due
 }
 
-/// The instruction an item awaiting a launch is queued with for its orderer.
-pub fn launch_instruction(item: &Open, orderer: &Orderer) -> Value {
+/// The instruction an item awaiting a launch is queued with for its orderer: for an item naming a model, with
+/// the agent `seat` names, the one a launch would take.
+pub fn launch_instruction(item: &Open, seat: Option<&str>, orderer: &Orderer) -> Value {
   let number = item.id.to_string();
-  let order = fill_marks(
+  let mut order = fill_marks(
     &QUEUE_IDLE.launch_order,
     &[
       ("item", &number),
@@ -173,6 +274,13 @@ pub fn launch_instruction(item: &Open, orderer: &Orderer) -> Value {
       ("worker", item.assignee.as_deref().unwrap_or(&JOB_NOTICES.any_worker)),
     ],
   );
+
+  if let (Some(model), Some(agent)) = (item.asked_model(), seat) {
+    order.push_str(&fill_marks(
+      &QUEUE_IDLE.launch_seat,
+      &[("agent", agent), ("role", item.role()), ("model", model)],
+    ));
+  }
 
   job_notices::instruction(
     "item-awaits-launch",
@@ -408,11 +516,13 @@ pub async fn tell_launches(
   kept_marks(db, LAUNCH_TOLD_PREFIX, &awaiting).await?;
 
   let told = marks(db, LAUNCH_TOLD_PREFIX).await.map_err(fault)?;
+  let seats = seats(standing);
 
   for item in launches_due(standing, &seen, &told, now) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
+    let seat = seats.get(&item.id).map(String::as_str);
 
-    receiver.instruct(&launch_instruction(item, &orderer)).await?;
+    receiver.instruct(&launch_instruction(item, seat, &orderer)).await?;
     settings::set(db, &format!("{LAUNCH_TOLD_PREFIX}{}", item.id), &now.to_string())
       .await
       .map_err(fault)?;
@@ -472,7 +582,63 @@ pub async fn tell_stuck(
     );
   }
 
+  let lacking = without_candidate(standing);
+  let lacking_ids: BTreeSet<i64> = lacking.iter().map(|item| item.id).collect();
+
+  for id in settings::named(db, NO_CANDIDATE_TOLD_PREFIX).await.map_err(fault)? {
+    if id.parse::<i64>().is_ok_and(|id| !lacking_ids.contains(&id)) {
+      settings::forget(db, &format!("{NO_CANDIDATE_TOLD_PREFIX}{id}")).await.map_err(fault)?;
+    }
+  }
+
+  for item in lacking {
+    let (role, model) = (item.role(), item.asked_model().unwrap_or_default());
+    let agents = crate::role_agents::roads_held(role, &standing.agents);
+
+    tell_no_candidate(db, vars, item.id, &item.as_item(), role, model, &agents).await?;
+  }
+
   Ok(())
+}
+
+/// An item whose model no agent of its role runs told to its orderer, once for that role and model
+/// (docs/agent-control.md, 「An item's change is told to its orderer」): the role and the model told are kept by
+/// the item, so the same pair is not told again and another one is. `item` carries its title and what its
+/// orderer is found by. Answers whether it was told now.
+pub async fn tell_no_candidate(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  id: i64,
+  item: &Value,
+  role: &str,
+  model: &str,
+  agents: &str,
+) -> Result<bool, String> {
+  let Some(receiver) = Receiver::of(vars) else { return Ok(false) };
+  let fault = |why: Refusal| why.detail;
+  let key = format!("{NO_CANDIDATE_TOLD_PREFIX}{id}");
+  let pair = format!("{role} {model}");
+
+  if settings::get(db, &key).await.map_err(fault)?.as_deref() == Some(pair.as_str()) {
+    return Ok(false);
+  }
+
+  let mut item = item.clone();
+
+  item["id"] = json!(id);
+
+  let orderer = orderer(JobService::of(vars).as_ref(), &item).await?;
+  let title = item["title"].as_str().unwrap_or_default();
+
+  receiver
+    .instruct(&job_notices::no_candidate(id, title, role, model, agents, &orderer))
+    .await?;
+  settings::set(db, &key, &pair).await.map_err(fault)?;
+  println!(
+    "queue: item #{id} names model={model} for the {role} role, which no agent runs, told to its orderer"
+  );
+
+  Ok(true)
 }
 
 /// An item whose launch was refused for its `agent` label told to its orderer, once for that label
@@ -512,6 +678,13 @@ pub async fn tell_agent_refused(
 pub async fn agent_told_let_go(db: &DatabaseConnection, id: i64) {
   if let Err(why) = settings::forget(db, &format!("{AGENT_TOLD_PREFIX}{id}")).await {
     eprintln!("queue: the told mark of item #{id}'s agent was not let go: {}", why.detail);
+  }
+}
+
+/// The mark of an item's model told as having no candidate let go, as a job of the item is launched.
+pub async fn no_candidate_told_let_go(db: &DatabaseConnection, id: i64) {
+  if let Err(why) = settings::forget(db, &format!("{NO_CANDIDATE_TOLD_PREFIX}{id}")).await {
+    eprintln!("queue: the told mark of item #{id}'s model was not let go: {}", why.detail);
   }
 }
 
@@ -593,6 +766,8 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
 
   carrying.extend(crate::role_agents::busy_any(db).await?);
 
+  let agents = crate::role_agents::every(db).await?;
+
   let workers = crate::queue::workers::workers(db, std::path::Path::new("")).await?;
   let known = workers.iter().map(|worker| worker.name.clone()).collect();
   let free = workers
@@ -610,6 +785,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     free,
     known,
     carrying,
+    agents,
     last_start,
     told: setting_number(db, TOLD_KEY).await?,
     silenced: settings::get(db, SWITCH_KEY).await?.is_some_and(|value| value.trim() == "off"),
@@ -690,11 +866,9 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
           id: item["id"].as_i64()?,
           title: item["title"].as_str().unwrap_or_default().to_owned(),
           assignee: item["assigneeName"].as_str().filter(|name| !name.is_empty()).map(str::to_owned),
-          agent: item["labels"]["agent"]
-            .as_str()
-            .map(str::trim)
-            .filter(|name| !name.is_empty() && *name != crate::repositories::AUTO)
-            .map(str::to_owned),
+          agent: named_by(&item["labels"], AGENT_LABEL).map(str::to_owned),
+          model: named_by(&item["labels"], MODEL_LABEL).map(str::to_owned),
+          role: named_by(&item["labels"], ROLE_LABEL).map(str::to_owned),
           priority: item["priority"].as_i64().unwrap_or_default(),
           position: item["position"].as_i64().unwrap_or_default(),
           room: room_of(item),

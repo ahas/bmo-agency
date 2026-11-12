@@ -98,41 +98,73 @@ fn skill_line(skills: &std::path::Path, name: &str) -> String {
   }
 }
 
-/// The agent an item is filed for, which its `agent` label names (docs/repositories.md, 「An agent an item
-/// names」): a filing that names none, or `auto`, is refused 409 `agent-unnamed` with the agents of the role it
-/// would run as — its `role` label's, else the role a job runs as — so the supervisor names one from what it has
-/// learned; one the agency does not register is refused 422 `unknown-agent`.
+/// The agent an item is filed for, and what the steps check calls it by (docs/repositories.md, 「An agent an item
+/// names」): the agent its `agent` label names, which stands over a `model` label; else, for the model its `model`
+/// label names, the first by name of the agents of the role it would run as — its `role` label's, else the role a
+/// job runs as — switched on, of the filing supervisor's account and running that model, called by the role, the
+/// model and every such agent. A filing naming neither, or `auto`, is refused 409 `agent-unnamed` with the agents
+/// of that role so the supervisor names one from what it has learned; an agent the agency does not register is
+/// refused 422 `unknown-agent`, and a model no agent of the role runs 422 `no-candidate` with the role's agents.
 pub async fn filed_agent(
   ground: &Ground,
   ask: &ItemFilingAsk,
-) -> Result<crate::role_agents::RoleAgent, Refused> {
+) -> Result<(crate::role_agents::RoleAgent, String), Refused> {
   let label = given(ask.labels.get("agent")).filter(|name| *name != crate::repositories::AUTO);
-  let Some(name) = label else {
-    let role = given(ask.labels.get("role"))
-      .unwrap_or_else(|| crate::agent_roles::job_role())
-      .to_owned();
+  let model = given(ask.labels.get("model")).filter(|model| *model != crate::repositories::AUTO);
+  let role = given(ask.labels.get("role"))
+    .filter(|role| *role != crate::repositories::AUTO)
+    .unwrap_or_else(|| crate::agent_roles::job_role())
+    .to_owned();
+
+  if let Some(name) = label {
+    let agent = crate::role_agents::named(&ground.db, name).await?.ok_or_else(|| {
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("The item names agent={name}, which is no agent the agency registers"),
+      )
+      .with_code("unknown-agent")
+    })?;
+    let called = agent.name.clone();
+
+    return Ok((agent, called));
+  }
+
+  let Some(model) = model else {
     let agents = crate::role_agents::listing(&ground.db, &role).await?;
     let sentence =
       fill_marks(&JOB_REVIEW.agent_unnamed, &[("item", "The item"), ("role", &role), ("agents", &agents)]);
 
     return Err(Refused::new(StatusCode::CONFLICT, sentence).with_code("agent-unnamed"));
   };
+  let account = crate::supervisors::named(&ground.db, &ask.agent_name)
+    .await?
+    .and_then(|supervisor| supervisor.owner_account)
+    .map(|account| account.to_string());
+  let candidates = crate::role_agents::candidates(&ground.db, &role, model, account.as_deref()).await?;
+  let names: Vec<&str> = candidates.iter().map(|agent| agent.name.as_str()).collect();
+  let called = format!("a free agent of the {role} role on model={model} ({})", names.join(", "));
 
-  crate::role_agents::named(&ground.db, name).await?.ok_or_else(|| {
-    Refused::new(
-      StatusCode::UNPROCESSABLE_ENTITY,
-      format!("The item names agent={name}, which is no agent the agency registers"),
-    )
-    .with_code("unknown-agent")
-  })
+  match candidates.into_iter().next() {
+    Some(first) => Ok((first, called)),
+    None => {
+      let agents = crate::role_agents::listing(&ground.db, &role).await?;
+      let sentence = fill_marks(
+        &JOB_REVIEW.no_candidate,
+        &[("item", "The item"), ("model", model), ("role", &role), ("agents", &agents)],
+      );
+
+      Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, sentence).with_code("no-candidate"))
+    }
+  }
 }
 
 /// What an item's steps are checked against before it is filed (docs/job-review.md, 「Stages」): the agent its
-/// labels name, refused where they name none (「filed_agent」); the skills and the tools that agent holds; and
-/// the mark a filing that checked them names, read off the item and that agent alone, so the steps may change
-/// between the two filings. Answers the mark and the words the supervisor is told.
+/// labels name, or the first candidate for the model they name, refused where they name neither (「filed_agent」);
+/// the skills and the tools that agent holds; and the mark a filing that checked them names, read off the item
+/// and what the agent is called by alone, so the steps may change between the two filings. Answers the mark and
+/// the words the supervisor is told.
 pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String, String), Refused> {
-  let agent = filed_agent(ground, ask).await?;
+  let (agent, called) = filed_agent(ground, ask).await?;
   let role_name = agent.role.clone();
   let role = crate::agent_roles::named(&ground.db, &role_name).await?;
   let trees = Trees::of(ground);
@@ -169,15 +201,13 @@ pub async fn steps_check(ground: &Ground, ask: &ItemFilingAsk) -> Result<(String
   let skill_lines = listed(skills.iter().map(|name| skill_line(&skills_dir, name)).collect());
   let tool_lines =
     listed(bundles.iter().map(|bundle| format!("- {}", ROLES.bundle_label(bundle))).collect());
-  let agent_name = agent.name.clone();
-  let digest =
-    Sha256::digest(format!("{}\n{}\n{agent_name}\n{role_name}", ask.title.trim(), ask.brief.trim()));
+  let digest = Sha256::digest(format!("{}\n{}\n{called}\n{role_name}", ask.title.trim(), ask.brief.trim()));
   let mark = format!("{digest:x}")[..12].to_owned();
   let words = fill_marks(
     &JOB_REVIEW.steps_check,
     &[
       ("role", &role_name),
-      ("agent", &agent_name),
+      ("agent", &called),
       ("skills", &skill_lines),
       ("tools", &tool_lines),
       ("mark", &mark),

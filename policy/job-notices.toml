@@ -9,6 +9,9 @@ any_worker = "any free checkout"
 paused_order = "Item #{item} ({title}) is open in the queue {queue}, which is paused or under a hold and gives no lease."
 unlaunchable_order = "Item #{item} ({title}) names {assignee} as its repository, which no checkout agency holds is of."
 agent_order = "Item #{item} ({title}) carries the label agent={label}, and its launch was refused: {why}"
+# An open item whose model no agent of its role that is switched on runs: `{item}`, `{title}`, `{model}`,
+# `{role}` and `{agents}`, the role's agents with their roads a line each.
+no_candidate_order = "Item #{item} ({title}) names model={model} for the {role} role, and no agent of that role that is switched on runs that model. The agents of the {role} role:\n{agents}"
 moved_order = "Item #{item} ({title}) is now {state}{merged} while its job {job} still runs on {worker}."
 closed_order = "Item #{item} ({title}) was closed as done by {by}."
 # The labels a held item names what it waits on with, one item's number or several separated by commas; and

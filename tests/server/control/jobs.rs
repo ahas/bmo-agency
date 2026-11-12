@@ -248,7 +248,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
 
   // An item naming no agent, or `auto`, is refused before any road is asked, nothing written and the assignment
   // left held, its sentence listing the agents of the role it would run as for its supervisor to name one.
-  for labels in [json!({}), json!({ "agent": "auto" }), json!({ "model": "claude-code/claude-opus-5" })] {
+  for labels in [json!({}), json!({ "agent": "auto" }), json!({ "agent": "auto", "model": "auto" })] {
     let (status, refused) = post(
       port,
       token,
@@ -981,4 +981,127 @@ async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_
   let (status, launched) = run_job(port, token, third["id"].as_i64().unwrap(), 83, item()).await;
 
   assert_eq!(status, 201, "{launched}");
+}
+
+// A checkout of a repository of its own, and an assignment held on it for the item.
+async fn assigned_in(
+  port: u16,
+  token: &str,
+  home: &std::path::Path,
+  db: &sea_orm::DatabaseConnection,
+  item_id: i64,
+) -> i64 {
+  let name = format!("helper-{item_id}");
+
+  std::fs::create_dir_all(home.join(&name)).unwrap();
+  repository(db, &name, &home.join(&name).to_string_lossy(), &[]).await;
+
+  let (status, assignment) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": item_id, "holderName": "harness", "assigneeName": name, "item": item() }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{assignment}");
+  assignment["id"].as_i64().unwrap()
+}
+
+fn item_labelled(labels: Value) -> Value {
+  json!({ "title": "A harmless item", "brief": "Answer that nothing is to be done.", "notes": [], "labels": labels })
+}
+
+// An item naming a model and a role takes, at its launch, the first free agent of that role on that model, two
+// launches at once taking two different agents; with every such agent busy it is refused and nothing waits to
+// start it, an agent whose jobs all stand in the machine's turn counting as free; an `agent` label stands over
+// the model; and a model no agent of the role runs is refused with the role's agents (docs/repositories.md, 「An
+// agent an item names」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_naming_a_model_takes_a_free_agent_of_its_role_on_that_model() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  crate::support::rows::seats(
+    scratch.db(),
+    "worker",
+    &[
+      ("claude-code", "claude-opus-5"),
+      ("claude-code", "claude-opus-5"),
+      ("claude-code", "claude-sonnet-5"),
+    ],
+  )
+  .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let db = scratch.db();
+  let on_model = |model: &str| item_labelled(json!({ "model": model, "role": "worker" }));
+  let jobs_of = async |item: i64| {
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "jobs" WHERE "item_id" = $1"#, vec![item.into()])
+      .await
+  };
+
+  // A model no agent of the role runs: refused, naming the role's agents and their roads, nothing written.
+  let lacking = assigned_in(port, token, home.path(), db, 70).await;
+  let (status, refused) = run_job(port, token, lacking, 70, on_model("gpt-5.6-sol")).await;
+  let why = refused["error"].as_str().unwrap_or_default();
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("no-candidate")), "{refused}");
+  assert!(why.contains("model=gpt-5.6-sol") && why.contains("the worker role"), "{why}");
+  assert!(why.contains("- worker-03: claude-code/claude-sonnet-5"), "{why}");
+  assert_eq!(jobs_of(70).await, 0);
+  assert_eq!(get(port, token, &format!("/assignments/{lacking}")).await.1["state"], "held");
+
+  // Two launches at once on a model two agents run, no Claude login open so each job waits on its agent: each
+  // takes one.
+  let (first, second) = (
+    assigned_in(port, token, home.path(), db, 71).await,
+    assigned_in(port, token, home.path(), db, 72).await,
+  );
+  let (one, two) = tokio::join!(
+    run_job(port, token, first, 71, on_model("claude-opus-5")),
+    run_job(port, token, second, 72, on_model("claude-opus-5")),
+  );
+
+  assert_eq!((one.0, two.0), (201, 201), "{} {}", one.1, two.1);
+
+  let mut taken = [one.1["agentName"].clone(), two.1["agentName"].clone()];
+
+  taken.sort_by_key(|name| name.to_string());
+  assert_eq!(taken, [json!("worker-01"), json!("worker-02")]);
+
+  // Every agent on the model busy, in its provider's spelling too: refused naming each, nothing waits.
+  let third = assigned_in(port, token, home.path(), db, 73).await;
+  let (status, refused) = run_job(port, token, third, 73, on_model("claude-code/claude-opus-5")).await;
+  let why = refused["error"].as_str().unwrap_or_default();
+
+  assert_eq!((status, refused["code"].as_str()), (409, Some("agent-busy")), "{refused}");
+  assert!(
+    why.contains("worker-01, which carries job") && why.contains("worker-02, which carries job"),
+    "{why}"
+  );
+  assert_eq!(jobs_of(73).await, 0);
+  assert_eq!(get(port, token, &format!("/assignments/{third}")).await.1["state"], "held");
+
+  // An agent label stands over the model: the agent it names is taken though no agent on the model is free.
+  let named = item_labelled(json!({ "agent": "worker-03", "model": "claude-opus-5", "role": "worker" }));
+  let (status, launched) = run_job(port, token, third, 73, named).await;
+
+  assert_eq!((status, launched["agentName"].as_str()), (201, Some("worker-03")), "{launched}");
+
+  // An agent whose every job stands in the machine's turn is free for the model's next item.
+  scratch
+    .run(r#"UPDATE "jobs" SET "machine_turn" = true WHERE "item_agent" = 'worker-02'"#, vec![])
+    .await;
+
+  let fourth = assigned_in(port, token, home.path(), db, 74).await;
+  let (status, launched) = run_job(port, token, fourth, 74, on_model("claude-opus-5")).await;
+
+  assert_eq!((status, launched["agentName"].as_str()), (201, Some("worker-02")), "{launched}");
 }

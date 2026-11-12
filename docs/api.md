@@ -1196,8 +1196,8 @@ by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that 
 the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
-- **A job names the agent that does its work** as `agentName`, the agent its item's `agent` label named, none for
-  a job launched before items named one; its log's lines stand under that name (`docs/run-records.md`,
+- **A job names the agent that does its work** as `agentName`, the agent its item's `agent` label named or the
+  one its launch took for its item's `model` label, none for a job launched before items named one; its log's lines stand under that name (`docs/run-records.md`,
   「Agent log」).
 - **A job and an assignment name where they run twice:** `workerName`, the checkout — the repository's base,
   a support worktree or a checkout on a node — and `repositoryName`, the repository that checkout is of, or
@@ -1267,16 +1267,20 @@ service.
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
     tells the orderer of each such draft once (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - an agent carrying no turn now files no item: 409 `no-turn`;
-  - **it names its agent** (`docs/repositories.md`, 「An agent an item names」): a call whose `agent` label is
-    missing, empty or `auto` is refused 409 `agent-unnamed`, nothing filed, its sentence listing the agents of
-    the role it would run as — its `role` label's, else the role a job runs as —, each with its road and
-    whether it is free or carries a run, and asking the supervisor to name one from what it has learned; an
-    agent the agency does not register is refused 422 `unknown-agent`;
+  - **it names its agent, or a model and a role** (`docs/repositories.md`, 「An agent an item names」): a call
+    whose `agent` and `model` labels are both missing, empty or `auto` is refused 409 `agent-unnamed`, nothing
+    filed, its sentence listing the agents of the role it would run as — its `role` label's, else the role a
+    job runs as —, each with its road and whether it is free or carries a run, and asking the supervisor to
+    name one from what it has learned; an agent the agency does not register is refused 422 `unknown-agent`;
+    a call naming a model and no agent is filed only where that role holds an agent switched on, of the
+    filing supervisor's account, whose road runs the model, and is otherwise refused 422 `no-candidate`,
+    nothing filed, its sentence naming the role, the model and the role's agents with their roads;
   - **its steps are checked before it is filed** (`docs/job-review.md`, 「Stages」): a call whose
     `stepsCheck` is not the mark the check answers is refused 409 `steps-unchecked`, nothing filed, its
     sentence naming the agent the item runs on, the skills and the tools that agent holds, what the steps are
-    checked against and the mark. The mark is read off the item's title and brief and that agent alone, so
-    the steps may change before the call that names it;
+    checked against and the mark; an item naming a model is checked against the first of its candidates by
+    name, its sentence naming them all. The mark is read off the item's title and brief and that agent, or
+    the role and the model, alone, so the steps may change before the call that names it;
   - `steps`, where it names any, are the stages the item's job runs in (`docs/job-review.md`, 「Stages」):
     once the item is raised, its work order is saved in the job service with the item's title as its purpose,
     its brief as its directive and these steps, `saved` (`PUT /items/{itemId}/work-order`); a work order the
@@ -1391,9 +1395,16 @@ service.
   the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a job's run reads the brain only through what the gate picked here.
-- **A job goes out on the road of the agent its item names** (`docs/repositories.md`, 「An agent an item
-  names」), let in on that agent alone. The item's `agent` label is read off the item `POST /jobs` is handed,
-  its `labels`: an item that names none, or names `auto`, refuses the launch 422 `agent-unnamed`, the sentence
+- **A job goes out on the road of the agent its item names, or its launch takes for its item's model**
+  (`docs/repositories.md`, 「An agent an item names」), let in on that agent alone. The item's `agent`, `model`
+  and `role` labels are read off the item `POST /jobs` is handed, its `labels`. An item naming a model and no
+  agent takes the first agent by name of its role, switched on, of the holder's account, whose road runs the
+  model, and free, chosen in the same transaction that writes the job with every candidate's row held, so two
+  launches at once take two different agents; where every candidate is busy it is refused 409 `agent-busy`,
+  its sentence naming each candidate and what it carries, and where none exists 422 `no-candidate`, its
+  sentence naming the role, the model and the role's agents with their roads, told to the item's orderer
+  (`item-no-candidate`). An item that names neither an agent nor a model, or names `auto`, refuses the launch
+  422 `agent-unnamed`, the sentence
   naming the role it would run as and listing that role's agents, each with its road and whether it is free,
   so the supervisor names one and launches again; an agent the agency does not register refuses it 422
   `unknown-agent`, and one that names no road 422 `agent-names-no-road`. A refusal writes nothing and leaves
@@ -1403,8 +1414,8 @@ service.
   refused 409 `agent-busy` at once, its sentence naming the agent and the job or run it carries at work, an
   agent whose every job stands in the machine's turn being free: nothing is written,
   the assignment stays held, and no request waits to start it later. The orderer is told once the agent is
-  free (`item-awaits-launch`), and launches it then. The item's `model` label is not read. The job answers
-  `chosenBy` `item`, its agent having
+  free (`item-awaits-launch`), and launches it then. An item's `model` label beside an `agent` label is not
+  read. The job answers `chosenBy` `item`, its agent having
   chosen its provider and model; a job row that holds `forced`, `pin` or `order` answers it as it stands, and
   no job is given one now.
 - **A job is never refused for quota:** where its agent's road has no quota or cannot answer, `POST /jobs` takes the job all the same and answers 201. The job

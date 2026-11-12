@@ -12,6 +12,9 @@ code = "queue-idle"
 ask = "The queue is idle."
 launch_seconds = 60
 launch_order = "Item #{item} ({title}) awaits a launch on {worker}."
+# What follows it for an item naming a model, the agent of its role on that model a launch now would take:
+# `{agent}`, `{role}` and `{model}`.
+launch_seat = " It would take {agent}, a free {role} agent on model={model}."
 # How long after one of a free agent's items is told its next is told, while the agent stays free and nothing
 # was launched on it (docs/agent-control.md, 「An item's change is told to its orderer」).
 next_offer_seconds = 60

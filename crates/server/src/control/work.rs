@@ -24,7 +24,7 @@ use crate::order::Entry;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
-use crate::repositories::{AGENT_LABEL, Pin, ROLE_LABEL};
+use crate::repositories::{AGENT_LABEL, MODEL_LABEL, Pin, ROLE_LABEL, named_by};
 use crate::road::{self, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
@@ -826,12 +826,27 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
-    // Every job names its agent, which carries its role and its road (docs/repositories.md, 「An agent an item
-    // names」); a role label is still judged, and decides nothing more.
+    // Every job names its agent, or the model and the role whose free agent it takes, and that agent carries its
+    // role and its road (docs/repositories.md, 「An agent an item names」).
     let asked_role = item_role(db, item_id, &item).await?.unwrap_or_else(|| {
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
     });
-    let item_agent = item_agent(&call.shared_ground(), item_id, &item, &asked_role).await?;
+    let account = crate::supervisors::named(db, &holder)
+      .await?
+      .and_then(|supervisor| supervisor.owner_account)
+      .map(|account| account.to_string());
+    let seat = item_seat(&call.shared_ground(), item_id, &item, &asked_role, account.as_deref()).await?;
+    let prompt = prompt_of(&item, instruction.as_ref());
+    let room_id = number(&asked, "roomId")
+      .or_else(|| number(&item, "roomId"))
+      .or_else(|| item.get("scope").and_then(Value::as_str).and_then(|scope| scope.trim().parse().ok()))
+      .or_else(|| number(&item, "scope"));
+    // Agency starts no job by itself (docs/role-agents.md, 「Which agent a run takes」): a launch onto an agent
+    // that carries a run is refused now rather than queued to start once the agent frees. The agent is chosen
+    // and the job written in one transaction holding every candidate's row, so two launches never take one
+    // free agent.
+    let written = db.begin().await.map_err(|why| Refused::failed(why.to_string()))?;
+    let item_agent = seat.take(&written, item_id).await?;
     let role = item_agent.role.clone();
     let item_model = item_agent.entry().map(|entry| Pin {
       provider: entry.provider,
@@ -850,35 +865,6 @@ impl Route for CreateJob {
     )
     .await
     .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
-    let prompt = prompt_of(&item, instruction.as_ref());
-    let room_id = number(&asked, "roomId")
-      .or_else(|| number(&item, "roomId"))
-      .or_else(|| item.get("scope").and_then(Value::as_str).and_then(|scope| scope.trim().parse().ok()))
-      .or_else(|| number(&item, "scope"));
-    // Agency starts no job by itself (docs/role-agents.md, 「Which agent a run takes」): a launch onto an agent
-    // that carries a run is refused now rather than queued to start once the agent frees. The agent's row is
-    // held while it is read and the job written, so two launches onto one free agent never both go.
-    let written = db.begin().await.map_err(|why| Refused::failed(why.to_string()))?;
-
-    one(
-      &written,
-      r#"SELECT 1 FROM "role_agents" WHERE "name" = $1 FOR UPDATE"#,
-      vec![item_agent.name.clone().into()],
-    )
-    .await?;
-
-    if let Some(carried) = agent_carries(&written, &item_agent.name).await? {
-      return Err(
-        Refused::new(
-          StatusCode::CONFLICT,
-          format!(
-            "Item #{item_id} names the agent {}, which carries {carried}; launch it once the agent is free",
-            item_agent.name
-          ),
-        )
-        .with_code("agent-busy"),
-      );
-    }
 
     let row = one(
       &written,
@@ -909,6 +895,7 @@ impl Route for CreateJob {
 
     written.commit().await.map_err(|why| Refused::failed(why.to_string()))?;
     crate::watches::queue_idle::agent_told_let_go(db, item_id).await;
+    crate::watches::queue_idle::no_candidate_told_let_go(db, item_id).await;
 
     run(
       db,
@@ -1814,30 +1801,145 @@ pub async fn item_model_of_job(ground: &Ground, id: i64) -> Option<Pin> {
   )
 }
 
-/// The agent the item `POST /jobs` is handed names with its `agent` label (docs/repositories.md, 「An agent an
-/// item names」): 422 `agent-unnamed` for none or `auto`, listing the agents of the role it would run as so its
-/// supervisor names one; 422 `unknown-agent` for one the agency does not register; and 422 `agent-names-no-road`
-/// for one that follows a supervisor's road, since no supervisor asks a job. A refusal is told to the item's
-/// orderer once for that label.
-async fn item_agent(
+/// What the item `POST /jobs` is handed names its job's agent by (docs/repositories.md, 「An agent an item
+/// names」), before the launch takes one: the agent its `agent` label names alone, or the candidates of its role
+/// for the model its `model` label names, by name.
+struct Seat {
+  candidates: Vec<crate::role_agents::RoleAgent>,
+  /// The role and the model asked, for an item naming a model.
+  asked: Option<(String, String)>,
+}
+
+impl Seat {
+  /// The agent the job is launched on, taken inside the transaction that writes the job: every candidate's row
+  /// held in name order, so a launch at once with this one waits and then finds the agent this one took busy;
+  /// then the first candidate free (docs/role-agents.md, 「When an agent is busy」). 409 `agent-busy` where none
+  /// is, naming what each carries.
+  async fn take<C: sea_orm::ConnectionTrait>(
+    self,
+    db: &C,
+    item_id: i64,
+  ) -> Result<crate::role_agents::RoleAgent, Refused> {
+    let Seat { candidates, asked } = self;
+
+    for agent in &candidates {
+      one(
+        db,
+        r#"SELECT 1 FROM "role_agents" WHERE "name" = $1 FOR UPDATE"#,
+        vec![agent.name.clone().into()],
+      )
+      .await?;
+    }
+
+    let mut carried: Vec<String> = vec![];
+
+    for agent in candidates {
+      match agent_carries(db, &agent.name).await? {
+        None => return Ok(agent),
+        Some(what) => carried.push(format!("{}, which carries {what}", agent.name)),
+      }
+    }
+
+    let sentence = match asked {
+      None => format!(
+        "Item #{item_id} names the agent {}; launch it once the agent is free",
+        carried.join("; ")
+      ),
+      Some((role, model)) => format!(
+        "Item #{item_id} names {MODEL_LABEL}={model} for the {role} role, and every agent of that role on it is \
+         busy: {}; launch it once one of them is free",
+        carried.join("; ")
+      ),
+    };
+
+    Err(Refused::new(StatusCode::CONFLICT, sentence).with_code("agent-busy"))
+  }
+}
+
+/// What the item `POST /jobs` is handed names its job's agent by (docs/repositories.md, 「An agent an item
+/// names」): the agent its `agent` label names, which stands over a `model` label; else the candidates of `role`
+/// for the model its `model` label names, of the launching supervisor's `account`. 422 `agent-unnamed` for
+/// neither, listing the agents of the role it would run as so its supervisor names one; 422 `unknown-agent` for
+/// an agent the agency does not register; 422 `agent-names-no-road` for one that follows a supervisor's road,
+/// since no supervisor asks a job; and 422 `no-candidate` for a model no agent of the role runs. A refusal is
+/// told to the item's orderer once for that label, or for that role and model.
+async fn item_seat(
   ground: &Arc<Ground>,
   item_id: i64,
   item: &Value,
   role: &str,
-) -> Result<crate::role_agents::RoleAgent, Refused> {
-  let label = item["labels"][AGENT_LABEL].as_str().map(str::trim).unwrap_or_default();
+  account: Option<&str>,
+) -> Result<Seat, Refused> {
   let db = &ground.db;
-  let (sentence, code) = if label.is_empty() || label == crate::repositories::AUTO {
+  let labels = &item["labels"];
+  let label = named_by(labels, AGENT_LABEL);
+
+  if label.is_none()
+    && let Some(model) = named_by(labels, MODEL_LABEL)
+  {
+    let candidates = crate::role_agents::candidates(db, role, model, account).await?;
+
+    if !candidates.is_empty() {
+      return Ok(Seat {
+        candidates,
+        asked: Some((role.to_owned(), model.to_owned())),
+      });
+    }
+
     let agents = crate::role_agents::listing(db, role).await?;
     let sentence = policy::fill_marks(
-      &policy::job_review::JOB_REVIEW.agent_unnamed,
-      &[("item", &format!("Item #{item_id}")), ("role", role), ("agents", &agents)],
+      &policy::job_review::JOB_REVIEW.no_candidate,
+      &[
+        ("item", &format!("Item #{item_id}")),
+        ("model", model),
+        ("role", role),
+        ("agents", &agents),
+      ],
     );
 
-    (sentence, "agent-unnamed")
-  } else {
-    match crate::role_agents::named(db, label).await? {
-      Some(agent) if agent.entry().is_some() => return Ok(agent),
+    if !ground.testing() {
+      let ground = ground.clone();
+      let item = item.clone();
+      let (role, model) = (role.to_owned(), model.to_owned());
+      let roads = crate::role_agents::roads_held(&role, &crate::role_agents::of_role(db, &role).await?);
+
+      tokio::spawn(async move {
+        if let Err(fault) = crate::watches::queue_idle::tell_no_candidate(
+          &ground.db,
+          ground.vars(),
+          item_id,
+          &item,
+          &role,
+          &model,
+          &roads,
+        )
+        .await
+        {
+          eprintln!("job of item #{item_id}: its model with no candidate was not told: {fault}");
+        }
+      });
+    }
+
+    return Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, sentence).with_code("no-candidate"));
+  }
+
+  let (sentence, code) = match label {
+    None => {
+      let agents = crate::role_agents::listing(db, role).await?;
+      let sentence = policy::fill_marks(
+        &policy::job_review::JOB_REVIEW.agent_unnamed,
+        &[("item", &format!("Item #{item_id}")), ("role", role), ("agents", &agents)],
+      );
+
+      (sentence, "agent-unnamed")
+    }
+    Some(label) => match crate::role_agents::named(db, label).await? {
+      Some(agent) if agent.entry().is_some() => {
+        return Ok(Seat {
+          candidates: vec![agent],
+          asked: None,
+        });
+      }
       Some(_) => (
         format!(
           "Item #{item_id} names {AGENT_LABEL}={label}, which follows a supervisor's road and no supervisor asks a job"
@@ -1848,13 +1950,13 @@ async fn item_agent(
         format!("Item #{item_id} names {AGENT_LABEL}={label}, which is no agent the agency registers"),
         "unknown-agent",
       ),
-    }
+    },
   };
 
   if !ground.testing() {
     let ground = ground.clone();
     let item = item.clone();
-    let told = if label.is_empty() { crate::repositories::AUTO.to_owned() } else { label.to_owned() };
+    let told = label.unwrap_or(crate::repositories::AUTO).to_owned();
     let why = sentence.clone();
 
     tokio::spawn(async move {

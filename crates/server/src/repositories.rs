@@ -21,29 +21,14 @@ impl Pin {
       .map(|(provider, model)| Self { provider, model })
   }
 
-  /// The model an item's `model` label names (docs/repositories.md, 「A model an item names」):
-  /// `<provider>/<model>`, the provider before the first `/` and the model all after it. None for a label
-  /// that is `auto`, empty or absent; the refusal's sentence for one that names no provider and model.
-  pub fn of_label(label: Option<&str>) -> Result<Option<Self>, String> {
-    let Some(label) = label.map(str::trim).filter(|label| !label.is_empty() && *label != AUTO) else {
-      return Ok(None);
-    };
-    let named = label.split_once('/').and_then(|(provider, model)| {
-      Self::of_parts(Some(provider.trim().to_owned()), Some(model.trim().to_owned()))
-    });
-
-    named.map(Some).ok_or_else(|| {
-      format!("The label {MODEL_LABEL}={label} names no provider and model, as <provider>/<model>.")
-    })
-  }
-
   /// The pin as JSON answers it.
   pub fn view(&self) -> serde_json::Value {
     serde_json::json!({ "provider": self.provider, "model": self.model })
   }
 }
 
-/// The label an item names the model its job runs on with.
+/// The label an item names the model its job runs on with, beside its role (docs/repositories.md, 「An agent an
+/// item names」).
 pub const MODEL_LABEL: &str = "model";
 
 /// The label an item names the role its job runs as with (docs/repositories.md, 「A role an item names」).
@@ -52,8 +37,13 @@ pub const ROLE_LABEL: &str = "role";
 /// The label an item names the agent its job runs on with (docs/repositories.md, 「An agent an item names」).
 pub const AGENT_LABEL: &str = "agent";
 
-/// The value of an item's `model` label that leaves its job to the order.
+/// The value of a label that names nothing, as an absent or empty one.
 pub const AUTO: &str = "auto";
+
+/// What an item's labels name under `key`, trimmed; none where the label is absent, empty or `auto`.
+pub fn named_by<'a>(labels: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+  labels[key].as_str().map(str::trim).filter(|named| !named.is_empty() && *named != AUTO)
+}
 
 /// One repository as its row holds it.
 #[derive(Clone, Debug, PartialEq, Eq)]

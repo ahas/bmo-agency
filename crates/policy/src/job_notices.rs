@@ -16,6 +16,9 @@ pub struct JobNotices {
   pub unlaunchable_order: String,
   /// An item whose launch was refused for its `agent` label: `{item}`, `{title}`, `{label}` and `{why}`.
   pub agent_order: String,
+  /// An open item whose model no agent of its role runs: `{item}`, `{title}`, `{model}`, `{role}` and
+  /// `{agents}`.
+  pub no_candidate_order: String,
   /// An item moved while its job runs: `{item}`, `{title}`, `{state}`, `{merged}`, `{job}` and `{worker}`.
   pub moved_order: String,
   /// An item closed by somebody else: `{item}`, `{title}` and `{by}`.

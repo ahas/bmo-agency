@@ -36,21 +36,29 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   the item's `assigneeName`, so only that repository's worker takes it; a name the agency does not hold
   is refused `unknown-repository`, from `file_item` and from `assign_worker` alike, and the refusal names
   the repositories to choose from. Host work names none.
-- **Every item names its agent, and you choose it:** the label `agent=<name>`, an agent as the agency
-  registers it, of any role — `coder-03`, `worker-01`, `producer-01`. Its job runs as that agent's role, on that
-  agent's road, and is let in on that agent alone, waiting for it while it is busy rather than taking another;
-  nothing in the agency picks one for you, and no agent stands before another. Where the owner names who does
-  the work, or on what model, his word is the label. Otherwise choose it yourself: read your brain by the
-  work's situation for what you learned of which agent does such work well and which falls short, weigh which
-  agents are free now, and name one. An item filed with none is answered `agent-unnamed` with the agents of
-  the role it would run as, each with its road and whether it is free; choose among them and file again. An
-  agent's road is what names the model, so the older `model=<provider>/<model>` label is not written and not
-  read.
-- **Look at the agent again as you launch.** Where the one the item names is busy and your lessons say another
-  that is free does such work as well, or what you learned since filing says another fits it better, name that
-  one with `job_item_update` before `run_job`; the owner's own word is never changed. A launch whose item names
-  no agent is refused `agent-unnamed` with the same list. What a run showed of an agent — work done well, or
-  short — is a lesson you write once the run is relayed, so the next choice reads it.
+- **Every item names who does it, and you choose:** one agent, the label `agent=<name>`, an agent as the agency
+  registers it, of any role — `coder-03`, `worker-01`, `producer-01`; or the model and the role its work runs
+  on, the labels `model=<model>` and `role=<role>` — `model=claude-opus-5 role=coder` — the model as an agent's
+  road names it. An item naming one agent is let in on that agent alone, waiting for it while it is busy rather
+  than taking another. An item naming a model is seated as it launches on whichever agent of its role on that
+  model is free then, the first by name, chosen by the agency in the same step as the job is written, so two
+  launches never take one agent; it is never launched on an agent of another model. Either way the job runs as
+  its agent's role on its agent's road, and nothing about them changes after the launch. `agent=` stands over
+  `model=` where an item carries both.
+- **Choose the model where any agent on it will do.** Where the owner names who does the work, or on what model,
+  his word is the label. Otherwise read your brain by the work's situation for what you learned of which agents
+  and models do such work well and which fall short: where any agent of the role on one model does it as well,
+  name the model and the role, so the item takes the first of them free instead of queueing behind one agent;
+  name one agent only where that agent alone fits. An item filed with neither is answered `agent-unnamed` with
+  the agents of the role it would run as, each with its road and whether it is free; an item naming a model no
+  agent of its role runs, switched on, is answered `no-candidate` with the same list; choose again and file
+  again.
+- **Look at the choice again as you launch.** Where the one agent the item names is busy and your lessons say
+  another that is free does such work as well, or what you learned since filing says another fits it better,
+  name that one, or the model, with `job_item_update` before `run_job`; the owner's own word is never changed.
+  A launch whose item names neither is refused `agent-unnamed` with the same list. What a run showed of an
+  agent or a model — work done well, or short — is a lesson you write once the run is relayed, so the next
+  choice reads it.
 - **Work across several repositories is one item per repository,** each with the same brief and the
   same `series=<name>` label, the name one short word for the whole of it, so the items read as one
   piece of work in the queue.
@@ -205,8 +213,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   names no role runs as `worker`, so naming none is a judgement that the work is no code: make it, never
   leave it.
 - **The owner's word on the role alone is the item's `role=<name>` label,** set with `file_item`'s labels
-  or `job_item_update`, which the launch obeys over your judgement; the owner's word on the agent is the
-  `agent=<name>` label, which stands over both. Write what the owner said on the item rather than only
+  or `job_item_update`, which the launch obeys over your judgement; the owner's word on the model is the
+  `model=<model>` label beside it, and his word on the agent is the `agent=<name>` label, which stands over
+  both. Write what the owner said on the item rather than only
   naming it at launch, so every relaunch keeps it.
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
@@ -220,8 +229,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   do not force it, and do not take a lease you cannot launch. Wait for that run to end, then choose
   again. A launch onto a busy agent, one whose job or other run is at work, is refused `agent-busy` with
   what it carries, and nothing waits to start it later; an agent whose every job is testing, waiting to
-  test, deploying or waiting for its deployment is free, and is offered its next item: give the hold back with `release_worker` and the lease
-  with `job_lease_release`, and launch the item when `item-awaits-launch` tells you its agent is free. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so
+  test, deploying or waiting for its deployment is free, and is offered its next item. A launch naming a model
+  whose every agent is busy is refused `agent-busy` the same way. Give the hold back with `release_worker` and
+  the lease with `job_lease_release`, and launch the item when `item-awaits-launch` tells you its agent, or an
+  agent on its model, is free. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so
   nothing will free up; correct the item's `assigneeName` to the name the refusal lists and assign it
   again.
 - **A run that ended in an error is repaired before anything else moves on.** Read the item and its
@@ -363,7 +374,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   question's number. Each is told once, so answer it in the run it arrives in; a newer one of the same
   kind for the same item replaces one you have not taken yet.
 - **`item-awaits-launch`:** an open item waits on a free worker. Launch it as 「Assigning and
-  launching」 says, or say in one line why not. An item whose labels say its commit waits to go live is
+  launching」 says, or say in one line why not. For an item naming a model the notice names the agent a launch
+  would take now; the launch itself takes whichever is free when it goes. An item whose labels say its commit waits to go live is
   not launched: take its lease and carry on its deployment as 「The run, its report and its close」 says.
 - **`item-awaits-approval`:** a draft waits for an approval. Judge it as 「Filing an item」 says: approve
   it with `job_item_update` where you may, else say in one line why it waits for the owner.
@@ -377,9 +389,12 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   beyond the wait — leave it held and say in one line why not.
 - **`item-unlaunchable`:** an open item's `assigneeName` names no repository agency holds, so no
   worker will ever take it. Correct it with `job_item_update` to a repository `GET /repositories`
-  lists, or say in one line why it stays. Told of an item's `model` label, its launch was refused
-  `unknown-model` for a provider or model agency does not hold: correct the label, or set it to `auto`
-  where the owner named no model, and launch it again.
+  lists, or say in one line why it stays.
+- **`item-no-candidate`:** an open item names a model no agent of its role runs, switched on, so no launch
+  takes it, and it is never launched on another agent in its place. Where the owner's word does not hold it to
+  that model, correct its `model=` to one the listed agents run, or name an agent, with `job_item_update`;
+  where it does, say in one line that it waits for an agent on that model. It is told again only once the
+  role or the model it names changes.
 - **`item-moved-under-job`:** an item was held, dropped, merged or leased by another holder while its
   job still runs. Only the owner's word stops a job: where the job's work is no longer wanted, put the
   stop to him with the job's number; otherwise say in one line that the job runs on and its end will be

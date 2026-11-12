@@ -9,8 +9,8 @@ about a message is not agency's: the judgement records belong to the units that 
   (`packages/agent/runlog.ts`).
 - Whoever reads a run's stream writes it — the bot for a supervisor's turn, the runner of a role's run
   for that run — so a supervisor's turn and every role's whole stream land in one table under the name
-  of the supervisor or the role the run is for. A job's lines stand under the agent its item names, the one that
-  did the work (`docs/repositories.md`, 「An agent an item names」), never under the checkout it ran in, and a role's
+  of the supervisor or the role the run is for. A job's lines stand under its agent, the one its item names or its
+  launch took for its item's model, the one that did the work (`docs/repositories.md`, 「An agent an item names」), never under the checkout it ran in, and a role's
   log is read with its agents': the lines under the role's name and the lines of every agent of that role, so a
   role's screen shows the job its agent is running.
 - What the stream carries is what is kept: the run's text and thinking, every tool call with its

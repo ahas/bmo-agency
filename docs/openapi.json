@@ -3352,6 +3352,7 @@
           "unknown-repository",
           "agent-unnamed",
           "unknown-agent",
+          "no-candidate",
           "steps-unchecked",
           "upstream-failed"
         ],
@@ -4678,6 +4679,7 @@
           "unknown-agent",
           "agent-names-no-road",
           "agent-busy",
+          "no-candidate",
           "unknown-role"
         ],
         "requestBody": {
@@ -15606,6 +15608,16 @@
       },
       "NoAnswer": {
         "description": "no-answer",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoCandidate": {
+        "description": "no-candidate",
         "content": {
           "application/json": {
             "schema": {

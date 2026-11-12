@@ -51,7 +51,10 @@ steps_check = "Check this item's steps before it is filed. It runs on {agent} as
 steps_check_none = "(none)"
 # What a supervisor is answered with where an item it files or launches names no agent: the agent is the
 # supervisor's to name, from what it has learned (docs/repositories.md, 「An agent an item names」).
-agent_unnamed = "{item} names no agent, and nothing chooses one for it: name the agent that does it with the label agent=<name>. The agents of the {role} role:\n{agents}\n\nRead your brain for what you learned of which agent does such work well and which falls short, weigh which are free, and name one; where the owner named one, his word is the label. Then call again with the label set."
+agent_unnamed = "{item} names no agent and no model, and nothing chooses one for it: name the agent that does it with the label agent=<name>, or the model it runs on with model=<model> beside role=<role>, which takes whichever agent of that role on that model is free at its launch. The agents of the {role} role:\n{agents}\n\nRead your brain for what you learned of which agent does such work well and which falls short, weigh which are free, and name one, or the model; where the owner named either, his word is the label. Then call again with the label set."
+# What a supervisor filing or launching an item is answered with where its model is one no agent of its role
+# that is switched on runs (docs/repositories.md, 「An agent an item names」).
+no_candidate = "{item} names model={model} for the {role} role, and no agent of that role that is switched on runs that model, so no launch can take it; it is never launched on another agent in its place. The agents of the {role} role:\n{agents}\n\nName a model one of them runs with model=<model>, or one agent with agent=<name>, and call again."
 
 # The checks every report is examined by, in order, each with what it requires.
 [[checks]]

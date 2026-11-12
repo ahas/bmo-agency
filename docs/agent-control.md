@@ -2916,7 +2916,8 @@ them run a browser, and whose a place is.
   the job service's unattended labels — a pull request's review among them — so its state is the whole of
   whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, a
   checkout it may go to is free — its repository's checkout no job holds where it names one, any free
-  checkout where it names none —, the agent its `agent` label names, where it names one, carries no run
+  checkout where it names none —, the agent its `agent` label names, where it names one, carries no run, or,
+  where it names a model and no agent, one agent of its role on that model carries none
   (`docs/repositories.md`, 「An agent an item names」), and its role has a free slot. An item a job of agency's is still at work
   on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody.
   Where one item waits so and no job has started on this machine for the idle minutes
@@ -2973,7 +2974,8 @@ with the session.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`); the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
@@ -2993,10 +2995,14 @@ with the session.
 
 - **An item that could go is told to its orderer on its own.** Where an open item waits to go, and it is
   still waiting a minute after agency first saw it so, agency queues one instruction for its orderer
-  naming the item, its title and its worker; the supervisor's manual says to launch it or say in one line
+  naming the item, its title and its worker, and, for an item naming a model, the agent it would take; the
+  supervisor's manual says to launch it or say in one line
   why not. The moment it was first seen waiting and the moment it was told are kept by the item's number,
   each let go once the item no longer waits to go, so an item that stopped waiting because its checkout or
-  its agent took another run is told again once they are free. Of the items that wait to go on one agent,
+  its agent took another run is told again once they are free. An item naming a model waits to go on one agent
+  of its candidates: going through the waiting items in the queue's order, it is set on the first of its free
+  candidates by name that no item before it is set on, else on the first of its free candidates, so free agents
+  of one model are offered different items at once. Of the items that wait to go on one agent,
   one is told at a time, the first in the queue's order not yet told — the highest priority, then the earliest
   place, then the lowest number: a free agent is offered its next item, and another once the next-offer seconds
   (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never its whole
@@ -3005,7 +3011,8 @@ with the session.
 - **The notice is how a busy agent's next job starts.** An agent is busy while a job naming it stands
   `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, unless every such
   job stands in the machine's turn — testing, waiting to test, deploying or waiting for its deployment
-  (`docs/role-agents.md`, 「When an agent is busy」) — and an item naming it is not told until it is free; an
+  (`docs/role-agents.md`, 「When an agent is busy」) — and an item naming it is not told until it is free, an
+  item naming a model not until one of its candidates is; an
   agent whose only jobs stand in the machine's turn is offered its next item whose checkout is free. A launch
   while it is busy is refused `agent-busy`
   (`docs/repositories.md`, 「An agent an item names」), and agency never starts the item by itself: the
@@ -3020,6 +3027,13 @@ with the session.
   refusal's reason, which lists the agents it may name; the mark keeps the label told, so the same label refused again is not told again and
   another one is, and it is let go once a job of the item is launched. The supervisor's manual says what
   to correct, and when to say in one line why it stays.
+- **An item no agent can take for its model is told to its orderer.** An open item whose `model` label names a
+  model, with no `agent` label, whose role holds no agent switched on whose road runs that model — none ever,
+  or the last one removed, switched off or moved to another road — never awaits a launch and is never launched
+  on another agent in its place. Its orderer is told once, naming the role, the model and the agents of the
+  role with their roads; the mark keeps the role and the model told, so a change to either is told again, and
+  it is let go once the item gains a candidate or is no longer open. A launch refused `no-candidate` tells the
+  same notice under the same mark.
 - **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job
   service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for. One
   the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each draft

@@ -178,7 +178,8 @@ seeds. The other crates and the server reach the store only through it.
     is told to its orderer」): the idle alarm's `queue_idle_alarm`, `queue_idle_told` and
     `queue_idle_minutes`; the marks of a notice told, by the item, the job or the question it tells of,
     `queue_item_waiting:*`, `queue_item_told:*`, `queue_paused_told:*`, `queue_unlaunchable_told:*`,
-    `queue_model_told:*` (the item's refused `model` label), `queue_draft_told:*`, `queue_wait_told:*`, `job_moved_told:*`, `job_close_mark:*` and `question_told:*` (the receiver's
+    `queue_agent_told:*` (the item's refused `agent` label), `queue_no_candidate_told:*` (the role and
+    model told as having no candidate), `queue_draft_told:*`, `queue_wait_told:*`, `job_moved_told:*`, `job_close_mark:*` and `question_told:*` (the receiver's
     instruction id); and the job service's event cursor, `job_events_after`, which is the mark of every
     notice told from its events;
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,

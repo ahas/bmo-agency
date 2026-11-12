@@ -21,8 +21,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   a run that names no road and that no supervisor asks, with why. The doppelganger's agents are seeded so.
 - **A role holds no order, no cap and no forced provider, and its agents stand in no order of priority.** How
   many of a role's runs go at once is the number of its agents that are switched on, and which road a run takes
-  is its agent's. Which agent does a job's work is named by the supervisor that orders it, never chosen by the
-  agency (「Which agent a run takes」).
+  is its agent's. Which agent does a job's work is named by the supervisor that orders it, or, where its item
+  names a model and a role instead, taken by the agency at the launch from that role's free agents on that model
+  (「Which agent a run takes」).
 - **An agent belongs to an account** (`STRUCTURE.md`, 「Accounts, companies and units」): `ownerAccount`, the id of
   the login account whose seat it is, or none for the deployment's own. A run is let in only on the agents of its
   own account — the account of the supervisor that asks it, or none — so one account's runs never take another
@@ -81,24 +82,33 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 
 ## Which agent a run takes
 
-- **A job names its agent, always.** Its item names the agent with its `agent` label, set by the supervisor
-  that files and launches it from what it has learned of the work and of its agents, or by the owner's own
-  word; a job whose item names none is refused at its launch (`docs/repositories.md`, 「An agent an item
-  names」). Nothing in the agency picks an agent for a job.
+- **A job names its agent, or the model and the role it runs on.** Its item names the agent with its `agent`
+  label, or a model with its `model` label beside its `role` label, set by the supervisor that files and
+  launches it from what it has learned of the work and of its agents, or by the owner's own word; a job whose
+  item names neither is refused at its launch (`docs/repositories.md`, 「An agent an item names」). Where the
+  item names an agent, nothing in the agency picks one; an `agent` label stands over a `model` label.
+- **A job whose item names a model takes a free agent of its role on that model.** Its candidates are the
+  agents of its role that are switched on, of the account of the supervisor that launches it, and whose road
+  runs that model. At the launch the agency takes the first candidate by name that is free (「When an agent is
+  busy」), in the same step as it writes the job: every candidate's row is held while they are read and the job
+  written, so two launches at once never take one agent. Where every candidate is busy the launch is refused,
+  and where the role holds no candidate at all it is refused with the agents and roads the role holds; the job
+  is never let in on another agent in its place.
 - **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
   only on it, on its own road, and waits for it however long it is busy or its provider cannot answer;
-  it is never let in on another agent of the role. Every job asks so, and a job's launch is refused while its
-  agent is busy (「Agency starts no job by itself」 below).
+  it is never let in on another agent of the role. Every job asks so, the agent its launch took for a model as
+  much as one its item names, and a job's launch is refused while its agent is busy (「Agency starts no job by
+  itself」 below).
 - **An agent carries one job from its first turn to its end.** The seat a job's first turn is let in on stays
   the job's through every turn after it and every wait between them — its review, a stage passed and the next
   handed over — and is given back only as the job ends, stopped, failed or done, or as its review pauses it
   (`docs/job-review.md`, 「The owner's word」). Its next stage, asked by its supervisor's review, runs on that
   seat at once, before any other run of the role (`docs/role-slots.md`, 「The line」).
-- **Agency starts no job by itself.** A launch naming an agent that is busy is refused at once
-  (`docs/repositories.md`, 「An agent an item names」), never queued to start later, and no turn of work goes
-  out unless a supervisor's launch or review move asks for it now. When the agent comes free its
-  supervisor is told, and the supervisor launches (`docs/agent-control.md`, 「An item's change is told to its
-  orderer」).
+- **Agency starts no job by itself.** A launch naming an agent that is busy, or naming a model whose every
+  candidate is busy, is refused at once (`docs/repositories.md`, 「An agent an item names」), never queued to
+  start later, and no turn of work goes out unless a supervisor's launch or review move asks for it now. When
+  the agent, or one of the candidates, comes free its supervisor is told, and the supervisor launches
+  (`docs/agent-control.md`, 「An item's change is told to its orderer」).
 - **A run that names no agent is let in on any agent of its role that is switched on, is free, and whose
   road can answer now,** taken by name where several are free; the agents hold no order of priority. A run a
   supervisor asks may take an

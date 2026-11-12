@@ -141,6 +141,37 @@ pub fn agent_refused(item: i64, title: &str, label: &str, why: &str, orderer: &O
   )
 }
 
+/// An open item whose model no agent of its role that is switched on runs, so no launch takes it
+/// (docs/repositories.md, 「An agent an item names」): its role, its model and the role's agents with their roads.
+pub fn no_candidate(
+  item: i64,
+  title: &str,
+  role: &str,
+  model: &str,
+  agents: &str,
+  orderer: &Orderer,
+) -> Value {
+  let number = item.to_string();
+  let order = fill_marks(
+    &JOB_NOTICES.no_candidate_order,
+    &[
+      ("item", &number),
+      ("title", title),
+      ("model", model),
+      ("role", role),
+      ("agents", agents),
+    ],
+  );
+
+  instruction(
+    "item-no-candidate",
+    item,
+    orderer,
+    format!("Item #{item} names a model no {role} agent runs"),
+    order,
+  )
+}
+
 /// An item moved while a job of agency's still runs on it: held, dropped, merged or leased by another holder.
 pub fn moved(item: &Value, job: i64, worker: &str, orderer: &Orderer) -> Value {
   let id = id_of(item);
