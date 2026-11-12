@@ -126,25 +126,32 @@ pub fn unlaunchable(standing: &Standing) -> Vec<&Open> {
 }
 
 /// The items the orderer is to be told of at `now`: each awaiting a launch since `seen` names it for the launch
-/// seconds and more, not told yet, and the switch on; of the items naming one agent, only the first in the
-/// queue's order — the highest priority, then the earliest place, then the lowest number — so a free agent is
-/// offered its next item rather than its whole series.
+/// seconds and more, not told yet (`told` naming when each told one was), and the switch on; of the items naming
+/// one agent, only the first in the queue's order — the highest priority, then the earliest place, then the
+/// lowest number — and only once the next-offer seconds have passed since another of that agent's waiting items
+/// was told, so a free agent is offered its next item rather than its whole series.
 pub fn launches_due<'a>(
   standing: &'a Standing,
   seen: &BTreeMap<i64, i64>,
-  told: &BTreeSet<i64>,
+  told: &BTreeMap<i64, i64>,
   now: i64,
 ) -> Vec<&'a Open> {
   if standing.silenced {
     return vec![];
   }
 
-  let mut due: Vec<&Open> = awaiting_launch(standing)
+  let awaiting = awaiting_launch(standing);
+  let mut offered: BTreeSet<String> = awaiting
+    .iter()
+    .filter_map(|item| Some((item.agent.as_ref()?, told.get(&item.id)?)))
+    .filter(|(_, at)| now - **at < QUEUE_IDLE.next_offer_seconds * 1000)
+    .map(|(agent, _)| agent.clone())
+    .collect();
+  let mut due: Vec<&Open> = awaiting
     .into_iter()
-    .filter(|item| !told.contains(&item.id))
+    .filter(|item| !told.contains_key(&item.id))
     .filter(|item| seen.get(&item.id).is_some_and(|since| now - since >= QUEUE_IDLE.launch_seconds * 1000))
     .collect();
-  let mut offered = BTreeSet::new();
 
   due.sort_by_key(|item| (std::cmp::Reverse(item.priority), item.position, item.id));
   due.retain(|item| item.agent.as_ref().is_none_or(|agent| offered.insert(agent.clone())));
@@ -331,7 +338,9 @@ pub async fn tell_launches(
     settings::forget(db, &format!("{SEEN_PREFIX}{id}")).await.map_err(fault)?;
   }
 
-  let told = kept_marks(db, LAUNCH_TOLD_PREFIX, &awaiting).await?;
+  kept_marks(db, LAUNCH_TOLD_PREFIX, &awaiting).await?;
+
+  let told = marks(db, LAUNCH_TOLD_PREFIX).await.map_err(fault)?;
 
   for item in launches_due(standing, &seen, &told, now) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;

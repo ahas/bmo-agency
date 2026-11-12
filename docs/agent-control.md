@@ -2995,9 +2995,10 @@ with the session.
   why not. The moment it was first seen waiting and the moment it was told are kept by the item's number,
   each let go once the item no longer waits to go, so an item that stopped waiting because its checkout or
   its agent took another run is told again once they are free. Of the items that wait to go on one agent,
-  one is told a pass, the first in the queue's order not yet told — the highest priority, then the earliest
-  place, then the lowest number: a free agent is offered its next item, and another a minute later while it
-  stays free, never its whole series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
+  one is told at a time, the first in the queue's order not yet told — the highest priority, then the earliest
+  place, then the lowest number: a free agent is offered its next item, and another once the next-offer seconds
+  (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never its whole
+  series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
   notice and does not wait for the idle minutes.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once

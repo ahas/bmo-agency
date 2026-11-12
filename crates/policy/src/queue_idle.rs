@@ -18,6 +18,8 @@ pub struct QueueIdle {
   pub launch_seconds: i64,
   /// What the supervisor is told of such an item: `{item}`, `{title}` and `{worker}`.
   pub launch_order: String,
+  /// How long after one of a free agent's items is told the next is, while the agent stays free, in seconds.
+  pub next_offer_seconds: i64,
   /// How many of a draft's brief's first lines the supervisor is told.
   pub draft_brief_lines: usize,
   /// The most characters of those lines the supervisor is told.

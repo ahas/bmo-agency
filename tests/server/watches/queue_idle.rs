@@ -109,7 +109,7 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
   );
 
   let seen = BTreeMap::from([(1, 10_000)]);
-  let none = BTreeSet::new();
+  let none = BTreeMap::new();
 
   assert!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE - 1).is_empty(), "not yet a minute");
   assert_eq!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE), vec![&open(1, Some("w1"))]);
@@ -118,7 +118,7 @@ fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_si
     vec![&open(1, Some("w1")), &open(3, None)]
   );
   assert!(
-    launches_due(&quiet, &seen, &BTreeSet::from([1]), 10_000 + MINUTE).is_empty(),
+    launches_due(&quiet, &seen, &BTreeMap::from([(1, 10_000)]), 10_000 + MINUTE).is_empty(),
     "told once"
   );
   assert!(
@@ -164,15 +164,20 @@ fn a_free_agent_is_offered_its_first_item_a_pass_and_the_next_once_that_one_is_t
   let seen = BTreeMap::from([(5, 0), (6, 0), (7, 0)]);
 
   assert_eq!(
-    launches_due(&quiet, &seen, &BTreeSet::new(), MINUTE),
+    launches_due(&quiet, &seen, &BTreeMap::new(), MINUTE),
     vec![&for_agent(5, "w1", "coder-a"), &for_agent(6, "w1", "coder-b")],
     "one item an agent, the lowest number"
   );
   assert_eq!(
-    launches_due(&quiet, &seen, &BTreeSet::from([5, 6]), MINUTE),
+    launches_due(&quiet, &seen, &BTreeMap::from([(5, 0), (6, 0)]), MINUTE),
     vec![&for_agent(7, "w2", "coder-a")],
     "the next once the first is told and the agent still free"
   );
+  assert!(
+    launches_due(&quiet, &seen, &BTreeMap::from([(5, MINUTE - 1), (6, 0)]), MINUTE).is_empty(),
+    "not before the next-offer seconds have passed since the first was told"
+  );
+  assert_eq!(QUEUE_IDLE.next_offer_seconds * 1000, MINUTE, "a minute, as the policy sets it");
 
   let raised = standing(
     vec![
@@ -187,7 +192,7 @@ fn a_free_agent_is_offered_its_first_item_a_pass_and_the_next_once_that_one_is_t
   let seen = BTreeMap::from([(5, 0), (9, 0)]);
 
   assert_eq!(
-    launches_due(&raised, &seen, &BTreeSet::new(), MINUTE)
+    launches_due(&raised, &seen, &BTreeMap::new(), MINUTE)
       .iter()
       .map(|item| item.id)
       .collect::<Vec<_>>(),
