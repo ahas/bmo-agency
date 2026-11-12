@@ -1,12 +1,13 @@
 //! A running job's lease kept on the harness's behalf (docs/api.md, 「assignments and jobs」), whatever became of
 //! the harness that took it, a restart of agency under the job among them: a lease that stands is renewed, one
 //! run out is taken again on the same item and the job keeps the new id, an item another holder took or one no
-//! longer open is left; a running job's checkout reads as held by it and its item waits on no free worker.
+//! longer open is left; a running job's checkout reads as held by it and its item waits on no free worker. A
+//! running job's lease holds fixed what its launch read, and an ended job's holds nothing fixed.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use agency_server::job_leases::{Kept, pass};
+use agency_server::job_leases::{Kept, hold_launch, launch_frozen, pass};
 use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::{Method, StatusCode, Uri};
@@ -93,9 +94,14 @@ async fn a_running_job_s_lease_is_renewed_or_taken_again_and_one_another_holds_i
 
   assert_eq!(renewal.2["ttlMs"], policy::job_leases::JOB_LEASES.ttl_ms);
   assert_eq!(
+    renewal.2["frozen"],
+    launch_frozen(1, None),
+    "a running job's lease holds its launch fixed"
+  );
+  assert_eq!(
     taken.2,
     json!({ "queueName": "work", "itemId": 21, "holderName": "harness", "assigneeName": "worker-a",
-            "ttlMs": policy::job_leases::JOB_LEASES.ttl_ms })
+            "ttlMs": policy::job_leases::JOB_LEASES.ttl_ms, "frozen": launch_frozen(2, None) })
   );
 
   // A deployment that names no job service keeps nothing.
@@ -136,7 +142,48 @@ async fn an_ended_job_s_lease_kept_for_its_close_is_renewed_until_the_close_ends
     !calls.lock().unwrap().iter().any(|(method, ..)| method == "POST"),
     "no lease is taken again"
   );
+  assert!(
+    calls
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|(method, ..)| method == "PATCH")
+      .all(|(.., body)| body["frozen"].is_null()),
+    "an ended job's lease holds nothing fixed"
+  );
   assert_eq!(pass(scratch.db(), &vars).await.unwrap(), [(5, Kept::Renewed)]);
+}
+
+#[tokio::test]
+async fn a_launched_job_s_lease_holds_fixed_the_labels_and_fields_its_launch_read_naming_its_agent() {
+  let calls: Calls = Arc::default();
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+  let app = axum::Router::new().fallback(jobs).with_state(calls.clone());
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  let vars: BTreeMap<String, String> = [
+    ("BMO_JOB_URL".to_owned(), address),
+    ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
+  ]
+  .into();
+
+  hold_launch(&vars, 40, 7, Some("coder-a")).await;
+
+  let asked = calls.lock().unwrap().clone();
+
+  assert_eq!(asked.len(), 1, "{asked:?}");
+  assert_eq!((asked[0].0.as_str(), asked[0].1.as_str()), ("PATCH", "/leases/7"));
+
+  let frozen = &asked[0].2["frozen"];
+
+  assert_eq!(frozen["labels"], json!(["agent", "role", "model"]));
+  assert_eq!(frozen["fields"], json!(["assigneeName", "scope"]));
+
+  let reason = frozen["reason"].as_str().unwrap();
+
+  assert!(reason.contains("job 40") && reason.contains("coder-a"), "{reason}");
 }
 
 #[tokio::test]

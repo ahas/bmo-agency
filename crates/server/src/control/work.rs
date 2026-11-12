@@ -907,6 +907,14 @@ impl Route for CreateJob {
     crate::watches::queue_idle::job_started(db).await;
     publish(call.ground(), "job.created", member.clone());
 
+    // What the launch read of the item stands fixed while the job runs (docs/repositories.md, 「An agent an item
+    // names」).
+    let fixing = call.shared_ground();
+    let agent = item_agent.name.clone();
+    tokio::spawn(
+      async move { crate::job_leases::hold_launch(fixing.vars(), id, lease_id, Some(&agent)).await },
+    );
+
     let ground = call.shared_ground();
     let sessions = call.sessions();
     tokio::spawn(async move { launch(ground, sessions, id).await });

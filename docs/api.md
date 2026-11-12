@@ -1246,6 +1246,13 @@ service.
   may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes
   there are the ones a job's end states below, the filing of an item, and the reads 「Calls agency makes」
   names.
+- **A running job's lease holds fixed what its launch read** (`docs/repositories.md`, 「An agent an item
+  names」): as the job is written, and with every renewal and every lease taken again while it is `starting`,
+  `running` or `reviewing`, agency sets the lease's `frozen` in the job service to the item's labels `agent`,
+  `role` and `model` and its fields `assigneeName` and `scope`, with the reason naming the job and the agent it
+  runs on, so the job service refuses a change of any of them while the job runs. A renewal of a lease whose
+  job has ended sets `frozen` to null, so what the item's next launch reads is changed freely. A lease the
+  job service could not be asked to hold is said in agency's log, and the next pass asks again.
 
 - **An item a supervisor files goes through agency,** `POST /item-filings`, so what the item says of where it
   was asked and who asked is agency's reading of the turn rather than anything the model writes. It takes the
@@ -1615,8 +1622,9 @@ route. A caller uses one of them and writes no client of its own.
 
 Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`. These routes below it are called: as a job is stopped, the job service's lease
-is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
+`bmo-cache-warmer-schedule`. These routes below it are called: as a job is written, and with each renewal
+while it runs, the job service's lease is set to hold fixed what its launch read; as a job is stopped, the
+job service's lease is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh

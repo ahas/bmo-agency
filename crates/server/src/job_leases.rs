@@ -6,7 +6,9 @@
 //! close has it renewed the same way until the service holds it no more — the close moved the item to done, or
 //! the lease was given back — and is never leased again; an item still leased at the pass after the one that
 //! first found its job ended is told once to its orderer (docs/agent-control.md, 「An item's change is told to
-//! its orderer」). A deployment that names no job service keeps nothing.
+//! its orderer」). A running job's lease holds fixed what its launch read of the item, and an ended job's holds
+//! nothing fixed (docs/repositories.md, 「An agent an item names」). A deployment that names no job service keeps
+//! nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +23,48 @@ use crate::job_end::{address, token};
 use crate::job_notices::{self, Receiver};
 use crate::queue::orderer::JobService;
 use crate::queue::settings;
+use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL};
+
+/// The item fields a job's launch reads beside its labels: the repository its job runs in and the room it
+/// answers to.
+const LAUNCH_FIELDS: [&str; 2] = ["assigneeName", "scope"];
+
+/// What of its item a running job's lease holds fixed (docs/repositories.md, 「An agent an item names」): the labels
+/// and fields its launch read, with the job and the agent it runs on as the job service's reason for a refusal.
+pub fn launch_frozen(job: i64, agent: Option<&str>) -> Value {
+  let runs_on =
+    agent.map_or_else(|| "the agent its launch took".to_owned(), |agent| format!("the agent {agent}"));
+
+  json!({
+    "fields": LAUNCH_FIELDS,
+    "labels": [AGENT_LABEL, ROLE_LABEL, MODEL_LABEL],
+    "reason": format!(
+      "job {job} runs on {runs_on} with what its launch read; stop the job, and the change reaches the item's next launch"
+    ),
+  })
+}
+
+/// A launched job's lease set to hold fixed what its launch read, at once rather than at the next pass. A lease the
+/// job service could not be asked to hold is said in the log, and the next pass asks again.
+pub async fn hold_launch(vars: &BTreeMap<String, String>, job: i64, lease: i64, agent: Option<&str>) {
+  let (Some(url), Some(token)) =
+    (address(vars, "BMO_JOB_URL"), token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"))
+  else {
+    return;
+  };
+  let client = reqwest::Client::new();
+  let service = Service {
+    url: &url,
+    token: &token,
+    client: &client,
+  };
+
+  match service.renew(lease, &launch_frozen(job, agent)).await {
+    Ok(true) => {}
+    Ok(false) => eprintln!("job {job}: its lease {lease} was gone as its launch was held fixed"),
+    Err(why) => eprintln!("job {job}: what its launch read was not held fixed on lease {lease}: {why}"),
+  }
+}
 
 /// The settings rows, one a running job by its id, of the state its item was told to have moved to.
 pub const MOVED_TOLD_PREFIX: &str = "job_moved_told:";
@@ -55,7 +99,7 @@ pub async fn pass(
   };
   let rows = all(
     db,
-    r#"SELECT "id", "item_id", "lease_id", "holder_name", "worker_name", "state" FROM "jobs"
+    r#"SELECT "id", "item_id", "lease_id", "holder_name", "worker_name", "state", "item_agent" FROM "jobs"
        WHERE "state" IN ('starting', 'running', 'reviewing') OR ("state" = 'ended' AND "lease_kept") ORDER BY "id""#,
     vec![],
   )
@@ -89,13 +133,15 @@ pub async fn pass(
     ) else {
       continue;
     };
+    let agent = row.try_get::<Option<String>>("", "item_agent").ok().flatten();
 
     if item <= 0 {
       continue;
     }
 
     if state == "ended" {
-      let done = match service.renew(lease).await {
+      // An ended job runs on nothing its item's next launch could change.
+      let done = match service.renew(lease, &Value::Null).await {
         Ok(true) => {
           tells.unclosed(id, item, lease).await;
           Kept::Renewed
@@ -124,9 +170,10 @@ pub async fn pass(
 
     running.insert(id);
 
-    let done = match service.renew(lease).await {
+    let frozen = launch_frozen(id, agent.as_deref());
+    let done = match service.renew(lease, &frozen).await {
       Ok(true) => Kept::Renewed,
-      Ok(false) => match service.take(item, &holder).await {
+      Ok(false) => match service.take(item, &holder, &frozen).await {
         Ok(Took::Leased(taken)) => {
           run(
             db,
@@ -177,8 +224,8 @@ struct Service<'a> {
 }
 
 impl Service<'_> {
-  // Whether the lease stood and was renewed; false where the service holds it no more.
-  async fn renew(&self, lease: i64) -> Result<bool, String> {
+  // Whether the lease stood and was renewed, holding `frozen` fixed; false where the service holds it no more.
+  async fn renew(&self, lease: i64, frozen: &Value) -> Result<bool, String> {
     if lease <= 0 {
       return Ok(false);
     }
@@ -187,7 +234,7 @@ impl Service<'_> {
       .client
       .patch(format!("{}/leases/{lease}", self.url))
       .bearer_auth(self.token)
-      .json(&json!({ "ttlMs": JOB_LEASES.ttl_ms }))
+      .json(&json!({ "ttlMs": JOB_LEASES.ttl_ms, "frozen": frozen }))
       .send()
       .await
       .map_err(|why| why.to_string())?;
@@ -199,9 +246,9 @@ impl Service<'_> {
     }
   }
 
-  // The item leased again for the job's holder and worker, where it is open: the new lease's id; the item as
-  // it stands where it is no longer open, or another holder took it first.
-  async fn take(&self, item: i64, holder: &str) -> Result<Took, String> {
+  // The item leased again for the job's holder and worker, holding `frozen` fixed, where it is open: the new lease's
+  // id; the item as it stands where it is no longer open, or another holder took it first.
+  async fn take(&self, item: i64, holder: &str, frozen: &Value) -> Result<Took, String> {
     let read = self
       .client
       .get(format!("{}/items/{item}", self.url))
@@ -225,6 +272,7 @@ impl Service<'_> {
       "itemId": item,
       "holderName": holder,
       "ttlMs": JOB_LEASES.ttl_ms,
+      "frozen": frozen,
     });
 
     // An item with an assignee is taken only by a lease naming that assignee.

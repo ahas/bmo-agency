@@ -95,6 +95,14 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   job's writing are one step, so two launches at once take two different agents (`docs/role-agents.md`,
   「Which agent a run takes」). The agent taken is the job's as if the item had named it: nothing about its agent,
   role or road changes after the launch.
+- **A running job holds fixed what its launch read of its item.** Agency has the job service hold fixed, on the
+  item's lease (bmo-job's `docs/api.md`, "While leased"), the labels `agent`, `role` and `model`, the item's
+  `assigneeName`, the repository its job runs in, and its `scope`, the room the job answers to, with a reason
+  naming the job and the agent it runs on (`docs/api.md`, 「assignments and jobs」). A change of any of them while
+  the job is `starting`, `running` or `reviewing` is refused by the job service with that reason, and the
+  supervisor makes it once the job is stopped, for the item's next launch. The item's words, its title and
+  brief, are the work rather than the conditions it runs under and are not held. Every screen and answer that
+  names a running job's agent names the job's own `agentName`, never the item's label.
 - **A launch whose agent is busy is refused** 409 `agent-busy` at once, with the agent and what it carries at
   work, or, for a model, with every candidate and what each carries; nothing queues it to start later. An
   agent whose every job stands in the machine's turn — testing, waiting to test, deploying or waiting for its
