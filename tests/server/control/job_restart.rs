@@ -1,8 +1,9 @@
-//! A job across a restart of agency's own process (docs/api.md, 「assignments and jobs」): a job launched on a
-//! running server and waiting for its agent's slot is carried by no turn a program holds, so the process is
-//! killed in the middle of that wait and another started on the same store and data root. The new process
-//! launches the job again instead of reaping it, takes up the very slot request the killed one left waiting in
-//! the line, and once the agent is free the job goes out through that request.
+//! A job across restarts of agency's own process (docs/api.md, 「assignments and jobs」): a job launched on a
+//! running server and waiting for a road, then for its agent's slot, is carried by no turn a program holds, so
+//! the process is killed in the middle of each wait and another started on the same store and data root. Each
+//! new process launches the job again instead of reaping it: one waiting for a road waits for it again, and one
+//! waiting for its slot takes up the very slot request the killed one left waiting in the line, and once the
+//! agent is free the job goes out through that request.
 
 use std::time::Duration;
 
@@ -91,6 +92,26 @@ async fn requests_let_go(scratch: &Scratch, id: i64) -> Vec<(String, String)> {
   left
 }
 
+// The job aged past the launch window, so a start that did not launch it again would reap it at once.
+async fn aged(scratch: &Scratch, id: i64) {
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "started_at" = $1 WHERE "id" = $2"#,
+      vec![(agency_server::now_ms() - 20 * 60 * 1000).into(), id.into()],
+    )
+    .await;
+}
+
+// How many times the job's log says a start launched it again.
+async fn resumed(scratch: &Scratch, id: i64) -> i64 {
+  scratch
+    .count(
+      r#"SELECT COUNT(*) FROM "agent_log" WHERE "job_id" = $1 AND "text" = $2"#,
+      vec![id.into(), RESUMED.into()],
+    )
+    .await
+}
+
 // A tool host on the socket given, issuing one token to every record and taking every token back.
 fn tool_host(socket: &std::path::Path) {
   let listener = tokio::net::UnixListener::bind(socket).unwrap();
@@ -105,7 +126,7 @@ fn tool_host(socket: &std::path::Path) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again_on_the_request_it_left() {
+async fn a_job_waiting_for_a_road_then_its_slot_is_launched_again_by_each_process_started_after_a_kill() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -196,6 +217,25 @@ async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again
   let on_road = job_once(first.port, id, |job| job["heldFor"].is_string()).await;
 
   assert!(on_road["heldFor"].as_str().unwrap_or_default().contains("login-a"), "{on_road}");
+  assert!(requests(&scratch, id).await.is_empty(), "no slot is asked while no road answers");
+
+  // The process is killed in the middle of the wait for a road. The job is aged past the launch window, so a
+  // start that did not launch it again would reap it at once.
+  drop(first);
+  aged(&scratch, id).await;
+  // The wait the killed process wrote is cleared, so the wait read next is the new process's own.
+  scratch
+    .run(r#"UPDATE "jobs" SET "held_for" = NULL WHERE "id" = $1"#, vec![id.into()])
+    .await;
+
+  let middle = standing::stand_server_with(home.path(), &data, &scratch.address(), TOKEN, &variables);
+  let for_road = |job: &Value| job["heldFor"].as_str().is_some_and(|why| why.contains("login-a"));
+  let again = job_once(middle.port, id, for_road).await;
+
+  assert_eq!(again["state"], "starting", "{again}");
+  assert!(for_road(&again), "the job waits for a road again: {again}");
+  assert_eq!(again["report"], Value::Null, "{again}");
+  assert_eq!(resumed(&scratch, id).await, 1);
 
   // The agent takes another run meanwhile, and the login reopens: the job's turn now waits for its agent's slot.
   scratch
@@ -213,12 +253,12 @@ async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again
     .run(r#"DELETE FROM "settings" WHERE "key" = 'rest_until:login-a'"#, vec![])
     .await;
 
-  let (status, _) = post(first.port, "/events", json!({ "kind": "rest.changed", "data": {} })).await;
+  let (status, _) = post(middle.port, "/events", json!({ "kind": "rest.changed", "data": {} })).await;
 
   assert_eq!(status, 201);
 
   let waits = |job: &Value| job["heldFor"].as_str().is_some_and(|why| why.contains("waits for the agent"));
-  let held = job_once(first.port, id, waits).await;
+  let held = job_once(middle.port, id, waits).await;
 
   assert_eq!(held["state"], "starting", "{held}");
   assert!(waits(&held), "the job waits for its agent's slot: {held}");
@@ -241,14 +281,11 @@ async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again
     "the job keeps the words of its first turn while it waits"
   );
 
-  // The process is killed in the middle of the wait. The job is aged past the launch window, so a start that
-  // did not launch it again would reap it at once.
-  drop(first);
+  // The process is killed in the middle of the wait for the slot, the job aged again.
+  drop(middle);
+  aged(&scratch, id).await;
   scratch
-    .run(
-      r#"UPDATE "jobs" SET "started_at" = $1 WHERE "id" = $2"#,
-      vec![(agency_server::now_ms() - 20 * 60 * 1000).into(), id.into()],
-    )
+    .run(r#"UPDATE "jobs" SET "held_for" = NULL WHERE "id" = $1"#, vec![id.into()])
     .await;
 
   let second = standing::stand_server_with(home.path(), &data, &scratch.address(), TOKEN, &variables);
@@ -260,15 +297,7 @@ async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again
   assert_eq!(held["state"], "starting", "{held}");
   assert!(waits(&held), "{held}");
   assert_eq!(held["report"], Value::Null, "{held}");
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT COUNT(*) FROM "agent_log" WHERE "job_id" = $1 AND "text" = $2"#,
-        vec![id.into(), RESUMED.into()],
-      )
-      .await,
-    1
-  );
+  assert_eq!(resumed(&scratch, id).await, 2);
   assert_eq!(requests(&scratch, id).await, left, "the request that waited is taken up again");
 
   // The agent is free again: the job is let in on that request and goes out. With no herdr to stand its turn
