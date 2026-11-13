@@ -338,6 +338,12 @@ When a demotion first catches — when a healthy session first drops — two thi
     refused.
   - Only where every account of the walk refused does the run end, on the login failure naming each account
     with its words and saying a person must sign in to it again.
+- **An account whose login is near its end is renewed before a run goes out on it, never during the run.**
+  As the walk reaches such an account, the run renews the login in a short step of its own: the one run that
+  takes the account's lock renews it with one run of the CLI and lets the lock go before its turn goes out,
+  and every other run on the account waits only for that step, saying so in its log as it starts waiting
+  and as it goes out. A renewal refused on the login is that account's refusal for each of those runs, so the
+  walk carries them to the next account as above (「A login that is about to end」).
 - **A road names the provider; the Claude Code road holds the accounts.** The account order is one list for
   the deployment, and it is what every run on the Claude Code road walks.
 - **The account order is each account's own place and on/off, held together,** so the two cannot
