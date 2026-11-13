@@ -215,12 +215,15 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
       .expect("serve"),
   );
 
-  // The hub's connect program standing in: its agent and port, joined to that port here.
+  // The hub's connect program standing in: its agent and port, joined to that port here, and only for a
+  // control credential scoped to that agent alone.
   let connect = dir.path().join("jake-hub");
+  let hub_env = dir.path().join("hub.env");
 
+  fs::write(&hub_env, "JAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n").expect("hub settings");
   fs::write(
     &connect,
-    "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\nexec 3<>/dev/tcp/127.0.0.1/$3\ncat <&3 &\ncat >&3\n",
+    "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\n[ \"${JAKE_CONTROL_CREDENTIAL%%.*}\" = \"$2\" ] || exit 3\nexec 3<>/dev/tcp/127.0.0.1/$3\ncat <&3 &\ncat >&3\n",
   )
   .expect("connect");
   fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
@@ -250,7 +253,7 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
       "jake": {
         "agent": "u7",
         "connect": [connect, "connect"],
-        "hub_env": dir.path().join("no-hub.env"),
+        "hub_env": hub_env,
         "mirror_port": mirror_port,
         "herdr_port": 1,
         "bridge_port": 2,

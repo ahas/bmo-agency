@@ -24,6 +24,8 @@ base64 = "0.22.1"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }
 dotenvy = "0.15.7"
+hex = "0.4.3"
+hmac = "0.12.1"
 indexmap = { version = "2.14.2", features = ["serde"] }
 libc = "0.2.177"
 reqwest = { version = "0.13.5", features = ["json", "query", "stream"] }
