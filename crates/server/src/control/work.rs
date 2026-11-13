@@ -330,7 +330,7 @@ impl Route for CreateAssignment {
     }
 
     for checkout in checkouts {
-      if checkout.builtin || assignee.is_some_and(|assignee| assignee != checkout.name) {
+      if checkout.builtin || assignee.is_some_and(|assignee| !answers_to(&checkout, assignee)) {
         continue;
       }
 
@@ -3382,3 +3382,10 @@ impl Route for DeleteSessionLoads {
 }
 
 crate::moved!(DeleteSessionLoads);
+
+// Whether a checkout answers an assignment's assignee: the checkout it names, or, where it names a repository, any
+// checkout of that repository — its base, a support worktree or a node checkout (docs/api.md, 「assignments and
+// jobs」).
+fn answers_to(checkout: &crate::queue::workers::Worker, assignee: &str) -> bool {
+  checkout.name == assignee || checkout.support_of.as_deref() == Some(assignee)
+}

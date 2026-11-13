@@ -829,6 +829,56 @@ async fn an_assign_for_the_same_item_and_holder_answers_the_standing_hold() {
   assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
 }
 
+// An assignment naming a repository takes any free checkout of it, a support worktree where the base is held, and
+// is refused only once every one is; one naming a checkout takes that checkout alone.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_assign_naming_a_repository_takes_any_free_checkout_of_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  repository(
+    scratch.db(),
+    "helper",
+    &home.path().join("helper").to_string_lossy(),
+    &[("support_count", 1i64.into())],
+  )
+  .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let ask = |id: i64, assignee: &str| json!({ "itemId": id, "holderName": "harness", "assigneeName": assignee, "item": item() });
+  let (status, base) = post(port, token, "/assignments", ask(61, "helper")).await;
+
+  assert_eq!((status, base["workerName"].as_str()), (201, Some("helper")), "{base}");
+
+  let (status, support) = post(port, token, "/assignments", ask(62, "helper")).await;
+
+  assert_eq!(
+    (status, support["workerName"].as_str()),
+    (201, Some("helper-w2")),
+    "the base held: {support}"
+  );
+
+  let (status, refused) = post(port, token, "/assignments", ask(63, "helper")).await;
+
+  assert_eq!(
+    (status, refused["code"].as_str()),
+    (422, Some("no-worker-free")),
+    "every checkout held: {refused}"
+  );
+
+  let (status, refused) = post(port, token, "/assignments", ask(64, "helper-w2")).await;
+
+  assert_eq!(
+    (status, refused["code"].as_str()),
+    (422, Some("no-worker-free")),
+    "the named checkout held: {refused}"
+  );
+}
+
 // A hold given back frees the worker for the next item.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_release_frees_the_worker_for_the_next_item() {
