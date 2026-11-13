@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-testbed-client"
-version = "0.1.0-rev.18"
+version = "0.1.0-rev.19"
 dependencies = [
  "schemars",
  "serde",
