@@ -14,7 +14,7 @@ use std::time::Duration;
 use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
 use agency_server::door::stand::Interrupt;
-use agency_server::door::tool_clock::{ToolClock, Watch as ToolWatch};
+use agency_server::door::tool_clock::{CallVerdict, SilentClock, ToolClock, Watch as ToolWatch};
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
 use agency_server::places::Ground;
 use harness_providers::Machine;
@@ -50,6 +50,23 @@ impl Program {
 
     Self { child, pid }
   }
+
+  // A program making a shell call as the turn's program makes one: the call a shell of its own under it,
+  // its standard output and standard error on a file of its own.
+  fn spawn_writing(script: &str, output: &Path) -> Self {
+    let file = std::fs::File::create(output).unwrap();
+    let child = Command::new("bash")
+      .args(["-c", "bash -c \"$0\" & wait", script])
+      .process_group(0)
+      .stdin(Stdio::null())
+      .stdout(file.try_clone().unwrap())
+      .stderr(file)
+      .spawn()
+      .unwrap();
+    let pid = child.id() as i32;
+
+    Self { child, pid }
+  }
 }
 
 impl Drop for Program {
@@ -76,6 +93,17 @@ fn clock(min_ms: i64, stall_ms: i64, stop_stall_ms: i64) -> ToolClock {
     still_every_ms: 100,
     stop_stall_ms,
     stop_bound_ms: 5_000,
+    silent: unasked(),
+  }
+}
+
+// A silent rule whose window no test's call reaches, for the tests of the first rule.
+fn unasked() -> SilentClock {
+  SilentClock {
+    window_ms: i64::MAX / 4,
+    idle_cpu_percent: 5,
+    ask_chars: 400,
+    cut: "The tool call {tool} was cut on the supervisor's call after {seconds} seconds: {why}.".to_owned(),
   }
 }
 
@@ -269,6 +297,180 @@ async fn a_stop_cuts_a_call_blocked_on_a_pipe_within_its_bound() {
   assert!(gone(pid_of(cut)).await, "the call's process is gone");
 }
 
+// A silent rule a test's call reaches within a second: its idle share is generous, since a loaded machine
+// spends more on starting a process than the policy's share allows.
+fn asking(min_ms: i64, window_ms: i64) -> ToolClock {
+  ToolClock {
+    silent: SilentClock {
+      window_ms,
+      idle_cpu_percent: 30,
+      ..unasked()
+    },
+    ..clock(min_ms, 60_000, 100)
+  }
+}
+
+// A wait that polls as a job's does: one line said, then a loop that sleeps and looks for a file that never
+// comes, beginning a process on every pass and writing nothing.
+const POLLING: &str =
+  "echo waiting for the other job to close; until [ -e /nonexistent/closed ]; do sleep 0.1; done";
+
+// The clock looked at every 100 ms for up to `steps` looks, until a call is handed over as silent.
+async fn looked_until_silent(
+  watch: &mut ToolWatch,
+  records: &[Value],
+  program: i32,
+  began: i64,
+  steps: i64,
+  said: &mut Vec<String>,
+) -> Option<(i64, agency_server::door::tool_clock::SilentCall)> {
+  for step in 0..steps {
+    let now = began + step * 100;
+
+    said.extend(watch.look("job-41", records, 0, program, now).await);
+
+    if let Some(silent) = watch.take_silent() {
+      return Some((now, silent));
+    }
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
+
+  None
+}
+
+#[tokio::test]
+async fn a_call_that_polls_with_no_new_output_is_asked_about_and_runs_on() {
+  let scratch = tempfile::tempdir().unwrap();
+  let program = Program::spawn_writing(POLLING, &scratch.path().join("call.output"));
+  let mut watch = ToolWatch::new(asking(200, 400));
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", POLLING, began)];
+  let mut said = vec![];
+  let (at, silent) = looked_until_silent(&mut watch, &records, program.pid, began, 30, &mut said)
+    .await
+    .unwrap_or_else(|| panic!("the polling call was handed over as silent: {said:?}"));
+
+  assert!(at - began <= 2_000, "it is asked about within its window: {}ms", at - began);
+  assert_eq!(silent.id, "t1");
+  assert!(
+    silent.tool.starts_with("Bash echo waiting"),
+    "the ask carries the command: {}",
+    silent.tool
+  );
+  assert!(
+    silent.tool.contains("sleep 0.1"),
+    "the whole command, not the line's cut: {}",
+    silent.tool
+  );
+  assert_eq!(silent.started_at, began, "how long it has run is read from its start");
+  assert!(silent.output_changed_at < at, "its output last changed before the window");
+  assert_eq!(silent.last_line.as_deref(), Some("waiting for the other job to close"));
+  assert!(silent.cpu_percent < 30.0, "its share is under the idle share: {}", silent.cpu_percent);
+  assert_eq!(silent.window_ms, 400);
+  assert!(
+    !said.iter().any(|line| line.contains("cut after")),
+    "nothing cuts a call that is asked about: {said:?}"
+  );
+
+  // An ask stands with no verdict: the call runs on, and the verdict is looked for on the next read.
+  let answered = watch.answer("job-41", "t1", CallVerdict::Waiting, at).await;
+
+  assert!(
+    answered.lines.iter().any(|line| line.contains("asked about")),
+    "the ask is written: {answered:?}"
+  );
+  assert!(answered.words.is_none());
+  tokio::time::sleep(Duration::from_millis(100)).await;
+  said.extend(watch.look("job-41", &records, 0, program.pid, at + 100).await);
+
+  let polled = watch.take_silent().expect("an ask that stands is looked at again");
+
+  assert_eq!(polled.id, "t1");
+  assert!(std::path::Path::new(&format!("/proc/{}", program.pid)).exists(), "the call runs on");
+  assert!(
+    watch.answer("job-41", "t1", CallVerdict::Waiting, at + 100).await.lines.is_empty(),
+    "a verdict looked for again writes no second ask"
+  );
+}
+
+#[tokio::test]
+async fn a_call_whose_output_keeps_growing_is_not_asked_about() {
+  let scratch = tempfile::tempdir().unwrap();
+  let script = "while :; do echo one more pass; sleep 0.1; done";
+  let program = Program::spawn_writing(script, &scratch.path().join("call.output"));
+  let mut watch = ToolWatch::new(asking(200, 400));
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", script, began)];
+  let mut said = vec![];
+
+  assert!(
+    looked_until_silent(&mut watch, &records, program.pid, began, 15, &mut said)
+      .await
+      .is_none(),
+    "a call writing on every pass is left alone: {said:?}"
+  );
+  assert!(!said.iter().any(|line| line.contains("cut after")), "and is not cut: {said:?}");
+}
+
+#[tokio::test]
+async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
+  let scratch = tempfile::tempdir().unwrap();
+  let program = Program::spawn_writing(POLLING, &scratch.path().join("call.output"));
+  let mut watch = ToolWatch::new(asking(200, 400));
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", POLLING, began)];
+  let mut said = vec![];
+  let (at, _) = looked_until_silent(&mut watch, &records, program.pid, began, 30, &mut said)
+    .await
+    .expect("the polling call was handed over");
+
+  // The supervisor keeps it, with a time to look again.
+  let until = at + 600;
+  let kept = watch.answer("job-41", "t1", CallVerdict::Kept(until), at).await;
+
+  assert!(kept.lines.iter().any(|line| line.contains("kept on the supervisor's call")), "{kept:?}");
+
+  let mut again = None;
+
+  for step in 1..20 {
+    let now = at + step * 100;
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    said.extend(watch.look("job-41", &records, 0, program.pid, now).await);
+
+    if let Some(silent) = watch.take_silent() {
+      again = Some((now, silent));
+
+      break;
+    }
+
+    assert!(
+      std::path::Path::new(&format!("/proc/{}", program.pid)).exists(),
+      "the kept call runs on"
+    );
+  }
+
+  let (again_at, again) = again.expect("still silent and idle, it is asked about again");
+
+  assert!(again_at >= until, "not before its keep runs out: {}ms early", until - again_at);
+  assert_eq!(again.last_line.as_deref(), Some("waiting for the other job to close"));
+
+  // A cut stops its processes and gives the words for the turn with the supervisor's reason.
+  let cut = watch
+    .answer("job-41", "t1", CallVerdict::Cut("it waits on another job's close".into()), again_at)
+    .await;
+  let line = cut
+    .lines
+    .iter()
+    .find(|line| line.contains("cut on the supervisor's call"))
+    .expect("the cut line");
+  let words = cut.words.expect("the words for the turn");
+
+  assert!(words.contains("it waits on another job's close") && words.contains("Bash"), "{words}");
+  assert!(gone(pid_of(line)).await, "the cut call's process is gone: {line}");
+}
+
 fn append(path: &Path, lines: &[Value]) {
   std::fs::create_dir_all(path.parent().unwrap()).unwrap();
 
@@ -402,6 +604,7 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
       still_every_ms: 100,
       stop_stall_ms: 100,
       stop_bound_ms: 5_000,
+      silent: unasked(),
     },
   );
 
@@ -574,6 +777,7 @@ async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result(
       still_every_ms: 100,
       stop_stall_ms: 100,
       stop_bound_ms: 5_000,
+      silent: unasked(),
     },
   );
 

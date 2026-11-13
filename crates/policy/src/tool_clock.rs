@@ -35,6 +35,28 @@ pub struct CallClock {
   pub stop_stall_seconds: u64,
   /// A stop the job has not ended with itself within this long is ended by the interrupt.
   pub stop_bound_seconds: u64,
+  /// The rule that asks the supervisor about a call gone silent and idle.
+  pub silent: SilentCallClock,
+}
+
+/// A call that owns processes, wrote no output for its window and burned under its idle share is asked
+/// about, never cut by the clock.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SilentCallClock {
+  /// How long a call may write no output with its processes idle before it is asked about.
+  pub window_seconds: u64,
+  /// The share of one processor, in percent across the window, under which a call's processes are idle.
+  pub idle_cpu_percent: u64,
+  /// How many characters of the call's command and of its output's last line an ask carries.
+  pub ask_chars: usize,
+  /// What an ask says the call is; `{job}`, `{item}`, `{tool}`, `{cpu}` and `{minutes}` are filled.
+  pub what: String,
+  /// The last activity an ask names for a call that has written nothing.
+  pub nothing_written: String,
+  /// The words put into the working turn when the supervisor cuts such a call; `{tool}`, `{seconds}` and
+  /// `{why}` are filled.
+  pub cut: String,
 }
 
 #[derive(Debug, Deserialize)]

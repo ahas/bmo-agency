@@ -20,7 +20,7 @@ fn stat_fields(pid: i32) -> Option<Vec<String>> {
 }
 
 /// A process as the kernel's own stat line names it: whether it still runs, its parent, the processor time
-/// it has burned and when it began, in clock ticks since boot.
+/// it and the children it reaped have burned, and when it began, in clock ticks since boot.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProcessStat {
   /// Its state letter, `Z` for a process that has ended and is not reaped yet.
@@ -28,6 +28,8 @@ pub struct ProcessStat {
   pub ppid: i32,
   /// The processor time it has burned itself, in clock ticks.
   pub cpu: u64,
+  /// The processor time of the children it has reaped, in clock ticks.
+  pub reaped_cpu: u64,
   pub birth: String,
 }
 
@@ -40,6 +42,7 @@ pub fn process_stat(pid: i32) -> Option<ProcessStat> {
     state: fields.first()?.clone(),
     ppid: fields.get(1)?.parse().ok()?,
     cpu: fields.get(11)?.parse::<u64>().ok()? + fields.get(12)?.parse::<u64>().ok()?,
+    reaped_cpu: fields.get(13)?.parse::<u64>().ok()? + fields.get(14)?.parse::<u64>().ok()?,
     birth: fields.get(19)?.clone(),
   })
 }

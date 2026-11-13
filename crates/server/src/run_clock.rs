@@ -3,17 +3,24 @@
 //! `clock_asks`, published as `clock-asked` for the consumer that queues the order in the owner's chat, and
 //! the run's door looks for the verdict on each pass for as long as the run goes. Only the supervisor's
 //! verdict cuts it. A run that ends while asked closes its ask as ended.
+//!
+//! A job's tool call gone silent and idle is asked about the same way (docs/agent-control.md, 「A job
+//! turn's tool calls are held to a clock」): each such call is a clocked run of its own under the turn's
+//! run, opened when the call clock first hands it over.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use policy::fill_marks;
 use policy::run_clock::RUN_CLOCK;
+use policy::tool_clock::TOOL_CLOCK;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
 use serde_json::json;
 use store::{all, one, run};
 
 use crate::door::confirm::{Asking, Confirmation};
+use crate::door::tool_clock::{CallVerdict, SilentCall};
 use crate::door::turn::{AsideOutcome, Overrun, Overtime, Watch};
 use crate::events::{Bus, Event};
 use crate::{Refusal, now_ms};
@@ -342,6 +349,76 @@ pub async fn settle(
   })
 }
 
+/// An ask opened on a clocked run past its clock: its row written with the facts it carries, and published
+/// for the consumer that queues the order in the owner's chat.
+async fn put_ask(
+  db: &DatabaseConnection,
+  events: &Bus,
+  clocked: &Clocked,
+  overdue: &Overrun,
+) -> Result<i64, Refusal> {
+  let now = now_ms();
+  let agent = clocked.agent.clone().unwrap_or_else(|| clocked.work_key.clone());
+  let facts = json!({
+    "agent": agent,
+    "workKey": clocked.work_key,
+    "run": clocked.run,
+    "what": clocked.what,
+    "startedAt": overdue.started_at,
+    "boundMs": overdue.bound_ms,
+    "lastActivityAt": overdue.last_activity_at,
+    "lastActivity": overdue.last_activity,
+  });
+  let row = one(
+    db,
+    r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at") VALUES ($1, $2, $3) RETURNING "id""#,
+    vec![clocked.run.clone().into(), facts.to_string().into(), now.into()],
+  )
+  .await?
+  .ok_or_else(|| Refusal::failed("the ask was not written"))?;
+  let ask: i64 = row.try_get("", "id")?;
+
+  events.publish(ClockAsked {
+    ask,
+    agent,
+    run: clocked.run.clone(),
+    what: clocked.what.clone(),
+    started_at: overdue.started_at,
+    bound_ms: overdue.bound_ms,
+    last_activity_at: overdue.last_activity_at,
+    last_activity: overdue.last_activity.clone(),
+    verb: RUN_CLOCK.verb.clone(),
+  });
+
+  Ok(ask)
+}
+
+/// An ask as it stands: its verdict where one was given, until when a keep holds, and why.
+struct AskRead {
+  verdict: Option<String>,
+  kept_until: Option<i64>,
+  why: Option<String>,
+}
+
+/// The ask of that number as it stands; none where there is no such ask.
+async fn ask_read(db: &DatabaseConnection, ask: i64) -> Result<Option<AskRead>, Refusal> {
+  let Some(row) = one(
+    db,
+    r#"SELECT "verdict", "kept_until", "why" FROM "clock_asks" WHERE "id" = $1"#,
+    vec![ask.into()],
+  )
+  .await?
+  else {
+    return Ok(None);
+  };
+
+  Ok(Some(AskRead {
+    verdict: row.try_get("", "verdict")?,
+    kept_until: row.try_get("", "kept_until")?,
+    why: row.try_get("", "why")?,
+  }))
+}
+
 /// A run's door watch with the clock's ask put in front of it: past the clock an ask is opened and
 /// published, its verdict looked for on each pass for as long as the run goes, the run kept while a keep
 /// holds and cut on a verdict to cut; every other word of the door goes to the watch it wraps.
@@ -376,39 +453,7 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
   }
 
   async fn ask_now(&mut self, overdue: &Overrun) -> Result<Overtime, Refusal> {
-    let now = now_ms();
-    let agent = self.clocked.agent.clone().unwrap_or_else(|| self.clocked.work_key.clone());
-    let facts = json!({
-      "agent": agent,
-      "workKey": self.clocked.work_key,
-      "run": self.clocked.run,
-      "what": self.clocked.what,
-      "startedAt": overdue.started_at,
-      "boundMs": overdue.bound_ms,
-      "lastActivityAt": overdue.last_activity_at,
-      "lastActivity": overdue.last_activity,
-    });
-    let row = one(
-      self.db,
-      r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at") VALUES ($1, $2, $3) RETURNING "id""#,
-      vec![self.clocked.run.clone().into(), facts.to_string().into(), now.into()],
-    )
-    .await?
-    .ok_or_else(|| Refusal::failed("the ask was not written"))?;
-    let ask: i64 = row.try_get("", "id")?;
-
-    self.ask = Some(ask);
-    self.events.publish(ClockAsked {
-      ask,
-      agent,
-      run: self.clocked.run.clone(),
-      what: self.clocked.what.clone(),
-      started_at: overdue.started_at,
-      bound_ms: overdue.bound_ms,
-      last_activity_at: overdue.last_activity_at,
-      last_activity: overdue.last_activity.clone(),
-      verb: RUN_CLOCK.verb.clone(),
-    });
+    self.ask = Some(put_ask(self.db, self.events, self.clocked, overdue).await?);
 
     Ok(self.look_again())
   }
@@ -416,29 +461,20 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
   // The verdict on the open ask, read once more: a keep holds the run until it runs out, when a new ask
   // is opened; a cut cuts it; and with none the run goes on and the ask stands.
   async fn looked(&mut self, ask: i64, overdue: &Overrun) -> Result<Overtime, Refusal> {
-    let Some(row) = one(
-      self.db,
-      r#"SELECT "verdict", "kept_until", "why", "closed_at" FROM "clock_asks" WHERE "id" = $1"#,
-      vec![ask.into()],
-    )
-    .await?
-    else {
+    let Some(read) = ask_read(self.db, ask).await? else {
       return self.ask_now(overdue).await;
     };
     let now = now_ms();
-    let verdict: Option<String> = row.try_get("", "verdict")?;
 
-    match verdict.as_deref() {
-      Some(KEEP) => match row.try_get::<Option<i64>>("", "kept_until")?.filter(|until| *until > now) {
+    match read.verdict.as_deref() {
+      Some(KEEP) => match read.kept_until.filter(|until| *until > now) {
         Some(until) => Ok(Overtime::AskAgainAt(until)),
         None => self.ask_now(overdue).await,
       },
       Some(CUT) => {
-        let why: Option<String> = row.try_get("", "why")?;
-
         self.cut = Some(fill_marks(
           &RUN_CLOCK.cut_by_agent,
-          &[("minutes", &self.minutes()), ("why", why.as_deref().unwrap_or_default())],
+          &[("minutes", &self.minutes()), ("why", read.why.as_deref().unwrap_or_default())],
         ));
 
         Ok(Overtime::Cut)
@@ -488,5 +524,133 @@ impl<W: Watch + Send> Watch for Asked<'_, W> {
 
   fn stopping(&mut self) -> bool {
     self.inner.stopping()
+  }
+}
+
+/// The asks a job's turn opens on its tool calls gone silent and idle: each call a clocked run of its own,
+/// named for the call under the turn's run, its clock the call clock's silent window. The call clock hands a
+/// call over when it goes silent and idle and on each read while its ask stands; a call that ends, and the
+/// turn's end, close the asks on it as ended.
+pub struct CallAsks {
+  turn: String,
+  agent: String,
+  job: i64,
+  // The job's item, read once; none where the store names none.
+  item: Option<Option<i64>>,
+  // Every call asked about, by its id, with the ask that stands on it with no verdict.
+  calls: BTreeMap<String, Option<i64>>,
+}
+
+impl CallAsks {
+  pub fn new(turn: &str, agent: &str, job: i64) -> Self {
+    Self {
+      turn: turn.to_owned(),
+      agent: agent.to_owned(),
+      job,
+      item: None,
+      calls: BTreeMap::new(),
+    }
+  }
+
+  /// The name a call's clock runs under.
+  pub fn run_of(&self, call: &str) -> String {
+    format!("{}/call/{call}", self.turn)
+  }
+
+  /// The policy's answer on a call handed over: an ask opened where none stands, else the verdict on the
+  /// one that does. An ask that cannot be put or read leaves the call running.
+  pub async fn hear(&mut self, db: &DatabaseConnection, events: &Bus, call: &SilentCall) -> CallVerdict {
+    self.heard(db, events, call).await.unwrap_or_else(|why| CallVerdict::Failed(why.detail))
+  }
+
+  async fn heard(
+    &mut self,
+    db: &DatabaseConnection,
+    events: &Bus,
+    call: &SilentCall,
+  ) -> Result<CallVerdict, Refusal> {
+    if let Some(Some(ask)) = self.calls.get(&call.id).copied() {
+      let verdict = match ask_read(db, ask).await? {
+        None => CallVerdict::Failed(format!("the ask {ask} is gone")),
+        Some(read) => match read.verdict.as_deref() {
+          None => return Ok(CallVerdict::Waiting),
+          Some(KEEP) => CallVerdict::Kept(read.kept_until.unwrap_or_else(now_ms)),
+          Some(CUT) => CallVerdict::Cut(read.why.unwrap_or_default()),
+          Some(other) => CallVerdict::Failed(format!("the ask {ask} closed as {other}")),
+        },
+      };
+
+      self.calls.insert(call.id.clone(), None);
+
+      return Ok(verdict);
+    }
+
+    let item = self.item(db).await?;
+    let silent = &TOOL_CLOCK.call.silent;
+    let what = fill_marks(
+      &silent.what,
+      &[
+        ("job", &self.job.to_string()),
+        ("item", &item.map_or_else(|| "-".to_owned(), |item| item.to_string())),
+        ("tool", &call.tool),
+        ("cpu", &format!("{:.1}", call.cpu_percent)),
+        ("minutes", &(call.window_ms / MINUTE_MS).max(1).to_string()),
+      ],
+    );
+    let clocked = Clocked {
+      run: self.run_of(&call.id),
+      parent: Some(self.turn.clone()),
+      work_key: crate::queue::routes::JOB_WORK_KEY.to_owned(),
+      agent: Some(self.agent.clone()),
+      what,
+      clock: Duration::from_millis(u64::try_from(call.window_ms).unwrap_or_default()),
+    };
+    let overdue = Overrun {
+      started_at: call.started_at,
+      bound_ms: call.window_ms,
+      last_activity_at: Some(call.output_changed_at),
+      last_activity: Some(call.last_line.clone().unwrap_or_else(|| silent.nothing_written.clone())),
+    };
+
+    open(db, &clocked).await?;
+
+    let ask = put_ask(db, events, &clocked, &overdue).await?;
+
+    self.calls.insert(call.id.clone(), Some(ask));
+
+    Ok(CallVerdict::Waiting)
+  }
+
+  async fn item(&mut self, db: &DatabaseConnection) -> Result<Option<i64>, Refusal> {
+    if let Some(item) = self.item {
+      return Ok(item);
+    }
+
+    let row = one(db, r#"SELECT "item_id" FROM "jobs" WHERE "id" = $1"#, vec![self.job.into()]).await?;
+    let item = match row {
+      Some(row) => row.try_get::<Option<i64>>("", "item_id")?,
+      None => None,
+    };
+
+    self.item = Some(item);
+
+    Ok(item)
+  }
+
+  /// A call asked about has ended, or with none every call of the turn: its clock closes, and an ask still
+  /// standing on it closes as ended and is withdrawn.
+  pub async fn ended(&mut self, db: &DatabaseConnection, events: &Bus, call: Option<&str>) {
+    let ended: Vec<String> = match call {
+      Some(call) => self.calls.contains_key(call).then(|| call.to_owned()).into_iter().collect(),
+      None => self.calls.keys().cloned().collect(),
+    };
+
+    for call in ended {
+      self.calls.remove(&call);
+
+      if let Err(why) = close(db, events, &self.run_of(&call)).await {
+        eprintln!("{}: the clock of the call {call} was not closed: {}", self.turn, why.detail);
+      }
+    }
   }
 }

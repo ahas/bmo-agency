@@ -243,6 +243,21 @@ pub trait Watch {
     None
   }
 
+  /// A tool call gone silent and idle, or one whose ask stands, handed to the caller's overtime policy on
+  /// each read: the caller that asks opens an ask on it, or reads the verdict on the ask it opened. A caller
+  /// that asks nothing leaves the call running and is not asked about it again.
+  fn silent_call(
+    &mut self,
+    _call: &super::tool_clock::SilentCall,
+  ) -> impl Future<Output = super::tool_clock::CallVerdict> + Send {
+    async { super::tool_clock::CallVerdict::NotAsked }
+  }
+
+  /// A call asked about has ended, or with none the turn has: the asks on it close as ended.
+  fn call_ended(&mut self, _call: Option<&str>) -> impl Future<Output = ()> + Send {
+    async {}
+  }
+
   /// A call that held no process of its own did not take its cut within the grace: the reason a caller
   /// marks its job stopped by, where it keeps one; none where the turn is only stopped.
   fn held_by_processless_call(
@@ -1168,6 +1183,10 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
   let mut ending = End::Exited;
   // Held on the heap: the wait is the deepest future of a turn.
   let watched = Box::pin(watch_turn(&mut door, &pane, from, &mut attempted, &mut ending)).await;
+
+  // The asks opened on the turn's calls close with it.
+  door.watch.call_ended(None).await;
+
   let watched = match watched {
     Ok(done) => Ok(done),
     Err(why) => {
@@ -1649,6 +1668,35 @@ async fn watch_turn<W: Watch>(
 
       if !watching.in_process_cut_still() {
         in_process_cut = None;
+      }
+
+      // A call gone silent and idle is asked about, never cut by the clock: the caller's policy opens the
+      // ask and reads its verdict, and only a cut on it stops the call, with words put into the turn.
+      while let Some(silent) = watching.take_silent() {
+        let verdict = door.watch.silent_call(&silent).await;
+        let answered = watching.answer(&turn.name, &silent.id, verdict, now_ms()).await;
+
+        for line in &answered.lines {
+          println!("{line}");
+          door.watch.note(line).await;
+        }
+
+        if let Some(words) = answered.words
+          && takes_words_mid_turn(&turn.provider)
+          && let Err(fault) = prompt_with_lead(door.herdr, pane, &turn.lead, &words).await
+        {
+          let said = format!(
+            "{}: the cut words of the call {} did not go in: {}: {}",
+            turn.name, silent.tool, fault.code, fault.message
+          );
+
+          println!("{said}");
+          door.watch.note(&said).await;
+        }
+      }
+
+      for ended in watching.take_closed_asks() {
+        door.watch.call_ended(Some(&ended)).await;
       }
     }
 

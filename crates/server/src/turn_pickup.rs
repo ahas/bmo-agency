@@ -32,7 +32,7 @@ use crate::door::record::{
   CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round, read_turn,
   turn_closed_since, turn_error,
 };
-use crate::door::tool_clock::{InProcessCut, ToolClock, Watch as ToolWatch};
+use crate::door::tool_clock::{CallVerdict, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::takes_words_mid_turn;
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
@@ -40,6 +40,7 @@ use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
 use crate::queue::settings;
 use crate::queue::stops::Stops;
+use crate::run_clock::CallAsks;
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::worker_session::records::{note_answer, slot_account};
@@ -748,13 +749,30 @@ async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
 // record is read into the run log on every look, so the log follows the turn as a live one's would. A
 // job's turn is held to the same tool clock and turn bound as a door's: a blocked call is cut so the turn
 // can go on, a stop cuts it so the stop's words can be read, and a turn past its bound is cut and its item
-// released.
+// released, and a call gone silent and idle is asked about. The asks opened on its calls close with it.
 pub async fn waited(
   ground: &Ground,
   place: &Place,
   pane: Option<&OwnPane>,
   turn: &InFlight,
   clock: ToolClock,
+) {
+  let mut asks = turn.job.map(|job| CallAsks::new(&turn.run, &turn.agent, job));
+
+  followed(ground, place, pane, turn, clock, asks.as_mut()).await;
+
+  if let Some(asks) = asks.as_mut() {
+    asks.ended(&ground.db, &ground.events, None).await;
+  }
+}
+
+async fn followed(
+  ground: &Ground,
+  place: &Place,
+  pane: Option<&OwnPane>,
+  turn: &InFlight,
+  clock: ToolClock,
+  mut asks: Option<&mut CallAsks>,
 ) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
@@ -843,6 +861,33 @@ pub async fn waited(
 
       if !watch.in_process_cut_still() {
         in_process_cut = None;
+      }
+
+      // A call gone silent and idle is asked about as the door asks about one, and only a cut on it stops
+      // the call, with words put into the turn.
+      while let Some(silent) = watch.take_silent() {
+        let verdict = match asks.as_deref_mut() {
+          Some(asks) => asks.hear(&ground.db, &ground.events, &silent).await,
+          None => CallVerdict::NotAsked,
+        };
+        let answered = watch.answer(&turn.run, &silent.id, verdict, now).await;
+
+        for line in &answered.lines {
+          println!("{line}");
+          following.log.write(&ground.db, Line::note(line)).await;
+        }
+
+        if let (Some(words), true, Some(herdr), Some(target)) =
+          (answered.words, takes_words_mid_turn(provider), &ground.herdr, target.as_deref())
+        {
+          let _ = herdr.call("agent.prompt", json!({ "target": target, "text": words }), None).await;
+        }
+      }
+
+      for ended in watch.take_closed_asks() {
+        if let Some(asks) = asks.as_deref_mut() {
+          asks.ended(&ground.db, &ground.events, Some(&ended)).await;
+        }
       }
     }
 

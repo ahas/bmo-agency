@@ -13,7 +13,7 @@ use std::time::Duration;
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work::job_turn_ended;
-use agency_server::door::tool_clock::{ToolClock, Watch as ToolWatch};
+use agency_server::door::tool_clock::{SilentClock, ToolClock, Watch as ToolWatch};
 use agency_server::job_end::keeps_lease;
 use agency_server::now_ms;
 use agency_server::places::Ground;
@@ -72,6 +72,12 @@ fn clock() -> ToolClock {
     still_every_ms: 100,
     stop_stall_ms: 100,
     stop_bound_ms: 5_000,
+    silent: SilentClock {
+      window_ms: i64::MAX / 4,
+      idle_cpu_percent: 5,
+      ask_chars: 400,
+      cut: "The tool call {tool} was cut on the supervisor's call: {why}.".to_owned(),
+    },
   }
 }
 

@@ -38,7 +38,7 @@ use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
-use crate::door::tool_clock::ToolClock;
+use crate::door::tool_clock::{CallVerdict, SilentCall, ToolClock};
 use crate::door::turn::{Ending, Overrun, Overtime, Turn, Watch, put};
 use crate::keepalive::logins;
 use crate::lines::Trees;
@@ -51,6 +51,7 @@ use crate::places::branch::{self, BranchRun};
 use crate::places::home::Home;
 use crate::places::{AgentRow, Ground, locks};
 use crate::queue::stops::job_stop_reason;
+use crate::run_clock::CallAsks;
 use crate::run_log::lines::Line;
 use crate::run_log::spans::JobSpan;
 use crate::run_log::{RunLog, Target};
@@ -845,6 +846,7 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
+      asks: self.asked.job.map(|job| CallAsks::new(&work.name, worker, job.job)),
     };
     let ending = apart::run(
       ground,
@@ -932,6 +934,7 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
+      asks: self.asked.job.map(|job| CallAsks::new(&work.name, agent, job.job)),
     };
     let ending = apart::run(
       ground,
@@ -1137,6 +1140,7 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
+      asks: self.asked.job.map(|job| CallAsks::new(&work.name, worker, job.job)),
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {
@@ -1271,6 +1275,8 @@ struct WorkWatch<'w> {
   shown: &'w dyn Shows,
   /// The job the turn is of; none for a thrown-away session's turn, which keeps no clock.
   job: Option<JobMark>,
+  /// The asks opened on the job's tool calls gone silent and idle.
+  asks: Option<CallAsks>,
 }
 
 impl Watch for WorkWatch<'_> {
@@ -1286,6 +1292,20 @@ impl Watch for WorkWatch<'_> {
     use policy::tool_clock::TOOL_CLOCK;
 
     self.job.map(|_| Duration::from_secs(TOOL_CLOCK.turn.bound_minutes.saturating_mul(60)))
+  }
+
+  // A job's call gone silent and idle is asked about, its verdict read on each read while the ask stands.
+  async fn silent_call(&mut self, call: &SilentCall) -> CallVerdict {
+    match self.asks.as_mut() {
+      Some(asks) => asks.hear(&self.ground.db, &self.ground.events, call).await,
+      None => CallVerdict::NotAsked,
+    }
+  }
+
+  async fn call_ended(&mut self, call: Option<&str>) {
+    if let Some(asks) = self.asks.as_mut() {
+      asks.ended(&self.ground.db, &self.ground.events, call).await;
+    }
   }
 
   // A call with no process of its own that did not take its cut within the grace: the job is marked

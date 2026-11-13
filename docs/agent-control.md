@@ -1042,7 +1042,8 @@ flowchart TD
   reach must still not hold them for ever.
 - **Which runs carry a clock.** A role's run, a chat round, a keepalive ping and a fold carry none. A
   voice run carries ten minutes for the speaking of its line, on this machine's card or a node; past it
-  the clock asks.
+  the clock asks. A job's tool call that has gone silent and idle is asked about the same way, its clock
+  the call clock's silent window (「A job turn's tool calls are held to a clock」, below).
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the clock passes with
   the facts the run can say of itself — when it started, the clock, and its last sign of work: when
@@ -1054,7 +1055,8 @@ flowchart TD
   1. The ask is an order queued for the supervisor's session in the owner's private chat, carrying the facts:
      which agent and run it is and what it is doing, how long it has run, when it last did anything
      and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
-     opens the ask on a run it carries and publishes it as `clock-asked` (`docs/api.md`, 「Events」); the
+     opens the ask on a run it carries and publishes it as `overtime-request.created` (`docs/api.md`,
+     「Events」); the
      consumer holding the owner's chat queues the order, since agency sends nothing to a room.
   2. The supervisor decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
      with `bmo-agency overtime`, which the event names, or `PATCH /overtime-requests/{requestId}`; a keep names how long,
@@ -1065,8 +1067,9 @@ flowchart TD
      system is.
   4. Nothing is cut without a verdict. An ask with no answer — the supervisor resting, its session down,
      the order never delivered — stands for as long as the run goes, and the run goes on under it.
-  5. A run that ends on its own while asked closes its ask as ended, published as `clock-ask-closed` so an
-     order not yet delivered is withdrawn; a verdict given afterwards is refused as too late.
+  5. A run that ends on its own while asked closes its ask as ended, published as
+     `overtime-request.changed` so an order not yet delivered is withdrawn; a verdict given afterwards is
+     refused as too late.
 - **Every ask is a record.** A clocked run of agency's is a row of the store's `run_clocks` — its name,
   the name it runs under, its clock and when it started and ended — and each ask on it a row of
   `clock_asks`: the facts the order carried, the verdict, who gave it, why, and when (`docs/store.md`).
@@ -1084,12 +1087,43 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
 
 - **What a call owns.** A call's own processes are the part of the turn program's process tree that began
   with the call, less the processes that stood before it: a shell the program started for the call and
-  everything under it. A call's progress is the processor time its tree has burned since it was last read.
-- **A call that has stopped making progress is stopped.** Past the call's minimum, a tree that burns no
-  processor time for its stall is signalled: its processes get a polite end and then the kill. The
-  program's tool then answers the model with a failed result, and the turn goes on — the call is cut, not
-  the turn. A call that keeps burning processor time, a build or a test among them, is never touched
-  however long it runs.
+  everything under it. A call's progress is the processor time its tree has burned since it was last read,
+  and a process newly begun under it. A call's output is what its own processes write to the files their
+  standard output and standard error stand on: the file the program hands a shell call, and a log a
+  command sends its own output to.
+- **Two rules hold a call that owns processes, read in this order:**
+  1. **A call that has stopped making progress is stopped.** Past the call's minimum, a tree that burns no
+     processor time and begins no process for its stall is signalled: its processes get a polite end and
+     then the kill. The program's tool then answers the model with a failed result, and the turn goes on —
+     the call is cut, not the turn. A call that keeps burning processor time, a build or a test among
+     them, is never touched by this rule however long it runs.
+  2. **A call that has gone silent and idle is asked about, not cut.** A wait that polls — a loop that
+     sleeps and then runs a search or a process listing — begins a process on every pass, so the first
+     rule reads it as work. Past the call's minimum, a call whose output has not grown for the silent
+     window, and whose tree burned under the idle share of one processor across that window, the time of
+     the processes it has already reaped counted, has an overtime ask opened on it (「A clock asks, it
+     never cuts」, above). The call runs on under the ask, and nothing cuts it but the supervisor's verdict.
+     A call whose output keeps growing, or that keeps burning processor time, is never asked about.
+- **The ask on a silent call.** It is a clocked run of its own, named for the call and standing under the
+  turn's run, so the turn's run reads the clock and the keep on it; its clock is the silent window. The
+  facts it carries are those the supervisor judges it by:
+  - the worker, the job and the item the job works;
+  - the call's tool and its command, flattened and cut to the ask's length, which says what it waits on;
+  - when the call began, so how long it has run;
+  - when its output last grew, the call's start where it never did, and the last line it wrote, or that
+    it has written nothing;
+  - the processor share its tree burned across the window.
+- **What a verdict does to the call.** A keep holds it until the keep runs out; it is asked about again
+  then only if it is still silent and idle, its window counted from its output's last growth. A cut
+  stops its processes as a stalled call's are, the program hands the model a failed result, and words
+  are put into the working turn saying the supervisor cut the call and why, so the model does not start
+  the same wait again. An ask with no verdict stands while the call goes. A call that ends, and a turn
+  that ends, close the asks on its calls as ended. The first rule still holds a kept call: one that then
+  burns no processor time and begins no process for its stall is stopped.
+- **How the supervisor judges a silent call.** A wait the work genuinely hangs on — a testbed line, a
+  deployment the run must wait on — is kept, with a length that names when to look again. A wait on
+  another job's work, such as its close or its commit, or on an outside call that has stopped answering,
+  is cut: what it waits on does not come while the call holds the turn.
 - **A call with no process of its own is cut too.** A call that waits inside the program — an HTTP call
   to an MCP server, a read or a write on a pipe — leaves nothing in the program's tree to read, so
   nothing says whether it works. A job's turn gives the program the call clock's own bound as its MCP
@@ -1102,8 +1136,8 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   is marked stopped there as it is at its turn's bound, so its item is released for a rerun.
 - **The lines are kept.** Each call's start is written with its pid and a one-line summary, a
   still-running line past its threshold and every interval after it, and its end with its duration and
-  outcome. A cut is written as it happens. The lines go to the run's log and the unit's own log, so a
-  hang is readable while it is happening and after it.
+  outcome. A cut is written as it happens, and so are an ask on a silent call and its verdict. The lines
+  go to the run's log and the unit's own log, so a hang is readable while it is happening and after it.
 - **A stop cuts a blocked call.** A call that has burned no processor time for the stop's stall is
   stopped when the stop is read, so the stop words — commit, report, exit — are read at the next
   boundary. A turn that has not ended within the stop's bound is ended by the surface's interrupt as a
@@ -1115,8 +1149,9 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   backstop for a turn the call clock cannot see.
 - **A turn picked up across a restart is held to the same clock.** The turn `turn_pickup` attaches to
   reads its calls from the record its program writes and holds them to the same call clock, stop and
-  bound. A blocked call is cut there as it is in the door, a call with no process of its own is cut by
-  the same words put into the turn, and a turn past its bound is marked stopped and cut, so its item and
+  bound. A blocked call is cut there as it is in the door, a silent and idle call is asked about and
+  its verdict carried out the same way, a call with no process of its own is cut by the same words put
+  into the turn, and a turn past its bound is marked stopped and cut, so its item and
   assignment are released and the queue behind it moves.
 
 ### What standing costs

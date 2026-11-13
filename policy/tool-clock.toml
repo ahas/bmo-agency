@@ -2,7 +2,8 @@
 # to a clock」), read by the door that carries the turn. A call that has burned no processor for its stall
 # is stopped, so a blocked read or write on a pipe or a socket cannot hold the turn for ever. A call that is
 # working is never stopped however long it runs: a build or a test that keeps burning processor time is
-# left to finish.
+# left to finish. A call that writes nothing and stands nearly idle, as a wait that polls does, is asked
+# about instead: the supervisor keeps it or cuts it.
 
 [call]
 # How long a call goes before the clock watches it at all. A call shorter than this is a short one.
@@ -43,6 +44,32 @@ stop_stall_seconds = 5
 
 # A stop the job has not ended with itself within this long is ended by the surface's interrupt.
 stop_bound_seconds = 600
+
+[call.silent]
+# How long a call that owns processes may write no output, with its processes idle, before an overtime ask
+# is opened on it. The call is never cut for it: only the supervisor's verdict on the ask cuts it. This is
+# also the ask's clock, and the length a keep that names none holds it for.
+window_seconds = 300
+
+# The share of one processor, in percent across the window, under which the call's processes, the children
+# they reaped counted, stand idle. A wait that sleeps and then runs a search or a process listing spends
+# well under it; a build, a test or a search over a tree spends far more.
+idle_cpu_percent = 5
+
+# How many characters of the call's command and of the last line of its output the ask carries, so the
+# supervisor can read what the call waits on.
+ask_chars = 400
+
+# What the ask says the call is. `{job}` is the job, `{item}` its item, `{tool}` the call's tool and
+# command, `{cpu}` the share of one processor its processes burned and `{minutes}` the window.
+what = "job {job} (item #{item}): the tool call {tool} has gone silent and idle, with no new output and {cpu}% of one processor for {minutes} minutes"
+
+# The last activity the ask names for a call that has written nothing.
+nothing_written = "it has written nothing"
+
+# The words put into the working turn when the supervisor cuts such a call. `{tool}` is the call, `{seconds}`
+# its age at the cut and `{why}` the supervisor's reason.
+cut = "The tool call {tool} was cut on the supervisor's call after {seconds} seconds with no new output: {why}. Do not start the same wait again. Go on with the work without its result, and where the work cannot go on without it, say so in your report."
 
 [turn]
 # A job turn past this clock is cut and its item released, so a turn held by something the call clock

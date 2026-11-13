@@ -2,7 +2,7 @@
 
 Read this when you are handed a run that reached its time limit: an order in the owner's chat
 headed `[A run reached its clock — keep it or cut it]`. The run is a word said to a worker, a browse,
-or a voice line being spoken.
+a voice line being spoken, or a job's tool call that has gone silent and idle.
 
 ## What you are handed
 
@@ -27,6 +27,20 @@ or a voice line being spoken.
 - A fault you see in the run or in the clock itself (a run that keeps running long for a reason in
   the system, a clock that asks too soon for the work) is filed as a queue item and fixed by a job, as
   todo.md says.
+
+## A job's tool call gone silent and idle
+
+- The order names the worker, the job and its item, the call's command, how long it has run, when its
+  output last grew and the last line it wrote. Its clock is the silent window: for that long the call
+  wrote nothing and its processes used almost no processor time. That is how a wait that polls looks,
+  a loop that sleeps and then looks for something.
+- Read the command for what it waits on, then decide:
+  - Keep a wait the work genuinely hangs on, such as a testbed line or a deployment the run must wait
+    on, and always give `--for` with when to look again.
+  - Cut a wait on another job's work, such as its close, its commit or its item, and a wait on an
+    outside call that has stopped answering. What it waits on will not come while the call holds the
+    turn.
+- A cut call comes back to the job as a failed result with your reason, and the job goes on.
 
 ## Answering
 
