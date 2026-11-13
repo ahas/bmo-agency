@@ -624,20 +624,27 @@ pub async fn bind(port: u16) -> io::Result<TcpListener> {
 /// Serves the front on a listener until the drain the ground carries ends it (docs/sessions.md, 「A restart
 /// hands the session over」): from the drain on no connection is taken, the event streams and the turns'
 /// sends are answered at once, and the calls in hand are given the drain's span; whatever still runs then is
-/// let go of with the process.
+/// let go of with the process. Every event published by then is written to the store, given the span again,
+/// so a reader resuming on the next server misses none.
 pub async fn serve(listener: TcpListener, front: Front) -> io::Result<()> {
   let drain = front.ground.drain.clone();
+  let events = front.ground.events.clone();
   let served = axum::serve(listener, router(front)).with_graceful_shutdown({
     let drain = drain.clone();
 
     async move { drain.begun().await }
   });
-
-  tokio::select! {
+  let served = tokio::select! {
     served = served => served,
     () = drain.spent() => {
       eprintln!("agency: calls still in hand at the drain's end are let go of");
       Ok(())
     }
+  };
+
+  if tokio::time::timeout(crate::drain::short_calls(), events.flushed()).await.is_err() {
+    eprintln!("agency: events the store had not taken by the drain's end are let go of");
   }
+
+  served
 }

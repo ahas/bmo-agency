@@ -100,8 +100,10 @@ each turn it carries that is no job's and that no program's record names yet, ea
 **The drain.** Asked to stop by `SIGTERM`, the server stops taking connections and answers any call that
 still reaches it `503` `stopping` with `Retry-After`; it ends every event stream with a `stopping` frame,
 answers a turn's send still waiting `503` `stopping` with the send's key, and lets every other call in hand
-finish within the drain's span, `short_calls_seconds` in `policy/drain.toml`, before it exits. A caller that
-reads `stopping` asks again once the server stands; nothing it was carried for is lost by the answer.
+finish within the drain's span, `short_calls_seconds` in `policy/drain.toml`. It then writes every event it
+published to the store, given the same span again, and exits. A caller that reads `stopping` asks again once
+the server stands; nothing it was carried for is lost by the answer, and a reader resuming its stream there is
+sent every event published before the stop.
 
 ### events
 

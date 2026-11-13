@@ -40,8 +40,9 @@ statements below about either are kept for a rollback to the road a deployment l
   「assignments and jobs」).
 - **The server drains on its stop.** Asked to stop by `SIGTERM`, it takes no new call, ends every event
   stream with a `stopping` frame, answers a turn's send still waiting with `503` `stopping` so its caller
-  re-attaches once the next server stands, and lets every other call in hand finish for the drain's span
-  (`policy/drain.toml`) before it exits; the turns it carries stay kept in flight for the next server.
+  re-attaches once the next server stands, lets every other call in hand finish for the drain's span
+  (`policy/drain.toml`), and has every event it published written to the store before it exits, so a reader
+  resuming on the next server misses none; the turns it carries stay kept in flight for the next server.
 - **A caller re-attaches to a turn by its key.** A send that names a key holds the turn under it: a repeat
   of the send with the same key on the same session, from the same caller or after a restart of either
   side, attaches to the turn standing under it instead of sending another, and once the turn has ended

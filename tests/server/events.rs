@@ -1,8 +1,8 @@
 //! The event bus: an event reaches every subscriber of its kind from the moment it subscribed, and nobody
 //! where there is none; a stream across the boundary reads the kinds it names, each by its name and its
 //! JSON; and a durable bus keeps its events in the store under numbers that go on rising across a restart,
-//! so a reader resumes after the last number it read, and is told where what it asks is no longer kept
-//! (docs/api.md, 「events」).
+//! those published on the heels of a drained server's stop among them, so a reader resumes after the last
+//! number it read, and is told where what it asks is no longer kept (docs/api.md, 「events」, 「health」).
 
 use std::borrow::Cow;
 use std::sync::atomic::AtomicI64;
@@ -357,4 +357,54 @@ async fn a_stream_resumed_across_the_server_s_restart_sends_what_it_kept_and_tel
   let text = read_until(&mut stream, "probe.three").await;
 
   assert!(text.contains("event: probe.three"), "{text}");
+}
+
+#[tokio::test]
+async fn every_event_published_before_the_server_s_stop_is_read_by_the_reader_resuming_on_the_server_after()
+{
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+  let published_before = 1000;
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let mut first = standing::stand_server(home.path(), &data, &scratch.address(), token);
+
+  // Each publish is answered once the event has its number, before the store has it; they come at once, and
+  // the stop on the heels of the last.
+  let port = first.port;
+
+  futures_util::future::join_all((0..published_before).map(|_| published(port, token, "probe.burst")))
+    .await;
+
+  let ended = tokio::task::spawn_blocking(move || {
+    let ended = first.stop(std::time::Duration::from_secs(30));
+
+    (first, ended)
+  })
+  .await
+  .unwrap();
+
+  assert!(
+    ended.1.is_some_and(|ended| ended.success()),
+    "the server drains and ends: {:?}",
+    ended.1
+  );
+  drop(ended.0);
+
+  let second = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let read: Value = reqwest::Client::new()
+    .get(format!("http://127.0.0.1:{}/events?after=0&kinds=probe.burst&limit=1000", second.port))
+    .bearer_auth(token)
+    .header("accept", "application/json")
+    .send()
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+
+  assert_eq!(read["items"].as_array().unwrap().len(), published_before, "{read}");
 }
