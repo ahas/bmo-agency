@@ -7,7 +7,8 @@ description: Run an item on one of the agency's workers with the bmo-agency MCP 
 
 The agency supplies, delivers and controls agents. For a harness holding an item, it assigns a worker to
 that item and runs it there. The harness keeps the item: it takes the lease, renews it while the run lasts,
-reports and closes the item in the job service, and passes words appended to the item into the run.
+and reports and closes the item in the job service. A note added to the item while the job runs reaches the
+job's turn by agency itself.
 
 ## Starting the server
 
@@ -38,8 +39,10 @@ file `AGENCY_CONTROL_TOKEN_FILE` names, or in `--token`.
    you handed over standing, the agency renewing it, so the item stays `leased` until you close it: report and
    close the item in the job service yourself from `outcome` and `report`, which ends the lease, or give that
    lease back where the item is not to close. A stopped job gives its lease back, and the item is open again.
-5. Words appended to the item reach the run as a turn into the job's `sessionId`, at
-   `POST /sessions/{sessionId}/turns`. The worker's question is put at `GET /sessions/{sessionId}` under
+5. A note added to the item while the job runs is read by agency from the job service's events and handed to
+   the job's turn, or kept for its next turn; there is nothing to pass on. Other words for the job go to
+   `POST /jobs/{jobId}/words`, or to its `sessionId` at `POST /sessions/{sessionId}/words`, while it is
+   `starting`, `running` or `reviewing`. The worker's question is put at `GET /sessions/{sessionId}` under
    `question`, and answered with `POST /sessions/{sessionId}/answers`.
 
 Every failure is the common error shape: a status and a body of `code` and `error`.

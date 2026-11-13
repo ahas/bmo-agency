@@ -79,6 +79,7 @@ mod m20261218_000001_job_turn_words;
 mod m20261219_000001_registration_languages;
 mod m20261220_000001_job_notices_owed;
 mod m20261221_000001_supervisor_road;
+mod m20261222_000001_job_words;
 
 use sea_orm_migration::prelude::*;
 
@@ -104,7 +105,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 54] = [
+pub const OWN_TABLES: [&str; 56] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -153,6 +154,8 @@ pub const OWN_TABLES: [&str; 54] = [
   "settings",
   "assignments",
   "jobs",
+  "job_sessions",
+  "job_words",
   "session_work",
   "session_loads",
   "turn_liveness",
@@ -244,6 +247,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261219_000001_registration_languages::Migration),
       Box::new(m20261220_000001_job_notices_owed::Migration),
       Box::new(m20261221_000001_supervisor_road::Migration),
+      Box::new(m20261222_000001_job_words::Migration),
     ]
   }
 

@@ -889,8 +889,8 @@ impl Route for CreateJob {
       &written,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
               "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role", "item_provider",
-              "item_model", "chosen_by", "item_agent")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING "id""#,
+              "item_model", "chosen_by", "item_agent", "notes_through")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -906,6 +906,7 @@ impl Route for CreateJob {
         item_model.as_ref().map(|named| named.model.clone()).into(),
         resolution.chosen_by.map(|chosen| chosen.word().to_owned()).into(),
         Some(item_agent.name.clone()).into(),
+        crate::job_words::notes_through(&item).into(),
       ],
     )
     .await?
@@ -2684,15 +2685,20 @@ impl OnSession<'_> {
       return Err(why.detail);
     }
 
+    crate::job_words::session_began(&ground.db, id, &session.id.0).await;
+
     if let Ok((member, _)) = job(&ground.db, id).await {
       publish(ground, "job.changed", member);
     }
 
+    // The words kept for the job while no turn of it took them go out behind this turn's own prompt
+    // (docs/agent-control.md, 「Words for a running job」).
+    let kept = crate::job_words::carried(&ground.db, id).await;
     let sent = self
       .sessions
       .send_turn(Turn {
         session: session.id.clone(),
-        prompt: prompt.to_owned(),
+        prompt: kept.behind(prompt),
         context: TurnContext {
           job: Some(JobMark {
             job: id,
@@ -2711,10 +2717,18 @@ impl OnSession<'_> {
     let end = match sent {
       Ok(end) => end,
       Err(fault) => {
+        kept.left(&ground.db).await;
         closed(ground, ledger, "failed", None, None).await;
         return Err(fault.message);
       }
     };
+
+    // A turn whose road stopped answering goes out again on the next, which carries the kept words again.
+    if road_stopped(&end).is_some() {
+      kept.left(&ground.db).await;
+    } else {
+      kept.taken(&ground.db, id, &parts.name).await;
+    }
     let outcome = match end.outcome {
       agent_session::Outcome::Answered => "answered".to_owned(),
       other => format!("{other:?}").to_lowercase(),

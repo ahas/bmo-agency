@@ -136,7 +136,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   `job_item_update` where the run must read them, and name the change. The brief is the run's
   English instruction; a note may keep the owner's words as he said them, but what the run must act
   on is folded into the brief. A run already at work on the item reads the new brief on its next
-  launch; the note is what it can read meanwhile.
+  launch; the note reaches its turn meanwhile, at its next look or, between stages, with its next
+  stage.
 - **Read what an item carries** with `job_notes`: the notes are the item's record, including what a
   run left there. A note that arrives while you wait is taken with `waitMs`.
 - **Hold:** `job_item_update` with item <id> and `state` `held`, and a `job_report` of kind `held`

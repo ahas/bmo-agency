@@ -106,7 +106,11 @@ seeds. The other crates and the server reach the store only through it.
     (`docs/job-review.md`) —, when the wait it has not yet told its orderer of began, whether the notice of its
     end is owed yet, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
-    input, output, cache-read and cache-write tokens) and their sum, the prompt it was launched with, and the words of the turn it carries until that turn ends, which a server that starts launches a job whose turn had not gone out again from (`docs/sessions.md`, 「A restart hands the session over」); and what a session carries: `session_work`, its item and results, and `session_loads`,
+    input, output, cache-read and cache-write tokens) and their sum, the prompt it was launched with and the
+    newest of its item's notes that prompt carried, and the words of the turn it carries until that turn ends, which a server that starts launches a job whose turn had not gone out again from (`docs/sessions.md`, 「A restart hands the session over」);
+    `job_sessions`, one row a session a turn of a job started, with the job and when; `job_words`, one row a word
+    for a job that runs — said to it or a note added to its item — with who said it, the note it came from, when
+    it was kept and when a turn of the job took it (`docs/agent-control.md`, 「Words for a running job」); and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run — its supervisor or its role and path, its room, its unit, how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the

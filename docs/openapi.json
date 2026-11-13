@@ -95,6 +95,9 @@
       "name": "sessions"
     },
     {
+      "name": "jobs"
+    },
+    {
       "name": "repositories"
     },
     {
@@ -165,9 +168,6 @@
     },
     {
       "name": "assignments"
-    },
-    {
-      "name": "jobs"
     },
     {
       "name": "session-work"
@@ -1414,6 +1414,74 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WordsAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{jobId}/words": {
+      "post": {
+        "operationId": "createJobWords",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Say words to a job that is starting, running or reviewing: into the turn it works now, or kept for its next turn.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordsSent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "gone",
+          "too-large"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
               "description": ""
             }
           }
@@ -8634,6 +8702,7 @@
         "enum": [
           "delivered",
           "waiting",
+          "kept",
           "refused",
           "started"
         ],

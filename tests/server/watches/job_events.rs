@@ -2,7 +2,8 @@
 //! is told to its orderer」): an item closed by somebody other than its orderer, a run's question asked and
 //! withdrawn once a reply settles it, a question past its due time told to the owner, each once; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
-//! live; and a question past its due time taken again owing its parked job's notice again.
+//! live; a question past its due time taken again owing its parked job's notice again; and a note added to the
+//! item of a running job kept for that job before the cursor moves past it, and offered to its working turn.
 
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
@@ -49,7 +50,7 @@ async fn a_pass_with_no_cursor_tells_nothing_it_passed_and_keeps_the_last_number
     .query
     .clone();
 
-  assert!(asked.contains("kinds=item.changed%2Cquestion.created"), "{asked}");
+  assert!(asked.contains("kinds=item.changed%2Cnote.created%2Cquestion.created"), "{asked}");
   assert!(!asked.contains("after="), "no cursor reads from the oldest: {asked}");
 
   // An empty window starts the cursor at nothing, so what comes next is told.
@@ -398,4 +399,116 @@ async fn a_question_past_its_due_time_taken_again_owes_its_parked_job_s_notice_a
 
   assert_eq!(told.len(), 1, "{told:?}");
   assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-review-parked:95"), &json!(-950)));
+}
+
+#[tokio::test]
+async fn a_note_added_to_a_running_job_s_item_is_kept_before_the_cursor_moves_and_reaches_its_turn() {
+  use agency_server::door::aside;
+  use agency_server::door::turn::AsideOutcome;
+  use agency_server::turn_pickup::{InFlight, keep};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  // A job running on item 8, its prompt composed with the item's notes up to the third, and its turn kept in
+  // flight with the door listening for words under its run.
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "item_agent", "run_name", "session_id", "room_id", "state", "started_at", "prompt", "notes_through")
+         VALUES (64, 8, 9, 'harness', 10, 'worker', 'coder-01', 'job-64', 'worker@run:5', 5, 'running', $1,
+           'work', 3)"#,
+      vec![(agency_server::now_ms() - 60_000).into()],
+    )
+    .await;
+  keep(
+    db,
+    &InFlight {
+      session: "worker@run:5".into(),
+      turn: 1,
+      run: "job-64".into(),
+      key: None,
+      agent: "worker".into(),
+      chat_id: Some(5),
+      ledger: None,
+      job: Some(64),
+      started_at: agency_server::now_ms(),
+    },
+  )
+  .await;
+
+  let listening = aside::listen("job-64");
+  let note = |event_id: i64, note_id: i64, item_id: i64, text: &str| {
+    event(
+      event_id,
+      "note.created",
+      json!({ "id": note_id, "itemId": item_id, "text": text, "actorName": "chat-agent", "labels": {},
+              "createdAt": agency_server::now_ms() }),
+    )
+  };
+
+  settings::set(db, CURSOR_KEY, "10").await.unwrap();
+  peers.lock().unwrap().events = vec![
+    note(11, 5, 8, "Also cover the console's screen."),
+    note(12, 6, 99, "A note on an item no job runs."),
+  ];
+
+  pass(db, &vars).await.unwrap();
+
+  // The note is kept for the job by the time the cursor stands past it; the other is nobody's.
+  assert_eq!(settings::get(db, CURSOR_KEY).await.unwrap().as_deref(), Some("12"));
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "job_words" WHERE "job_id" = 64 AND "note_id" = 5"#, vec![])
+      .await,
+    1
+  );
+  assert_eq!(
+    scratch.count(r#"SELECT COUNT(*) FROM "job_words" WHERE "note_id" = 6"#, vec![]).await,
+    0
+  );
+  assert!(peers.lock().unwrap().instructed().is_empty(), "a note tells nobody");
+
+  // The turn's door takes it at its next look, behind the paragraph naming it a note of the item.
+  let offered = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    loop {
+      if let Some(offered) = listening.take() {
+        break offered;
+      }
+
+      tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+  })
+  .await
+  .expect("the note was offered to the job's turn");
+
+  assert!(offered.words.contains("item #8 by chat-agent"), "{}", offered.words);
+  assert!(offered.words.ends_with("Also cover the console's screen."), "{}", offered.words);
+  listening.said(offered, AsideOutcome::Delivered);
+
+  // Taken by the turn, it is handed and no later turn carries it again; the event read again keeps nothing new.
+  for _ in 0..3000 {
+    if scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "job_words" WHERE "job_id" = 64 AND "handed_at" IS NOT NULL"#,
+        vec![],
+      )
+      .await
+      == 1
+    {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+  }
+
+  assert_eq!(agency_server::job_words::carried(db, 64).await.text, None);
+
+  settings::set(db, CURSOR_KEY, "10").await.unwrap();
+  pass(db, &vars).await.unwrap();
+  assert_eq!(
+    scratch.count(r#"SELECT COUNT(*) FROM "job_words" WHERE "job_id" = 64"#, vec![]).await,
+    1
+  );
 }

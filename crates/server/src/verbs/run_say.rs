@@ -1,8 +1,8 @@
 //! `bmo-agency run say`: words said to a run or to a repository's worker (docs/agent-control.md, 「Words
 //! said to a worker」). A run is named by its session, `session:<id>`, which its asking supervisor reads in
-//! its delegations; a worker by its repository, `repository:<name>`, or by its checkout, `worker:<name>`.
-//! The words are offered to the turn going now, or carried in a turn of the worker's own, and what became
-//! of them is printed.
+//! its delegations; a job by its id, `job:<id>`; a worker by its repository, `repository:<name>`, or by its
+//! checkout, `worker:<name>`. The words are offered to the turn going now, kept for a job's next turn, or
+//! carried in a turn of the worker's own, and what became of them is printed.
 
 use std::path::PathBuf;
 
@@ -15,7 +15,7 @@ use super::{Answer, CONTROL_TOKEN, VerbError, control_call, control_token};
 /// What `bmo-agency run say` is asked.
 #[derive(Parser, Debug, Default)]
 pub struct SayArgs {
-  /// `<kind>:<id>`: `session:<sessionId>`, `repository:<name>` or `worker:<checkout>`.
+  /// `<kind>:<id>`: `session:<sessionId>`, `job:<jobId>`, `repository:<name>` or `worker:<checkout>`.
   pub target: String,
   /// The words to say.
   #[arg(long, allow_hyphen_values = true)]
@@ -32,6 +32,7 @@ pub struct SayArgs {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
   Session(String),
+  Job(String),
   Repository(String),
   Worker(String),
 }
@@ -47,6 +48,7 @@ impl Target {
 
     match kind {
       "session" => Ok(Self::Session(id.to_owned())),
+      "job" => Ok(Self::Job(id.to_owned())),
       "repository" => Ok(Self::Repository(id.to_owned())),
       "worker" => Ok(Self::Worker(id.to_owned())),
       _ => Err(bad_target(text)),
@@ -57,7 +59,9 @@ impl Target {
 fn bad_target(said: &str) -> VerbError {
   VerbError::Ended {
     code: 2,
-    said: format!("{said} is no target: say session:<sessionId>, repository:<name> or worker:<checkout>"),
+    said: format!(
+      "{said} is no target: say session:<sessionId>, job:<jobId>, repository:<name> or worker:<checkout>"
+    ),
   }
 }
 
@@ -98,6 +102,7 @@ pub async fn run_say(asked: &SayArgs) -> Result<Answer, VerbError> {
 
   let path = match &target {
     Target::Session(id) => format!("/sessions/{id}/words"),
+    Target::Job(id) => format!("/jobs/{id}/words"),
     Target::Repository(name) => format!("/repositories/{name}/words"),
     Target::Worker(name) => {
       let repository = repository_of(&token, name).await?;
@@ -131,6 +136,12 @@ fn spoken(said: &Value) -> Answer {
   match said.get("said").and_then(Value::as_str) {
     Some("delivered") => Answer {
       lines: vec![format!("The turn took the words{run}.")],
+      code: 0,
+    },
+    Some("kept") => Answer {
+      lines: vec![format!(
+        "No turn of the job took the words now, so they are kept for its next turn{run}."
+      )],
       code: 0,
     },
     Some("started") => Answer {

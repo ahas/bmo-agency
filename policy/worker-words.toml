@@ -30,3 +30,15 @@ pinned = "The worker is pinned to {provider}, and no turn on that pin carries wo
 # The line written under the last word a turn took where it wrote no answer.
 [ended]
 silent = "The worker ended its turn without an answer."
+
+# The words for a running job (docs/agent-control.md, 「Words for a running job」).
+[job]
+# The paragraph a note added to the job's item goes into its turn behind. `{item}`, `{actor}` and `{note}`
+# are filled in.
+note = "A note was added to item #{item} by {actor} while you work. It is part of this job; act on it in this work:\n\n{note}"
+# The paragraph a later turn of the job carries the words that waited for it behind, after its own prompt.
+waited = "These words for this job arrived while no turn of it could take them. They are part of this job; act on them in this turn:"
+# The line written under a word no turn of the job took now.
+kept = "No turn of the job took the words now, so they are kept and go into its next turn."
+# The line written as a later turn of the job carries words kept for it. `{count}` is filled in.
+carried = "The job's next turn carried the {count} words kept for it."

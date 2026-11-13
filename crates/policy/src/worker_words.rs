@@ -15,6 +15,7 @@ pub struct WorkerWords {
   pub title: String,
   pub held: Held,
   pub ended: Ended,
+  pub job: JobWords,
 }
 
 /// The line written under a word for what held it.
@@ -37,6 +38,18 @@ pub struct Held {
 #[serde(deny_unknown_fields)]
 pub struct Ended {
   pub silent: String,
+}
+
+/// The words for a running job: the paragraphs they go in behind and the lines written of them.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JobWords {
+  /// With `{item}`, `{actor}` and `{note}`.
+  pub note: String,
+  pub waited: String,
+  pub kept: String,
+  /// With `{count}`.
+  pub carried: String,
 }
 
 crate::part!(pub WORKER_WORDS: WorkerWords = "worker-words.toml");

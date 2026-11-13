@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use store::{all, one};
 
+use crate::door::aside;
 use crate::door::execution::{Row, cancelled, publish_envelope};
 use crate::door::inbox::{
   State, provider_named, read_turn_on, record_of, span_named, span_named_after, waiting_in_inbox,
@@ -33,7 +34,7 @@ use crate::door::record::{
   turn_closed_since, turn_error,
 };
 use crate::door::tool_clock::{CallVerdict, InProcessCut, ToolClock, Watch as ToolWatch};
-use crate::door::turn::takes_words_mid_turn;
+use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
@@ -871,6 +872,13 @@ async fn followed(
   let mut in_process_cut: Option<InProcessCut> = None;
   let mut tools = turn.job.map(|_| ToolWatch::new(clock));
   let mut following = Following::of(ground, turn, place, pane).await;
+  let provider = pane
+    .map(|pane| pane.provider.as_str())
+    .filter(|provider| !provider.is_empty())
+    .unwrap_or(CLAUDE_CODE);
+  // Words offered to the run while it goes, as the live door listens for them (docs/sessions.md, 「A restart
+  // hands the session over」): every offer it did not take is answered refused as the turn's end lets it go.
+  let listening = takes_words_mid_turn(provider).then(|| aside::listen(&turn.run));
 
   own_rows(ground, &turn.run).await;
 
@@ -919,13 +927,7 @@ async fn followed(
     // the program ends the waiting call on them and hands the model a failed result. A program that does
     // not take them is ended at the cut's grace.
     if let Some(watch) = tools.as_mut() {
-      let provider = pane
-        .map(|pane| pane.provider.as_str())
-        .filter(|provider| !provider.is_empty())
-        .unwrap_or("claude-code");
-      let target = pane
-        .and_then(|pane| pane.pane.clone())
-        .or_else(|| place.running().and_then(|running| running.pane_id));
+      let target = target_of(place, pane);
 
       while let Some(cut) = watch.take_in_process_cut() {
         let said = format!("{}: the call {} was cut, its words put into the turn", turn.run, cut.tool);
@@ -1001,6 +1003,10 @@ async fn followed(
       return hand_back(ground, place, turn, Came::Failed(why), true).await;
     }
 
+    if let Some(listening) = &listening {
+      took_words(ground, place, pane, listening).await;
+    }
+
     if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {
       cut = true;
       stop_seen_at = Some(now);
@@ -1044,6 +1050,36 @@ async fn followed(
 
     tokio::time::sleep(every).await;
   }
+}
+
+// The pane words for a picked-up turn are typed into: its own pane, else the pane of its place's program.
+fn target_of(place: &Place, pane: Option<&OwnPane>) -> Option<String> {
+  pane
+    .and_then(|pane| pane.pane.clone())
+    .or_else(|| place.running().and_then(|running| running.pane_id))
+}
+
+// The words offered to a picked-up turn typed into its program while herdr reads it working, one offer a look,
+// each answered with what became of it; an offer stands while the program does not read working.
+async fn took_words(ground: &Ground, place: &Place, pane: Option<&OwnPane>, listening: &aside::Listening) {
+  let target = target_of(place, pane);
+  let (Some(herdr), Some(target)) = (&ground.herdr, target.as_deref()) else { return };
+
+  if !crate::door::looks::working(herdr, target).await {
+    return;
+  }
+
+  let Some(offered) = listening.take() else { return };
+  let outcome = match herdr
+    .call("agent.prompt", json!({ "target": target, "text": offered.words }), None)
+    .await
+  {
+    Ok(_) => AsideOutcome::Delivered,
+    Err(fault) if crate::door::looks::is_blocked(&fault) => AsideOutcome::Waiting,
+    Err(_) => AsideOutcome::Refused,
+  };
+
+  listening.said(offered, outcome);
 }
 
 /// The program whose process tree a picked-up turn's calls are read in: the pane's own program where the

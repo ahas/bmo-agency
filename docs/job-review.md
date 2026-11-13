@@ -183,6 +183,10 @@ jobs」), naming the job, one action and its words.
 - **What each turn is told is the policy's** (`policy/job-review.toml`): the words the review hands over, said
   to be the review's, and what the turn ends with — the answer to the question, or the report of the rework or
   of the stage.
+- **Each carries the job's words that waited for it:** words said to the job and notes added to its item while
+  it stood under review, or while its last turn could not take them, follow the turn's own words behind one
+  paragraph (`docs/agent-control.md`, 「Words for a running job」), so what the owner or the orderer added
+  between stages reaches the next stage without a new job.
 
 ## The record
 

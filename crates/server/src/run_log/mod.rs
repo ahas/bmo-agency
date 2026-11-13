@@ -124,7 +124,16 @@ impl RunLog {
   /// One line written, answering its id; a line the store would not take is said in the machine's log
   /// and lost, which never ends the run.
   pub async fn write(&mut self, db: &DatabaseConnection, line: Line) -> Option<i64> {
-    match self.kept(db, &line).await {
+    let mut kept = self.kept(db, &line).await;
+
+    // A job's line numbered past one another writer of the same job filed meanwhile is filed once more after
+    // reading where the job's lines left off (docs/run-records.md, 「Agent log」).
+    if kept.is_err() && self.target.job_id.is_some() && self.sequence.is_some() {
+      self.resync();
+      kept = self.kept(db, &line).await;
+    }
+
+    match kept {
       Ok(id) => {
         self.appended += 1;
 

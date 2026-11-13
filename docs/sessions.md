@@ -126,6 +126,10 @@ statements below about either are kept for a rollback to the road a deployment l
     process of its own is cut by words put into the turn, a stop cuts a blocked call, and a turn past
     its bound is cut with its item marked stopped, so the item's lease is given back and its assignment
     released; the turn's tool lines are kept in the run's log and the unit's own;
+  - a picked-up turn listens for words as a live one does, where its provider takes words mid-turn: a word
+    offered to its run while its program reads working is typed into the program and answered as taken, so
+    words said to a job whose turn crossed a restart reach that turn (`docs/agent-control.md`, 「Words for a
+    running job」);
   - a turn nothing in its place names is ended failed for its caller; a job's is let go and its job launched
     again from the words its row keeps, since no program took them (`docs/api.md`, 「assignments and
     jobs」). Either way the pane of its own, where it has one, is closed, so no program stands on a turn
@@ -140,6 +144,11 @@ statements below about either are kept for a rollback to the road a deployment l
   send repeated with its key attaches to it, or answers its end once it has ended. The state of a
   thrown-away session a picked-up turn still runs on is read by its id while the turn goes on, from the
   execution row the turn left, and the session ends with the turn as any other.
+- **A session id names one session across restarts.** A thrown-away session's id and a conversation's carry a
+  number the server gives as each starts, and a server that starts gives numbers past every one the store still
+  names — a job's session, a session a turn of a job ran in, a slot's session and a turn kept in flight — before
+  it starts any session. So a session picked up across the restart keeps its id to itself, and words said to a
+  job's session reach that job (`docs/agent-control.md`, 「Words for a running job」).
 - **A program is stood afresh only between turns** (`docs/launch-lines.md`, 「What is fixed」). A
   program whose command changed while one of its turns works — a deployment that moved its line, its
   prompt or its environment — is left standing until the record says that turn ended: the turn that

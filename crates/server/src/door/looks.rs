@@ -103,6 +103,12 @@ async fn look_at(herdr: &Herdr, pane: &str) -> Look {
   }
 }
 
+/// Whether herdr reads the agent in a pane working now, one look: a word typed into it then joins its turn
+/// rather than opening one of its own.
+pub async fn working(herdr: &Herdr, pane: &str) -> bool {
+  look_at(herdr, pane).await.is("working")
+}
+
 /// What the agent in a pane is doing; gone only where herdr has said so look after look.
 pub async fn status_of(herdr: &Herdr, pane: &str, confirm: GoneConfirm) -> Look {
   let mut now = look_at(herdr, pane).await;

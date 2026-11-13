@@ -2316,6 +2316,8 @@ pub enum WordsSaid {
   Delivered,
   #[serde(rename = "waiting")]
   Waiting,
+  #[serde(rename = "kept")]
+  Kept,
   #[default]
   #[serde(rename = "refused")]
   Refused,

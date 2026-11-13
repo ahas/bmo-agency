@@ -351,6 +351,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/{jobId}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say words to a job that is starting, running or reviewing: into the turn it works now, or kept for its next turn. */
+        post: operations["createJobWords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/repositories/{repositoryName}/words": {
         parameters: {
             query?: never;
@@ -2267,7 +2284,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        WordsSaid: "delivered" | "waiting" | "refused" | "started";
+        WordsSaid: "delivered" | "waiting" | "kept" | "refused" | "started";
         /** @description The body that says words to a run's session, or to a repository's worker. */
         WordsAsk: {
             /** @default  */
@@ -5767,6 +5784,38 @@ export interface operations {
             410: components["responses"]["Gone"];
             413: components["responses"]["TooLarge"];
             422: components["responses"]["NotARun"];
+        };
+    };
+    createJobWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                jobId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WordsAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WordsSent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            410: components["responses"]["Gone"];
+            413: components["responses"]["TooLarge"];
         };
     };
     createRepositoryWords: {

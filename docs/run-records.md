@@ -75,6 +75,10 @@ about a message is not agency's: the judgement records belong to the units that 
   lines a person reads and they are a small share of what fills the table.
 - The console reads the log through agency's run-log route, by supervisor or role and from an id onward
   (`docs/api.md`, 「log-lines」), so a finished run is scrolled back page by page.
+- **A job's lines are numbered in order within the job,** whichever of its writers files them: the turn's own
+  log, the lines of a word said to the job, a note in the bot's own words. A writer whose next number another
+  writer took meanwhile reads again where the job's lines left off and files its line once more, so no line is
+  lost to a word said into the job while its turn writes.
 - **A job's lines are read by the job,** across every run its turns were logged under: its last line,
   and its top-level tool calls and their results with how many model requests it made and how often
   its context was compacted, which is what the job unit's figures and its watch on a running job are

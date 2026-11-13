@@ -123,6 +123,7 @@ mod job_run {
   mod openrouter;
   mod openrouter_tap;
 }
+mod job_words;
 mod keepalive {
   mod logins;
 }

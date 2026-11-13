@@ -1347,6 +1347,64 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
     "the carried session's state answers by its id"
   );
 
+  // A word said to the job's session, which this process does not hold, takes the job's road and is never
+  // refused as ended: it goes into the picked-up turn while its program reads working, at once where the turn
+  // already listens and otherwise on the pass that offers kept words again (docs/agent-control.md, 「Words for a
+  // running job」).
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "session_id" = $1 WHERE "id" = 80"#,
+      vec![started.id.0.clone().into()],
+    )
+    .await;
+  herdr.agent_status(&pane, "working");
+
+  let word = "check the other branch too";
+  let ask = agency_server::words::asked(json!({ "words": word })).unwrap();
+  let said = agency_server::words::to_session(ground.clone(), Arc::new(restarted), &started.id.0, ask)
+    .await
+    .expect("words to a running job's session are taken");
+
+  assert_eq!(said.job_id, Some(80));
+  assert!(
+    matches!(serde_json::to_value(said.said).unwrap().as_str(), Some("delivered" | "kept")),
+    "{said:?}"
+  );
+
+  let typed = |herdr: &common::herdr::HerdrModel| {
+    herdr.prompts().iter().any(|(target, text)| target == &pane && text == word)
+  };
+
+  for _ in 0..600 {
+    if typed(&herdr) {
+      break;
+    }
+
+    agency_server::job_words::offer_kept(scratch.db()).await;
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert!(typed(&herdr), "the word went into the picked-up turn: {:?}", herdr.prompts());
+
+  let unhanded = || async {
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "job_words" WHERE "job_id" = 80 AND "handed_at" IS NULL"#,
+        vec![],
+      )
+      .await
+  };
+
+  for _ in 0..600 {
+    if unhanded().await == 0 {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert_eq!(unhanded().await, 0, "a word the turn took is no longer kept for its next turn");
+
   for _ in 0..3 {
     every_pass(&ground).await;
     assert!(

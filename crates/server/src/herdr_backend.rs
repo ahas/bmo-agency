@@ -449,6 +449,17 @@ pub fn is_conversation(id: &SessionId) -> bool {
   numbered_scope(id, CONVERSATION)
 }
 
+// The number a thrown-away session's or a conversation's id was given.
+fn session_number(id: &str) -> Option<i64> {
+  let (_, scope) = id.split_once('@')?;
+  let number = scope
+    .strip_prefix(APART)
+    .or_else(|| scope.strip_prefix(CONVERSATION))?
+    .strip_prefix(':')?;
+
+  number.parse().ok()
+}
+
 // Whether a session's id names a numbered session of the scope word given.
 fn numbered_scope(id: &SessionId, word: &str) -> bool {
   id.0
@@ -1002,6 +1013,41 @@ impl HerdrSessions {
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
     self.showing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  /// The numbers this process gives its thrown-away sessions and conversations continued past every number a
+  /// process before it gave that the store still names, so one session id never names two sessions across
+  /// agency's restarts and words said to a job's session reach that job (docs/sessions.md, 「A restart hands the
+  /// session over」). Run as the server starts, before any session is started.
+  pub async fn number_past_kept(&self) {
+    let db = &self.ground().db;
+    let named = one(
+      db,
+      &format!(
+        r#"SELECT MAX((regexp_match("id", '@(?:{APART}|{CONVERSATION}):([0-9]+)$'))[1]::bigint) AS "past"
+           FROM (SELECT "session_id" AS "id" FROM "jobs" UNION ALL SELECT "session_id" FROM "job_sessions"
+                 UNION ALL SELECT "session" FROM "role_slot_requests") AS "ids""#
+      ),
+      vec![],
+    )
+    .await;
+    let mut past = match named {
+      Ok(row) => row.and_then(|row| row.try_get::<Option<i64>>("", "past").ok().flatten()).unwrap_or(0),
+      Err(why) => {
+        eprintln!("agency: the session numbers given before were not read: {}", why.detail);
+        0
+      }
+    };
+
+    for turn in crate::turn_pickup::in_flight(db).await.unwrap_or_default() {
+      if let Some(number) = session_number(&turn.session) {
+        past = past.max(number);
+      }
+    }
+
+    let next = u64::try_from(past).unwrap_or(0).saturating_add(1);
+
+    self.numbered.fetch_max(next, Ordering::Relaxed);
   }
 
   fn apart(&self) -> std::sync::MutexGuard<'_, BTreeMap<SessionId, (String, Apart)>> {

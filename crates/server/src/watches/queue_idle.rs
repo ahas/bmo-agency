@@ -1018,6 +1018,9 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     eprintln!("queue: the job service's events were not told: {why}");
   }
 
+  // Words kept for a running job while its turn could not take them are offered to that turn again.
+  crate::job_words::offer_kept(db).await;
+
   if !idle(&standing, now) {
     return Ok(());
   }

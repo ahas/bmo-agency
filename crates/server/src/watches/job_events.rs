@@ -2,10 +2,12 @@
 //! change is told to its orderer」): read as a page past the cursor agency keeps, each event's notice owed in
 //! agency's outbox — a close that handed its commit over and waits on its deployment, standing until it no longer
 //! waits, an item closed by somebody other than its orderer, a run's question asked, a question past its due
-//! time, and a settling reply that withdraws the question's instruction. The cursor advances only past events
-//! whose notices are owed. A pass with no cursor, or one whose cursor left the service's window, reads to the end
-//! and tells nothing of what it passed but a commit waiting to go live, owed or let go by the last event of each
-//! item it passed, since that notice stands on the item's state rather than on its change.
+//! time, and a settling reply that withdraws the question's instruction — and a note added to the item of a job
+//! that runs, handed to that job (「Words for a running job」). The cursor advances only past events whose
+//! notices are owed and whose notes are kept. A pass with no cursor, or one whose cursor left the service's
+//! window, reads to the end and tells nothing of what it passed but a commit waiting to go live, owed or let go
+//! by the last event of each item it passed, since that notice stands on the item's state rather than on its
+//! change.
 
 use std::collections::BTreeMap;
 
@@ -24,7 +26,7 @@ pub const QUESTION_OWED: &str = "question-awaits-answer:";
 /// The prefix of the key a commit waiting to go live is owed under, its item's number after it.
 pub const DEPLOY_OWED: &str = "item-awaits-deploy:";
 /// The kinds read.
-pub const KINDS: &str = "item.changed,question.created,question.due,reply.created";
+pub const KINDS: &str = "item.changed,note.created,question.created,question.due,reply.created";
 
 // A page of events past `after`, and whether more stand; none where the cursor left the service's window.
 async fn page(service: &JobService, after: Option<i64>) -> Result<Option<(Vec<Value>, bool)>, String> {
@@ -202,6 +204,13 @@ async fn told(
       outbox::owe(db, vars, Notice::instruction(job_notices::closed(data, by, &orderer), Keep::Once))
         .await?;
       println!("queue: item #{} closed by {by}, owed to its orderer", data["id"]);
+    }
+    // A note on the item of a job that runs is the job's, kept for it and handed to its turn
+    // (docs/agent-control.md, 「Words for a running job」); a note on any other item tells nobody.
+    "note.created" => {
+      if let Some(note) = crate::job_words::Note::of(data) {
+        crate::job_words::note_added(db, note).await?;
+      }
     }
     "question.created" => {
       let Some(id) = data["id"].as_i64() else { return Ok(()) };

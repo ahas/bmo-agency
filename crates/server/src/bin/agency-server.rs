@@ -148,8 +148,13 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the executions: {}", why.detail);
   }
 
-  // The session contract over the places stands before any job is launched again.
+  // The session contract over the places stands before any job is launched again, its sessions numbered past
+  // every number a process before this one gave (docs/sessions.md, 「A restart hands the session over」).
   let front = control::Front::new(token, ground.clone())?.with_places(places, watch.clone());
+
+  if let Some(sessions) = front.sessions() {
+    sessions.number_past_kept().await;
+  }
 
   // A job whose turn had not gone out when the last process went away is launched again from what its row
   // keeps, before the pass that ends a job left running reads it (docs/api.md, 「assignments and jobs」).

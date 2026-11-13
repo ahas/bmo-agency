@@ -1,5 +1,6 @@
 //! The run log's writer: a line cut at a character and saying so, a job's lines numbered in its own order
-//! and kept whole, a credential masked on the way in, and the log held to its bounds.
+//! and kept whole, whichever of the job's writers files them, a credential masked on the way in, and the log
+//! held to its bounds.
 
 use agency_server::run_log::lines::Line;
 use agency_server::run_log::prune::{
@@ -145,4 +146,38 @@ async fn a_pass_takes_the_old_lines_in_batches_and_finishes() {
     scratch.count(r#"SELECT COUNT(*) FROM "agent_log" WHERE "agent" = 'pal'"#, vec![]).await,
     0
   );
+}
+
+#[tokio::test]
+async fn a_job_s_line_numbered_past_another_writer_s_is_filed_once_more_and_never_lost() {
+  let scratch = Scratch::new().await;
+  let line = |text: &str| Line {
+    kind: "text",
+    text: text.into(),
+    ..Line::default()
+  };
+
+  // The turn's own log has written once, so it holds where it thinks the job's lines left off.
+  let mut turn = RunLog::new(target("worker", "job-42", Some(42)));
+
+  turn.write(scratch.db(), line("the turn's first line")).await.unwrap();
+
+  // A word said to the job meanwhile files its lines through a writer of its own.
+  let mut word = RunLog::new(target("worker", "job-42", Some(42)));
+
+  word.write(scratch.db(), line("a word said to the job")).await.unwrap();
+
+  // The turn's next line is filed all the same, after the word's.
+  assert!(turn.write(scratch.db(), line("the turn's second line")).await.is_some());
+
+  let rows = store::all(
+    scratch.db(),
+    r#"SELECT "text" FROM "agent_log" WHERE "job_id" = 42 ORDER BY "sequence""#,
+    vec![],
+  )
+  .await
+  .unwrap();
+  let texts: Vec<String> = rows.iter().map(|row| row.try_get("", "text").unwrap()).collect();
+
+  assert_eq!(texts, ["the turn's first line", "a word said to the job", "the turn's second line"]);
 }

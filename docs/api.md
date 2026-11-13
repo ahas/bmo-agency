@@ -618,23 +618,29 @@ turn begins.
 role's run by its session's id (`docs/agent-control.md`, 「Words that arrive while a turn is working」). Its
 body is `WordsAsk`: `words` (`text` accepted as its older name), `by`, and `files`, each `name`, `type` and
 `data`, the bytes base64-encoded; the files are written where the run's program can read them and named
-before the words as said. The answer is `WordsSent`: `said` — `delivered`, `waiting`, `refused` or `started` —
-with the `sessionId`, `run` and `turnId` it went into or takes, `jobId` where the run is a job's, and
-`reason`, why it did not go in, where it did not.
+before the words as said. The answer is `WordsSent`: `said` — `delivered`, `waiting`, `kept`, `refused` or
+`started` — with the `sessionId`, `run` and `turnId` it went into or takes, `jobId` where the run is a job's,
+and `reason`, why it did not go in, where it did not.
 
+- **A session a job's turn ran in addresses the job** for as long as the job is `starting`, `running` or
+  `reviewing`: the `sessionId` the job answers, and any session an earlier turn of the same job ran in, whether
+  this process started that session or picked its turn up across a restart. Its words take the job's road
+  (「assignments and jobs」, 「Words and notes for a running job」): never refused as ended while the job runs,
+  and answered 410 `run-ended` only once the job has ended.
 - **Who may say:** the owner, `by` naming `owner` or nothing, and the supervisor that asked for the run, the
-  `askedBy` of the slot it runs on or the supervisor whose double it is. Any other name is refused 403
-  `not-the-sender`; the control port's own bearer is what stands behind a name.
+  `askedBy` of the slot it runs on or the supervisor whose double it is; for a job, its holder and the
+  `askedBy` of its seat. Any other name is refused 403 `not-the-sender`; the control port's own bearer is what
+  stands behind a name.
 - **A run's session is a role's, never a supervisor's or a room's:** any other scope's session is refused 422
   `not-a-run`. A room's words go by the room's own push (`POST /sessions/{sessionId}/turns/{turnId}/inputs`).
 - **The words are offered to the turn the run carries now,** and taken only where its provider declares it
-  takes words mid-turn (`docs/agent-control.md`, 「Words that arrive while a turn is working」). A turn that
-  ends before it took them answers them refused, and agency keeps nothing: they belong to whoever said them,
-  which may say them again as a turn.
-- **A run whose provider takes no words mid-turn** answers them refused, with `reason` naming the provider;
-  they are not kept for a later turn, since a run's next turn is its caller's to send.
-- **A session that stands with no turn working** answers 409 `no-turn`; **one whose run has ended** answers
-  410 `run-ended`; **an id no run stands on** answers 404 `unknown-session`.
+  takes words mid-turn (`docs/agent-control.md`, 「Words that arrive while a turn is working」). For a run that
+  is no job's, a turn that ends before it took them answers them refused, and agency keeps nothing: they
+  belong to whoever said them, which may say them again as a turn.
+- **A run that is no job's, on a provider that takes no words mid-turn,** answers them refused, with `reason`
+  naming the provider; they are not kept for a later turn, since a run's next turn is its caller's to send.
+- **A session that is no job's and stands with no turn working** answers 409 `no-turn`; **one whose run has
+  ended** answers 410 `run-ended`; **an id no run stands on** answers 404 `unknown-session`.
 - **The run's record says what was sent and what became of it:** a `prompt` line named `word` under the
   run, and a `note` line under it saying what became of them. A job's report ends with the same words, read
   off its run's log, so what a job was told mid-turn stands beside its answer (`docs/run-records.md`, 「The
@@ -1180,10 +1186,11 @@ body is the sessions road's `WordsAsk`, and `worker` may name one of the reposit
 the same `WordsSent`, its `said` `started` where a turn of the worker's own was begun rather than taken.
 
 - **The owner's alone:** any `by` but `owner`, or none, is refused 403 `not-the-sender`.
-- **A job's turn going in one of the repository's checkouts** takes the words where its provider declares it
-  takes words mid-turn, as the sessions road does; the answer names its `sessionId`, `run`, `turnId` and
-  `jobId`, and its report and log keep them.
-- **Where no turn works there** the words are carried in a turn of the worker's own on the session its role
+- **A job starting, running or reviewing in one of the repository's checkouts** takes the words by the job's
+  road (「assignments and jobs」, 「Words and notes for a running job」): into the turn it works now, or kept for
+  its next turn; the answer names its `sessionId`, `run`, `turnId` where a turn took them, and `jobId`, and its
+  report and log keep them. A checkout's job whose turn works is chosen before one whose turn does not.
+- **Where no job runs there** the words are carried in a turn of the worker's own on the session its role
   keeps at the checkout, under the checkout's own lock and the clock `policy/worker-words.toml` names, and the
   answer is `started` before that turn ends; its answer, or what ended it, stands under the word's run in the
   worker's log.
@@ -1193,8 +1200,9 @@ the same `WordsSent`, its `said` `started` where a turn of the worker's own was 
 - **A repository the store does not hold** answers 404 `unknown-repository`, and a worker no checkout of it
   is 422 `unknown-worker`. A file over the bound in `policy/worker-words.toml` is refused 413 `too-large`.
 
-`bmo-agency run say <target> --words <text> [--file <path>]… [--by <name>]` reaches both roads from a shell,
-its target `session:<sessionId>`, `repository:<name>` or `worker:<checkout>`; its `by` is `BMO_TURN_AGENT`
+`bmo-agency run say <target> --words <text> [--file <path>]… [--by <name>]` reaches these roads and a job's
+(「assignments and jobs」) from a shell, its target `session:<sessionId>`, `job:<jobId>`, `repository:<name>` or
+`worker:<checkout>`; its `by` is `BMO_TURN_AGENT`
 where the shell stands in an agent's program, else the owner.
 
 ### nodes
@@ -1261,6 +1269,7 @@ where the shell stands in an agent's program, else the owner.
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released and its slot given back. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
+| POST | `/jobs/{jobId}/words` | Say words to a job that is starting, running or reviewing: into the turn it works now, or kept for its next turn. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, the repository it names as its `assigneeName`, and `asked-by=owner` where every message of that turn is the owner's. |
 | POST | `/job-stops` | Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's. |
@@ -1509,7 +1518,31 @@ service.
 - **A job's prompt carries its item's newest notes, as many as fit the policy's bytes**
   (`policy/job-prompt.toml`, `[notes]`): the notes that do not fit are left out from the oldest, and one
   line says how many were left out and that they stand on the item. The report trailer every job is held
-  to is no part of the prompt; it stands in the run's cached prefix (`docs/launch-lines.md`).
+  to is no part of the prompt; it stands in the run's cached prefix (`docs/launch-lines.md`). The job keeps
+  the newest note its prompt was composed with, so a note the item gains later reaches the job by the road
+  below rather than twice.
+- **Words and notes for a running job.** A job that is `starting`, `running` or `reviewing` takes words from
+  outside it, and no word for it is lost (`docs/agent-control.md`, 「Words for a running job」):
+  - **They are said to the job,** `POST /jobs/{jobId}/words`, or to any session one of its turns ran in,
+    `POST /sessions/{sessionId}/words` (「sessions」 above); both take `WordsAsk`, answer `WordsSent` and hold
+    the same rules of who may say. A job that has ended answers 410 `run-ended`, and a job no row holds 404
+    `unknown-job`.
+  - **A note added to the job's item while it runs is one of them.** Agency reads the job service's
+    `note.created` events in its minute pass (`docs/agent-control.md`, 「An item's change is told to its
+    orderer」) and hands each note on the item of a job that runs to that job, behind a paragraph naming it a
+    note of the item and who added it; a note the job's own turn wrote, the job service's own record and a note
+    the job's prompt already carried are left out.
+  - **Each is kept on the job before it is offered,** in the store's `job_words`, so a word survives the turn
+    it was said into ending, a review between stages and agency's own restart.
+  - **The turn the job works now takes them at its next look,** where its provider takes words mid-turn,
+    whether this process started that turn or picked it up across a restart; the answer is `delivered`, or
+    `waiting` where the turn waits on a person's answer.
+  - **Where no turn of the job takes them** — it is starting, waits for its seat or its road, stands under
+    review between stages, or its provider takes no words mid-turn — the answer is `kept`, and the job's next
+    turn carries every word kept for it behind its own prompt: the first turn, a stage handed over, a
+    question of its review or a rework. A turn that goes out on another road because its own stopped
+    answering carries them again.
+  - **The job's report ends with them,** as with any word said into its turn (「sessions」 above).
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
   instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
   the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
@@ -1709,7 +1742,7 @@ input, so `bmo` finds it from any directory.
 | `job borrow` | `<repository>`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
 | `repository` | `add <name> --path <base checkout> [--label <label>]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
-| `run say` | `<kind>:<id>` — `session:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |
+| `run say` | `<kind>:<id>` — `session:`, `job:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
 | `machine memory` | `--runtime <runtime>` and `--unit <unit>`, each repeatable, and `--json` | the machine's proc root |
 
@@ -1770,8 +1803,9 @@ session in place of one it had, the receiver's `POST /handoffs/{agentName}` is a
 handoff, with `reason` and `room` where the turn names one, while agency still names the session, and
 waited on (`docs/sessions.md`, 「A restart hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open`, `GET /items` with `state` `draft` and `GET /items` with `state` `held` are read, and its events as a page, `GET /events` with `Accept:
-application/json` past the cursor agency keeps, narrowed to `item.changed`, `question.created`,
-`question.due` and `reply.created`; an idle queue is told through the receiver's `POST /owner/notices`
+application/json` past the cursor agency keeps, narrowed to `item.changed`, `note.created`, `question.created`,
+`question.due` and `reply.created`, a note on the item of a job that runs handed to that job (「assignments and
+jobs」, 「Words and notes for a running job」); an idle queue is told through the receiver's `POST /owner/notices`
 with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told to
 the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event
 of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due` and

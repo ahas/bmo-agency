@@ -939,6 +939,8 @@ The owner's words:
   for the run, may say them; nobody else. A role's turn hears them unless its caller said otherwise, so a
   delegated run hears them as a job's does. A subagent a job's own program opens stands inside that
   program and is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
+- **A job's run is the one run whose words are kept** (「Words for a running job」 below): every other rule here
+  is for a run that is no job's.
 - **A run that has ended takes none.** Its session goes with its run, so a word said to it is answered
   refused as ended and nothing stands to receive it. A run whose session still stands but carries no turn
   refuses them as no turn: its next turn is its caller's to send, and agency holds nothing for it.
@@ -950,13 +952,54 @@ The owner's words:
   waited on a person, or why they did not go in. A job's report ends with the same, read off its log, so a
   person reading what the job came to also reads what it was told while it ran.
 
+### Words for a running job
+
+A job is the owner's work in progress, and what he or its orderer says of it while it runs, by a word or by a
+note on its item, belongs to that work until the job ends. So a job's words are kept until a turn of the job
+takes them, however the job stands when they arrive.
+
+- **A job is addressed by itself or by any of its turns' sessions.** Its turns each start and end a session of
+  their own, and a turn may be picked up by the next server across agency's restart, so a session id names the
+  job it ran a turn of rather than a session this process must hold: words to it while the job is `starting`,
+  `running` or `reviewing` take the job's road, and only a job that has ended refuses them as ended
+  (`docs/api.md`, 「assignments and jobs」, 「Words and notes for a running job」). Each session a turn of the job
+  starts is recorded against the job as it starts, and a session id names one session across agency's restarts
+  (`docs/sessions.md`, 「A restart hands the session over」), so a word reaches the job it was said to; where an
+  id was given twice by processes before that, a job that runs is the one it names.
+- **A note added to the job's item is a word of its orderer's.** The minute pass that reads the job service's
+  events (「An item's change is told to its orderer」 below) reads `note.created` too, and a note on the item of a
+  job that runs is handed to that job behind a paragraph naming it a note of the item, with who added it
+  (`policy/worker-words.toml`, `[job]`). A note the job's own turn wrote — its worker's or its agent's name as
+  the note's actor — and the job service's own record are not handed back to it, and nor is a note its prompt
+  already carried: the job keeps the newest note its launch composed its prompt with. The note is kept before
+  the pass moves its cursor past the event, so a restart between the two hands it again, and it is kept once.
+- **Kept first, offered after.** Every word for a job, said or noted, is written to the store's `job_words`
+  before anything is tried, and marked handed only once a turn of the job took it; a turn that did not take it
+  leaves it unmarked. So no word is lost to a turn ending, a review between stages, a seat or a road waited
+  for, or a restart.
+- **The turn working now takes them at its next look,** in the order they were kept, by the same door a room's
+  batch goes through (「Words that arrive while a turn is working」 above), where its provider takes words
+  mid-turn. A turn picked up across a restart listens too: while its program reads working, each word offered
+  is typed into it as the live door would type it. A word kept while the working turn could not take it — a
+  program waiting on a person, a look that did not read it working — is offered to that turn again on the
+  minute pass, so it reaches the turn rather than waiting for the next.
+- **Any later turn of the job carries what is still kept,** behind its own prompt and one paragraph saying these
+  are the job's words that arrived while no turn of it took them: its first turn after a wait, the next stage
+  handed over, a question of its review or a rework (`docs/job-review.md`, 「The turns the review asks for」). A
+  turn that goes out again on another road because its own stopped answering carries them again; a turn that
+  went out and ended marks them handed.
+- **The record and the report.** Each word stands in the job's log as said, a `prompt` line named `word`, with a
+  `note` line saying whether a turn took it or it was kept, and a line as a later turn takes what was kept; the
+  job's report ends with them (「Words that arrive while a turn is working」 above).
+
 ### Words said to a worker
 
 - **A word to a worker is said by its repository,** `POST /repositories/{repositoryName}/words`
   (`docs/api.md`, 「repositories, prefix-checks and room-holdings」). It is the owner's alone.
-- **Where a job's turn works in one of the repository's checkouts,** the word goes into it at its next look,
-  as a room's batch does, and the job's log and report keep it.
-- **Where no turn works there, the word is carried in a turn of its own** on the session the worker role
+- **Where a job runs in one of the repository's checkouts,** the word is the job's (「Words for a running
+  job」 above): into its turn at its next look, as a room's batch does, or kept for its next turn, and the
+  job's log and report keep it.
+- **Where no job runs there, the word is carried in a turn of its own** on the session the worker role
   keeps at the checkout: the worker line's program, on the model the worker role's order names on Claude Code
   (the repository's pin where it pins one), on a session its role keeps there resumed while valid and opened
   afresh otherwise, one turn at a time with a job's, under the checkout's agent lock. Its clock is
@@ -970,7 +1013,8 @@ The owner's words:
   since no turn of its own stands here.
 - **Words said while the word's own turn works go into it** at its next look, as any working turn's do.
 - **The command:** `bmo-agency run say <target> --words <text> [--file <path>]…`, its target
-  `session:<sessionId>`, `repository:<name>` or `worker:<checkout>` (`docs/api.md`, the same section).
+  `session:<sessionId>`, `job:<jobId>`, `repository:<name>` or `worker:<checkout>` (`docs/api.md`, the same
+  section).
 
 ### Stopping, falling back and standing up again
 
@@ -2314,24 +2358,22 @@ reads it.
 
 ### Pushing words into a running turn works
 
-This is why this item came to be. When a prompt was taken via stdin and closed, there was no place to put
-one in while running, so words appended were delivered only after the run answered, and at a work-step
-stage were skipped entirely.
+A word pushed into a pane whose program works is taken by that same turn, so a job's words reach the work
+while it goes rather than after its answer.
 
 - **Measured: `agent.prompt` goes into a `working` agent.** A turn running `sleep 30` was launched, and a
   second words pushed in 3 seconds later was accepted at 302ms (not refused), and that words was processed
   **within that turn** — the shell command meant to run did run, and the answer was one, `FIRST
   (MARKER-B)`. It is not pushed to the next turn.
-- **So appended words go straight to the running pane.** What goes in is set not by the words themselves
-  but by **the one paragraph wrapping them**: that this is that very item's words, that it is to be
-  processed in this turn, and that if it is a stop, do not simply stop but **commit, report and exit at
-  your own end**. What makes stopping clean is not the channel but that one paragraph — the channel does
-  not tell killing from asking.
-- **Two kinds of words ride this one channel.** Words appended to the item the job is a run of, and words
-  said to the run itself from the console, which belong to no item. They
-  are read on the same round and pushed in one call, each behind its own paragraph — the item's first,
-  because that one is the document the job is already reading going on. A job that could not be handed
-  them leaves both kinds unmarked, so they go again.
+- **What goes in is set by the paragraph wrapping the words,** not by the words themselves: a note of the item
+  goes in behind one naming it a note of the item the job is a run of and who added it, and words that waited
+  for a later turn behind one saying they arrived while no turn of the job took them (「Words for a running
+  job」). A stop goes in behind its own words: commit, report and exit at the turn's own end. What makes
+  stopping clean is that paragraph, since the channel does not tell killing from asking.
+- **Two kinds of words ride this one channel.** A note added to the item the job is a run of, and words said
+  to the job itself from the console or by its orderer, which belong to no note. Both are kept on the job
+  first and offered in the order they were kept, so a word the turn could not take is left unmarked and goes
+  into the job's next turn.
 - **`stopUnit` uses the same channel.** A resident turn takes those words and is waited on until it ends
   itself; no interrupt stands behind them.
 
@@ -3059,8 +3101,8 @@ with the session.
   owes a notice twice, and a transition that comes again is owed again. No clock decides whether a
   notice is owed beyond the launch's own minute below: every one is keyed by the transition it tells.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
-  (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `question.created`, `question.due`
-  and `reply.created`, past its cursor), keeping the last event's number as the settings row
+  (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `note.created`, `question.created`,
+  `question.due` and `reply.created`, past its cursor), keeping the last event's number as the settings row
   `job_events_after`. A pass with no cursor, or one the job service answers 410 because the cursor left its
   window, reads to the end and keeps the last number, telling nothing of what it passed but a commit waiting to
   go live: that notice stands on the item's state rather than on its change, so the last event the passed
@@ -3071,7 +3113,11 @@ with the session.
   twice: a row replaces its own kind, and a question past its due time or ruled moves the job's review once,
   a question past its due time owing its job's `job-review-parked` again where the review had already moved,
   so that notice is told at least once.
-  An item's event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item.
+  An item's event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item. A
+  `note.created` tells nobody: a note on the item of a job that runs is kept for that job and handed to its
+  turn (「Words for a running job」), since the note's words are for the work, and a note on any other item is
+  passed over. A note the store would not keep ends the pass there as a notice would, so it is taken again;
+  a note taken again is kept once.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|

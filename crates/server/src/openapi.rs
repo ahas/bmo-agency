@@ -528,6 +528,23 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "POST",
+    path: "/jobs/{jobId}/words",
+    id: "createJobWords",
+    tag: "jobs",
+    summary: "Say words to a job that is starting, running or reviewing: into the turn it works now, or kept for its next turn.",
+    params: &[Param {
+      name: "jobId",
+      place: "path",
+      required: true,
+      kind: "integer",
+      description: "",
+    }],
+    body: Some("WordsAsk"),
+    answers: &[(201, Some("WordsSent"), false)],
+    codes: &["bad-request", "forbidden", "not-found", "gone", "too-large"],
+  },
+  Operation {
+    method: "POST",
     path: "/repositories/{repositoryName}/words",
     id: "createRepositoryWords",
     tag: "repositories",

@@ -25,6 +25,7 @@ use crate::control::Refused;
 use crate::door::aside;
 use crate::door::turn::{AsideOutcome, Overrun, Overtime, Watch};
 use crate::herdr_backend::Shared;
+use crate::job_words;
 use crate::places::{AgentRow, Ground};
 use crate::run_log::RunLog;
 use crate::run_log::Target;
@@ -122,9 +123,24 @@ pub async fn to_session(
   }
 
   let session = SessionId(id.to_owned());
-  let (agent, scope) = match sessions.held_scope(&session).await {
+  let held = sessions.held_scope(&session).await;
+
+  // A session a running job's turn works in takes the job's road.
+  if held.is_ok()
+    && let Some(job) = job_words::working_in(&ground.db, id).await?
+  {
+    return to_job(&ground, job, ask).await;
+  }
+
+  let (agent, scope) = match held {
     Ok(held) => held,
     Err(fault) if fault.kind == FaultKind::Unknown => {
+      // A session this process does not hold may be one a job's turn ran in: a turn picked up across a restart,
+      // or one of an earlier stage, both of which address the job.
+      if let Some(job) = job_words::of_session(&ground.db, id).await? {
+        return to_job(&ground, job, ask).await;
+      }
+
       return Err(if ended(&ground.db, id).await? {
         Refused::new(StatusCode::GONE, format!("the run {id} has ended, so words said to it reach no turn"))
           .with_code("run-ended")
@@ -191,11 +207,11 @@ pub async fn to_session(
   })
 }
 
-/// Words said to a repository's worker: offered to the job's turn going in one of its checkouts, or, where
-/// no turn works there, carried in a turn of its own on the worker's session. The owner's alone.
+/// Words said to a repository's worker: the job's where one runs in one of its checkouts, into its turn or kept
+/// for its next, or, where none runs there, carried in a turn of its own on the worker's session. The owner's
+/// alone.
 pub async fn to_repository(
   ground: Arc<Ground>,
-  sessions: Shared,
   repository: &str,
   ask: WordsAsk,
 ) -> Result<WordsSent, Refused> {
@@ -228,40 +244,25 @@ pub async fn to_repository(
   let jobs = open_jobs(&ground, &checkouts).await?;
   let chosen = match named {
     Some(worker) => jobs.iter().find(|job| job.worker == worker).cloned(),
-    None => jobs
-      .iter()
-      .find(|job| {
-        job
-          .session
-          .as_deref()
-          .is_some_and(|session| sessions.turn_going(&SessionId(session.to_owned())).is_some())
-      })
-      .cloned()
-      .or_else(|| jobs.first().cloned()),
+    None => {
+      let mut working = None;
+
+      for job in &jobs {
+        if job_words::turn_of(&ground.db, job.id).await.is_some() {
+          working = Some(job.clone());
+          break;
+        }
+      }
+
+      working.or_else(|| jobs.first().cloned())
+    }
   };
 
-  if let Some(job) = &chosen
-    && let Some(session) = &job.session
-    && let Some((turn, run)) = sessions.turn_going(&SessionId(session.clone()))
+  // A job that runs in the checkout takes the words by its own road, into its turn or kept for its next.
+  if let Some(chosen) = &chosen
+    && let Some(job) = job_words::named(&ground.db, chosen.id).await?.filter(job_words::Job::runs)
   {
-    let prompt = with_files(&ground, &job.worker, &ask)?;
-    let at = Where::of(job, &run);
-
-    write_line(&ground, &at, "prompt", Some(WORD_LINE), &prompt).await?;
-
-    let said = sessions.push(&SessionId(session.clone()), turn, &prompt).await.map_err(faulted)?;
-    let (word, note) = account_of(said, PROVIDER);
-
-    write_line(&ground, &at, "note", Some(WORD_LINE), &note).await?;
-
-    return Ok(WordsSent {
-      said: word,
-      session_id: Some(session.clone()),
-      run: Some(run),
-      turn_id: Some(turn),
-      job_id: Some(job.id),
-      reason: (said != Aside::Delivered).then_some(note),
-    });
+    return to_job(&ground, job, ask).await;
   }
 
   let worker = match (&chosen, named) {
@@ -373,6 +374,86 @@ pub async fn to_repository(
   })
 }
 
+/// Words said to a job by its id (docs/api.md, 「assignments and jobs」, 「Words and notes for a running job」).
+pub async fn to_job_named(ground: Arc<Ground>, id: i64, ask: WordsAsk) -> Result<WordsSent, Refused> {
+  let job = job_words::named(&ground.db, id).await?.ok_or_else(|| {
+    Refused::new(StatusCode::NOT_FOUND, format!("no job is numbered {id}")).with_code("unknown-job")
+  })?;
+
+  to_job(&ground, job, ask).await
+}
+
+/// Words said to a job, by its id or by a session a turn of it ran in: kept on the job, offered to the turn it
+/// works now, and carried by its next turn where none took them. A job that has ended refuses them as ended.
+async fn to_job(ground: &Ground, job: job_words::Job, ask: WordsAsk) -> Result<WordsSent, Refused> {
+  if ask.worker.is_some() {
+    return Err(bad("a job's words name no worker").with_field("worker"));
+  }
+
+  if !job.runs() {
+    return Err(
+      Refused::new(
+        StatusCode::GONE,
+        format!("the job {} has ended, so words said to it reach no turn", job.id),
+      )
+      .with_code("run-ended"),
+    );
+  }
+
+  let by = sender(&ask);
+
+  if !may_say_to_job(ground, &job, &by).await? {
+    return Err(
+      Refused::new(
+        StatusCode::FORBIDDEN,
+        format!(
+          "{by} may not say words to the job {}: only the owner and the supervisor that asked for it",
+          job.id
+        ),
+      )
+      .with_code("not-the-sender"),
+    );
+  }
+
+  let prompt = with_files(ground, &job.worker, &ask)?;
+  let said = job_words::say(&ground.db, &job, &prompt, &by, None)
+    .await?
+    .ok_or_else(|| Refused::failed(format!("the words for job {} were not kept", job.id)))?;
+  let word = match said.outcome {
+    Some(AsideOutcome::Delivered) => WordsSaid::Delivered,
+    Some(AsideOutcome::Waiting) => WordsSaid::Waiting,
+    Some(AsideOutcome::Refused) | None => WordsSaid::Kept,
+  };
+  let taken = said.outcome == Some(AsideOutcome::Delivered);
+
+  Ok(WordsSent {
+    said: word,
+    session_id: said.turn.as_ref().map(|turn| turn.session.clone()).or(job.session),
+    run: Some(said.run),
+    turn_id: said.turn.as_ref().filter(|_| taken).map(|turn| turn.turn),
+    job_id: Some(job.id),
+    reason: (!taken).then_some(said.note),
+  })
+}
+
+/// Whether the sender may say to a job: the owner, the holder that launched it, or the supervisor that asked
+/// for its seat.
+async fn may_say_to_job(ground: &Ground, job: &job_words::Job, by: &str) -> Result<bool, Refused> {
+  if by == OWNER || by == job.holder {
+    return Ok(true);
+  }
+
+  let asked = one(
+    &ground.db,
+    r#"SELECT "asked_by" FROM "role_slot_requests" WHERE "owner" = $1 ORDER BY "sequence" DESC LIMIT 1"#,
+    vec![format!("{}{}", crate::order_run::dispatch::JOB_OWNER, job.id).into()],
+  )
+  .await?
+  .and_then(|row| row.try_get::<Option<String>>("", "asked_by").ok().flatten());
+
+  Ok(asked.is_some_and(|asked| asked == by))
+}
+
 /// One turn of words on the worker's own session, on the line a job runs on and in a session its role keeps:
 /// its answer kept under the word's run, and what ended it where it gave none.
 async fn own_turn(
@@ -465,13 +546,12 @@ async fn word_turn_can_stand(ground: &Ground, worker: &str) -> Result<(), Refuse
     .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why.detail).with_code("no-word-road"))
 }
 
-/// One job's run as the words said into it are kept: its id, the checkout it runs on, the session carrying
-/// its turn, and the run its lines stand under.
+/// One job's run as the words said into it are kept: its id, the checkout it runs on, and the room its lines
+/// stand under.
 #[derive(Clone, Debug)]
 struct JobAt {
   id: i64,
   worker: String,
-  session: Option<String>,
   room: Option<i64>,
 }
 
@@ -480,7 +560,6 @@ impl JobAt {
     Ok(Self {
       id: row.try_get("", "id")?,
       worker: row.try_get("", "worker_name")?,
-      session: row.try_get("", "session_id")?,
       room: row.try_get("", "room_id")?,
     })
   }
@@ -493,8 +572,8 @@ async fn open_jobs(ground: &Ground, checkouts: &[Checkout]) -> Result<Vec<JobAt>
   for checkout in checkouts {
     let rows = all(
       &ground.db,
-      r#"SELECT "id", "worker_name", "session_id", "room_id" FROM "jobs"
-         WHERE "worker_name" = $1 AND "state" IN ('starting', 'running') ORDER BY "id" DESC"#,
+      r#"SELECT "id", "worker_name", "room_id" FROM "jobs"
+         WHERE "worker_name" = $1 AND "state" IN ('starting', 'running', 'reviewing') ORDER BY "id" DESC"#,
       vec![checkout.name.clone().into()],
     )
     .await?;
@@ -542,8 +621,8 @@ async fn job_of_session(ground: &Ground, session: &str) -> Result<Option<JobAt>,
   Ok(row.as_ref().map(JobAt::of).transpose()?)
 }
 
-/// Whether a session id names a run that has ended: the slot it was let in on is given back, or the job
-/// whose turn it carried is over.
+/// Whether a session id names a run that is no job's and has ended: the slot it was let in on is given back. A
+/// job's sessions are the job's, and answer as it does.
 async fn ended(db: &impl sea_orm::ConnectionTrait, session: &str) -> Result<bool, Refused> {
   let seat = one(
     db,
@@ -559,11 +638,7 @@ async fn ended(db: &impl sea_orm::ConnectionTrait, session: &str) -> Result<bool
     return Ok(true);
   }
 
-  Ok(
-    one(db, r#"SELECT "id" FROM "jobs" WHERE "session_id" = $1 LIMIT 1"#, vec![session.into()])
-      .await?
-      .is_some(),
-  )
+  Ok(false)
 }
 
 /// Whether the sender may say to this run: the owner, or the supervisor that asked for it.
@@ -658,15 +733,6 @@ impl Where {
       run: run.to_owned(),
       chat: job.and_then(|job| job.room),
       job: job.map(|job| job.id),
-    }
-  }
-
-  fn of(job: &JobAt, run: &str) -> Self {
-    Self {
-      agent: job.worker.clone(),
-      run: run.to_owned(),
-      chat: job.room,
-      job: Some(job.id),
     }
   }
 
