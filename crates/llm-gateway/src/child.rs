@@ -109,16 +109,22 @@ fn free_port() -> std::io::Result<u16> {
   Ok(std::net::TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
 }
 
-// Whether the loopback listener on the port is held by the process or one of its descendants. A port picked
-// free stands open to any process until the child binds it, so an answer there is the child's only where its
-// listening socket is one of the child's own.
-fn held_by(pid: u32, port: u16) -> bool {
+// Whether a process outside the child's own family is seen holding the loopback listener on the port. A port
+// picked free stands open to any process until the child binds it, so an answer there is not the child's where
+// another process is seen listening on it; where no listener's holder can be read, the answer is taken as the
+// child's, so a reading that fails never stops a start.
+fn held_by_another(pid: u32, port: u16) -> bool {
   let Ok(table) = procfs::net::tcp() else { return false };
   let sockets: BTreeSet<u64> = table
     .iter()
     .filter(|entry| entry.state == procfs::net::TcpState::Listen && entry.local_address.port() == port)
     .map(|entry| entry.inode)
     .collect();
+
+  if sockets.is_empty() {
+    return false;
+  }
+
   let Ok(all) = procfs::process::all_processes() else { return false };
   let processes: Vec<procfs::process::Process> = all.filter_map(Result::ok).collect();
   let parents: Vec<(i32, i32)> = processes
@@ -141,14 +147,13 @@ fn held_by(pid: u32, port: u16) -> bool {
     }
   }
 
-  !sockets.is_empty()
-    && processes.iter().filter(|one| family.contains(&one.pid)).any(|one| {
-      one.fd().is_ok_and(|fds| {
-        fds.filter_map(Result::ok).any(
-          |fd| matches!(fd.target, procfs::process::FDTarget::Socket(inode) if sockets.contains(&inode)),
-        )
-      })
+  processes.iter().filter(|one| !family.contains(&one.pid)).any(|one| {
+    one.fd().is_ok_and(|fds| {
+      fds
+        .filter_map(Result::ok)
+        .any(|fd| matches!(fd.target, procfs::process::FDTarget::Socket(inode) if sockets.contains(&inode)))
     })
+  })
 }
 
 // Whether the child answers its liveliness path with a success: a refused or broken connection is no, and
@@ -253,7 +258,7 @@ async fn started_on_a_free_port(
       return Some(Err(format!("LiteLLM ended with {code} before it answered")));
     }
     if lively(port).await {
-      if held_by(pid, port) {
+      if !held_by_another(pid, port) {
         return Some(Ok(Box::new(Litellm {
           port,
           process: Mutex::new(Some(process)),
