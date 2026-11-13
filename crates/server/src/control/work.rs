@@ -2399,9 +2399,9 @@ const SLOT_ASK_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 // A job's turns, each a run of its role at its checkout (docs/agents.md, 「A run」): on the work parts of its
 // road, holding a slot of its role while it goes, in a session of the role's started for the turn and ended
 // with it, with a run of the ledger opened for it and closed as it ends.
-struct OnSession<'a> {
+struct OnSession<'a, S: Sessions> {
   ground: &'a Ground,
-  sessions: crate::herdr_backend::Shared,
+  sessions: Arc<S>,
   member: &'a Value,
   worker: &'a str,
   role: &'a str,
@@ -2420,7 +2420,7 @@ struct OnSession<'a> {
   carried: Option<String>,
 }
 
-impl OnSession<'_> {
+impl<S: Sessions + Send + Sync> OnSession<'_, S> {
   // The seat one turn of the job goes out on, on its road and keyed by its checkout so one checkout carries one
   // run at a time.
   async fn slot(&self, id: i64, taken: &Road, parts: &WorkParts) -> Result<Option<Request>, String> {
@@ -2619,7 +2619,7 @@ pub async fn paused_seats_given_back(ground: &Ground) {
   }
 }
 
-impl Carrier for OnSession<'_> {
+impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
   async fn carry(&mut self, taken: &Road, entry: &Entry, prompt: &str) -> Result<TurnEnd, String> {
     let ground = self.ground;
     let member = self.member;
@@ -2643,7 +2643,7 @@ impl Carrier for OnSession<'_> {
       .map(|resumed| resumed.session.clone());
     let moved = match (&self.resume, &resume) {
       (Some(left), None) => {
-        let handoff = asked_handoff(ground, &self.sessions, member, left).await;
+        let handoff = asked_handoff(ground, self.sessions.as_ref(), member, left).await;
 
         self.noted(id, &handoff).await;
         Some(handoff)
@@ -2687,7 +2687,7 @@ impl Carrier for OnSession<'_> {
   }
 }
 
-impl OnSession<'_> {
+impl<S: Sessions + Send + Sync> OnSession<'_, S> {
   // A handoff noted on the job's item.
   async fn noted(&self, id: i64, handoff: &crate::job_handoff::Handoff) {
     if let Some(item) = self.member["itemId"].as_i64() {
@@ -2696,7 +2696,7 @@ impl OnSession<'_> {
   }
 }
 
-impl OnSession<'_> {
+impl<S: Sessions + Send + Sync> OnSession<'_, S> {
   // One turn of the job in a session of its role started for it at the checkout on the road, the session
   // ended with the turn.
   async fn on_session(
@@ -2837,9 +2837,9 @@ impl OnSession<'_> {
 /// The handoff of the session a job's last turn answered on, `left`, asked one more turn on its own road and
 /// under the job's run (docs/sessions.md, 「The handoff a job's session leaves」): what that session answered,
 /// else the last lines the job's run logged.
-pub(crate) async fn asked_handoff(
+pub(crate) async fn asked_handoff<S: Sessions>(
   ground: &Ground,
-  sessions: &crate::herdr_backend::Shared,
+  sessions: &S,
   member: &Value,
   left: &crate::job_review::Resumed,
 ) -> crate::job_handoff::Handoff {
@@ -2927,7 +2927,7 @@ pub(crate) async fn asked_handoff(
 
 /// The handoff of a session handed over as its job ends, asked before the session is closed and noted on the
 /// job's item, where a job's turn last answered on it (docs/sessions.md, 「The handoff a job's session leaves」).
-pub async fn handed_over(ground: &Ground, sessions: &crate::herdr_backend::Shared, session: &str) {
+pub async fn handed_over<S: Sessions>(ground: &Ground, sessions: &S, session: &str) {
   // A deployment that names no job service has nowhere to note it, so nothing is asked.
   if crate::queue::orderer::JobService::of(ground.vars()).is_none() {
     return;
@@ -2962,9 +2962,12 @@ pub async fn handed_over(ground: &Ground, sessions: &crate::herdr_backend::Share
   crate::job_handoff::noted(ground, id, item, &handoff).await;
 }
 
-async fn launched(
+/// One turn of a job carried on the sessions given, to the end it comes to: its first, launched with its kept
+/// words or its composed prompt, or one its review asks for (docs/job-review.md, 「The turns the review asks
+/// for」).
+pub async fn launched<S: Sessions + Send + Sync>(
   ground: &Ground,
-  sessions: Option<crate::herdr_backend::Shared>,
+  sessions: Option<Arc<S>>,
   id: i64,
   turn: Option<crate::job_review::Turn>,
 ) -> Result<Option<Ended>, String> {

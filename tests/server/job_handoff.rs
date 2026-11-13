@@ -2,19 +2,28 @@
 //! 「assignments and jobs」): what a session's answer gives, the run log standing in for a session that cannot
 //! be asked, a prompt opened on a handoff with the item's title kept first; and a stopped job's answer to the
 //! stop words noted on its item as its handoff, which the item's next job opens on, on another agent's launch
-//! as much as the same one's.
+//! as much as the same one's; and, carried on a backend of the test's own over the session contract, a running
+//! job whose model changed under its review asks the session it leaves on that session's own road, the new
+//! session's first turn opening on what it wrote, and a stopped job's relaunch sending its first turn on the
+//! handoff the stopped session wrote.
 
-use std::sync::Arc;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use agency_server::control::work::{handed_over, launched};
 use agency_server::control::{Front, router};
 use agency_server::door::execution::cancelled;
 use agency_server::job_handoff::{Handoff, Source, ahead, answered, from_log};
+use agency_server::job_review::{Resumed, Turn as ReviewTurn};
 use agency_server::lines::place::Place;
 use agency_server::now_ms;
 use agency_server::run_log::lines::Line;
 use agency_server::run_log::{RunLog, Target};
 use agency_server::turn_pickup::{InFlight, at_start, keep};
+use agent_session::{
+  Fault, FaultKind, Reply, Scope, Session, SessionId, Sessions, Start, State, Turn, TurnEnd,
+};
 use policy::job_handoff::JOB_HANDOFF;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -266,4 +275,434 @@ async fn a_stopped_job_s_answer_is_noted_as_its_handoff_and_the_item_s_next_job_
     Some(json!({ "state": "stopped", "report": "The test is over." })),
   )
   .await;
+}
+
+/// A backend of the test's own over the session contract: it keeps every session it was asked to start and
+/// every turn it was handed, and answers each turn, in order, with the words and the harness session given.
+#[derive(Default)]
+struct StandIn {
+  started: Mutex<Vec<Start>>,
+  sent: Mutex<Vec<Turn>>,
+  answers: Mutex<VecDeque<(String, String)>>,
+}
+
+impl StandIn {
+  fn answering(answers: &[(&str, &str)]) -> Arc<Self> {
+    Arc::new(Self {
+      answers: Mutex::new(
+        answers
+          .iter()
+          .map(|(words, session)| ((*words).to_owned(), (*session).to_owned()))
+          .collect(),
+      ),
+      ..Self::default()
+    })
+  }
+
+  // Each turn handed, with the session it was started on: its road and the harness session it resumes.
+  fn turns(&self) -> Vec<(String, Option<String>, String)> {
+    let started = self.started.lock().unwrap();
+
+    self
+      .sent
+      .lock()
+      .unwrap()
+      .iter()
+      .map(|turn| {
+        let number: usize = turn.session.0.trim_start_matches("stand-in-").parse().unwrap();
+        let Scope::Apart(apart) = &started[number].scope else {
+          panic!("a job's turn goes on an apart session")
+        };
+
+        (apart.provider.clone(), apart.resume.clone(), turn.prompt.clone())
+      })
+      .collect()
+  }
+}
+
+impl Sessions for StandIn {
+  async fn start(&self, request: Start) -> Result<Session, Fault> {
+    let mut started = self.started.lock().unwrap();
+    let id = SessionId(format!("stand-in-{}", started.len()));
+
+    started.push(request.clone());
+
+    Ok(Session {
+      id,
+      agent: request.agent,
+      scope: request.scope,
+    })
+  }
+
+  async fn switch(&self, _: &SessionId, _: Option<&str>, _: Option<&str>) -> Result<Session, Fault> {
+    Err(Fault::new(FaultKind::Refused, "the stand-in does not switch"))
+  }
+
+  async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
+    self.sent.lock().unwrap().push(turn);
+
+    let (words, session) = self
+      .answers
+      .lock()
+      .unwrap()
+      .pop_front()
+      .ok_or_else(|| Fault::new(FaultKind::Refused, "no answer left"))?;
+    let reply = Reply {
+      mode: "stand-in".into(),
+      model: None,
+      effort: None,
+      text: words.clone(),
+      session_id: Some(session),
+      account: None,
+      context_ratio: None,
+      context_tokens: None,
+      session_usage: None,
+      spend: vec![],
+      live_tasks: vec![],
+      workflows: vec![],
+      upstream: None,
+      request_usages: None,
+    };
+
+    Ok(TurnEnd {
+      reply: Some(Box::new(reply)),
+      ..TurnEnd::answered("job-run", words)
+    })
+  }
+
+  async fn read_state(&self, _: &SessionId, _: Option<&str>) -> Result<State, Fault> {
+    Err(Fault::new(FaultKind::Refused, "the stand-in keeps no state"))
+  }
+
+  async fn interrupt(&self, _: &SessionId, _: i64) -> Result<(), Fault> {
+    Ok(())
+  }
+
+  async fn fold(&self, _: &SessionId) -> Result<(), Fault> {
+    Ok(())
+  }
+
+  async fn end(&self, _: &SessionId) -> Result<(), Fault> {
+    Ok(())
+  }
+
+  async fn list(&self) -> Result<Vec<Session>, Fault> {
+    Ok(Vec::new())
+  }
+}
+
+// A job of the item in the base checkout `helper`, running on agent `worker-01` with the prompt given.
+async fn job_on(scratch: &Scratch, home: &std::path::Path, id: i64, item: i64, prompt: &str) {
+  let now = now_ms();
+
+  repository(scratch.db(), "helper", &home.join("helper").to_string_lossy(), &[]).await;
+  std::fs::create_dir_all(home.join("helper")).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
+           "changed_at")
+         VALUES ($1, $2, 'harness', 'helper', 'running', $3, $3)"#,
+      vec![id.into(), item.into(), now.into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "state", "started_at", "prompt", "item_agent")
+         VALUES ($1, $2, 1, 'harness', $1, 'helper', 'running', $3, $4, 'worker-01')"#,
+      vec![id.into(), item.into(), now.into(), prompt.to_owned().into()],
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_job_whose_model_changed_opens_its_next_session_on_the_handoff_its_last_session_wrote() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let handoff =
+    "Done: stage one, the parser reads the new field. Found: the fixture lacks it. Left: stage two.";
+
+  // The job's last turn answered on Claude Code's model; its agent's road now goes out on DeepSeek's.
+  job_on(&scratch, home.path(), 9, 90, "# item 90\n\nDo the work.").await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "state" = 'reviewing', "review_session" = $1 WHERE "id" = 9"#,
+      vec![
+        json!({ "provider": "claude-code", "model": "claude-sonnet-5", "session": "left-1" })
+          .to_string()
+          .into(),
+      ],
+    )
+    .await;
+
+  let sessions = StandIn::answering(&[(handoff, "left-1"), ("Stage two is done.", "next-1")]);
+  let left = Resumed {
+    provider: "claude-code".to_owned(),
+    model: "claude-sonnet-5".to_owned(),
+    session: "left-1".to_owned(),
+  };
+  let ended = launched(
+    &ground,
+    Some(sessions.clone()),
+    9,
+    Some(ReviewTurn {
+      words: "Do stage two now.".to_owned(),
+      resume: Some(left),
+    }),
+  )
+  .await
+  .unwrap()
+  .expect("the turn's end");
+
+  assert_eq!(
+    ended.2.as_deref().map(|report| report.starts_with("Stage two is done.")),
+    Some(true),
+    "{ended:?}"
+  );
+
+  // The session left is asked first, on its own road and resumed by its id; the new road's session opens on
+  // what it wrote, ahead of the job's prompt and the review's words.
+  let turns = sessions.turns();
+
+  assert_eq!(turns.len(), 2, "{turns:?}");
+  assert_eq!((turns[0].0.as_str(), turns[0].1.as_deref()), ("claude-code", Some("left-1")));
+  assert_eq!(turns[0].2, JOB_HANDOFF.instruction);
+  assert_ne!(turns[1].0, "claude-code", "the next turn goes out on the road the model changed to");
+  assert_eq!(turns[1].1, None, "the next road opens a session of its own");
+  assert!(turns[1].2.starts_with("# item 90\n\n## The last session's handoff\n"), "{}", turns[1].2);
+  assert!(
+    turns[1].2.find(handoff).unwrap() < turns[1].2.find("Do stage two now.").unwrap(),
+    "{}",
+    turns[1].2
+  );
+
+  // The handoff stands on the item, written by the session itself.
+  let notes = peers.lock().unwrap().notes.get(&90).cloned().unwrap_or_default();
+
+  assert_eq!(notes.len(), 1, "{notes:?}");
+  assert_eq!(
+    (notes[0]["text"].as_str(), &notes[0]["labels"]["source"]),
+    (Some(handoff), &json!("session"))
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stopped_job_s_relaunch_sends_its_first_turn_on_the_handoff_the_stopped_session_wrote() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = Arc::new(seeded_with(scratch.db(), home.path(), &vars).await);
+  let port = front(ground.clone()).await;
+  let handoff = "Done: the parser. Doing: its tests in tests/area.rs, uncommitted. Left: the docs.";
+
+  peers.lock().unwrap().leases.insert(1);
+
+  // The job that was stopped, its session's answer to the stop words standing on the item as its handoff.
+  job_on(&scratch, home.path(), 11, 110, "# item 110\n\nDo the work.").await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "state" = 'stopped', "ended_at" = $1 WHERE "id" = 11"#,
+      vec![now_ms().into()],
+    )
+    .await;
+  scratch
+    .run(r#"UPDATE "assignments" SET "state" = 'released' WHERE "id" = 11"#, vec![])
+    .await;
+  peers
+    .lock()
+    .unwrap()
+    .note(110, handoff, json!({ "kind": "handoff", "job": "11", "source": "session" }));
+
+  // The item relaunched: the job's prompt is composed on the handoff.
+  let (status, assignment) = call(
+    port,
+    reqwest::Method::POST,
+    "/assignments",
+    Some(json!({ "itemId": 110, "holderName": "harness", "assigneeName": "helper",
+                 "item": { "title": "item 110", "brief": "Carry on.", "notes": [] } })),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{assignment}");
+
+  let (status, created) = call(
+    port,
+    reqwest::Method::POST,
+    "/jobs",
+    Some(json!({ "assignmentId": assignment["id"], "itemId": 110, "leaseId": 1, "holderName": "harness",
+                 "item": { "title": "item 110", "brief": "Carry on.", "notes": [], "labels": { "agent": "worker-01" } } })),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{created}");
+
+  // Its first turn carried on the test's own backend: the new session's first words open on the handoff.
+  let prompt: String = store::one(
+    scratch.db(),
+    r#"SELECT "prompt" FROM "jobs" WHERE "id" = $1"#,
+    vec![created["id"].as_i64().unwrap().into()],
+  )
+  .await
+  .unwrap()
+  .unwrap()
+  .try_get("", "prompt")
+  .unwrap();
+
+  job_on_prompt(&scratch, 12, 110, &prompt).await;
+
+  let sessions = StandIn::answering(&[("Carried on.", "fresh-1")]);
+
+  launched(&ground, Some(sessions.clone()), 12, None)
+    .await
+    .unwrap()
+    .expect("the turn's end");
+
+  let turns = sessions.turns();
+
+  assert_eq!(turns.len(), 1, "{turns:?}");
+  assert_eq!(turns[0].1, None, "the relaunch opens a session of its own");
+  assert!(
+    turns[0].2.starts_with("# item 110\n\n## The last session's handoff\n"),
+    "{}",
+    turns[0].2
+  );
+  assert!(
+    turns[0].2.find(handoff).unwrap() < turns[0].2.find("Carry on.").unwrap(),
+    "{}",
+    turns[0].2
+  );
+}
+
+// A second job of the same item and checkout, written with the prompt given.
+async fn job_on_prompt(scratch: &Scratch, id: i64, item: i64, prompt: &str) {
+  let now = now_ms();
+
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
+           "changed_at")
+         VALUES ($1, $2, 'harness', 'helper', 'running', $3, $3)"#,
+      vec![id.into(), item.into(), now.into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "state", "started_at", "prompt", "item_agent")
+         VALUES ($1, $2, 1, 'harness', $1, 'helper', 'starting', $3, $4, 'worker-01')"#,
+      vec![id.into(), item.into(), now.into(), prompt.to_owned().into()],
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_review_turn_whose_session_record_is_gone_opens_on_the_run_log_and_notes_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let mut log = RunLog::new(Target {
+    agent: "helper".to_owned(),
+    run: "job-13".to_owned(),
+    chat_id: None,
+    job_id: Some(13),
+  });
+
+  log
+    .write(scratch.db(), Line::note("Stage one: the parser reads the new field.".to_owned()))
+    .await;
+
+  // The job's last turn answered on the road its next turn takes, but its session's record is gone: the turn
+  // answers on a session of its own.
+  job_on(&scratch, home.path(), 13, 130, "# item 130\n\nDo the work.").await;
+
+  let road =
+    agency_server::road::for_job(&ground, Some("worker"), Some("helper"), None, &[], Some("harness"))
+      .await
+      .unwrap();
+  let (taken, _) = road.going().expect("a road");
+  let left = Resumed {
+    provider: taken.provider.clone(),
+    model: taken.model.clone(),
+    session: "gone-1".to_owned(),
+  };
+  let sessions = StandIn::answering(&[("Stage two is done.", "fresh-2")]);
+
+  launched(
+    &ground,
+    Some(sessions.clone()),
+    13,
+    Some(ReviewTurn {
+      words: "Do stage two now.".to_owned(),
+      resume: Some(left),
+    }),
+  )
+  .await
+  .unwrap()
+  .expect("the turn's end");
+
+  // The turn asks to continue the session, and carries the run log as the handoff for where it cannot.
+  let started = sessions.started.lock().unwrap().clone();
+  let Scope::Apart(apart) = &started[0].scope else { panic!("an apart session") };
+
+  assert_eq!(apart.resume.as_deref(), Some("gone-1"));
+  assert!(
+    apart
+      .resume_else
+      .as_deref()
+      .unwrap()
+      .starts_with("# item 130\n\n## The last session's handoff\n")
+  );
+  assert!(
+    apart
+      .resume_else
+      .as_deref()
+      .unwrap()
+      .contains("Stage one: the parser reads the new field.")
+  );
+
+  // It answered on another session, so the run log's handoff is noted on the item.
+  let notes = peers.lock().unwrap().notes.get(&130).cloned().unwrap_or_default();
+
+  assert_eq!(notes.len(), 1, "{notes:?}");
+  assert_eq!(notes[0]["labels"]["source"], "log");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_session_handed_over_as_its_job_ends_is_asked_for_its_handoff_first() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let handoff = "Done: the whole item, committed as abc123. Nothing is left.";
+
+  job_on(&scratch, home.path(), 14, 140, "# item 140\n\nDo the work.").await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "state" = 'ended', "session_id" = 'worker-01@apart:5', "review_session" = $1
+         WHERE "id" = 14"#,
+      vec![
+        json!({ "provider": "claude-code", "model": "claude-sonnet-5", "session": "kept-1" })
+          .to_string()
+          .into(),
+      ],
+    )
+    .await;
+
+  let sessions = StandIn::answering(&[(handoff, "kept-1")]);
+
+  handed_over(&ground, sessions.as_ref(), "worker-01@apart:5").await;
+
+  let turns = sessions.turns();
+
+  assert_eq!(turns.len(), 1, "{turns:?}");
+  assert_eq!((turns[0].0.as_str(), turns[0].1.as_deref()), ("claude-code", Some("kept-1")));
+  assert_eq!(turns[0].2, JOB_HANDOFF.instruction);
+
+  let notes = peers.lock().unwrap().notes.get(&140).cloned().unwrap_or_default();
+
+  assert_eq!(notes.len(), 1, "{notes:?}");
+  assert_eq!((notes[0]["text"].as_str(), &notes[0]["labels"]["job"]), (Some(handoff), &json!("14")));
 }
