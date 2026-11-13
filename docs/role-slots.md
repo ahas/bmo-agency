@@ -69,6 +69,10 @@ is and which one a run takes is `docs/role-agents.md`.
 - **One role's asks are judged one at a time.** The transaction that judges an ask holds its role's row until
   it ends, so two asks woken at once — a slot freed with several waiting — never both read an agent as free
   and both take it: the second is judged once the first is written, and finds the agent carrying its run.
+- **An ask can be judged without being made.** Whether a first ask would be let in now is answered by the
+  same rule an ask is admitted by, for a request standing behind every one in the line that has not asked
+  before, and nothing is written: no request, no place in the line, no number of an ask. A job is written
+  with the wait this answers (`docs/api.md`, 「assignments and jobs」).
 - **Within one role, waiting asks stand in the order they were asked,** by a global increasing sequence, and
   a slot goes to the first of them whose owner is asking now.
   - **An owner asks for its waiting request by asking for its admission,** again and again while it waits

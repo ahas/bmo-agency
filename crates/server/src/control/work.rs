@@ -893,6 +893,19 @@ impl Route for CreateJob {
     .ok_or_else(|| Refused::failed("the job was written but not answered"))?;
     let id: i64 = row.try_get("", "id")?;
 
+    // A job that will wait is written waiting (docs/api.md, 「assignments and jobs」), so no answer or event
+    // reads it as going out before its first turn has asked.
+    if let Some(waits) =
+      first_wait(call.ground(), id, &resolution, &item_agent.role, &item_agent.name, &worker_name).await
+    {
+      run(
+        &written,
+        r#"UPDATE "jobs" SET "held_for" = $1 WHERE "id" = $2"#,
+        vec![waits.into(), id.into()],
+      )
+      .await?;
+    }
+
     written.commit().await.map_err(|why| Refused::failed(why.to_string()))?;
     crate::watches::queue_idle::agent_told_let_go(db, item_id).await;
     crate::watches::queue_idle::no_candidate_told_let_go(db, item_id).await;
@@ -924,6 +937,59 @@ impl Route for CreateJob {
 }
 
 crate::moved!(CreateJob);
+
+/// The wait a job's first turn will begin with, judged as the job is written (docs/api.md, 「assignments and
+/// jobs」): the closed road's sentence where no road of its walk answers, as its turn will wait for a road, else
+/// the seat it waits for where the line would not let its first ask in. None where it would go straight out, or
+/// where the line could not be read, its turn then telling the wait as it begins.
+async fn first_wait(
+  ground: &Ground,
+  id: i64,
+  resolution: &road::Resolution,
+  role: &str,
+  agent: &str,
+  worker: &str,
+) -> Option<String> {
+  let Some((taken, entry)) = resolution.going() else {
+    return Some(resolution.no_road.clone().unwrap_or_else(|| resolution.sentence()));
+  };
+  // The ask its first turn makes (`OnSession::slot`), judged without being made: the same owner, road, agent
+  // and checkout.
+  let asked = dispatch::Asked {
+    request_key: format!("job-{id}-first"),
+    owner: format!("{}{id}", dispatch::JOB_OWNER),
+    wanted: dispatch::Wanted {
+      role,
+      path: None,
+      fixed: Some(crate::order::Entry {
+        provider: taken.provider.clone(),
+        model: taken.model.clone(),
+        effort: entry.effort.clone(),
+        thinking: None,
+        answer_tokens: None,
+      }),
+      agent: Some(agent),
+    },
+    place_key: Some(worker),
+    ..dispatch::Asked::default()
+  };
+
+  match dispatch::first_ask_waits(ground, &asked, dispatch::JOB).await {
+    Ok(waits) => waits.then(|| format!("it waits for {}", seat_words(role, Some(agent)))),
+    Err(why) => {
+      eprintln!("job {id}: whether its first ask would wait was not judged: {why}");
+      None
+    }
+  }
+}
+
+// The seat a job's turn asks for, as its wait and its log name it.
+fn seat_words(role: &str, agent: Option<&str>) -> String {
+  match agent {
+    Some(agent) => format!("the agent {agent} of the {role} role"),
+    None => format!("a slot of the {role} role"),
+  }
+}
 
 /// What an agent carries at work now, in words a launch's refusal names it by (docs/repositories.md, 「An agent an
 /// item names」): a job standing on it — starting, running, or under a review that has not paused it — else the
@@ -2252,18 +2318,20 @@ pub async fn job_seat(
     }
   };
   let mut told = false;
-  let role = asked.wanted.role;
-  let seat = match asked.wanted.agent {
-    Some(agent) => format!("the agent {agent} of the {role} role"),
-    None => format!("a slot of the {role} role"),
-  };
+  // A job written waiting for its seat (docs/api.md, 「assignments and jobs」) that the line lets in at its first
+  // ask after all goes out with its hold cleared.
+  let written_held = job_held(ground, id).await;
+  let seat = seat_words(asked.wanted.role, asked.wanted.agent);
 
   loop {
     paused_seats_given_back(ground).await;
 
     if let Some(let_in) = dispatch::acquire(ground, &held).await? {
-      if told {
+      if told || written_held {
         hold_job(ground, id, None, false).await;
+      }
+
+      if told {
         noted_line(ground, id, &format!("Let in on {seat}, going out")).await;
       }
 
@@ -2291,6 +2359,16 @@ pub async fn job_seat(
       .await?
       .ok_or("The job's slot request is gone")?;
   }
+}
+
+// Whether a job's row names a wait now.
+async fn job_held(ground: &Ground, id: i64) -> bool {
+  one(&ground.db, r#"SELECT "held_for" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()
+    .and_then(|row| row.try_get::<Option<String>>("", "held_for").ok().flatten())
+    .is_some()
 }
 
 /// The seat a job holds now, kept from an earlier turn: its newest slot request still let in.

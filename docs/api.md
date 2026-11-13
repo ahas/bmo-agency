@@ -1462,6 +1462,13 @@ service.
   card is granted (`docs/own-llm.md`, 「An engine the arbiter stands」). A job held so — for a road, for its
   card — or not let in at its first ask for a slot of its role, is told to its item's orderer once as the
   wait begins (`job-waiting`).
+- **A job that will wait is written waiting.** `POST /jobs` judges, as it writes the job, the wait its first
+  turn will begin with, and writes that wait as its `heldFor` in the same write, so the `201` answer, the
+  `job.created` event and every read of the job carry it from the start: where no road of its walk answers,
+  the road's sentence; where its road answers but its first ask for a slot of its role would not be let in,
+  the agent it waits for. The ask is judged by the line's own rule (`docs/role-slots.md`, 「The line」) and
+  not made, so the job holds no place in the line before its first turn asks. Where the line has moved by
+  the time the turn asks and lets it in, its `heldFor` is cleared as the turn goes out.
 - **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
   quota, window, balance or credential refused, its last login closing under it, or its road found unable
   to answer as the turn ends — is launched again on the next of its role's agents whose road can answer: the same job, item,

@@ -1,7 +1,8 @@
 //! A job asked of a running server in the shapes the harness sends (docs/api.md, 「assignments and jobs」): a
 //! launch taken while nothing in the order can answer, the job waiting `starting` with every provider's reason
 //! and holding no slot, and going out once a login reopens; a turn that fails ending the job with why, written
-//! into its log; and the end releasing the assignment, so the worker is held again for the next item.
+//! into its log; the end releasing the assignment, so the worker is held again for the next item; and a job
+//! whose first ask for a slot would wait written waiting, its launch answered with that wait.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -298,30 +299,22 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 
   // Nothing in the order can answer: the job is taken all the same and waits `starting`, held with every
-  // provider's reason and the moment the first login reopens, its assignment running and no slot held.
+  // provider's reason and the moment the first login reopens, its assignment running and no slot held. It is
+  // written so: the launch's own answer already names the wait.
   let (status, job) = run_job(port, token, assignment, 41, item_of(&on_claude)).await;
 
   assert_eq!(status, 201, "{job}");
   assert_eq!(job["state"], "starting", "{job}");
 
   let id = job["id"].as_i64().unwrap();
-  let mut held = Value::Null;
+  let why = job["heldFor"].as_str().unwrap_or_default();
 
-  for _ in 0..100 {
-    held = get(port, token, &format!("/jobs/{id}")).await.1;
+  assert!(why.contains("login-a is at its limit"), "{job}");
+  assert!(why.contains("reopens on its own"), "{job}");
 
-    if held["heldFor"].is_string() {
-      break;
-    }
-
-    tokio::time::sleep(Duration::from_millis(50)).await;
-  }
-
-  let why = held["heldFor"].as_str().unwrap_or_default();
+  let mut held = get(port, token, &format!("/jobs/{id}")).await.1;
 
   assert_eq!(held["state"], "starting", "{held}");
-  assert!(why.contains("login-a is at its limit"), "{held}");
-  assert!(why.contains("reopens on its own"), "{held}");
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "running");
   assert_eq!(
     scratch
@@ -428,7 +421,43 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
 
   // The end released the assignment, so the same worker is held for the next item.
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "released");
-  assigned(port, token, 42).await;
+
+  let next = assigned(port, token, 42).await;
+
+  // The agent is free and its road answers, but a request ahead in the line asks for that agent: the next job
+  // is written waiting for it, and its launch's answer names the wait before its first turn has asked
+  // (docs/api.md, 「assignments and jobs」).
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
+           "model", "effort", "capacity", "state", "enqueued_at", "class", "agent_wanted")
+         VALUES ('ahead', 'ahead', 'ahead', 'job', 'worker', '/elsewhere/', 'claude-code', '', '', 1, 'waiting', 0,
+           'foreground', $1)"#,
+      vec![on_claude.clone().into()],
+    )
+    .await;
+
+  let (status, waiting) = run_job(port, token, next, 42, item_of(&on_claude)).await;
+  let waits = format!("it waits for the agent {on_claude} of the worker role");
+
+  assert_eq!((status, waiting["state"].as_str()), (201, Some("starting")), "{waiting}");
+  assert_eq!(waiting["heldFor"], waits, "{waiting}");
+
+  // The request ahead asks no more, so the line lets the job in: its hold is let go as its turn goes out.
+  let id = waiting["id"].as_i64().unwrap();
+  let mut ended = Value::Null;
+
+  for _ in 0..100 {
+    ended = get(port, token, &format!("/jobs/{id}")).await.1;
+
+    if ended["state"] == "ended" {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  assert_eq!((ended["state"].as_str(), &ended["heldFor"]), (Some("ended"), &Value::Null), "{ended}");
 
   assert_eq!(heard.load(Ordering::SeqCst), 0, "the test server posted to the leaked receiver");
 }

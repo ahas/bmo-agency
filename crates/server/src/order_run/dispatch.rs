@@ -473,15 +473,7 @@ pub async fn enqueue(
     }
   }
 
-  // The account it belongs to is its asking supervisor's (docs/role-slots.md, 「Accounts」).
-  let account = match asked.asked_by {
-    Some(name) => crate::supervisors::named(db, name)
-      .await
-      .map_err(faulted)?
-      .and_then(|supervisor| supervisor.owner_account)
-      .map(|account| account.to_string()),
-    None => None,
-  };
+  let account = account_of(db, asked.asked_by).await?;
   let written = db.begin().await.map_err(faulted)?;
 
   let opened = run(
@@ -760,49 +752,96 @@ async fn admission<C: ConnectionTrait>(
   }
 
   let since = ask(db, token).await?;
+  let judged = judge(db, &held, role, &seats, since).await?;
+  // Where every agent it may take is busy it says nothing; where the free ones' roads cannot answer it says why;
+  // once a free agent's road answers it says nothing more.
+  let held_for = match &judged {
+    Judged::NoSeat(None) => None,
+    Judged::NoSeat(Some(why)) => Some(Some(why.clone())),
+    Judged::HeldBack | Judged::LetIn { .. } => Some(None),
+  };
 
-  // The first agent it may take that is free and whose road answers now is its seat. Where every agent it may
-  // take is busy it waits and says nothing; where the free ones' roads cannot answer it keeps its
-  // place, says why and stands in no one's way.
+  if let Some(held_for) = held_for {
+    run(
+      db,
+      r#"UPDATE "role_slot_requests" SET "held_for" = $2 WHERE "token" = $1"#,
+      vec![token.into(), held_for.into()],
+    )
+    .await
+    .map_err(faulted)?;
+  }
+
+  let Judged::LetIn {
+    agent,
+    entry,
+    reserved,
+    inherits,
+  } = judged
+  else {
+    return Ok((None, vec![]));
+  };
+  let mut changed = vec![];
+
+  if let Some(seat) = reserved
+    && let Some(ended) = end_seat(db, &seat, "released", &format!("taken by {token}"), now).await?
+  {
+    changed.push(ended);
+  }
+
+  if let Some(first) = inherits
+    && let Some(ended) = end_seat(db, &first, "cancelled", &format!("turn given to {token}"), now).await?
+  {
+    changed.push(ended);
+  }
+
+  let admitted = admit(db, token, &entry, &agent, role.cap_for(held.account.as_deref()), now).await?;
+
+  Ok((admitted, changed))
+}
+
+// What the line makes of a waiting request's ask now (docs/role-slots.md, 「The line」), reading and writing
+// nothing. `since` is the ask its owner made before this one, none where this is its first.
+enum Judged {
+  // No free agent it may take has a road that answers now: it keeps its place and stands in no one's way, with
+  // why where a free agent's road cannot answer.
+  NoSeat(Option<String>),
+  // A free agent's road answers, but its place is taken, a request ahead stands in its way or the role's cap
+  // is full.
+  HeldBack,
+  // Let in on the agent, on the road entry: in place of the slot its owner holds reserved in the role where one
+  // stands, else of the first request ahead that is its own owner's reservation where that one stood in its way.
+  LetIn {
+    agent: String,
+    entry: Entry,
+    reserved: Option<String>,
+    inherits: Option<String>,
+  },
+}
+
+async fn judge<C: ConnectionTrait>(
+  db: &C,
+  held: &Request,
+  role: &AgentRole,
+  seats: &[Seat],
+  since: Option<i64>,
+) -> Result<Judged, Fault> {
+  // The first agent it may take that is free and whose road answers now is its seat.
   let busy = crate::role_agents::busy(db, &held.role).await.map_err(faulted)?;
   let free: Vec<&Seat> = seats.iter().filter(|seat| !busy.contains(&seat.agent)).collect();
   let picked = free
     .iter()
     .find_map(|seat| seat.road.as_ref().ok().map(|entry| (seat.agent.clone(), entry.clone())));
-  let (agent, entry) = match picked {
-    Some(picked) => {
-      run(
-        db,
-        r#"UPDATE "role_slot_requests" SET "held_for" = NULL WHERE "token" = $1"#,
-        vec![token.into()],
-      )
-      .await
-      .map_err(faulted)?;
-
-      picked
-    }
-    None => {
-      if let Some(why) = free.first().and_then(|seat| seat.road.as_ref().err()) {
-        run(
-          db,
-          r#"UPDATE "role_slot_requests" SET "held_for" = $2 WHERE "token" = $1"#,
-          vec![token.into(), why.clone().into()],
-        )
-        .await
-        .map_err(faulted)?;
-      }
-
-      return Ok((None, vec![]));
-    }
+  let Some((agent, entry)) = picked else {
+    return Ok(Judged::NoSeat(free.first().and_then(|seat| seat.road.as_ref().err()).cloned()));
   };
 
   if place_taken(db, held.place_key.as_deref()).await? {
-    return Ok((None, vec![]));
+    return Ok(Judged::HeldBack);
   }
 
   // A slot its own owner holds reserved in this role is the request's place: the reservation's slot is given
   // up and the request let in in its stead, which moves nothing in the count.
-  let seat = one(
+  let reserved = one(
     db,
     r#"SELECT "token" FROM "role_slot_requests"
        WHERE "role" = $1 AND "owner" = $2 AND "state" = 'reserved' AND "reservation" IS NOT NULL
@@ -812,22 +851,17 @@ async fn admission<C: ConnectionTrait>(
   .await
   .map_err(faulted)?;
 
-  let mut changed = vec![];
-
-  if let Some(seat) = seat {
-    let seat: String = seat.try_get("", "token").map_err(faulted)?;
-
-    if let Some(ended) = end_seat(db, &seat, "released", &format!("taken by {token}"), now).await? {
-      changed.push(ended);
-    }
-
-    let admitted = admit(db, token, &entry, &agent, role.cap_for(held.account.as_deref()), now).await?;
-
-    return Ok((admitted, changed));
+  if let Some(reserved) = reserved {
+    return Ok(Judged::LetIn {
+      agent,
+      entry,
+      reserved: Some(reserved.try_get("", "token").map_err(faulted)?),
+      inherits: None,
+    });
   }
 
   if held.yielding && foreground_waits(db, &held.role, since).await? {
-    return Ok((None, changed));
+    return Ok(Judged::HeldBack);
   }
 
   // A request ahead stands in this one's way only where it could take the agent this one is let in on.
@@ -853,24 +887,83 @@ async fn admission<C: ConnectionTrait>(
     match in_the_way(db, &held.role, held.account.as_deref(), held.sequence, since, Some(&takes)).await? {
       None => None,
       Some((first, Some(_), owner)) if owner == held.owner => Some(first),
-      Some(_) => return Ok((None, changed)),
+      Some(_) => return Ok(Judged::HeldBack),
     };
 
-  let cap = role.cap_for(held.account.as_deref());
-
-  if used(db, &held.role, held.account.as_deref()).await? >= cap {
-    return Ok((None, changed));
+  if used(db, &held.role, held.account.as_deref()).await? >= role.cap_for(held.account.as_deref()) {
+    return Ok(Judged::HeldBack);
   }
 
-  if let Some(first) = inherits
-    && let Some(ended) = end_seat(db, &first, "cancelled", &format!("turn given to {token}"), now).await?
-  {
-    changed.push(ended);
+  Ok(Judged::LetIn {
+    agent,
+    entry,
+    reserved: None,
+    inherits,
+  })
+}
+
+/// Whether a request asked so would wait at its first ask, as the line judges it now (docs/role-slots.md, 「The
+/// line」): by the rule an ask is admitted by, for a request standing behind every one in the line that has not
+/// asked before, with nothing written.
+pub async fn first_ask_waits(ground: &Ground, asked: &Asked<'_>, source: &str) -> Result<bool, Fault> {
+  let role = role_of(&ground.db, asked.wanted.role).await?;
+  let account = account_of(&ground.db, asked.asked_by).await?;
+  let unasked = unasked(asked, source, &role, account);
+  let seats = seats_for(ground, &unasked, &role).await?;
+
+  Ok(!matches!(judge(&ground.db, &unasked, &role, &seats, None).await?, Judged::LetIn { .. }))
+}
+
+// A request asked so as the line would hold it the moment it is written: waiting, behind every request in the
+// line, with no token yet.
+fn unasked(asked: &Asked<'_>, source: &str, role: &AgentRole, account: Option<String>) -> Request {
+  let fixed = asked.wanted.fixed.as_ref();
+
+  Request {
+    sequence: i64::MAX,
+    token: String::new(),
+    request_key: asked.request_key.clone(),
+    owner: asked.owner.clone(),
+    source: source.to_owned(),
+    role: role.name.clone(),
+    path: asked.wanted.path.map(str::to_owned),
+    provider: fixed.map(|entry| entry.provider.clone()).unwrap_or_default(),
+    model: fixed.map(|entry| entry.model.clone()).unwrap_or_default(),
+    effort: fixed.and_then(|entry| entry.effort.clone()),
+    capacity: role.cap_for(account.as_deref()),
+    state: "waiting".to_owned(),
+    enqueued_at: crate::now_ms(),
+    leased_at: None,
+    child_id: None,
+    ended_at: None,
+    outcome: None,
+    reservation: None,
+    yielding: asked.yielding,
+    place_key: asked.place_key.map(str::to_owned),
+    session: asked.session.map(str::to_owned),
+    title: asked.title.map(str::to_owned),
+    asked_by: asked.asked_by.map(str::to_owned),
+    account,
+    agent_name: None,
+    agent_wanted: asked.wanted.agent.map(str::to_owned),
+    seat: None,
+    held_for: None,
+    ended_by: None,
   }
+}
 
-  let admitted = admit(db, token, &entry, &agent, cap, now).await?;
+// The account a request belongs to: its asking supervisor's (docs/role-slots.md, 「Accounts」), none where no
+// supervisor asked it or the one that did holds no account.
+async fn account_of<C: ConnectionTrait>(db: &C, asked_by: Option<&str>) -> Result<Option<String>, Fault> {
+  let Some(name) = asked_by else { return Ok(None) };
 
-  Ok((admitted, changed))
+  Ok(
+    crate::supervisors::named(db, name)
+      .await
+      .map_err(faulted)?
+      .and_then(|supervisor| supervisor.owner_account)
+      .map(|account| account.to_string()),
+  )
 }
 
 // Whether an active request already stands in this place.
