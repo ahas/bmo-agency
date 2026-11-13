@@ -1022,8 +1022,9 @@ takes them, however the job stands when they arrive.
   execution id, and the reach is the surface's interrupt.
   - Claude Code's is Escape: the turn stops within seconds and the session stays usable (measured),
     and the reader closes the row as a stop.
-  - A job's stop asks and waits: the words to commit, report and exit go in, and the turn is left to
-    end on them. A tool call that has stopped making progress is stopped on the stop, so the words are
+  - A job's stop asks and waits: the words to commit, write the handoff and exit go in, and the turn is
+    left to end on them; its answer to them is the job's handoff (`docs/sessions.md`, 「The handoff a job's
+    session leaves」). A tool call that has stopped making progress is stopped on the stop, so the words are
     read at the next boundary; a turn that has not ended within its stop bound is interrupted and ends
     stopped. A chat round has no work of its own to wind down and is interrupted at once.
   - A surface with no measured interrupt ends the program, and the loop starts it again on the same
@@ -1183,7 +1184,7 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   outcome. A cut is written as it happens, and so are an ask on a silent call and its verdict. The lines
   go to the run's log and the unit's own log, so a hang is readable while it is happening and after it.
 - **A stop cuts a blocked call.** A call that has burned no processor time for the stop's stall is
-  stopped when the stop is read, so the stop words — commit, report, exit — are read at the next
+  stopped when the stop is read, so the stop words — commit, write the handoff, exit — are read at the next
   boundary. A turn that has not ended within the stop's bound is ended by the surface's interrupt as a
   stop, so the item and the queue behind it are not held by a turn that will not end.
 - **A job's turn has a hard bound.** A job's turn past its bound is cut and its item released: the door
@@ -1946,8 +1947,8 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   program is reached through the cancellation's own walk of the execution records rather than by
   asking herdr for the unit's name. A stop that reached only the unit would take the collector away
   and leave the turn in the program running with nobody reading it.
-- **The asking outlives the coordinator, and nothing waits on it.** The words to commit, report and
-  exit go into the pane from the bot rather than from whatever collects the turn, and the pane is
+- **The asking outlives the coordinator, and nothing waits on it.** The words to commit, write the handoff
+  and exit go into the pane from the bot rather than from whatever collects the turn, and the pane is
   herdr's — so a coordinator stopped a moment later does not cut the run's own ending short, and the
   turn ends on those words whether or not anything is left reading it; the pane and the program
   stay. What such a run loses is only the collecting of its report, which under a stop is not

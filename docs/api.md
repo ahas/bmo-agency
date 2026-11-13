@@ -561,8 +561,9 @@ room's is: its supervisor's road, its resident's context and its `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
 names only the other, and starts its next turn on a fresh session where the road keeps one. A hand-over is a
-role's kept session's: it closes the session kept for the role at that path on that provider and model and
-drops its record, handing nothing to the next run, and the holder the body names is kept for the session's
+role's kept session's: where a job's turn last answered on the session, the session is asked for its handoff
+first, noted on the job's item (「assignments and jobs」); it then closes the session kept for the role at that
+path on that provider and model and drops its record, and the holder the body names is kept for the session's
 state. A supervisor's and a room's session go out on the supervisor's one road, and its row is where that
 road is changed. `holder` and `prefixChangeReason` are read back on the session wherever
 it is listed or read.
@@ -1434,14 +1435,17 @@ service.
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
     the cancellation the turn's door reads in the run's program, which puts the stop words in — commit,
-    report, exit — and leaves the turn to end on them, a turn picked up across a restart included. A tool
+    push, write the handoff, exit — and leaves the turn to end on them, a turn picked up across a restart
+    included; the turn's answer to them is the job's handoff, noted on its item as above, and a turn that
+    ends with no answer leaves one written from its run log. A tool
     call blocked on a read or a write is stopped on the stop, so the words are read at the next boundary,
     and a turn that has not ended within the stop's bound is interrupted and ends stopped;
   - the answer waits for that turn to end. The turn's end writes the job
     `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, gives its slot
     back, returns its lease and tells its room, so its slot and its checkout take the next launch as soon as
     the stop answers;
-  - a job no turn carries is written so at once, its assignment released and its slot given back alike.
+  - a job no turn carries is written so at once, its assignment released and its slot given back alike, its
+    handoff written from its run log.
   A job's end never writes over a job already ended or stopped.
 
 - **A job that ends keeps its item's lease for the item's close.** A job written `ended` — its run
@@ -1530,8 +1534,9 @@ service.
   - **A note added to the job's item while it runs is one of them.** Agency reads the job service's
     `note.created` events in its minute pass (`docs/agent-control.md`, 「An item's change is told to its
     orderer」) and hands each note on the item of a job that runs to that job, behind a paragraph naming it a
-    note of the item and who added it; a note the job's own turn wrote, the job service's own record and a note
-    the job's prompt already carried are left out.
+    note of the item and who added it; a note the job's own turn wrote, the job service's own record, a note
+    the job's prompt already carried and a handoff note, which the turn that goes on opens with already (below),
+    are left out.
   - **Each is kept on the job before it is offered,** in the store's `job_words`, so a word survives the turn
     it was said into ending, a review between stages and agency's own restart.
   - **The turn the job works now takes them at its next look,** where its provider takes words mid-turn,
@@ -1543,6 +1548,20 @@ service.
     question of its review or a rework. A turn that goes out on another road because its own stopped
     answering carries them again.
   - **The job's report ends with them,** as with any word said into its turn (「sessions」 above).
+- **A job's prompt opens on its item's handoff,** where the item holds one: the newest note the job service
+  answers for the item labelled `kind` `handoff`, unless a job of the item ended answered after it was written,
+  stands right after the item's title, ahead of its instruction and brief, under a heading that says it is the
+  last session's own handoff, and the
+  item's notes below leave it out (`docs/sessions.md`, 「The handoff a job's session leaves」). Its notes are
+  read from the job service as the job is written, so a relaunch of the item on any agent or model opens where
+  the last session left off.
+- **A job's work that moves to another session leaves a handoff note on its item:** `POST
+  /items/{itemId}/notes` of the job service with `text`, the handoff, `actorName` `agency`, and `labels`
+  `kind` `handoff`, `job`, the job's id, and `source`, `session` where the session wrote it or `log` where it
+  was written from the job's run log. A turn of the job's review that goes out on another road, a turn whose
+  road stopped answering and went out on the next, a stop and a session handed over as the job ends each
+  leave one, and the turn that goes on opens with it; a note the job service does not take is said in the
+  job's log and stops nothing.
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
   instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
   the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
@@ -1795,7 +1814,9 @@ Agency reaches upstreams through what their repositories publish: brain, graph, 
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`. These routes below it are called: as a job is written, and with each renewal
 while it runs, the job service's lease is set to hold fixed what its launch read; as a job is stopped, the
-job service's lease is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
+job service's lease is given back, and while an ended job's lease stands for its item's close it is renewed; as a
+job is written, its item's `GET /items/{itemId}/notes` is read for its handoff, and as a job's work moves to
+another session, `POST /items/{itemId}/notes` is handed the handoff the old session left; as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh

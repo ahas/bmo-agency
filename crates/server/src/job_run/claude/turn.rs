@@ -709,11 +709,20 @@ impl<'l> JobMoves<'l> {
       account: Some(account.id.clone()),
     };
 
-    if let Some(job) = self.job {
-      add_road(self.ground, job, &road(next), &why).await;
-    }
+    let Some(job) = self.job else {
+      return Some(continued(&road(passed.account), &why, prompt));
+    };
 
-    Some(continued(&road(passed.account), &why, prompt))
+    add_road(self.ground, job, &road(next), &why).await;
+
+    // The login left cannot be asked for the session's handoff: the job's run log stands for it, opening the
+    // turn on the next login (docs/sessions.md, 「The handoff a job's session leaves」).
+    let handoff = crate::job_handoff::road_stopped(self.ground, job).await;
+
+    Some(crate::job_handoff::ahead(
+      &handoff.text,
+      &continued(&road(passed.account), &why, prompt),
+    ))
   }
 }
 

@@ -1,7 +1,7 @@
 //! A ground of a test's own on a scratch store, the store seeded as the deployment seeds it, and DeepSeek's
 //! road standing on it so a run may go out on a provider of the machine's own: its key and its gateway member.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
 
 use agency_server::Service;
@@ -16,14 +16,25 @@ use sea_orm::DatabaseConnection;
 /// A ground on a store, under a home of the test's own with no program on its path, marked a test's by that
 /// home (docs/live-claude-guard.md, 「Second layer: the guard in agency's code」).
 pub fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
+  ground_with(db, home, &BTreeMap::new())
+}
+
+/// A ground as `ground_on` stands it, with these variables beside its own: the peers a test stands in for.
+pub fn ground_with(
+  db: DatabaseConnection,
+  home: &std::path::Path,
+  more: &BTreeMap<String, String>,
+) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();
   let service = Service::new(db, Config::read(|name| variables.get(name).cloned()).unwrap());
   let home_path = home.to_string_lossy().into_owned();
-  let env = vec![
+  let mut env = vec![
     ("HOME".to_owned(), home_path.clone()),
     ("BMO_TEST_HOME".to_owned(), home_path),
     ("PATH".to_owned(), "/nowhere".to_owned()),
   ];
+
+  env.extend(more.iter().map(|(name, value)| (name.clone(), value.clone())));
 
   Ground::new(&service, &Machine::with_env(env, home.join("data")), None)
 }
@@ -53,7 +64,16 @@ pub fn deepseek_road(home: &std::path::Path) {
 
 /// A ground seeded as the deployment seeds its store, DeepSeek's road standing on it.
 pub async fn seeded(db: &DatabaseConnection, home: &std::path::Path) -> Ground {
-  let ground = ground_on(db.clone(), home);
+  seeded_with(db, home, &BTreeMap::new()).await
+}
+
+/// A ground seeded as `seeded` seeds it, with these variables beside its own.
+pub async fn seeded_with(
+  db: &DatabaseConnection,
+  home: &std::path::Path,
+  more: &BTreeMap<String, String>,
+) -> Ground {
+  let ground = ground_with(db.clone(), home, more);
 
   store::seed::settle(db, &deployment(&ground.machine())).await.unwrap();
   deepseek_road(home);

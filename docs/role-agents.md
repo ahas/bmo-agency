@@ -99,6 +99,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   it is never let in on another agent of the role. Every job asks so, the agent its launch took for a model as
   much as one its item names, and a job's launch is refused while its agent is busy (「Agency starts no job by
   itself」 below).
+- **A job that moves to another agent, model or session carries its handoff.** The session it leaves writes
+  what is done, found, under way and left, and the next session, a relaunch of its item on another agent
+  included, opens on it (`docs/sessions.md`, 「The handoff a job's session leaves」).
 - **An agent carries one job from its first turn to its end.** The seat a job's first turn is let in on stays
   the job's through every turn after it and every wait between them — its review, a stage passed and the next
   handed over — and is given back only as the job ends, stopped, failed or done, or as its review pauses it

@@ -561,7 +561,7 @@ describe("stopping a run in a pane", () => {
   // The words are the whole of the difference, so they say what to do rather than only to stop.
   test("what it says names the ending it wants, not just the stop", () => {
     expect(stopInstruction).toContain("Stop here");
-    expect(stopInstruction).toContain("write your report");
+    expect(stopInstruction).toContain("answer with your handoff");
     expect(stopInstruction).toContain("exit normally");
   });
 });

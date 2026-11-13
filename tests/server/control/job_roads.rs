@@ -36,12 +36,23 @@ use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
+  ground_naming(db, home, &std::collections::BTreeMap::new())
+}
+
+// A ground as `ground_on` stands it, with the peers a test stands in for named beside its own variables.
+fn ground_naming(
+  db: DatabaseConnection,
+  home: &std::path::Path,
+  peers: &std::collections::BTreeMap<String, String>,
+) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();
   let service = Service::new(db, Config::read(|name| variables.get(name).cloned()).unwrap());
-  let env = vec![
+  let mut env = vec![
     ("HOME".to_owned(), home.to_string_lossy().into_owned()),
     ("PATH".to_owned(), "/nowhere".to_owned()),
   ];
+
+  env.extend(peers.iter().map(|(name, value)| (name.clone(), value.clone())));
 
   Ground::new(&service, &Machine::with_env(env, home.join("data")), None)
 }
@@ -225,8 +236,10 @@ async fn a_job_whose_first_account_answers_a_403_goes_out_on_the_next_with_the_r
   assert_eq!(turn.len(), 1, "one turn, carried across the accounts inside it");
   assert_eq!(turn[0].iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["default", "second"]);
   assert_eq!(turn[0][0].1, job().prompt, "the first account takes the job's own prompt");
+  // The login left cannot be asked, so its run log stands as the handoff the next login's turn opens on.
+  assert!(turn[0][1].1.starts_with("## The last session's handoff"), "{}", turn[0][1].1);
   assert!(
-    turn[0][1].1.starts_with("This job already ran on claude-code · item-model (default)"),
+    turn[0][1].1.contains("\n\nThis job already ran on claude-code · item-model (default)"),
     "{}",
     turn[0][1].1
   );
@@ -327,6 +340,15 @@ async fn a_job_every_claude_account_of_which_refuses_ends_on_the_login_failure_a
 // A store whose order is DeepSeek, its key in place, then Claude Code on its one seeded login, and a job in a
 // repository's checkout on it; every other provider is missing on a machine with nothing on its path.
 async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
+  standing_naming(scratch, home, &std::collections::BTreeMap::new()).await
+}
+
+// The same store and job, on a ground that names the peers a test stands in for.
+async fn standing_naming(
+  scratch: &Scratch,
+  home: &std::path::Path,
+  peers: &std::collections::BTreeMap<String, String>,
+) -> Ground {
   let data = home.join("data");
   let env = data.join("env");
 
@@ -355,7 +377,7 @@ async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
     })
     .collect();
 
-  let ground = ground_on(scratch.db().clone(), home);
+  let ground = ground_naming(scratch.db().clone(), home, peers);
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
   crate::support::rows::seated_on_order(scratch.db(), "worker").await;
@@ -381,6 +403,52 @@ fn job() -> Carried<'static> {
     holder: "harness",
     prompt: "# An item\n\nDo the work.",
   }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_road_that_stopped_answering_leaves_the_job_s_run_log_as_the_handoff_the_next_road_opens_on() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = standing_naming(&scratch, home.path(), &vars).await;
+  let mut log = RunLog::new(Target {
+    agent: "helper".to_owned(),
+    run: "job-7".to_owned(),
+    chat_id: None,
+    job_id: Some(7),
+  });
+
+  // The first road's session logged where the work stood before its road stopped answering.
+  log
+    .write(
+      scratch.db(),
+      agency_server::run_log::lines::Line::note("Edited src/area.rs; its tests still fail.".to_owned()),
+    )
+    .await;
+
+  let mut carrier = Ends {
+    ends: VecDeque::from([limit(), TurnEnd::answered("job-7", "Done.")]),
+    turns: vec![],
+  };
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  // The turn on the next road opens on the handoff, ahead of the line saying it continues the work.
+  let next = &carrier.turns[1].2;
+  let opened = next.find("## The last session's handoff").expect("the handoff opens the turn");
+
+  assert!(next.contains("Edited src/area.rs; its tests still fail."), "{next}");
+  assert!(opened < next.find("already ran on deepseek").unwrap(), "{next}");
+  assert!(next.ends_with(job().prompt), "{next}");
+
+  // The handoff stands on the item as a note of its own kind, said to come from the run log.
+  let notes = peers.lock().unwrap().notes.get(&70).cloned().unwrap_or_default();
+
+  assert_eq!(notes.len(), 1, "{notes:?}");
+  assert_eq!(notes[0]["labels"], json!({ "kind": "handoff", "job": "7", "source": "log" }));
+  assert!(
+    notes[0]["text"].as_str().unwrap().contains("Edited src/area.rs; its tests still fail."),
+    "{notes:?}"
+  );
 }
 
 #[tokio::test(flavor = "multi_thread")]

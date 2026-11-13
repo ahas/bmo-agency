@@ -14,6 +14,7 @@ mod drain;
 mod gate_places;
 mod gateway;
 mod handoff;
+mod job_handoff;
 mod job_notices;
 mod keepalive;
 mod machine_room;

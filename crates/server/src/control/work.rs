@@ -12,6 +12,7 @@ use agent_session::{
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
+use policy::job_handoff::JOB_HANDOFF;
 use sea_orm::{QueryResult, TransactionTrait, Value as DbValue};
 use serde_json::{Value, json};
 
@@ -754,13 +755,17 @@ fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   }
 
   if let Some(notes) = item.get("notes").and_then(Value::as_array).filter(|notes| !notes.is_empty()) {
+    // A handoff note stands ahead of the prompt where it is the item's newest, and is no note below it.
     let texts: Vec<&str> = notes
       .iter()
+      .filter(|note| !crate::job_handoff::is_handoff(note))
       .map(|note| note.get("text").and_then(Value::as_str).or_else(|| note.as_str()).unwrap_or_default())
       .collect();
 
-    prompt.push_str("\n## Notes\n\n");
-    prompt.push_str(&notes_within(&texts, policy::job_prompt::JOB_PROMPT.notes.most_bytes));
+    if !texts.is_empty() {
+      prompt.push_str("\n## Notes\n\n");
+      prompt.push_str(&notes_within(&texts, policy::job_prompt::JOB_PROMPT.notes.most_bytes));
+    }
   }
 
   prompt
@@ -855,7 +860,12 @@ impl Route for CreateJob {
       .and_then(|supervisor| supervisor.owner_account)
       .map(|account| account.to_string());
     let seat = item_seat(&call.shared_ground(), item_id, &item, &asked_role, account.as_deref()).await?;
-    let prompt = prompt_of(&item, instruction.as_ref());
+    // A launch of the item opens where the last session that worked on it left off (docs/sessions.md, 「The
+    // handoff a job's session leaves」).
+    let prompt = match crate::job_handoff::of_item(&call.shared_ground(), item_id).await {
+      Some(handoff) => crate::job_handoff::ahead(&handoff, &prompt_of(&item, instruction.as_ref())),
+      None => prompt_of(&item, instruction.as_ref()),
+    };
     let room_id = number(&asked, "roomId")
       .or_else(|| number(&item, "roomId"))
       .or_else(|| item.get("scope").and_then(Value::as_str).and_then(|scope| scope.trim().parse().ok()))
@@ -1338,7 +1348,21 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
 
   let (state, outcome, report, spent) = match (stop, ended) {
     (Some(why), ended) => {
-      let spent = ended.ok().flatten().and_then(|(_, _, _, spent)| spent);
+      let ended = ended.ok().flatten();
+
+      // The turn's answer to the stop words is the job's handoff (docs/sessions.md, 「The handoff a job's
+      // session leaves」); a turn that ended with none leaves its run log instead.
+      let answer = ended.as_ref().and_then(|(state, outcome, report, _)| {
+        (state == "ended" && outcome.is_none()).then_some(report.as_deref()).flatten()
+      });
+      let handoff = match crate::job_handoff::answered(answer) {
+        Some(handoff) => handoff,
+        None => crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.no_answer).await,
+      };
+
+      job_handoff_noted(ground, id, &handoff).await;
+
+      let spent = ended.and_then(|(_, _, _, spent)| spent);
 
       println!("job {id}: stop consumed: {}", why.trim());
 
@@ -1367,6 +1391,15 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
   }
 
   written_end(ground, id, &state, outcome, report, spent).await;
+}
+
+// A handoff noted on the item of the job it was written for.
+async fn job_handoff_noted(ground: &Ground, id: i64, handoff: &crate::job_handoff::Handoff) {
+  if let Ok((member, _)) = job(&ground.db, id).await
+    && let Some(item) = member["itemId"].as_i64()
+  {
+    crate::job_handoff::noted(ground, id, item, handoff).await;
+  }
 }
 
 /// A job's end written: its state, outcome and report, what its last turn spent added to the rest, its slot
@@ -2077,7 +2110,13 @@ pub async fn carry_job<C: Carrier>(
     )
     .await;
     road::leave(ground, &taken, &stopped).await;
-    prompt = continued(&ended_on, &stopped, job.prompt);
+
+    // A road that stopped answering cannot be asked for the session's handoff: the job's run log stands for
+    // it, noted on the item and opening the turn on the next road (docs/sessions.md, 「The handoff a job's
+    // session leaves」).
+    let handoff = crate::job_handoff::road_stopped(ground, job.id).await;
+
+    prompt = crate::job_handoff::ahead(&handoff.text, &continued(&ended_on, &stopped, job.prompt));
     keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
     left.push(Closed::plain(&taken.provider, stopped));
     refused_everywhere = matches!(
@@ -2595,24 +2634,65 @@ impl Carrier for OnSession<'_> {
       return Err(format!("job {id} was stopped while it waited for a slot of the {} role", self.role));
     };
     // A turn of the review continues the job's own session on the road that session stands on; on another road
-    // it opens a new one, carrying the job's prompt and its review so far.
+    // it opens a new one, carrying the job's prompt and its review so far, opened on the handoff the session it
+    // leaves wrote (docs/sessions.md, 「The handoff a job's session leaves」).
     let resume = self
       .resume
       .as_ref()
       .filter(|resumed| resumed.on(taken))
       .map(|resumed| resumed.session.clone());
+    let moved = match (&self.resume, &resume) {
+      (Some(left), None) => {
+        let handoff = asked_handoff(ground, &self.sessions, member, left).await;
+
+        self.noted(id, &handoff).await;
+        Some(handoff)
+      }
+      _ => None,
+    };
+    let opened = match (&moved, &self.carried) {
+      (Some(handoff), Some(carried)) => Some(crate::job_handoff::ahead(&handoff.text, carried)),
+      _ => None,
+    };
     let prompt = match (&resume, &self.carried) {
-      (None, Some(carried)) => carried.as_str(),
+      (None, Some(carried)) => opened.as_deref().unwrap_or(carried.as_str()),
       _ => prompt,
     };
-    let instead = resume.as_ref().and(self.carried.clone());
-    let carried = self.on_session(id, taken, &parts, prompt, resume, instead).await;
+    // Where the session's record is gone the turn opens a new one on what it carries, its run log standing for
+    // the handoff the session can no longer write.
+    let gone = match (&resume, &self.carried) {
+      (Some(_), Some(_)) => {
+        Some(crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.record_gone).await)
+      }
+      _ => None,
+    };
+    let instead = match (&gone, &self.carried) {
+      (Some(handoff), Some(carried)) => Some(crate::job_handoff::ahead(&handoff.text, carried)),
+      _ => None,
+    };
+    let carried = self.on_session(id, taken, &parts, prompt, resume.clone(), instead).await;
 
     if let Ok(end) = &carried {
       crate::job_review::session_left(&ground.db, id, taken, end).await;
+
+      // A turn that answered on another session than the one it was to continue opened on the run log.
+      if let (Some(named), Some(handoff)) = (&resume, &gone)
+        && end.reply.as_ref().and_then(|reply| reply.session_id.as_deref()) != Some(named.as_str())
+      {
+        self.noted(id, handoff).await;
+      }
     }
 
     carried
+  }
+}
+
+impl OnSession<'_> {
+  // A handoff noted on the job's item.
+  async fn noted(&self, id: i64, handoff: &crate::job_handoff::Handoff) {
+    if let Some(item) = self.member["itemId"].as_i64() {
+      crate::job_handoff::noted(self.ground, id, item, handoff).await;
+    }
   }
 }
 
@@ -2752,6 +2832,134 @@ impl OnSession<'_> {
       eprintln!("{}: the job's session was not ended: {}", session.0, fault.message);
     }
   }
+}
+
+/// The handoff of the session a job's last turn answered on, `left`, asked one more turn on its own road and
+/// under the job's run (docs/sessions.md, 「The handoff a job's session leaves」): what that session answered,
+/// else the last lines the job's run logged.
+pub(crate) async fn asked_handoff(
+  ground: &Ground,
+  sessions: &crate::herdr_backend::Shared,
+  member: &Value,
+  left: &crate::job_review::Resumed,
+) -> crate::job_handoff::Handoff {
+  let id = member["id"].as_i64().unwrap_or_default();
+  let role = member["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role());
+  let worker = member["workerName"].as_str().unwrap_or_default();
+  let room = member["roomId"].as_i64().unwrap_or_default();
+  let name = format!("job-{id}");
+  let title = member["prompt"]
+    .as_str()
+    .and_then(|prompt| prompt.lines().next())
+    .map_or_else(|| name.clone(), |line| line.trim_start_matches("# ").to_owned());
+  let entry = Entry {
+    provider: left.provider.clone(),
+    model: left.model.clone(),
+    effort: None,
+    thinking: None,
+    answer_tokens: None,
+  };
+  let parts = match role_work_parts(ground, role, worker, room, &name, &title, &entry).await {
+    Ok(parts) => parts,
+    Err(why) => {
+      eprintln!("job {id}: the session it leaves could not be asked for its handoff: {why}");
+      return crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.failed).await;
+    }
+  };
+  let session = match sessions
+    .start(Start {
+      agent: worker.to_owned(),
+      scope: Scope::Apart(Apart {
+        provider: left.provider.clone(),
+        model: left.model.clone(),
+        effort: parts.mapping.effort.clone(),
+        cwd: parts.cwd.clone(),
+        role: Some(role.to_owned()),
+        resume: Some(left.session.clone()),
+        ..Apart::default()
+      }),
+    })
+    .await
+  {
+    Ok(session) => session,
+    Err(fault) => {
+      eprintln!("job {id}: the session it leaves could not be asked for its handoff: {}", fault.message);
+      return crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.failed).await;
+    }
+  };
+  let sent = sessions
+    .send_turn(Turn {
+      session: session.id.clone(),
+      prompt: JOB_HANDOFF.instruction.clone(),
+      context: TurnContext {
+        job: Some(JobMark {
+          job: id,
+          item: member["itemId"].as_i64(),
+        }),
+        work: Some(parts),
+        ..TurnContext::default()
+      },
+    })
+    .await;
+
+  if let Err(fault) = sessions.end(&session.id).await {
+    eprintln!("{}: the session asked for its handoff was not ended: {}", session.id.0, fault.message);
+  }
+
+  match sent {
+    // Only the session asked writes its handoff: an answer from one opened in its place is no handoff of it.
+    Ok(end)
+      if end.reply.as_ref().and_then(|reply| reply.session_id.as_deref())
+        == Some(left.session.as_str()) =>
+    {
+      match crate::job_handoff::answered(end.answer.as_deref()) {
+        Some(handoff) => handoff,
+        None => crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.no_answer).await,
+      }
+    }
+    Ok(_) => crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.record_gone).await,
+    Err(fault) => {
+      eprintln!("job {id}: the session it leaves did not answer for its handoff: {}", fault.message);
+      crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.failed).await
+    }
+  }
+}
+
+/// The handoff of a session handed over as its job ends, asked before the session is closed and noted on the
+/// job's item, where a job's turn last answered on it (docs/sessions.md, 「The handoff a job's session leaves」).
+pub async fn handed_over(ground: &Ground, sessions: &crate::herdr_backend::Shared, session: &str) {
+  // A deployment that names no job service has nowhere to note it, so nothing is asked.
+  if crate::queue::orderer::JobService::of(ground.vars()).is_none() {
+    return;
+  }
+
+  let Ok(Some(row)) = one(
+    &ground.db,
+    r#"SELECT "id", "review_session" FROM "jobs" WHERE "session_id" = $1 ORDER BY "id" DESC LIMIT 1"#,
+    vec![session.to_owned().into()],
+  )
+  .await
+  else {
+    return;
+  };
+  let id: i64 = row.try_get("", "id").unwrap_or_default();
+  let left: Option<crate::job_review::Resumed> = row
+    .try_get::<Option<String>>("", "review_session")
+    .ok()
+    .flatten()
+    .and_then(|kept| serde_json::from_str(&kept).ok());
+  let Ok((member, _)) = job(&ground.db, id).await else {
+    return;
+  };
+  let Some(item) = member["itemId"].as_i64() else {
+    return;
+  };
+  let handoff = match &left {
+    Some(left) => asked_handoff(ground, sessions, &member, left).await,
+    None => crate::job_handoff::from_log(&ground.db, id, &JOB_HANDOFF.why.record_gone).await,
+  };
+
+  crate::job_handoff::noted(ground, id, item, &handoff).await;
 }
 
 async fn launched(
@@ -3071,8 +3279,11 @@ pub async fn stop_job(
     }
   }
 
-  // No turn carries it: the stop is written here, as the turn's end would have written it.
+  // No turn carries it: the stop is written here, as the turn's end would have written it, its run log
+  // standing for the handoff of a session no turn holds.
   println!("job {id}: stop consumed: no turn carried it: {}", reason.trim());
+  job_handoff_noted(ground, id, &crate::job_handoff::from_log(db, id, &JOB_HANDOFF.why.stopped_idle).await)
+    .await;
   let _ = crate::queue::stops::clear_job_stop(db, id).await;
   let now = now_ms();
 
