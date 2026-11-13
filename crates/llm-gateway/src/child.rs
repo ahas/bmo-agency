@@ -1,7 +1,7 @@
 //! LiteLLM on one table: the table written beside the hooks it names, at `0600`, the keys in the
 //! child's environment alone, and the child ready once it answers its liveliness path.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -20,6 +20,8 @@ use crate::table::{GATEWAY_KEY_VARIABLE, Table};
 
 /// How often a child coming up is asked whether it answers.
 const READINESS_LOOK: Duration = Duration::from_millis(500);
+// How many free ports a start tries where another process takes the port picked before the child binds it.
+const PORT_TRIES: usize = 5;
 
 /// Where a launcher keeps its tables and reads its keys, and the hooks it copies beside each table.
 pub struct Place {
@@ -107,6 +109,48 @@ fn free_port() -> std::io::Result<u16> {
   Ok(std::net::TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
 }
 
+// Whether the loopback listener on the port is held by the process or one of its descendants. A port picked
+// free stands open to any process until the child binds it, so an answer there is the child's only where its
+// listening socket is one of the child's own.
+fn held_by(pid: u32, port: u16) -> bool {
+  let Ok(table) = procfs::net::tcp() else { return false };
+  let sockets: BTreeSet<u64> = table
+    .iter()
+    .filter(|entry| entry.state == procfs::net::TcpState::Listen && entry.local_address.port() == port)
+    .map(|entry| entry.inode)
+    .collect();
+  let Ok(all) = procfs::process::all_processes() else { return false };
+  let processes: Vec<procfs::process::Process> = all.filter_map(Result::ok).collect();
+  let parents: Vec<(i32, i32)> = processes
+    .iter()
+    .filter_map(|one| one.stat().ok().map(|stat| (one.pid, stat.ppid)))
+    .collect();
+  let mut family = BTreeSet::from([pid as i32]);
+
+  loop {
+    let before = family.len();
+
+    for (child, parent) in &parents {
+      if family.contains(parent) {
+        family.insert(*child);
+      }
+    }
+
+    if family.len() == before {
+      break;
+    }
+  }
+
+  !sockets.is_empty()
+    && processes.iter().filter(|one| family.contains(&one.pid)).any(|one| {
+      one.fd().is_ok_and(|fds| {
+        fds.filter_map(Result::ok).any(
+          |fd| matches!(fd.target, procfs::process::FDTarget::Socket(inode) if sockets.contains(&inode)),
+        )
+      })
+    })
+}
+
 // Whether the child answers its liveliness path with a success: a refused or broken connection is no, and
 // an answer is waited for.
 async fn lively(port: u16) -> bool {
@@ -151,7 +195,27 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
     env.insert(variable.clone(), key.unwrap_or_default());
   }
 
-  let port = free_port().map_err(|fault| format!("no free port: {fault}"))?;
+  for _ in 0..PORT_TRIES {
+    if let Some(started) = started_on_a_free_port(place, &table_path, &env).await {
+      return started;
+    }
+  }
+
+  let _ = std::fs::remove_file(&table_path);
+  Err(format!("another process took each of {PORT_TRIES} free ports before LiteLLM bound it"))
+}
+
+// LiteLLM started on a port picked free and waited for: its answer, or none where another process holds the
+// port, the child then ended, so the start is tried again on another.
+async fn started_on_a_free_port(
+  place: &Place,
+  table_path: &Path,
+  env: &BTreeMap<String, String>,
+) -> Option<Result<Box<dyn Child>, String>> {
+  let port = match free_port() {
+    Ok(port) => port,
+    Err(fault) => return Some(Err(format!("no free port: {fault}"))),
+  };
   let spawned = Command::new("litellm")
     .args([
       "--config",
@@ -164,29 +228,42 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
     .args(["--num_workers", "1"])
     .current_dir(&place.folder)
     .env_clear()
-    .envs(&env)
+    .envs(env)
     .stdin(Stdio::null())
     .spawn();
   let mut process = match spawned {
     Ok(process) => process,
     Err(fault) => {
-      let _ = std::fs::remove_file(&table_path);
-      return Err(format!("LiteLLM could not be started: {fault}"));
+      let _ = std::fs::remove_file(table_path);
+      return Some(Err(format!("LiteLLM could not be started: {fault}")));
     }
   };
+  let pid = process.id().unwrap_or_default();
 
   loop {
     if let Ok(Some(ended)) = process.try_wait() {
-      let _ = std::fs::remove_file(&table_path);
+      // A child that could not bind the port another process holds is started again on another.
+      if lively(port).await {
+        eprintln!("llm-gateway: another process holds port {port}; LiteLLM starts again on another");
+        return None;
+      }
+
+      let _ = std::fs::remove_file(table_path);
       let code = ended.code().map_or_else(|| "a signal".to_owned(), |code| code.to_string());
-      return Err(format!("LiteLLM ended with {code} before it answered"));
+      return Some(Err(format!("LiteLLM ended with {code} before it answered")));
     }
     if lively(port).await {
-      return Ok(Box::new(Litellm {
-        port,
-        process: Mutex::new(Some(process)),
-        table: table_path,
-      }));
+      if held_by(pid, port) {
+        return Some(Ok(Box::new(Litellm {
+          port,
+          process: Mutex::new(Some(process)),
+          table: table_path.to_path_buf(),
+        })));
+      }
+
+      eprintln!("llm-gateway: another process holds port {port}; LiteLLM starts again on another");
+      stop_process(&mut process).await;
+      return None;
     }
     tokio::time::sleep(READINESS_LOOK).await;
   }
