@@ -17,6 +17,7 @@ pub mod gate_places;
 pub mod gates;
 pub mod gateway;
 pub mod handoff;
+pub mod job_handoff;
 pub mod job_leases;
 pub mod job_notices;
 pub mod job_prompt;

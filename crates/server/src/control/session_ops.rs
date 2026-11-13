@@ -1185,6 +1185,10 @@ impl Route for SessionHandover {
       && model.is_none()
       && body.get("holder").is_some()
     {
+      // The job whose turn last answered on it writes its handoff before the session goes (docs/sessions.md,
+      // 「The handoff a job's session leaves」).
+      super::work::handed_over(&call.shared_ground(), &backend, &id).await;
+
       if let Some(role) = &apart.role {
         crate::apart_sessions::hand_over_key(call.store(), role, &apart.cwd, &apart.provider, &apart.model)
           .await

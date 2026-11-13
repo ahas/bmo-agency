@@ -40,6 +40,7 @@ pub mod herdr_backend;
 pub mod hooks;
 pub mod host_run;
 pub mod job_end;
+pub mod job_handoff;
 pub mod job_leases;
 pub mod job_notices;
 pub mod job_review;

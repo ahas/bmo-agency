@@ -164,7 +164,7 @@ fn service_of(vars: &BTreeMap<String, String>) -> Option<JobService> {
   JobService::of(vars)
 }
 
-async fn call(
+pub(crate) async fn call(
   service: &JobService,
   method: reqwest::Method,
   path: &str,

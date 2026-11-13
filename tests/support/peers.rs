@@ -38,6 +38,8 @@ pub struct Held {
   pub instructions: i64,
   /// The paths answered 503 while they stand here: a peer restarting under the call.
   pub failing: BTreeSet<String>,
+  /// Each item's notes, oldest first, as the job service keeps them.
+  pub notes: BTreeMap<i64, Vec<Value>>,
 }
 
 pub type Peers = Arc<Mutex<Held>>;
@@ -60,6 +62,16 @@ impl Held {
       .filter(|call| call.method == Method::POST && call.path == path)
       .map(|call| call.body.clone())
       .collect()
+  }
+
+  /// A note added to an item, as the job service keeps it: its id, its text, its writer, its labels and the
+  /// moment it was written.
+  pub fn note(&mut self, item: i64, text: &str, labels: Value) {
+    let id = self.notes.values().map(Vec::len).sum::<usize>() as i64 + 1;
+    let note = json!({ "id": id, "itemId": item, "text": text, "actorName": "tester", "labels": labels,
+                       "createdAt": chrono::Utc::now().timestamp_millis() });
+
+    self.notes.entry(item).or_default().push(note);
   }
 
   /// The instructions withdrawn, by their id.
@@ -127,6 +139,27 @@ async fn answer(
         .collect();
 
       axum::Json(json!({ "items": items, "more": false })).into_response()
+    }
+    ("POST", path) if path.starts_with("/items/") && path.ends_with("/notes") => {
+      let item: i64 = path
+        .trim_start_matches("/items/")
+        .trim_end_matches("/notes")
+        .parse()
+        .unwrap_or_default();
+      let labels = body["labels"].clone();
+
+      held.note(item, body["text"].as_str().unwrap_or_default(), labels);
+      (StatusCode::CREATED, axum::Json(held.notes[&item].last().cloned())).into_response()
+    }
+    ("GET", path) if path.starts_with("/items/") && path.ends_with("/notes") => {
+      let item: i64 = path
+        .trim_start_matches("/items/")
+        .trim_end_matches("/notes")
+        .parse()
+        .unwrap_or_default();
+      let notes = held.notes.get(&item).cloned().unwrap_or_default();
+
+      axum::Json(json!({ "items": notes, "more": false })).into_response()
     }
     ("GET", path) if path.starts_with("/items/") => {
       let id: i64 = path.trim_start_matches("/items/").parse().unwrap_or_default();

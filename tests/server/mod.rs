@@ -109,6 +109,7 @@ mod handoff;
 mod herdr_backend;
 mod hooks;
 mod host_run;
+mod job_handoff;
 
 // The job run members built so far; the reset stands beside this and is declared with its module.
 mod job_leases;

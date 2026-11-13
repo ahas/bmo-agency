@@ -407,8 +407,8 @@ statements below about either are kept for a rollback to the road a deployment l
 - **Nothing keeps a role's session warm.** No ping goes into a role's session between runs
   (`docs/keepalive-schedule.md`); a session whose cache has gone is simply not resumed.
 - **A job's runner may hand the session over as the job ends,** naming it across the boundary (`docs/api.md`,
-  「assignments and jobs」): a session handed over is closed with its record, and the next run at that path
-  opens a new one. A session not handed over stays valid for the next run of its key while its cache is
+  「assignments and jobs」): a session handed over is asked for its handoff first (「The handoff a job's session
+  leaves」 below), then closed with its record, and the next run at that path opens a new one. A session not handed over stays valid for the next run of its key while its cache is
   warm.
 - **Which session a job's turn goes on is its runner's to ask.** The turn names whether it resumes the kept
   session, opens a fresh one or continues one it names; agency carries that choice through the rules above.
@@ -448,6 +448,36 @@ statements below about either are kept for a rollback to the road a deployment l
   model, when it opened and last answered, how many runs it carried, its context and whether it is still
   valid (`docs/api.md`, 「roles」). The console's role tab shows it in place of a list of every agent's
   sessions.
+
+### The handoff a job's session leaves
+
+- **A job's work that moves to another session takes the old session's handoff with it:** what is done, what
+  it found, what it was doing, what is left and where, in the session's own words. The handoff is written
+  onto the job's item in the job service as a note of its own kind, labelled `kind` `handoff` with the job's
+  id and where its words came from (`docs/api.md`, 「assignments and jobs」), and the next session opens on it.
+- **Where the work moves, and how the handoff is had:**
+  - **a turn of the job's review goes out on another road** — its agent's provider or model changed, or the
+    road the job's session stands on cannot answer it — or the session's record is gone: the session the job's
+    last turn answered on is asked one more turn on its own road, resumed by its id and never in its place a
+    session of another run, with the handoff instruction (`policy/job-handoff.toml`); the turn of the review
+    then opens on the new road with the handoff ahead of what it carries;
+  - **the job's road stops answering in the middle of a turn** and the turn goes out again on the next road
+    (`docs/cache-fallback.md`): a road that stopped answering cannot be asked, so the handoff is written from
+    the last lines of the job's run log, and the turn on the next road opens with it ahead of its words;
+  - **the job is stopped:** the stop words its turn reads ask for the handoff as the turn ends, and the turn's
+    answer to them is the handoff; a turn that ends with no answer, and a job stopped while no turn carries
+    it, leave the handoff written from the last lines of its run log;
+  - **the job's session is handed over as the job ends:** the session is asked one more turn for its handoff
+    before it is closed, as a review's moved session is.
+- **A session that cannot be asked leaves its run log instead:** an ask whose session's record is gone, whose
+  program does not start or dies, which answers nothing or the word `none`, or whose answer comes from a session
+  other than the one asked leaves a handoff written from the last lines the job's run logged, said to be that.
+  The ask goes out under the job's run, so a stop of the job ends it as it ends any turn of the job.
+- **A launch of the job's item opens on its handoff,** on whatever agent or model it goes out: the newest
+  handoff note on the item stands right after the item's title, ahead of the rest of the job's prompt, under a
+  heading that says it is the last session's own handoff, unless a job of the item ended with its work answered after that note was written.
+  A job's turn that goes out again after agency's restart carries the words it was composed with, the
+  handoff among them.
 
 ## Session replacement
 
