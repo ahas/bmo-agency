@@ -33,6 +33,7 @@ dependencies = [
  "node-link",
  "policy",
  "procedures-tool",
+ "procfs",
  "regex",
  "relay-tool",
  "reqwest",

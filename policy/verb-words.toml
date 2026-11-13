@@ -205,8 +205,8 @@ up = "{worker}'s dev server {done} (process group {group}). Ask the server itsel
 started = "started"
 restarted = "restarted"
 
-# `bmo-agency dev-server list [--sweep]`: every worker's dev server and every server a job left, with the
-# memory each holds.
+# `bmo-agency dev-server list [--sweep]`: every worker's dev server and every run's record with what the
+# run still holds (docs/run-groups.md), with the memory each holds.
 [dev_servers.listing]
 head = "Workers' dev servers"
 # One worker's server: its process group {group}, how long it has stood {minutes}, its memory {megabytes},
@@ -214,11 +214,16 @@ head = "Workers' dev servers"
 worker = "- {worker}: group {group}, {minutes} min up, {megabytes} MB, {job}"
 job_running = "job running"
 no_job = "no job running"
-left_head = "Servers jobs left"
+left_head = "What runs hold"
+# One run's record: its name {run}, the folder it worked in {cwd}, whether its program still runs
+# {program}, how many processes it holds {count} and their memory {megabytes}.
+run = "- {run} in {cwd}: program {program}, {count} processes, {megabytes} MB"
+program_running = "running"
+program_ended = "ended"
 none = "- none"
-# How many servers stand, {count}, and the memory they hold together, {megabytes}.
+# How many servers and runs stand, {count}, and the memory they hold together, {megabytes}.
 total = "Total: {count}, {megabytes} MB"
-nothing_to_end = "There is no server to end."
+nothing_to_end = "No ended run holds anything."
 
 # The dev-server pane, line by line as it writes to its screen and its log.
 [dev_servers.pane]

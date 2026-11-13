@@ -1027,7 +1027,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** End the job servers a worker left running. */
+        /** Take down what the ended runs in the checkout left running. */
         delete: operations["deleteWorkersServers"];
         options?: never;
         head?: never;

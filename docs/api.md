@@ -1089,7 +1089,7 @@ yesterday to now where none is given.
 | DELETE | `/repositories/{repositoryName}` | Remove a repository no job holds a checkout of. |
 | GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer and handoff. |
 | GET | `/repositories/{repositoryName}/workbench` | The repository's workbench and scratch folders. |
-| DELETE | `/repositories/{repositoryName}/servers` | End the job servers a job of the repository left running. |
+| DELETE | `/repositories/{repositoryName}/servers` | Take down what the ended runs in the checkout left running (`docs/run-groups.md`). |
 | POST | `/repositories/{repositoryName}/words` | Say words to a repository's worker, into its job's turn or a turn of its own. |
 | POST | `/prefix-checks` | Which of these files are in the prefix of a run at a repository's path. |
 | GET | `/room-holdings/{roomId}` | What the agency holds of a room. |
@@ -1637,8 +1637,9 @@ input, so `bmo` finds it from any directory.
 | `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
 | `node person` | none to list every account's node; `<account> <node>` to set one, `<account> --clear` to take it away | the store, and the node service for the node |
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
-| `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, and the store |
+| `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`, the checkouts' dev servers and the runs' records; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, the runs' records, and the store |
 | `dev-pane` | `<checkout>` | the checkout's dev-server pane, and the store |
+| `run-group` | `<run> --record <file> -- <program…>`, the launcher a run's pane starts on; not a verb a person runs | the machine's control groups and proc files, and the run's record |
 | `supervisor follow` | `<room> --agent <supervisor> [--version <version>]` | the store, as the room is kept and its turns are appended |
 | `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |

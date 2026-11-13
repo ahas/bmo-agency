@@ -39,6 +39,7 @@ pub mod rest;
 pub mod roads;
 pub mod roles;
 pub mod run_clock;
+pub mod run_groups;
 pub mod run_lines;
 pub mod run_stop;
 pub mod seeds;

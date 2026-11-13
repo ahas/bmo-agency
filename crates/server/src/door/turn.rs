@@ -1150,6 +1150,9 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     Seat::Standing(home) => stand(&mut door, home).await,
     Seat::Own(_) => open_own(&mut door).await,
   };
+  // Whatever a co-work branch checkout's run starts once its program stands is the run's
+  // (docs/run-groups.md, 「A run in a standing program」); a person's turn waited out before it is not.
+  let began = crate::run_groups::ticks_now();
   let pane = match opened {
     Ok(pane) => pane,
     Err(why) => {
@@ -1220,6 +1223,28 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
       }
 
       door.finish_children().await;
+
+      // Only a co-work branch checkout's run is taken down: a supervisor's program keeps what its turns
+      // start. A place on a node runs its processes there, out of this machine's reach.
+      let branch = crate::places::branch::place_of(&ground.roots.data, &turn.cwd).is_some();
+
+      if let Some((place, _)) = door.standing.as_ref().filter(|(place, _)| branch && place.node().is_none())
+      {
+        let program = place.running().map(|running| running.pid);
+        let ended = crate::run_groups::end_of_standing_run(
+          &ground.roots.data,
+          &turn.name,
+          &place.path,
+          began,
+          program,
+        )
+        .await;
+
+        if let Some(line) = ended {
+          println!("{line}");
+        }
+      }
+
       // A label that named the run goes back to what the agent is, once the row is closed.
       home.rest(&pane).await;
     }
@@ -1232,6 +1257,11 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
       }
 
       door.finish_children().await;
+
+      // Whatever the run started ends with it before the turn is handed back (docs/run-groups.md).
+      if let Some(line) = crate::run_groups::end_of_run(&ground.roots.data, door.row.id()).await {
+        println!("{line}");
+      }
     }
   }
 
@@ -1298,7 +1328,22 @@ async fn open_own<W: Watch>(door: &mut Door<'_, W>) -> Result<String, String> {
     TITLE_WIDTH,
   );
 
-  open_pane(door.herdr, door.row.id(), &label, turn)
+  // The program started through the run-group launcher where the code tree holds it, so whatever the run
+  // starts ends with it (docs/run-groups.md).
+  let binary = door.ground.verbs_binary();
+  let command = if binary.exists() {
+    crate::run_groups::launch_line(
+      &binary,
+      &door.ground.roots.data,
+      &turn.name,
+      door.row.id(),
+      &turn.command,
+    )
+  } else {
+    turn.command.clone()
+  };
+
+  open_pane(door.herdr, door.row.id(), &label, &command, turn)
     .await
     .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
 }
@@ -1358,7 +1403,13 @@ const TITLE_WIDTH: usize = 48;
 // The workspace made and the run laid out alone in its tab, so no shell is left standing beside it to keep
 // the workspace up after the run; a workspace that ends up with nothing running in it, and a pane that
 // cannot be named, are closed rather than left behind with nobody to close them.
-async fn open_pane(herdr: &Herdr, name: &str, label: &str, turn: &Turn) -> Result<String, Fault> {
+async fn open_pane(
+  herdr: &Herdr,
+  name: &str,
+  label: &str,
+  command: &[String],
+  turn: &Turn,
+) -> Result<String, Fault> {
   let made = herdr
     .call("workspace.create", json!({ "label": label, "cwd": turn.cwd, "env": turn.env }), None)
     .await?;
@@ -1371,7 +1422,7 @@ async fn open_pane(herdr: &Herdr, name: &str, label: &str, turn: &Turn) -> Resul
       message: "workspace.create named no workspace and tab".to_owned(),
     });
   };
-  let root = json!({ "type": "pane", "command": turn.command, "cwd": turn.cwd, "env": turn.env });
+  let root = json!({ "type": "pane", "command": command, "cwd": turn.cwd, "env": turn.env });
   let applied = herdr.call("layout.apply", json!({ "tab_id": tab, "root": root }), None).await;
   let pane = applied
     .as_ref()

@@ -7,7 +7,7 @@
   clippy::unnecessary_to_owned
 )]
 //! What a job's run asks of its repository across the boundary (docs/api.md, 「repositories, prefix-checks and
-//! room-holdings」): the servers its jobs left swept, the documents a job is composed with, and which of a
+//! room-holdings」): what its ended runs left taken down, the documents a job is composed with, and which of a
 //! change's files a session's prefix is built from.
 
 use axum::http::{Method, StatusCode};
@@ -21,7 +21,7 @@ use crate::lines::prefix::touches_prefix;
 use crate::lines::standing::session_ttl_ms;
 use crate::lines::worker::{rules_of, worker_run};
 use crate::lines::{Trees, read_required, render};
-use crate::places::{AgentRow, dev, servers};
+use crate::places::{AgentRow, dev};
 use crate::worker_session::held::{self, SessionRun};
 use crate::worker_session::{PROVIDER, records};
 
@@ -50,7 +50,7 @@ struct Handover {
   session: Option<String>,
 }
 
-/// The servers the worker's jobs left listening ended, its job read as over.
+/// What the ended runs in the checkout left running taken down (docs/run-groups.md).
 pub struct SweepServers;
 
 impl Route for SweepServers {
@@ -59,7 +59,17 @@ impl Route for SweepServers {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let worker = worker_of(&call)?;
-    let lines = servers::sweep(call.ground(), Some(std::slice::from_ref(&worker)), true).await?;
+    let ground = call.ground();
+    let row = AgentRow::named(&ground.db, &worker)
+      .await?
+      .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, format!("no checkout is named {worker}")))?;
+    let checkout = ground.checkout_of(&row);
+    // A copy of the data root takes down nothing of the machine's.
+    let lines = if ground.roots.own_data_root() {
+      crate::run_groups::sweep(&ground.roots.data, Some(std::path::Path::new(&checkout))).await
+    } else {
+      vec![]
+    };
 
     Ok(answer(StatusCode::OK, json!({ "lines": lines })))
   }

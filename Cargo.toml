@@ -234,6 +234,7 @@ libc.workspace = true
 llm-gateway = { path = "crates/llm-gateway" }
 node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
+procfs.workspace = true
 delegate-tool = { path = "tools/delegate" }
 procedures-tool = { path = "tools/procedures" }
 relay-tool = { path = "tools/relay" }

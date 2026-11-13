@@ -81,6 +81,7 @@ pub mod rest;
 pub mod road;
 pub mod rooms;
 pub mod run_clock;
+pub mod run_groups;
 pub mod run_ledger;
 pub mod run_log;
 pub mod run_sweep;

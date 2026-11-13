@@ -1618,7 +1618,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/repositories/{repositoryName}/servers",
     id: "deleteWorkersServers",
     tag: "repositories",
-    summary: "End the job servers a worker left running.",
+    summary: "Take down what the ended runs in the checkout left running.",
     params: &[Param {
       name: "repositoryName",
       place: "path",

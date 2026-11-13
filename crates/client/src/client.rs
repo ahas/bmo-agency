@@ -789,7 +789,7 @@ impl AgencyClient {
     Self::answered(self.request(Method::GET, &["repositories", worker_name, "workbench"])).await
   }
 
-  /// `DELETE /repositories/{repositoryName}/servers`: End the job servers a worker left running.
+  /// `DELETE /repositories/{repositoryName}/servers`: Take down what the ended runs in the checkout left running.
   pub async fn delete_workers_servers(&self, worker_name: &str) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["repositories", worker_name, "servers"])).await
   }

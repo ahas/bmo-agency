@@ -382,32 +382,18 @@ Each repository holds three things beside the work of its jobs:
 - **What stays off limits:** the system's own standing services are not a dev server,
   and a job does not restart them; the deployment does.
 
-## Servers a job leaves listening
+## What a job leaves running
 
-- **What they are:** a process listening on a TCP port whose environment names a run's place
-  (`BMO_AGENT_PLACE`), which is to say something a job's program started: a `nuxi dev` a job ran
-  itself, in the background or detached.
-- **What they are not:** a checkout's dev server carries no `BMO_` variable (「What the script in the
-  pane does」); a server a person started in a shell of their own and the owner's units name no place.
-  None of them is ever a candidate.
-- **Why they outlive the job:** a process a job's turn started in the background or detached leaves the run's
-  process group, so closing the run's pane does not end it.
-- **When they are swept:**
-  - The job's runner sweeps its own checkout's as the job ends, before it hands the job over, by asking
-    agency across the boundary (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
-  - Agency sweeps every checkout's every ten minutes, which catches a runner that died. It takes a server
-    whose checkout no job's hold holds; one whose job still runs is kept, however long it has run.
-  - An agency server on a copy of the data root sweeps nothing: the machine is not the copy's.
-- **What is ended:** the server's process group, by TERM, waited on until the group has gone, and only where
-  every process in that group names the same place. A run's program shares its group with its head,
-  which names no place, so a group holding the program is never signalled; a server in such a
-  group is reported and left.
-- **What is recorded:** each server ended is written to the runner's or agency's journal with the
-  repository, the checkout it ran in, its age, its memory and its command. Which job's run it started in
-  is the job service's to read off its own jobs' times, so agency's line names no job.
-- **Not swept:** co-work places and the places of supervisors.
-- **Reading them:** `bmo-agency dev-server list` lists every checkout's dev server and every server a job
-  left, with the memory each holds and what the sweep would do with it; `--sweep` does it.
+- **Nothing a job's run starts outlives the run.** A `nuxi dev` it ran itself, a browser and the daemon
+  driving it, anything it put in the background or detached: every one is taken down when the run's
+  program ends, whether the run finished, was stopped or was cut (`docs/run-groups.md`).
+- **The checkout's dev server is not among them:** it stands in the checkout's own fixed workspace,
+  started by herdr rather than by the run, and carries no `BMO_` variable (「What the script in the pane
+  does」).
+- **Each stage is a run of its own,** so a server one stage started is gone when the next stage begins,
+  and a stage that needs it starts it again.
+- **Reading them:** `bmo-agency dev-server list` lists every checkout's dev server and every run's record
+  with what it still holds; `--sweep` takes down every run whose program is gone.
 
 ## A repository's own bench
 

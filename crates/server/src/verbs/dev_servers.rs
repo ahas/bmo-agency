@@ -20,7 +20,7 @@ use serde_json::json;
 use tokio::io::AsyncReadExt;
 
 use super::{Answer, VerbError};
-use crate::places::{AgentRow, Ground, dev, locks, servers};
+use crate::places::{AgentRow, Ground, dev, locks, process_table};
 use crate::queue::settings;
 
 /// The process group the dev server was last started in, so a pane that died without tidying up does not
@@ -228,13 +228,14 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
   )]))
 }
 
-/// Every worker's dev server and every server a job left listening, with the memory each holds, and with
-/// `sweep` the ones of those due to end ended, as the bot's sweep does.
+/// Every worker's dev server and every run's record with what the run still holds, with the memory each
+/// holds, and with `sweep` every run whose program is gone taken down, as the bot's sweep does
+/// (docs/run-groups.md).
 pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbError> {
   let ground = super::ground(data_root).await?;
   let words = &VERB_WORDS.dev_servers.listing;
   let fault = |refusal: crate::Refusal| VerbError::Refused(refusal.detail);
-  let processes = servers::processes().await;
+  let processes = process_table::processes().await;
   let mut lines = vec![words.head.clone()];
   let mut count = 0;
   let mut kilobytes = 0;
@@ -245,7 +246,8 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
     }
 
     let Some(leader) = Bench::of(&ground, &row.name).group() else { continue };
-    let members: Vec<&servers::ProcessRow> = processes.iter().filter(|one| one.group == leader).collect();
+    let members: Vec<&process_table::ProcessRow> =
+      processes.iter().filter(|one| one.group == leader).collect();
 
     if members.is_empty() {
       continue;
@@ -272,18 +274,29 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
     ));
   }
 
-  let left = servers::read(&ground, None, false).await.map_err(fault)?;
+  let held = crate::run_groups::standing(&ground.roots.data).await;
 
   lines.push(String::new());
   lines.push(words.left_head.clone());
 
-  for server in &left {
+  for run in &held {
+    let run_kilobytes: u64 = run.holds.iter().map(|seen| seen.kilobytes).sum();
+
     count += 1;
-    kilobytes += server.kilobytes;
-    lines.push(format!("- {}", servers::line(server)));
+    kilobytes += run_kilobytes as i64;
+    lines.push(fill_marks(
+      &words.run,
+      &[
+        ("run", &run.record.run),
+        ("cwd", &run.record.cwd),
+        ("program", if run.program_runs { &words.program_running } else { &words.program_ended }),
+        ("count", &run.holds.len().to_string()),
+        ("megabytes", &((run_kilobytes as f64 / 1024.0).round() as i64).to_string()),
+      ],
+    ));
   }
 
-  if left.is_empty() {
+  if held.is_empty() {
     lines.push(words.none.clone());
   }
 
@@ -296,8 +309,9 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
     ],
   ));
 
-  if sweep {
-    let ended = servers::sweep(&ground, None, false).await.map_err(fault)?;
+  // A copy of the data root takes down nothing of the machine's.
+  if sweep && ground.roots.own_data_root() {
+    let ended = crate::run_groups::sweep(&ground.roots.data, None).await;
 
     lines.push(String::new());
     lines.push(if ended.is_empty() { words.nothing_to_end.clone() } else { ended.join("\n") });

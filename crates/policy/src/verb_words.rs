@@ -195,8 +195,8 @@ pub struct DevServersServerWords {
   pub restarted: String,
 }
 
-/// `bmo-agency dev-server list [--sweep]`: every worker's dev server and every server a job left, with the
-/// memory each holds.
+/// `bmo-agency dev-server list [--sweep]`: every worker's dev server and every run's record with what the
+/// run still holds, with the memory each holds.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DevServersListingWords {
@@ -205,6 +205,9 @@ pub struct DevServersListingWords {
   pub job_running: String,
   pub no_job: String,
   pub left_head: String,
+  pub run: String,
+  pub program_running: String,
+  pub program_ended: String,
   pub none: String,
   pub total: String,
   pub nothing_to_end: String,

@@ -1,6 +1,6 @@
 //! The workers' places in herdr, stood by agency's server (docs/agent-control.md, 「One standing pane per
 //! agent」): every agent's head and its room sessions' follow panes, the workbenches, a worker's folder
-//! trusted and its dev server, the nodes' workspaces, the servers a job left listening and a renamed
+//! trusted and its dev server, the nodes' workspaces, the runs' leftovers swept and a renamed
 //! worker's checkout, stood as the process starts, as it attaches to herdr and on their clocks.
 //!
 //! What an agent's program is stays its launcher's: a head stood here is answered whatever the place holds
@@ -18,7 +18,7 @@ pub mod home;
 pub mod item_sweep;
 pub mod locks;
 pub mod nodes;
-pub mod servers;
+pub mod process_table;
 pub mod standby;
 pub mod trust;
 
@@ -38,8 +38,8 @@ use crate::lines::place::Place;
 use crate::now_ms;
 use crate::watches::links::{self, Systemd};
 
-// How often the heads and the room panes are stood again, a renamed checkout moved, and the servers a
-// job left swept; and how often the node service's list is read for the nodes' workspaces and the links
+// How often the heads and the room panes are stood again, a renamed checkout moved, and what an ended
+// run left swept (docs/run-groups.md); and how often the node service's list is read for the nodes' workspaces and the links
 // brought to the store.
 const HEADS_PASS: Duration = Duration::from_secs(10 * 60);
 const SERVERS_PASS: Duration = Duration::from_secs(10 * 60);
@@ -78,9 +78,9 @@ impl Places {
   /// process runs: the workbenches made and the renamed checkouts moved as it starts; the dev panes of
   /// the workers a job holds, the heads and the room panes as it attaches to herdr and after every drop;
   /// the heads, the room panes and the checkouts again every ten minutes, with each pane a consumer
-  /// claims and marks idle taken down; the servers a job
-  /// left swept every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
-  /// and every minute. A process on a copy of the data root moves no checkout, sweeps no server and keeps
+  /// claims and marks idle taken down; every run whose program is gone
+  /// taken down every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
+  /// and every minute. A process on a copy of the data root moves no checkout, sweeps no run and keeps
   /// no link: the machine is not the copy's.
   /// The places have stood once, for the readiness the health route answers, when the first pass over
   /// the heads is done.
@@ -160,11 +160,11 @@ impl Places {
 
       let sweeping = self.clone();
 
-      tokio::spawn(every("job server sweep", SERVERS_PASS, SERVERS_PASS, move || {
+      tokio::spawn(every("run group sweep", SERVERS_PASS, SERVERS_PASS, move || {
         let places = sweeping.clone();
 
         async move {
-          for line in servers::sweep(&places.ground, None, false).await.map_err(|refusal| refusal.detail)? {
+          for line in crate::run_groups::sweep(&places.ground.roots.data, None).await {
             println!("{line}");
           }
 

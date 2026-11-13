@@ -139,6 +139,9 @@ flowchart TD
   turn, `vanished` once herdr says its pane is gone, and `silent-peer` where no such process can be found
   and the pane shows none while nothing the program writes moves (`docs/agent-control.md`, 「Telling that
   a turn's program is gone」). Its liveness row says which of these it last read.
+- **What it started ends with it:** its program runs in a run group of its own, and every process the run
+  started — a dev server, a browser, the daemon driving it — is taken down once the program ends, whether
+  the run finished, was stopped or was cut (`docs/run-groups.md`).
 - **Its tool token is its own,** issued as the run is composed and taken back once it ends.
 - **A run on a registration** is the same program on the gateway under the registration's name, its record
   under the registration's home (`docs/own-llm.md`, 「Claude Code in the pane」).

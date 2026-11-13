@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use agency_server::mcp::AgencyServer;
+use agency_server::run_groups;
 use agency_server::verbs::agents::{self, AgentsArgs};
 use agency_server::verbs::claude_batch::{self, ClaudeBatch};
 use agency_server::verbs::dev_servers::{self, DevAction};
@@ -160,6 +161,19 @@ enum Verb {
     #[command(subcommand)]
     what: DevVerb,
   },
+  /// The launcher a run's pane starts on: the run's group and record made, its reaper started, and the
+  /// program run in its place (docs/run-groups.md).
+  #[command(hide = true)]
+  RunGroup {
+    run: String,
+    #[arg(long)]
+    record: PathBuf,
+    #[arg(last = true, required = true)]
+    program: Vec<String>,
+  },
+  /// The reaper a run's launcher leaves: waits on the run's program and takes the run down once it ends.
+  #[command(hide = true)]
+  RunGroupReap { record: PathBuf },
   /// A worker's dev-server pane, as its herdr tab runs it.
   #[command(hide = true)]
   DevPane {
@@ -376,6 +390,28 @@ fn main() -> ExitCode {
     return ExitCode::SUCCESS;
   }
 
+  // The launcher replaces itself with the run's program, so it runs before any thread is started.
+  if let Verb::RunGroup {
+    run,
+    record,
+    program,
+  } = &cli.verb
+  {
+    eprintln!("bmo-agency: {}", run_groups::launch(run, record, program));
+
+    return ExitCode::from(127);
+  }
+
+  if let Verb::RunGroupReap { record } = &cli.verb {
+    return match run_groups::reap(record) {
+      Ok(()) => ExitCode::SUCCESS,
+      Err(why) => {
+        eprintln!("bmo-agency: {why}");
+        ExitCode::FAILURE
+      }
+    };
+  }
+
   let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
     Ok(runtime) => runtime,
     Err(why) => {
@@ -553,6 +589,9 @@ async fn run(verb: Verb) -> ExitCode {
       DevVerb::List { sweep } => dev_servers::dev_servers(&data_root, sweep).await,
       DevVerb::Pane { worker, .. } => dev_servers::dev_pane(&data_root, &worker).await,
     }),
+    Verb::RunGroup { .. } | Verb::RunGroupReap { .. } => {
+      unreachable!("the launcher and the reaper are answered before the machine is read")
+    }
     Verb::DevPane { worker, .. } => ended(dev_servers::dev_pane(&data_root, &worker).await),
     Verb::Model(args) => ended(models::models(&data_root, args).await),
     Verb::HandTokens => ended(agency_server::verbs::hand_tokens::hand_tokens(&data_root)),

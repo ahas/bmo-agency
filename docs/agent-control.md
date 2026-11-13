@@ -1434,7 +1434,9 @@ launching an invisible process.
 Cancellation uses the interactive adapter only where conversational stop is supported.
 Structured children receive a termination signal and are waited on until their leader ends; what
 of their owned process group is still standing then is killed at once. Pane closure, parent cancellation and supervisor
-loss must not leave descendants or loopback bridges alive. Retain output/outcome until the
+loss must not leave descendants or loopback bridges alive. A run in a pane of its own meets that through its run
+group: whatever it started, in the group or escaped from it, is taken down the moment its program ends, by
+the run's reaper, by the door at the run's end, and by the sweep (`docs/run-groups.md`). Retain output/outcome until the
 collector acknowledges it; clean private envelopes afterwards and reconcile abandoned
 attempts on startup. Do not delete completed business records.
 
@@ -1775,6 +1777,11 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   - Either way, the run's end is reflected in the picture with nothing to announce separately.
 - `env` really reaches that process (measured: two `BMO_*` were in that process's environment), and
   `cwd` too. Measured: one `layout.apply` was 9.0ms.
+- **A run in a pane of its own is launched through agency's run-group launcher:** the argv is the
+  launcher, the run's name and record, and the program's own argv after it. The launcher puts itself into
+  a control group of the run's own, records the run and starts its reaper, then replaces itself with the
+  program, which keeps the pid and runs the line's argv and environment unchanged
+  (`docs/run-groups.md`). A standing program's pane is launched with no launcher.
 
 ### A run's name is the pane's token
 
@@ -1902,7 +1909,9 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   stay. What such a run loses is only the collecting of its report, which under a stop is not
   a report about work.
 - **`pane.close`** sends SIGHUP to the process running in that pane and removes the pane — measured: a
-  process that logs on HUP logged and ended. A workspace with only that pane disappears with it, and in a
+  process that logs on HUP logged and ended. The hangup reaches only the pane's own session, so what the
+  run started in a session of its own — a server put in the background, a browser's daemon — is ended by
+  the run's group once the program has gone (`docs/run-groups.md`). A workspace with only that pane disappears with it, and in a
   fixed workspace only that pane drops. No stop uses it on an agent's pane, which the standing pass
   would only stand up again.
 - **`workspace.close`** also kills the processes in it but takes the head pane of a fixed workspace with

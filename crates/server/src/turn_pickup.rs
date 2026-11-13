@@ -743,6 +743,13 @@ async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
   if let (Some(herdr), Some(pane)) = (&ground.herdr, pane.and_then(|pane| pane.pane.as_deref())) {
     let _ = herdr.call("pane.close", json!({ "pane_id": pane }), None).await;
   }
+
+  // Whatever the adopted run started ends with it (docs/run-groups.md).
+  if let Some(own) = pane
+    && let Some(line) = crate::run_groups::end_of_run(&ground.roots.data, &own.execution).await
+  {
+    println!("{line}");
+  }
 }
 
 // An adopted turn waited on until its end is handed back: in its place, or in its pane of its own. Its
