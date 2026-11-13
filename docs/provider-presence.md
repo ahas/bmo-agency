@@ -49,11 +49,11 @@ flowchart TD
 - **A provider that cannot answer** says why twice over, both from its policy file: a kebab-case code a
   screen words in its own language, such as `openrouter-key-unset`, and the English sentence the log and
   the machine's output keep. Every route that answers a provider's reason answers its code beside it.
-- **Presence is the first of the questions a run's provider order asks.** Whether a provider can answer
+- **Presence is the first of the questions a run's road judgement asks.** Whether a provider can answer
   now adds the owner's switch on it and what its member declares beside presence — a balance it offers,
-  read above zero, and the logins it holds, one of them open — and a run walks its own order on those
-  answers and its quota alone (`docs/cache-fallback.md`, 「Availability: whether a provider can answer
-  now」, `docs/provider-order.md`, 「Choosing the provider」). A provider whose balance
+  read above zero, and the logins it holds, one of them open — and a run's road is judged on those answers
+  and its quota alone (`docs/cache-fallback.md`, 「Availability: whether a provider can answer
+  now」, `docs/provider-order.md`, 「Whether a road can answer」). A provider whose balance
   is spent says where its member says it is topped up, from its own policy file.
 
 ## Which models a provider offers

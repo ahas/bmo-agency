@@ -93,10 +93,10 @@
   3. The item's branch is checked out where it exists — a rerun takes up where the last run
      stopped — and made from main where it does not.
   4. The repository's setup is run on what the branch holds.
-- **A job launched again on another road stands in the same checkout.** Where a job's road stops
-  answering and the job goes out again on the next one (`docs/cache-fallback.md`, 「The provider order's choice」), its turn is put on the same branch of the same worktree, which is already the job's
-  own: what the first road left open there stays open, and the new road's turn is told it continues
-  work already in the checkout.
+- **A job launched again stands in the same checkout.** Where a job's road stopped answering and the job goes
+  out again on it once it answers (`docs/cache-fallback.md`, 「The road judgement」), its turn is put on the
+  same branch of the same worktree, which is already the job's own: what the turn before left open there
+  stays open, and the new turn is told it continues work already in the checkout.
 - **The job commits on its branch and does not push it.** The close lands it.
 - **A verb run inside the worktree works on the worktree.** The job carries agency's
   environment, whose `BMO_SOURCE_DIR` names the base checkout, so every verb that reads or writes

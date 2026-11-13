@@ -197,7 +197,7 @@ static CONNECTION_REFUSED: LazyLock<Regex> =
 
 /// Whether a turn that ended on an API error was refused for the request it sent rather than for its road:
 /// the error's kind naming the request (`invalid_request`, `max_output_tokens`), or a 400, 413 or 422 status.
-/// That failure is the work's own and moves no road (docs/provider-order.md, 「Falling over and coming back」).
+/// That failure is the work's own and moves no road (docs/provider-order.md, 「A road that fails」).
 pub fn request_refused(error: &str, kind: Option<&str>) -> bool {
   matches!(kind, Some("invalid_request" | "max_output_tokens"))
     || API_STATUS

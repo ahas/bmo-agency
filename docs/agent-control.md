@@ -769,8 +769,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   `worker_ask` names the words and an optional folder (`docs/tools.md`, 「The worker ask」); agency runs
   one `worker` run on the words in that folder, the ask waits for the run's end however long it takes,
   and it answers with the run's answer and the files it changed in the folder.
-- **The run goes out on the worker role's active provider** (`docs/provider-order.md`, 「Choosing the
-  provider」), on the session kept for the worker role at that folder on that provider and model where
+- **The run goes out on the worker role's active provider** (`docs/provider-order.md`, 「Whether a road can answer」), on the session kept for the worker role at that folder on that provider and model where
   one is valid (`docs/sessions.md`, 「A role's session」).
 - **The folder** is the asking supervisor's scratch workspace under the data root where none is named,
   made on first use. A repository's checkout may be named only in the owner's turn, and the run is then
@@ -996,7 +995,7 @@ The owner's words:
   the same pane, on that provider's session for the supervisor's scope (`docs/supervisors.md`, 「Where a
   supervisor's turn runs」). While the supervisor runs on a provider with no surface, the pane stands as a
   host; coming back stands the resident program again. A role's run that moves goes out again on the next
-  provider of its order, in a pane of its own (`docs/provider-order.md`, 「Falling over and coming back」).
+  provider of its order, in a pane of its own (`docs/provider-order.md`, 「A road that fails」).
 - **A supervisor's keepalive** is a turn put into its resident program, and it is skipped while a turn is
   working.
 - **Fold** is the surface's fold typed into the program — `/compact` in Claude Code, which keeps the
@@ -2281,7 +2280,7 @@ reads it.
     beside it and its last message as the reason. It is the program's own word that the turn is over, so
     it ends the turn the moment it is read, whatever herdr reads the pane as, and no word is pushed into
     the program after it (「What a resident turn reads」). Whether the failure was the provider's or the
-    work's is the failure reading's (`docs/provider-order.md`, 「Falling over and coming back」);
+    work's is the failure reading's (`docs/provider-order.md`, 「A road that fails」);
   - **its pane is gone:** herdr says so look after look — `vanished`;
   - **its program is gone:** the process on its liveness row is no longer alive, or its place now records
     another process in its stead, and the record has not closed the turn — `program-lost`. The record

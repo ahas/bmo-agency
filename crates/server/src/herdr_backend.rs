@@ -39,7 +39,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use store::{all, one, run as written};
 
-use crate::chat_stand_in::{fallback_ended, stand_in_turn};
+use crate::chat_stand_in::road_turn;
 use crate::control::supervisor_settings::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
@@ -495,35 +495,29 @@ async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
   }))
 }
 
-// The provider and model a supervisor's turn goes out on: the first provider of its own order that has quota
-// above its share and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). Where none
-// can, the turn waits, never refused, until a provider of its order can again: the walk is asked again as
-// each usage reading, account change or road fact comes in, and on the line's own pass.
+// The provider and model a supervisor's turn goes out on: its one road, where the road's provider has quota
+// above the share and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). A road that cannot
+// take the turn fails it with the sentence that says why: nothing stands in and nothing waits.
 async fn choice_of(
   ground: &Ground,
   pinned: &Pinned,
 ) -> Result<(&'static dyn harness_providers::Provider, String), String> {
   let supervisor = &pinned.supervisor;
-  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &supervisor.order);
 
-  loop {
-    let mut moved = crate::order::quota_watch(ground);
-    let resolution = crate::road::resolve(ground, &ask).await?;
-    let took = resolution.road().cloned();
-
-    crate::road::went(ground, &resolution, took.as_ref(), &[]).await;
-
-    if let Some(road) = took {
-      let provider = harness_providers::provider(&road.provider)
-        .ok_or_else(|| format!("{} is no provider of this build", road.provider))?;
-
-      return Ok((provider, road.model));
-    }
-
-    if moved.next().await.is_none() {
-      return Err(resolution.sentence());
-    }
+  if supervisor.road.is_none() {
+    return Err(format!("{} names no road to go out on", supervisor.name));
   }
+
+  let order = supervisor.order();
+  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &order);
+  let resolution = crate::road::resolve(ground, &ask).await?;
+  let Some(road) = resolution.road() else {
+    return Err(resolution.sentence());
+  };
+  let provider = harness_providers::provider(&road.provider)
+    .ok_or_else(|| format!("{} is no provider of this build", road.provider))?;
+
+  Ok((provider, road.model.clone()))
 }
 
 // The system prompt a supervisor's settings compose, out of the documents of the tree the process runs, for
@@ -1220,7 +1214,7 @@ impl HerdrSessions {
   async fn admitted(&self, agent: &str, scope: &Scope) -> Result<Option<AgentRow>, Fault> {
     match scope {
       // A role's run goes out on whichever provider its slot or its caller names, each a provider this build
-      // carries and the owner has on (docs/provider-order.md, 「Choosing the provider」).
+      // carries and the owner has on (docs/provider-order.md, 「Whether a road can answer」).
       Scope::Apart(apart) => {
         self.provider_ready(&apart.provider).await?;
 
@@ -1786,9 +1780,9 @@ impl HerdrSessions {
 
     let mut held = agent_session(&db, agent).await.map_err(store_fault)?;
     let last_mode = agent_last_mode(&db, agent).await.map_err(store_fault)?;
-    // A session the last answer left on a stand-in is resumed on that road; one left on Claude Code is
-    // Claude's, and the stand-in opens a session of its own.
-    let stand_in_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
+    // A session the last answer left on a road other than Claude Code is resumed on that road; one left on
+    // Claude Code is Claude's, and a road other than Claude Code opens a session of its own.
+    let road_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
 
     // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one,
     // and the session is asked for its handoff while agency still names it, as before any fresh session
@@ -1804,13 +1798,13 @@ impl HerdrSessions {
     }
 
     let started = Instant::now();
-    // The agent's key walked first: a stand-in that answers carries the turn, and Claude Code's session
-    // stays as it stands for its next turn. The run is the chat line's; the fallback walk and roads are
-    // the one mechanism every line crosses over on (docs/cache-fallback.md).
+    // The turn goes out on the supervisor's one road: on a provider other than Claude Code its program carries
+    // the turn, and Claude Code's session stays as it stands; on Claude Code its own session carries it. The run
+    // is the chat line's (docs/cache-fallback.md, 「A supervisor's turn on a road other than Claude Code」).
     let line_run = match crate::lines::chat::chat_run(
       ground,
       &ground.machine(),
-      &launch_of(agent, room, context, stand_in_resume),
+      &launch_of(agent, room, context, road_resume),
       prompt,
       false,
     )
@@ -1837,54 +1831,51 @@ impl HerdrSessions {
 
     sessions::mark_agent_system(&db, agent, &hash).await.map_err(store_fault)?;
 
-    let stood_in =
-      stand_in_turn(ground, &mut log, &line_run, agent, &context.answers, began, Some(shown)).await;
-    let on_claude = matches!(stood_in, Ok(None));
-    let asked = match stood_in {
-      Ok(Some(reply)) => Ok(reply),
-      Err(no) => Err(no),
-      Ok(None) => {
-        // A fresh session in place of one the agent's program still stands on asks for its handoff first.
-        if !moved {
-          self
-            .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
-            .await;
+    let asked =
+      match road_turn(ground, &mut log, &line_run, agent, &context.answers, began, Some(shown)).await {
+        Ok(Some(reply)) => Ok(reply),
+        Err(no) => Err(no),
+        Ok(None) => {
+          // A fresh session in place of one the agent's program still stands on asks for its handoff first.
+          if !moved {
+            self
+              .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
+              .await;
+          }
+
+          let mut asked =
+            self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
+
+          if let Err(NoAnswer::Failed(said)) = &asked
+            && held.is_some()
+            && lost_session(said)
+          {
+            // The session the turn could not resume is asked for its handoff while agency still names it,
+            // then let go.
+            self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
+            keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+            asked = self
+              .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
+              .await;
+          }
+
+          asked
         }
-
-        let mut asked =
-          self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
-
-        if let Err(NoAnswer::Failed(said)) = &asked
-          && held.is_some()
-          && lost_session(said)
-        {
-          // The session the turn could not resume is asked for its handoff while agency still names it,
-          // then let go.
-          self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
-          keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
-          asked = self
-            .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
-            .await;
-        }
-
-        asked
-      }
-    };
+      };
 
     let reply = match asked {
       Ok(reply) => reply,
       Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
-        let model = crate::order::supervisor_entry(&db, agent, CHAT_PROVIDER)
-          .await
-          .map(|entry| entry.model)
-          .unwrap_or_default();
+        let road = crate::supervisors::named(&db, agent).await.ok().flatten().and_then(|held| held.road);
+        let (provider, model) = road
+          .map_or_else(|| (CHAT_PROVIDER.to_owned(), String::new()), |road| (road.provider, road.model));
 
         ground.events.publish(RoadWalked::of(
           room.chat_id,
           run,
-          CHAT_PROVIDER,
+          &provider,
           &model,
           false,
           started,
@@ -1923,10 +1914,6 @@ impl HerdrSessions {
       keep_agent_session(&db, agent, Some((&reply.session_id, room.chat_id)))
         .await
         .map_err(store_fault)?;
-    }
-
-    if on_claude {
-      fallback_ended(ground).await;
     }
 
     log
@@ -3238,10 +3225,12 @@ impl Sessions for HerdrSessions {
         let (provider, model) = match road.and_then(|road| road.split_once("::")) {
           Some((provider, model)) => (provider.to_owned(), model.to_owned()),
           None => match pinned(ground, &agent).await? {
-            Some(pinned) => match choice_of(ground, &pinned).await {
-              Ok((provider, model)) => (provider.name().to_owned(), model),
-              Err(_) => Default::default(),
-            },
+            Some(pinned) => pinned
+              .supervisor
+              .road
+              .as_ref()
+              .map(|road| (road.provider.clone(), road.model.clone()))
+              .unwrap_or_default(),
             None => Default::default(),
           },
         };
@@ -3259,15 +3248,14 @@ impl Sessions for HerdrSessions {
       }
       Scope::Agent => {
         // A supervisor whose turns go through its resident's inbox holds no session id of its own: its session
-        // stands from its start on the provider its last answer went out on, else its order's first, at its
-        // resident's context.
+        // stands from its start on its one road, at its resident's context.
         let held = crate::supervisors::named(&ground.db, &agent)
           .await
           .map_err(|why| store_fault(why.into()))?;
         let road = held.as_ref().and_then(road_of);
 
         if let Some((provider, model)) =
-          road.filter(|(provider, _)| crate::chat_stand_in::inbox_declared(provider))
+          road.clone().filter(|(provider, _)| crate::chat_stand_in::inbox_declared(provider))
         {
           let model = model.unwrap_or_default();
           let context = self.resident_context(&agent, &provider).or_else(|| self.left_of(session));
@@ -3279,16 +3267,12 @@ impl Sessions for HerdrSessions {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         }
 
-        let model = held.as_ref().and_then(|held| held.last_model.clone()).unwrap_or_default();
+        // Its session names its one road, never what another model once answered on.
+        let (provider, model) = road
+          .map(|(provider, model)| (provider, model.unwrap_or_default()))
+          .unwrap_or_else(|| (CHAT_PROVIDER.to_owned(), String::new()));
 
-        Ok(State::standing(
-          session.clone(),
-          CHAT_PROVIDER.to_owned(),
-          model,
-          place,
-          1,
-          self.left_of(session),
-        ))
+        Ok(State::standing(session.clone(), provider, model, place, 1, self.left_of(session)))
       }
       Scope::Worker => {
         let Some(held) = self.latest_worker(&agent).await? else {
@@ -3615,20 +3599,9 @@ pub fn folds_itself(session: &SessionId, inbox: bool) -> Option<Fault> {
   })
 }
 
-// The road a supervisor's session across rooms stands on: the provider its last answer went out on, else its
-// order's first, with the model it names.
+// The road a supervisor's session across rooms stands on: its one road, with the model it names.
 fn road_of(supervisor: &crate::supervisors::Supervisor) -> Option<(String, Option<String>)> {
-  supervisor
-    .last_mode
-    .clone()
-    .filter(|mode| !mode.is_empty())
-    .map(|mode| (mode, supervisor.last_model.clone()))
-    .or_else(|| {
-      supervisor
-        .order
-        .first()
-        .map(|entry| (entry.provider.clone(), Some(entry.model.clone())))
-    })
+  supervisor.road.as_ref().map(|road| (road.provider.clone(), Some(road.model.clone())))
 }
 
 // A turn across rooms as the chat line launches it: the room's block, the road and the base persona its

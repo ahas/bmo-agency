@@ -7,42 +7,17 @@
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use cache_siren::{Keeping, KeptBalance, Slot};
-use harness_providers::{ARCHIVE_PROVIDERS, Window, providers};
+use harness_providers::{Window, providers};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
 use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven};
 use super::claude_accounts::{
-  self, Account, CredentialKind, EndpointModels, Judging, SEED_ACCOUNT, accounts, leading_integer, walk_for,
+  self, Account, CredentialKind, EndpointModels, Judging, SEED_ACCOUNT, accounts, walk_for,
 };
 use super::harness::{missing, named};
-use super::{Call, Refused, Route, answer, setting};
-
-// When the fallback began answering, absent while Claude is answering, and the stand-in it answers on.
-const SINCE_KEY: &str = "fallback_since";
-const PROVIDER_KEY: &str = "fallback_provider";
-
-/// When the fallback began, or none while it is not standing.
-async fn fallback_since(db: &DatabaseConnection) -> Result<Option<i64>, Refused> {
-  Ok(setting(db, SINCE_KEY).await?.and_then(|value| leading_integer(&value)))
-}
-
-/// The stand-in answering while the fallback stands: the provider its setting names where that is one
-/// other than Claude Code, OpenRouter where it names none.
-pub async fn fallback_provider(db: &DatabaseConnection) -> Result<Option<String>, Refused> {
-  if fallback_since(db).await?.is_none() {
-    return Ok(None);
-  }
-
-  let named = setting(db, PROVIDER_KEY).await?;
-
-  Ok(Some(match named {
-    Some(name) if name != "claude-code" && ARCHIVE_PROVIDERS.contains(&name.as_str()) => name,
-    _ => "openrouter".to_owned(),
-  }))
-}
+use super::{Call, Refused, Route, answer};
 
 /// One slot's two headline windows, the session's and the week's, as the provider picks them out of every
 /// window agency keeps under the slot; null where the slot holds no such window. A slot with no login is
@@ -157,19 +132,18 @@ pub(super) async fn account_balance(windows: &Keeping, account: &Account) -> Res
 /// it walks to where the provider holds logins, that slot's two headline windows and its balance.
 pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Refused> {
   let db = judging.db;
+  // The provider the latest turn went out on, else the road of the first supervisor that names one.
   let latest = store::one(
     db,
-    r#"SELECT "last_mode" FROM "supervisors" WHERE "last_mode" IS NOT NULL
+    r#"SELECT COALESCE("last_mode", "provider") AS "provider" FROM "supervisors"
+       WHERE COALESCE("last_mode", "provider") IS NOT NULL
        ORDER BY "last_run_at" DESC NULLS LAST, "name" LIMIT 1"#,
     vec![],
   )
   .await?
-  .map(|row| row.try_get::<String>("", "last_mode"))
+  .map(|row| row.try_get::<String>("", "provider"))
   .transpose()?;
-  let name = match latest {
-    Some(provider) => provider,
-    None => fallback_provider(db).await?.unwrap_or_else(|| "claude-code".to_owned()),
-  };
+  let name = latest.unwrap_or_else(|| "claude-code".to_owned());
   let provider = named(&name)?;
   let account = if provider.holds_logins() { walk_for(judging).await?.into_iter().next() } else { None };
   let id = account.as_ref().map(|one| one.id.clone());
@@ -235,11 +209,9 @@ impl Route for FallbackView {
     Ok(answer(
       StatusCode::OK,
       json!({
-        "answering": !active.is_null(),
         "codexPresent": missing(db, machine, named("codex")?).await?.is_none(),
         "keyPresent": missing(db, machine, named("openrouter")?).await?.is_none(),
         "services": services,
-        "since": fallback_since(db).await?,
         "active": active,
         "accounts": claude_accounts::views(judging).await?,
       }),

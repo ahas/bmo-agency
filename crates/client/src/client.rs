@@ -291,12 +291,6 @@ pub struct ListAccountsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetStandInQuery {
-  pub agent: String,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GetUsageQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub group_by: Option<String>,
@@ -759,11 +753,6 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["rest"]).json(body)).await
   }
 
-  /// `GET /stand-in`: Whether a stand-in answers the agent named while the rest closes Claude Code's road.
-  pub async fn get_stand_in(&self, query: &GetStandInQuery) -> Answer<StandIn> {
-    Self::answered(self.request(Method::GET, &["stand-in"]).query(query)).await
-  }
-
   /// `GET /usage`: Usage by model, agent, user or room over a span, with session contexts.
   pub async fn get_usage(&self, query: &GetUsageQuery) -> Answer<Usage> {
     Self::answered(self.request(Method::GET, &["usage"]).query(query)).await
@@ -938,12 +927,12 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["supervisors"]).json(body)).await
   }
 
-  /// `GET /supervisors/{supervisorName}`: One supervisor: its order, warming, threshold, gates, voice.
+  /// `GET /supervisors/{supervisorName}`: One supervisor: its road, warming, threshold, gates, voice.
   pub async fn get_supervisor(&self, supervisor_name: &str) -> Answer<Supervisor> {
     Self::answered(self.request(Method::GET, &["supervisors", supervisor_name])).await
   }
 
-  /// `PATCH /supervisors/{supervisorName}`: Change a supervisor's order, warming, threshold, gates, sampling or voice.
+  /// `PATCH /supervisors/{supervisorName}`: Change a supervisor's road, warming, threshold, gates, sampling or voice.
   pub async fn change_supervisor(
     &self,
     supervisor_name: &str,
@@ -1065,6 +1054,11 @@ impl AgencyClient {
   /// `GET /supervisors/{supervisorName}/reset-point`: A supervisor's reset point alone.
   pub async fn get_supervisor_reset_point(&self, supervisor_name: &str) -> Answer<SupervisorResetPoint> {
     Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "reset-point"])).await
+  }
+
+  /// `GET /supervisors/{supervisorName}/road`: A supervisor's one road, and whether it can take a turn now.
+  pub async fn get_supervisor_road(&self, supervisor_name: &str) -> Answer<SupervisorRoad> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "road"])).await
   }
 
   /// `GET /supervisors/{supervisorName}/settings`: A supervisor's settings, its system prompt and its room

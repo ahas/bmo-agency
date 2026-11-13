@@ -28,7 +28,7 @@ role keeps no memory, reminder or watch of its own (`docs/agent-roles.md`).
 
 ## What the supervisor's row carries
 
-Beside its provider order, its cache warming per provider and its compaction threshold
+Beside its one road, its cache warming per provider and its compaction threshold
 (`docs/supervisors.md`, 「What a supervisor row holds」):
 
 | Column | What it says | A supervisor of one session across its rooms | One added on the console |

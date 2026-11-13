@@ -27,13 +27,13 @@
   steady is the cache (「Why a line is held steady」 below): a change is made whole and once, never as
   a side effect of other work and never to a line the item does not need.
 - **Which provider carries a piece of work is a different question** and is not settled here: every
-  supervisor and every role carries its own provider order in agency's store, the owner sets it in the
-  console, the program that runs the work follows from the provider the order gives it
-  (`docs/provider-order.md`), and a provider whose program cannot carry that work's line is refused as an
-  entry of the order rather than silently standing in for it.
-- **The model, the effort and the thinking are the order's entry.** A supervisor's turn and a role's run
-  go out with the model, the effort level and the thinking the entry of its order names for the provider
-  it goes out on (`docs/provider-order.md`, 「Effort and thinking」). On Claude Code the level is the
+  supervisor and every agent of a role stands on one road in agency's store, the owner sets it in the
+  console, the program that runs the work follows from the road's provider (`docs/provider-order.md`), and a
+  provider whose program cannot carry that work's line is refused as a road rather than silently standing in
+  for it.
+- **The model, the effort and the thinking are the road's.** A supervisor's turn and a role's run go out with
+  the model, the effort level and the thinking its road names (`docs/provider-order.md`, 「Effort and
+  thinking」). On Claude Code the level is the
   `--effort` word and thinking off is `MAX_THINKING_TOKENS=0` in the environment, so no flag moves that
   is not already the line's. Where the entry names nothing, each line below is as written.
 
@@ -125,9 +125,8 @@
   directly. The models of each member road are the members the deployment names, which the owner adds and
   changes with no commit (`docs/own-llm.md`). On every line their program in the agent's pane is Claude Code,
   and a headless run of any of them is the same program on the same gateway.
-- Which provider runs a piece of work is the first of its supervisor's or role's order that has quota
-  and can answer now (`docs/provider-order.md`, 「Choosing the provider」), so a program is picked in
-  exactly one place.
+- Which provider runs a piece of work is its road's, judged for quota and whether it can answer now
+  (`docs/provider-order.md`, 「Whether a road can answer」), so a program is picked in exactly one place.
 - **What a route may promise is what the program really carries.** Each harness says what its
   program offers — a gate on every tool call, a tool set made of the MCP servers it is handed alone
   — and each line what it needs of its program: Claude Code offers both and so carries every line;
@@ -157,10 +156,10 @@
   platform's harness opening, `prompts/harness.md` read out of the deploy tree, but a run of the worker
   line on an account that names a base prompt, which opens on that base (`docs/base-prompts.md`); the
   translator's is its role's and purpose's, whole.
-- **Chat session** (`chatArgs`): the model, effort and thinking the supervisor's order names for the
-  provider its turn goes out on, read out of agency's store at every launch (`docs/provider-order.md`). None
-  is written in code and no constant stands behind any — an order is never empty, and a provider the order
-  names that cannot carry the chat line is refused as the order is written. The console is the one place
+- **Chat session** (`chatArgs`): the model, effort and thinking the supervisor's road names, read out of
+  agency's store at every launch (`docs/provider-order.md`). None is written in code and no constant stands
+  behind any — a supervisor always names a road, and a provider that cannot carry the chat line is refused as
+  the road is written. The console is the one place
   they are chosen, and the line, the record of the session, the keepalive's cache policy and the check for a
   runtime downgrade all read that one answer. The system prompt is the harness, the role and the persona,
   each whole (`docs/agent-documents.md`, 「A supervisor of the window shape」): the platform's harness opening,
@@ -394,9 +393,8 @@
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
     closes what a row contradicts.
 - **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
-  「translations」), on the translator role's provider order (`docs/provider-order.md`, 「Choosing the
-  provider」): where the order's first entry is the registry's provider, the registered translation model
-  answers first and the order's next providers after it. Its system prompt is the translator role's prompt
+  「translations」), on the road of the translator role's agent it is let in on (`docs/provider-order.md`,
+  「Whether a road can answer」): on the registry's provider, the registered translation model answers. Its system prompt is the translator role's prompt
   as the store holds it (`docs/agent-roles.md`) and then the instructions of the purpose asked —
   `prompts/agents/translator/instructions.md` for a document's part, `worker.md` for a text a job reads,
   `record.md` for a job's record the owner reads, that one after the plain-writing rulebook, and the
@@ -417,8 +415,8 @@
   stands」). Such a registration is the registry's road whether or not its engine stands when the translation
   is asked: the demand starts it, the request waits until the gateway serves the granted card's entry, and a
   translation never moves to Claude Code because no instance stood. A demand the master refuses, or a
-  request the engine fails, is a failure of the provider, and the translation goes on as the order's
-  fall-over rule says (`docs/provider-order.md`, 「Falling over and coming back」; `docs/own-llm.md`, 「When a
+  request the engine fails, is a failure of the provider, and the translation fails or waits as its road
+  says (`docs/provider-order.md`, 「A road that fails」; `docs/own-llm.md`, 「When a
   registered model does not answer」). On Claude Code it is a run in a pane of its own (`docs/agents.md`, 「A
   run in a pane of its own」): that system prompt as the whole of it, no tool shown or allowed, no MCP
   server, the session the translator role's setting gives it (`docs/agent-roles.md`, 「A role's sessions」),

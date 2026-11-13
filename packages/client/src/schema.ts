@@ -931,23 +931,6 @@ export interface paths {
         patch: operations["changeRest"];
         trace?: never;
     };
-    "/stand-in": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Whether a stand-in answers the agent named while the rest closes Claude Code's road, and on which provider and model. */
-        get: operations["getStandIn"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/usage": {
         parameters: {
             query?: never;
@@ -1357,7 +1340,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One supervisor: its order, warming, threshold, gates, voice. */
+        /** One supervisor: its road, warming, threshold, gates, voice. */
         get: operations["getSupervisor"];
         put?: never;
         post?: never;
@@ -1365,7 +1348,7 @@ export interface paths {
         delete: operations["deleteSupervisor"];
         options?: never;
         head?: never;
-        /** Change a supervisor's order, warming, threshold, gates, sampling or voice. */
+        /** Change a supervisor's road, warming, threshold, gates, sampling or voice. */
         patch: operations["changeSupervisor"];
         trace?: never;
     };
@@ -1395,6 +1378,23 @@ export interface paths {
         };
         /** A supervisor's reset point alone. */
         get: operations["getSupervisorResetPoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}/road": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A supervisor's one road, and whether it can take a turn now. */
+        get: operations["getSupervisorRoad"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2939,7 +2939,6 @@ export interface components {
         /** @description Fallback: */
         Fallback: {
             routes: unknown[];
-            answering: boolean;
             /**
              * @description The agent serving the chat now and what it has used.
              * @default null
@@ -3390,20 +3389,6 @@ export interface components {
             kind?: string | null;
             account?: string | null;
         };
-        /** @description StandIn: whether a stand-in answers the agent named now, and on which provider and model. */
-        StandIn: {
-            answers: boolean;
-            /**
-             * @description The first provider of its order other than Claude Code that can answer now, or null.
-             * @default null
-             */
-            provider: string | null;
-            /**
-             * @description The model its order names on that provider, or null.
-             * @default null
-             */
-            model: string | null;
-        };
         /** @description Usage: */
         Usage: {
             groups: unknown[];
@@ -3679,7 +3664,7 @@ export interface components {
             items: components["schemas"]["Supervisor"][];
             more: boolean;
         };
-        /** @description Supervisor: one supervisor as its row holds it, and what it stands on now. */
+        /** @description Supervisor: one supervisor as its row holds it, on its one road. */
         Supervisor: {
             name: string;
             label: string | null;
@@ -3692,18 +3677,30 @@ export interface components {
             brainFolder: string | null;
             /** @description the repository its TODO items go to */
             repository: string | null;
-            order: components["schemas"]["OrderEntry"][];
             /**
-             * Format: double
-             * @description a fraction from 0 to 1
-             */
-            quotaShare: number;
-            /**
-             * @description the provider the owner forced as its active provider, or null where its order chooses
+             * @description its one road's provider, every turn of it going out there; null where its row names no road
              * @default null
              */
-            active: components["schemas"]["ActiveProvider"] | null;
-            /** @description for each provider of its order, whether its prefix is kept warm there */
+            provider: string | null;
+            /** @default null */
+            model: string | null;
+            /**
+             * @description a level of the effort scale; null for the provider's own
+             * @default null
+             */
+            effort: string | null;
+            /**
+             * @description `on`, `off`, or null for the provider's own
+             * @default null
+             */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @description on the registry's provider, the answer ceiling; null for the registration's own
+             * @default null
+             */
+            answerTokens: number | null;
+            /** @description for each provider, whether its prefix is kept warm there */
             warming: {
                 [key: string]: boolean;
             };
@@ -3721,12 +3718,6 @@ export interface components {
             gates: unknown;
             voice: string | null;
             sampling: unknown;
-            /** @description what its last turn went out on */
-            provider: string | null;
-            model: string | null;
-            effort: string | null;
-            /** @description why its turn waits where no provider of its order has quota, or null */
-            waitingFor: string | null;
             /**
              * @description Whether the deployment seeds it: its removal is refused 409 `seeded`.
              * @default false
@@ -3739,32 +3730,6 @@ export interface components {
              */
             resetPoint: number | null;
         };
-        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
-        OrderEntry: {
-            provider: string;
-            model: string;
-            /**
-             * @description a level of the effort scale; null for the provider's own
-             * @default null
-             */
-            effort: string | null;
-            /**
-             * @description `on`, `off`, or null for the provider's own
-             * @default null
-             */
-            thinking: string | null;
-            /**
-             * Format: int64
-             * @description on the registry's provider, the answer ceiling; null for the registration's own
-             * @default null
-             */
-            answerTokens: number | null;
-        };
-        /** @description ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider. */
-        ActiveProvider: {
-            provider: string;
-            model: string;
-        };
         /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
         SupervisorRegistered: {
             supervisor: components["schemas"]["Supervisor"];
@@ -3775,20 +3740,17 @@ export interface components {
          * @enum {string}
          */
         BrainBirth: "made" | "kept" | "none" | "failed";
-        /** @description SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model. */
+        /** @description SupervisorAsk: the body that registers a supervisor on its one road. */
         SupervisorAsk: {
             name: string;
             label: string;
-            /**
-             * @description Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
-             *     theirs.
-             */
-            order?: components["schemas"]["OrderEntry"][] | null;
-            /** @description One provider and model, an order of that one entry where no order is named. */
-            provider?: string | null;
-            model?: string | null;
-            /** Format: double */
-            quotaShare?: number | null;
+            /** @description Its road's provider and model, both named. */
+            provider: string;
+            model: string;
+            effort?: string | null;
+            thinking?: string | null;
+            /** Format: int64 */
+            answerTokens?: number | null;
             repository?: string | null;
             /** Format: int64 */
             ownerAccount?: number | null;
@@ -3831,6 +3793,31 @@ export interface components {
              * @description epoch milliseconds, or null where it was never reset
              */
             resetPoint: number | null;
+        };
+        /** @description SupervisorRoad: a supervisor's one road, and whether a turn would go out on it now. */
+        SupervisorRoad: {
+            supervisor: string;
+            /**
+             * @description its road's provider, null where its row names no road
+             * @default null
+             */
+            provider: string | null;
+            /** @default null */
+            model: string | null;
+            /** @default null */
+            effort: string | null;
+            /**
+             * @description `on`, `off`, or null for the provider's own
+             * @default null
+             */
+            thinking: string | null;
+            /** @description whether a turn would go out on its road now */
+            answers: boolean;
+            /**
+             * @description the sentence a turn would fail with where its road cannot take it, null where it can
+             * @default null
+             */
+            reason: string | null;
         };
         /** @description Relay: one line handed to another person's BMO, and what came of it. */
         Relay: {
@@ -3945,11 +3932,18 @@ export interface components {
         /** @description SupervisorChange: the fields a change of a supervisor names. */
         SupervisorChange: {
             label?: string | null;
-            order?: components["schemas"]["OrderEntry"][] | null;
-            /** @description The provider forced as its active provider; null clears it. */
-            active?: components["schemas"]["ActiveProvider"] | null;
-            /** Format: double */
-            quotaShare?: number | null;
+            /** @description Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named. */
+            provider?: string | null;
+            model?: string | null;
+            /** @description null for the provider's own */
+            effort?: string | null;
+            /** @description `on`, `off`, or null for the provider's own */
+            thinking?: string | null;
+            /**
+             * Format: int64
+             * @description null for the registration's own
+             */
+            answerTokens?: number | null;
             warming?: {
                 [key: string]: boolean;
             } | null;
@@ -7063,29 +7057,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    getStandIn: {
-        parameters: {
-            query: {
-                agent: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StandIn"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
     getUsage: {
         parameters: {
             query?: {
@@ -8099,6 +8070,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupervisorResetPoint"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSupervisorRoad: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorRoad"];
                 };
             };
             401: components["responses"]["Unauthorized"];

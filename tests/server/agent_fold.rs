@@ -282,10 +282,7 @@ impl Stand {
     supervisor(
       scratch.db(),
       AGENT,
-      &[(
-        "provider_order",
-        r#"[{"provider":"deepseek","model":"deepseek-flash"},{"provider":"claude-code","model":"claude-opus-5"}]"#.into(),
-      )],
+      &[("provider", "deepseek".into()), ("model", "deepseek-flash".into())],
     )
     .await;
 

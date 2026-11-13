@@ -335,9 +335,8 @@ pub async fn provider_for_model(
 }
 
 /// The road a slot naming none is fixed to: for a role whose order is empty — the supervisor's double, the
-/// doppelganger role, as seeded — the road of the supervisor the ask names as its asker, as it stands now:
-/// the provider, model and effort its last turn went out on, else its order's first (docs/role-slots.md, 「A
-/// delegated task」). A slot of such a role no supervisor asks is refused, since it has no road. A role
+/// doppelganger role, as seeded — the one road of the supervisor the ask names as its asker, as it stands now
+/// (docs/role-slots.md, 「A delegated task」). A slot of such a role no supervisor asks is refused, since it has no road. A role
 /// whose order holds an entry is fixed to nothing and walks that order, whoever asks it.
 pub async fn fixed_road<C: ConnectionTrait>(
   db: &C,

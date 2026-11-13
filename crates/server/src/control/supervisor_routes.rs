@@ -1,7 +1,7 @@
 //! The supervisors' routes (docs/api.md, 「supervisors」; docs/supervisors.md): every supervisor read, one
-//! registered with its own order and given its brain, changed — its order, warming, threshold, repository,
-//! gates, sampling and voice — and its registration ended with everything of its own but its brain where the
-//! caller keeps it.
+//! registered on its one road and given its brain, changed — its road, warming, threshold, repository, gates,
+//! sampling and voice — its road judged for a turn now, and its registration ended with everything of its own but
+//! its brain where the caller keeps it.
 
 use std::collections::BTreeMap;
 
@@ -26,12 +26,11 @@ use super::supervisor_reset::{reset_whole, rooms_named, to_its_end};
 use super::{Call, Refused, Route, answer, set_setting, setting};
 use crate::conversational::Settings as Conversation;
 use crate::now_ms;
-use crate::order::{self, Order};
+use crate::order::{self, Entry};
 use crate::peers::brain::{Brain, Made};
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, held};
 use crate::queue::settings;
-use crate::repositories::Pin;
 use crate::road::{self, Ask, Row};
 use crate::supervisors::{self, Supervisor};
 
@@ -64,16 +63,11 @@ async fn gates_view(db: &DatabaseConnection, name: &str) -> Result<Value, Refuse
   Ok(json!(views))
 }
 
-/// One supervisor as the routes answer it: every field of its row, its gates, sampling and voice, and what it
-/// stands on now.
+/// One supervisor as the routes answer it: every field of its row, its one road, its gates, sampling and voice.
 pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Refused> {
   let db = &ground.db;
-  let resolution =
-    road::resolve(ground, &Ask::of(Row::Supervisor(&supervisor.name), CHAT_LINE, &supervisor.order))
-      .await
-      .map_err(Refused::failed)?;
-  let waiting_for = resolution.road().is_none().then(|| resolution.sentence());
   let sampling = agent_sampling::view(db, &supervisor.name).await.map(|view| view["values"].clone()).ok();
+  let road = supervisor.road.as_ref();
 
   Ok(json!({
     "name": supervisor.name,
@@ -85,19 +79,17 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "turnShape": supervisor.turn_shape,
     "brainFolder": supervisor.brain_folder,
     "repository": supervisor.repository,
-    "order": supervisor.order.entries,
-    "quotaShare": supervisor.order.quota_share,
-    "active": supervisor.order.forced.as_ref().map(Pin::view),
+    "provider": road.map(|road| &road.provider),
+    "model": road.map(|road| &road.model),
+    "effort": road.and_then(|road| road.effort.as_ref()),
+    "thinking": road.and_then(|road| road.thinking.as_ref()),
+    "answerTokens": road.and_then(|road| road.answer_tokens),
     "warming": supervisor.warming,
     "foldRatio": supervisor.fold_ratio,
     "cardRank": supervisor.card_rank,
     "gates": gates_view(db, &supervisor.name).await?,
     "voice": supervisor.voice,
     "sampling": sampling,
-    "provider": supervisor.last_mode,
-    "model": supervisor.last_model,
-    "effort": supervisor.last_effort,
-    "waitingFor": waiting_for,
     "seeded": supervisor.builtin,
     "resetPoint": crate::supervisor_turn::overtaken::point(db, &supervisor.name).await,
   }))
@@ -163,6 +155,42 @@ impl Route for SupervisorResetPoint {
 
 crate::moved!(SupervisorResetPoint);
 
+/// `GET /supervisors/{supervisorName}/road`: the supervisor's one road and whether a turn would go out on it now,
+/// judged as a turn's start judges it, with the sentence a turn would fail with where it cannot
+/// (docs/provider-order.md, 「Whether a road can answer」).
+pub struct SupervisorRoad;
+
+impl Route for SupervisorRoad {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/supervisors/{supervisorName}/road";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("supervisorName").unwrap_or_default().to_owned();
+    let supervisor = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
+    let order = supervisor.order();
+    let resolution = road::resolve(call.ground(), &Ask::of(Row::Supervisor(&name), CHAT_LINE, &order))
+      .await
+      .map_err(Refused::failed)?;
+    let answers = resolution.road().is_some();
+    let road = supervisor.road.as_ref();
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "supervisor": name,
+        "provider": road.map(|road| &road.provider),
+        "model": road.map(|road| &road.model),
+        "effort": road.and_then(|road| road.effort.as_ref()),
+        "thinking": road.and_then(|road| road.thinking.as_ref()),
+        "answers": answers,
+        "reason": (!answers).then(|| resolution.sentence()),
+      }),
+    ))
+  }
+}
+
+crate::moved!(SupervisorRoad);
+
 /// `GET /supervisors/{supervisorName}/rooms`: every room the supervisor's turns went into, as the run ledger
 /// records them, each with its latest run there, the latest first.
 pub struct SupervisorRooms;
@@ -207,43 +235,50 @@ impl Route for SupervisorRooms {
 
 crate::moved!(SupervisorRooms);
 
-// An order a body names, judged against the chat line.
-async fn order_of(ground: &Ground, body: &Value) -> Result<Option<Order>, Refused> {
-  let Some(entries) = body.get("order") else { return Ok(None) };
+// The fields a supervisor's body may no longer name: a supervisor holds no order and nothing is forced over its
+// road (docs/api.md, 「supervisors」).
+const RETIRED: [&str; 3] = ["order", "quotaShare", "active"];
 
-  judged(ground, entries, body.get("quotaShare")).await.map(Some)
+fn retired(body: &Value) -> Result<(), Refused> {
+  match RETIRED.iter().find(|field| body.get(**field).is_some()) {
+    Some(field) => Err(bad(field, "A supervisor stands on one road: name its provider and model.")),
+    None => Ok(()),
+  }
 }
 
-// Entries judged as an order against the chat line, with the share beside them.
-async fn judged(ground: &Ground, entries: &Value, share: Option<&Value>) -> Result<Order, Refused> {
-  order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, entries, share, order::Empty::Refused)
-    .await
-    .map_err(|refusal| bad(&refusal.field, refusal.error))
-}
+// The road a body names over the one `held`, judged against the chat line: its provider and model, each kept
+// where the body names it not, and its effort, thinking and answer ceiling, kept only while the provider and
+// model stay; none where the body names no field of a road.
+async fn road_of(ground: &Ground, body: &Value, held: Option<&Entry>) -> Result<Option<Entry>, Refused> {
+  const FIELDS: [&str; 5] = ["provider", "model", "effort", "thinking", "answerTokens"];
 
-// The order a registration names: its order whole, or the one entry of the provider and model it names, which
-// must stand first where both are named.
-async fn registered_order(ground: &Ground, body: &Value) -> Result<Order, Refused> {
-  let text = |field: &str| body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default();
-  let (provider, model) = (text("provider"), text("model"));
-  let order = match body.get("order") {
-    Some(entries) => judged(ground, entries, body.get("quotaShare")).await?,
-    None if !provider.is_empty() || !model.is_empty() => {
-      judged(ground, &json!([{ "provider": provider, "model": model }]), body.get("quotaShare")).await?
-    }
-    None => return Err(bad("order", "A supervisor names its order.")),
-  };
-  let disagrees = (!provider.is_empty() || !model.is_empty())
-    && order.first().is_none_or(|first| first.provider != provider || first.model != model);
-
-  if disagrees {
-    return Err(bad(
-      "order",
-      "The order's first entry is not the provider and model the registration names.",
-    ));
+  if !FIELDS.iter().any(|field| body.get(*field).is_some()) {
+    return Ok(None);
   }
 
-  Ok(order)
+  let text = |field: &str| body.get(field).and_then(Value::as_str).map(str::trim).map(str::to_owned);
+  let provider = text("provider").or_else(|| held.map(|road| road.provider.clone())).unwrap_or_default();
+  let model = text("model").or_else(|| held.map(|road| road.model.clone())).unwrap_or_default();
+
+  if provider.is_empty() || model.is_empty() {
+    return Err(bad("provider", "A supervisor's road names its provider and its model."));
+  }
+
+  let kept = held.filter(|road| road.provider == provider && road.model == model);
+  let named = |field: &str| body.get(field).cloned();
+  let entry = json!([{
+    "provider": provider,
+    "model": model,
+    "effort": named("effort").unwrap_or_else(|| json!(kept.and_then(|road| road.effort.clone()))),
+    "thinking": named("thinking").unwrap_or_else(|| json!(kept.and_then(|road| road.thinking.clone()))),
+    "answerTokens": named("answerTokens").unwrap_or_else(|| json!(kept.and_then(|road| road.answer_tokens))),
+  }]);
+  let judged =
+    order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, &entry, None, order::Empty::Refused)
+      .await
+      .map_err(|refusal| bad("provider", refusal.error))?;
+
+  Ok(judged.entries.into_iter().next())
 }
 
 // A compaction threshold a body names: a fraction above 0 and at most 1.
@@ -270,8 +305,16 @@ async fn repository_of(db: &DatabaseConnection, body: &Value) -> Result<Option<O
   }
 }
 
-/// `POST /supervisors`: a supervisor registered as one added on the console is, with its own order, and given
-/// its brain.
+// The compaction threshold a supervisor added on a road is given where it names none: its provider's declared
+// default, 0.85 where it declares none (docs/supervisors.md, 「What a provider declares for a conversation」).
+fn default_fold_ratio(road: &Entry) -> f64 {
+  harness_providers::provider(&road.provider)
+    .and_then(|provider| provider.declared().fold_ratio)
+    .unwrap_or(order::DEFAULT_FOLD_RATIO)
+}
+
+/// `POST /supervisors`: a supervisor registered as one added on the console is, on its one road, and given its
+/// brain.
 pub struct SupervisorCreate;
 
 impl Route for SupervisorCreate {
@@ -300,7 +343,11 @@ impl Route for SupervisorCreate {
       return Err(bad("label", roster.label.as_str()));
     }
 
-    let order = registered_order(call.ground(), &body).await?;
+    retired(&body)?;
+
+    let road = road_of(call.ground(), &body, None)
+      .await?
+      .ok_or_else(|| bad("provider", "A supervisor's road names its provider and its model."))?;
     let repository = repository_of(call.store(), &body).await?.flatten();
     let owner = match body.get("ownerAccount") {
       None | Some(Value::Null) => None,
@@ -308,18 +355,17 @@ impl Route for SupervisorCreate {
         Some(owner.as_i64().ok_or_else(|| bad("ownerAccount", CONTROL_WORDS.agents.owner.as_str()))?)
       }
     };
-    let fold_ratio = fold_ratio_of(&body)?.unwrap_or_else(|| order.default_fold_ratio());
+    let fold_ratio = fold_ratio_of(&body)?.unwrap_or_else(|| default_fold_ratio(&road));
     let conversation = Conversation::console_added();
-    let warming: BTreeMap<&str, bool> =
-      order.entries.iter().map(|entry| (entry.provider.as_str(), true)).collect();
+    let warming: BTreeMap<&str, bool> = BTreeMap::from([(road.provider.as_str(), true)]);
     let now = now_ms();
 
     run(
       call.store(),
       r#"INSERT INTO "supervisors" ("name", "label", "owner_account", "icon", "brain_folder", "session_scope",
-           "turn_shape", "repository", "provider_order", "quota_share", "warming", "fold_ratio", "created_at",
-           "updated_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)"#,
+           "turn_shape", "repository", "provider", "model", "effort", "thinking", "answer_tokens", "warming",
+           "fold_ratio", "created_at", "updated_at")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)"#,
       vec![
         name.clone().into(),
         label.clone().into(),
@@ -329,8 +375,11 @@ impl Route for SupervisorCreate {
         conversation.scope.word().into(),
         conversation.shape.word().into(),
         repository.into(),
-        order.entries_text().into(),
-        order.quota_share.into(),
+        road.provider.clone().into(),
+        road.model.clone().into(),
+        road.effort.clone().into(),
+        road.thinking.clone().into(),
+        road.answer_tokens.into(),
         serde_json::to_string(&warming).map_err(Refused::failed)?.into(),
         fold_ratio.into(),
         now.into(),
@@ -379,19 +428,10 @@ impl Route for SupervisorChange {
     let name = call.param("supervisorName").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let held = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
-    let order = order_of(call.ground(), &body).await?.unwrap_or(held.order.clone());
-    let active = match body.get("active") {
-      None => held.order.forced.clone(),
-      Some(Value::Null) => None,
-      Some(named @ Value::Object(_)) => Some(
-        order::judge_one(Judging::of(call.ground()), &call.ground().machine(), CHAT_LINE, named)
-          .await
-          .map_err(|why| bad("active", why))?,
-      ),
-      Some(_) => {
-        return Err(bad("active", "A forced provider is a provider and a model, or null for none."));
-      }
-    };
+
+    retired(&body)?;
+
+    let road = road_of(call.ground(), &body, held.road.as_ref()).await?.or(held.road.clone());
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or(held.fold_ratio);
     let repository = repository_of(call.store(), &body).await?.unwrap_or(held.repository.clone());
     let label = match body.get("label") {
@@ -451,22 +491,23 @@ impl Route for SupervisorChange {
 
     run(
       call.store(),
-      r#"UPDATE "supervisors" SET "label" = $2, "provider_order" = $3, "quota_share" = $4, "warming" = $5,
-           "fold_ratio" = $6, "repository" = $7, "voice" = $8, "updated_at" = $9, "active_provider" = $10,
-           "active_model" = $11, "card_rank" = $12
+      r#"UPDATE "supervisors" SET "label" = $2, "provider" = $3, "model" = $4, "effort" = $5, "thinking" = $6,
+           "answer_tokens" = $7, "warming" = $8, "fold_ratio" = $9, "repository" = $10, "voice" = $11,
+           "updated_at" = $12, "card_rank" = $13
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
         label.into(),
-        order.entries_text().into(),
-        order.quota_share.into(),
+        road.as_ref().map(|road| road.provider.clone()).into(),
+        road.as_ref().map(|road| road.model.clone()).into(),
+        road.as_ref().and_then(|road| road.effort.clone()).into(),
+        road.as_ref().and_then(|road| road.thinking.clone()).into(),
+        road.as_ref().and_then(|road| road.answer_tokens).into(),
         serde_json::to_string(&warming).map_err(Refused::failed)?.into(),
         fold_ratio.into(),
         repository.into(),
         voice.into(),
         now_ms().into(),
-        active.as_ref().map(|active| active.provider.clone()).into(),
-        active.as_ref().map(|active| active.model.clone()).into(),
         card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
       ],
     )

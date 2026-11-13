@@ -23,7 +23,6 @@ use store::{all, run};
 use super::locks::{Held, hold, lock_path, pane_lock_path, try_hold};
 use super::trust::trust_worker_folder;
 use super::{AgentRow, Ground};
-use crate::control::fallback::fallback_provider;
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::lines::place::{Place, Program, token_of};
@@ -270,25 +269,12 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
   Ok(())
 }
 
-// The provider the job key's runs go out on now, as the road resolution answers it for the job key; the
-// stand-in answering while the fallback stands, or Claude Code, where nothing of its walk can answer.
+// The provider the job key's runs go out on now, as the road resolution answers it for the job key, or Claude
+// Code where none of its roads can answer.
 async fn job_road(ground: &Ground) -> Result<String, Refusal> {
-  let fault = |refused: crate::control::Refused| crate::lines::fault(refused.error);
+  let taken = road::for_job(ground, None, None, None, &[], None).await.map_err(crate::lines::fault)?;
 
-  if let Some(taken) = road::for_job(ground, None, None, None, &[], None)
-    .await
-    .map_err(crate::lines::fault)?
-    .road()
-  {
-    return Ok(taken.provider.clone());
-  }
-
-  Ok(
-    fallback_provider(&ground.db)
-      .await
-      .map_err(fault)?
-      .unwrap_or_else(|| CLAUDE_CODE.to_owned()),
-  )
+  Ok(taken.road().map_or_else(|| CLAUDE_CODE.to_owned(), |taken| taken.provider.clone()))
 }
 
 // The road a pinned worker's pane stands on now: its pin where the pin can answer, the next road of its walk

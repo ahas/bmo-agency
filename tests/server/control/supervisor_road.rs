@@ -1,6 +1,7 @@
-//! Whether a stand-in answers, asked of a running server over its control routes: the stand-in route answers
-//! whether one answers for a supervisor, and a session is started at no scope the contract does not name — on
-//! a store the server settled itself.
+//! A supervisor's one road, asked of a running server over its control routes (docs/api.md, 「supervisors」): the
+//! road route names the road and whether a turn would go out on it now, no stand-in route stands, a body naming
+//! an order or a forced provider is refused, and a session is started at no scope the contract does not name —
+//! on a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -18,9 +19,9 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
-async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+async fn send(method: reqwest::Method, port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
   let answer = reqwest::Client::new()
-    .post(format!("http://127.0.0.1:{port}{path}"))
+    .request(method, format!("http://127.0.0.1:{port}{path}"))
     .bearer_auth(token)
     .json(&body)
     .send()
@@ -31,7 +32,7 @@ async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_running_server_answers_whether_a_stand_in_answers_and_starts_no_editors_session() {
+async fn a_running_server_answers_a_supervisor_s_one_road_and_refuses_an_order_or_a_stand_in() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -43,11 +44,67 @@ async fn a_running_server_answers_whether_a_stand_in_answers_and_starts_no_edito
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
-  // Claude Code stands open and no stand-in is pinned, so none answers for the agent.
-  assert_eq!(get(port, token, "/stand-in?agent=chat-agent").await.1["answers"], json!(false));
+  // Its road is Claude Code's, which answers here: the road is named and a turn would go out on it.
+  let (status, road) = get(port, token, "/supervisors/chat-agent/road").await;
 
-  let (status, refused) =
-    post(port, token, "/sessions", json!({ "agentName": "digest", "scope": "editor" })).await;
+  assert_eq!(status, 200, "{road}");
+  assert_eq!(
+    (&road["supervisor"], &road["provider"], &road["model"]),
+    (&json!("chat-agent"), &json!("claude-code"), &json!("claude-opus-5"))
+  );
+  assert_eq!((&road["answers"], &road["reason"]), (&json!(true), &Value::Null), "{road}");
+
+  // Claude Code switched off, the road cannot take a turn: the reason says why, with no other road offered in its
+  // place though every other provider stays on.
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('provider_switch:claude-code', 'off')
+         ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value""#,
+      vec![],
+    )
+    .await;
+
+  let (_, closed) = get(port, token, "/supervisors/chat-agent/road").await;
+
+  assert_eq!(
+    (&closed["provider"], &closed["answers"]),
+    (&json!("claude-code"), &json!(false)),
+    "{closed}"
+  );
+  assert!(closed["reason"].as_str().is_some_and(|reason| !reason.is_empty()), "{closed}");
+  assert_eq!(get(port, token, "/supervisors/nobody/road").await.0, 404);
+
+  // The supervisor's read names the same road and nothing of an order.
+  let (_, held) = get(port, token, "/supervisors/chat-agent").await;
+
+  assert_eq!((&held["provider"], &held["model"]), (&json!("claude-code"), &json!("claude-opus-5")));
+
+  for gone in ["order", "quotaShare", "active", "waitingFor"] {
+    assert!(held.get(gone).is_none(), "{gone}: {held}");
+  }
+
+  // No stand-in route stands, and a change naming an order or a forced provider is refused by its field.
+  assert_eq!(get(port, token, "/stand-in?agent=chat-agent").await.0, 404);
+
+  for (field, value) in [
+    ("order", json!([{ "provider": "codex", "model": "gpt-5.6-sol" }])),
+    ("quotaShare", json!(0.5)),
+    ("active", json!({ "provider": "codex", "model": "gpt-5.6-sol" })),
+  ] {
+    let (status, refused) =
+      send(reqwest::Method::PATCH, port, token, "/supervisors/chat-agent", json!({ field: value })).await;
+
+    assert_eq!((status, &refused["field"]), (400, &json!(field)), "{refused}");
+  }
+
+  let (status, refused) = send(
+    reqwest::Method::POST,
+    port,
+    token,
+    "/sessions",
+    json!({ "agentName": "digest", "scope": "editor" }),
+  )
+  .await;
 
   assert_eq!(status, 400, "{refused}");
   assert!(refused["error"].as_str().unwrap().contains("not editor"), "{refused}");

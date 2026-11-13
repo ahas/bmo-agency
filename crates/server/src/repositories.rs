@@ -5,7 +5,7 @@ use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
 /// A provider and one model of it, as a repository's pin (docs/repositories.md, 「A pinned model」), an item's
-/// model and a row's forced provider (docs/provider-order.md, 「A provider the owner forces」) name one.
+/// model and a row's forced provider (docs/provider-order.md, 「What a road is」) name one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pin {
   pub provider: String,

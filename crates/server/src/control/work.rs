@@ -1667,8 +1667,7 @@ pub struct Carried<'a> {
 }
 
 /// Why a turn's end says its road stopped answering rather than the work failing, where it does
-/// (docs/cache-fallback.md, 「Automatic walks only on providers, in order」; docs/provider-order.md, 「Falling
-/// over and coming back」): the provider refusing its quota, its window, its balance or its credential, its
+/// (docs/cache-fallback.md, 「Automatic walks only on providers, in order」; docs/provider-order.md, 「A road that fails」): the provider refusing its quota, its window, its balance or its credential, its
 /// last login closing under it, answering with a server error or refusing the connection, or the road
 /// switched off — read off the end's own failure, its engine's error, and its words through the one failure
 /// reading every run asks. A turn that answered, was stopped from outside, or whose request the provider

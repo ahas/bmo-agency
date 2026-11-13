@@ -1509,23 +1509,6 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "GET",
-    path: "/stand-in",
-    id: "getStandIn",
-    tag: "rest",
-    summary: "Whether a stand-in answers the agent named while the rest closes Claude Code's road, and on which provider and model.",
-    params: &[Param {
-      name: "agent",
-      place: "query",
-      required: true,
-      kind: "string",
-      description: "the agent whose road is asked about",
-    }],
-    body: None,
-    answers: &[(200, Some("StandIn"), false)],
-    codes: &[],
-  },
-  Operation {
-    method: "GET",
     path: "/usage",
     id: "getUsage",
     tag: "usage",
@@ -2198,7 +2181,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/supervisors/{supervisorName}",
     id: "getSupervisor",
     tag: "supervisors",
-    summary: "One supervisor: its order, warming, threshold, gates, voice.",
+    summary: "One supervisor: its road, warming, threshold, gates, voice.",
     params: &[Param {
       name: "supervisorName",
       place: "path",
@@ -2242,6 +2225,23 @@ pub const OPERATIONS: &[Operation] = &[
     }],
     body: None,
     answers: &[(200, Some("SupervisorResetPoint"), false)],
+    codes: &["not-found"],
+  },
+  Operation {
+    method: "GET",
+    path: "/supervisors/{supervisorName}/road",
+    id: "getSupervisorRoad",
+    tag: "supervisors",
+    summary: "A supervisor's one road, and whether it can take a turn now.",
+    params: &[Param {
+      name: "supervisorName",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "",
+    }],
+    body: None,
+    answers: &[(200, Some("SupervisorRoad"), false)],
     codes: &["not-found"],
   },
   Operation {
@@ -2348,7 +2348,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/supervisors/{supervisorName}",
     id: "changeSupervisor",
     tag: "supervisors",
-    summary: "Change a supervisor's order, warming, threshold, gates, sampling or voice.",
+    summary: "Change a supervisor's road, warming, threshold, gates, sampling or voice.",
     params: &[Param {
       name: "supervisorName",
       place: "path",
@@ -2900,7 +2900,6 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "SupervisorAsk" => g.subschema_for::<SupervisorAsk>(),
     "SupervisorList" => g.subschema_for::<SupervisorList>(),
     "Supervisor" => g.subschema_for::<Supervisor>(),
-    "OrderEntry" => g.subschema_for::<OrderEntry>(),
     "Health" => g.subschema_for::<Health>(),
     "Event" => g.subschema_for::<Event>(),
     "EventPage" => g.subschema_for::<EventPage>(),
@@ -2950,7 +2949,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "LaunchRoom" => g.subschema_for::<LaunchRoom>(),
     "Account" => g.subschema_for::<Account>(),
     "Rest" => g.subschema_for::<Rest>(),
-    "StandIn" => g.subschema_for::<StandIn>(),
+    "SupervisorRoad" => g.subschema_for::<SupervisorRoad>(),
     "Usage" => g.subschema_for::<Usage>(),
     "Settings" => g.subschema_for::<Settings>(),
     "SupervisorSettings" => g.subschema_for::<SupervisorSettings>(),
@@ -3076,7 +3075,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 37] = [
+pub const EVENTS: [&str; 36] = [
   "supervisor.changed",
   "role.changed",
   "session.created",
@@ -3101,7 +3100,6 @@ pub const EVENTS: [&str; 37] = [
   "overtime-request.created",
   "overtime-request.changed",
   "rest.changed",
-  "fallback.changed",
   "account.changed",
   "usage.changed",
   "road.changed",

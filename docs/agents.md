@@ -12,10 +12,10 @@ program is spoken to is `docs/agent-control.md`.
 
 - **A supervisor is one row of the `supervisors` table:** a conversational agent that answers in rooms,
   whichever it is. It keeps one resident program and its own settings: its
-  provider order, its cache warming per provider, its compaction threshold, its documents and its brain
+  one road, its cache warming per provider, its compaction threshold, its documents and its brain
   (`docs/supervisors.md`).
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
-  tool bundles its runs are given, its provider order, the most of its runs that go at once, its session
+  tool bundles its runs are given, its agents each on one road, its session
   policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the doppelganger, the
   helper, the producer, the voyager, the seeker, the translator, the transliterator and any the owner adds
   are roles.
@@ -29,8 +29,8 @@ program is spoken to is `docs/agent-control.md`.
 
 ## A run
 
-- **A run is one piece of work of one role at one path,** on the provider and model the role's order
-  gives it at that moment (`docs/provider-order.md`): a job's turn, a delegated task, a search, a
+- **A run is one piece of work of one role at one path,** on the road of the agent it is let in on
+  (`docs/provider-order.md`): a job's turn, a delegated task, a search, a
   translation, a co-work branch.
 - **A run occupies one slot of its role while it goes** (`docs/role-slots.md`). The role's cap is the only
   bound on how many of its runs go at once; nothing bounds them per provider, and runs do not take turns at
@@ -49,9 +49,9 @@ program is spoken to is `docs/agent-control.md`.
 
 ```mermaid
 flowchart TD
-  S[A supervisor row<br/>order, documents, brain] --> L[Its line<br/>tools, MCP, permissions]
-  R[A role row<br/>prompt, bundles, order, cap] --> L
-  O[The provider its order gives now<br/>model, effort, account] --> C[The command its program<br/>stands on]
+  S[A supervisor row<br/>road, documents, brain] --> L[Its line<br/>tools, MCP, permissions]
+  R[A role row<br/>prompt, bundles, agents] --> L
+  O[Its one road<br/>model, effort, account] --> C[The command its program<br/>stands on]
   L --> C
   C --> Pane[A pane<br/>interactive program]
   T[A turn's words] --> Pane
@@ -112,7 +112,7 @@ flowchart TD
 - **Each run is the interactive program in a pane of its own,** opened for the run in a workspace of its
   own, labelled with what the run is, its role and its model, and closed with the run. Two runs of one role
   at once are two panes, so overlapping jobs, searches and branches never wait on each other's program.
-- **Its command is its line's,** without print mode: the model and effort its order gives it, the tools
+- **Its command is its line's,** without print mode: the model and effort its road names, the tools
   it is shown, denied or allowed, the MCP configuration, the permission mode and the system prompt, and the
   session its role's setting gives it.
 - **Its role is the one the work names:** a job item's role, `worker` where the item names none; the role
@@ -160,7 +160,7 @@ flowchart TD
 
 ## Adding a supervisor, a role and a repository
 
-- **A supervisor:** the console's supervisor tab adds one — its name, label, provider order and the
+- **A supervisor:** the console's supervisor tab adds one — its name, label, road and the
   repository its TODO items go to — with a room of the web console's own that names it
   (`docs/supervisors.md`, 「Adding and removing a supervisor」), or `POST /supervisors`
   (`docs/api.md`, 「supervisors」). One added is given its own brain as it is registered.

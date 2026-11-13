@@ -67,7 +67,8 @@ async fn a_supervisor_program_on_an_old_model_is_let_go_for_its_pin() {
     scratch.db(),
     "kakia-chat",
     &[
-      ("provider_order", r#"[{"provider":"registered","model":"flash-next"}]"#.into()),
+      ("provider", "registered".into()),
+      ("model", "flash-next".into()),
       ("last_model", "flash-next-coder".into()),
     ],
   )

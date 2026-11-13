@@ -236,10 +236,11 @@ async fn a_job_of_a_role_whose_agents_name_no_road_follows_the_supervisor_that_a
   crate::support::rows::supervisor(
     scratch.db(),
     "asking",
-    &[(
-      "provider_order",
-      r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"}]"#.into(),
-    )],
+    &[
+      ("provider", "deepseek".into()),
+      ("model", "deepseek-flash".into()),
+      ("effort", "high".into()),
+    ],
   )
   .await;
 
@@ -417,8 +418,11 @@ async fn an_agents_road_or_an_item_s_model_that_cannot_answer_waits_and_never_fa
   assert_eq!(own.steps.len(), 1);
 }
 
+// A supervisor's turn goes out on its one road while that road can answer, and on nothing at all once it
+// cannot: no other provider of the deployment is tried in its place (docs/provider-order.md, 「Whether a road can
+// answer」).
 #[tokio::test(flavor = "multi_thread")]
-async fn a_supervisor_s_forced_provider_carries_its_chat_turn() {
+async fn a_supervisor_s_turn_goes_out_on_its_one_road_and_on_no_other_once_it_cannot_answer() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
@@ -426,25 +430,31 @@ async fn a_supervisor_s_forced_provider_carries_its_chat_turn() {
   deepseek_balance(&ground, 5.0).await;
   crate::support::rows::supervisor(
     scratch.db(),
-    "forced-chat",
-    &[
-      ("provider_order", r#"[{"provider":"deepseek","model":"deepseek-flash"}]"#.into()),
-      ("active_provider", "deepseek".into()),
-      ("active_model", "forced-model".into()),
-    ],
+    "one-road",
+    &[("provider", "deepseek".into()), ("model", "deepseek-flash".into())],
   )
   .await;
 
-  let supervisor = agency_server::supervisors::named(scratch.db(), "forced-chat").await.unwrap().unwrap();
+  let supervisor = agency_server::supervisors::named(scratch.db(), "one-road").await.unwrap().unwrap();
+  let order = supervisor.order();
 
-  assert_eq!(supervisor.order.forced, Some(pin("deepseek", "forced-model")));
+  assert_eq!(order.entries.len(), 1, "{order:?}");
+  assert_eq!(order.forced, None);
 
-  let turn = resolve(&ground, &Ask::of(Row::Supervisor("forced-chat"), "chat", &supervisor.order))
-    .await
-    .unwrap();
+  let ask = Ask::of(Row::Supervisor("one-road"), "chat", &order);
+  let turn = resolve(&ground, &ask).await.unwrap();
 
-  assert_eq!(taken(&turn), Some(("deepseek".to_owned(), "forced-model".to_owned())), "{turn:?}");
-  assert!(turn.fixed);
+  assert_eq!(taken(&turn), Some(("deepseek".to_owned(), "deepseek-flash".to_owned())), "{turn:?}");
+
+  // Its balance spent, the road cannot answer, and nothing stands in: the turn has no road, only the reason.
+  deepseek_balance(&ground, 0.0).await;
+
+  let closed = resolve(&ground, &ask).await.unwrap();
+
+  assert!(closed.road().is_none(), "{closed:?}");
+  assert_eq!(closed.open().count(), 0, "{closed:?}");
+  assert_eq!(closed.steps.len(), 1, "only its own road was judged: {closed:?}");
+  assert!(closed.sentence().contains("balance is spent"), "{}", closed.sentence());
 }
 
 const BUSY: &str =
@@ -476,8 +486,9 @@ fn a_failure_s_kind_says_how_long_the_road_it_left_is_blocked_and_the_work_s_own
   );
 }
 
-// A supervisor whose order walks DeepSeek first and the registry after it, on a registration with an address.
-async fn walking(scratch: &Scratch, data: &std::path::Path, name: &str) -> Order {
+// The roads a role's run may take among its agents, DeepSeek's first and the registry's after it, on a
+// registration with an address.
+async fn walking(scratch: &Scratch, data: &std::path::Path) -> Order {
   use agency_server::control::registry::change;
 
   let save = serde_json::json!({
@@ -490,18 +501,11 @@ async fn walking(scratch: &Scratch, data: &std::path::Path, name: &str) -> Order
 
   change(scratch.db(), data, &save).await.unwrap().unwrap();
   change(scratch.db(), data, &address).await.unwrap().unwrap();
-  crate::support::rows::supervisor(
-    scratch.db(),
-    name,
-    &[(
-      "provider_order",
-      r#"[{"provider":"deepseek","model":"deepseek-flash"},{"provider":"registered","model":"a-registration"}]"#
-        .into(),
-    )],
-  )
-  .await;
 
-  agency_server::supervisors::named(scratch.db(), name).await.unwrap().unwrap().order
+  Order::of_row(
+    r#"[{"provider":"deepseek","model":"deepseek-flash"},{"provider":"registered","model":"a-registration"}]"#,
+    None,
+  )
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -510,8 +514,8 @@ async fn a_road_a_walk_left_on_a_503_is_passed_over_by_the_next_run_and_the_work
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
-  let order = walking(&scratch, &home.path().join("data"), "walker").await;
-  let ask = Ask::of(Row::Supervisor("walker"), "chat", &order);
+  let order = walking(&scratch, &home.path().join("data")).await;
+  let ask = Ask::of(Row::Role("walker"), "chat", &order);
   let deepseek = || Some(("deepseek".to_owned(), "deepseek-flash".to_owned()));
   let registered = || Some(("registered".to_owned(), "a-registration".to_owned()));
 
@@ -556,7 +560,7 @@ async fn a_road_a_walk_left_on_a_503_is_passed_over_by_the_next_run_and_the_work
     }),
     ..order.clone()
   };
-  let alone = resolve(&ground, &Ask::of(Row::Supervisor("walker"), "chat", &forced)).await.unwrap();
+  let alone = resolve(&ground, &Ask::of(Row::Role("walker"), "chat", &forced)).await.unwrap();
 
   assert_eq!(taken(&alone), deepseek(), "{alone:?}");
 

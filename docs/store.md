@@ -20,8 +20,8 @@ seeds. The other crates and the server reach the store only through it.
 - **The tables, by what they keep:**
   - the supervisors: `supervisors`, one row a supervisor — its name, label, owner account, the words that
     call it, its prompt and brain folders, its session scope and turn shape, whether the deployment seeds it,
-    its provider order as a JSON list with its quota share, its warming per provider as a JSON
-    object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
+    its road — `provider`, `model`, `effort`, `thinking` and `answer_tokens` —, its warming per provider as a
+    JSON object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
     the bundles it gives as a JSON list, the skills its runs carry as a JSON list or none, its line, what its declaration gave the agents it was seeded with —
@@ -197,8 +197,7 @@ seeds. The other crates and the server reach the store only through it.
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
-  - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
-    `rest_kind`;
+  - the rest: `rest_until`, `rest_until:*`, `rest_kind`;
   - an account's unread mark, `usage_windows_unread:*` by the account, the moment its reader first found
     its token could not be read with (`docs/usage-windows.md`, 「The Claude account reader」);
   - the data move's mark, `users_moved_at`, and the user who administers the platform,
@@ -219,8 +218,8 @@ seeds. The other crates and the server reach the store only through it.
   them — a prompt file's text under the code tree's `prompts/roles/` and the declaration's description — its
   provider order and its compaction threshold, and each provider prompt the declaration names, its file's text
   under `prompts/roles/`, given once by the role and the provider whether the role was seeded then or before. A
-  supervisor and a repository are the deployment's to add; the registry's provider is named in an order by
-  the owner.
+  supervisor and a repository are the deployment's to add; the registry's provider is named on a road by the
+  owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.

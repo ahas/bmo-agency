@@ -88,8 +88,9 @@ pub struct OrderEntry {
   pub enabled: bool,
 }
 
-/// The providers a test lays down, in its order: each provider's switch thrown as it says, and every role's and
-/// supervisor's order put in that order, each keeping its own entry for every provider it names.
+/// The providers a test lays down, in its order: each provider's switch thrown as it says, and every role's
+/// order put in that order, each keeping its own entry for every provider it names. A supervisor stands on one
+/// road, which no order moves.
 pub async fn set_provider_order(db: &DatabaseConnection, order: &[OrderEntry]) -> Result<(), String> {
   for entry in order {
     store::run(
@@ -105,7 +106,7 @@ pub async fn set_provider_order(db: &DatabaseConnection, order: &[OrderEntry]) -
     .map_err(|why| why.detail)?;
   }
 
-  for table in ["roles", "supervisors"] {
+  for table in ["roles"] {
     let rows = store::all(db, &format!(r#"SELECT "name", "provider_order" FROM "{table}""#), vec![])
       .await
       .map_err(|why| why.detail)?;

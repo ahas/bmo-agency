@@ -8,8 +8,9 @@ carries both.
   accumulated context as material it must refuse. The demotion happens at the provider's side, at run
   time, with no advance signal; agency catches it after the fact by comparing the model a run reported
   against the model it launched.
-- When no account and no provider answers at all, agency walks the **account order** and then the
-  run's own **provider order** to find one that will (`docs/provider-order.md`).
+- When an account answers nothing at all, agency walks the **account order** inside the Claude Code road
+  to find one that will. It never leaves the run's one road for another provider or model
+  (`docs/provider-order.md`).
 
 Agency also runs the **sanitiser gate** on the words that cross a session boundary it owns, so the
 context the safeguard rereads does not keep catching on a passage that was said once and then stayed
@@ -147,7 +148,7 @@ model it launched, the account the run went out on, and the walk it runs when a 
 
 ### The mechanism
 
-- **A session is always launched on the model its provider order's entry names,** or its repository's
+- **A session is always launched on the model its road names,** or its repository's
   pin (`docs/provider-order.md`, `docs/repositories.md`, 「A pinned model」). A sibling is never chosen at
   launch; when the safeguard reads a session's context and refuses, the provider answers at run time
   with a lower same-family sibling instead. There is no flag that turns this off, and the run stream
@@ -215,7 +216,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   key every later run asks for — and carries beside it the model that actually answered.
 - **A turn on it goes out on the fallen model:** every later turn that resumes that session — the next
   job, the next stage of a co-work, a fold — is launched on the model that answered, not the one its
-  order's entry or its repository's pin names, since launching that model again only puts the same
+  road or its repository's pin names, since launching that model again only puts the same
   context back in front of the same safeguard. A turn that answers on the fallen model
   keeps the mark; one that falls further marks the lower model.
 - **The session's held state follows it:** the model and prefix held for the session are those of the
@@ -256,26 +257,24 @@ When a demotion first catches — when a healthy session first drops — two thi
   misread costs only one new session — the answer is not wrong — where a job quietly answering on a
   lower model and ending costs more.
 
-## When no account answers at all — the account order and the provider order
+## When no account answers at all — the account order
 
 - **Above demotion, one more layer.** Demotion is an account still answering, at a lower sibling. This
-  layer is an account answering nothing at all: the road then goes to the next account, and once no
-  account is left, to the next provider of the run's own provider order.
+  layer is an account answering nothing at all: the run then goes to the next account of the same road.
+  Once no account is left, the road cannot answer, and the run fails or waits as its road says; no other
+  provider or model is walked to.
 
-### Each supervisor and each role walks its own order
+### Each supervisor and each agent stands on one road
 
-- **There is no order shared by everything.** Every supervisor and every role carries a provider order of
-  its own, each provider once with the model, the effort and the thinking it runs on there, and a quota
-  share; a run goes out on the first provider of it with quota above the share that can answer now, falls
-  over on a limit or a failure, and comes back to the top at its next run (`docs/provider-order.md`). This
-  document adds what that walk does inside the Claude Code entry — the accounts — and what each provider
-  answers for itself as the walk asks it.
+- **There is no order of providers anywhere.** Every supervisor and every agent of a role stands on one road
+  — a provider, a model, the effort and the thinking — and its runs go out on it alone
+  (`docs/provider-order.md`). This document adds what happens inside the Claude Code road — the accounts — and
+  what each provider answers for itself as a run starts.
 - **The owner's switch on each provider stays one for the deployment:** a provider that is off cannot
-  answer now, so every order passes it over, and turning it on again returns it to its place in every
-  order that names it. The last provider left on is not turned off (`docs/provider-order.md`, 「The
-  owner's switch on a provider」).
-- **The Claude Code entry is itself a road with a list of accounts inside it** (「The Claude Code road is a
-  list of accounts」), walked the same way whichever order names it.
+  answer now, so no run goes out on a road of it, and turning it on again lets those roads answer. The last
+  provider left on is not turned off (`docs/provider-order.md`, 「The owner's switch on a provider」).
+- **The Claude Code road is itself a list of accounts** (「The Claude Code road is a list of accounts」),
+  walked the same way whichever row stands on it.
 - **Outside the console:** `bmo-agency agent --provider-on <provider>` and `--provider-off <provider>`
   change a provider's switch, and with no argument the switches show at the top of the listing.
 
@@ -339,11 +338,10 @@ When a demotion first catches — when a healthy session first drops — two thi
     refused.
   - Only where every account of the walk refused does the run end, on the login failure naming each account
     with its words and saying a person must sign in to it again.
-- **An order holds the providers; the Claude Code entry holds the accounts.** The account order is one
-  list for the deployment, beside every supervisor's and role's provider order, and it is what the Claude
-  Code entry of any order walks when its turn comes.
+- **A road names the provider; the Claude Code road holds the accounts.** The account order is one list for
+  the deployment, and it is what every run on the Claude Code road walks.
 - **The account order is each account's own place and on/off, held together,** so the two cannot
-  disagree and a turned-off account keeps its place. An order is refused unless it holds every
+  disagree and a turned-off account keeps its place. An account order is refused unless it holds every
   registered account once each with at least one on.
 - **With nothing said, the order is the order the accounts were added in, all on** — what a fresh
   installation has and what the owner resets it to. There is no stored default to remove, since the
@@ -461,8 +459,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   a node」), counted and warned about separately; a node login found gone is marked for the nodes alone,
   and the account's login here is neither marked nor passed over for it.
 - **A login that has ended is marked, and the mark is the walk's instruction:** the account's row says
-  it waits for a person, the walk passes it over, and its work moves to the next account and then the
-  next provider.
+  it waits for a person, the walk passes it over, and its work moves to the next account; with none left
+  the road cannot answer.
 - **The mark is lifted by the credential, not by anybody's word.** Signing in again writes a moment in
   the future, and the walk's own reading of that credential takes the mark off, so no console action is
   needed to put the account back in the order. An endpoint account's mark is lifted by its key file
@@ -489,8 +487,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 ### Availability: whether a provider can answer now
 
-- **An order sets only which providers and in what order, and the owner's switch only on and off.** Whether
-  a provider that is on can answer now, each provider answers for itself, out of its own member. It cannot
+- **A road sets only which provider and model, and the owner's switch only on and off.** Whether a provider
+  that is on can answer now, each provider answers for itself, out of its own member. It cannot
   answer for one of these reasons, and can otherwise:
   - **no credential on this machine** — the presence its member reads (`docs/provider-presence.md`):
     Codex's executable, OpenRouter's key, the gateway's key file and an offered registration — one with
@@ -501,42 +499,35 @@ When a demotion first catches — when a healthy session first drops — two thi
     at or below zero (`docs/usage-windows.md`, 「Balances」); a balance never read closes nothing;
   - **no login open** — where it holds logins, none of its logins is open by the account judgement
     below, each account's own reason beside it.
-- **A provider whose program does not carry a row's line is never in that row's order**
-  (`docs/provider-order.md`, 「What an order is」), so availability is asked only of providers that carry
+- **A provider whose program does not carry a row's line is never that row's road**
+  (`docs/provider-order.md`, 「What a road is」), so availability is asked only of providers that carry
   it. Whether a provider has quota is asked beside availability, never in place of it
   (`docs/usage-windows.md`, 「What reads a provider's quota」).
-- **A provider that cannot answer now is passed over** in its turn with its reason, and so is an account
-  the judgement closes.
+- **A road whose provider cannot answer now takes no run,** and says its reason; an account the judgement
+  closes is passed over inside the Claude Code road.
 
-### The provider order's choice
+### The road judgement
 
-- **One place decides where a run goes:** the provider order's choice (`docs/provider-order.md`,
-  「Choosing the provider」). It is asked for a supervisor's turn or a role's run as the run starts, and
-  answers where that run goes out now — the provider, the model, the effort and the thinking its order's
-  entry names there and, where the provider holds logins, the account — together with every provider it
-  passed ahead of that one and why each could not take it: no quota above the share, or unable to answer
-  now (「Availability: whether a provider can answer now」).
+- **One place judges a run's road:** the road judgement (`docs/provider-order.md`, 「Whether a road can
+  answer」). It is asked for a supervisor's turn or a role's run as the run starts, and answers whether that
+  run goes out now on its road — the provider, the model, the effort and the thinking the road names and,
+  where the provider holds logins, the account — or why it cannot: no quota above the share, or unable to
+  answer now (「Availability: whether a provider can answer now」).
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
-- **Runs that do not walk their own role's order** — a repository's pinned model, a run of a role whose order
-  is empty on the road of the supervisor that asks it (the `doppelganger` role as seeded), a session whose caller names its
-  provider and model — are `docs/provider-order.md`'s, 「Runs that do not walk their own role's order」; the
-  account walk inside the Claude Code entry is the same for each of them.
-- **Every line asks it, and none keeps a walk of its own:** a supervisor's turn, a job's launch and its
+- **Runs on another's road** — a repository's pinned model, a run of an agent that names no road on the road of
+  the supervisor that asks it (the `doppelganger` role as seeded), a session whose caller names its provider and
+  model — are `docs/provider-order.md`'s, 「Runs on another's road」; the account walk inside the Claude Code road
+  is the same for each of them.
+- **Every line asks it, and none keeps a judgement of its own:** a supervisor's turn, a job's launch and its
   relaunch, every other role's run, and the warming, which warms no provider that cannot answer now. The
-  choice knows no provider by name: every provider's answer is its own member's, and the choice only walks.
-- **Return comes with the next start, never mid-run.** The choice is made afresh as each run starts, so a
-  provider that has quota and can answer again carries the next one; a run already going finishes where
-  it went out and is never cut to move it back.
-- **A move is a fact, told once,** as `road-moved`, `road-returned` and `road-closed` for the supervisor or
-  the role whose runs moved (`docs/provider-order.md`, 「The facts told」); where the provider holds logins,
-  each provider named carries its account.
-- **When nothing answers, the run waits; it is never refused.** It is held with every provider's reason
-  and goes out once a provider of its order has quota and can answer again (`docs/provider-order.md`, 「When
-  every provider is out」). The sentence names what a person must do for the first provider a person can
-  reopen: an account waiting for a person, the sign-in command with that account's own configuration
-  directory in front of it, as the login notice words it; a spent balance, where its provider's member
-  says it is topped up. A provider that only waits for a window names the moment it reopens.
+  judgement knows no provider by name: every provider's answer is its own member's.
+- **A road that cannot answer is said, never stood in for.** A supervisor's turn fails at once with the
+  sentence; a job waits, held with it, and goes out once the road can (`docs/provider-order.md`, 「Whether a
+  road can answer」). The sentence names what a person must do where only a person can reopen the road: an
+  account waiting for a person, the sign-in command with that account's own configuration directory in front of
+  it, as the login notice words it; a spent balance, where its provider's member says it is topped up. A road
+  that only waits for a window names the moment it reopens.
 
 ### The account judgement
 
@@ -610,38 +601,29 @@ When a demotion first catches — when a healthy session first drops — two thi
   are each one process given the account their run is offered first, and a pieces-shaped turn on Claude
   Code takes the first open account the same way. Everything that can be launched again is carried
   account by account.
-- **Walking down:** if a run's provider has no quota above its share, cannot answer now, is not run or
-  ends with no answer, the run goes to the next provider of its own order (`docs/provider-order.md`,
-  「Falling over and coming back」). With Claude Code off, a run whose order begins with it starts from the
-  next provider of the order that can take it, and where none can, the run waits; it never goes out on a
-  provider its order does not name.
+- **Never walking off the road:** a run whose road has no quota above the share, cannot answer now, is not
+  run or ends with no answer goes out on no other provider or model (`docs/provider-order.md`, 「A road that
+  fails」). With Claude Code off, a supervisor whose road is on it fails its turns and a job on it waits.
 - **Who receives that failure, each in its own place:**
-  - **A supervisor's turn** goes on to the next provider of the supervisor's order; where none can take
-    it, the turn waits and its room is told by the receiver (`docs/supervisors.md`, 「Where a supervisor's
-    turn runs」). A failure that is the work's own — the provider refusing the request for its shape —
-    ends the turn failed rather than moving it. A turn stopped from outside goes on to no further
-    provider: the interrupt standing over its run ends the walk wherever it stands, a wait for a card
-    included, and the turn ends with the stop.
-  - **A job moves to the next provider rather than failing.** A job whose turn fails for its provider's
-    availability — the provider refusing its quota, its window, its balance or its credential, its last
-    open login closing under it, or the provider it went out on found unable to answer as the turn ends —
-    is launched again on the next provider of its role's order: the same job, item and lease, in the same
-    checkout, at most once on each provider in one job, its prompt opened with a line saying it continues
-    work already in the checkout. The job keeps each provider it went out on and why it moved, and its
-    report says so. Where no provider of the order can take it, the job waits, held with the reason, and
-    goes out again once one can; it is never failed for that. A job in a repository that pins a model
-    never moves: it waits while the pin cannot answer (`docs/repositories.md`, 「A pinned model」). A
-    failure of the work itself moves nothing and ends the job as it stands.
+  - **A supervisor's turn** ends failed with the failure, naming its road (`docs/supervisors.md`, 「Where a
+    supervisor's turn runs」); a failure that is the work's own — the provider refusing the request for its
+    shape — ends it failed alike. A turn stopped from outside ends with the stop, a wait for a card included.
+  - **A job waits for its road rather than failing.** A job whose turn fails for its provider's availability —
+    the provider refusing its quota, its window, its balance or its credential, its last open login closing
+    under it, or the provider it went out on found unable to answer as the turn ends — waits for its agent's
+    road, held with the reason, and goes out again on it once it can: the same job, item and lease, in the same
+    checkout, its prompt opened with a line saying it continues work already in the checkout. It is never
+    failed for that. A failure of the work itself moves nothing and ends the job as it stands.
   - **A job every account of which refused it ends on that refusal.** Where its turn ended on the login
-    failure of every account of the Claude Code walk refusing it, and no other provider of its order can
-    take it, the job ends failed with that failure, naming each account a person must sign in to, rather
-    than holding its seat and its checkout until the refusals' rests end.
-  - **A blocked road stays passed over for a while.** A road a supervisor's turn or a job walks off for its
-    provider's failure is blocked by that walk, and the harness blocks one through the boundary
-    (`docs/api.md`, 「road-blocks and launch-room」); either is passed over by the next runs whose order
-    reaches it while a later road of the order can answer (`docs/provider-order.md`, 「Falling over and
-    coming back」) — a minute for an outage, five for a refused access, fifteen or until its reset for a
-    limit; a block is the walk's memory of a failure, not one of the reasons a provider cannot answer now.
+    failure of every account of the Claude Code walk refusing it, the job ends failed with that failure,
+    naming each account a person must sign in to, rather than holding its seat and its checkout until the
+    refusals' rests end.
+  - **A blocked road stays passed over for a while.** A road a job's turn leaves for its provider's failure is
+    blocked, and the harness blocks one through the boundary (`docs/api.md`, 「road-blocks and launch-room」);
+    a run of a role that could take any free agent passes a blocked agent's road over while another agent's
+    road can answer (`docs/provider-order.md`, 「A road that fails」) — a minute for an outage, five for a
+    refused access, fifteen or until its reset for a limit; a road a run names alone is never passed over for
+    a block.
     On a provider whose models are services of their own, that road is the one registration that did not
     answer, and one registration going quiet leaves the others open (`docs/own-llm.md`).
     - **A turn stopped from outside closes no road:** a turn that ends without an answer while its job has
@@ -661,39 +643,35 @@ When a demotion first catches — when a healthy session first drops — two thi
   off while waiting for a lock is not launched anew, a request already running is left to finish, and
   Claude's run line is unchanged. While Claude is off, folding a session on Claude Code is deferred and
   session records preserved.
-- **A co-work order's stages** each go out on their role's order like any role's run, so a stage whose
-  role's first provider is off goes out on the next provider of that role's order, and the next stage's
-  reservation holds slots of its own role (`docs/role-slots.md`, 「Reserving slots」).
+- **A co-work order's stages** each go out on the road of the agent they are let in on like any role's run,
+  and the next stage's reservation holds slots of its own role (`docs/role-slots.md`, 「Reserving slots」).
 
 ### How a supervisor's turn and a role's run cross over
 
 - **A supervisor's turn** carries the request its caller assembled with recent conversation, and its tool
-  presence and write rights, as a common run contract, on whichever provider of its order takes it.
+  presence and write rights, as a common run contract, on its road.
 - **A role's run** carries its whole prompt — the platform's harness opening, the role's prompt and what
   the work hands in — its path, the tools and MCP configuration its line shows, and, in a repository's
   checkout, the repository's instructions and rules (`docs/repositories.md`, 「What a run in a repository
   is handed」). The rules go where each program keeps them beside its own default prompt
   (`docs/launch-lines.md`).
-  - **A job's turn crosses over on its role's order.** The launch asks the provider order's choice as the
-    job's work parts are read (`docs/api.md`, 「assignments and jobs」), so while the first provider of
-    the role's order has no quota or cannot answer, the job's turn is composed on the first provider of
-    the order that can take it and carries the same line, and the next job goes back to the top once it
-    can. Whichever provider it goes out on, the turn goes on in the role's session kept at that path on
-    that provider and model where one is valid (`docs/sessions.md`, 「A role's session」).
-- **A search or a browse run walks its role's order** like any role's run, each provider of the order one
-  whose program carries its line (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
+  - **A job's turn goes out on its agent's road.** The launch asks the road judgement as the job's work parts
+    are read (`docs/api.md`, 「assignments and jobs」), and the turn goes on in the role's session kept at that
+    path on that provider and model where one is valid (`docs/sessions.md`, 「A role's session」).
+- **A search or a browse run goes out on the road of its role's agent** like any role's run, each such road
+  one whose program carries its line (`docs/agent-roles.md`, 「The voyager and the seeker roles」).
 
 ### A turned-off provider is not used
 
 - **What is skipped:** no run goes out on a turned-off provider — a supervisor's turn, a role's run, a job
   in a repository that pins one of its models, a session whose caller names it — and its sessions are not
-  warmed, since turning off is the owner saying not to use that provider and no row's order overrides
-  that. A turned-off provider is one that cannot answer now, so a run goes on to the next provider of its
-  order, and a job on a pin waits (`docs/repositories.md`, 「A pinned model」).
-- **A turned-off account is passed over the same way:** the Claude Code entry does not walk it and its
+  warmed, since turning off is the owner saying not to use that provider and no row overrides that. A
+  turned-off provider is one that cannot answer now, so a supervisor's turn on it fails and a job on it waits
+  (`docs/repositories.md`, 「A pinned model」).
+- **A turned-off account is passed over the same way:** the Claude Code road does not walk it and its
   sessions are not warmed.
-- **No per-model off:** an order names one model on each provider, so turning off a provider takes it out
-  of every order's walk, and changing a row's model on it is done on that row's order.
+- **No per-model off:** turning off a provider closes every road on it, and changing a row's model is done on
+  that row's road.
 
 ### Warming only enabled providers
 
@@ -729,18 +707,18 @@ When a demotion first catches — when a healthy session first drops — two thi
   ceiling, thinking default and request wait. The road publishes no cache lifetime, and no run of it is
   warmed.
 
-### The registered models are a provider of an order like any other
+### The registered models are a provider like any other
 
 - **Only when:** the registry's provider stands only when the gateway's key file is present, and answers
-  with the registration the order's entry names, or a repository's pin.
+  with the registration a road names, or a repository's pin.
 - **How:** a tool-less run is one request to the gateway; a run with tools is Claude Code on the gateway
-  (`docs/own-llm.md`). Whether thinking is on and the ceiling of answer tokens are named on the order's
-  entry for the registry (`docs/provider-order.md`, 「What an order is」).
+  (`docs/own-llm.md`). Whether thinking is on and the ceiling of answer tokens are named on the road
+  (`docs/provider-order.md`, 「What a road is」).
 
 ### The DeepSeek road is a member of the gateway
 
 - **A provider of its own.** DeepSeek's models are served by the `deepseek` provider rather than by the
-  registry, and so take their own entry in an order, with its own quota read from its balance
+  registry, and so are roads of their own provider, with its own quota read from its balance
   (`docs/usage-windows.md`, 「What reads a provider's quota」). The members the deployment names for the road
   carry its key file, `env/deepseek.key`, and its window, answer ceiling, thinking default and request wait.
 - **How a run goes out.** Claude Code on the gateway under the member the run names: a supervisor or a
@@ -748,24 +726,20 @@ When a demotion first catches — when a healthy session first drops — two thi
   The session is kept and resumed like any Claude Code session, and what a turn spent is reported off the
   transcript.
 - **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. `none` is a run
-  without thinking, and so is an order's entry with thinking turned off. The word goes out in the effort
+  without thinking, and so is a road with thinking turned off. The word goes out in the effort
   header, which the gateway writes into the request its backend reads; the Claude Code effort word a run is
   launched with is the provider's own mapping of it.
-- **Which model a row runs on there** is its order's entry for DeepSeek, a member of the road at the
-  effort it names; the seeded rows' entries are the roles policy's, and the owner changes them on the
-  row's order (`docs/agent-roles.md`, 「The roles the policy seeds」).
+- **Which model a row runs on there** is its road's, a member of the DeepSeek road at the effort it names;
+  the seeded agents' roads are the roles policy's, and the owner changes them on the row
+  (`docs/agent-roles.md`, 「The roles the policy seeds」).
 - **What the provider is not.** Its models are not registrations, but its runs reach them through the model
   gateway; nothing on this road is placed on a work node.
 
-### The models an order's entries name
+### The models a road names
 
 - **Not a fixed launch line:** the console reads each provider's models (`docs/provider-order.md`,
-  「Models a provider holds」) and each model's supported efforts, and lets an entry's model and effort be
-  changed per supervisor and per role. So changing one row's entry moves no other row's.
-- **The grounds for a seeded entry:** a seeded row's entries on the providers after its first are the
-  closest same-method match for its first entry's model, read from an independent benchmark the console
-  cites, never a claim of exact equivalence. A single selector to set every row's order at once is not
-  offered; a row's preferred provider is set by putting that provider first in its own order.
+  「Models a provider holds」) and each model's supported efforts, and lets a road's model and effort be
+  changed per supervisor and per agent. So changing one row's road moves no other row's.
 
 ### Keeping the mode across cache, session and usage
 
@@ -780,11 +754,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **Each window and run belongs to a slot:** the provider that reported it, and the account too where
   that provider holds logins, built by one constructor so no writer decides for itself whether an account
   belongs on a row. Two accounts report windows of the same names, so neither can overwrite the other.
-- **Which provider and account serve a row now is answered in one place** — the provider its last run
-  went out on, kept beside the supervisor or the role (`docs/provider-order.md`, 「The facts told」), and,
-  where that provider holds logins, the login the provider walks to now. A row answering on its own first
-  provider is the road it chose, so it never moves what every other reader takes for the agent serving
-  now.
+- **Which provider and account serve a row now is answered in one place** — the row's road, and, where its
+  provider holds logins, the login the provider walks to now.
 - **Sessions follow the same principle:** Claude Code sessions and Codex threads are shown with their own
   mode and model, a Claude session with the account it was opened under. A dsh session stands in
   bmo-tui's pane across its turns, but agency records no id for it, so an OpenRouter answer offers no
@@ -809,27 +780,17 @@ When a demotion first catches — when a healthy session first drops — two thi
   supervisor standing on an own LLM service, and, if a real turn is running in the same scope, skips that
   round without waiting.
 
-### While a fallback stands, the room is not silent
+### A supervisor's turn on a road other than Claude Code
 
-- **A rest is one account's,** so a room falls quiet only when no account and no provider will answer it.
-  Even where every account rests, if the supervisor's order holds a provider other than Claude Code that
-  has quota and can answer now, the supervisor keeps taking the room (`GET /stand-in`); a login is
-  closed for it exactly as the account judgement closes it (「The account judgement」).
-- **Which model it switched to is operational information,** so it is not told to other rooms. The owner
-  is not told before the first answer either; only when a provider below the first of the supervisor's
-  order first answers, or later drops to another, does agency mark the road answering with the moment
-  the fallback began and publish `fallback-answering` with the owner, the substitute that answered before
-  where a fallback already stood, and the provider and model answering now (`docs/api.md`, 「Events」).
-  Telling the owner's private chat, and in what words, is the consumer's. A supervisor answering on the
-  first provider of its order is on the road it chose, not a fallback, so it is neither published nor
-  marked. When the first provider of its order answers again with a real session id, the fallback mark
-  is cleared and `fallback-ended` is published with the stand-in that answered last; telling the owner it
-  is back is the consumer's.
-- **How a supervisor's turn goes out on a stand-in.** A turn takes the supervisor's own order
-  (`docs/provider-order.md`, 「Choosing the provider」): each provider of it that has quota and can answer
-  now, in order, on the model and effort its entry names there, until one answers; where the walk reaches
-  Claude Code, the turn goes out on Claude Code's own session. A stand-in stands in the supervisor's own
-  pane as that provider's program, on the chat line's system prompt, tools and MCP configuration:
+- **A rest is one Claude account's,** so it closes only a road on Claude Code. A supervisor whose road is on
+  another provider keeps taking its rooms while every Claude account rests, and the room holder asks
+  agency whether a supervisor's road answers now rather than judging it (`GET /supervisors/{supervisorName}/road`,
+  `docs/api.md`, 「supervisors」); a login is closed for it exactly as the account judgement closes it
+  (「The account judgement」).
+- **How the turn goes out.** The turn takes the supervisor's road (`docs/provider-order.md`, 「Whether a road
+  can answer」), on the model and effort it names; on Claude Code it goes out on Claude Code's own session.
+  On another provider the program stands in the supervisor's own pane as that provider's program, on the
+  chat line's system prompt, tools and MCP configuration:
   - **Codex** on the supervisor's kept thread for that model and effort, opened afresh where Codex no longer
     holds it, and the thread that answered kept for the next turn;
   - **OpenRouter** through bmo-tui, which keeps one dsh session on the Agent Client Protocol, the turn put
@@ -841,18 +802,15 @@ When a demotion first catches — when a healthy session first drops — two thi
     system prompt's tools paragraph names dsh's own tools; no upstream is pinned, since agency keeps no
     record of a warmed one;
   - **DeepSeek** through bmo-tui in the same way, the overlay's route DeepSeek's own API on the model the
-    entry names, with the road's key in the program's environment (「The DeepSeek road is a member of the
+    road names, with the road's key in the program's environment (「The DeepSeek road is a member of the
     gateway」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 
-  A stand-in that does not answer passes the turn to the next provider of the order. A turn whose words
-  never became a turn — a pane left in a dialog somebody opened, the words unsubmitted — is not a road
-  that did not answer: the walk ends there, nothing is read as closed, and the session the turn would have
-  gone on is left as it stands. Where no provider of the order answered, the road is closed and told once
-  (`road-closed`), and the turn waits, never refused, until a provider of the order has quota and can
-  answer again (`docs/provider-order.md`, 「When every provider is out」). The session the supervisor's row
-  keeps across rooms on Claude Code is Claude Code's, and a stand-in's turn leaves it as it stands.
+  A turn whose road does not answer ends failed with why; no other provider is tried. A turn whose words
+  never became a turn — a pane left in a dialog somebody opened, the words unsubmitted — is not a road that
+  did not answer: nothing is read as closed, and the session the turn would have gone on is left as it
+  stands.
 
 ### The response options each road receives
 

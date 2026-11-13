@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
+use policy::roles::ROLES;
+
 use crate::order::{Entry, Order};
 
 /// The mark a supervisor of an account leads its system prompt with (docs/agent-ownership.md, 「What the
@@ -62,7 +64,8 @@ pub struct Supervisor {
   pub turn_shape: String,
   /// The repository its TODO items go to.
   pub repository: Option<String>,
-  pub order: Order,
+  /// The one road its turns go out on, where its row names one (docs/provider-order.md, 「What a road is」).
+  pub road: Option<Entry>,
   /// For each provider, whether its prefix is kept warm while idle there.
   pub warming: BTreeMap<String, bool>,
   pub fold_ratio: f64,
@@ -78,8 +81,27 @@ pub struct Supervisor {
 
 impl Supervisor {
   pub fn of(row: &QueryResult) -> Result<Self, Fault> {
-    let order: String = row.try_get("", "provider_order")?;
     let warming: String = row.try_get("", "warming")?;
+    let provider: Option<String> = row.try_get("", "provider")?;
+    let model: Option<String> = row.try_get("", "model")?;
+    let road = provider
+      .filter(|provider| !provider.is_empty())
+      .zip(model)
+      .map(|(provider, model)| Entry {
+        provider,
+        model,
+        effort: row
+          .try_get::<Option<String>>("", "effort")
+          .ok()
+          .flatten()
+          .filter(|effort| !effort.is_empty()),
+        thinking: row
+          .try_get::<Option<String>>("", "thinking")
+          .ok()
+          .flatten()
+          .filter(|thinking| !thinking.is_empty()),
+        answer_tokens: row.try_get("", "answer_tokens").ok().flatten(),
+      });
 
     Ok(Self {
       name: row.try_get("", "name")?,
@@ -94,8 +116,7 @@ impl Supervisor {
       session_scope: row.try_get("", "session_scope")?,
       turn_shape: row.try_get("", "turn_shape")?,
       repository: row.try_get("", "repository")?,
-      order: Order::of_row(&order, row.try_get("", "quota_share")?)
-        .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
+      road,
       warming: serde_json::from_str(&warming).unwrap_or_default(),
       fold_ratio: row.try_get("", "fold_ratio")?,
       card_rank: row.try_get::<Option<i32>>("", "card_rank")?.and_then(|rank| u32::try_from(rank).ok()),
@@ -113,21 +134,20 @@ impl Supervisor {
     self.warming.get(provider).copied().unwrap_or(false)
   }
 
-  /// The road it stands on now, which a run that follows it goes out on: the provider, model and effort its
-  /// last turn went out on, else its order's first; none where it names no provider
-  /// (docs/provider-order.md, 「Runs that do not walk their own role's order」).
+  /// The road it stands on, which its turns and a run that follows it go out on; none where its row names no
+  /// road (docs/provider-order.md, 「Runs on another's road」).
   pub fn road(&self) -> Option<Entry> {
-    let stands = self.last_mode.clone().filter(|mode| !mode.is_empty()).zip(self.last_model.clone()).map(
-      |(provider, model)| Entry {
-        effort: self.last_effort.clone().filter(|effort| !effort.is_empty()),
-        thinking: self.order.entry(&provider).and_then(|entry| entry.thinking.clone()),
-        answer_tokens: self.order.entry(&provider).and_then(|entry| entry.answer_tokens),
-        provider,
-        model,
-      },
-    );
+    self.road.clone()
+  }
 
-    stands.or_else(|| self.order.first().cloned())
+  /// Its road as the road judgement takes it: the one road, at the policy's quota share, nothing forced over it
+  /// and nothing after it (docs/provider-order.md, 「Whether a road can answer」).
+  pub fn order(&self) -> Order {
+    Order {
+      entries: self.road.iter().cloned().collect(),
+      quota_share: ROLES.quota_share,
+      forced: None,
+    }
   }
 }
 

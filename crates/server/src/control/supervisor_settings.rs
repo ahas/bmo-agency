@@ -143,21 +143,18 @@ fn pieces(row: &QueryResult) -> bool {
     .is_ok_and(|settings| settings.is_some_and(|settings| settings.shape == Shape::Pieces))
 }
 
-// A supervisor's order as its row holds it.
-fn order_of(row: &QueryResult) -> Result<crate::order::Order, sea_orm::DbErr> {
-  Ok(crate::order::Order::of_row(
-    &row.try_get::<String>("", "provider_order")?,
-    row.try_get("", "quota_share")?,
-  ))
+// A supervisor's one road as its row holds it, where it names one.
+fn road_of(row: &QueryResult) -> Result<Option<crate::order::Entry>, Fault> {
+  Ok(crate::supervisors::Supervisor::of(row)?.road)
 }
 
-/// The registration a supervisor's order runs on at the registry's provider, where it names one.
-fn pinned_registration(row: &QueryResult) -> Result<Option<String>, sea_orm::DbErr> {
-  Ok(order_of(row)?.entry(PROVIDER).map(|entry| entry.model.clone()))
+/// The registration a supervisor's road runs on, where its road stands on the registry's provider.
+fn pinned_registration(row: &QueryResult) -> Result<Option<String>, Fault> {
+  Ok(road_of(row)?.filter(|road| road.provider == PROVIDER).map(|road| road.model))
 }
 
-fn thinking_of(row: &QueryResult) -> Result<Option<bool>, sea_orm::DbErr> {
-  Ok(order_of(row)?.first().and_then(crate::order::Entry::thinks))
+fn thinking_of(row: &QueryResult) -> Result<Option<bool>, Fault> {
+  Ok(road_of(row)?.as_ref().and_then(crate::order::Entry::thinks))
 }
 
 // A number as a sentence writes it: whole numbers grouped by thousands.
@@ -288,12 +285,11 @@ async fn system<C: ConnectionTrait>(
   )
 }
 
-// The provider and model a supervisor's order names first.
+// The provider and model of a supervisor's road.
 async fn route_of(db: &DatabaseConnection, agent: &str) -> Option<(String, String)> {
-  let held = crate::supervisors::named(db, agent).await.ok()??;
-  let first = held.order.first()?;
+  let road = crate::supervisors::named(db, agent).await.ok()??.road?;
 
-  Some((first.provider.clone(), first.model.clone()))
+  Some((road.provider, road.model))
 }
 
 /// One supervisor as a screen shows it, each room by the title the room's owner answers.
@@ -581,34 +577,26 @@ async fn write(
 ) -> Result<bool, Fault> {
   let at = now_ms() / 1000;
   let mut fields_changed = vec![];
-  let mut order = order_of(row)?;
-  let held_registration = order.entry(PROVIDER).map(|entry| entry.model.clone());
+  let mut road = road_of(row)?;
+  let held_registration = pinned_registration(row)?;
 
-  // A registration named stands as the registry's entry of the supervisor's order, at its head; none takes the
-  // registry's entry out.
-  match &saved.pin {
-    Some(Some(registration)) if held_registration.as_ref() != Some(registration) => {
-      order.entries.retain(|entry| entry.provider != PROVIDER);
-      order.entries.insert(
-        0,
-        crate::order::Entry {
-          provider: PROVIDER.to_owned(),
-          model: registration.clone(),
-          effort: None,
-          thinking: None,
-          answer_tokens: None,
-        },
-      );
-    }
-    Some(None) if held_registration.is_some() && order.entries.len() > 1 => {
-      order.entries.retain(|entry| entry.provider != PROVIDER);
-    }
-    _ => {}
+  // A registration named moves the supervisor's road to it on the registry's provider; none leaves the road as it
+  // stands, since a supervisor always names a road.
+  if let Some(Some(registration)) = &saved.pin
+    && held_registration.as_ref() != Some(registration)
+  {
+    road = Some(crate::order::Entry {
+      provider: PROVIDER.to_owned(),
+      model: registration.clone(),
+      effort: None,
+      thinking: None,
+      answer_tokens: None,
+    });
   }
 
   if saved.thinking != thinking_of(row)? {
-    for entry in &mut order.entries {
-      entry.thinking = saved.thinking.map(|on| if on { "on" } else { "off" }.to_owned());
+    if let Some(road) = road.as_mut() {
+      road.thinking = saved.thinking.map(|on| if on { "on" } else { "off" }.to_owned());
     }
 
     fields_changed.push("thinking".to_owned());
@@ -616,8 +604,17 @@ async fn write(
 
   run(
     db,
-    r#"UPDATE "supervisors" SET "provider_order" = $1 WHERE "name" = $2"#,
-    vec![order.entries_text().into(), row.try_get::<String>("", "name")?.into()],
+    r#"UPDATE "supervisors" SET "provider" = $1, "model" = $2, "effort" = $3, "thinking" = $4,
+         "answer_tokens" = $5
+       WHERE "name" = $6"#,
+    vec![
+      road.as_ref().map(|road| road.provider.clone()).into(),
+      road.as_ref().map(|road| road.model.clone()).into(),
+      road.as_ref().and_then(|road| road.effort.clone()).into(),
+      road.as_ref().and_then(|road| road.thinking.clone()).into(),
+      road.as_ref().and_then(|road| road.answer_tokens).into(),
+      row.try_get::<String>("", "name")?.into(),
+    ],
   )
   .await?;
 

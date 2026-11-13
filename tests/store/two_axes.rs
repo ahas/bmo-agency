@@ -321,27 +321,14 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
   );
 
   let chat = row(&scratch, "supervisors", "bmo").await;
-  // The route's provider first, then the owner's order, each on the Supervisor tier's model there.
+  let text = |column: &str| chat.try_get::<Option<String>>("", column).unwrap();
+  // The route's provider stood first in the order the two axes built, and a supervisor keeps that first entry as
+  // its one road, at the supervisor's own effort (docs/provider-order.md, 「What a road is」).
   assert_eq!(
-    order(&chat),
-    pairs(&[
-      ("deepseek", "deepseek-flash"),
-      ("registered", "flash-next"),
-      ("claude-code", "claude-opus-5-5"),
-      ("codex", "gpt-5.6-sol"),
-      ("openrouter", "nemotron"),
-    ])
+    (text("provider"), text("model"), text("effort")),
+    (Some("deepseek".to_owned()), Some("deepseek-flash".to_owned()), Some("max".to_owned()))
   );
-  let entries: Vec<Value> =
-    serde_json::from_str(&chat.try_get::<String>("", "provider_order").unwrap()).unwrap();
-  assert_eq!(
-    entries[0]["effort"], "max",
-    "the supervisor's own effort stands on every entry taking a level"
-  );
-  assert_eq!(entries[1]["effort"], Value::Null, "a registered model takes no level");
-  assert_eq!(entries[1]["thinking"], "on");
   assert_eq!(chat.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
-  assert_eq!(chat.try_get::<f64>("", "quota_share").unwrap(), 0.01);
   // The row marked as answering the rooms that name none is the research supervisor once the mark goes.
   assert_eq!(
     scratch
@@ -357,9 +344,12 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
 
   let supervisor = row(&scratch, "supervisors", "supervisor").await;
   assert_eq!(
-    order(&supervisor),
-    pairs(&[("registered", "flash-next")]),
-    "a fixed model is the whole order"
+    (
+      supervisor.try_get::<Option<String>>("", "provider").unwrap(),
+      supervisor.try_get::<Option<String>>("", "model").unwrap(),
+    ),
+    (Some("registered".to_owned()), Some("flash-next".to_owned())),
+    "a fixed model is the whole road"
   );
   assert_eq!(supervisor.try_get::<f64>("", "fold_ratio").unwrap(), 0.95);
   assert_eq!(

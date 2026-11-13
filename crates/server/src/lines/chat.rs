@@ -666,16 +666,25 @@ pub async fn chat_run(
     // A model the caller named belongs to the provider it named beside it, which this line does not
     // know; its agent's own level is the whole of what the chat line hands it.
     Some(model) => (model.to_owned(), reasoning.level.clone().unwrap_or_default(), None),
+    // The supervisor's one road: on Claude Code its effort is read as Claude Code takes it; on another provider
+    // the road's own program carries the turn, and the run only carries the road's model and effort.
     None => {
-      let entry = crate::order::supervisor_entry(&ground.db, agent, CLAUDE).await.map_err(fault)?;
-      let effort =
-        effort_of(ground, machine, CLAUDE, &entry.model, entry.effort.as_deref(), Some(&reasoning))
+      let road = crate::supervisors::named(&ground.db, agent)
+        .await
+        .map_err(|why| fault(why.detail))?
+        .and_then(|held| held.road)
+        .ok_or_else(|| fault(format!("{agent} names no road to go out on")))?;
+      let effort = if road.provider == CLAUDE {
+        effort_of(ground, machine, CLAUDE, &road.model, road.effort.as_deref(), Some(&reasoning))
           .await?
-          .unwrap_or_default();
+          .unwrap_or_default()
+      } else {
+        road.effort.clone().or_else(|| reasoning.level.clone()).unwrap_or_default()
+      };
 
-      held_thinking = entry.thinks();
+      held_thinking = road.thinks();
 
-      (entry.model, effort, None)
+      (road.model, effort, None)
     }
   };
   let thinking = held_thinking.or(reasoning.thinking).unwrap_or(true);
@@ -1218,8 +1227,8 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
   format!("{:x}", Sha256::digest(serde_json::to_string(&prefix).unwrap_or_default().as_bytes()))
 }
 
-/// The road a stand-in step's turn goes out on (docs/cache-fallback.md, 「While a fallback stands, the room
-/// is not silent」), with what it holds of the turn beside the step.
+/// The road a step's turn on a provider other than Claude Code goes out on (docs/cache-fallback.md, 「A
+/// supervisor's turn on a road other than Claude Code」), with what it holds of the turn beside the step.
 pub enum Door {
   /// Codex, on the agent's kept thread for the step's model and effort where it keeps one.
   Codex { thread: Option<String> },

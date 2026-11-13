@@ -955,9 +955,9 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
 
   scratch
     .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "created_at",
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "created_at",
            "updated_at")
-         VALUES ('bmo', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 0, 0)"#,
+         VALUES ('bmo', 'agent', 'window', 'deepseek', 'deepseek-flash', 0, 0)"#,
       vec![],
     )
     .await;

@@ -42,7 +42,6 @@ mod run_ledger;
 mod run_log;
 pub mod session_ops;
 pub mod sessions;
-pub mod stand_ins;
 mod supervisor_removal;
 pub mod supervisor_reset;
 mod supervisor_routes;

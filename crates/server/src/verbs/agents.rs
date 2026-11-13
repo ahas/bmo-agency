@@ -1,5 +1,6 @@
 //! The agents the bot runs and their settings, as a shell reads and changes them (docs/agent-control.md):
-//! the provider order and, inside its Claude Code entry, the order of the Claude accounts; the accounts
+//! each supervisor's road and each role's agents' roads, and, inside the Claude Code road, the order of the
+//! Claude accounts; the accounts
 //! themselves; the registered models; a work key's road and login; a repository's support checkout count;
 //! an agent's own thinking, effort and gates; and the listing of every agent. Each change is the one the
 //! console makes, refused in the same sentence.
@@ -36,8 +37,6 @@ use store::all;
 /// What the verb is asked: every flag it reads.
 #[derive(clap::Parser, Debug, Default, Clone)]
 pub struct AgentsArgs {
-  #[arg(long)]
-  pub provider_order: Option<String>,
   #[arg(long)]
   pub provider_on: Option<String>,
   #[arg(long)]
@@ -895,7 +894,7 @@ async fn listing(db: &DatabaseConnection) -> Result<Vec<String>, VerbError> {
   };
 
   for supervisor in crate::supervisors::every(db).await.map_err(|why| VerbError::Refused(why.detail))? {
-    lines.push(format!("supervisor {}: {}", supervisor.name, entries(&supervisor.order)));
+    lines.push(format!("supervisor {}: {}", supervisor.name, entries(&supervisor.order())));
   }
 
   for role in crate::agent_roles::every(db).await.map_err(|why| VerbError::Refused(why.detail))? {

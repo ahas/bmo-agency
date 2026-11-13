@@ -51,7 +51,7 @@ impl Sessions {
 }
 
 /// One entry of a seeded role's provider order: the provider, once, and the model, the effort and the thinking
-/// the role runs on there (docs/provider-order.md, 「What an order is」).
+/// the role runs on there (docs/provider-order.md, 「What a road is」).
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct OrderEntry {
@@ -116,7 +116,7 @@ pub struct Roles {
   pub name_most: usize,
   /// The most characters a role's label holds.
   pub label_most: usize,
-  /// The remaining quota at or below which a provider of an order is passed over, where a row sets none.
+  /// The remaining quota at or below which a road's provider is read as having none, one for every road.
   pub quota_share: f64,
   /// The mark a screen shows beside every supervisor, role and repository.
   pub icons: BTreeMap<String, String>,

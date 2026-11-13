@@ -91,9 +91,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
       .count(
         r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'supervisor-a'
            AND "session_scope" = 'room' AND "turn_shape" = 'pieces'
-           AND jsonb_array_length("provider_order"::jsonb) = 1
-           AND "provider_order"::jsonb -> 0 ->> 'provider' = 'claude-code'
-           AND "provider_order"::jsonb -> 0 ->> 'model' = 'm'
+           AND "provider" = 'claude-code' AND "model" = 'm'
            AND "repository" = 'helper' AND "brain_folder" = 'agents/supervisor-a' AND "builtin" = 0"#,
         vec![],
       )

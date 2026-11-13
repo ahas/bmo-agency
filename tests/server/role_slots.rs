@@ -166,10 +166,9 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_doppe
   deepseek_balance(&ground, 5.0).await;
   scratch
     .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
-           "last_model", "last_effort", "created_at", "updated_at")
-         VALUES ('chat', 'agent', 'window', '[{"provider":"claude-code","model":"claude-opus-5"}]', 'deepseek',
-           'deepseek-flash', 'high', 0, 0)"#,
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', 'deepseek', 'deepseek-flash', 'high', 0, 0)"#,
       vec![],
     )
     .await;
@@ -563,10 +562,9 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
 
   scratch
     .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
-           "last_model", "last_effort", "created_at", "updated_at")
-         VALUES ('chat', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash","effort":"max"}]',
-           NULL, NULL, NULL, 0, 0)"#,
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', 'deepseek', 'deepseek-flash', 'max', 0, 0)"#,
       vec![],
     )
     .await;
@@ -926,10 +924,9 @@ async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
   deepseek_balance(&ground, 5.0).await;
   scratch
     .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
-           "last_model", "last_effort", "created_at", "updated_at")
-         VALUES ('chat', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 'deepseek',
-           'deepseek-flash', 'max', 0, 0)"#,
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', 'deepseek', 'deepseek-flash', 'max', 0, 0)"#,
       vec![],
     )
     .await;
@@ -1111,10 +1108,9 @@ async fn an_accounts_runs_take_its_own_agents_and_count_against_its_own_cap() {
   deepseek_balance(&ground, 5.0).await;
   scratch
     .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
-           "last_model", "last_effort", "created_at", "updated_at", "owner_account")
-         VALUES ('secretary-a', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 'deepseek',
-           'deepseek-flash', 'high', 0, 0, 7)"#,
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at", "owner_account")
+         VALUES ('secretary-a', 'agent', 'window', 'deepseek', 'deepseek-flash', 'high', 0, 0, 7)"#,
       vec![],
     )
     .await;

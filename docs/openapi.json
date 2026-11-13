@@ -59,7 +59,6 @@
     "overtime-request.created",
     "overtime-request.changed",
     "rest.changed",
-    "fallback.changed",
     "account.changed",
     "usage.changed",
     "road.changed",
@@ -3819,44 +3818,6 @@
         }
       }
     },
-    "/stand-in": {
-      "get": {
-        "operationId": "getStandIn",
-        "tags": [
-          "rest"
-        ],
-        "summary": "Whether a stand-in answers the agent named while the rest closes Claude Code's road, and on which provider and model.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StandIn"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "parameters": [
-          {
-            "name": "agent",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "the agent whose road is asked about"
-            }
-          }
-        ]
-      }
-    },
     "/usage": {
       "get": {
         "operationId": "getUsage",
@@ -5494,7 +5455,7 @@
         "tags": [
           "supervisors"
         ],
-        "summary": "One supervisor: its order, warming, threshold, gates, voice.",
+        "summary": "One supervisor: its road, warming, threshold, gates, voice.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5534,7 +5495,7 @@
         "tags": [
           "supervisors"
         ],
-        "summary": "Change a supervisor's order, warming, threshold, gates, sampling or voice.",
+        "summary": "Change a supervisor's road, warming, threshold, gates, sampling or voice.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5705,6 +5666,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SupervisorResetPoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/supervisors/{supervisorName}/road": {
+      "get": {
+        "operationId": "getSupervisorRoad",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "A supervisor's one road, and whether it can take a turn now.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorRoad"
                 }
               }
             }
@@ -10663,9 +10666,6 @@
             "type": "array",
             "items": true
           },
-          "answering": {
-            "type": "boolean"
-          },
           "active": {
             "anyOf": [
               {
@@ -10689,7 +10689,6 @@
         },
         "required": [
           "routes",
-          "answering",
           "active",
           "accounts"
         ],
@@ -11962,36 +11961,6 @@
         },
         "description": "The body that writes a rest down."
       },
-      "StandIn": {
-        "type": "object",
-        "properties": {
-          "answers": {
-            "type": "boolean"
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The first provider of its order other than Claude Code that can answer now, or null.",
-            "default": null
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The model its order names on that provider, or null.",
-            "default": null
-          }
-        },
-        "required": [
-          "answers",
-          "provider",
-          "model"
-        ],
-        "description": "StandIn: whether a stand-in answers the agent named now, and on which provider and model."
-      },
       "Usage": {
         "type": "object",
         "properties": {
@@ -12828,136 +12797,20 @@
             ],
             "description": "the repository its TODO items go to"
           },
-          "order": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            }
-          },
-          "quotaShare": {
-            "type": "number",
-            "format": "double",
-            "description": "a fraction from 0 to 1"
-          },
-          "active": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ActiveProvider"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "the provider the owner forced as its active provider, or null where its order chooses",
-            "default": null
-          },
-          "warming": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "description": "for each provider of its order, whether its prefix is kept warm there"
-          },
-          "foldRatio": {
-            "type": "number",
-            "format": "double",
-            "description": "its compaction threshold"
-          },
-          "cardRank": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "uint32",
-            "minimum": 0,
-            "description": "the rank of the demands of the runs for it, where it holds one",
-            "default": null
-          },
-          "gates": true,
-          "voice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sampling": true,
           "provider": {
             "type": [
               "string",
               "null"
             ],
-            "description": "what its last turn went out on"
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "waitingFor": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "why its turn waits where no provider of its order has quota, or null"
-          },
-          "seeded": {
-            "type": "boolean",
-            "description": "Whether the deployment seeds it: its removal is refused 409 `seeded`.",
-            "default": false
-          },
-          "resetPoint": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.",
+            "description": "its one road's provider, every turn of it going out there; null where its row names no road",
             "default": null
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "ownerAccount",
-          "aliases",
-          "icon",
-          "sessionScope",
-          "turnShape",
-          "brainFolder",
-          "repository",
-          "order",
-          "quotaShare",
-          "active",
-          "warming",
-          "foldRatio",
-          "cardRank",
-          "gates",
-          "voice",
-          "sampling",
-          "provider",
-          "model",
-          "effort",
-          "waitingFor",
-          "seeded",
-          "resetPoint"
-        ],
-        "description": "Supervisor: one supervisor as its row holds it, and what it stands on now."
-      },
-      "OrderEntry": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
           },
           "model": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
           },
           "effort": {
             "type": [
@@ -12983,32 +12836,77 @@
             "format": "int64",
             "description": "on the registry's provider, the answer ceiling; null for the registration's own",
             "default": null
+          },
+          "warming": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "for each provider, whether its prefix is kept warm there"
+          },
+          "foldRatio": {
+            "type": "number",
+            "format": "double",
+            "description": "its compaction threshold"
+          },
+          "cardRank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "description": "the rank of the demands of the runs for it, where it holds one",
+            "default": null
+          },
+          "gates": true,
+          "voice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sampling": true,
+          "seeded": {
+            "type": "boolean",
+            "description": "Whether the deployment seeds it: its removal is refused 409 `seeded`.",
+            "default": false
+          },
+          "resetPoint": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.",
+            "default": null
           }
         },
         "required": [
+          "name",
+          "label",
+          "ownerAccount",
+          "aliases",
+          "icon",
+          "sessionScope",
+          "turnShape",
+          "brainFolder",
+          "repository",
           "provider",
           "model",
           "effort",
           "thinking",
-          "answerTokens"
+          "answerTokens",
+          "warming",
+          "foldRatio",
+          "cardRank",
+          "gates",
+          "voice",
+          "sampling",
+          "seeded",
+          "resetPoint"
         ],
-        "description": "OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there."
-      },
-      "ActiveProvider": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "model"
-        ],
-        "description": "ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider."
+        "description": "Supervisor: one supervisor as its row holds it, on its one road."
       },
       "SupervisorRegistered": {
         "type": "object",
@@ -13045,35 +12943,31 @@
           "label": {
             "type": "string"
           },
-          "order": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            },
-            "description": "Its provider order, written whole; where it is named with `provider` and `model`, its first entry is\ntheirs."
-          },
           "provider": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "One provider and model, an order of that one entry where no order is named."
+            "type": "string",
+            "description": "Its road's provider and model, both named."
           },
           "model": {
+            "type": "string"
+          },
+          "effort": {
             "type": [
               "string",
               "null"
             ]
           },
-          "quotaShare": {
+          "thinking": {
             "type": [
-              "number",
+              "string",
+              "null"
+            ]
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
               "null"
             ],
-            "format": "double"
+            "format": "int64"
           },
           "repository": {
             "type": [
@@ -13098,9 +12992,11 @@
         },
         "required": [
           "name",
-          "label"
+          "label",
+          "provider",
+          "model"
         ],
-        "description": "SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model."
+        "description": "SupervisorAsk: the body that registers a supervisor on its one road."
       },
       "SupervisorRoomList": {
         "type": "object",
@@ -13184,6 +13080,66 @@
           "resetPoint"
         ],
         "description": "SupervisorResetPoint: a supervisor's reset point alone."
+      },
+      "SupervisorRoad": {
+        "type": "object",
+        "properties": {
+          "supervisor": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "its road's provider, null where its row names no road",
+            "default": null
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`on`, `off`, or null for the provider's own",
+            "default": null
+          },
+          "answers": {
+            "type": "boolean",
+            "description": "whether a turn would go out on its road now"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the sentence a turn would fail with where its road cannot take it, null where it can",
+            "default": null
+          }
+        },
+        "required": [
+          "supervisor",
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answers",
+          "reason"
+        ],
+        "description": "SupervisorRoad: a supervisor's one road, and whether a turn would go out on it now."
       },
       "Relay": {
         "type": "object",
@@ -13541,32 +13497,40 @@
               "null"
             ]
           },
-          "order": {
+          "provider": {
             "type": [
-              "array",
+              "string",
               "null"
             ],
-            "items": {
-              "$ref": "#/components/schemas/OrderEntry"
-            }
+            "description": "Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named."
           },
-          "active": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ActiveProvider"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The provider forced as its active provider; null clears it."
-          },
-          "quotaShare": {
+          "model": {
             "type": [
-              "number",
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
               "null"
             ],
-            "format": "double"
+            "description": "null for the provider's own"
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`on`, `off`, or null for the provider's own"
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "null for the registration's own"
           },
           "warming": {
             "type": [

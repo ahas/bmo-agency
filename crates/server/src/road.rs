@@ -1,4 +1,4 @@
-//! The one road resolution (docs/provider-order.md, 「Choosing the provider」): the one place that decides
+//! The one road resolution (docs/provider-order.md, 「Whether a road can answer」): the one place that decides
 //! where a supervisor's or a role's run goes out now. The row's own order is walked from the top; every
 //! provider of it answers for itself whether it can answer now — the owner's switch, its presence on this
 //! machine, its balance and its logins — and whether it has quota above the row's share, each out of its own
@@ -307,7 +307,7 @@ impl Resolution {
 /// model an item names」): the model its item names, else its repository's pinned model, each walked alone,
 /// waited for and never left; else the roads of its role's agents, in their order. A role whose switched-on
 /// agents all name no road follows the supervisor that asks the job, the one its `asked_by` names, and has no
-/// road where that names none (docs/provider-order.md, 「Runs that do not walk their own role's order」). The
+/// road where that names none (docs/provider-order.md, 「Runs on another's road」). The
 /// role is the job role where none is named. The providers the job already left count as unable to answer.
 pub async fn for_job(
   ground: &Ground,
@@ -391,7 +391,7 @@ fn no_road_sentence(role: &str, asked_by: Option<&str>, asked_a_supervisor: bool
   )
 }
 
-/// Where a row's run goes out now (docs/provider-order.md, 「Choosing the provider」): a road the caller fixes
+/// Where a row's run goes out now (docs/provider-order.md, 「Whether a road can answer」): a road the caller fixes
 /// stands over a provider the owner forced on the row, which stands over the order.
 pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, String> {
   let machine = ground.machine();
@@ -521,8 +521,7 @@ async fn step(
 
 // The open roads of a walk that stand blocked passed over, each with its block's reason, ahead of the first
 // open road that stands unblocked; where every open road is blocked, none is passed, since a block is the
-// walk's memory of a failure and no reason a provider cannot answer (docs/provider-order.md, 「Falling over
-// and coming back」).
+// walk's memory of a failure and no reason a provider cannot answer (docs/provider-order.md, 「A road that fails」).
 async fn pass_blocked(ground: &Ground, steps: &mut [Step]) {
   let now = now_ms();
   let mut blocked = vec![];
@@ -578,7 +577,7 @@ fn selection_of(road: &Road) -> String {
 }
 
 /// The kind of failure a walk left a road for, which says how long the road's block stands
-/// (docs/provider-order.md, 「Falling over and coming back」).
+/// (docs/provider-order.md, 「A road that fails」).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockKind {
   /// A server error, a refused connection, or a failure no kind is read off.
@@ -638,7 +637,7 @@ impl BlockKind {
 }
 
 /// The road a walk leaves for its provider's failure blocked, for the span the failure's kind holds, its reason
-/// naming the kind and the failure's words (docs/provider-order.md, 「Falling over and coming back」). A
+/// naming the kind and the failure's words (docs/provider-order.md, 「A road that fails」). A
 /// failure of the work itself blocks nothing, and neither does one on a provider that holds logins, whose
 /// failure is its login's, rested by its own account walk. Answers the kind written, none where nothing was.
 pub async fn leave(ground: &Ground, road: &Road, why: &str) -> Option<BlockKind> {

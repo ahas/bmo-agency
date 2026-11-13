@@ -73,8 +73,8 @@ mod control {
   mod run_launch;
   mod session_ops;
   mod sessions;
-  mod stand_in_route;
   mod supervisor_reset;
+  mod supervisor_road;
   mod supervisor_settings;
   mod worker_runtime;
 }

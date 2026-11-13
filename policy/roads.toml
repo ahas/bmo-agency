@@ -1,4 +1,4 @@
-# The words of the one road resolution (docs/provider-order.md, 「Choosing the provider」): why a provider
+# The words of the one road resolution (docs/provider-order.md, 「Whether a road can answer」): why a provider
 # cannot answer now, why a login of it cannot, the sentence a closed road is refused or held with, the line
 # a job launched again on the next road is opened with and its report's account of where it ran, how often a
 # job waiting for a road asks again, and how long a road a walk left for its provider's failure is blocked. A provider's own words, the place its balance is topped up
@@ -52,7 +52,7 @@ wait_seconds = 60
 
 [blocks]
 # How long a road a walk left for its provider's failure stays passed over, in seconds, by the failure's kind
-# (docs/provider-order.md, 「Falling over and coming back」): an outage — a server error, a refused connection
+# (docs/provider-order.md, 「A road that fails」): an outage — a server error, a refused connection
 # or a failure no kind is read off —, a refused access — a credential or balance refused —, and a limit whose
 # failure names no reset.
 outage_seconds = 60

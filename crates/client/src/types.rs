@@ -243,7 +243,6 @@ pub struct Agent {
   pub voice: Option<String>,
   /// epoch milliseconds
   pub reset_at: Option<i64>,
-  pub stand_in_available: bool,
   /// the id of the login account that owns it, none for the administrator's
   pub owner_account: Option<i64>,
 }
@@ -828,7 +827,6 @@ pub struct Tier {
 #[serde(rename_all = "camelCase")]
 pub struct Fallback {
   pub routes: Vec<Value>,
-  pub answering: bool,
   /// The agent serving the chat now and what it has used.
   #[serde(default)]
   pub active: Option<FallbackActive>,
@@ -1191,17 +1189,26 @@ pub struct Rest {
   pub account_id: Option<String>,
 }
 
-/// StandIn: whether a stand-in answers the agent named now, and on which provider and model.
+/// SupervisorRoad: a supervisor's one road, and whether a turn would go out on it now.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct StandIn {
-  pub answers: bool,
-  /// The first provider of its order other than Claude Code that can answer now, or null.
+pub struct SupervisorRoad {
+  pub supervisor: String,
+  /// its road's provider, null where its row names no road
   #[serde(default)]
   pub provider: Option<String>,
-  /// The model its order names on that provider, or null.
   #[serde(default)]
   pub model: Option<String>,
+  #[serde(default)]
+  pub effort: Option<String>,
+  /// `on`, `off`, or null for the provider's own
+  #[serde(default)]
+  pub thinking: Option<String>,
+  /// whether a turn would go out on its road now
+  pub answers: bool,
+  /// the sentence a turn would fail with where its road cannot take it, null where it can
+  #[serde(default)]
+  pub reason: Option<String>,
 }
 
 /// Usage:
@@ -2955,23 +2962,6 @@ pub struct GateKindDeclaration {
   pub gates: Vec<DeclaredGate>,
 }
 
-/// OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct OrderEntry {
-  pub provider: String,
-  pub model: String,
-  /// a level of the effort scale; null for the provider's own
-  #[serde(default)]
-  pub effort: Option<String>,
-  /// `on`, `off`, or null for the provider's own
-  #[serde(default)]
-  pub thinking: Option<String>,
-  /// on the registry's provider, the answer ceiling; null for the registration's own
-  #[serde(default)]
-  pub answer_tokens: Option<i64>,
-}
-
 /// A pool the demands of a work stand in: its key, and the most cards they use of one service at once.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2980,7 +2970,7 @@ pub struct CardPool {
   pub cards: u32,
 }
 
-/// Supervisor: one supervisor as its row holds it, and what it stands on now.
+/// Supervisor: one supervisor as its row holds it, on its one road.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Supervisor {
@@ -2994,13 +2984,21 @@ pub struct Supervisor {
   pub brain_folder: Option<String>,
   /// the repository its TODO items go to
   pub repository: Option<String>,
-  pub order: Vec<OrderEntry>,
-  /// a fraction from 0 to 1
-  pub quota_share: f64,
-  /// the provider the owner forced as its active provider, or null where its order chooses
+  /// its one road's provider, every turn of it going out there; null where its row names no road
   #[serde(default)]
-  pub active: Option<ActiveProvider>,
-  /// for each provider of its order, whether its prefix is kept warm there
+  pub provider: Option<String>,
+  #[serde(default)]
+  pub model: Option<String>,
+  /// a level of the effort scale; null for the provider's own
+  #[serde(default)]
+  pub effort: Option<String>,
+  /// `on`, `off`, or null for the provider's own
+  #[serde(default)]
+  pub thinking: Option<String>,
+  /// on the registry's provider, the answer ceiling; null for the registration's own
+  #[serde(default)]
+  pub answer_tokens: Option<i64>,
+  /// for each provider, whether its prefix is kept warm there
   pub warming: BTreeMap<String, bool>,
   /// its compaction threshold
   pub fold_ratio: f64,
@@ -3010,12 +3008,6 @@ pub struct Supervisor {
   pub gates: Value,
   pub voice: Option<String>,
   pub sampling: Option<Value>,
-  /// what its last turn went out on
-  pub provider: Option<String>,
-  pub model: Option<String>,
-  pub effort: Option<String>,
-  /// why its turn waits where no provider of its order has quota, or null
-  pub waiting_for: Option<String>,
   /// Whether the deployment seeds it: its removal is refused 409 `seeded`.
   #[serde(default)]
   pub seeded: bool,
@@ -3064,23 +3056,21 @@ pub struct SupervisorList {
   pub more: bool,
 }
 
-/// SupervisorAsk: the body that registers a supervisor: its order whole with its share, or one provider and model.
+/// SupervisorAsk: the body that registers a supervisor on its one road.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SupervisorAsk {
   pub name: String,
   pub label: String,
-  /// Its provider order, written whole; where it is named with `provider` and `model`, its first entry is
-  /// theirs.
+  /// Its road's provider and model, both named.
+  pub provider: String,
+  pub model: String,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub order: Option<Vec<OrderEntry>>,
-  /// One provider and model, an order of that one entry where no order is named.
+  pub effort: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub provider: Option<String>,
+  pub thinking: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub model: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub quota_share: Option<f64>,
+  pub answer_tokens: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3103,13 +3093,20 @@ pub struct SupervisorRegistered {
 pub struct SupervisorChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  /// Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub order: Option<Vec<OrderEntry>>,
-  /// The provider forced as its active provider; null clears it.
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+  /// null for the provider's own
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
-  pub active: Option<Option<ActiveProvider>>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub quota_share: Option<f64>,
+  pub effort: Option<Option<String>>,
+  /// `on`, `off`, or null for the provider's own
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub thinking: Option<Option<String>>,
+  /// null for the registration's own
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub answer_tokens: Option<Option<i64>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub warming: Option<BTreeMap<String, bool>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3369,14 +3366,6 @@ pub struct RoleSessionsQuery {
   pub before: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub limit: Option<i64>,
-}
-
-/// ActiveProvider: the provider and model the owner forced as a supervisor's or a role's active provider.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ActiveProvider {
-  pub provider: String,
-  pub model: String,
 }
 
 /// RepositoryPin: a repository's pinned provider and model.

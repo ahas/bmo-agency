@@ -13,8 +13,8 @@
 #   supervisor holds」).
 # name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
 # label_most: the most characters a role's label holds.
-# quota_share: the remaining quota at or below which a provider of an order is passed over, where a row sets
-#   none (docs/provider-order.md, 「What an order is」).
+# quota_share: the remaining quota at or below which a road's provider is read as having none, one for every
+#   road (docs/provider-order.md, 「What a road is」).
 # [icons]: the mark a screen shows beside every supervisor, every role and every repository.
 # [[bundles]]: one function bundle a role may give, a capability of the tool host, with the short name a
 #   screen writes it by. A role gives no bundle this file does not declare.

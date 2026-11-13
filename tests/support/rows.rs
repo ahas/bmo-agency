@@ -18,16 +18,16 @@ async fn insert(db: &DatabaseConnection, table: &str, columns: Vec<(&str, Value)
   .unwrap_or_else(|why| panic!("the {table} row could not be written: {}", why.detail));
 }
 
-/// A supervisor: one session across every room, the window's turns and an order of Claude Code alone unless
-/// the test names otherwise. A supervisor's turn waits until a provider of its order can answer, so none is
-/// laid down with an empty order.
+/// A supervisor: one session across every room, the window's turns and a road on Claude Code unless the test
+/// names otherwise. A supervisor always names a road, so none is laid down without one.
 pub async fn supervisor(db: &DatabaseConnection, name: &str, with: &[(&str, Value)]) {
   let mut columns: Vec<(&str, Value)> = vec![("name", name.into())];
 
   for (column, default) in [
     ("session_scope", "agent"),
     ("turn_shape", "window"),
-    ("provider_order", r#"[{"provider":"claude-code","model":"claude-opus-5"}]"#),
+    ("provider", "claude-code"),
+    ("model", "claude-opus-5"),
   ] {
     if !with.iter().any(|(named, _)| *named == column) {
       columns.push((column, default.into()));

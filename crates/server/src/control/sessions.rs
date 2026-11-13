@@ -231,7 +231,7 @@ impl SessionHolder for Supervisor {
         let held = crate::supervisors::named(db, &name).await?;
         let models: Vec<Value> = held
           .iter()
-          .flat_map(|held| held.order.entries.iter().map(|entry| Value::String(entry.model.clone())))
+          .filter_map(|held| held.road.as_ref().map(|road| Value::String(road.model.clone())))
           .collect();
         let rooms = all(
           db,

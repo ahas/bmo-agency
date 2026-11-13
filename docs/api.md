@@ -140,10 +140,11 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors/{supervisorName}` | One supervisor: its row, order, warming, threshold, gates, sampling, voice, and what it stands on now. |
 | GET | `/supervisors/{supervisorName}/rooms` | The rooms a supervisor's turns went into, each with its last run there. |
 | GET | `/supervisors/{supervisorName}/reset-point` | A supervisor's reset point alone. |
+| GET | `/supervisors/{supervisorName}/road` | A supervisor's one road, and whether it can take a turn now. |
 | GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
 | PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
 | POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
-| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, forced provider, warming, threshold, gates, sampling or voice. |
+| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's road, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
@@ -152,17 +153,20 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
   which supervisor is the caller's to judge; agency writes the owner it is handed.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
-  `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
-  order (below); `active`, the provider the owner forced as its active provider, `provider` and `model`, or
-  null where its order chooses (`docs/provider-order.md`, 「A provider the owner forces」); `cardRank`, the rank of the demands of the runs for it, or null; `warming`, for each provider of its order whether its prefix is kept warm there;
-  `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
-  `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
-  provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds,
+  `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
+  `thinking` and `answerTokens` (below), every turn of it going out there; `cardRank`, the rank of the demands of
+  the runs for it, or null; `warming`, for each provider whether its prefix is kept warm there; `foldRatio`, its
+  compaction threshold; `gates`, `voice` and `sampling`; `seeded`, true for a supervisor the deployment seeds,
   which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
   its last reset cut its turns off at (`docs/supervisors.md`, 「What the reset cuts off」), or null where it
   was never reset. The reset also publishes each move of the point as it makes it (「Events」), so a consumer
-  that missed one reads the point again here or at `GET /supervisors/{supervisorName}/reset-point`. Whether a
-  stand-in answers a supervisor now is `GET /stand-in` (「accounts, rest and usage」).
+  that missed one reads the point again here or at `GET /supervisors/{supervisorName}/reset-point`.
+- **`GET /supervisors/{supervisorName}/road`** answers whether the supervisor's road can take a turn now, judged
+  as a turn's start judges it (`docs/provider-order.md`, 「Whether a road can answer」): `supervisor`, its
+  road's `provider`, `model`, `effort` and `thinking`, `answers`, true where a turn would go out on it now,
+  and `reason`, the sentence a turn would fail with where it cannot, null where it can. A consumer that holds a
+  room's turn while Claude Code's accounts rest reads it before it lets the turn wait: a supervisor whose road
+  is on another provider answers through the rest. 404 `not-found` for no supervisor of the name.
 - **`GET /supervisors/{supervisorName}/reset-point`** answers `supervisor` and `resetPoint` alone, the same point
   the full read answers, for a consumer that reads it on every turn it sends; 404 `not-found` for no supervisor of
   the name. The point's one source is agency's store, which the reset writes; the event and both reads are views
@@ -175,39 +179,40 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   「Who a send goes out as」) — so this read names where it has spoken, never where it may; a room it answers and
   never spoke in is not listed, and a room forgotten takes its runs with it. 404 `not-found` for no supervisor of
   the name.
-- **An order** is a list, each member a provider agency carries, once each: `provider`, `model`, `effort` (a
-  level of the reasoning policy or null), `thinking` (`on`, `off` or null for the provider's own) and, on the
-  registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
-  is set (`docs/provider-order.md`, 「What an order is」). The same shape is a role's.
+- **A road** is `provider`, a provider agency carries, `model`, `effort` (a level of the reasoning policy or
+  null), `thinking` (`on`, `off` or null for the provider's own) and, on the registry's provider,
+  `answerTokens` or null (`docs/provider-order.md`, 「What a road is」). The same shape is an agent's.
 - **`POST /supervisors` takes the registration,** each field judged in this order and nothing written until
   all have passed (`docs/supervisors.md`, 「Adding and removing a supervisor」): `name`, a lowercase letter,
   then lowercase letters, digits and hyphens, forty characters at most, held by no supervisor yet, 409
-  `name-taken` where one holds it; `label`, given; the order, either `order` with its `quotaShare`, judged as
-  an order is (below), or `provider` and `model`, an order of that one entry at the default share — a body
-  naming both is refused 400 `order` where the order's first entry is not that provider and model;
+  `name-taken` where one holds it; `label`, given; the road, `provider` and `model` with `effort`, `thinking`
+  and `answerTokens` where it names them, judged as a road is (below);
   `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none; and
   `foldRatio`, the first provider's declared default where none is given. The row is written as one added
-  on the console is: the `room` scope, the `pieces` shape, warmed on each provider
-  of its order, the brain folder `agents/<name>`, and no prompt folder. The order is written whole at
-  creation, its `quotaShare` beside it.
+  on the console is: the `room` scope, the `pieces` shape, warmed on its road's provider, the brain folder
+  `agents/<name>`, and no prompt folder.
 - **A supervisor added on the console is added through the receiver,** which owns the rooms it answers: the
   console asks the receiver, the receiver writes the console's room, the supervisor's number there and the
   room's `supervisors` list, and asks `POST /supervisors` for the supervisor's half. Agency holds no room's
   list.
-- **An order is refused** 400 `bad-request` with `field` beside `error`, naming the member: an empty order, a
-  provider agency does not carry or named twice, a provider whose program does not carry the chat line, a
-  model the provider does not hold — a catalogue that reads and does not name it, a member its road does not
-  hold, a registration with no address — an effort the model does not take, and a share outside 0 to 1. A
-  catalogue that cannot be read refuses nothing.
+- **A road is refused** 400 `bad-request` with `field` beside `error`, naming the field: no provider or no
+  model, a provider agency does not carry, a provider whose program does not carry the chat line, a model the
+  provider does not hold — a catalogue that reads and does not name it, a member its gateway road does not
+  hold, a registration with no address — and an effort the model does not take. A catalogue that cannot be
+  read refuses nothing. A body naming `order`, `quotaShare` or `active` is refused 400 with that field: a
+  supervisor holds no order and nothing is forced over its road.
 - **The answer is 201,** `supervisor`, as the read answers it, and `brain`, what became of its brain:
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
-- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `order`, `active`,
-  `warming`, `foldRatio`, `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and `voice`, each judged as the registration
-  judges it. `active` is `provider` and `model`, judged as one entry of an order is against the chat line
-  and refused alike, or null, which clears it; it need not stand in the order. A changed order or forced
-  provider reaches the supervisor's next turn; a turn already going finishes where it went out.
+- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, the road —
+  `provider` and `model`, both or neither, `effort`, `thinking` and `answerTokens` —, `warming`, `foldRatio`,
+  `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and
+  `voice`, each judged as the registration judges it; a road's fields it does not name keep what the road
+  holds, except that a changed provider or model drops the effort, thinking and answer ceiling the body does
+  not name, since they were the old model's. A body naming `order`, `quotaShare` or `active` is refused 400
+  with that field. A changed road reaches
+  the supervisor's next turn; a turn already going finishes where it went out.
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
@@ -223,8 +228,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   - The answer is 204.
 - **`GET /supervisors/{supervisorName}/settings`** answers a supervisor as its settings page shows it
   (`docs/supervisors.md`, 「Its settings」): `agent` and `label`; `icon`; `builtin`, whether the deployment
-  seeds it; `turnShape`; `provider` and `model`, what its order names first; `registration`, the registration
-  its order names at the registry's provider, or null, and `registrations`, every offered registration, each
+  seeds it; `turnShape`; `provider` and `model`, its road; `registration`, the registration its road names
+  where it stands on the registry's provider, or null, and `registrations`, every offered registration, each
   `name` and `label`; `entries`, the model files behind that registration, `serving`, the one its engine
   serves now, and `modelUse`, the engine's latest use; `settings` — `referenceOn`, `persona`, `generation`,
   `updatedAt` and `updatedBy`; `generationSettings`, every generation setting with its bounds, as a
@@ -236,11 +241,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `resetWaiting` and `lastResetAt`. 404 `not-found` for no supervisor of the name.
 - **`PATCH /supervisors/{supervisorName}/settings`** takes `referenceOn`, `persona`, `generation`, an object
   of settings by name, a null letting one go back to the engine's default, `registration`, an offered
-  registration put at the head of its order at the registry's provider or null to take that entry out,
+  registration its road is moved to on the registry's provider, or null, which leaves the road as it stands,
+  since a supervisor always names a road,
   `thinking` and `by`, who saves, each judged before anything is written; a field it does not name is
   refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
   changes its generation settings or its thinking asks a reset of every room session it holds. The answer
-  is the settings read as it then stands; a program standing on a model its order no longer gives is let go.
+  is the settings read as it then stands; a program standing on a model its road no longer names is let go.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
   `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list
@@ -333,8 +339,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
   and answers 200. Both refuse 422 a role the store does not hold (`unknown-role`), a name out of the
-  pattern, a provider without a model or a model without a provider, a road judged as a supervisor's order's
-  entry is against the role's line, and a bundle the policy does not declare; `POST` refuses 409 a name
+  pattern, a provider without a model or a model without a provider, a road judged as a supervisor's road is
+  against the role's line, and a bundle the policy does not declare; `POST` refuses 409 a name
   already taken. `DELETE /role-agents/{agentName}` answers 204, 404 for an agent the store does not hold and
   409 while it carries a run. An agent added, switched or removed holds from the next admission, and one
   more seat lets in at once the reserved slots it frees.
@@ -529,20 +535,19 @@ brain, read at the turn's launch (「Calls agency makes」). The turn context's 
 standing in that place only where the brain gives none (`docs/sessions.md`, 「Document reload」).
 
 A room's session is readable by its id from its start, before its first turn has opened a generation:
-the read answers the provider and model its supervisor's order gives it now and its place, at generation 0,
+the read answers its supervisor's road and its place, at generation 0,
 and its first turn opens the first generation on that road. A start writes nothing of the session, so the
 list of sessions names a room's once its first turn has opened one. A supervisor's session is readable once
 the supervisor holds one; a supervisor whose provider's program carries its own turns, dsh's, holds no session
 id of its own, its turns going through its resident's inbox, so its session is readable from its start as a
-room's is: the provider and model its last answer went out on, else those its order gives it now, its
-resident's context and its `foldRatio`.
+room's is: its supervisor's road, its resident's context and its `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
 names only the other, and starts its next turn on a fresh session where the road keeps one. A hand-over is a
 role's kept session's: it closes the session kept for the role at that path on that provider and model and
 drops its record, handing nothing to the next run, and the holder the body names is kept for the session's
-state. A supervisor's and a room's session go out on the provider and model the supervisor's order gives
-them, and its row is where those move. `holder` and `prefixChangeReason` are read back on the session wherever
+state. A supervisor's and a room's session go out on the supervisor's one road, and its row is where that
+road is changed. `holder` and `prefixChangeReason` are read back on the session wherever
 it is listed or read.
 
 A session's state carries `foldRatio`: the share of its model's window its context may fill before the
@@ -766,8 +771,8 @@ the roads the role's agents hold where none does (`docs/role-agents.md`, 「Whic
 `model` alone, whose
 provider is that of the role's first agent naming that model; a `provider` named alone is refused 400. It
 may name `placeKey`, the key only one active request holds at once. A slot let in on an agent that names no
-road goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went
-out on, else its order's first; asked under no supervisor the store holds, it is refused 422
+road goes out on the road of the supervisor its `askedBy` names; asked under no supervisor the store holds,
+it is refused 422
 `unprocessable-entity` saying the role follows the supervisor that asks it. A request answers `seat`, the
 agent it is let in on, null until it is.
 
@@ -889,13 +894,13 @@ agency's model gateway — the registry's registrations and the member roads of 
 DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
 answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
 `reasonCode`, its kebab-case code, both null on a provider that can answer. Each provider answers
-`foldRatioDefault` as well: the compaction threshold a supervisor or a role whose order begins on it is given
+`foldRatioDefault` as well: the compaction threshold a supervisor or an agent whose road is on it is given
 where its add names none — the provider's own declaration, 0.85 where it declares none (`docs/supervisors.md`,
 「What a provider declares for a conversation」) — so a screen marks the threshold equal to it as the default.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
-nothing would answer. A provider that is off is passed over by every order (`docs/provider-order.md`, 「The
-owner's switch on a provider」).
+nothing would answer. A provider that is off answers on no road (`docs/provider-order.md`, 「The owner's
+switch on a provider」).
 
 `GET /provider-models/{providerName}` answers `provider`, `models` and `staleReadAt`, the moment of a stale
 read in epoch seconds or null, with the models an order's entry may name on that provider
@@ -912,14 +917,14 @@ A registered model is one registration of the registry's provider: the list, the
 and the take-away all read or write the registrations, so the list holds exactly what can be changed and
 removed. A model's key names its provider and the model apart — `provider::model`, or the provider as a query
 and the model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is
-what an order's entry and a repository's pin name on the registry's provider; and the registration's own run
+what a road and a repository's pin name on the registry's provider; and the registration's own run
 settings, `contextTokens`, its window, `answerTokens`, its answer ceiling, and `thinking`, its thinking
-default — what a run on it does where its order's entry leaves thinking to the provider (`docs/own-llm.md`,
+default — what a run on it does where its road leaves thinking to the provider (`docs/own-llm.md`,
 「Registered models」), so a screen marks the entry's thinking equal to it as the default. A create starts a registration
 under its own name as its label, at the registry's smallest window and answer and with no address, and is
 refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
 engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
-`usedBy`, every supervisor whose order or forced provider names it, every role an agent of which stands on
+`usedBy`, every supervisor whose road names it, every role an agent of which stands on
 it and every repository whose pin names it, and a take-away is refused 409
 while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
 and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
@@ -941,7 +946,7 @@ standing, whether it is chosen and in use, its rest and its own `session`, `week
 accounts list answers (「accounts, rest and usage」); and `active`, the account runs on Claude Code go out on
 now. Its change takes the account actions `add-account`, `update-account`, `remove-account`, `set-account-order`,
 `set-account-enabled`, `choose-account` and `clear-account-choice` (`docs/cache-fallback.md`, 「The Claude
-Code road is a list of accounts」); the provider order and the route actions are no part of it.
+Code road is a list of accounts」); no road and no route action is any part of it.
 
 ### road-blocks and launch-room
 
@@ -956,8 +961,8 @@ Code road is a list of accounts」); the provider order and the route actions ar
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed to
 the roads a named model or a role's agents would take, and a deletion by that id opens the road again
-(`docs/provider-order.md`, 「Falling over and coming back」). Agency writes a block itself as a supervisor's
-turn or a job walks off a road for its provider's failure, for the span the failure's kind holds, its reason
+(`docs/provider-order.md`, 「A road that fails」). Agency writes a block itself as a job's turn leaves its
+road for its provider's failure, for the span the failure's kind holds, its reason
 naming the kind and the failure's words; a block written by the route and one written by a walk are one
 resource, listed and opened alike.
 
@@ -1026,7 +1031,7 @@ notice that holds nothing is withdrawn.
 - **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`
   where the road answered with nothing or failed otherwise, naming why. A translation none of whose role's agents has
-  quota left waits, as every run does (`docs/provider-order.md`, 「When every provider is out」).
+  quota left waits, as every run does (`docs/provider-order.md`, 「Whether a road can answer」).
 
 ### accounts, rest and usage
 
@@ -1036,13 +1041,7 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
-| GET | `/stand-in` | Whether a stand-in answers the agent named in `agent` while Claude Code's road is closed, and on which provider. |
 | GET | `/usage` | Usage by model, agent, user, room or round over a span, with session contexts. |
-
-The stand-in is asked for an agent, and says whether a stand-in would answer that agent now, which a
-consumer gating a room's turn on the rest reads before it lets that turn wait for Claude Code
-(`docs/cache-fallback.md`): `answers`, and `provider` and `model`, the first provider of the supervisor's order
-other than Claude Code that can answer now and the model its order names there, both null where none can.
 
 An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
@@ -1510,7 +1509,7 @@ service.
   first provider a person can reopen, a sign-in command or where a balance is topped up. It asks its road
   again as each usage reading, account change, rest or road fact comes in and on the policy's clock
   (`policy/roads.toml`, `[job]`), and goes out on the first road that can answer, `heldFor` then null. It
-  holds no slot while it waits for a road (`docs/provider-order.md`, 「When every provider is out」): its slot
+  holds no slot while it waits for a road (`docs/provider-order.md`, 「Whether a road can answer」): its slot
   is asked as its first turn goes out, and once let in it keeps that seat through every later turn and its
   review until the job ends (`docs/role-agents.md`, 「Which agent a run takes」). A job's turn not let in at its first ask for a slot of its role names that
   wait as its `heldFor` — the agent it waits for, where its item names one, else its role — until it is let
@@ -1527,11 +1526,12 @@ service.
   the agent it waits for. The ask is judged by the line's own rule (`docs/role-slots.md`, 「The line」) and
   not made, so the job holds no place in the line before its first turn asks. Where the line has moved by
   the time the turn asks and lets it in, its `heldFor` is cleared as the turn goes out.
-- **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
-  quota, window, balance or credential refused, its last login closing under it, or its road found unable
-  to answer as the turn ends — is launched again on the next of its role's agents whose road can answer: the same job, item,
-  lease and checkout, at most once on each provider in one job, its prompt opened with a line saying it
-  continues work already in the checkout. A job answers `roads`, every road its turns went out on in
+- **A job never moves to another road.** A turn that fails for its provider's availability — its quota,
+  window, balance or credential refused, its last login closing under it, or its road found unable to answer
+  as the turn ends — holds the job waiting for its agent's road with the reason while the road cannot answer,
+  and is launched again on it once it can: the same job, item, lease and checkout, its prompt opened with a
+  line saying it continues work already in the checkout; where the road answers again at once, the job ends
+  as that turn ended. A job answers `roads`, every road its turns went out on in
   order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
   saying where it ran and why it moved. A turn the Claude Code walk carried to the next account because
@@ -1586,7 +1586,7 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `turn.created`, `turn.changed`, `turn.ended`, `question.created`, `run.created`, `run.changed`, `run.stopped`,
 `execution.changed`, `slot-request.changed`, `reservation.changed`, `repository.changed`, `repository.deleted`,
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
-`overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
+`overtime-request.changed`, `rest.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `supervisor-reset.created`, `place.changed`, `assignment.created`,
 `assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`.
 
@@ -1607,9 +1607,9 @@ notice to a reader resuming too late (「events」 above), never published as an
   unit takes its own rows.
 - **`turn.changed`** carries what a running turn waits for (「sessions」 above): `session`, `turnId`, `run` and
   `waiting`, null as the wait clears.
-- **`road.changed`** carries one fact of a supervisor's or a role's provider (`docs/provider-order.md`, 「The
-  facts told」), published once per move, after the system has acted, and named in its `fact`; each names its
-  row as `supervisor` or `role`, the other null:
+- **`road.changed`** carries one fact of a role's road (`docs/provider-order.md`, 「The facts told」),
+  published once per move, after the system has acted, and named in its `fact`; it names its row as `role`,
+  and `supervisor` is null, since a supervisor's road never moves:
   - `road-moved`: `from` and `to` — each a road, its `provider`, `model` and `account`, the
     account null off a provider that holds logins — and `reasons`, why each provider passed could not
     answer, each a `provider` and its `reason`;
@@ -1836,8 +1836,8 @@ reach it through the hook point above for everything else.
   `GET /pool`, `GET /roles` of the pool's roles and `PATCH /pool/limits` (how many of a role's runs go at once
   is the count of its agents);
   `/tiers`, `/work-keys`, `/fold-ratios` and `/pin-checks` (an order's entries and a row's compaction
-  threshold); and the route table, the provider order and the per-key choices of `/fallback`, which keeps the
-  Claude accounts alone.
+  threshold); and the route table, a supervisor's provider order and the per-key choices of `/fallback`, which
+  keeps the Claude accounts alone; and `/stand-in`, since nothing stands in for a supervisor's road.
 - **No warming route:** agency's settings carry no keepalive switch; a supervisor's warming is a field of its
   row.
 

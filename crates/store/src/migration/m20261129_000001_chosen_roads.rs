@@ -1,4 +1,4 @@
-//! What chooses where a run goes (docs/provider-order.md, 「A provider the owner forces」; docs/repositories.md,
+//! What chooses where a run goes (docs/provider-order.md, 「What a road is」; docs/repositories.md,
 //! 「A model an item names」): a role's and a supervisor's forced provider, a job's item model, and what chose a
 //! job's road.
 

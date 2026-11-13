@@ -7,4 +7,5 @@ mod read;
 mod registry;
 mod role_names;
 mod seed;
+mod supervisor_road;
 mod two_axes;

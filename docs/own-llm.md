@@ -220,7 +220,7 @@ never the model's name.
     such an address.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
-- **What a removal is refused for:** a registration a supervisor's order's entry, an agent of a role —
+- **What a removal is refused for:** a registration a supervisor's road, an agent of a role —
   switched on or off — a repository's pin or a model catalogue entry names is not removed, and the refusal names each of them
   (`docs/provider-order.md`, 「Models a provider holds」); each of those answers for itself whether it
   names the registration. The last address of a
@@ -560,8 +560,7 @@ never the model's name.
     environment, `LLM_GATEWAY_STALL_MS`, in milliseconds.
   - What is done: the front ends the caller's answer with an error in the middle of its body, which the
     caller reads as a broken connection — Claude Code retries it, and once its retries are spent reports
-    it as a server error, a failure of the provider (`docs/provider-order.md`, 「Falling over and coming
-    back」) — and closes its connection to the child, which ends LiteLLM's stream of that answer and its
+    it as a server error, a failure of the provider (`docs/provider-order.md`, 「A road that fails」) — and closes its connection to the child, which ends LiteLLM's stream of that answer and its
     request to the backend. It writes one line naming the model, the child by its table and port, and how
     long the stream was silent.
 - **A streamed answer's open block is counted as it passes.** The front reads the Messages events of a
@@ -684,14 +683,14 @@ never the model's name.
 
 ## Where a registration is named
 
-- **An order's entry on the registry's provider names one registration,** with the answer ceiling and the
-  thinking a run on it goes out with, or none for the registration's own (`docs/provider-order.md`, 「What
-  an order is」). A supervisor's or a role's runs reach it where their order walks to the registry
-  (「The registry in an order」 below).
+- **A road on the registry's provider names one registration,** with the answer ceiling and the thinking a
+  run on it goes out with, or none for the registration's own (`docs/provider-order.md`, 「What a road is」).
+  A supervisor's or an agent's runs reach it where their road stands on the registry (「The registry on a
+  road」 below).
 - **A repository's pin may name one,** and every job in the repository runs on it (「A repository pinned to
   a registration」 below).
 - **A session whose caller names one** goes out on exactly that registration, as a named road
-  (`docs/provider-order.md`, 「Runs that do not walk their own role's order」).
+  (`docs/provider-order.md`, 「Runs on another's road」).
 - **A registration named is checked against the registry on saving:** one the registry does not offer is
   refused. One that has left the registry, or holds no address, by the time a run reads it is refused
   there, never replaced by another.
@@ -715,28 +714,27 @@ never the model's name.
 
 ### When a registered model does not answer
 
-- **A run on the registry's provider that does not answer moves to the next provider of its order,** as on
-  any provider (`docs/provider-order.md`, 「Falling over and coming back」, `docs/cache-fallback.md`,
+- **A run on the registry's provider that does not answer fails on its road,** as on any provider: no other
+  provider or model is tried (`docs/provider-order.md`, 「A road that fails」, `docs/cache-fallback.md`,
   「Automatic walks only on providers, in order」).
 - **A job in a repository that pins a registration does not move:** it waits until the registration can
   answer again (`docs/repositories.md`, 「A pinned model」).
 - **A session whose caller named the registration** never moves off it; a run that does not answer there
   fails.
-- **A provider the owner switched off** is asked by no order, and a job on a pin to one of its
-  registrations waits.
-- **A job's turn goes out on one provider;** moving it to the next is the job's relaunch on its role's
-  order, never a turn's own retry.
+- **A provider the owner switched off** answers on no road, and a job on a pin to one of its registrations
+  waits.
+- **A job's turn goes out on one road** and is never moved to another.
 
-### The registry in an order
+### The registry on a road
 
-- **The registry's provider is a provider of an order like any other:** it stands where a supervisor's or
-  a role's order puts it, on the registration its entry names. The owner's switch on it governs every order
-  that names it and every repository that pins one of its registrations.
+- **The registry's provider is a provider like any other:** a supervisor's or an agent's road stands on it,
+  on the registration the road names. The owner's switch on it governs every road on it and every repository
+  that pins one of its registrations.
 - **It always has quota:** a registered model runs on the deployment's own engine
-  (`docs/usage-windows.md`, 「What reads a provider's quota」), so an order that walks to it is answered
-  there whenever it can answer now, sharing the engine's slot with everything else on it.
-- **How it answers there:** with the registration, the thinking and the answer ceiling of the entry.
-- **The walking rules:** order and quota are in `docs/provider-order.md`, availability and the accounts in
+  (`docs/usage-windows.md`, 「What reads a provider's quota」), so a road on it is answered whenever it can
+  answer now, sharing the engine's slot with everything else on it.
+- **How it answers there:** with the registration, the thinking and the answer ceiling the road names.
+- **The rules:** roads and quota are in `docs/provider-order.md`, availability and the accounts in
   `docs/cache-fallback.md`.
 - **Nothing to keep warm:** a registered model has no known cache lifetime, so it sends no keepalive and
   produces no cost or account window.
@@ -840,7 +838,7 @@ never the model's name.
   the worker line and the search line as a Claude Code road, and the translate line as requests with no
   tools (「A request with no tools」 above). A supervisor's or a role's order may name it on any of those
   lines; the browse line, which needs a browser the registration's window does not carry, stays off it,
-  so the seeker role's order cannot name it (`docs/provider-order.md`, 「What an order is」).
+  so the seeker role's order cannot name it (`docs/provider-order.md`, 「What a road is」).
 - **Jobs:** a job goes out on its role's order, reaching the registry where the order names it, or on the
   registration its repository pins (「A repository pinned to a registration」 below). A manual job run, an
   item or a work order that names a model of its own names a registration as `registered::<registration>`.
@@ -1064,9 +1062,9 @@ never the model's name.
 ### What an entry holds for the registry
 
 - **Three settings:** the registration, the answer ceiling and whether thinking is on
-  (`docs/provider-order.md`, 「What an order is」).
-- **Where:** the registry's entry of a supervisor's order on the supervisor tab, or of a role's order on
-  the role tab; the entry's dropdown offers every registration by its name.
+  (`docs/provider-order.md`, 「What a road is」).
+- **Where:** the road of a supervisor on the registry's provider on the supervisor tab, or of an agent on the
+  agents tab; the road's dropdown offers every registration by its name.
 - **Who reads them:** every run of that supervisor or that role that goes out on the registry's provider.
   A job on a repository's pinned registration reads the pin's registration, and the entry's ceiling and
   thinking only where the entry names that same registration (「A repository pinned to a registration」

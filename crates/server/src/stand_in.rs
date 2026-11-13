@@ -1,7 +1,6 @@
-//! The stand-ins' side of the chat's road (docs/cache-fallback.md, 「While a fallback stands, the room is not
-//! silent」): whether an agent answers its rooms while the rest closes Claude Code's road, read off the one
-//! road resolution (`crate::road`); the step a stand-in goes out on — its model, effort and answer room —
-//! resolved for its key; and the stand-in that answers marked and published once as the fallback it is.
+//! The step a turn on a road other than Claude Code's own session goes out on (docs/cache-fallback.md, 「A
+//! supervisor's turn on a road other than Claude Code」): its model, effort and answer room, resolved for its
+//! key.
 
 use harness_providers::Machine;
 use harness_providers::registered::Registered;
@@ -10,33 +9,14 @@ use sea_orm::DatabaseConnection;
 
 use crate::control::own_llm::{self, OwnLlmError};
 use crate::control::registry::{self, Mapping};
-use crate::events::{Bus, Event};
 use crate::lines::worker::{Reasoning, effort_of};
 use crate::places::Ground;
-use crate::{Refusal, now_ms};
 
-/// The provider the walk stands in for.
+/// Claude Code, the provider whose own session carries a turn rather than a step of this module.
 pub const CLAUDE: &str = "claude-code";
 
-/// The stand-in that answers a supervisor while the rest closes Claude Code's road, where one does: the first
-/// provider of its own order other than Claude Code that can answer now, with the model its order names there.
-pub async fn answers(ground: &Ground, _machine: &Machine, agent: &str) -> Option<crate::road::Road> {
-  let Ok(Some(supervisor)) = crate::supervisors::named(&ground.db, agent).await else {
-    return None;
-  };
-  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(agent), "chat", &supervisor.order);
-
-  match crate::road::resolve(ground, &ask).await {
-    Ok(resolution) => resolution.open().find(|road| road.provider != CLAUDE).cloned(),
-    Err(why) => {
-      eprintln!("stand-in {agent}: its road could not be resolved: {why}");
-      None
-    }
-  }
-}
-
-/// The road a stand-in step goes out on: its provider, the model and effort the walk chose, and on a
-/// registered model the room its answer is given and whether it thinks.
+/// What a step on a road goes out on: its provider, the model and effort its road names, and on a registered
+/// model the room its answer is given and whether it thinks.
 pub struct Step {
   pub provider: String,
   pub model: String,
@@ -149,56 +129,4 @@ pub async fn listed(ground: &Ground, service: &registry::OwnLlmService, model: &
   };
 
   held.await.map_err(|why: OwnLlmError| why.said(service))
-}
-
-/// A stand-in has started answering, or a standing fallback has moved to another (docs/api.md, 「Events」):
-/// the owner it is told to, the stand-in that answered before where a fallback already stood, and the
-/// provider and model answering now. What the owner is told, and on which road, is the consumer's.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FallbackAnswering {
-  pub owner_id: i64,
-  pub previous: Option<String>,
-  pub provider: String,
-  pub model: String,
-}
-
-impl Event for FallbackAnswering {
-  const NAME: &'static str = "fallback.changed";
-}
-
-/// The stand-in that now answers marked and published, once for each move: the mark of the road answering
-/// set with the moment the fallback began, and `FallbackAnswering` published on the bus.
-pub async fn announce(
-  ground: &Ground,
-  events: &Bus,
-  owner_id: i64,
-  provider: &str,
-  model: &str,
-) -> Result<(), Refusal> {
-  let db = &ground.db;
-  let previous = crate::control::fallback::fallback_provider(db)
-    .await
-    .map_err(|why| crate::lines::fault(why.error))?;
-
-  if previous.as_deref() == Some(provider) {
-    return Ok(());
-  }
-
-  let since = crate::queue::settings::get(db, "fallback_since").await?;
-
-  if since.is_none() {
-    crate::queue::settings::set(db, "fallback_since", &(now_ms() / 1000).to_string()).await?;
-  }
-
-  crate::queue::settings::set(db, "fallback_provider", provider).await?;
-  println!("fallback: answering on {model} through {provider}");
-  events.publish(FallbackAnswering {
-    owner_id,
-    previous: previous.filter(|_| since.is_some()),
-    provider: provider.to_owned(),
-    model: model.to_owned(),
-  });
-
-  Ok(())
 }

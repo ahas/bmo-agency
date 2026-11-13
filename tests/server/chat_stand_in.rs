@@ -1,8 +1,9 @@
-//! The chat's turn across rooms on a stand-in (docs/cache-fallback.md, 「While a fallback stands, the room is
-//! not silent」): the turn composed for Codex on the kept thread and for OpenRouter's loop through a tap, the
-//! turn's variables handed to the run and kept out of the program's own, none of Claude Code's launch
-//! variables; a walk that had to answer and met no stand-in failing the turn, one that need not leaving it to
-//! Claude Code; and a standing fallback cleared and its end published once Claude Code answers again.
+//! A turn on a road other than Claude Code's own session (docs/cache-fallback.md, 「A supervisor's turn on a road
+//! other than Claude Code」): the turn composed for Codex on the kept thread and for OpenRouter's loop through a
+//! tap, the turn's variables handed to the run and kept out of the program's own, none of Claude Code's launch
+//! variables; and the chat's turn across rooms on the supervisor's one road — failed with why where the road
+//! cannot answer, nothing standing in, left to Claude Code's own session where the road is Claude Code's, and
+//! not sent out once stopped from outside.
 
 use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
@@ -10,7 +11,7 @@ use std::os::unix::fs::PermissionsExt;
 use crate::support::grounds::{OrderEntry, set_provider_order};
 use crate::support::rows::supervisor;
 use agency_server::Service;
-use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn};
+use agency_server::chat_stand_in::road_turn;
 use agency_server::config::Config;
 use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
 use agency_server::lines::standing::GatewayModel;
@@ -212,42 +213,6 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   );
   assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
 }
-// A store whose supervisor's provider order holds the stand-ins and Claude Code, each switched as the test says.
-async fn store_with(order: &[(&str, bool)]) -> Scratch {
-  let scratch = Scratch::new().await;
-  let entries: Vec<OrderEntry> = order
-    .iter()
-    .map(|(name, enabled)| OrderEntry {
-      name: (*name).to_owned(),
-      enabled: *enabled,
-    })
-    .collect();
-
-  let models = [
-    ("claude-code", "claude-opus-5"),
-    ("codex", "gpt-5.6-sol"),
-    ("openrouter", "vendor/model"),
-    ("registered", "no-such-registration"),
-  ];
-  let own: Vec<serde_json::Value> = order
-    .iter()
-    .map(|(name, _)| {
-      let model = models.iter().find(|(provider, _)| provider == name).map(|(_, model)| *model);
-
-      serde_json::json!({ "provider": name, "model": model.unwrap_or("a-model") })
-    })
-    .collect();
-
-  supervisor(
-    scratch.db(),
-    "chat-agent",
-    &[("provider_order", serde_json::Value::Array(own).to_string().into())],
-  )
-  .await;
-  set_provider_order(scratch.db(), &entries).await.unwrap();
-  scratch
-}
-
 fn log() -> RunLog {
   RunLog::new(Target {
     agent: "chat-agent".into(),
@@ -257,36 +222,59 @@ fn log() -> RunLog {
   })
 }
 
-#[tokio::test]
-async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_turn() {
-  let home = tempfile::tempdir().unwrap();
-  let scratch =
-    store_with(&[("claude-code", false), ("codex", true), ("openrouter", true), ("registered", true)])
-      .await;
-  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+// A store whose supervisor stands on the road of `provider`, each provider named switched as the test says.
+async fn store_on(provider: &str, switches: &[(&str, bool)]) -> Scratch {
+  let scratch = Scratch::new().await;
+  let entries: Vec<OrderEntry> = switches
+    .iter()
+    .map(|(name, enabled)| OrderEntry {
+      name: (*name).to_owned(),
+      enabled: *enabled,
+    })
+    .collect();
+  let models = [
+    ("claude-code", "claude-opus-5"),
+    ("codex", "gpt-5.6-sol"),
+    ("openrouter", "vendor/model"),
+  ];
+  let model = models.iter().find(|(name, _)| *name == provider).map_or("a-model", |(_, model)| *model);
 
-  assert!(matches!(walked, Err(NoAnswer::Failed(_))), "{walked:?}");
+  supervisor(scratch.db(), "chat-agent", &[("provider", provider.into()), ("model", model.into())]).await;
+  set_provider_order(scratch.db(), &entries).await.unwrap();
+  scratch
+}
+
+// The supervisor's road is Codex, switched off, while Claude Code and every other provider is on: the turn fails
+// saying why, and no other provider stands in for the road.
+#[tokio::test]
+async fn a_road_that_cannot_answer_fails_the_turn_and_nothing_stands_in() {
+  let home = tempfile::tempdir().unwrap();
+  let scratch = store_on("codex", &[("claude-code", true), ("codex", false), ("openrouter", true)]).await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
+  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+
+  assert!(
+    matches!(&turned, Err(NoAnswer::Failed(said)) if said.contains("codex") || said.contains("Codex")),
+    "{turned:?}"
+  );
 }
 
 #[tokio::test]
-async fn a_walk_that_meets_no_stand_in_before_an_open_claude_leaves_the_turn_to_claude() {
+async fn a_road_on_claude_code_leaves_the_turn_to_claude_s_own_session() {
   let home = tempfile::tempdir().unwrap();
-  let scratch =
-    store_with(&[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)]).await;
+  let scratch = store_on("claude-code", &[("claude-code", true), ("codex", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
 
-  assert!(matches!(walked, Ok(None)), "{walked:?}");
+  assert!(matches!(turned, Ok(None)), "{turned:?}");
 }
 
-// A turn interrupted between roads, or while one waits for a card, goes out on no further road: the walk ends
-// with the stop rather than walking on (docs/cache-fallback.md, 「Automatic walks only on providers, in order」).
+// A turn interrupted before it goes out does not go out (docs/cache-fallback.md, 「Automatic walks only on
+// providers, in order」).
 #[tokio::test]
-async fn a_walk_whose_turn_was_stopped_goes_out_on_no_further_road() {
+async fn a_turn_stopped_from_outside_does_not_go_out() {
   let home = tempfile::tempdir().unwrap();
-  let scratch =
-    store_with(&[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)]).await;
+  let scratch = store_on("claude-code", &[("claude-code", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
 
   agency_server::queue::settings::set(
@@ -297,51 +285,12 @@ async fn a_walk_whose_turn_was_stopped_goes_out_on_no_further_road() {
   .await
   .unwrap();
 
-  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
 
   assert!(
-    matches!(&walked, Err(NoAnswer::Failed(said)) if said.contains("stopped from outside")),
-    "{walked:?}"
+    matches!(&turned, Err(NoAnswer::Failed(said)) if said.contains("stopped from outside")),
+    "{turned:?}"
   );
-}
-
-#[tokio::test]
-async fn claude_answering_again_clears_a_standing_fallback_and_publishes_its_end_once() {
-  let home = tempfile::tempdir().unwrap();
-  let scratch = Scratch::new().await;
-  let ground = ground_on(scratch.db().clone(), home.path(), &[("BMO_OWNER_ID", "42")]);
-  let mut ended = ground.events.subscribe::<FallbackEnded>();
-
-  fallback_ended(&ground).await;
-  assert_eq!(ended.ready(), None, "no fallback stood");
-
-  for (key, value) in [("fallback_since", "1"), ("fallback_provider", "codex")] {
-    scratch
-      .run(
-        r#"INSERT INTO "settings" ("key", "value") VALUES ($1, $2)"#,
-        vec![key.into(), value.into()],
-      )
-      .await;
-  }
-
-  fallback_ended(&ground).await;
-
-  assert_eq!(
-    ended.ready(),
-    Some(FallbackEnded {
-      owner_id: 42,
-      previous: Some("codex".into())
-    })
-  );
-  assert_eq!(
-    scratch
-      .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" LIKE 'fallback_%'"#, vec![])
-      .await,
-    0
-  );
-
-  fallback_ended(&ground).await;
-  assert_eq!(ended.ready(), None);
 }
 
 #[test]

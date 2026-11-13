@@ -658,7 +658,7 @@ async fn a_job_on_its_role_s_order_or_its_repository_s_pin_says_which_chose_it()
 
 // A job of a role whose switched-on agents all name no road goes out on the road of the supervisor that asks
 // it, at that supervisor's effort, and the road it went out on is kept on the job
-// (docs/provider-order.md, 「Runs that do not walk their own role's order」; docs/role-agents.md, 「Which agent
+// (docs/provider-order.md, 「Runs on another's road」; docs/role-agents.md, 「Which agent
 // a run takes」).
 #[tokio::test(flavor = "multi_thread")]
 async fn a_job_of_a_role_whose_agents_name_no_road_goes_out_on_the_road_of_the_supervisor_that_asks_it() {
@@ -677,10 +677,11 @@ async fn a_job_of_a_role_whose_agents_name_no_road_goes_out_on_the_road_of_the_s
   crate::support::rows::supervisor(
     scratch.db(),
     "asking",
-    &[(
-      "provider_order",
-      r#"[{"provider":"deepseek","model":"deepseek-flash","effort":"high"}]"#.into(),
-    )],
+    &[
+      ("provider", "deepseek".into()),
+      ("model", "deepseek-flash".into()),
+      ("effort", "high".into()),
+    ],
   )
   .await;
   scratch
@@ -745,7 +746,7 @@ fn a_road_stops_answering_on_its_quota_window_balance_or_credential_and_never_on
 
 // A failed request the program reported is the provider's where the provider could not answer — a server
 // error, its connection refused, as the model gateway refuses it while it restarts — and the work's own where
-// the request was refused for its shape (docs/provider-order.md, 「Falling over and coming back」).
+// the request was refused for its shape (docs/provider-order.md, 「A road that fails」).
 #[test]
 fn a_reported_api_failure_moves_the_road_on_a_server_error_and_never_on_the_request_s_shape() {
   let reported = |said: &str, kind: &str| {

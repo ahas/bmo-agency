@@ -4,7 +4,7 @@ How agency keeps the usage windows of every account that has them: the share of 
 account has used and when that limit resets. Directory and token accounts have them; an endpoint
 account is paid by the request and has none, so it holds no window slot and no window reader asks it
 (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). What a paid account has left
-is its balance, kept beside the windows (「Balances」 below). The account judgement, the provider order's
+is its balance, kept beside the windows (「Balances」 below). The account judgement, the road judgement's
 reading of what a provider has left, the fallback's view and the quota source all read them from here
 (`docs/cache-fallback.md`, 「The account judgement」, `docs/provider-order.md`, 「Quota: what a provider has
 left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate, whose cache-lifetime judgement is
@@ -151,7 +151,7 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   reason, and its recovery once when it ends.
 - **What reads it:** the accounts list answers an endpoint account's balance, and the fallback's view its
   active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen. The
-  provider order reads a provider's own road's balance as its quota (「What reads a provider's quota」
+  road judgement reads a provider's own road's balance as its quota (「What reads a provider's quota」
   below), and the account judgement an endpoint account's: one at or below zero is a road that cannot
   answer now, and one never read closes nothing (`docs/cache-fallback.md`, 「Availability: whether a
   provider can answer now」).
@@ -163,7 +163,7 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   back; one that names none, while its reading stands — younger than its reader's span and later than the
   account's unread mark (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no
   window for it to read, and the judgement asks it nothing here.
-- **The provider order** reads every window of a provider's slots for what the provider has left
+- **The road judgement** reads every window of a provider's slots for what the provider has left
   (「What reads a provider's quota」 below).
 - **The fallback's view and the quota source** read each slot's two headline windows (`docs/api.md`,
   「Accounts」): the active slot's, and the fallback's view every directory and token account's own
@@ -189,7 +189,7 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
 
 ## What reads a provider's quota
 
-- **The provider order reads one quota for each provider,** afresh as each run starts, out of the windows
+- **The road judgement reads one quota for each provider,** afresh as each run starts, out of the windows
   and the balances kept here (`docs/provider-order.md`, 「Quota: what a provider has left」). Each
   provider's member says which of its readings count; the reader knows no provider, and nothing of a
   quota is kept on an order.

@@ -1,8 +1,9 @@
 //! The deployment's rest as agency's store holds it (docs/api.md, 「Accounts」, the rest): it rests while the
 //! service's own outage rest stands, or while every enabled Claude account has reached its own ceiling,
 //! until the first of them comes back. Agency reads it and writes it; the rest that closes the last login
-//! is published once, and whether a stand-in answers a room meanwhile, and what anyone is told of it, are
-//! its consumers'.
+//! is published once, and whether a supervisor whose road is on another provider answers a room meanwhile —
+//! read off its road (`GET /supervisors/{supervisorName}/road`) — and what anyone is told of it, are its
+//! consumers'.
 
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;

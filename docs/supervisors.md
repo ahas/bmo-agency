@@ -17,16 +17,14 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **What it is told:** its own prompt folder, the documents its system prompt is composed from, and its
   brain folder, whose base persona its system prompt ends with (`docs/agent-documents.md`).
 - **How it converses:** its session scope and its turn shape (「One runner」 below).
-- **Where it runs — its provider order:** the providers it runs on, in order, each with the model and the
-  effort it runs on there, and the quota share below which a provider is passed over
-  (`docs/provider-order.md`). Every supervisor carries its own; no order is shared with another supervisor
-  or a role. Beside it, its forced provider: a provider and one model of it the owner forced as its active
-  provider, or none, which carries its turns while it stands (`docs/provider-order.md`, 「A provider the owner
-  forces」).
+- **Where it runs — its road:** one provider, one model of it, the effort and the thinking its turns go out
+  with there and, on the registry's provider, the answer ceiling (`docs/provider-order.md`, 「What a road
+  is」). Every supervisor names its own, set on its row as an agent's is set on the agent; its turns go out on
+  it and on no other, and no other provider or model stands in when it cannot answer.
 - **Its card rank:** the rank the demands of every run for it are asked at on an engine the arbiter stands, the
   lower first, or none for the default (`docs/own-llm.md`, 「An engine the arbiter stands」). What the rank
   means is the arbiter's; which supervisor stands at which is the owner's to set here.
-- **Its cache warming, switched per provider:** for each provider of its order, whether its resident
+- **Its cache warming, switched per provider:** for each provider, whether its resident
   program's prefix is kept warm while it is idle on that provider (`docs/keepalive-schedule.md`). A
   supervisor is the only thing agency warms.
 - **Its compaction threshold:** the share of its model's window its session may fill before the session is
@@ -42,8 +40,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Every supervisor holds settings beside its row,** a row of the `supervisor_settings` table keyed by its
   name, every default standing where it holds none: its reference switch, its persona and its generation
   settings, with who saved them last and when. Its thinking and the registration it runs on at the
-  registry's provider are its order's (「What a supervisor row holds」 above), and a save of the settings
-  changes them in the order.
+  registry's provider are its road's (「What a supervisor row holds」 above), and a save of the settings
+  changes them on the road.
 - **What a turn reads of them is its turn shape's.** A turn of the `pieces` shape is composed with the
   persona its settings hold (「What a turn is given」 below) and asked with its generation settings; a turn of
   the `window` shape is composed from the chat documents and its brain's persona (`docs/agent-documents.md`,
@@ -109,7 +107,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     words said while the turn works put into it where its provider takes them;
   - one turn at a time per supervisor, since its turns go into its one program;
   - the session the turn goes on in, kept by the supervisor's session scope;
-  - the turn run in the supervisor's resident program, on the provider its order gives it now;
+  - the turn run in the supervisor's resident program, on its road;
   - the answer sent into the room under the supervisor's own identity, and handed back to the receiver as
     any word filed there;
   - the session handed over at its compaction threshold in the way its provider declares (「What a provider
@@ -152,16 +150,19 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 ## Where a supervisor's turn runs
 
-- **On its active provider:** the provider the owner forced on it where one stands, else the first
-  provider of its order that has quota above its share and can answer now, on the model and effort the order
-  names there (`docs/provider-order.md`, 「Choosing the provider」). A turn on the order's choice whose
-  provider fails for a limit or its availability goes on to the next provider of the order, and the next turn
-  begins at the top again; a turn on a forced provider waits for it instead (「A provider the owner
-  forces」).
-- **Where no provider of its order has quota,** the turn waits, never refused, and goes out once a provider
-  of the order has quota again (`docs/provider-order.md`, 「When every provider is out」).
-- **A provider move changes the program's command,** so the next turn stands the program again on the new
-  provider's session for its scope; a fresh session of a supervisor is never opened without the handoff
+- **On its road, judged as the turn starts:** its provider must have quota above the share and be able to
+  answer now (`docs/provider-order.md`, 「Whether a road can answer」). The turn goes out on the model, the
+  effort and the thinking the road names.
+- **A road that cannot take the turn fails it plainly.** The turn ends failed at once with the sentence that
+  says why — the road, its reason, the moment it reopens where a window names one, and what a person does
+  where only a person can reopen it — and nothing stands in: no other provider or model answers, and the turn
+  does not wait. A road that fails under the turn — a limit met, a credential or balance refused, the
+  provider unable to answer — ends the turn failed with that failure in the same way (`docs/provider-order.md`,
+  「A road that fails」). On Claude Code the accounts are still walked inside the road
+  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). The next turn judges the road
+  again.
+- **A road the owner changes changes the program's command,** so the next turn stands the program again on
+  the new road's session for its scope; a fresh session of a supervisor is never opened without the handoff
   (`docs/sessions.md`, 「A restart hands the session over」).
 - **No supervisor holds a slot.** A supervisor is not a role and has no cap: its turns are bounded by its
   one program.
@@ -209,7 +210,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - no session held in the room yet;
   - a reset of the session asked for in the room and not yet carried out (「Clearing it」 below);
   - a prompt whose documents moved since its last turn (「A changed system prompt」 above);
-  - the held one opened on another provider or model than its order gives the turn now, or on a place
+  - the held one opened on another provider or model than its road names now, or on a place
     its registration no longer has;
   - the held one no longer there to resume: its program keeps no record of it, which the turn says in
     the program's own words before anything is stood. That turn is asked again once on a fresh session.
@@ -291,11 +292,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   session」 below), so nothing shows or keeps the cleared session while the ask waits; the ask itself,
   the new generation, is still carried out by the next turn.
 - **The turn that carries it out** settles the ask and says so in its log.
-- **The program's model is the one the supervisor answers on:** the model its provider order gives the
-  turn now, on the first provider of the order with quota above its share that can answer
-  (`docs/provider-order.md`, 「Choosing the provider」) — on the registry's provider resolved to the
-  registration its entry names and an address that registration holds now — never the row's
-  `last_model`. An order changed, a move to another provider of it or a registration that lost the
+- **The program's model is the one the supervisor answers on:** the model its road names
+  (`docs/provider-order.md`, 「Whether a road can answer」) — on the registry's provider resolved to the
+  registration its road names and an address that registration holds now — never the row's
+  `last_model`. A road changed or a registration that lost the
   address the program stood on lets the old program go; the next turn stands the model the supervisor
   answers on now.
 
@@ -346,7 +346,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the person range is the brain's: agency asks the brain to let go of the supervisor's own brain whole,
     found by its key, so nothing it remembered comes back (`docs/api.md`, 「Calls agency makes」, the
     brain); agency takes the records its harnesses keep of the sessions run in its brain folder;
-  - what it keeps, whichever range — its supervisor row and provider order, its settings, its gate
+  - what it keeps, whichever range — its supervisor row and road, its settings, its gate
     switches, the rooms themselves, the registry and the engine's placement, and whatever range was not
     named.
 - **A dry run reads the same,** agency's rows counted and the brain asked for a preview, nothing
@@ -405,9 +405,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **While a job holds the engine, the supervisor's turns wait,** as every supervisor's turns on a
   registration do, since the registry's provider declares the wait. The engine is held when an open job
   runs on the supervisor's registration. Both are read from rows: the job's from the run it noted, or
-  before it noted one from its repository's pin, and the supervisor's from the entry its order gives the
-  turn; a run, a pin or an entry resolves to the registration its model names, where the registry holds
-  one.
+  before it noted one from its repository's pin, and the supervisor's from its road; a run, a pin or a road
+  resolves to the registration its model names, where the registry holds one.
   - Every room's turn of that supervisor waits, looking again every few seconds, until no such job is
     open. Words that come in meanwhile, and quiet instructions of its own, join the waiting turn and
     are answered with it.
@@ -522,8 +521,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **A delegation:** the supervisor hands a task off through `bmo/delegate` (`docs/tools.md`, 「The delegate」).
   Where it names no role, the run is the `doppelganger` role's, the supervisor's double, and holds a slot of
   the `doppelganger` role; where it names a role, the run is that role's and holds a slot of it. Either goes
-  out on its role's own order, and on the supervisor's own provider and model as they stand at that moment
-  where that order is empty, as the doppelganger's is seeded (`docs/role-slots.md`, 「A delegated task」).
+  out on the road of the agent it is let in on, and on the supervisor's own road as it stands at that moment
+  where that agent names none, as the doppelganger's are seeded (`docs/role-slots.md`, 「A delegated task」).
   Either runs with the supervisor's tools beside its role's: its record, its turn and its program's servers
   are the supervisor's.
 - **A worker ask:** a small coding task as a run of the worker role in a repository's checkout or the
@@ -556,6 +555,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **The supervisor it is for,** so a consumer whose own settings are kept per supervisor — the receiver's
   draft questions among them — reads the supervisor the session runs for; and its compaction threshold as
   `foldRatio`, read afresh from the row as the state is read (`docs/sessions.md`, 「Session compaction」).
+- **The supervisor's one road,** `provider` and `model`: the road its row names, which every turn of it goes
+  out on, read afresh as the state is read; a room's session that stands on a harness session reads the road
+  that session was opened on, which is the row's road unless the owner changed it since. No other provider or
+  model is ever named for a supervisor's session.
 
 ## Adding and removing a supervisor
 
@@ -568,15 +571,15 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   console's dialog shows them, nothing written until all have passed:
   - the name follows the supervisors policy's pattern, and no supervisor holds it yet;
   - the label is given;
-  - the provider order names only providers that carry the chat line, each entry a model its provider
-    holds — on the registry's provider, an offered registration (`docs/provider-order.md`, 「What an order
-    is」); an add naming one provider and model is the order of that one entry;
+  - the road names a provider that carries the chat line and a model it holds — on the registry's
+    provider, an offered registration — with an effort the model takes (`docs/provider-order.md`, 「What a
+    road is」);
   - the repository its items go to, where it names one, is a repository the store holds
     (`docs/repositories.md`).
 - **The row it writes:** the `room` scope, the `pieces` shape, the label, the
-  supervisors policy's mark for one added on the console, the provider order it is added with, warmed on
-  each of its providers, the repository, its owner, the brain folder `agents/<name>`, no prompt folder and
-  not seeded. The owner changes the order on the supervisor's page like any supervisor's. Its gate options
+  supervisors policy's mark for one added on the console, the road it is added with, warmed on its
+  provider, the repository, its owner, the brain folder `agents/<name>`, no prompt folder and not seeded.
+  The owner changes the road on the supervisor's page like any supervisor's. Its gate options
   are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and its
   place and program are stood by its first turn.
 - **Then its brain is made.** Once the row is written, the brain is asked whether it keeps a brain

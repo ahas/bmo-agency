@@ -1,5 +1,5 @@
-//! A provider order (docs/provider-order.md, 「What an order is」): the providers a supervisor's or a role's
-//! runs go out on, in order, each once, with the model, the effort, the thinking and on the registry's
+//! A list of roads the road judgement walks (docs/provider-order.md, 「What a road is」): a supervisor's one road,
+//! and the roads of a role's agents a run of the role may take, each provider once, with the model, the effort, the thinking and on the registry's
 //! provider the answer ceiling it runs on there, and the quota share at or below which a provider is
 //! passed over. This module reads an order off its row, judges one a write hands in, and reads what a
 //! provider has left (「Quota: what a provider has left」), each provider answering out of its own member.
@@ -44,7 +44,7 @@ impl Entry {
 }
 
 /// A row's order with its quota share, and the provider the owner forced as the row's active provider where
-/// one stands (docs/provider-order.md, 「A provider the owner forces」), which is kept beside the order rather
+/// one stands (docs/provider-order.md, 「What a road is」), which is kept beside the order rather
 /// than in it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -151,7 +151,7 @@ fn refused(field: impl Into<String>, error: impl Into<String>) -> Refusal {
 }
 
 /// Whether an empty list is an order: a supervisor's never is, and a role's is, its runs then following the
-/// supervisor that asks them (docs/provider-order.md, 「What an order is」).
+/// supervisor that asks them (docs/provider-order.md, 「What a road is」).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Empty {
   Refused,
@@ -237,8 +237,7 @@ pub async fn judge(
   })
 }
 
-/// A provider and one model of it a write names — a role's or a supervisor's forced provider, or a
-/// repository's pin — judged as one entry of an order for `line` is: a provider agency carries whose program
+/// A provider and one model of it a write names — a repository's pin — judged as one entry of an order for `line` is: a provider agency carries whose program
 /// carries the line, on a model it holds. Answers the refusal's sentence.
 pub async fn judge_one(
   judging: Judging<'_>,
@@ -439,13 +438,12 @@ async fn logins_quota(
   best.unwrap_or_default()
 }
 
-/// The kinds of event after which what a provider has left may have moved: a usage reading, an account's or
-/// the fallback's change, a rest and a road's fact.
-pub const QUOTA_MOVES: [&str; 5] =
-  ["usage.changed", "account.changed", "fallback.changed", "rest.changed", "road.changed"];
+/// The kinds of event after which what a provider has left may have moved: a usage reading, an account's
+/// change, a rest and a road's fact.
+pub const QUOTA_MOVES: [&str; 4] = ["usage.changed", "account.changed", "rest.changed", "road.changed"];
 
 /// A watch on the events after which a run waiting for quota asks its order again: a wait for quota ends on one
-/// of them, never on a clock (docs/provider-order.md, 「When every provider is out」).
+/// of them, never on a clock (docs/provider-order.md, 「Whether a road can answer」).
 pub fn quota_watch(ground: &Ground) -> crate::events::WireSubscription {
   ground
     .events
@@ -468,7 +466,7 @@ pub async fn role_entry<C: sea_orm::ConnectionTrait>(
     .ok_or_else(|| format!("the {role} role's order holds no entry for {provider}"))
 }
 
-/// The entry a supervisor's order names for a provider, read afresh.
+/// A supervisor's one road, read afresh, where it stands on `provider`: what its turns go out on there.
 pub async fn supervisor_entry<C: sea_orm::ConnectionTrait>(
   db: &C,
   supervisor: &str,
@@ -478,15 +476,13 @@ pub async fn supervisor_entry<C: sea_orm::ConnectionTrait>(
   let held = held.ok_or_else(|| format!("No supervisor named {supervisor} is held"))?;
 
   held
-    .order
-    .entry(provider)
-    .cloned()
-    .ok_or_else(|| format!("{supervisor}'s order holds no entry for {provider}"))
+    .road
+    .filter(|road| road.provider == provider)
+    .ok_or_else(|| format!("{supervisor}'s road is not on {provider}"))
 }
 
 /// The entry the row a run names — a supervisor's, else a role's of that name — holds for a provider. A role
-/// whose order is empty follows the supervisor that asks it (docs/provider-order.md, 「Runs that do not walk
-/// their own role's order」): its entry is that supervisor's for the provider, and a run of such a role that
+/// whose order is empty follows the supervisor that asks it (docs/provider-order.md, 「Runs on another's road」): its entry is that supervisor's for the provider, and a run of such a role that
 /// names no supervisor is refused.
 pub async fn row_entry<C: sea_orm::ConnectionTrait>(
   db: &C,

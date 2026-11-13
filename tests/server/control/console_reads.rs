@@ -1,6 +1,6 @@
 //! What the console reads of a running server over its control routes (docs/api.md): each provider with its
 //! default compaction threshold and typed quota; a supervisor's reset point alone and the rooms its turns went
-//! into; the stand-in's provider; a repository's typed checkouts and sampling settings, an add with no path
+//! into; a supervisor added on its one road and that road changed; a repository's typed checkouts and sampling settings, an add with no path
 //! refused, a node checkout on a node that takes no jobs refused, a change refused for its sampling writing
 //! none of its node checkouts; the nodes with whether they take jobs; a seeded supervisor's removal refused as
 //! seeded; a slot asked for a model alone, its runs on `/slots`, an owner's release and the admission's state
@@ -107,12 +107,6 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
   assert_eq!(rooms["items"][0]["lastFinishedAt"], Value::Null);
   assert_eq!(rooms["items"][1]["roomId"], 42);
 
-  // No stand-in answers while Claude Code stands open, and none is named.
-  let (_, stand_in) = get(port, token, "/stand-in?agent=chat-agent").await;
-
-  assert_eq!(stand_in["answers"], false, "{stand_in}");
-  assert_eq!(stand_in["provider"], Value::Null);
-
   // A repository's checkouts are typed and its sampling's settings named with their bounds.
   let (status, kept) = get(port, token, "/repositories/kept").await;
 
@@ -182,7 +176,9 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     .run(r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = 'kept'"#, vec![])
     .await;
 
-  // A supervisor added with its order whole is written with it, its share beside it.
+  // A supervisor is added on its one road, and its road is changed like an agent's: a changed model keeps the
+  // provider and drops the old model's effort, a provider agency does not carry is refused by its field, and a
+  // body naming an order is refused for the field it names.
   let (status, added) = call(
     port,
     token,
@@ -192,8 +188,9 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
       "name": "pal",
       "label": "Pal",
       "repository": "kept",
-      "order": [{ "provider": "claude-code", "model": "claude-opus-5" }],
-      "quotaShare": 0.05,
+      "provider": "claude-code",
+      "model": "claude-opus-5",
+      "effort": "high",
     })),
   )
   .await;
@@ -202,40 +199,38 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   let (_, pal) = get(port, token, "/supervisors/pal").await;
 
-  assert_eq!(pal["order"][0]["model"], "claude-opus-5", "{pal}");
-  assert_eq!(pal["quotaShare"], json!(0.05), "{pal}");
-  assert_eq!(pal["active"], Value::Null, "its order chooses: {pal}");
+  assert_eq!(
+    (&pal["provider"], &pal["model"], &pal["effort"]),
+    (&json!("claude-code"), &json!("claude-opus-5"), &json!("high")),
+    "{pal}"
+  );
 
-  // The owner forces its active provider beside the order, refused for a provider agency does not carry, and
-  // clears it again; the order itself stays as it was.
-  let (status, forced) = call(
+  let (status, moved) = call(
     port,
     token,
     reqwest::Method::PATCH,
     "/supervisors/pal",
-    Some(json!({ "active": { "provider": "claude-code", "model": "claude-sonnet-4-6" } })),
+    Some(json!({ "model": "claude-sonnet-4-6" })),
   )
   .await;
 
-  assert_eq!(status, 200, "{forced}");
-  assert_eq!(forced["active"], json!({ "provider": "claude-code", "model": "claude-sonnet-4-6" }));
-  assert_eq!(forced["order"][0]["model"], "claude-opus-5", "{forced}");
+  assert_eq!(status, 200, "{moved}");
+  assert_eq!(
+    (&moved["provider"], &moved["model"], &moved["effort"]),
+    (&json!("claude-code"), &json!("claude-sonnet-4-6"), &Value::Null),
+    "{moved}"
+  );
 
   let (status, refused) = call(
     port,
     token,
     reqwest::Method::PATCH,
     "/supervisors/pal",
-    Some(json!({ "active": { "provider": "nowhere", "model": "x" } })),
+    Some(json!({ "provider": "nowhere", "model": "x" })),
   )
   .await;
 
-  assert_eq!((status, refused["field"].clone()), (400, json!("active")), "{refused}");
-
-  let (status, cleared) =
-    call(port, token, reqwest::Method::PATCH, "/supervisors/pal", Some(json!({ "active": null }))).await;
-
-  assert_eq!((status, cleared["active"].clone()), (200, Value::Null), "{cleared}");
+  assert_eq!((status, refused["field"].clone()), (400, json!("provider")), "{refused}");
 
   let (status, refused) = call(
     port,

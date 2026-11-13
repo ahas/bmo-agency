@@ -65,7 +65,7 @@ is and which one a run takes is `docs/role-agents.md`.
 
 - **An ask goes into the slot table before the program launches.** One immediate transaction checks the
   role's active slots plus its reserved ones, who stands ahead of the asker, and whether the run's provider
-  has quota (`docs/provider-order.md`, 「When every provider is out」), and grants a lease.
+  has quota (`docs/provider-order.md`, 「Whether a road can answer」), and grants a lease.
 - **One role's asks are judged one at a time.** The transaction that judges an ask holds its role's row until
   it ends, so two asks woken at once — a slot freed with several waiting — never both read an agent as free
   and both take it: the second is judged once the first is written, and finds the agent carrying its run.
@@ -206,8 +206,8 @@ is and which one a run takes is `docs/role-agents.md`.
   of its own, and waits in that role's line however long it takes.
 - **A task naming no role is the supervisor's double:** it holds a slot of the `doppelganger` role. The
   doppelganger's agents are seeded on no road, so its lease carries the asking supervisor's provider, model
-  and effort as they stand when it is asked — the provider, model and effort its last turn went out on, else
-  its order's first — and it waits, never moves, while that provider has no quota. An agent the owner sets a
+  and effort as they stand when it is asked — the supervisor's one road — and it waits, never moves, while
+  that road cannot take it. An agent the owner sets a
   road goes out on that road instead. The doppelganger's agents count every supervisor's double together.
 - **A task naming a role** holds a slot of that role and goes out on the road of the agent it is let in on,
   like any run of it, or on the asking supervisor's road where that agent names none.

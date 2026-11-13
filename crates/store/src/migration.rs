@@ -78,6 +78,7 @@ mod m20261217_000001_notices;
 mod m20261218_000001_job_turn_words;
 mod m20261219_000001_registration_languages;
 mod m20261220_000001_job_notices_owed;
+mod m20261221_000001_supervisor_road;
 
 use sea_orm_migration::prelude::*;
 
@@ -91,6 +92,8 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 /// the agent rows over (docs/agents.md, 「Two axes」): what writes rows in the shape before it, the archive's
 /// import, runs the migrations up to it, writes, and then runs it.
 pub const TWO_AXES: &str = m20261124_000001_renewal::NAME;
+/// The migration that leaves every supervisor on one road, the first entry of the order it held.
+pub const SUPERVISOR_ROAD: &str = m20261221_000001_supervisor_road::NAME;
 
 /// The migration that gives the roles the names the owner chose and retires the roles no one calls
 /// (docs/agent-roles.md, 「The roles the policy seeds」).
@@ -240,6 +243,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261218_000001_job_turn_words::Migration),
       Box::new(m20261219_000001_registration_languages::Migration),
       Box::new(m20261220_000001_job_notices_owed::Migration),
+      Box::new(m20261221_000001_supervisor_road::Migration),
     ]
   }
 

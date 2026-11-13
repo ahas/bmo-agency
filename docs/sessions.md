@@ -11,9 +11,8 @@ statements below about either are kept for a rollback to the road a deployment l
 ## One session per chat
 
 - One Claude session per chat is kept and resumed, so the supervisor remembers previous exchanges. Every
-  supervisor turn is on the model and effort its provider order names for the provider it runs on
-  (`docs/provider-order.md`), and `bmo-agency agent` shows what each supervisor and each role is
-  configured to run on.
+  supervisor turn is on the provider, model and effort of its one road (`docs/provider-order.md`), and
+  `bmo-agency agent` shows the road each supervisor and each agent runs on.
 
 ## A restart hands the session over
 
@@ -337,7 +336,7 @@ statements below about either are kept for a rollback to the road a deployment l
   whose program carries it — the agent's, or the place of the thrown-away session it went on — and only
   where that place's run is the turn's own; a place whose run is another's, an earlier turn of the agent's
   own place among them, says nothing of it. A turn this process still carries is its own to close and is
-  left to it: a turn's walk goes from one provider's road to the next under the same run, and the place's run
+  left to it: a turn's walk goes from one Claude account to the next under the same run, and the place's run
   ends between them while the turn goes on, its run in the ledger closed by the turn's own end. Any other
   turn whose run there has ended is no longer kept. Otherwise
   it is read against the execution rows its run put in; where a row's recorded pid and birth are gone and
@@ -393,7 +392,7 @@ statements below about either are kept for a rollback to the road a deployment l
   warm.
 - **Which session a job's turn goes on is its runner's to ask.** The turn names whether it resumes the kept
   session, opens a fresh one or continues one it names; agency carries that choice through the rules above.
-  A turn whose runner named a session that a move to another provider, a reset or the judging of the kept
+  A turn whose runner named a session that a change of its road, a reset or the judging of the kept
   session has moved off is put to the runner again before anything goes in, since its prompt was composed
   for what that session has read.
 - **A turn a job's review asks for continues the job's own session** (`docs/job-review.md`, 「The turns the
