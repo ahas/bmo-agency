@@ -287,9 +287,14 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
       }
     })
   });
+  // A program that ended before it read the requests closed before answering them, as one that ends after.
+  let closed = || "app-server closed before returning rate limits".to_owned();
+  let unwritten = |why: std::io::Error| {
+    if why.kind() == std::io::ErrorKind::BrokenPipe { closed() } else { why.to_string() }
+  };
   let answered = async {
-    stdin.write_all(lines.as_bytes()).await.map_err(|why| why.to_string())?;
-    stdin.flush().await.map_err(|why| why.to_string())?;
+    stdin.write_all(lines.as_bytes()).await.map_err(unwritten)?;
+    stdin.flush().await.map_err(unwritten)?;
 
     let mut reading = BufReader::new(stdout).lines();
 
@@ -313,7 +318,7 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
       return windows_of_answer(response.get("result").unwrap_or(&Value::Null));
     }
 
-    Err("app-server closed before returning rate limits".to_owned())
+    Err(closed())
   };
   // The read waits for the answer or for the process to close its output, however long either takes.
   let answered = answered.await;

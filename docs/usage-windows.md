@@ -110,7 +110,8 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
 - **Otherwise the app-server is asked.** Codex's app-server is started over standard input and output,
   initialised, and asked `account/rateLimits/read`; the answer's windows by limit are read, or its
   single `rateLimits` where it gives none by limit, in the same names and fields. The read waits for that
-  answer or for the process to close its output, however long either takes. The process is ended with
+  answer or for the process to close its output, however long either takes; a process that ends before it
+  has read the requests has closed before answering, as one that ends after. The process is ended with
   the reading, so none outlives it, and everything it had said on its error stream by its end is carried
   beside a failure: what stands in the pipe as it ends is read then, and the stream's close, which a process it
   started may hold off, is never waited for.
