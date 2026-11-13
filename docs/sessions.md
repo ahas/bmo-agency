@@ -20,7 +20,12 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A deployment waits for quiet before its flip** (`testbed.toml`, `quiet`): the receiver's plain
   `quiet` command, run by its deployed path, says whether a chat turn stands under way that the
   restart of agency would cut, and the testbed waits on it before it flips (the receiver's
-  `docs/boundary-api.md`, 「The service and its commands」; the testbed's `docs/deploy.md`).
+  `docs/boundary-api.md`, 「The service and its commands」; the testbed's `docs/deploy.md`). The
+  declared quiet, `deploy/quiet`, answers by the testbed's three codes: 0 where the receiver answers
+  0; where it answers 1, the lines it printed less those naming a chat turn, ending 0 where none is
+  left and 1 with them printed where some are; and any other code the receiver ends with, its own,
+  with everything it printed, so a receiver that could not read its state reaches the testbed as a
+  quiet that could not tell rather than as work under way.
 - **A running job survives an agency restart.** Its turn in flight is kept across the restart, its run
   goes on, and the lease pass takes the item again in the same checkout; the deploy therefore counts no
   job and waits on none.
