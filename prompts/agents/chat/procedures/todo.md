@@ -114,7 +114,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   Leave to the owner as a draft only work that needs his own authority — a credential, an account or a
   login, money, his own files, people's data, or a judgement of taste — and a member's ask; say in one line
   which it is and that it waits for his approval on the console, with its number. A draft is never left
-  for him only because judging it takes reading. His words on an item go onto it with `job_note_add`, and
+  for him only because judging it takes reading, nor because it touches an item he held or an area he
+  spoke on: read his word, and approve a draft that keeps to it. Only a draft that would go against his
+  stated word waits for him, said in one line naming the word it would overturn. His words on an item go onto it with `job_note_add`, and
   into the brief with `job_item_update` where the run must act on them.
 - **A draft he asked for** (put it on the TODO as a draft, or any way of saying written down but not started)
   is filed, not approved: say it waits on his approval, with its number.
