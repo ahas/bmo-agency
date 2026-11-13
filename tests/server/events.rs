@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::sync::atomic::AtomicI64;
 
 use agency_server::events::{Bus, Event, MISSED, Missed, Named, drop_oldest};
+use futures_util::StreamExt;
 use serde_json::{Value, json};
 
 use crate::support::scratch::Scratch;
@@ -359,6 +360,9 @@ async fn a_stream_resumed_across_the_server_s_restart_sends_what_it_kept_and_tel
   assert!(text.contains("event: probe.three"), "{text}");
 }
 
+// How many publishes of the burst are in hand at once.
+const IN_FLIGHT: usize = 32;
+
 #[tokio::test]
 async fn every_event_published_before_the_server_s_stop_is_read_by_the_reader_resuming_on_the_server_after()
 {
@@ -371,13 +375,34 @@ async fn every_event_published_before_the_server_s_stop_is_read_by_the_reader_re
   std::fs::create_dir_all(&data).unwrap();
 
   let mut first = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  // One client for every call, speaking plain HTTP: it loads no root certificates, so it stands where the
+  // machine offers none, and its connections stay few however many events go out.
+  let client = reqwest::Client::builder().tls_certs_only(Vec::new()).build().unwrap();
 
-  // Each publish is answered once the event has its number, before the store has it; they come at once, and
-  // the stop on the heels of the last.
+  // Each publish is answered once the event has its number, before the store has it; they come a few at a
+  // time, faster than the store takes them, and the stop on the heels of the last.
   let port = first.port;
+  let publish = |_| {
+    let client = client.clone();
 
-  futures_util::future::join_all((0..published_before).map(|_| published(port, token, "probe.burst")))
+    async move {
+      client
+        .post(format!("http://127.0.0.1:{port}/events"))
+        .bearer_auth(token)
+        .json(&json!({ "kind": "probe.burst", "data": { "said": "probe.burst" } }))
+        .send()
+        .await
+        .unwrap()
+        .status()
+    }
+  };
+  let answered: Vec<reqwest::StatusCode> = futures_util::stream::iter(0..published_before)
+    .map(publish)
+    .buffer_unordered(IN_FLIGHT)
+    .collect()
     .await;
+
+  assert!(answered.iter().all(|status| status.as_u16() == 201), "{answered:?}");
 
   let ended = tokio::task::spawn_blocking(move || {
     let ended = first.stop(std::time::Duration::from_secs(30));
@@ -395,7 +420,7 @@ async fn every_event_published_before_the_server_s_stop_is_read_by_the_reader_re
   drop(ended.0);
 
   let second = standing::stand_server(home.path(), &data, &scratch.address(), token);
-  let read: Value = reqwest::Client::new()
+  let read: Value = client
     .get(format!("http://127.0.0.1:{}/events?after=0&kinds=probe.burst&limit=1000", second.port))
     .bearer_auth(token)
     .header("accept", "application/json")
