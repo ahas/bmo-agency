@@ -118,35 +118,6 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
   Ok(())
 }
 
-/// The commits owed as waiting to go live let go where no job of agency's on their item is still starting or
-/// running, so its close no longer waits on the deployment: what the sender's clock runs before it sends.
-pub async fn deploys_owed(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
-  let owed = outbox::owed(db, DEPLOY_OWED).await?;
-
-  if owed.is_empty() {
-    return Ok(());
-  }
-
-  let waiting: std::collections::BTreeSet<String> = store::all(
-    db,
-    r#"SELECT DISTINCT "item_id" FROM "jobs" WHERE "state" IN ('starting', 'running')"#,
-    vec![],
-  )
-  .await
-  .map_err(|why| why.detail)?
-  .iter()
-  .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
-  .map(|item| item.to_string())
-  .collect();
-
-  for (item, row) in owed.iter().filter(|(item, _)| !waiting.contains(*item)) {
-    outbox::let_go_as_read(db, vars, &format!("{DEPLOY_OWED}{item}"), row).await?;
-    println!("queue: item #{item}'s commit owed as waiting to go live let go, its job no longer waiting");
-  }
-
-  Ok(())
-}
-
 // Whether the item's own orderer closed it: its changer is the requester of the item the orderer was found on,
 // or a supervisor agency holds.
 async fn by_orderer(db: &DatabaseConnection, by: &str, orderer: &Orderer) -> bool {

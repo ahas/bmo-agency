@@ -865,6 +865,15 @@ async fn every_page(
 // The job service's open items, each marked by whether its queue gives a lease — open, holding nothing. An item
 // stands open only once an approver approved it or it was raised with an unattended label, so its state is the
 // whole of whether it may be launched.
+/// Whether an open item's close already merged its commit, its label `close-phase` reading `waiting-batch` or an
+/// older close's `waiting-live`: its work stands on main and only its repository's deployment remains, so it is no
+/// work a checkout could take, and it is told only as waiting to go live.
+pub fn merged_awaiting_deploy(item: &Value) -> bool {
+  let phase = &item["labels"]["close-phase"];
+
+  phase == "waiting-batch" || phase == "waiting-live"
+}
+
 async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
   let queues = read_job(service, "/queues", &[]).await?;
   let taking: Vec<&str> = queues["items"]
@@ -881,6 +890,7 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
     every_page(service, "/items", &[("state", "open")])
       .await?
       .iter()
+      .filter(|item| !merged_awaiting_deploy(item))
       .filter_map(|item| {
         let queue = item["queueName"].as_str().unwrap_or_default().to_owned();
 

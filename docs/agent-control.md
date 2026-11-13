@@ -2919,8 +2919,11 @@ them run a browser, and whose a place is.
   checkout where it names none —, the agent its `agent` label names, where it names one, carries no run, or,
   where it names a model and no agent, one agent of its role on that model carries none
   (`docs/repositories.md`, 「An agent an item names」), and its role has a free slot. An item a job of agency's is still at work
-  on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody.
-  Where one item waits so and no job has started on this machine for the idle minutes
+  on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody. Nor
+  does an open item whose close merged its commit, its label `close-phase` reading `waiting-batch` or an older
+  close's `waiting-live`: its work stands on main and only its repository's deployment remains, so it is no
+  open work, is told for no launch, queue or checkout, and is told only as waiting to go live (「An item's
+  change is told to its orderer」). Where one item waits so and no job has started on this machine for the idle minutes
   (`policy/queue-idle.toml`, five, or the owner's own row `queue_idle_minutes` of the settings table), the
   queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
@@ -3010,7 +3013,7 @@ with the session.
 | A held item whose `follows` or `waiting-on` label names items that are all `done` now, none with its commit still waiting to go live | the orderer | instruction | `item-wait-ended:<item>`, `item-wait-ended:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
-| A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, standing until the item leaves that phase or no job of agency's runs on it | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
+| A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, standing until the item leaves that phase, whether or not a job of agency's still runs on it | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |

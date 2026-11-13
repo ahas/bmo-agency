@@ -730,6 +730,24 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
     held
       .items
       .insert(94, item(94, "open", json!({ "assigneeName": "nowhere", "scope": "-9400" })));
+    // 95 and 96 merged their commits and wait for their repository's deployment, one on the free checkout's
+    // queue and one on the paused queue: neither is work to take.
+    held.items.insert(
+      95,
+      item(
+        95,
+        "open",
+        json!({ "labels": { "close-phase": "waiting-batch", "close-commit": "abc" }, "scope": "-9500" }),
+      ),
+    );
+    held.items.insert(
+      96,
+      item(
+        96,
+        "open",
+        json!({ "queueName": "later", "labels": { "close-phase": "waiting-live" }, "scope": "-9600" }),
+      ),
+    );
   }
 
   pass(db, &vars).await.unwrap();
@@ -743,6 +761,13 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
     .await;
   pass(db, &vars).await.unwrap();
   pass(db, &vars).await.unwrap();
+  assert!(
+    agency_server::queue::settings::get(db, &format!("{SEEN_PREFIX}95"))
+      .await
+      .unwrap()
+      .is_none(),
+    "a merged item is never seen waiting for a checkout"
+  );
 
   let told: BTreeMap<String, Value> = kinds(&peers).into_iter().collect();
 
