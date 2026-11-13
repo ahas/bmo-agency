@@ -142,13 +142,24 @@ pub enum AssignmentState {
   Released,
 }
 
-/// One of the values the API accepts.
+/// Where a job stands: launched, its work's turn going, its report under review, finished, or cut short.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum JobState {
   #[serde(rename = "starting")]
   Starting,
   #[serde(rename = "running")]
   Running,
+  #[serde(rename = "reviewing")]
+  Reviewing,
+  #[serde(rename = "ended")]
+  Ended,
+  #[serde(rename = "stopped")]
+  Stopped,
+}
+
+/// The state a change takes a job to: the two that end it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum JobEnd {
   #[serde(rename = "ended")]
   Ended,
   #[serde(rename = "stopped")]
@@ -1800,10 +1811,30 @@ pub struct Job {
   /// What chose its provider and model; none for a job launched before it was kept.
   #[serde(default)]
   pub chosen_by: Option<JobChoice>,
+  /// Where its review stands (docs/job-review.md).
+  pub review: JobReview,
   /// epoch milliseconds
   pub started_at: i64,
   /// epoch milliseconds
   pub ended_at: Option<i64>,
+}
+
+/// JobReview: where a job's review stands.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobReview {
+  /// The steps the job runs in order, empty for a job of one stage.
+  pub stages: Vec<String>,
+  /// The stage under way counted from 1, or none for the final report.
+  pub stage: Option<i64>,
+  pub round: i64,
+  /// The check due now, kept while a question of it is out; none while a work turn runs.
+  pub check: Option<String>,
+  pub rejections: i64,
+  /// The owner's question while the work waits on it.
+  pub question: Option<i64>,
+  /// Whether the job gave its checkout up while that question waited.
+  pub parked: bool,
 }
 
 /// JobRoad: one road a job's turn went out on.
@@ -1902,7 +1933,7 @@ pub struct RunJob {
 #[serde(rename_all = "camelCase")]
 pub struct JobChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub state: Option<JobState>,
+  pub state: Option<JobEnd>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub outcome: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

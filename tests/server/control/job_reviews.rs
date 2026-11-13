@@ -1,7 +1,8 @@
 //! A job's review (docs/job-review.md): an answered turn puts the job under review rather than ending it, its
 //! checkout and lease kept; the orderer's moves refused where they do not fit — no turn, a job not under review,
 //! the owner asked before the ceiling; the checks passed one at a time, a job of one stage ending once its last
-//! check passes, a job of several going on to its next stage; and a rejection counted, its round moved on and its
+//! check passes, a job of several going on to its next stage; a move's answer read through the agency's own
+//! client while the job stays under review; and a rejection counted, its round moved on and its
 //! rework turned out; and the seat a job holds kept through its review and across a restart, so its next stage
 //! runs on its agent before a job waiting for that agent starts.
 
@@ -19,6 +20,7 @@ use agency_server::order_run::dispatch::{self, Asked, Wanted};
 use agency_server::outbox::{owed, restarted, send_due};
 use agency_server::places::Ground;
 use agency_server::turn_marks::{self, Mark};
+use bmo_agency_client::{AgencyClient, JobReviewAsk, JobState};
 use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -246,6 +248,57 @@ async fn the_checks_pass_one_at_a_time_and_a_job_of_one_stage_ends_after_its_las
 
   assert_eq!((status, refused["code"].as_str()), (409, Some("not-reviewing")), "{refused}");
   turn_marks::ended(agent, "run-r1");
+}
+
+// The review tool reads the route's answer through the agency's own client: a move that leaves the job under
+// review answers a job the client reads, standing `reviewing` with the check due next, and the move is made once.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_move_that_leaves_the_job_under_review_answers_a_job_the_client_reads() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = {
+    let service = Service::new(scratch.db().clone(), Config::read(|_| None).unwrap());
+    let mut env = vec![
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+    ];
+
+    env.extend(vars);
+    Arc::new(Ground::new(&service, &Machine::with_env(env, home.path().join("data")), None))
+  };
+  let port = front(ground.clone()).await;
+  let agent = "client-reviewing-agent";
+
+  running(&scratch, "worker-c", 26, 66, &[]).await;
+  agency_server::job_review::reported(&ground, 26, "All of it is done.", None).await;
+  carrying(agent, "run-c1");
+
+  let client = AgencyClient::new(&format!("http://127.0.0.1:{port}"), TOKEN).unwrap();
+  let ask = JobReviewAsk {
+    agent_name: agent.to_owned(),
+    job_id: 26,
+    action: "pass".to_owned(),
+    text: None,
+    stage: None,
+  };
+  let job = client.create_job_reviews(&ask).await.unwrap();
+
+  assert_eq!((job.id, job.state), (26, JobState::Reviewing));
+  assert_eq!((job.review.check.as_deref(), job.review.round), (Some("decisions"), 1));
+
+  let passes: Vec<Value> = peers
+    .lock()
+    .unwrap()
+    .calls
+    .iter()
+    .filter(|call| call.path == "/items/66/reviews" && call.body["kind"] == "pass")
+    .map(|call| call.body.clone())
+    .collect();
+
+  assert_eq!(passes.len(), 1, "{passes:?}");
+  assert_eq!(passes[0]["labels"]["check"], "promises");
+  turn_marks::ended(agent, "run-c1");
 }
 
 #[tokio::test(flavor = "multi_thread")]

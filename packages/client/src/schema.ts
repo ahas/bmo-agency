@@ -3146,6 +3146,8 @@ export interface components {
              * @default null
              */
             chosenBy: components["schemas"]["JobChoice"] | null;
+            /** @description Where its review stands (docs/job-review.md). */
+            review: components["schemas"]["JobReview"];
             /**
              * Format: int64
              * @description epoch milliseconds
@@ -3158,10 +3160,10 @@ export interface components {
             endedAt: number | null;
         };
         /**
-         * @description One of the values the API accepts.
+         * @description Where a job stands: launched, its work's turn going, its report under review, finished, or cut short.
          * @enum {string}
          */
-        JobState: "starting" | "running" | "ended" | "stopped";
+        JobState: "starting" | "running" | "reviewing" | "ended" | "stopped";
         /**
          * @description JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the
          *     canonical documents it answers to, the sentences it must make or keep true and the commands whose
@@ -3193,6 +3195,29 @@ export interface components {
          * @enum {string}
          */
         JobChoice: "item" | "forced" | "pin" | "order";
+        /** @description JobReview: where a job's review stands. */
+        JobReview: {
+            /** @description The steps the job runs in order, empty for a job of one stage. */
+            stages: string[];
+            /**
+             * Format: int64
+             * @description The stage under way counted from 1, or none for the final report.
+             */
+            stage: number | null;
+            /** Format: int64 */
+            round: number;
+            /** @description The check due now, kept while a question of it is out; none while a work turn runs. */
+            check: string | null;
+            /** Format: int64 */
+            rejections: number;
+            /**
+             * Format: int64
+             * @description The owner's question while the work waits on it.
+             */
+            question: number | null;
+            /** @description Whether the job gave its checkout up while that question waited. */
+            parked: boolean;
+        };
         /**
          * @description JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the
          *     one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
@@ -3491,10 +3516,15 @@ export interface components {
         };
         /** @description The body that ends or stops a job. */
         JobChange: {
-            state?: components["schemas"]["JobState"] | null;
+            state?: components["schemas"]["JobEnd"] | null;
             outcome?: string | null;
             report?: string | null;
         };
+        /**
+         * @description The state a change takes a job to: the two that end it.
+         * @enum {string}
+         */
+        JobEnd: "ended" | "stopped";
         /** @description JobPrompt: */
         JobPrompt: {
             /** Format: int64 */

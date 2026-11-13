@@ -11232,6 +11232,10 @@
             "description": "What chose its provider and model; none for a job launched before it was kept.",
             "default": null
           },
+          "review": {
+            "$ref": "#/components/schemas/JobReview",
+            "description": "Where its review stands (docs/job-review.md)."
+          },
           "startedAt": {
             "type": "integer",
             "format": "int64",
@@ -11268,6 +11272,7 @@
           "roads",
           "heldFor",
           "chosenBy",
+          "review",
           "startedAt",
           "endedAt"
         ],
@@ -11278,10 +11283,11 @@
         "enum": [
           "starting",
           "running",
+          "reviewing",
           "ended",
           "stopped"
         ],
-        "description": "One of the values the API accepts."
+        "description": "Where a job stands: launched, its work's turn going, its report under review, finished, or cut short."
       },
       "JobInstruction": {
         "type": "object",
@@ -11363,6 +11369,63 @@
           "order"
         ],
         "description": "What chose a job's provider and model: its item's `model` label, its repository's pin or its role's\nagents in their order (`order`). `forced` stands on a job row that holds it, and no job is given it."
+      },
+      "JobReview": {
+        "type": "object",
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The steps the job runs in order, empty for a job of one stage."
+          },
+          "stage": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The stage under way counted from 1, or none for the final report."
+          },
+          "round": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "check": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The check due now, kept while a question of it is out; none while a work turn runs."
+          },
+          "rejections": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "question": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The owner's question while the work waits on it."
+          },
+          "parked": {
+            "type": "boolean",
+            "description": "Whether the job gave its checkout up while that question waited."
+          }
+        },
+        "required": [
+          "stages",
+          "stage",
+          "round",
+          "check",
+          "rejections",
+          "question",
+          "parked"
+        ],
+        "description": "JobReview: where a job's review stands."
       },
       "JobStopAsk": {
         "type": "object",
@@ -12199,7 +12262,7 @@
           "state": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/JobState"
+                "$ref": "#/components/schemas/JobEnd"
               },
               {
                 "type": "null"
@@ -12220,6 +12283,14 @@
           }
         },
         "description": "The body that ends or stops a job."
+      },
+      "JobEnd": {
+        "type": "string",
+        "enum": [
+          "ended",
+          "stopped"
+        ],
+        "description": "The state a change takes a job to: the two that end it."
       },
       "JobPrompt": {
         "type": "object",

@@ -1206,6 +1206,13 @@ by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that 
 the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
+- **A job's `state` is one of five,** and every route that answers a job — the list, one job, a launch, a
+  change, a stop and a review — answers whichever it stands in: `starting`, launched and its turn not yet
+  going; `running`, a turn of its work going; `reviewing`, its turn answered and its report under the
+  orderer's review (`docs/job-review.md`); `ended`, finished with its outcome; and `stopped`, cut short by a stop,
+  a bound or the loss of what ran it. `PATCH /jobs/{jobId}` takes only the two that end a job, `ended` and
+  `stopped`, and refuses any other 400.
+
 - **A job names the agent that does its work** as `agentName`, the agent its item's `agent` label named or the
   one its launch took for its item's `model` label, none for a job launched before items named one; its log's lines stand under that name (`docs/run-records.md`,
   「Agent log」).
