@@ -90,7 +90,8 @@ says, and every subagent a job's program opens and every line the owner types in
   the jake hub reaches, a person's PC among them; call it with `bmo use bmo/node_exec` (`--describe` gives
   its arguments). Never jake's console, never the hub's exec route asked by hand, and never a script that
   reads the hub's token. The tool lets a caller reach the nodes of its own account, and the deployment's
-  own reach every node; a refusal it gives is the job's answer to report, never a reason to go around it.
+  own reach every node; a refusal it gives, and a session that does not hold the tool at all, is the job's
+  answer to report, never a reason to go around it.
 - **Work longer than the hub's ceiling on one command** is started on the node as a unit of its own with
   one call and read back with later calls.
 
