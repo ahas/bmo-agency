@@ -22,6 +22,14 @@ RestartSec=2
 # ate the memory, and systemd's default then stops the whole unit: every pane and every turn
 # with it (docs/agent-control.md).
 OOMPolicy=continue
+# What the panes start — the programs, the development servers and browsers their runs stand up — is held
+# under a ceiling of the machine's memory, so it can never take the machine and its services with it: past
+# MemoryHigh the kernel reclaims from the unit first, and past MemoryMax it takes the largest process inside
+# the unit alone. Swap is held short too, since a unit swapping without bound stalls the whole machine
+# before any process is taken. The share is of the machine's memory, so it fits any machine.
+MemoryHigh=55%
+MemoryMax=65%
+MemorySwapMax=4G
 # The socket, and everything herdr writes beside it, sit under this directory. XDG_CONFIG_HOME is
 # the only thing that moves them: there is no flag for the socket path alone, and
 # HERDR_CONFIG_PATH moves the configuration file while leaving the socket where it was. It is

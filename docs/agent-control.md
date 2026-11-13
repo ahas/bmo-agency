@@ -1335,6 +1335,12 @@ flowchart TD
   every other one goes on. The suite, the heaviest thing a pane starts, leaves herdr's unit for a
   scope of its own with a memory ceiling before it runs a file (`test-suite.md`, 「A fence of
   its own」).
+- **herdr's unit holds what its panes start under a ceiling of the machine's memory.** Every program a
+  pane runs, and every development server, browser or tool its run stands up, stays in herdr's unit, and
+  the unit is held to 55% of the machine's memory before the kernel reclaims from it and 65% before it
+  takes the largest process inside it, with at most 4 GB of swap. So however many servers the panes
+  leave standing, they cost the largest of them, never the machine and the services beside them: a unit
+  swapping without bound stalls the whole machine before any process is taken.
 - **Tests.** The agent host's own tests start its binary on a scratch data root and keep what the bun
   host's tests held: exact output bytes, executions side by side, a duplicate refused, a descendant
   left standing after its leader ended on a stop still killed, a leader that takes its time over a stop
