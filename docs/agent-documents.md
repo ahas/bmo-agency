@@ -206,6 +206,11 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   the room the turn answers, with the request's keys; where the setting is empty the agent writes no
   link, says the address is not set, and still asks for no value. How the link is written is
   `prompts/agents/chat/procedures/secrets.md`.
+- **A supervisor of an account asks for its person's secret.** Its program holds its owner account in
+  `BMO_OWNER_ACCOUNT` (`docs/agent-ownership.md`, 「What the supervisor's row carries」), and the procedure
+  has it name that user on the link with `user=<id>`, so the console saves into that person's own space
+  and opens the form for that person alone. A supervisor of no account holds no such variable and names no
+  user, so its request is the platform administrator's.
 - **The manual describes the draft process as the receiver runs it** (the receiver's `docs/drafting.md`):
   the questions asked in rounds after a turn, every answer before the last being free-form notes of what
   was read, established in the brain and still unknown, the tools open in every round, the message

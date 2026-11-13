@@ -690,6 +690,8 @@ pub async fn chat_run(
     env.insert(name.clone(), value.clone());
   }
 
+  env.extend(crate::supervisors::own_variables(&ground.db, agent).await);
+
   // What the turn is about, for what it runs to read without being told; a keepalive touch answers no room.
   if !launch.ping {
     env.insert("BMO_TURN_CHAT".to_owned(), launch.chat_id.to_string());

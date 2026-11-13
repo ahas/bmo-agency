@@ -225,6 +225,7 @@ pub async fn compose(
   turn: &SupervisorTurn<'_>,
 ) -> Result<ComposedTurn, Refusal> {
   let trees = Trees::of(ground);
+  let own = crate::supervisors::own_variables(&ground.db, turn.agent).await;
   let reasoning = reasoning_of(ground, turn.agent).await?;
   let thinking = reasoning.thinking.unwrap_or(false);
   let effort = effort_of(ground, machine, turn.provider, turn.model, None, Some(&reasoning))
@@ -262,6 +263,7 @@ pub async fn compose(
   {
     let mut env = ground.env().clone();
 
+    env.extend(own);
     env.extend(variables.iter().map(|(name, value)| ((*name).to_owned(), value.clone())));
 
     let compact_at = super::dsh::compact_share(ground, turn.agent, turn.provider).await;
@@ -360,6 +362,7 @@ pub async fn compose(
     let mut env =
       command_env(ground.env(), login.as_ref(), &Runs::of_place(&trees.data, &place.path), thinking)?;
 
+    env.extend(own.into_iter().map(|(name, value)| (name, Some(value))));
     env.extend(variables.map(|(name, value)| (name.to_owned(), Some(value))));
 
     let command = Command {
@@ -452,6 +455,7 @@ pub async fn compose(
   )
   .await?;
 
+  command.env.extend(own);
   command.env.extend(variables.map(|(name, value)| (name.to_owned(), value)));
 
   Ok(ComposedTurn {

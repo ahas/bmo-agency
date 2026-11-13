@@ -125,8 +125,8 @@ side of a remote agent, the rotation, and what a dropped node does.
     this machine's data root, deploy tree, prompt tree and home rewritten to the node's, every file
     the program names under the data root or the prompt tree sent along — never one under the data
     root's credential directory — and of the program's environment only the run's own variables, the
-    CLI's (the account's token for the nodes among them), its place and its tool token: no token of
-    the bot's leaves this machine. The node's own search path and the bridge's socket are laid over
+    CLI's (the account's token for the nodes among them), its place, its tool token, the console's
+    public address and a supervisor's owner account: no token of the bot's leaves this machine. The node's own search path and the bridge's socket are laid over
     it;
   - from the node to here: the place's running record and start failure; the program's transcripts,
     under the same configuration directory here as the account's own, sent as what they grew by; each

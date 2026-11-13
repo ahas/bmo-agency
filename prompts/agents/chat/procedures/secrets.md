@@ -20,18 +20,24 @@ secret store, never into a room; the room only ever carries the request and the 
 - The console's public address is in `BMO_CONSOLE_ADDRESS` in your environment. The link is that
   address joined by one slash to `rooms/<chat>`, the chat being the one the turn's head line names, and
   then the query: `secret=<name>`, then `kind=<key>` or `fields=<KEY>,<KEY>*`, then `for=<purpose>`,
-  joined by `&`. Every value is percent-encoded, a `*` as `%2A`, so the chat's formatting takes nothing in
-  the link as a mark.
+  then `user=<id>` where you belong to a person, all joined by `&`. Every value is percent-encoded, a `*`
+  as `%2A`, so the chat's formatting takes nothing in the link as a mark.
+- **Whose secret it is.** `BMO_OWNER_ACCOUNT` in your environment holds the user id of the person whose
+  account you belong to. Where it holds one, write `user=<that id>` on every link: the secret goes into
+  that person's own space, and a link without it is the platform administrator's request, which the
+  person is told is not theirs. Where it is empty or unset you belong to no account: write no `user`, and
+  the secret goes into the platform's own space.
 - Where `BMO_CONSOLE_ADDRESS` is empty, write no link: say that the console's address is not set in
   agency's settings, and ask for no value in its place.
-- Only the owner can save through the link: the console refuses everyone else. Send it where he reads
-  it, the room the work was asked in where he is in it, else his own chat.
+- Only the person the link is for can save through it: the person `user` names, else the owner. The
+  console refuses everyone else. Send it where that person reads it, the room the work was asked in where
+  they are in it, else their own chat.
 
 ## Waiting for it
 
-- The console answers in the room the link names with a line in the owner's name saying the secret was
-  saved to the secret store, the secret's name and its kind in parentheses after it. A secret the owner
-  hands from the composer without a request arrives as the same kind of line.
+- The console answers in the room the link names with a line in the name of the person who saved it,
+  saying the secret was saved to the secret store, the secret's name and its kind in parentheses after
+  it. A secret handed from the composer without a request arrives as the same kind of line.
 - The work that needs the secret goes on only after such a line names the name you asked for. Until
   then it waits, and nothing stands in for the value: no guess, no placeholder, no value from
   elsewhere.

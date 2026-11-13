@@ -2795,8 +2795,13 @@ impl HerdrSessions {
     }
     env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
     env.extend(crate::lines::token::record_variables(apart));
-    // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it.
+    // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it, and
+    // what it writes for the supervisor's person names them as the supervisor's own program does.
     env.insert(TURN_AGENT.to_owned(), apart.supervisor.clone().unwrap_or_else(|| agent.to_owned()));
+
+    if let Some(supervisor) = &apart.supervisor {
+      env.extend(crate::supervisors::own_variables(&ground.db, supervisor).await);
+    }
 
     if job.is_some() {
       env.insert(TASK_LOCKED.to_owned(), "1".to_owned());

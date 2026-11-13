@@ -30,11 +30,14 @@ const PUSHED_PLACE_FILES: [&str; 4] = ["program.json", "settings.json", "run.jso
 /// What a place's running record and start failure are pulled as.
 const PULLED_PLACE_FILES: [&str; 2] = ["running.json", "start-failed.json"];
 
-/// The variables a program on a node is started with, of those this machine's launch gave it.
-const NODE_ENV_KEEP: [&str; 15] = [
+/// The variables a program on a node is started with, of those this machine's launch gave it: among them the
+/// console's public address and a supervisor's owner account, which its secret requests are written with.
+const NODE_ENV_KEEP: [&str; 17] = [
   "BMO_AGENT_PLACE",
+  "BMO_CONSOLE_ADDRESS",
   "BMO_SOURCE_DIR",
   "BMO_MCP_TOKEN",
+  crate::supervisors::ACCOUNT_VARIABLE,
   "BMO_OWNER_ID",
   "BMO_RUN_NAME",
   "BMO_TASK_LOCKED",

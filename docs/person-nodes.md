@@ -173,7 +173,8 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   and writes it into the node's setup record. The hub's `JAKE_REVERSE_TARGETS` lists it beside the tool host's
   port, and the setup says either missing where the hub's settings do not.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
-  own variables, the CLI's account token for the nodes, its place and its tool token.
+  own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address and
+  its supervisor's owner account.
 
 ## What stands and what is left
 

@@ -30,6 +30,22 @@ pub async fn account_led<C: ConnectionTrait>(db: &C, agent: &str, system: String
   }
 }
 
+/// The variable a supervisor of an account's program holds that account in, the user's id as a decimal number,
+/// which what it writes for that person names them by (docs/agent-ownership.md, 「What the supervisor's row
+/// carries」). A supervisor of no account's program holds none.
+pub const ACCOUNT_VARIABLE: &str = "BMO_OWNER_ACCOUNT";
+
+/// The variables a supervisor's program holds of its own row: its owner account, where it belongs to one.
+pub async fn own_variables<C: ConnectionTrait>(db: &C, agent: &str) -> Vec<(String, String)> {
+  match named(db, agent).await {
+    Ok(Some(Supervisor {
+      owner_account: Some(account),
+      ..
+    })) => vec![(ACCOUNT_VARIABLE.to_owned(), account.to_string())],
+    _ => Vec::new(),
+  }
+}
+
 /// One supervisor as its row holds it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Supervisor {

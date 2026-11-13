@@ -45,6 +45,11 @@ Beside its provider order, its cache warming per provider and its compaction thr
   turn shape, is led by a mark made from its owner account alone, so no engine or provider reuses a cached prompt
   prefix across accounts, and no account's words are answered faster for having been read for another. A
   supervisor of no account carries no mark.
+- **A supervisor of an account's program holds that account in `BMO_OWNER_ACCOUNT`,** the user's id as a
+  decimal number, on every turn shape and road and on a double of it alike, and on the person's node, so what
+  it writes for its person names them: a secret request is that person's (`docs/agent-documents.md`). The mark
+  stays the prompt's only sign of the account, since the prompt is what a provider reads; the variable is
+  the program's environment alone. A supervisor of no account's program holds none.
 - **A supervisor with no voice makes no voice.** No briefing, voice chip or reading is made for its
   turns, and a voice given to its row later turns all three on with no other change
   (`voice-briefing.md`).
