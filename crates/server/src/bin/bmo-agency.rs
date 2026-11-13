@@ -560,7 +560,7 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::LiveClaude { purpose, list } => ended(live_claude_run(&data_root, purpose, list).await),
     Verb::Job {
       what: JobVerb::Borrow { repository },
-    } => ended(borrow::run(&data_root, &repository).await.map(Answer::from)),
+    } => ended(borrow::run(&repository).await.map(Answer::from)),
     Verb::Repository { what } => match what {
       RepositoryVerb::Add { name, path, label } => {
         ended(repository::add(&name, &path, label.as_deref()).await)

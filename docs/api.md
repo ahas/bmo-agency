@@ -40,6 +40,12 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 - Every route is answered by agency's server, `bin/agency-server`, on the loopback, on the port
   `AGENCY_CONTROL_PORT` names (3220 where it names none), under `Authorization: Bearer <token>` with the
   token `AGENCY_CONTROL_TOKEN` holds. A request without the token is answered 401.
+- **A route a run calls for itself also takes the run's session token,** the `BMO_MCP_TOKEN` the tool host
+  issued the run's program (`docs/tools.md`, 「The session record」), since a job's program is handed no
+  control token. The server asks the tool host for the record the token stands for, with the host's issuer
+  token, and the route answers for the record's holder alone. `POST /borrowings` is the one such route. A
+  session token on any other route, one the host does not know, or one the host cannot be asked about is
+  answered 401.
 - Both variables stand in the data root's `env/agency.env`. A process of agency's whose environment holds
   neither reads them there. A program agency starts is handed the token as the file it stands in,
   `AGENCY_CONTROL_TOKEN_FILE` (`docs/agent-control.md`, 「A token is handed as the file it stands in」), and
@@ -1214,6 +1220,7 @@ where the shell stands in an agent's program, else the owner.
 | POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, the harness releases it, or the session its holder names ends; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment. |
+| POST | `/borrowings` | Lend a running job a free checkout of another repository on its own machine, held in the job's name until the job no longer runs. |
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
 | POST | `/jobs` | Run an item as its assignment's role in its repository: the harness hands over the item's content and the lease it holds, and agency launches the run once a slot of the role and a checkout are free; never refused for quota, it waits. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
@@ -1265,6 +1272,18 @@ naming anything else, or a value that does not read as its filter's kind, is ref
 - **A job's own loan of a checkout is an assignment held in its name,** its `holderName` `job:<jobId>`
   (`docs/worker-slots.md`, 「A job writes only in its own checkout」). No job starts on it, and any read of the
   assignments releases it once that job no longer runs.
+- **`POST /borrowings` lends a job a checkout,** the route under `bmo job borrow` (`docs/worker-slots.md`,
+  「A job writes only in its own checkout」). Its body names the job by `runName`, the run it works in, and the
+  repository by `repositoryName`.
+  - **Who may ask:** the control token's holder for any running job, or the job's own program by its session
+    token: a record whose holder is not the checkout the job runs in is refused 403 `not-this-job`.
+  - **What it takes:** a free support worktree of the repository first, its base checkout last, each on the
+    machine the job's own checkout stands on, held as the assignment `job:<jobId>` for the job's item. It
+    answers 201 with `workerName`, `cwd` and the assignment's `assignmentId`, or 200 with the loan the job
+    already holds, asked again.
+  - **What it refuses:** a run no starting or running job works in 404 `no-job`; the job's own repository 422
+    `own-repository`; a repository with no checkout on that machine 422 `no-checkout-here`; one whose every
+    checkout there is at work 422 `no-worker-free`, naming them. Nothing waits.
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
@@ -1651,7 +1670,7 @@ input, so `bmo` finds it from any directory.
 | `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
-| `job borrow` | `<repository>` | the store's jobs and repositories, and `POST /assignments` under the job's name (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
+| `job borrow` | `<repository>`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
 | `repository` | `add <name> --path <base checkout> [--label <label>]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run say` | `<kind>:<id>` — `session:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |

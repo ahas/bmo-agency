@@ -648,18 +648,66 @@ async fn a_job_carries_its_instruction_whole_into_its_prompt_and_a_step_s_line()
   );
 }
 
-#[tokio::test]
-async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
+// A tool host on the socket given that knows two session tokens, answering each one's record to the issuer token
+// alone: the job's own, held by the checkout it runs in, and a neighbour's, held by another checkout.
+fn session_host(socket: &std::path::Path) {
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new().route(
+    "/tool-sessions/{token}",
+    axum::routing::get(
+      |headers: axum::http::HeaderMap, axum::extract::Path(token): axum::extract::Path<String>| async move {
+        let issuer = headers.get("authorization").and_then(|value| value.to_str().ok()) == Some("Bearer issuer");
+        let holder = match token.as_str() {
+          "job-token" => Some("helper"),
+          "neighbour-token" => Some("other"),
+          _ => None,
+        };
+
+        match holder.filter(|_| issuer) {
+          Some(holder) => (
+            StatusCode::OK,
+            axum::Json(json!({
+              "id": "record", "holderName": holder, "namespaces": [], "capabilities": [], "grants": [],
+              "shown": [], "variables": [], "labels": {}, "expiresAt": null, "createdAt": 0, "connected": [],
+            })),
+          ),
+          None => (
+            StatusCode::NOT_FOUND,
+            axum::Json(json!({ "code": "not-found", "error": "no session stands for that token" })),
+          ),
+        }
+      },
+    ),
+  );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+}
+
+// A job's program holds no control token: it borrows with its own session token, the server reading whose it is
+// from the tool host.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_borrows_a_free_checkout_with_its_session_token_until_it_no_longer_runs() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
+  let host = home.path().join("mcp-host.sock");
   let token = "secret";
   let other = home.path().join("other").to_string_lossy().into_owned();
 
   std::fs::create_dir_all(&data).unwrap();
+  session_host(&host);
   repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   repository(scratch.db(), "other", &other, &[]).await;
-  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let server = standing::stand_server_with(
+    home.path(),
+    &data,
+    &scratch.address(),
+    token,
+    &[
+      ("BMO_MCP_HOST_SOCKET", &host.to_string_lossy()),
+      ("BMO_MCP_HOST_ISSUER_TOKEN", "issuer"),
+    ],
+  );
   let port = server.port;
 
   // The job runs from here on: one standing as the server starts, with no run behind it, is reaped.
@@ -679,7 +727,9 @@ async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
     )
     .await;
 
-  let borrow = |run: Option<&str>, repository: &str| {
+  // The verb run as a job's shell runs it: the job's run and session token, the agency's port, and no store and
+  // no control token, which `held` adds where a case names them.
+  let borrow = |run: Option<&str>, repository: &str, held: &[(&str, &str)]| {
     let mut command = std::process::Command::new(binary::path("bmo-agency"));
 
     command
@@ -687,10 +737,9 @@ async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
       .env("PATH", std::env::var("PATH").unwrap_or_default())
       .env("HOME", home.path())
       .env("BMO_DATA_DIR", &data)
-      .env("BMO_ARCHIVE_URL", scratch.address())
       .env("AGENCY_CONTROL_PORT", port.to_string())
-      .env("AGENCY_CONTROL_TOKEN", token)
-      .args(["job", "borrow", repository]);
+      .args(["job", "borrow", repository])
+      .envs(held.iter().copied());
 
     if let Some(run) = run {
       command.env("BMO_RUN_NAME", run);
@@ -704,26 +753,49 @@ async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
       String::from_utf8_lossy(&output.stderr).into_owned(),
     )
   };
-  let (code, _, said) = borrow(None, "other");
+  let own = [("BMO_MCP_TOKEN", "job-token")];
+  let (code, _, said) = borrow(None, "other", &own);
 
   assert_eq!(code, Some(1), "outside a job: {said}");
 
-  let (code, _, said) = borrow(Some("job-3"), "helper");
+  let (code, _, said) = borrow(Some("job-3"), "other", &[]);
+
+  assert_eq!(code, Some(1), "holding neither token: {said}");
+  assert!(said.contains("AGENCY_CONTROL_TOKEN") && said.contains("BMO_MCP_TOKEN"), "{said}");
+
+  let (code, _, said) = borrow(Some("job-3"), "other", &[("BMO_MCP_TOKEN", "forged")]);
+
+  assert_eq!(code, Some(1), "a token the tool host does not know: {said}");
+  assert!(said.contains("unauthorized"), "{said}");
+
+  let (code, _, said) = borrow(Some("job-3"), "other", &[("BMO_MCP_TOKEN", "neighbour-token")]);
+
+  assert_eq!(code, Some(1), "another checkout's token: {said}");
+  assert!(said.contains("runs in helper"), "{said}");
+
+  let (code, _, said) = borrow(Some("job-3"), "helper", &own);
 
   assert_eq!(code, Some(1), "its own repository: {said}");
   assert!(said.contains("own repository"), "{said}");
 
-  let (code, out, said) = borrow(Some("job-3"), "other");
+  let (code, out, said) = borrow(Some("job-3"), "other", &own);
 
   assert_eq!(code, Some(0), "{said}");
   assert!(out.contains(&other), "it prints where the checkout stands: {out}");
 
-  let (code, out, said) = borrow(Some("job-3"), "other");
+  let (code, out, said) = borrow(Some("job-3"), "other", &[("AGENCY_CONTROL_TOKEN", token)]);
 
   assert_eq!(code, Some(0), "{said}");
-  assert!(out.contains("already has"), "asked twice, the same checkout: {out}");
+  assert!(
+    out.contains("already has"),
+    "asked twice, with the control token, the same checkout: {out}"
+  );
 
   let ask = json!({ "itemId": 50, "holderName": "harness", "assigneeName": "other", "item": { "id": 50 } });
+  let (status, _) = post(port, "job-token", "/assignments", ask.clone()).await;
+
+  assert_eq!(status, 401, "a session token reaches no route that does not take one");
+
   let (status, refused) = post(port, token, "/assignments", ask.clone()).await;
 
   assert_eq!(

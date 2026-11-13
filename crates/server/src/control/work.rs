@@ -149,7 +149,7 @@ pub const JOB_HOLDER: &str = "job:";
 /// A running assignment whose job has ended is released before anything reads them, and so is one a job borrowed
 /// that no longer runs. Any other held one stands until its job starts or its harness releases it: no clock lets
 /// a hold go.
-async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
+pub(crate) async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
   let now = now_ms();
   run(
     db,
@@ -334,16 +334,7 @@ impl Route for CreateAssignment {
         continue;
       }
 
-      let held = one(
-        db,
-        r#"SELECT 1 AS "held" WHERE EXISTS (SELECT 1 FROM "assignments" WHERE "worker_name" = $1 AND "state" IN ('held', 'running'))
-             OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1
-                   AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")))"#,
-        vec![checkout.name.clone().into()],
-      )
-      .await?;
-
-      if held.is_none() {
+      if is_free(db, &checkout.name).await? {
         picked = Some(checkout);
         break;
       }
@@ -361,24 +352,52 @@ impl Route for CreateAssignment {
         .with_code("no-worker-free"),
       );
     };
-    let worker_name: String = picked.name;
-    let now = now_ms();
-    let row = one(
-      db,
-      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "role", "state", "created_at",
-              "changed_at")
-         VALUES ($1, $2, $3, $5, 'held', $4, $4) RETURNING "id""#,
-      vec![item_id.into(), holder.into(), worker_name.into(), now.into(), role.into()],
-    )
-    .await?
-    .ok_or_else(|| Refused::failed("the assignment was written but not answered"))?;
-    let id: i64 = row.try_get("", "id")?;
-    let member = assignment(db, id).await?;
-
-    publish(call.ground(), "assignment.created", member.clone());
+    let member = hold(call.ground(), item_id, &holder, &picked.name, &role).await?;
 
     Ok(answer(StatusCode::CREATED, member))
   }
+}
+
+/// Whether no assignment and no job holds a checkout now.
+pub(crate) async fn is_free(db: &sea_orm::DatabaseConnection, worker: &str) -> Result<bool, Refused> {
+  let held = one(
+    db,
+    r#"SELECT 1 AS "held" WHERE EXISTS (SELECT 1 FROM "assignments" WHERE "worker_name" = $1 AND "state" IN ('held', 'running'))
+         OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1
+               AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")))"#,
+    vec![worker.into()],
+  )
+  .await?;
+
+  Ok(held.is_none())
+}
+
+/// A checkout held for an item in a holder's name as the role given, answered as the assignment and published
+/// as created.
+pub(crate) async fn hold(
+  ground: &Ground,
+  item_id: i64,
+  holder: &str,
+  worker: &str,
+  role: &str,
+) -> Result<Value, Refused> {
+  let db = &ground.db;
+  let now = now_ms();
+  let row = one(
+    db,
+    r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "role", "state", "created_at",
+            "changed_at")
+       VALUES ($1, $2, $3, $5, 'held', $4, $4) RETURNING "id""#,
+    vec![item_id.into(), holder.into(), worker.into(), now.into(), role.into()],
+  )
+  .await?
+  .ok_or_else(|| Refused::failed("the assignment was written but not answered"))?;
+  let id: i64 = row.try_get("", "id")?;
+  let member = assignment(db, id).await?;
+
+  publish(ground, "assignment.created", member.clone());
+
+  Ok(member)
 }
 
 crate::moved!(CreateAssignment);

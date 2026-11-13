@@ -111,6 +111,21 @@ pub async fn connected(ground: &Ground, token: &str) -> Option<Vec<String>> {
   }
 }
 
+/// The holder of the standing record a session token names, as the tool host answers it to the issuer: none
+/// where the host keeps no such record, the issuer token is not there, or the host does not answer.
+pub async fn holder_of(ground: &Ground, token: &str) -> Option<String> {
+  let issuer = issuer_token(ground)?;
+
+  match pocket(ground, issuer).tool_session(token).await {
+    Ok(session) => Some(session.holder_name),
+    Err(Failure::Refused { .. }) => None,
+    Err(why) => {
+      eprintln!("mcp-host at {}: a session token was not read: {why}", host_socket(ground).display());
+      None
+    }
+  }
+}
+
 /// The tool host's paragraph on finding and using tools, as it words it, or why the host gave none: the
 /// issuer token is not there, the socket does not answer, or the host refused.
 pub async fn discipline(ground: &Ground) -> Result<String, String> {

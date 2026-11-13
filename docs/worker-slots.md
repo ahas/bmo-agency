@@ -353,6 +353,10 @@
   held checkout is read, and nothing is launched into it. The job commits, pushes and closes there the way
   that repository closes a job. A job's own repository is refused, and so is a repository whose every
   checkout is at work: it says so, and asks nothing to wait.
+- **A job borrows with what its program holds.** A job's program is handed no control token, so the verb
+  calls agency's server with the job's session token, and the server lends only to the job running in the
+  checkout that token was issued for (`docs/api.md`, 「The control port」). A process holding neither token
+  is refused, naming both.
 - **When the job ends the loan ends.** The next read of the assignments releases one its job no longer runs
   under, whichever way the job ended. What it left open stays in the checkout, for its report to name.
 - **Why:** a stopped job parks everything open in its checkout as its own, so a write from any

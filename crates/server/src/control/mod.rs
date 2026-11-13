@@ -6,6 +6,7 @@ mod account_routes;
 mod agent_roles;
 mod agent_sampling;
 mod base_prompts;
+pub mod borrowings;
 mod catalogues;
 mod chat_documents;
 pub mod claude_account_changes;
@@ -83,6 +84,9 @@ pub use inventory;
 pub trait Route: Send + Sync + 'static {
   const METHOD: Method;
   const PATH: &'static str;
+  /// Whether a run's program may call the route for itself with its session token, beside the control token's
+  /// holder (docs/api.md, 「The control port」). A route that does answers for the record's holder alone.
+  const TAKES_RUN_TOKEN: bool = false;
 
   fn answer(&self, call: Call) -> impl Future<Output = Result<Response, Refused>> + Send;
 }
@@ -93,6 +97,7 @@ type Answering<'a> = Pin<Box<dyn Future<Output = Result<Response, Refused>> + Se
 pub trait Answers: Send + Sync {
   fn method(&self) -> Method;
   fn path(&self) -> &'static str;
+  fn takes_run_token(&self) -> bool;
   fn answer(&self, call: Call) -> Answering<'_>;
 }
 
@@ -103,6 +108,10 @@ impl<R: Route> Answers for R {
 
   fn path(&self) -> &'static str {
     R::PATH
+  }
+
+  fn takes_run_token(&self) -> bool {
+    R::TAKES_RUN_TOKEN
   }
 
   fn answer(&self, call: Call) -> Answering<'_> {
@@ -288,9 +297,25 @@ pub struct Call {
   sessions: Option<crate::herdr_backend::Shared>,
   // What the request's path held at each `{name}` of the route's path.
   params: Vec<(String, String)>,
+  bearer: Bearer,
+}
+
+/// Whom a request comes from, as its bearer token says.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Bearer {
+  /// The control token's holder, who reaches every route.
+  Control,
+  /// A run's program by the session token the tool host issued it: the holder its record names, the agent the
+  /// run works for.
+  Run(String),
 }
 
 impl Call {
+  /// Whom the request comes from.
+  pub fn bearer(&self) -> &Bearer {
+    &self.bearer
+  }
+
   /// The ground the server stands on: its store, configuration, peers, events, hooks and trees.
   pub fn ground(&self) -> &Ground {
     &self.ground
@@ -486,29 +511,45 @@ impl Front {
     self
   }
 
-  fn authorised(&self, request: &Request) -> bool {
-    request
-      .headers()
-      .get(header::AUTHORIZATION)
-      .and_then(|value| value.to_str().ok())
-      .is_some_and(|value| value == format!("Bearer {}", self.token))
+  /// Whom a request comes from: the control token's holder, or, on a route that takes a run's session token,
+  /// the holder of the record the tool host keeps for the token it carries; none for any other request.
+  async fn bearer(&self, authorization: Option<String>, route: Option<&dyn Answers>) -> Option<Bearer> {
+    let given = authorization?.strip_prefix("Bearer ")?.to_owned();
+
+    if given == self.token {
+      return Some(Bearer::Control);
+    }
+
+    if given.is_empty() || !route.is_some_and(|route| route.takes_run_token()) {
+      return None;
+    }
+
+    crate::lines::token::holder_of(&self.ground, &given).await.map(Bearer::Run)
   }
 }
 
 async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response {
-  if !front.authorised(&request) {
-    return Refused::new(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
-  }
-
-  let Some(found) = front
+  let found = front
     .routes
     .get(request.method())
     .and_then(|routes| routes.at(request.uri().path()).ok())
-  else {
+    .map(|found| {
+      let params: Vec<(String, String)> =
+        found.params.iter().map(|(key, value)| (key.to_owned(), value.to_owned())).collect();
+
+      (*found.value, params)
+    });
+  let authorization = request
+    .headers()
+    .get(header::AUTHORIZATION)
+    .and_then(|value| value.to_str().ok())
+    .map(str::to_owned);
+  let Some(bearer) = front.bearer(authorization, found.as_ref().map(|(route, _)| *route)).await else {
+    return Refused::new(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
+  };
+  let Some((route, params)) = found else {
     return Refused::new(StatusCode::NOT_FOUND, "not found").into_response();
   };
-  let route = *found.value;
-  let params = found.params.iter().map(|(key, value)| (key.to_owned(), value.to_owned())).collect();
   let call = Call {
     request,
     ground: front.ground.clone(),
@@ -518,6 +559,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     going: front.going.clone(),
     sessions: front.sessions.clone(),
     params,
+    bearer,
   };
 
   let method = route.method();

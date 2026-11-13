@@ -1087,6 +1087,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/borrowings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lend a running job a free checkout of another repository on its own machine, held in the job's name until the job no longer runs. Asked with the control token, or with the job's own session token. */
+        post: operations["createBorrowings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments/{assignmentId}": {
         parameters: {
             query?: never;
@@ -3509,6 +3526,21 @@ export interface components {
              */
             instruction: components["schemas"]["JobInstruction"] | null;
         };
+        /** @description A checkout lent to a job: the checkout's name, where it stands, and the assignment held in the job's name. */
+        Borrowing: {
+            workerName: string;
+            cwd: string;
+            /** Format: int64 */
+            assignmentId: number;
+        };
+        /**
+         * @description The body that asks for a checkout of another repository lent to a running job, which names the job by the run
+         *     it works in.
+         */
+        BorrowAsk: {
+            runName: string;
+            repositoryName: string;
+        };
         /** @description The body that releases an assignment. */
         AssignmentChange: {
             state?: components["schemas"]["AssignmentState"] | null;
@@ -4763,6 +4795,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-checkout-here */
+        NoCheckoutHere: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-job */
         NoJob: {
             headers: {
@@ -4855,6 +4896,24 @@ export interface components {
         };
         /** @description not-reviewing */
         NotReviewing: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-this-job */
+        NotThisJob: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description own-repository */
+        OwnRepository: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7304,6 +7363,43 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["UnknownRepository"];
             422: components["responses"]["NoWorkerFree"];
+        };
+    };
+    createBorrowings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BorrowAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Borrowing"];
+                };
+            };
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Borrowing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NoJob"];
+            422: components["responses"]["NotThisJob"];
         };
     };
     readAssignmentsByAssignmentId: {

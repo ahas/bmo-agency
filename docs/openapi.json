@@ -4350,6 +4350,68 @@
         }
       }
     },
+    "/borrowings": {
+      "post": {
+        "operationId": "createBorrowings",
+        "tags": [
+          "assignments"
+        ],
+        "summary": "Lend a running job a free checkout of another repository on its own machine, held in the job's name until the job no longer runs. Asked with the control token, or with the job's own session token.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Borrowing"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Borrowing"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotThisJob"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoJob"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-this-job",
+          "no-job",
+          "own-repository",
+          "no-checkout-here",
+          "no-worker-free"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BorrowAsk"
+              }
+            }
+          }
+        }
+      }
+    },
     "/assignments/{assignmentId}": {
       "get": {
         "operationId": "readAssignmentsByAssignmentId",
@@ -12245,6 +12307,43 @@
         ],
         "description": "JobItem: The item's content as the harness read it from the job service; the agency reads nothing there."
       },
+      "Borrowing": {
+        "type": "object",
+        "properties": {
+          "workerName": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "assignmentId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "workerName",
+          "cwd",
+          "assignmentId"
+        ],
+        "description": "A checkout lent to a job: the checkout's name, where it stands, and the assignment held in the job's name."
+      },
+      "BorrowAsk": {
+        "type": "object",
+        "properties": {
+          "runName": {
+            "type": "string"
+          },
+          "repositoryName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runName",
+          "repositoryName"
+        ],
+        "description": "The body that asks for a checkout of another repository lent to a running job, which names the job by the run\nit works in."
+      },
       "AssignmentChange": {
         "type": "object",
         "properties": {
@@ -15823,6 +15922,16 @@
           }
         }
       },
+      "NoCheckoutHere": {
+        "description": "no-checkout-here",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoJob": {
         "description": "no-job",
         "content": {
@@ -15925,6 +16034,26 @@
       },
       "NotReviewing": {
         "description": "not-reviewing",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotThisJob": {
+        "description": "not-this-job",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OwnRepository": {
+        "description": "own-repository",
         "content": {
           "application/json": {
             "schema": {
@@ -16048,7 +16177,7 @@
       "bearer": {
         "type": "http",
         "scheme": "bearer",
-        "description": "The agency's token, from the caller's own configuration."
+        "description": "The agency's token, from the caller's own configuration; on a route a run calls for itself, the session token the tool host issued the run's program."
       }
     }
   },

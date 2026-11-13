@@ -819,6 +819,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["assignments"]).json(body)).await
   }
 
+  /// `POST /borrowings`: Lend a running job a free checkout of another repository on its own machine.
+  pub async fn create_borrowings(&self, body: &BorrowAsk) -> Answer<Borrowing> {
+    Self::answered(self.request(Method::POST, &["borrowings"]).json(body)).await
+  }
+
   /// `GET /assignments/{assignmentId}`: One assignment.
   pub async fn read_assignments_by_assignment_id(&self, assignment_id: i64) -> Answer<Assignment> {
     Self::answered(self.request(Method::GET, &["assignments", &assignment_id.to_string()])).await

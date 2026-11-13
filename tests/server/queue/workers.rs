@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
+use agency_server::control::borrowings::candidates;
 use agency_server::queue::workers::{BUILTIN_WORKER, Worker, repository_of, support_name, workers};
-use agency_server::verbs::borrow::candidates;
 
 use crate::support::scratch::Scratch;
 

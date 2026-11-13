@@ -1899,6 +1899,24 @@ pub struct AssignWorker {
   pub role_name: Option<String>,
 }
 
+/// The body that asks for a checkout of another repository lent to a running job, which names the job by the run
+/// it works in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BorrowAsk {
+  pub run_name: String,
+  pub repository_name: String,
+}
+
+/// A checkout lent to a job: the checkout's name, where it stands, and the assignment held in the job's name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Borrowing {
+  pub worker_name: String,
+  pub cwd: String,
+  pub assignment_id: i64,
+}
+
 /// The body that releases an assignment the harness will not run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
