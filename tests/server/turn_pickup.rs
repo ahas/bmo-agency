@@ -1079,8 +1079,9 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
   let sending = sessions.clone();
   let going = tokio::spawn(async move { sending.send_turn(turn).await });
 
+  // The session carries the turn a step before the store keeps it, so the wait is for the row.
   for _ in 0..600 {
-    if sessions.turn_run(&session).is_some() || going.is_finished() {
+    if kept_now(&scratch, "job-78").await || going.is_finished() {
       break;
     }
 
@@ -1244,8 +1245,9 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
   let sending = sessions.clone();
   let going = tokio::spawn(async move { sending.send_turn(turn).await });
 
+  // The session carries the turn a step before the store keeps it, so the wait is for the row.
   for _ in 0..600 {
-    if sessions.turn_run(&started.id).is_some() || going.is_finished() {
+    if kept_now(&scratch, "job-80").await || going.is_finished() {
       break;
     }
 

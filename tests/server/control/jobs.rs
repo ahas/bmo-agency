@@ -348,7 +348,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
 
   assert_eq!(status, 201);
 
-  for _ in 0..100 {
+  for _ in 0..600 {
     held = get(port, token, &format!("/jobs/{id}")).await.1;
 
     if held["heldFor"].as_str().is_some_and(|why| why.contains("waits for the agent")) {
@@ -369,12 +369,16 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   // it in, fails: the job ends saying why, in its report and in its log.
   scratch.run(r#"DELETE FROM "role_slot_requests" WHERE "owner" = 'busy'"#, vec![]).await;
 
+  // A job's end is written in steps, its state first and its assignment's release last, its slot given back
+  // between them, so the reads below wait for the release rather than for the state alone.
   let mut ended = Value::Null;
 
-  for _ in 0..100 {
+  for _ in 0..600 {
     ended = get(port, token, &format!("/jobs/{id}")).await.1;
 
-    if ended["state"] != "starting" && ended["state"] != "running" {
+    let over = ended["state"] != "starting" && ended["state"] != "running";
+
+    if over && get(port, token, &format!("/assignments/{assignment}")).await.1["state"] == "released" {
       break;
     }
 

@@ -533,9 +533,13 @@ async fn shared_ask(
   }
 }
 
+// The looks the reads below take, ten milliseconds apart, before they fail: half a minute, well past what
+// the work under test takes on a loaded machine.
+const LOOKS: usize = 3000;
+
 // Read until `done` holds of the stand-in, the work under test going on its own meanwhile.
 async fn until(shared: &Shared, done: impl Fn(&StandIn) -> bool) {
-  for _ in 0..500 {
+  for _ in 0..LOOKS {
     if done(&shared.lock().unwrap()) {
       return;
     }
@@ -548,7 +552,7 @@ async fn until(shared: &Shared, done: impl Fn(&StandIn) -> bool) {
 // Read until the ledger holds no demand. A part let go gives its demand back on a task of its own, which
 // forgets the demand only once the master has answered the give-back, so the stand-in hears it first.
 async fn until_forgotten(db: &sea_orm::DatabaseConnection) {
-  for _ in 0..500 {
+  for _ in 0..LOOKS {
     if ledger(db).await.is_empty() {
       return;
     }
