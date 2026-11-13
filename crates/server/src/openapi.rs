@@ -3015,7 +3015,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 36] = [
+pub const EVENTS: [&str; 37] = [
   "supervisor.changed",
   "role.changed",
   "session.created",
@@ -3052,6 +3052,7 @@ pub const EVENTS: [&str; 36] = [
   "job.created",
   "job.changed",
   "job.ended",
+  "road-walked",
 ];
 
 /// The upstreams this service reaches, through what each repository publishes.

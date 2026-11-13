@@ -92,9 +92,10 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 | GET | `/events` | Agency's one stream, as server-sent events or a page with `Accept: application/json`. |
 | POST | `/events` | A process of agency's own publishes an event. |
 
-An event's SSE name is `<resource>.<change>`, its id is the service's event number, and its data is
-`{"id","kind","at","data"}`, the inner `data` the member as a GET answers it, or its key alone for a
-deleted member. A reader narrows with `kinds`.
+An event's SSE name is its kind, `<resource>.<change>` where it tells a member's change, its id is the
+service's event number, and its data is `{"id","kind","at","data"}`, the inner `data` the member as a GET
+answers it, its key alone for a deleted member, or the fact a kind of its own carries (「Events」 below). A
+reader narrows with `kinds`.
 
 - **Numbers only rise.** An event's number is never given twice and keeps rising across the service's
   restarts: a server that starts goes on above every number a process before it gave.
@@ -1535,7 +1536,7 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `supervisor-reset.created`, `place.changed`, `assignment.created`,
-`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`.
+`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`.
 
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
@@ -1568,6 +1569,11 @@ notice to a reader resuming too late (「events」 above), never published as an
 
   Telling the owner is the consumer's: the moved road as what the system switched to, the closed road
   with its command passed over verbatim. No fact is the end of the matter, and none is said twice.
+- **`road-walked`** carries the road a turn on a supervisor's line walked (`docs/run-records.md`, 「The roads a
+  turn walked」), published once as the turn ends: `stage`, `chatId`, `run`, `provider`, `model`, `outcome`,
+  `answered` or `error`, `ms`, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens`, each
+  null where the road reported none, and `contextRatio`, or null. The unit that keeps the road records writes
+  each one with its event number, reading on from the last number it wrote.
 - **`worker.changed`** carries a job's run that answered on a lesser model than it went out on
   (`docs/cache-fallback.md`, 「Healing differs for a job」): `worker`, the checkout it ran in; `repository`, the
   repository that checkout is of, or null; `role`, the

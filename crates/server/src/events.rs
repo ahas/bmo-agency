@@ -54,7 +54,6 @@ const INTERNAL: &[&str] = &[
   "open-items",
   "pane-claims",
   "road-verbs",
-  "road-walked",
   "room-title",
   "run-recovered",
   "system-prompt-changed",

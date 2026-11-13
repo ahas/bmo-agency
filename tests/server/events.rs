@@ -124,6 +124,25 @@ async fn an_event_known_by_its_name_reaches_the_streams_reading_its_kind_and_no_
   assert_eq!(typed.ready(), None);
 }
 
+#[tokio::test]
+async fn a_road_a_turn_walked_crosses_the_stream_by_its_kind() {
+  use agency_server::herdr_backend::RoadWalked;
+
+  let bus = Bus::default();
+  let mut roads = bus.subscribe_wire(Some(vec!["road-walked".into()]));
+  let road =
+    RoadWalked::of(-5, "run-1", "claude-code", "model-a", true, std::time::Instant::now(), &[], None);
+
+  bus.publish(road);
+
+  let walked = roads.ready().expect("a road walked is published across the boundary");
+  assert_eq!(walked.name, "road-walked");
+  assert_eq!(
+    (&walked.body["chatId"], &walked.body["run"], &walked.body["outcome"]),
+    (&json!(-5), &json!("run-1"), &json!("answered"))
+  );
+}
+
 fn named(kind: &str, data: Value) -> Named {
   Named {
     id: 0,

@@ -70,7 +70,8 @@
     "assignment.changed",
     "job.created",
     "job.changed",
-    "job.ended"
+    "job.ended",
+    "road-walked"
   ],
   "tags": [
     {
