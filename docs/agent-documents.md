@@ -107,7 +107,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
-  approval, the worker's run and its close, host work, the fast track, images read and drawn, a document
+  approval, the worker's run and its close, host work, the fast track, a secret asked for and used by its
+  name, images read and drawn, a document
   filed for a person and the pictures that stand in its body, a line for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
   of the agent's tools,
@@ -179,6 +180,25 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   any other part of the system, or says one is being called; where a wait wants explaining, the agent
   says in its own words that it will look something up, look into it or translate it. The owner's own
   question about how it works is the exception the absolute rules make.
+- **A secret is asked for through the console and used by its name alone.** A secret is a file under the
+  data root's `env/` that a unit or a setting reads by its name, and the console's secret store writes it
+  (bmo-web's `docs/web.md`, its section on the secret store and an agent's request). The manual states
+  the rules as rules:
+  - Where work needs a secret, the agent never asks for its value in a room. It sends a link to the
+    console's secret request, naming the file name the consuming unit or setting reads, either a
+    registered kind or the exact field keys that reader expects, and what the secret is for.
+  - It goes on with that work only once the room carries the console's saved line for that name.
+  - It uses a secret by its name alone, handing the file's name or path to the setting or program that
+    reads it. It never opens a file under the data root's `env/` with its own tools and never prints one;
+    a unit's token file is reached the same way, by the path handed to what reads it.
+  - A value that reaches a room anyway is never repeated, and the owner is told to rotate it.
+- **The console's public address is agency's setting `BMO_CONSOLE_ADDRESS`,** in its settings under the
+  data root (`env/agency.env`), holding the address the console's own settings name for itself. As a
+  `BMO_` variable it reaches the supervisor's program as every one does (`docs/agent-control.md`, 「The
+  keepalive ping goes into the same program as the turns」). The request link is that address's screen of
+  the room the turn answers, with the request's keys; where the setting is empty the agent writes no
+  link, says the address is not set, and still asks for no value. How the link is written is
+  `prompts/agents/chat/procedures/secrets.md`.
 - **The manual describes the draft process as the receiver runs it** (the receiver's `docs/drafting.md`):
   the questions asked in rounds after a turn, every answer before the last being free-form notes of what
   was read, established in the brain and still unknown, the tools open in every round, the message
@@ -187,7 +207,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   fact may not hold, and never to hedge about a fact being out of date. The receiver owns the questions;
   the manual only tells the agent what an answer to each is.
 - **The procedure documents:** how to do what is needed only at the moment it is done — filing and
-  running the queue, a fast-track tool, and a run past its clock — is in
+  running the queue, a fast-track tool, asking for a secret, and a run past its clock — is in
   `prompts/agents/chat/procedures/`, one document each, which the session reads right before doing
   it.
   - It reads one from the deploy tree this line runs on with Bash, under

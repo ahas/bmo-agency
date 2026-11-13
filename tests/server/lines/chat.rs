@@ -563,7 +563,7 @@ fn the_tools_paragraph_names_the_programs_own_tools_the_servers_and_the_entries_
 #[test]
 fn the_role_says_nothing_the_opening_says_and_nothing_no_longer_true() {
   let system = composed();
-  let procedures = ["todo.md", "fasttrack.md", "overtime.md"]
+  let procedures = ["todo.md", "fasttrack.md", "overtime.md", "secrets.md"]
     .map(|name| std::fs::read_to_string(tree().join("prompts/agents/chat/procedures").join(name)).unwrap());
   let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
 
