@@ -1808,6 +1808,47 @@ async fn kept_roads(
   }
 }
 
+/// A road a job's turn moved to inside its provider — the next Claude account, the one before it passed over
+/// for its own failure (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」) — added to
+/// the job's roads with why the one before was left.
+pub async fn add_road(ground: &Ground, id: i64, taken: &Road, reason: &str) {
+  let mut values = roads_kept(ground, id).await.map(|(_, values)| values).unwrap_or_default();
+
+  values.push(road_value(taken, Some(reason)));
+
+  if let Err(why) = run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "roads" = $1 WHERE "id" = $2"#,
+    vec![Value::Array(values).to_string().into(), id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: the road its turn moved to was not written: {why}");
+  }
+}
+
+// The roads a job's row keeps, each with why the one before it was left, as the walk and the carrying wrote
+// them; none where the row keeps none it can read.
+async fn roads_kept(ground: &Ground, id: i64) -> Option<(Vec<(Road, Option<String>)>, Vec<Value>)> {
+  let row = one(&ground.db, r#"SELECT "roads" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()?;
+  let text: String = row.try_get::<Option<String>>("", "roads").ok().flatten()?;
+  let values: Vec<Value> = serde_json::from_str(&text).ok()?;
+  let roads = values
+    .iter()
+    .map(|value| {
+      let road = serde_json::from_value::<Road>(value.clone()).ok()?;
+      let reason = value["reason"].as_str().map(str::to_owned);
+
+      Some((road, reason))
+    })
+    .collect::<Option<Vec<_>>>()?;
+
+  Some((roads, values))
+}
+
 // That a job waits for a road, with the reason, or no longer does; the job told either way, and its item's
 // orderer as the wait begins.
 async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
@@ -1923,8 +1964,10 @@ async fn wait_for_road(
 /// the road the resolution answers for the job's worker now; a turn whose road stopped answering is carried
 /// again on the next road, the same job in the same checkout, at most once on each provider, its prompt
 /// opened with the line saying it continues the work; and where nothing in the order can answer, the job
-/// waits, held with the reason, until a provider can. The end it answers carries every road's spending and,
-/// in its report, where the job ran and why it moved; none where the job was ended from outside.
+/// waits, held with the reason, until a provider can — unless its last turn ended on every Claude account
+/// refusing it, which ends the job on that login failure. The end it answers carries every road's spending
+/// and, in its report, where the job ran and why it moved, the Claude accounts its turns moved across among
+/// them; none where the job was ended from outside.
 pub async fn carry_job<C: Carrier>(
   ground: &Ground,
   job: &Carried<'_>,
@@ -1946,18 +1989,22 @@ pub async fn carry_job<C: Carrier>(
   let mut spent: Option<Spent> = None;
   let mut prompt = job.prompt.to_owned();
   let mut last: Option<Ended> = None;
+  // Whether the last turn ended on every Claude account of its walk refusing it.
+  let mut refused_everywhere = false;
 
   keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
 
   loop {
     let resolution = road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?;
     let Some((taken, entry)) = resolution.going().map(|(road, entry)| (road.clone(), entry.clone())) else {
-      // Every road that can answer now was already tried in this job: it ends as its last turn did.
+      // Every road that can answer now was already tried in this job, or every account of the last refused
+      // it, which only a person settles: it ends as its last turn did.
       if let Some((state, outcome, report, _)) = last.take()
-        && road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
-          .await?
-          .road()
-          .is_some()
+        && (refused_everywhere
+          || road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
+            .await?
+            .road()
+            .is_some())
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
@@ -1978,6 +2025,14 @@ pub async fn carry_job<C: Carrier>(
 
     let end = carrier.carry(&taken, &entry, &prompt).await?;
 
+    // The walk inside the turn keeps each Claude account it moved the turn to on the job's row as it moves.
+    if let Some((kept, kept_values)) = roads_kept(ground, job.id).await
+      && kept_values.len() > values.len()
+    {
+      roads = kept;
+      values = kept_values;
+    }
+
     spent = summed(spent, turn_spent(&end));
 
     let (outcome, report) = ended_by(end.outcome, end.answer.clone(), end.reason.clone());
@@ -1988,16 +2043,26 @@ pub async fn carry_job<C: Carrier>(
       _ => return Ok(Some(("ended".to_owned(), outcome, with_roads(report, &roads), spent))),
     };
 
+    // The road the turn ended on: the Claude account its walk last moved it to, where it moved.
+    let ended_on = roads.last().map_or_else(|| taken.clone(), |(road, _)| road.clone());
+
     noted_line(
       ground,
       job.id,
-      &format!("The job's road {} stopped answering: {stopped}", taken.words()),
+      &format!("The job's road {} stopped answering: {stopped}", ended_on.words()),
     )
     .await;
     road::leave(ground, &taken, &stopped).await;
-    prompt = continued(&taken, &stopped, job.prompt);
+    prompt = continued(&ended_on, &stopped, job.prompt);
     keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
     left.push(Closed::plain(&taken.provider, stopped));
+    refused_everywhere = matches!(
+      &end.failure,
+      Some(agent_session::Failure::Account {
+        failure: agent_session::AccountFailure::Login,
+        ..
+      })
+    );
     last = Some(("ended".to_owned(), outcome, report, None));
   }
 }

@@ -59,13 +59,14 @@ pub struct NodeLogin {
   pub gone_after: String,
 }
 
-/// How a login's end is told to the owner: how long before it, the year a token stands for, and the
-/// message, one entry to a line, with its blanks named in braces.
+/// How a login's end is told to the owner: how long before it, the year a token stands for, how long a
+/// login that refused a run rests, and the message, one entry to a line, with its blanks named in braces.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Login {
   pub notice_ahead_hours: i64,
   pub token_life_days: i64,
+  pub refused_rest_minutes: i64,
   pub head: String,
   pub gone: String,
   pub ending: String,

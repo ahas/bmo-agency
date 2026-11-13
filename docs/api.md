@@ -1513,10 +1513,15 @@ service.
   continues work already in the checkout. A job answers `roads`, every road its turns went out on in
   order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
-  saying where it ran and why it moved. Where none of its role's agents has quota, the job stays `running`
+  saying where it ran and why it moved. A turn the Claude Code walk carried to the next account because
+  the one before refused it (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) adds
+  a road of the same provider and model on that account, its `reason` the refused account and its own
+  words. Where none of its role's agents has quota, the job stays `running`
   and answers `heldFor`, the reason it waits; it goes out again as soon as a provider has quota, and
   `heldFor` is null whenever a turn is out and not waiting for its card. A job on its item's model or
-  a pinned model never moves: it waits for that one. A failure of the work itself moves nothing.
+  a pinned model never moves: it waits for that one. A failure of the work itself moves nothing. A job
+  whose turn every Claude account refused, with no other provider to take it, ends `failed` on that login
+  failure, naming each account a person must sign in to, rather than waiting.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
   block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends

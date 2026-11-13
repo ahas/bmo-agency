@@ -339,6 +339,16 @@ pub struct Account {
 }
 
 impl Account {
+  /// The account as a sentence names it: the name the owner gave it, and the identifier it is known by
+  /// where the two differ.
+  pub fn words(&self) -> String {
+    if self.name == self.id {
+      self.name.clone()
+    } else {
+      format!("{} ({})", self.name, self.id)
+    }
+  }
+
   /// The model a base prompt's `{{model}}` names for a run of this account: the endpoint's own id for the
   /// run's family where its map holds one, and the run's model otherwise (docs/base-prompts.md).
   pub fn base_model(&self, model: &str) -> String {

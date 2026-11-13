@@ -154,6 +154,21 @@ fn an_endpoints_refusals_are_read_as_its_accounts_and_never_as_the_works() {
   );
 }
 
+// A 403 is the account's own refusal, the firewall in front of the API answering it among them, read so
+// whether the CLI asks for `/login` beside it or not, and in its own words.
+#[test]
+fn a_403_is_the_account_s_refusal_whatever_stands_beside_it() {
+  for said in [
+    "Please run /login · API Error: 403 Attention Required! | Cloudflare",
+    "API Error: 403 Attention Required! | Cloudflare",
+  ] {
+    for failed in [of_unanswered(said, "coder"), of_errored(said, "coder")] {
+      assert_eq!(failed.account_failure(), Some(AccountFailure::Login), "{said}");
+      assert_eq!(failed.message(), format!("coder: {said}"));
+    }
+  }
+}
+
 #[test]
 fn a_server_error_is_an_outage_and_every_failure_names_its_cause_in_english() {
   assert_eq!(

@@ -2,7 +2,8 @@
 //! and jobs」): a turn whose road stopped answering carried again on the next road, the same job, its prompt
 //! opened with the line saying it continues the work and its report saying where it ran; at most once on
 //! each provider; a failure of the work itself moving nothing; and a job whose item names its model carried
-//! on that model alone, over the repository's pin, waiting for it rather than falling back.
+//! on that model alone, over the repository's pin, waiting for it rather than falling back, unless every
+//! Claude account refused its turn, which ends it on that login failure with the account moves it made kept.
 
 use std::collections::{HashMap, VecDeque};
 use std::os::unix::fs::PermissionsExt;
@@ -12,12 +13,12 @@ use std::process::Command;
 use crate::support::grounds::{OrderEntry, deepseek_balance, set_provider_order};
 use agency_server::Service;
 use agency_server::config::Config;
-use agency_server::control::work::{Carried, Carrier, carry_job, continued, road_stopped};
+use agency_server::control::work::{Carried, Carrier, add_road, carry_job, continued, road_stopped};
 use agency_server::order::Entry;
 use agency_server::places::Ground;
 use agency_server::road::Road;
 use agency_server::seeds::deployment;
-use agent_session::{EngineError, Failure, Outcome, TurnEnd};
+use agent_session::{AccountFailure, EngineError, Failure, Outcome, TurnEnd};
 use harness_providers::Machine;
 use sea_orm::DatabaseConnection;
 
@@ -58,6 +59,84 @@ impl Carrier for Ends {
 
     self.ends.pop_front().ok_or_else(|| "no end is left".to_owned())
   }
+}
+
+// What a job's turn ends on where every Claude account of its walk refused it.
+const EVERY_ACCOUNT_REFUSED: &str = "claude coder: every Claude account of the road refused this run, and a person must \
+  sign in to each again: default answered \"API Error: 403 Attention Required! | Cloudflare\"";
+
+// A stand-in for a job's turn on Claude Code whose walk moves the turn off the login it went out on and then
+// finds every login refusing it: the move kept on the job's row as the walk keeps it, every login left
+// resting, and the turn ending on the login failure naming them.
+struct EveryAccountRefuses<'g> {
+  ground: &'g Ground,
+  turns: usize,
+}
+
+impl Carrier for EveryAccountRefuses<'_> {
+  async fn carry(&mut self, taken: &Road, _entry: &Entry, _prompt: &str) -> Result<TurnEnd, String> {
+    self.turns += 1;
+
+    let moved = Road {
+      account: Some("second".to_owned()),
+      ..taken.clone()
+    };
+    let until = chrono::Utc::now().timestamp() + 3_600;
+
+    add_road(self.ground, 7, &moved, "Claude account default refused the turn").await;
+    store::run(
+      &self.ground.db,
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('rest_until:default', $1)"#,
+      vec![until.to_string().into()],
+    )
+    .await
+    .unwrap();
+
+    Ok(TurnEnd {
+      failure: Some(Failure::Account {
+        failure: AccountFailure::Login,
+        detail: EVERY_ACCOUNT_REFUSED.to_owned(),
+      }),
+      ..TurnEnd::failed("job-7", EVERY_ACCOUNT_REFUSED, None)
+    })
+  }
+}
+
+// A job on its item's model every Claude account of which refused its turn ends failed on that login failure,
+// never waiting for the refusals' rests to end, its roads and its report keeping the account its turn moved to.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_every_claude_account_of_which_refused_it_ends_on_that_failure_and_keeps_its_moves() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+  let mut carrier = EveryAccountRefuses {
+    ground: &ground,
+    turns: 0,
+  };
+
+  item_names(&scratch, "claude-code", "item-model").await;
+
+  let ended =
+    tokio::time::timeout(std::time::Duration::from_secs(20), carry_job(&ground, &job(), &mut carrier))
+      .await;
+  let (state, outcome, report, _) =
+    ended.expect("the job ends rather than waits").unwrap().expect("an end");
+
+  assert_eq!(carrier.turns, 1);
+  assert_eq!((state.as_str(), outcome.as_deref()), ("ended", Some("failed")));
+
+  let report = report.unwrap_or_default();
+
+  assert!(report.starts_with(EVERY_ACCOUNT_REFUSED), "{report}");
+  assert!(report.contains("claude-code · item-model (second)"), "{report}");
+
+  let roads: serde_json::Value =
+    serde_json::from_str(&job_column(&scratch, "roads").await.unwrap()).unwrap();
+
+  assert_eq!(roads[0]["account"], "default");
+  assert_eq!(roads[1]["account"], "second");
+  assert_eq!(roads[1]["reason"], "Claude account default refused the turn");
+  assert_eq!(job_column(&scratch, "held_for").await, None, "it never waited");
 }
 
 // A store whose order is DeepSeek, its key in place, then Claude Code on its one seeded login, and a job in a

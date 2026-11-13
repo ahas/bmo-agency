@@ -156,10 +156,13 @@ pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option
   Ok(Some(if outage_held { RestKind::Outage } else { RestKind::Limit }))
 }
 
-/// What a rest is: one login's limit, or the service's own outage.
+/// What a rest is: one login's limit, one login's refusal of a run, or the service's own outage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RestKind {
   Limit,
+  /// A login that refused a run, a request for `/login` or a 403, rests under its own name like a limit; the
+  /// owner hears of it as the login notice tells it, never as a limit.
+  Refused,
   Outage,
 }
 
@@ -168,8 +171,14 @@ impl RestKind {
   pub fn word(self) -> &'static str {
     match self {
       Self::Limit => "limit",
+      Self::Refused => "refused",
       Self::Outage => "outage",
     }
+  }
+
+  // Whether the rest is one login's own, written under its name.
+  fn of_a_login(self) -> bool {
+    self != Self::Outage
   }
 }
 
@@ -193,7 +202,7 @@ impl DeploymentResting {
   /// The rest as it is published, in the policy's words.
   pub fn of(kind: RestKind, account: &str, until: i64) -> Self {
     Self {
-      account: (kind == RestKind::Limit).then(|| account.to_owned()),
+      account: kind.of_a_login().then(|| account.to_owned()),
       kind: kind.word(),
       until,
       notice: REST.resting.clone(),
@@ -202,8 +211,8 @@ impl DeploymentResting {
 }
 
 /// A rest written down, answering whether it is the one that silenced the deployment: nothing was resting
-/// before it and nothing answers now. A limit's rest is its login's, and a login already resting is left as
-/// it stands; an outage is the service's, and a second one while the first goes on writes nothing. `until`
+/// before it and nothing answers now. A limit's rest and a refusal's are their login's, and a login already
+/// resting is left as it stands; an outage is the service's, and a second one while the first goes on writes nothing. `until`
 /// is in epoch seconds, written in plain decimal, with no fraction where it is whole.
 pub async fn write_rest(
   judging: Judging<'_>,
@@ -239,7 +248,7 @@ pub async fn write_rest(
       settings::set(db, REST_UNTIL, &until.to_string()).await?;
       settings::set(db, REST_KIND, "outage").await?;
     }
-    RestKind::Limit => {
+    RestKind::Limit | RestKind::Refused => {
       if account_rest_until(judging, account).await?.is_some_and(|standing| standing > now) {
         return Ok(false);
       }
@@ -251,7 +260,7 @@ pub async fn write_rest(
   let silenced = !was_resting && resting(judging, now).await?;
   let whose = match kind {
     RestKind::Outage => "the service".to_owned(),
-    RestKind::Limit => format!("account {account}"),
+    RestKind::Limit | RestKind::Refused => format!("account {account}"),
   };
 
   println!(

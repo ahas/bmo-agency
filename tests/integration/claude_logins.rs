@@ -5,7 +5,10 @@
 //! closes the last open login is published once, a standing program left on a closed login is taken
 //! down, and a login near its end is renewed in a step of its own: no run holds the account's lock across its
 //! turn, and a second run on it says its wait in its job's log, goes out once that renewal is done, never
-//! after the first run's turn, and ends as the login's failure where the renewal found the login gone.
+//! after the first run's turn, and ends as the login's failure where the renewal found the login gone. A
+//! login that refuses a job's turn with a 403 rests alone, however far its credential's moment stands, and the
+//! job goes out on the next login, its log and its roads naming the login that refused and its words; a run
+//! every login of which refuses ends on the login failure naming each, which a person settles by signing in.
 
 use crate::integration::common;
 
@@ -13,10 +16,10 @@ use agency_server::control::claude_accounts::{Account, CREDENTIAL_FILE, Judging,
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use agency_server::job_run::claude::failure::{AccountFailure, Failure};
+use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_unanswered};
 use agency_server::job_run::claude::renewal::{Renewing, lock_path};
-use agency_server::job_run::claude::turn::JobWaits;
-use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
+use agency_server::job_run::claude::turn::{JobMoves, JobWaits};
+use agency_server::job_run::claude::walk::{Attempt, PassedOver, Walking, on_accounts};
 use agency_server::keepalive::logins::retire_closed;
 use agency_server::now_ms;
 use agency_server::places::{Ground, locks};
@@ -614,4 +617,186 @@ async fn a_renewal_that_finds_the_login_gone_ends_the_run_waiting_on_it() {
 
   assert_eq!(on_accounts(&walking, "bmo", None, &mut third).await, Ok("default".to_owned()));
   assert!(!stage.said().contains(&"second goes out on main".to_owned()));
+}
+
+// What the API's firewall answered a run with, as the resident program leaves it.
+const CLOUDFLARE: &str = "Please run /login · API Error: 403 Attention Required! | Cloudflare";
+
+// The job the refused turns are a turn of, whose log and roads the walk's moves are written into.
+const REFUSED_JOB: i64 = 9;
+
+// A job's turn the logins named refuse with the firewall's 403 and any other answers, every login it went out
+// on kept; a login passed over is told and kept as a job's turn tells and keeps it, and the prompt the turn
+// goes out with on the next login is kept too.
+struct Refusing<'b> {
+  refusing: Vec<&'static str>,
+  tried: Vec<String>,
+  prompts: Vec<Option<String>>,
+  ground: &'b Ground,
+  log: RunLog,
+}
+
+impl<'b> Refusing<'b> {
+  async fn of(bench: &'b Bench, refusing: Vec<&'static str>) -> Self {
+    bench
+      .scratch
+      .run(
+        r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+             "token_count", "started_at", "prompt")
+           VALUES ($1, 90, 1, 'harness', 1, 'coder', 'running', 0, 0, '# An item')
+           ON CONFLICT ("id") DO NOTHING"#,
+        vec![REFUSED_JOB.into()],
+      )
+      .await;
+
+    Self {
+      refusing,
+      tried: vec![],
+      prompts: vec![],
+      ground: &bench.ground,
+      log: RunLog::new(Target {
+        agent: "coder".to_owned(),
+        run: format!("job-{REFUSED_JOB}"),
+        chat_id: None,
+        job_id: Some(REFUSED_JOB),
+      }),
+    }
+  }
+}
+
+impl Renewing for Refusing<'_> {}
+
+impl Attempt<String> for Refusing<'_> {
+  async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
+    let id = account.unwrap().id;
+
+    self.tried.push(id.clone());
+
+    if self.refusing.contains(&id.as_str()) {
+      return Err(of_unanswered(CLOUDFLARE, "coder"));
+    }
+
+    Ok(id)
+  }
+
+  async fn passed_over(&mut self, passed: &PassedOver<'_>) {
+    let mut moves = JobMoves::of(self.ground, &mut self.log, Some(REFUSED_JOB), "claude-opus-5-5");
+
+    self.prompts.push(moves.passed_over(passed, "Do the work.").await);
+  }
+}
+
+// The notes and the roads the refused job keeps.
+async fn refused_job(bench: &Bench) -> (Vec<String>, serde_json::Value) {
+  let notes = store::all(
+    bench.scratch.db(),
+    r#"SELECT "text" FROM "agent_log" WHERE "job_id" = $1 AND "kind" = 'note' ORDER BY "id""#,
+    vec![REFUSED_JOB.into()],
+  )
+  .await
+  .unwrap()
+  .iter()
+  .map(|row| row.try_get("", "text").unwrap())
+  .collect();
+  let roads: Option<String> = store::one(
+    bench.scratch.db(),
+    r#"SELECT "roads" FROM "jobs" WHERE "id" = $1"#,
+    vec![REFUSED_JOB.into()],
+  )
+  .await
+  .unwrap()
+  .unwrap()
+  .try_get("", "roads")
+  .unwrap();
+
+  (
+    notes,
+    roads.map_or(serde_json::Value::Null, |roads| serde_json::from_str(&roads).unwrap()),
+  )
+}
+
+// A login whose run the API's firewall refused with a 403 rests alone, though its credential states a moment
+// an hour ahead, which lifts its mark of waiting for a person at once; the same job goes out on the next
+// login, opened with the line saying it continues the work; and the job's log and its roads name the login
+// that refused and its own words.
+#[tokio::test]
+async fn a_login_that_refuses_a_job_s_turn_rests_alone_and_the_job_goes_out_on_the_next() {
+  let bench = Bench::new().await;
+
+  std::fs::write(
+    bench.homes.path().join("main").join(CREDENTIAL_FILE),
+    credential(now_ms() as i64 + HOUR * 1000),
+  )
+  .unwrap();
+
+  let mut turn = Refusing::of(&bench, vec!["main"]).await;
+  let walked = on_accounts(&bench.walking(), "coder", None, &mut turn).await;
+
+  assert_eq!(walked, Ok("default".to_owned()));
+  assert_eq!(turn.tried, ["main", "default"]);
+
+  let rest: i64 = bench.setting("rest_until:main").await.expect("main rests").parse().unwrap();
+
+  assert!(rest > now() + 20 * 60, "main rests for the provider's span: {rest}");
+  assert_eq!(bench.setting("rest_until:default").await, None);
+  assert_eq!(bench.walk().await, ["default"], "the rest holds where the credential lifts the mark");
+
+  let why = format!("Claude account main refused the turn: \"{CLOUDFLARE}\"");
+  let (notes, roads) = refused_job(&bench).await;
+
+  assert_eq!(notes, [format!("{why}. The job goes out again on Claude account default.")]);
+  assert_eq!(roads[0]["account"], "default");
+  assert_eq!(roads[0]["provider"], "claude-code");
+  assert_eq!(roads[0]["reason"], why.as_str());
+
+  let prompt = turn.prompts[0].clone().expect("a prompt for the next login");
+
+  assert!(prompt.contains("already ran on claude-code · claude-opus-5-5 (main)"), "{prompt}");
+  assert!(prompt.ends_with("Do the work."), "{prompt}");
+}
+
+// A run every login of which refuses ends on the login failure naming each login with its words and saying a
+// person must sign in, never on the last refusal's bare line; each login rests, and the job's log says no
+// login is left.
+#[tokio::test]
+async fn a_run_every_login_of_which_refuses_ends_on_the_login_failure_naming_each() {
+  let bench = Bench::new().await;
+
+  for id in ["main", "default"] {
+    std::fs::write(
+      bench.homes.path().join(id).join(CREDENTIAL_FILE),
+      credential(now_ms() as i64 + HOUR * 1000),
+    )
+    .unwrap();
+  }
+
+  let mut turn = Refusing::of(&bench, vec!["main", "default"]).await;
+  let walked = on_accounts(&bench.walking(), "coder", None, &mut turn).await;
+
+  assert_eq!(
+    walked,
+    Err(Failure::Account {
+      failure: AccountFailure::Login,
+      detail: format!(
+        "claude coder: every Claude account of the road refused this run, and a person must sign in to each \
+         again: main answered \"{CLOUDFLARE}\"; default answered \"{CLOUDFLARE}\""
+      ),
+    })
+  );
+  assert_eq!(turn.tried, ["main", "default"]);
+  assert!(bench.setting("rest_until:main").await.is_some());
+  assert!(bench.setting("rest_until:default").await.is_some());
+
+  let (notes, _) = refused_job(&bench).await;
+
+  assert_eq!(
+    notes.last().map(String::as_str),
+    Some(
+      format!(
+        "Claude account default refused the turn: \"{CLOUDFLARE}\". No Claude account of the road is left."
+      )
+      .as_str()
+    )
+  );
+  assert_eq!(turn.prompts.last(), Some(&None));
 }

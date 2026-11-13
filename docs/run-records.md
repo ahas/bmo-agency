@@ -87,6 +87,10 @@ about a message is not agency's: the judgement records belong to the units that 
   open, a slot of its role or the agent its item names, another turn in the standing program it goes into,
   and the renewal of its login by another run (`docs/cache-fallback.md`, 「A login that is about to end」),
   as well as its own renewal of that login.
+- **A job's log names every Claude account its turn was passed over on,** refusing it or at its ceiling, in a
+  note written as the walk passes it over: the account, its own words, and the account the turn goes out on
+  next, or that none is left
+  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「sessions」, forgetting a room).
 

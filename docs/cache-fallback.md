@@ -322,6 +322,23 @@ When a demotion first catches — when a healthy session first drops — two thi
   them, spend and rest belong to it, because a login is what they belong to: a session opened under one
   account cannot be resumed under another, one account's windows say nothing about another's, and each
   account's cache is warmed on its own.
+- **An account that refuses a run rests alone, and the run goes out on the next account.** A run that comes
+  back with its account's own refusal — the CLI asking for `/login`, or the API answering 403, the firewall
+  in front of it among them — passes that account over the way a full window does:
+  - it is marked as waiting for a person and the owner is told once (「A login that is about to end」);
+  - where its credential would lift that mark at once — a directory or token account whose file states a
+    moment still ahead — the account also rests for the span the Claude Code provider's policy names
+    (`policy/providers/claude-code.toml`, `[login]`), written under it alone by the one writer of rests, so
+    no other account rests for it and the credential's own moment cannot open it again before the rest
+    ends. A credential already past its moment, and an endpoint account's key, hold the mark until a person
+    signs in or writes the key again, so they take no rest;
+  - the same run goes out on the next account of its walk. A job's log says which account refused and in
+    its own words, the job keeps the account it moved to among its roads with that refusal as the reason
+    (`docs/api.md`, 「assignments and jobs」), and its prompt on the next account opens with the line saying
+    it continues work already in the checkout, since the session it was on belongs to the account that
+    refused.
+  - Only where every account of the walk refused does the run end, on the login failure naming each account
+    with its words and saying a person must sign in to it again.
 - **An order holds the providers; the Claude Code entry holds the accounts.** The account order is one
   list for the deployment, beside every supervisor's and role's provider order, and it is what the Claude
   Code entry of any order walks when its turn comes.
@@ -450,7 +467,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   the future, and the walk's own reading of that credential takes the mark off, so no console action is
   needed to put the account back in the order. An endpoint account's mark is lifted by its key file
   being written after the mark, or by the owner changing the account, since a balance topped up at the
-  endpoint leaves nothing on this side to read.
+  endpoint leaves nothing on this side to read. A subscription's file states a moment ahead at almost any
+  time, so the mark a run's refusal writes there is lifted at once; the rest written beside it (「The Claude
+  Code road is a list of accounts」) is what keeps the account out of the walk, and it ends at its own moment.
 - **The owner is told before it ends, once — and never about a login that renews itself.** Agency
   publishes `account-login-notice` (`docs/api.md`, 「Events」), carrying the account, how long is left,
   and the one command the owner runs to be done with it, with that account's own configuration
@@ -524,8 +543,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **One judgement says whether a login answers now, and every Claude run is offered a login by it** —
   every supervisor's turn, fold and warm ping, and every role's run, search and browse among them. No line
   keeps a judgement of its own, and none falls back to the machine's own login in place of one.
-- **A login is open while all three hold:** it is on; no window of its own is full (neither a limit rest
-  standing under it, nor a reading of its own windows showing one at its ceiling that has not reset —
+- **A login is open while all three hold:** it is on; no window of its own is full (neither a rest standing
+  under it, a limit's or a refusal's, nor a reading of its own windows showing one at its ceiling that has not reset —
   `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」). A login that
   waits for a person is closed.
 - **An endpoint account is open while it is on, its key file is present and not empty, no rest stands
@@ -560,13 +579,15 @@ When a demotion first catches — when a healthy session first drops — two thi
   can, then the login in use (「The login in use is used to the end」); otherwise the account order is
   walked from the top and the first open account answers. The Claude Code turn is closed only when every
   account is.
-- **A run that fails on the account rather than on the work** — its limit reached, its login gone — moves
-  to the next open account before the walk leaves the Claude Code turn, and the work that asked never
-  learns the first account was tried. A failure of the work itself moves nothing, and neither does the
-  service being down, since no other account would answer that either. A login passed over for its limit
-  is put to rest as it is passed, under that login, so nothing that reads the failure afterwards writes a
-  rest under another. Where that rest closes the last open login, agency publishes it once as
-  `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it.
+- **A run that fails on the account rather than on the work** — its limit reached, its login gone or
+  refusing it — moves to the next open account before the walk leaves the Claude Code turn. A job's log
+  and its roads say which account it left and why; any other work that asked never learns the first account
+  was tried. A failure of the work itself moves nothing, and neither does the service being down, since no
+  other account would answer that either. A login passed over for its limit or its refusal is put to rest
+  as it is passed, under that login, so nothing that reads the failure afterwards writes a rest under
+  another. Where a limit's rest closes the last open login, agency publishes it once as
+  `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it; a
+  refusal's rest is told as the login notice tells it (below), never as a limit.
 - **An endpoint account is walked like any other, and its refusals are read as account failures.** The
   endpoint answers in HTTP status codes rather than in a subscription's words:
   - a 401, the key refused, is its login gone, so the account is marked as waiting for a person;
@@ -611,6 +632,10 @@ When a demotion first catches — when a healthy session first drops — two thi
     goes out again once one can; it is never failed for that. A job in a repository that pins a model
     never moves: it waits while the pin cannot answer (`docs/repositories.md`, 「A pinned model」). A
     failure of the work itself moves nothing and ends the job as it stands.
+  - **A job every account of which refused it ends on that refusal.** Where its turn ended on the login
+    failure of every account of the Claude Code walk refusing it, and no other provider of its order can
+    take it, the job ends failed with that failure, naming each account a person must sign in to, rather
+    than holding its seat and its checkout until the refusals' rests end.
   - **A blocked road stays passed over for a while.** A road a supervisor's turn or a job walks off for its
     provider's failure is blocked by that walk, and the harness blocks one through the boundary
     (`docs/api.md`, 「road-blocks and launch-room」); either is passed over by the next runs whose order

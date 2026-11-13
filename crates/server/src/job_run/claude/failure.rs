@@ -1,8 +1,9 @@
 //! What a failed Claude turn was (docs/run-records.md, 「Why a run died」). A job's
 //! Claude turn always runs in the resident program, so a turn that did not answer leaves no stream: what
 //! it left is the screen or the program's own error, read as the process's error output of a run that
-//! exited with 1. That one text is judged here once — a full window, a login gone (an endpoint's refused
-//! key or spent balance among them), a short rest for too many requests at once, or the run having died —
+//! exited with 1. That one text is judged here once — a full window, a login gone or refusing the run (an
+//! endpoint's refused key or spent balance, and a 403 the firewall in front of the API answered, among
+//! them), a short rest for too many requests at once, or the run having died —
 //! and the judgement is carried by name, the name its cause is written under.
 
 use std::sync::LazyLock;
@@ -16,7 +17,7 @@ use serde::Serialize;
 pub enum AccountFailure {
   /// The login's window is full; another login answers and this one rests until its window resets.
   Limit,
-  /// The login is gone; nobody runs on it until a person signs in again.
+  /// The login is gone or refuses the run: it rests, and waits for a person to sign in again.
   Login,
   /// The service itself would not answer, and no other login would either.
   Outage,
@@ -176,8 +177,9 @@ static LIMIT_RESET: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"(?i)limit reached\|(\d{9,11})").expect("the reset wording is a pattern"));
 
 // The status a refused request names, as the CLI writes it: `API Error: 401 <the endpoint's message>` for
-// a key or a balance the endpoint refused, and `API Error: Request rejected (429) · <its message>` for too
-// many requests at once.
+// a key or a balance the endpoint refused, `API Error: 403 <its message>` for a request the account may not
+// make, the firewall in front of the API refusing it among them, and `API Error: Request rejected (429) ·
+// <its message>` for too many requests at once.
 static API_STATUS: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"API Error[^\n]{0,80}?\b(\d{3})\b").expect("an API status"));
 
@@ -289,7 +291,7 @@ fn harness_failure(stderr: &str, code: i64) -> String {
 }
 
 /// What a turn that did not answer comes to, read off the text it left as a run's error output on exit
-/// 1: the endpoint refusing its key, its balance or too many requests at once; a login gone, by what the
+/// 1: the endpoint refusing its key, its balance, its request or too many requests at once; a login gone, by what the
 /// harness reads of it; a full window; or the run having died.
 pub fn of_unanswered(evidence: &str, key: &str) -> Failure {
   let code = 1;
@@ -325,14 +327,14 @@ pub fn of_unanswered(evidence: &str, key: &str) -> Failure {
 }
 
 // What the endpoint's refusal comes to for the account the run went out on: a key or a balance it will
-// not take waits for a person, since nobody else can settle either, and too many requests at once rests
-// it for a short while. A status the endpoint names decides; otherwise its own words for a refused key or
-// a spent balance do.
+// not take, or a request it forbids the account, waits for a person, since nobody else can settle any of
+// them, and too many requests at once rests it for a short while. A status the endpoint names decides;
+// otherwise its own words for a refused key or a spent balance do.
 fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
   let status = API_STATUS.captures(evidence).and_then(|found| found[1].parse::<i64>().ok());
 
   let gone = match status {
-    Some(401 | 402) => true,
+    Some(401..=403) => true,
     None => KEY_REFUSED.is_match(evidence) || BALANCE_SPENT.is_match(evidence),
     Some(_) => false,
   };
@@ -352,7 +354,7 @@ fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
 }
 
 /// What a turn whose program wrote its own error in the answer's place comes to: the endpoint refusing its
-/// key or its balance, or too many of its requests at once; a full window, with the reset it names; the
+/// key, its balance or its request, or too many of its requests at once; a full window, with the reset it names; the
 /// service answering with a server error or refusing the connection, which no other login would get past
 /// either; or, read as a turn
 /// that did not answer, a login gone or the run having died.

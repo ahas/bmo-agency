@@ -30,10 +30,11 @@ use serde_json::Value;
 use super::failure::{AccountFailure, Failure, RunEnding, of_unanswered};
 use super::renewal::Renewing;
 use super::reset::carry_out_worker_reset;
-use super::walk::{Attempt, Walking, on_accounts};
+use super::walk::{Attempt, PassedOver, Walking, on_accounts};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::provider_enabled;
+use crate::control::work::{add_road, continued};
 use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
@@ -51,6 +52,7 @@ use crate::places::branch::{self, BranchRun};
 use crate::places::home::Home;
 use crate::places::{AgentRow, Ground, locks};
 use crate::queue::stops::job_stop_reason;
+use crate::road::Road;
 use crate::run_clock::CallAsks;
 use crate::run_log::lines::Line;
 use crate::run_log::spans::JobSpan;
@@ -588,6 +590,7 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, 
     log: &mut log,
     shown,
     beside: Beside::default(),
+    continued: None,
   };
   let walked = on_accounts(
     &Walking {
@@ -623,12 +626,14 @@ enum Primary {
   Unanswered(String),
 }
 
-// The turn on the logins the walk offers, and what it learned beside its end.
+// The turn on the logins the walk offers, and what it learned beside its end: the prompt it goes out with on
+// the next login, where the walk passed one over, opened with the line saying it continues the work.
 struct Attempting<'r, 'a> {
   asked: &'r WorkAsked<'a>,
   log: &'r mut RunLog,
   shown: &'r dyn Shows,
   beside: Beside,
+  continued: Option<String>,
 }
 
 /// A job's log as what the renewal step before its program says its wait into: each line a note of the
@@ -649,6 +654,62 @@ impl<'l> JobWaits<'l> {
 impl Renewing for JobWaits<'_> {
   async fn say(&mut self, words: &str) {
     self.log.write(self.db, Line::note(words)).await;
+  }
+}
+
+/// What a job's turn makes of a login the walk passed over for its own failure (docs/cache-fallback.md,
+/// 「The Claude Code road is a list of accounts」): a note in the job's log naming that login, its own words
+/// and the login the turn goes out on next, or that none is left; that next login kept among the job's roads,
+/// the login passed over and its words its reason; and the prompt the turn goes out with on it, opened with
+/// the line saying it continues the work, since the session it was on belongs to the login it left.
+pub struct JobMoves<'l> {
+  ground: &'l Ground,
+  log: &'l mut RunLog,
+  job: Option<i64>,
+  model: &'l str,
+}
+
+impl<'l> JobMoves<'l> {
+  /// The moves of the job named, on the model its turn goes out on, said into its log.
+  pub fn of(ground: &'l Ground, log: &'l mut RunLog, job: Option<i64>, model: &'l str) -> Self {
+    Self {
+      ground,
+      log,
+      job,
+      model,
+    }
+  }
+
+  /// One login passed over, told and kept: the prompt the turn goes out with on the next login, none where
+  /// none is left.
+  pub async fn passed_over(&mut self, passed: &PassedOver<'_>, prompt: &str) -> Option<String> {
+    let left = passed.account.words();
+    let why = match passed.failure {
+      AccountFailure::Limit => format!("Claude account {left} is at its ceiling: {}", passed.said),
+      AccountFailure::NodeToken => {
+        format!("Claude account {left} has no token for the work nodes: {}", passed.said)
+      }
+      _ => format!("Claude account {left} refused the turn: \"{}\"", passed.said),
+    };
+    let note = match passed.next {
+      Some(next) => format!("{why}. The job goes out again on Claude account {}.", next.words()),
+      None => format!("{why}. No Claude account of the road is left."),
+    };
+
+    self.log.write(&self.ground.db, Line::note(note)).await;
+
+    let next = passed.next?;
+    let road = |account: &Account| Road {
+      provider: PROVIDER.to_owned(),
+      model: self.model.to_owned(),
+      account: Some(account.id.clone()),
+    };
+
+    if let Some(job) = self.job {
+      add_road(self.ground, job, &road(next), &why).await;
+    }
+
+    Some(continued(&road(passed.account), &why, prompt))
   }
 }
 
@@ -694,9 +755,34 @@ impl Attempt<Settled> for Attempting<'_, '_> {
   fn takes(&self, account: &Account) -> bool {
     account.credential.runs_on_nodes() || !self.on_node()
   }
+
+  async fn passed_over(&mut self, passed: &PassedOver<'_>) {
+    let ground = self.asked.ground;
+    let job = self.asked.job.map(|job| job.job);
+    let model = self.model().to_owned();
+    let prompt = self.asked.prompt;
+
+    if let Some(continued) = JobMoves::of(ground, self.log, job, &model).passed_over(passed, prompt).await {
+      self.continued = Some(continued);
+    }
+  }
 }
 
 impl Attempting<'_, '_> {
+  // The words the turn goes out with: the job's own, opened with the line saying it continues the work where
+  // the walk carried it off a login it was on.
+  fn prompt(&self) -> String {
+    self.continued.clone().unwrap_or_else(|| self.asked.prompt.to_owned())
+  }
+
+  // The model the turn goes out on, as the job keeps its roads: its mapping's, or its thrown-away session's.
+  fn model(&self) -> &str {
+    match self.asked.seat {
+      WorkSeat::Worker(_) => &self.asked.work.mapping.model,
+      WorkSeat::Apart(apart) => &apart.model,
+    }
+  }
+
   // Whether the turn goes into a standing program on a work node.
   fn on_node(&self) -> bool {
     let data = &self.asked.ground.roots.data;
@@ -837,6 +923,7 @@ impl Attempting<'_, '_> {
       )
       .await;
 
+    let prompt = self.prompt();
     let mut watch = WorkWatch {
       ground,
       log: self.log,
@@ -858,7 +945,7 @@ impl Attempting<'_, '_> {
         title: work.title.clone(),
         command,
         session,
-        prompt: self.asked.prompt.to_owned(),
+        prompt,
         model: run.model.clone(),
         effort: run.effort.clone(),
         account: account.as_ref().map(|account| account.id.clone()),
@@ -925,6 +1012,7 @@ impl Attempting<'_, '_> {
       )
       .await;
 
+    let prompt = self.prompt();
     let mut watch = WorkWatch {
       ground,
       log: self.log,
@@ -946,7 +1034,7 @@ impl Attempting<'_, '_> {
         title: work.title.clone(),
         command,
         session,
-        prompt: self.asked.prompt.to_owned(),
+        prompt,
         model: line.model.clone(),
         effort: line.effort.clone(),
         account: account.as_ref().map(|account| account.id.clone()),
@@ -1055,7 +1143,7 @@ impl Attempting<'_, '_> {
     let session = SessionRun {
       mode: held::MODE,
       line,
-      prompt: self.asked.prompt.to_owned(),
+      prompt: self.prompt(),
       resume,
       account,
       placement: None,

@@ -134,6 +134,9 @@ quota is read is `docs/usage-windows.md`.
 - **A run none of whose providers has quota waits; it is never refused.** It is held with the reason — each
   provider's, and the moment the first of them reopens where a window names one — and goes out as soon as a
   provider of its order has quota above the share again, on the first such provider in the order.
+- **A job every Claude account of which refused it ends instead of waiting,** on the login failure naming
+  each account a person must sign in to (`docs/cache-fallback.md`, 「Automatic walks only on providers, in
+  order」).
 - **A waiting run holds no slot.** It waits in its role's line for its slot and for its provider together
   (`docs/role-slots.md`, 「The line」), so a run waiting for quota never keeps a slot from a run that could go.
 - **A supervisor's turn waits the same way,** its room told by the receiver, which reads the wait off the
