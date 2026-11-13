@@ -293,8 +293,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   no lease, its lease gone some other way, is taken again with `job_lease_next` before it is closed.
 - **A job ends at the merge, and its commit waits for its repository's batch deployment.** A job's close
   pushes its commit onto main and ends: its item's `labels` hold `close-phase` `waiting-batch` and the commit
-  `close-commit` names, and the job's end reaches you as any run's end does. Its item stays as it is, never
-  closed while it waits.
+  `close-commit` names, and the job's end reaches you as any run's end does. Its item stays open as it is,
+  never held and never closed while it waits: the queue offers no merged item for a launch, and the console
+  shows it as waiting to deploy. Commits that must go live together keep their order by their `series` and
+  by the order you deploy them in, never by a hold.
 - **Put a repository live once no related work is left.** Each time a job ends, and each time you are woken,
   read with `job_items` what waits in `waiting-batch` and, for each repository that holds such an item, what
   related work is still open or leased: an item of the same repository, or of the same `series` in another
