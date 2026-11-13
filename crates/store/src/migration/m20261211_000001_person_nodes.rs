@@ -16,16 +16,7 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-    manager
-      .get_connection()
-      .execute_unprepared(
-        r#"CREATE TABLE IF NOT EXISTS "person_nodes" (
-             "owner_account" text PRIMARY KEY,
-             "node" text NOT NULL,
-             "set_at" bigint NOT NULL
-           );"#,
-      )
-      .await?;
+    manager.get_connection().execute_unprepared(include_str!("person_nodes.sql")).await?;
 
     Ok(())
   }

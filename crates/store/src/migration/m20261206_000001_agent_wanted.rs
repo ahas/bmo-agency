@@ -17,11 +17,7 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-    let db = manager.get_connection();
-
-    db.execute_unprepared(r#"ALTER TABLE "role_slot_requests" ADD COLUMN "agent_wanted" text;"#)
-      .await?;
-    db.execute_unprepared(r#"ALTER TABLE "jobs" ADD COLUMN "item_agent" text;"#).await?;
+    manager.get_connection().execute_unprepared(include_str!("agent_wanted.sql")).await?;
 
     Ok(())
   }

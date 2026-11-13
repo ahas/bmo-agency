@@ -16,10 +16,7 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-    manager
-      .get_connection()
-      .execute_unprepared(r#"ALTER TABLE "registered_models" ADD COLUMN "arbiter_model" text;"#)
-      .await?;
+    manager.get_connection().execute_unprepared(include_str!("arbiter_model.sql")).await?;
 
     Ok(())
   }

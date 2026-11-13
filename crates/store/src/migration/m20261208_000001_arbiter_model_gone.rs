@@ -19,7 +19,7 @@ impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
     manager
       .get_connection()
-      .execute_unprepared(r#"ALTER TABLE "registered_models" DROP COLUMN IF EXISTS "arbiter_model";"#)
+      .execute_unprepared(include_str!("arbiter_model_gone.sql"))
       .await?;
 
     Ok(())
