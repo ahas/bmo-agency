@@ -80,6 +80,8 @@ async fn a_job_s_sessions_take_words_while_it_runs_and_refuse_them_only_once_it_
 
   // Under review between stages: its last turn's session is gone, and an earlier stage's session was another.
   job(&scratch, 61, 7, "reviewing", "worker@run:9", Some(0)).await;
+  // Running, its turn in a session this server never held, as after agency's restart.
+  job(&scratch, 66, 11, "running", "worker@run:3", Some(0)).await;
   scratch
     .run(
       r#"INSERT INTO "job_sessions" ("session_id", "job_id", "started_at") VALUES ('worker@run:4', 61, 1)"#,
@@ -100,6 +102,12 @@ async fn a_job_s_sessions_take_words_while_it_runs_and_refuse_them_only_once_it_
       "{path}: {said}"
     );
   }
+
+  // A running job's session is no longer refused as ended.
+  let (status, said) = post(port, token, "/sessions/worker@run:3/words", json!({ "words": "more" })).await;
+
+  assert_eq!((status, said["jobId"].clone()), (201, json!(66)), "{said}");
+  assert_ne!(said["code"], json!("run-ended"), "{said}");
 
   // The job's holder may say to it, and a supervisor that did not ask for it may not.
   assert_eq!(

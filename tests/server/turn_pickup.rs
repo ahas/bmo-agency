@@ -1405,6 +1405,56 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
 
   assert_eq!(unhanded().await, 0, "a word the turn took is no longer kept for its next turn");
 
+  // A note added to the job's item while it runs reaches the same turn: the job service's event pass reads its
+  // `note.created`, keeps it for the job and hands it to the picked-up turn behind the paragraph naming it a
+  // note of the item (docs/agent-control.md, 「Words for a running job」).
+  let (peers, vars) = crate::support::peers::stand().await;
+  let note = "Also update the operator's guide.";
+
+  agency_server::queue::settings::set(scratch.db(), agency_server::watches::job_events::CURSOR_KEY, "10")
+    .await
+    .unwrap();
+  peers.lock().unwrap().events = vec![json!({
+    "id": 11, "kind": "note.created", "at": 11,
+    "data": { "id": 5, "itemId": 1, "text": note, "actorName": "chat-agent", "labels": {}, "createdAt": now_ms() },
+  })];
+  agency_server::watches::job_events::pass(scratch.db(), &vars).await.unwrap();
+
+  let noted = |herdr: &common::herdr::HerdrModel| {
+    herdr.prompts().iter().any(|(target, text)| {
+      target == &pane && text.contains("item #1 by chat-agent") && text.ends_with(note)
+    })
+  };
+
+  for _ in 0..600 {
+    if noted(&herdr) {
+      break;
+    }
+
+    agency_server::job_words::offer_kept(scratch.db()).await;
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert!(noted(&herdr), "the note went into the picked-up turn: {:?}", herdr.prompts());
+
+  for _ in 0..600 {
+    if unhanded().await == 0 {
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert_eq!(unhanded().await, 0, "a note the turn took is no longer kept for its next turn");
+
+  // The job's report ends with what it was told while it ran: the word and the note, each as said.
+  let report = agency_server::words::report(scratch.db(), 80)
+    .await
+    .unwrap()
+    .expect("a report of words");
+
+  assert!(report.contains(word) && report.contains(note), "{report}");
+
   for _ in 0..3 {
     every_pass(&ground).await;
     assert!(
