@@ -23,7 +23,7 @@ wait_ended_order = "Item #{item} ({title}) is held under {label}, and every item
 waited_item = "#{item} ({title}), {state}"
 # A job's close handed its commit over and waits for the deployment that carries it: `{item}`, `{title}`,
 # `{repository}` and `{commit}`.
-deploy_order = "Item #{item} ({title}): its job's close handed commit {commit} of {repository} over to go live, and the job waits on that deployment's outcome."
+deploy_order = "Item #{item} ({title}): its job's close merged commit {commit} into {repository}'s main, and the item waits for that repository's batch deployment: put it live once no related work is left, as the todo procedure says."
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."

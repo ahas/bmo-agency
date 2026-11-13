@@ -290,3 +290,25 @@ async fn a_commit_waiting_to_go_live_stays_owed_until_its_item_no_longer_waits()
   assert!(agency_server::outbox::owed(db, DEPLOY_OWED).await.unwrap().is_empty());
   assert_eq!(peers.lock().unwrap().withdrawn(), ["2"], "the copy told last withdrawn");
 }
+
+#[tokio::test]
+async fn a_merged_commit_waiting_for_its_batch_deployment_is_owed_like_one_waiting_to_go_live() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "60").await.unwrap();
+  peers.lock().unwrap().events = vec![event(
+    61,
+    "item.changed",
+    item(
+      91,
+      "leased",
+      json!({ "previousState": "leased", "labels": { "close-phase": "waiting-batch", "close-commit": "abc" } }),
+    ),
+  )];
+  pass(db, &vars).await.unwrap();
+
+  assert_eq!(agency_server::outbox::owed(db, DEPLOY_OWED).await.unwrap()["91"].mark, "abc");
+  assert_eq!(peers.lock().unwrap().instructed().len(), 1);
+}

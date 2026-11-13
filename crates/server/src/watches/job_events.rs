@@ -165,7 +165,10 @@ async fn deploy_told(
   let Some(id) = data["id"].as_i64() else { return Ok(()) };
   let key = format!("{DEPLOY_OWED}{id}");
   let owed = outbox::owed(db, &key).await?.remove("");
-  let waiting = (data["labels"]["close-phase"] == "waiting-live" && data["state"] != "done")
+  // A close that merged its commit leaves the item waiting for its repository's batch deployment; an older
+  // close leaves it waiting to go live. Either is owed to the orderer, who puts the repository live.
+  let phase = &data["labels"]["close-phase"];
+  let waiting = ((phase == "waiting-batch" || phase == "waiting-live") && data["state"] != "done")
     .then(|| data["labels"]["close-commit"].as_str().filter(|commit| !commit.is_empty()))
     .flatten();
 

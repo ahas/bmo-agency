@@ -289,24 +289,30 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   Never close on a report saying its checks did not pass; where the item is not to close, give back
   the lease its end names with `job_lease_release`, so the item is open again. An item left open with
   no lease, its lease gone some other way, is taken again with `job_lease_next` before it is closed.
-- **A job's commit goes live while its job waits on it.** A job's close hands its commit over and waits for the
-  deployment, so its job is still running: you are told `item-awaits-deploy` with the item, the repository and
-  the commit. Read the item with `job_item` now — its `labels` hold `close-phase` `waiting-live` and the commit
-  `close-commit` names — and put that commit live at once as the manual says, with the deploy tool, the
-  repository's declared name, that commit and an English reason, without asking anybody, an item a run raised
-  included: its approval covers putting its commit live. Read the outcome that comes back and say it in
-  the item's room in one line. The job reads the same outcome itself: live, it goes on to its report and its
-  end; failed or rolled back, it mends the cause in the same session and closes again, and you are told
-  `item-awaits-deploy` once more for the new commit. A failed deployment is never left: where the job cannot
-  mend it, what failed goes onto the item with `job_note_add` and the item goes back to its worker.
-- **An item is done only once its commit is live.** Close it with `job_item_update` and `state` `done` only
-  when its job has ended and its commit is live; an item whose labels still hold `close-phase` `waiting-live`
-  is never closed.
+- **A job ends at the merge, and its commit waits for its repository's batch deployment.** A job's close
+  pushes its commit onto main and ends: its item's `labels` hold `close-phase` `waiting-batch` and the commit
+  `close-commit` names, and the job's end reaches you as any run's end does. Its item stays as it is, never
+  closed while it waits.
+- **Put a repository live once no related work is left.** Each time a job ends, and each time you are woken,
+  read with `job_items` what waits in `waiting-batch` and, for each repository that holds such an item, what
+  related work is still open or leased: an item of the same repository, or of the same `series` in another
+  repository. While any is left, the waiting commits stay waiting. When none is left — or the oldest waiting
+  commit of the repository has waited three hours, or the owner says to put it live now — put that
+  repository's main live once, with the deploy tool, the repository's declared name, main's commit and an
+  English reason naming the items it carries, without asking anybody: every item that runs was approved, and
+  that approval covers putting its commit live. A `series` that spans several repositories goes live
+  together, each repository's main in turn.
+- **A batch that goes live closes every item it carried at once.** Close each with `job_item_update` and
+  `state` `done`, and say it once in the room: the repository, the commit that went live and the items it
+  carried.
+- **A batch that fails is never left.** Read the deployment's outcome — the gate step that failed, its last
+  lines and the commits the batch carried — and name the commit that broke it: the one whose files the failing
+  step reads, or else the newest. That item goes back to be mended: its labels' `close-phase` is taken off,
+  what failed goes onto it with `job_note_add`, and it is launched again; the other items keep waiting for the
+  next batch, which goes out once the mend is merged.
 - **Where you may not deploy it** — the owner's own hold on that item, or a room whose grants carry no deploy
-  for its asker, and nothing else — the item stays leased and waiting. Say that its commit waits and whose word
-  puts it live, and carry on from here when that word comes.
-  An item that stands `open` with `close-phase` `waiting-live`, its lease having run out, is never
-  launched as new work: take its lease again with `job_lease_next` naming it, and carry on from here.
+  for its asker, and nothing else — the items stay waiting. Say that their commits wait and whose word puts
+  them live, and carry on from here when that word comes.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
   whole on the item.

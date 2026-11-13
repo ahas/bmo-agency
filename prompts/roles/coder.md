@@ -97,6 +97,7 @@ is given its stage and the exact command for that stage's check.
   its end, the whole output in one log and a line per step printed with what failed. It reads the
   change since the branch left the main branch, the working tree and untracked files with it, unless
   `--since` or the files given say otherwise. It is waited on until it ends, and read its log only
-  where what it printed does not say enough. The whole suite stays the close's.
+  where what it printed does not say enough. The whole suite is the batch deployment's, run once over every
+  commit it carries.
 
 The standing rules, the repository's own rules and the report trailer that follow this prompt hold as they are written.

@@ -152,9 +152,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   words. Agency reads it every few seconds (`policy/machine-turn.toml`): the testbed's lanes as
   `bmo-testbed status --json` prints them, each holder and waiter matched by its checkout to the job working in
   that checkout or under it; the job service's items carrying the label `close-phase`, which the close writes
-  `testing` while it tests and `waiting-live` once its commit is handed over; and, for a running job whose
-  item's close is testing, the close line the same status prints run in the job's checkout. A label alone
-  marks no job, since one outlives the close that wrote it: `testing` only sends agency to the close line, and
+  `testing` while it checks and `waiting-batch` once its commit is merged and waits for its repository's batch
+  deployment (`waiting-live` on an item an older close left); and, for a running job whose item's close is
+  testing, the close line the same status prints run in the job's checkout. A label alone marks no job, since
+  one outlives the close that wrote it: `testing` only sends agency to the close line, and `waiting-batch` or
   `waiting-live` sends it to the deployment of the commit the label `close-commit` names.
 - **A handed-over commit waits while its repository's deployment says it is not live.** Agency reads the
   repository's deploy root from the `[deploy]` table of the testbed declaration in the job's checkout, and

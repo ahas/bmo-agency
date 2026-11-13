@@ -29,8 +29,9 @@ const TESTBED: &str = "bmo-testbed";
 /// The phases of a close as its label on the item names them.
 const TESTING: &str = "testing";
 const WAITING_LIVE: &str = "waiting-live";
+const WAITING_BATCH: &str = "waiting-batch";
 
-/// The label the close writes the commit it handed over in, beside `waiting-live`.
+/// The label the close writes the commit it handed over in, beside `waiting-batch` or `waiting-live`.
 const CLOSE_COMMIT: &str = "close-commit";
 
 /// The testbed declaration at a checkout's root, and the records a deployment keeps under its deploy root (the
@@ -325,7 +326,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data
         Ok(checkouts) => reading.checkouts.extend(checkouts),
         Err(why) => eprintln!("machine turn: the close line at {path} was not read: {why}"),
       },
-      (WAITING_LIVE, Some(commit)) if waiting_live(Path::new(path), commit, home).await => {
+      (WAITING_BATCH | WAITING_LIVE, Some(commit)) if waiting_live(Path::new(path), commit, home).await => {
         reading.awaiting_live.insert(job.item);
       }
       _ => {}

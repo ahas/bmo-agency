@@ -82,10 +82,19 @@ says, and every subagent a job's program opens and every line the owner types in
 
 ## Going live
 
-- **A job never deploys, and never ends before its commit is live.** Its close hands its commit over
-  and then waits, with no clock, for the deployment the supervisor runs through the testbed's hosted
-  deploy tool; the testbed's own deploy verb refuses a harness's shell. Run the close as a background
-  task and wait for it. It ends `live` — then report — or `not live` with the deployment's own reason:
-  a failed deployment is this job's to mend, so find the cause, fix it, commit, push and close again.
-  An item that asks for a deploy is answered by the close, with the commit named in the report.
+- **A job never deploys, and ends at the merge.** Its close checks what it changed, pushes its commits onto
+  main and leaves its item waiting for its repository's batch deployment; it runs no suite and waits for no
+  deployment, so the job reports once the close ends. The supervisor puts a repository live once no related
+  work is left, through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a harness's
+  shell. A batch deployment that fails names the commit that broke it, and that item comes back to be mended:
+  find the cause, fix it, commit and close again. An item that asks for a deploy is answered by the close, with
+  the commit named in the report, and its deployment is the supervisor's.
 
+## While something long runs
+
+- **Never sit idle on a long command.** Whatever the role, a check, a test, a build, a research run or a
+  deployment's outcome is started in the background, and the work that does not hang on its result is done
+  meanwhile: the graph, the documents, the lessons, the report's draft, the next step's reading. Its result is
+  then only read: a failure is fixed and the command started again, a pass goes on.
+- **Wait on your own command by its own output file or its own process id,** never by a pattern another
+  job's command would also match, such as a search for every running close.
