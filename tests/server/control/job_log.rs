@@ -350,4 +350,30 @@ async fn a_role_s_log_reads_its_agents_lines_and_a_job_s_lines_stand_under_its_i
     ["the job's note", "the role own line"],
     "the role reads its agents' lines with its own"
   );
+
+  // Each agent's lines are walked apart and merged by id, so a page cut by its limit takes the newest lines of the
+  // role and of its agent together, and the page before it goes on where it stopped.
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text")
+         VALUES ('agent-a', 'unit-m', $1, 'text', 'm1'), ('role-a', 'unit-m', $1, 'text', 'm2'),
+                ('stranger', 'unit-s', $1, 'text', 'not hers'), ('agent-a', 'unit-m', $1, 'text', 'm3'),
+                ('role-a', 'unit-m', $1, 'text', 'm4')"#,
+      vec![now.into()],
+    )
+    .await;
+
+  let (status, newest) = get(port, token, "/log/agents/role-a/lines?limit=3").await;
+
+  assert_eq!(status, 200, "{newest}");
+  assert_eq!(texts(&newest), ["m2", "m3", "m4"]);
+  assert_eq!(newest["hasMore"], json!(true));
+
+  let oldest = newest["items"][0]["id"].as_i64().unwrap();
+  let (status, before) =
+    get(port, token, &format!("/log/agents/role-a/lines?limit=3&before={oldest}")).await;
+
+  assert_eq!(status, 200, "{before}");
+  assert_eq!(texts(&before), ["the job's note", "the role own line", "m1"]);
+  assert_eq!(before["hasMore"], json!(false));
 }

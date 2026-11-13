@@ -179,9 +179,45 @@ impl Route for RunLogLines {
 crate::moved!(RunLogLines);
 
 // The lines that are one agent's: those standing under its name, and, for a role, those of every agent of the role
-// (docs/run-records.md, 「Agent log」).
+// (docs/run-records.md, 「Agent log」). As one filter it suits a read another index already narrows, such as the
+// moment's; a read by id goes through `own_lines`.
 const OWN_LINES: &str =
   r#"("agent" = $1 OR "agent" IN (SELECT "name" FROM "role_agents" WHERE "role" = $1))"#;
+
+// The agents whose lines are one agent's, the agent's name being the query's first parameter.
+const OWN_AGENTS: &str =
+  r#"SELECT $1::text AS "name" UNION SELECT "name" FROM "role_agents" WHERE "role" = $1"#;
+
+// Which way a read by id goes through the log.
+#[derive(Clone, Copy)]
+enum Toward {
+  Newer,
+  Older,
+}
+
+impl Toward {
+  fn order(self) -> &'static str {
+    match self {
+      Toward::Newer => "ASC",
+      Toward::Older => "DESC",
+    }
+  }
+}
+
+/// A read of one agent's lines by id: the `columns` of its lines meeting `filter`, going `toward` one end of the
+/// log, `limit` of them at most. `columns` holds `"id"`. One filter over the whole log walks every line other agents
+/// wrote since the agent's own, so each of its agents' lines is walked apart along that agent's own index, stopped
+/// at the limit, and the walks merged by id (docs/api.md, 「log-lines」).
+fn own_lines(columns: &str, filter: &str, toward: Toward, limit: &str) -> String {
+  let order = toward.order();
+  let filter = if filter.is_empty() { String::new() } else { format!(" AND {filter}") };
+
+  format!(
+    r#"SELECT "line".* FROM ({OWN_AGENTS}) AS "own" CROSS JOIN LATERAL (
+       SELECT {columns} FROM "agent_log" WHERE "agent" = "own"."name"{filter} ORDER BY "id" {order} LIMIT {limit}
+     ) AS "line" ORDER BY "line"."id" {order} LIMIT {limit}"#
+  )
+}
 
 // How long after the moment named a line may stand for the run a screen opens on: a gate works its start
 // back from its verdict and can be a second or two out.
@@ -249,25 +285,19 @@ impl Route for AgentLogLines {
           let run: String = found.try_get("", "run")?;
           let before_run = one(
             db,
-            &format!(
-              r#"SELECT MAX("id") AS "id" FROM "agent_log"
-               WHERE {OWN_LINES} AND "id" < $2 AND "run" <> $3"#
-            ),
+            &own_lines(r#""id""#, r#""id" < $2 AND "run" <> $3"#, Toward::Older, "1"),
             vec![agent.clone().into(), id.into(), run.clone().into()],
           )
           .await?
-          .and_then(|row| row.try_get::<Option<i64>>("", "id").ok().flatten())
+          .and_then(|row| row.try_get::<i64>("", "id").ok())
           .unwrap_or(0);
           let head = one(
             db,
-            &format!(
-              r#"SELECT MIN("id") AS "id" FROM "agent_log"
-               WHERE {OWN_LINES} AND "run" = $2 AND "id" > $3"#
-            ),
+            &own_lines(r#""id""#, r#""run" = $2 AND "id" > $3"#, Toward::Newer, "1"),
             vec![agent.clone().into(), run.into(), before_run.into()],
           )
           .await?
-          .and_then(|row| row.try_get::<Option<i64>>("", "id").ok().flatten());
+          .and_then(|row| row.try_get::<i64>("", "id").ok());
 
           head.unwrap_or(id)
         }
@@ -278,9 +308,7 @@ impl Route for AgentLogLines {
         // A moment already pruned out of the log, or before its first line: the newest page stands in.
         rows = all(
           db,
-          &format!(
-            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} ORDER BY "id" DESC LIMIT $2"#
-          ),
+          &own_lines(LINE_COLUMNS, "", Toward::Older, "$2"),
           vec![agent.clone().into(), window.into()],
         )
         .await?;
@@ -288,15 +316,13 @@ impl Route for AgentLogLines {
       } else {
         rows = all(
           db,
-          &format!(
-            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
-          ),
+          &own_lines(LINE_COLUMNS, r#""id" > $2"#, Toward::Newer, "$3"),
           vec![agent.clone().into(), (first - 1).into(), window.into()],
         )
         .await?;
         has_older = one(
           db,
-          &format!(r#"SELECT 1 AS "one" FROM "agent_log" WHERE {OWN_LINES} AND "id" < $2 LIMIT 1"#),
+          &own_lines(r#""id""#, r#""id" < $2"#, Toward::Older, "1"),
           vec![agent.clone().into(), first.into()],
         )
         .await?
@@ -305,9 +331,7 @@ impl Route for AgentLogLines {
     } else if let Some(after) = after {
       rows = all(
         db,
-        &format!(
-          r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
-        ),
+        &own_lines(LINE_COLUMNS, r#""id" > $2"#, Toward::Newer, "$3"),
         vec![agent.clone().into(), after.into(), window.into()],
       )
       .await?;
@@ -316,9 +340,7 @@ impl Route for AgentLogLines {
         Some(before) => {
           all(
             db,
-            &format!(
-              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} AND "id" < $2 ORDER BY "id" DESC LIMIT $3"#
-            ),
+            &own_lines(LINE_COLUMNS, r#""id" < $2"#, Toward::Older, "$3"),
             vec![agent.clone().into(), before.into(), window.into()],
           )
           .await?
@@ -326,9 +348,7 @@ impl Route for AgentLogLines {
         None => {
           all(
             db,
-            &format!(
-              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE {OWN_LINES} ORDER BY "id" DESC LIMIT $2"#
-            ),
+            &own_lines(LINE_COLUMNS, "", Toward::Older, "$2"),
             vec![agent.clone().into(), window.into()],
           )
           .await?

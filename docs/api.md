@@ -703,6 +703,11 @@ out and the paths the call changed.
     answers `hasOlder` for the lines before its head, and `hasMore` for newer lines; a moment already
     left out of the log reads the newest page.
   - The page answers `items`, `hasMore` and `hasOlder`; `limit` is 500 where left out and at most 500.
+  - Every read of it that goes by line id walks each agent's own lines apart, the named agent's and each
+    agent's of the role, in the order the page goes, and merges what they gave by id. A page therefore costs
+    the same however many lines other agents wrote since the agent's last one: an agent that last wrote a
+    million lines ago opens as quickly as one writing now, and so does the question whether any line stands
+    before a page. Finding the line at a moment is narrowed by the moment itself.
 
 ### executions
 
