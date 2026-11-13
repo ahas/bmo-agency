@@ -131,9 +131,10 @@ async fn the_start_launches_again_every_job_whose_turn_had_not_gone_out_and_leav
   assert_eq!(state_of(&scratch, 7106).await.0, "reviewing");
 
   // Each job launched again goes out as its launch would have; this ground stands no places, so each ends
-  // failed saying so rather than reaped.
+  // failed saying so rather than reaped. Each launch is a task of its own, which a loaded machine may run
+  // late, so the wait is bounded wide.
   for id in [7101, 7102, 7104] {
-    for _ in 0..100 {
+    for _ in 0..1500 {
       if matches!(state_of(&scratch, id).await.0.as_str(), "stopped" | "ended") {
         break;
       }

@@ -74,7 +74,7 @@ async fn serve(args: Args) -> Result<(), String> {
       data_root.display()
     )
   })?;
-  let db = store::connect(&place, store::pool(16))
+  let db = store::connect(&place, store::pool(agency_server::STORE_CONNECTIONS))
     .await
     .map_err(|why| format!("the store: {why}"))?;
 

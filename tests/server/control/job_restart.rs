@@ -47,7 +47,7 @@ async fn post(port: u16, path: &str, body: Value) -> (u16, Value) {
 async fn job_once(port: u16, id: i64, until: impl Fn(&Value) -> bool) -> Value {
   let mut job = Value::Null;
 
-  for _ in 0..100 {
+  for _ in 0..600 {
     job = get(port, &format!("/jobs/{id}")).await;
 
     if until(&job) {
@@ -72,6 +72,23 @@ async fn requests(scratch: &Scratch, id: i64) -> Vec<(String, String)> {
   .iter()
   .map(|row| (row.try_get("", "token").unwrap(), row.try_get("", "state").unwrap()))
   .collect()
+}
+
+// The job's slot requests once none of them is still held: the job's end is written before its turn's end
+// gives its slot back, so a read made as the end shows may find the request not yet released.
+async fn requests_let_go(scratch: &Scratch, id: i64) -> Vec<(String, String)> {
+  let mut left = requests(scratch, id).await;
+
+  for _ in 0..600 {
+    if left.iter().all(|(_, state)| state != "active" && state != "waiting") {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    left = requests(scratch, id).await;
+  }
+
+  left
 }
 
 // A tool host on the socket given, issuing one token to every record and taking every token back.
@@ -266,7 +283,7 @@ async fn a_job_waiting_for_its_slot_when_the_process_is_killed_is_launched_again
   assert_eq!(ended["outcome"], "failed", "{ended}");
   assert!(!report.contains(REAPED), "{ended}");
 
-  let after = requests(&scratch, id).await;
+  let after = requests_let_go(&scratch, id).await;
 
   assert_eq!(after.len(), 1, "{after:?}");
   assert_eq!(

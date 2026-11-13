@@ -235,6 +235,9 @@ impl IntoResponse for Refusal {
   }
 }
 
+/// The most connections the server's pool opens on the store at once.
+pub const STORE_CONNECTIONS: u32 = 16;
+
 /// The store's place as every reader of it reads it (docs/store.md, 「Connecting」), or none where nothing
 /// names one.
 pub fn archive_place(data_root: &Path) -> Option<String> {

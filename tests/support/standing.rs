@@ -1,7 +1,7 @@
 //! Agency's own server as a test stands it: started on the store and a data root of the test's own, under a
 //! home of the test's own so it reaches no herdr of the machine's, its control port and its quota source
-//! each on a port the machine picks; and its control port once it listens. It is stopped when the guard
-//! goes.
+//! each on a port the machine picks, once a seat of the test server's connections is free for its pool;
+//! and its control port once it listens. It is stopped when the guard goes, and its seat given back.
 
 #![allow(dead_code)]
 
@@ -10,11 +10,14 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
 use crate::support::binary;
+use crate::support::connections::Seat;
 
 /// A server standing, and the port its control routes listen on.
 pub struct Standing {
   child: Child,
   pub port: u16,
+  // Given back after the drop has ended the child, and its connections with it.
+  _seat: Seat,
 }
 
 impl Standing {
@@ -48,7 +51,9 @@ pub fn stand_server_with(
   // deployment's own peer addresses and tokens in its environment, and a test must reach none of them. A
   // test that needs a stand-in names it in `variables`; the marker keeps even that from being called.
   let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned());
-  let mut child = Command::new(binary::built("agency-server", "agency-server"))
+  let program = binary::built("agency-server", "agency-server");
+  let seat = Seat::take();
+  let mut child = Command::new(program)
     .env_clear()
     .env("PATH", path)
     .arg("--data-root")
@@ -80,5 +85,9 @@ pub fn stand_server_with(
 
   std::thread::spawn(move || for _ in lines {});
 
-  Standing { child, port }
+  Standing {
+    child,
+    port,
+    _seat: seat,
+  }
 }

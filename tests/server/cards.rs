@@ -545,6 +545,19 @@ async fn until(shared: &Shared, done: impl Fn(&StandIn) -> bool) {
   panic!("the stand-in never came to the state looked for");
 }
 
+// Read until the ledger holds no demand. A part let go gives its demand back on a task of its own, which
+// forgets the demand only once the master has answered the give-back, so the stand-in hears it first.
+async fn until_forgotten(db: &sea_orm::DatabaseConnection) {
+  for _ in 0..500 {
+    if ledger(db).await.is_empty() {
+      return;
+    }
+    tokio::time::sleep(Duration::from_millis(10)).await;
+  }
+
+  panic!("the ledger still holds {:?}", ledger(db).await);
+}
+
 #[tokio::test]
 async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_the_last() {
   let scratch = Scratch::new().await;
@@ -622,7 +635,7 @@ async fn a_part_let_go_while_the_shared_demand_waits_leaves_it_to_the_rest_and_t
     "given back by the last let go, still waiting"
   );
   assert_eq!(shared.lock().unwrap().asked.len(), 1);
-  assert!(ledger(db).await.is_empty());
+  until_forgotten(db).await;
 
   // A part out after that asks anew, and is granted as the master grants.
   shared.lock().unwrap().grant_after = 1;
@@ -634,7 +647,7 @@ async fn a_part_let_go_while_the_shared_demand_waits_leaves_it_to_the_rest_and_t
   // The last let go while the card stands gives it back as it goes.
   drop(again);
   until(&shared, |stand_in| stand_in.given_back.len() == 2).await;
-  assert!(ledger(db).await.is_empty());
+  until_forgotten(db).await;
 }
 
 #[tokio::test]
