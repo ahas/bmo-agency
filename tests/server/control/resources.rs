@@ -574,6 +574,14 @@ async fn the_model_resource_is_one_record() {
     .0,
     400
   );
+
+  // The server stopped in the middle of the work and started again on the same store holds them as saved: they
+  // are the registry's rows, read afresh, never the process's.
+  drop(server);
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
   assert_eq!(
     get(port, token, "/models/registered::made").await.1["languages"],
     json!(["English", "Japanese"])

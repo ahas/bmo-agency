@@ -16,6 +16,7 @@ use agency_server::control::{Front, router};
 use agency_server::job_review::{Resumed, result_language};
 use agency_server::now_ms;
 use agency_server::order_run::dispatch::{self, Asked, Wanted};
+use agency_server::outbox::{owed, restarted, send_due};
 use agency_server::places::Ground;
 use agency_server::turn_marks::{self, Mark};
 use harness_providers::Machine;
@@ -23,6 +24,7 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use crate::support::grounds::{deepseek_balance, seeded};
+use crate::support::peers::{item, stand};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -482,4 +484,82 @@ async fn the_review_names_the_language_the_run_writes_its_results_in() {
   }
 
   assert_eq!(result_language(db, None).await, brief);
+}
+
+// A check told while the receiver is cut — nothing listening at its address — stays owed with its order whole,
+// and once the receiver stands again and agency starts again the order told names the run's result language: a
+// run on a registration writing English alone is said to report in English, so its English report is not sent
+// back for its language (docs/job-review.md, 「The checks」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_check_owed_across_a_cut_receiver_and_a_restart_names_the_run_s_result_language() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, live) = stand().await;
+  // The receiver cut: its address holds nothing that listens, so the first try is refused at the connection.
+  let cut = {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+
+    format!("http://{}", listener.local_addr().unwrap())
+  };
+  let mut vars = live.clone();
+
+  vars.insert("BMO_RECEIVER_URL".to_owned(), cut);
+
+  let machine = Machine::with_env(
+    vars.iter().map(|(name, value)| (name.clone(), value.clone())).chain([
+      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+    ]),
+    home.path().join("data"),
+  );
+  let service = Service::new(
+    scratch.db().clone(),
+    Config::read(|name| HashMap::<String, String>::new().get(name).cloned()).unwrap(),
+  );
+  let ground = Ground::new(&service, &machine, None);
+
+  peers.lock().unwrap().items.insert(67, item(67, "leased", json!({ "roomId": -5 })));
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "thinking", "walked", "added_at", "keeps_research", "languages")
+         VALUES ('narrow', 'Narrow', 'served', 200000, 8000, 1, 1, 1, 0, '["English"]')"#,
+      vec![],
+    )
+    .await;
+  running(&scratch, "worker-l", 27, 67, &[]).await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "review_session" = '{"provider":"registered","model":"narrow","session":"s-27"}'
+         WHERE "id" = 27"#,
+      vec![],
+    )
+    .await;
+
+  agency_server::job_review::reported(&ground, 27, "The work is done, reported in English.", None).await;
+
+  assert!(peers.lock().unwrap().instructed().is_empty(), "nothing reached a receiver that was cut");
+  assert_eq!(owed(scratch.db(), "job-review:67").await.unwrap().len(), 1, "the check stays owed");
+
+  // The receiver stands again and agency starts again: the owed check is told then, its order whole.
+  restarted(scratch.db()).await.unwrap();
+  assert_eq!(send_due(scratch.db(), &live).await.unwrap(), 1);
+
+  let told = peers.lock().unwrap().instructed();
+  let order = told.last().unwrap()["said"]["order"].as_str().unwrap().to_owned();
+
+  assert_eq!(told.last().unwrap()["kind"], "job-review:67");
+  assert!(
+    order.contains(
+      "so far. It ran on narrow, which writes a result for a person in English alone: where the brief names a \
+       language outside these, its results for a person are written in English and the person reads them \
+       through a translation, so an English report is no reason to send the work back.\n\nThe check due now is \
+       promises:"
+    ),
+    "{order}"
+  );
+  assert!(
+    order.contains("The worker's report:\n\nThe work is done, reported in English."),
+    "{order}"
+  );
 }
