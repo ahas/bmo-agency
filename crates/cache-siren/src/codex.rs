@@ -9,6 +9,7 @@
 //! asked for — is written here, since no maintained crate speaks the app-server's line protocol over a
 //! child's pipes.
 
+use std::os::fd::AsFd;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -267,22 +268,13 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
         }
       }
 
-      let mut seen = std::task::Context::from_waker(std::task::Waker::noop());
+      // The rest is read from the pipe itself rather than through the runtime, which may not yet have seen
+      // the pipe ready when the program's end was met on a write rather than a read; the pipe is
+      // non-blocking, so a read that finds it empty ends at once.
+      let Ok(pipe) = stderr.as_fd().try_clone_to_owned() else { return };
+      let mut pipe = std::fs::File::from(pipe);
 
-      loop {
-        let read = {
-          let mut read = std::pin::pin!(stderr.read(&mut chunk));
-
-          match std::future::Future::poll(read.as_mut(), &mut seen) {
-            std::task::Poll::Ready(Ok(read)) => read,
-            _ => 0,
-          }
-        };
-
-        if read == 0 {
-          return;
-        }
-
+      while let Ok(read @ 1..) = std::io::Read::read(&mut pipe, &mut chunk) {
         keep(&chunk[..read]);
       }
     })
