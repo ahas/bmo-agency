@@ -24,10 +24,10 @@ RestartSec=2
 OOMPolicy=continue
 # What the panes start — the programs, the development servers and browsers their runs stand up — is held
 # under a ceiling of the machine's memory, so it can never take the machine and its services with it: past
-# MemoryHigh the kernel reclaims from the unit first, and past MemoryMax it takes the largest process inside
-# the unit alone. Swap is held short too, since a unit swapping without bound stalls the whole machine
-# before any process is taken. The share is of the machine's memory, so it fits any machine.
-MemoryHigh=55%
+# MemoryMax the kernel takes the largest process inside the unit alone, at once. No MemoryHigh is set, since
+# a unit held at a soft ceiling with its swap spent is throttled until every pane in it stalls. Swap is held
+# short too, since a unit swapping without bound stalls the whole machine before any process is taken. The
+# share is of the machine's memory, so it fits any machine.
 MemoryMax=65%
 MemorySwapMax=4G
 # The socket, and everything herdr writes beside it, sit under this directory. XDG_CONFIG_HOME is

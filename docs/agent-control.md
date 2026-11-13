@@ -1337,10 +1337,11 @@ flowchart TD
   its own」).
 - **herdr's unit holds what its panes start under a ceiling of the machine's memory.** Every program a
   pane runs, and every development server, browser or tool its run stands up, stays in herdr's unit, and
-  the unit is held to 55% of the machine's memory before the kernel reclaims from it and 65% before it
-  takes the largest process inside it, with at most 4 GB of swap. So however many servers the panes
-  leave standing, they cost the largest of them, never the machine and the services beside them: a unit
-  swapping without bound stalls the whole machine before any process is taken.
+  the unit is held to 65% of the machine's memory, past which the kernel takes the largest process inside
+  it at once, with at most 4 GB of swap. So however many servers the panes leave standing, they cost the
+  largest of them, never the machine and the services beside them: a unit swapping without bound stalls
+  the whole machine before any process is taken, and a unit held at a soft ceiling with its swap spent is
+  throttled until every pane in it stalls, so it carries no soft ceiling.
 - **Tests.** The agent host's own tests start its binary on a scratch data root and keep what the bun
   host's tests held: exact output bytes, executions side by side, a duplicate refused, a descendant
   left standing after its leader ended on a stop still killed, a leader that takes its time over a stop
