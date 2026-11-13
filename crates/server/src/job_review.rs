@@ -477,6 +477,31 @@ async fn orderer_of(
   Some((member, orderer))
 }
 
+/// The language a job's run writes its results for a person in, as the order to its orderer names it, read off
+/// the road its last turn answered on (docs/job-review.md, 「The checks」): on a registration that names the
+/// languages it writes, the brief's where it is one of them and English otherwise; on every other road, or where
+/// the registry cannot be read, the brief's.
+pub async fn result_language(db: &DatabaseConnection, road: Option<&Resumed>) -> String {
+  let held = match road {
+    Some(road) if road.provider == crate::control::registry::PROVIDER => {
+      crate::control::registry::registration(db, &road.model).await.unwrap_or_else(|why| {
+        eprintln!("the registration {} was not read for its languages: {}", road.model, why.error);
+
+        None
+      })
+    }
+    _ => None,
+  };
+
+  match held.filter(|held| !held.languages.is_empty()) {
+    Some(held) => fill_marks(
+      &JOB_REVIEW.result_language_listed,
+      &[("model", &held.name), ("languages", &crate::text::listed(&held.languages))],
+    ),
+    None => JOB_REVIEW.result_language_brief.clone(),
+  }
+}
+
 /// The prefix of the key a job's check is owed under, its item's number after it.
 pub const CHECK_OWED: &str = "job-review:";
 
@@ -504,6 +529,7 @@ async fn tell_check(
   } else {
     &JOB_REVIEW.moves_early
   };
+  let language = result_language(db, standing.session.as_ref()).await;
   let order = fill_marks(
     &JOB_REVIEW.review_order,
     &[
@@ -513,6 +539,7 @@ async fn tell_check(
       ("stage", &stage_words(standing)),
       ("round", &standing.round.to_string()),
       ("rejections", &standing.rejections.to_string()),
+      ("language", &language),
       ("check", &check),
       ("requirement", requirement),
       ("heading", heading),

@@ -62,6 +62,10 @@ says, and every subagent a job's program opens and every line the owner types in
   item's brief names that language, as a search writes its result in the language its question is asked
   in. Numbers, tables, code, commands, paths, identifiers, sources and quoted words stand as they are. A
   brief that names no language leaves the result in English.
+- **A run whose model writes only some languages is told them after these rules,** and where the brief
+  names a language outside them, its results for a person are written in English as that piece says.
+- **You reason in English,** whatever language the brief, the item or a person writes in: your thinking,
+  your plans and what you say to yourself between tool calls.
 - **Everything else a job writes is English:** its notes; a question put to the owner, which the chat
   agent puts to him in his own; a subagent's prompt and report, a workflow's labels and schema field
   names, an agent definition; the repository's own documents; and its logs.

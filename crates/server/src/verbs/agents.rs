@@ -71,6 +71,9 @@ pub struct AgentsArgs {
   pub walked: Option<String>,
   #[arg(long)]
   pub research: Option<String>,
+  /// The languages a registration writes results in, as a comma-separated list, or `none` for every language.
+  #[arg(long, value_delimiter = ',')]
+  pub languages: Option<Vec<String>>,
   #[arg(long)]
   pub account_order: Option<String>,
   #[arg(long)]
@@ -378,6 +381,13 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       body["cardService"] = if service.trim() == "none" { Value::Null } else { json!(service) };
     }
 
+    if let Some(languages) = &args.languages {
+      body["languages"] = match languages.as_slice() {
+        [none] if none.trim() == "none" => Value::Null,
+        named => json!(named),
+      };
+    }
+
     for (field, value, flag) in [
       ("thinking", &args.thinking, "--thinking"),
       ("walked", &args.walked, "--walked"),
@@ -444,6 +454,12 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       if flag("walked") { "walked" } else { "not walked" },
       if flag("keepsResearch") { "keeps its research" } else { "research elsewhere" },
     ));
+
+    let languages: Vec<String> = one["languages"].as_array().into_iter().flatten().map(text).collect();
+
+    if !languages.is_empty() {
+      said.line(format!("  writes results in {} alone", crate::text::listed(&languages)));
+    }
 
     if let Some(service) = one["cardService"].as_str() {
       let kept = if flag("roleFiles") { ", role files" } else { "" };

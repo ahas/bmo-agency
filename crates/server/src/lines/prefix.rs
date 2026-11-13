@@ -246,8 +246,9 @@ pub fn prefix_digest(reading: &PrefixReading) -> String {
 
 // The repository files a commit can name that the prefix is read out of: the memory files and what a
 // pointer among them imports, the MCP configuration, the platform's harness opening its prompt opens with,
-// and the worker line's settings, rules and the report trailer with the graph text it carries.
-const PREFIX_FILES: [&str; 11] = [
+// and the worker line's settings, rules, the result-language piece and the report trailer with the graph
+// text it carries.
+const PREFIX_FILES: [&str; 12] = [
   "CLAUDE.md",
   "CLAUDE.local.md",
   "AGENTS.md",
@@ -256,6 +257,7 @@ const PREFIX_FILES: [&str; 11] = [
   "prompts/harness.md",
   "prompts/agents/worker/settings.json",
   "prompts/agents/worker/standing-rules.md",
+  "prompts/agents/worker/result-languages.md",
   "prompts/agents/worker/trailer.md",
   "prompts/agents/worker/graph.md",
   "prompts/rules/self-preservation.md",

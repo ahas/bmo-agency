@@ -10046,6 +10046,14 @@
               "null"
             ],
             "description": "Its thinking default: what a run on it does where its order's entry leaves thinking to the provider;\nnull for a model that is no registration."
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The languages a run on it writes a result for a person in, each by its English name; empty for every\nlanguage.",
+            "default": []
           }
         },
         "required": [
@@ -10060,7 +10068,8 @@
           "lastAnsweredAt",
           "contextTokens",
           "answerTokens",
-          "thinking"
+          "thinking",
+          "languages"
         ],
         "description": "Model: one registration of the registry's provider and its health."
       },
@@ -10154,6 +10163,16 @@
               "null"
             ],
             "description": "The arbiter service the registration's engine is, or `none`; naming one takes its addresses away."
+          },
+          "languages": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The languages a run on the registration writes a result for a person in, each by its English name; an\nempty list or null names none, which means every language. Left as they stand where none is named."
           }
         },
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."

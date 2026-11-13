@@ -200,8 +200,8 @@ answer_tokens = "An answer ceiling is set only on {providers}, as one of {choice
 # The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {supervisor}'s pin, a
 # work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
 # its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
-# {node}, {what} cannot be removed while the {names} name it, and an address refused to a {name} naming a
-# card {service}.
+# {node}, {what} cannot be removed while the {names} name it, an address refused to a {name} naming a
+# card {service}, and languages past their {most} or out of their shape.
 [registry]
 tier = "the {tier} tier"
 worker_pin = "worker {worker}'s pin"
@@ -231,6 +231,7 @@ the_registration = "The registration {name}"
 card_service = "A card service starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
 card_role_files = "Whether a card service's instances keep role files is on or off."
 card_service_address = "{name} names the card service {service}: where it stands is the arbiter's to say, so it holds no address."
+languages = "Languages are a list of at most {most} names, each a language's English name of letters, spaces and hyphens, at most 40 characters, or none."
 
 # The model catalogue: a source, a {what}'s word, a field's {label} out of its {min} and {max}, a label
 # or a note past its {most} characters, a {name} not catalogued or being switched to, an {engine} serving

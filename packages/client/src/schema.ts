@@ -2781,6 +2781,12 @@ export interface components {
              *     null for a model that is no registration.
              */
             thinking: boolean | null;
+            /**
+             * @description The languages a run on it writes a result for a person in, each by its English name; empty for every
+             *     language.
+             * @default []
+             */
+            languages: string[];
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
@@ -2805,6 +2811,11 @@ export interface components {
             roleFiles?: boolean | null;
             /** @description The arbiter service the registration's engine is, or `none`; naming one takes its addresses away. */
             cardService?: string | null;
+            /**
+             * @description The languages a run on the registration writes a result for a person in, each by its English name; an
+             *     empty list or null names none, which means every language. Left as they stand where none is named.
+             */
+            languages?: string[] | null;
         };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {

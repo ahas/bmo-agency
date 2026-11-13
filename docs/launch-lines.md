@@ -246,7 +246,9 @@
   is the platform's harness opening, `prompts/harness.md`, then the role's prompt where the role carries
   one, then the line's rules, as one file named by what it holds. The rules are one file the line
   composes for the run — the owner's standing rules for every job,
-  `prompts/agents/worker/standing-rules.md`, then the rulebook against destroying the system, then the
+  `prompts/agents/worker/standing-rules.md`, then, on a registration that names the languages it writes,
+  the result-language piece `prompts/agents/worker/result-languages.md` filled with them (`docs/own-llm.md`,
+  「A run on the worker line is composed as on Claude」), then the rulebook against destroying the system, then the
   repository's own rules where the run works in a repository's checkout and the repository names a
   document of its own, `prompts/agents/<folder>/own-rules.md` from the prompt folder its row names (a
   co-work branch in a standing checkout takes none), then the report trailer every job is held to, the

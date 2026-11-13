@@ -139,7 +139,14 @@ never the model's name.
   one.
 - **Whether it keeps its research:** on or off, kept for the caller that sends a search or a browse out and
   reads it; agency acts on neither.
-- **Nothing of a run's prompt:** what a run on it is told is its line's, and an agent's base prompt is
+- **Its languages:** the languages a run on it writes a result for a person in, each by its English name,
+  or none, which means every language. The owner names them for a model whose supported languages lack
+  the language a person asks in, or that writes it badly; nothing names them on its own, and no list of
+  models or languages stands in the code. A run on the worker line on a registration naming some is told
+  them, and writes its results in English where its brief names a language outside them (「A run on the
+  worker line is composed as on Claude」 below; `docs/worker-language.md`, 「A model that writes only some
+  languages」).
+- **Nothing else of a run's prompt:** what a run on it is told is its line's, and an agent's base prompt is
   the agent's own choice (`docs/base-prompts.md`); the gateway passes every prompt as it stands.
 
 ### Where it is kept
@@ -197,12 +204,14 @@ never the model's name.
   a model is chosen.
 - **The command:**
   - `bmo-agency agent --registered` lists every registration and its addresses, each address with
-    whether its key is usable.
+    whether its key is usable, and the languages of a registration naming some.
   - `bmo-agency agent --register <name> [--label <label>] [--model <model>] [--context <tokens>]
     [--answer <tokens>] [--thinking on|off] [--walked on|off] [--research on|off]
-    [--card-service <service>|none] [--role-files on|off]` makes a registration, every field but the
-    label, the card service and the role files named, or changes the named fields of one; `--role-files`
-    here says whether the card service's instances keep role files.
+    [--card-service <service>|none] [--role-files on|off] [--languages <list>|none]` makes a
+    registration, every field but the label, the card service, the role files and the languages named,
+    or changes the named fields of one; `--role-files` here says whether the card service's instances keep
+    role files, and `--languages` takes the languages as a comma-separated list, or `none` for every
+    language.
   - `bmo-agency agent --register-address <name> <node label> <address> [--key-stdin | --no-key]
     [--role-files on|off]` adds an address or changes one, and is refused on a registration naming a card
     service; `--key-stdin` reads the key from standing
@@ -216,8 +225,9 @@ never the model's name.
   (`docs/provider-order.md`, 「Models a provider holds」); each of those answers for itself whether it
   names the registration. The last address of a
   registration something names is not removed either.
-- **The rules a save is held to** — what a name, a node label, a model and a key file may be, the
-  bounds of the window and the answer size, and how long a label may be — are agency's policy
+- **The rules a save is held to** — what a name, a node label, a model, a key file and a language may
+  be, how many languages a registration may name, the bounds of the window and the answer size, and how
+  long a label may be — are agency's policy
   (`policy/`), so the console's save is checked alike whichever side answers it.
 
 ### Nodes and sessions
@@ -991,9 +1001,18 @@ never the model's name.
   chosen for the run (`docs/base-prompts.md`), the worker plugin and its skills, the worker's MCP server, the project and local setting sources, so the checkout's
   `CLAUDE.md` is read in, every tool the line shows, and the worker settings with their hooks, the job
   guard among them.
-- **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
+- **What the road changes is the model and the endpoint,** the gateway's address and key, the
   registration's name, window and answer ceiling (「How requests go」 above), beside the
-  effort word and the records home every run on a registration has.
+  effort word and the records home every run on a registration has; **and the languages it writes
+  results in,** where the registration names some: the line's rules carry the result-language piece,
+  `prompts/agents/worker/result-languages.md`, filled with that list, right after the standing rules, so
+  a session on the registration holds it in its prefix. The piece says that where the brief names a
+  result language outside the list, every result written for a person is written in English, and that
+  the person reads it in their own language through the translation shown beside it
+  (`docs/worker-language.md`, 「A model that writes only some languages」). A registration naming none
+  carries no piece. A run whose road is chosen before its model is known, a pinned repository's standing
+  program among them, is composed on the model its pin or its role's order names, so the piece is there
+  from its first turn.
 - **Its subagents are its own registration's:** a subagent the run's program opens asks the gateway under
   the run's own gateway name, so it runs on the run's registration (「How requests go」 above).
 - **Its first request** is the whole line — the tool definitions, the MCP server among them, the system

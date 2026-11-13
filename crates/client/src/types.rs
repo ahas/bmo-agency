@@ -698,6 +698,10 @@ pub struct Model {
   /// Its thinking default: what a run on it does where its order's entry leaves thinking to the provider;
   /// null for a model that is no registration.
   pub thinking: Option<bool>,
+  /// The languages a run on it writes a result for a person in, each by its English name; empty for every
+  /// language.
+  #[serde(default)]
+  pub languages: Vec<String>,
 }
 
 /// ModelCatalogueEntry:
@@ -2605,6 +2609,10 @@ pub struct ModelChange {
   /// The arbiter service the registration's engine is, or `none`; naming one takes its addresses away.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub card_service: Option<String>,
+  /// The languages a run on the registration writes a result for a person in, each by its English name; an
+  /// empty list or null names none, which means every language. Left as they stand where none is named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub languages: Option<Vec<String>>,
 }
 
 /// The body that assigns a tier to a work key or sets a tier's mapping on a provider.

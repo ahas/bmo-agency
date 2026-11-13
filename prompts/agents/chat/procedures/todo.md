@@ -334,9 +334,13 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 ## The review of a job's report
 
 - **A job's report comes to you before the job ends,** as a `job-review` instruction in the item's room: the
-  job, the stage and its step, the round, how many times the work was sent back, the check due now with what it
-  requires, and the words to examine — the worker's report, its answer to your question, or the owner's word.
-  One check comes at a time, in order: `promises`, then `decisions`.
+  job, the stage and its step, the round, how many times the work was sent back, the language the run writes its
+  results for a person in, the check due now with what it requires, and the words to examine — the worker's
+  report, its answer to your question, or the owner's word. One check comes at a time, in order: `promises`,
+  then `decisions`.
+- **A report in the language the instruction names is in the right language.** A run on a model that writes only
+  some languages writes its results in English where the brief names a language outside them, and the person
+  reads them through a translation shown beside them: such a report is never sent back for being English.
 - **Examine the words against the check, and answer with `review_job`** on the job the instruction names, one
   action per call:
   - `ask` with a question, written by you from what the report says, where the words leave the check open: the

@@ -51,6 +51,16 @@ pub fn grouped(number: usize) -> String {
   grouped
 }
 
+/// Names as an English sentence lists them: one alone, two joined by "and", more set apart by commas with "and"
+/// before the last.
+pub fn listed(names: &[String]) -> String {
+  match names {
+    [] => String::new(),
+    [one] => one.clone(),
+    [first @ .., last] => format!("{} and {last}", first.join(", ")),
+  }
+}
+
 /// What a token-shaped value is written as in a record (docs/agent-control.md, 「A record holds no token」).
 pub const REDACTED: &str = "[redacted]";
 

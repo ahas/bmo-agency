@@ -911,7 +911,10 @@ engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in
 it and every repository whose pin names it, and a take-away is refused 409
 while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
 and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
-change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
+change names at least one of `model`, `cardService`, `roleFiles` and `languages`. Each answer carries
+`languages`, the languages a run on the registration writes a result for a person in, each by its English
+name, empty where it names none, which means every language; the create and the change take it as a list,
+an empty list or null naming none (`docs/own-llm.md`, 「What a registration holds」). Naming a card service takes the
 registration's addresses away, and its `healthy` is the arbiter master's (`docs/own-llm.md`, 「An engine the
 arbiter stands」). A registration's addresses are the registry's, set with `bmo-agency agent
 --register-address`; no route of this boundary sets an address.

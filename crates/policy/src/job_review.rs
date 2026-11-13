@@ -21,6 +21,11 @@ pub struct JobReview {
   pub checks: Vec<Check>,
   /// What the orderer is told of the check due now.
   pub review_order: String,
+  /// The result language an order names for a run on a registration that names its languages: `{model}` and
+  /// `{languages}`.
+  pub result_language_listed: String,
+  /// The result language an order names for a run on any other road.
+  pub result_language_brief: String,
   /// The moves an order names before the work may be put to the owner.
   pub moves_early: String,
   /// The moves an order names once it may be.

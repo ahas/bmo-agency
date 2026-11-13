@@ -449,3 +449,72 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
 
   assert_eq!(pinned_model_on(scratch.db(), "helper", "claude-code").await.unwrap(), None);
 }
+
+// A run on the worker line on a registration that names the languages it writes carries the result-language
+// piece, filled with them, right after the standing rules, on a role's run and on a pinned repository's standing
+// program alike; a registration naming none and every other road carry none (docs/own-llm.md, 「A run on the
+// worker line is composed as on Claude」).
+#[tokio::test]
+async fn a_run_on_a_registration_naming_its_languages_is_told_them_after_the_standing_rules() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  tracer(&scratch).await;
+
+  for sql in [
+    r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+          "thinking", "walked", "added_at", "keeps_research", "languages")
+       VALUES ('narrow', 'Narrow', 'served', 200000, 8000, 1, 1, 1, 0, '["English","Japanese"]'),
+              ('wide', 'Wide', 'served', 200000, 8000, 1, 1, 2, 0, NULL)"#,
+    r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
+       VALUES ('narrow', 'n1', 1, 'http://[::1]:9/v1/chat/completions', NULL, 0)"#,
+  ] {
+    scratch.run(sql, vec![]).await;
+  }
+
+  let ground = ground(&scratch, &home).await;
+  let trees = Trees::of(&ground);
+  let standing = std::fs::read_to_string(trees.agent_dir("worker").join("standing-rules.md")).unwrap();
+  let run = |model: &'static str, provider: &'static str| {
+    let (ground, trees) = (&ground, &trees);
+
+    async move { role_run(ground, trees, "tracer", None, None, model, "/work", provider).await.unwrap() }
+  };
+  let narrow = run("narrow", "registered").await;
+  let rules = std::fs::read_to_string(&narrow.rules).unwrap();
+  let piece = "# The languages this run writes its results in\n\nThe model this run stands on writes a result \
+               for a person well in English and Japanese alone. Where the brief\nnames a result language outside \
+               English and Japanese, write every result for a person in English instead";
+
+  assert!(rules.starts_with(&format!("{}\n\n{piece}", standing.trim_end())), "{rules}");
+  assert!(
+    rules.contains("Where the brief names one of English and Japanese, or names no language"),
+    "{rules}"
+  );
+  assert!(rules.contains("\n\nRULEBOOK prompts/rules/self-preservation.md"), "{rules}");
+  assert!(!rules.contains("{{"), "{rules}");
+  assert!(std::fs::read_to_string(&narrow.harnessed).unwrap().contains(piece));
+
+  // A registration naming no languages, and Claude Code's own road, carry no piece, and share no rules file
+  // with a run that does.
+  for other in [run("wide", "registered").await, run("claude-sonnet-5", "claude-code").await] {
+    let rules = std::fs::read_to_string(&other.rules).unwrap();
+
+    assert!(!rules.contains("The languages this run writes its results in"), "{rules}");
+    assert_ne!(other.rules, narrow.rules);
+  }
+
+  // A pinned repository's standing program on the registration is composed on it, so its whole prompt carries
+  // the piece from its first turn.
+  let standing_program = registered_program(&ground, &ground.machine(), "worker", "/work", Some("narrow"))
+    .await
+    .unwrap();
+  let args = standing_program.program.command.args;
+  let prompt = args
+    .iter()
+    .position(|arg| arg == "--system-prompt-file")
+    .map(|at| &args[at + 1])
+    .unwrap();
+
+  assert!(std::fs::read_to_string(prompt).unwrap().contains(piece), "{args:?}");
+}

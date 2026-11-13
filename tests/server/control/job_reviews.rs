@@ -13,6 +13,7 @@ use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work;
 use agency_server::control::{Front, router};
+use agency_server::job_review::{Resumed, result_language};
 use agency_server::now_ms;
 use agency_server::order_run::dispatch::{self, Asked, Wanted};
 use agency_server::places::Ground;
@@ -441,4 +442,44 @@ async fn a_job_s_next_stage_runs_on_its_agent_before_a_job_waiting_for_that_agen
   let let_in = dispatch::acquire(&ground, &asked_again).await.unwrap().unwrap();
 
   assert_eq!(let_in.seat.as_deref(), Some(agent));
+}
+
+// The order a check is told in names the language the run writes its results for a person in, read off the road
+// its last turn answered on: a registration naming the languages it writes says them and that an English report
+// is no reason to send the work back; a registration naming none, another road, and a job with no road kept name
+// the brief's language (docs/job-review.md, 「The checks」).
+#[tokio::test]
+async fn the_review_names_the_language_the_run_writes_its_results_in() {
+  let scratch = Scratch::new().await;
+
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "thinking", "walked", "added_at", "keeps_research", "languages")
+         VALUES ('narrow', 'Narrow', 'served', 200000, 8000, 1, 1, 1, 0, '["English"]'),
+                ('wide', 'Wide', 'served', 200000, 8000, 1, 1, 2, 0, NULL)"#,
+      vec![],
+    )
+    .await;
+
+  let road = |provider: &str, model: &str| Resumed {
+    provider: provider.to_owned(),
+    model: model.to_owned(),
+    session: "s".to_owned(),
+  };
+  let db = scratch.db();
+  let brief = "Its results for a person are written in the language its brief names.";
+
+  assert_eq!(
+    result_language(db, Some(&road("registered", "narrow"))).await,
+    "It ran on narrow, which writes a result for a person in English alone: where the brief names a language \
+     outside these, its results for a person are written in English and the person reads them through a \
+     translation, so an English report is no reason to send the work back."
+  );
+
+  for other in [road("registered", "wide"), road("claude-code", "narrow"), road("registered", "gone")] {
+    assert_eq!(result_language(db, Some(&other)).await, brief, "{other:?}");
+  }
+
+  assert_eq!(result_language(db, None).await, brief);
 }

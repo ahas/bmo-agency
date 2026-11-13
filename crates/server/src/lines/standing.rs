@@ -278,7 +278,9 @@ pub fn status_root(ground: &Ground) -> PathBuf {
 }
 
 /// The worker's line on a pinned provider: the job key's mapping there, or, for a pin naming one of the
-/// provider's own models, that model on its own defaults unless the key's tier maps to it.
+/// provider's own models, that model on its own defaults unless the key's tier maps to it. The line is composed
+/// on the model the run goes out on, the pin's or else the entry's, so what it carries for that model — a
+/// registration's result-language piece — stands in it from the first turn.
 pub(crate) async fn pinned_run(
   ground: &Ground,
   machine: &Machine,
@@ -288,13 +290,14 @@ pub(crate) async fn pinned_run(
   provider: &str,
   model: Option<&str>,
 ) -> Result<(WorkerRun, Option<i64>), Refusal> {
-  let base = worker_run_on(ground, trees, Some(worker), None, WORKER_MODEL, cwd, provider).await?;
-  let Some(model) = model else {
-    return Ok((configured(ground, machine, base, provider).await?, None));
-  };
   let entry = crate::order::role_entry(&ground.db, crate::agent_roles::job_role(), provider)
     .await
     .ok();
+  let composed_on = model.or(entry.as_ref().map(|entry| entry.model.as_str())).unwrap_or(WORKER_MODEL);
+  let base = worker_run_on(ground, trees, Some(worker), None, composed_on, cwd, provider).await?;
+  let Some(model) = model else {
+    return Ok((configured(ground, machine, base, provider).await?, None));
+  };
   let (mapped, answer_tokens) = match entry {
     Some(entry) if entry.model == model => (entry.effort, entry.answer_tokens),
     _ => (None, None),

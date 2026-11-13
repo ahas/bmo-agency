@@ -481,6 +481,7 @@ async fn the_model_resource_is_one_record() {
       "contextTokens": 100000,
       "answerTokens": 4000,
       "thinking": false,
+      "languages": [],
     }])
   );
 
@@ -547,6 +548,47 @@ async fn the_model_resource_is_one_record() {
 
   assert_eq!(status, 200);
   assert_eq!(get(port, token, "/models/registered::made").await.1["cardService"], Value::Null);
+
+  // A change may name the languages a run on it writes results in alone: trimmed, a name named twice kept once;
+  // one out of the policy's shape is refused, and null names none again, which means every language.
+  let (status, narrowed) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/models/registered::made",
+    json!({ "languages": [" English ", "english", "Japanese"] }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{narrowed}");
+  assert_eq!(narrowed["languages"], json!(["English", "Japanese"]));
+  assert_eq!(
+    send(
+      port,
+      token,
+      reqwest::Method::PATCH,
+      "/models/registered::made",
+      json!({ "languages": ["Eng1ish"] })
+    )
+    .await
+    .0,
+    400
+  );
+  assert_eq!(
+    get(port, token, "/models/registered::made").await.1["languages"],
+    json!(["English", "Japanese"])
+  );
+
+  let (status, widened) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/models/registered::made",
+    json!({ "languages": Value::Null }),
+  )
+  .await;
+
+  assert_eq!((status, &widened["languages"]), (200, &json!([])), "{widened}");
   assert_eq!(
     send(port, token, reqwest::Method::PATCH, "/models/registered::made", json!({})).await.0,
     400

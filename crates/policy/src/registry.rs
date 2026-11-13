@@ -27,6 +27,10 @@ pub struct RegistryRules {
   pub key_file_pattern: String,
   /// The longest a label may be, in characters.
   pub label_most: usize,
+  /// The pattern a language a registration names matches.
+  pub language_pattern: String,
+  /// The most languages a registration may name.
+  pub languages_most: usize,
   pub context_tokens: WholeBounds,
   pub answer_tokens: WholeBounds,
 }

@@ -27,7 +27,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   row names (`docs/repositories.md`, 「What a repository row holds」); no repository carried in this
   repository has one.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
-  `chat/procedures/` and `chat/rules.md`, the browse line's `.mcp.json`, and `worker/trailer.md`.
+  `chat/procedures/` and `chat/rules.md`, the browse line's `.mcp.json`, `worker/trailer.md` and
+  `worker/result-languages.md`.
   The search and browse lines' instructions are not here: whoever starts a session on either hands them in
   whole (`docs/api.md`, 「sessions」), and the research unit keeps its own, with the search rulebooks.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
@@ -45,7 +46,10 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   `plain-writing.md` filled in as the deployment shows them, the graph text standing before it in the
   composition, which stands in the worker line's prefix — the rules its line hands after the harness
   opening in its whole system prompt
-  (`docs/launch-lines.md`) — so a session pays for it once rather than on every turn; and `handoff.md` in
+  (`docs/launch-lines.md`) — so a session pays for it once rather than on every turn;
+  `worker/result-languages.md`, the result-language piece, filled with the languages a registration names
+  and carried right after the standing rules by a run on such a registration alone (`docs/own-llm.md`, 「A
+  run on the worker line is composed as on Claude」); and `handoff.md` in
   a repository's prompt folder, the instruction a run there writes its own handoff note by, where the
   repository holds one. A repository's definition route answers all three (`docs/api.md`,
   「repositories, prefix-checks and room-holdings」).
@@ -164,8 +168,11 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   its room; the item's brief names that language, and a search's result is in the language its question
   is asked in. Numbers, tables, code, commands, paths, identifiers, sources and
   quoted words stand as they are, and a repository's own documents, its commits and everything pushed
-  with them stay English.
-- **Everything else is English:** a worker's notes and the questions it puts to the
+  with them stay English. A run of the worker line on a registration that names the languages it writes
+  is the exception: where its brief names a language outside them, it writes its results in English, and
+  the person reads them through a translation (`docs/worker-language.md`, 「A model that writes only some
+  languages」).
+- **Everything else is English:** a worker's reasoning, its notes and the questions it puts to the
   owner, a gate's verdict, a subagent's prompt and report, the logs; so does the supervisor wherever no
   person in a room reads it — an item's brief and notes, a work order, a memory, a handoff note — words
   quoted from people kept as they said them. The exceptions are the agents whose product is text a person

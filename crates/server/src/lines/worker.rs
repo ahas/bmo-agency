@@ -18,7 +18,9 @@ use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::{levels, named};
+use crate::control::registry;
 use crate::places::Ground;
+use crate::text::listed;
 use store::one;
 
 /// The line's name.
@@ -119,26 +121,27 @@ pub fn job_trailer(trees: &Trees, shown: &Trees) -> Result<String, Refusal> {
   Ok(if trailer.contains(graph.trim()) { trailer } else { format!("{graph}\n\n{trailer}") })
 }
 
-/// Every worker's rules, the repository's own after them — `own-rules.md` of the prompt folder its row
-/// names — the job's report trailer after those where the rules are a worker's, and the documents its row
-/// names for its prefix last, as one file: the session's cached prefix, paid for once.
+/// Every worker's rules, the result-language piece after them where the run's model names its languages,
+/// the repository's own after those — `own-rules.md` of the prompt folder its row names — the job's report
+/// trailer after those where the rules are a worker's, and the documents its row names for its prefix last,
+/// as one file: the session's cached prefix, paid for once.
 pub fn standing_rules(
   trees: &Trees,
   folder: Option<&str>,
   worker: Option<&str>,
   trailer: Option<&str>,
   documents: Option<&str>,
+  languages: Option<&str>,
 ) -> Result<StandingRules, Refusal> {
   let own_path = folder.map(|folder| trees.agent_dir(folder).join("own-rules.md"));
   let own = match &own_path {
     Some(path) if path.exists() => Some(read_required(path)?),
     _ => None,
   };
-  let mut parts = vec![
-    read_required(&trees.agent_dir(LINE).join("standing-rules.md"))?,
-    rulebook(trees, SELF_PRESERVATION)?,
-  ];
+  let mut parts = vec![read_required(&trees.agent_dir(LINE).join("standing-rules.md"))?];
 
+  parts.extend(languages.map(str::to_owned));
+  parts.push(rulebook(trees, SELF_PRESERVATION)?);
   parts.extend(own.clone());
   parts.extend(trailer.map(str::to_owned));
   parts.extend(documents.map(str::to_owned));
@@ -149,9 +152,49 @@ pub fn standing_rules(
     (_, _, Some(_), Some(folder)) => format!("worker-rules-{folder}"),
     _ => "worker-rules".to_owned(),
   };
+  // Rules carrying a result-language piece are a file of their own for each piece, so a run on a model writing
+  // every language never shares one with them.
+  let name = match languages {
+    Some(piece) => format!("{name}-languages-{}", &format!("{:x}", Sha256::digest(piece.as_bytes()))[..12]),
+    None => name,
+  };
   let file = system_prompt_file(trees, &name, &text)?;
 
   Ok(StandingRules { text, file })
+}
+
+/// The result-language piece a run carries after the standing rules where its model writes a result for a
+/// person in some languages alone, filled with them; none where it names none (docs/own-llm.md, 「A run on the
+/// worker line is composed as on Claude」).
+pub fn result_languages_piece(trees: &Trees, languages: &[String]) -> Result<Option<String>, Refusal> {
+  if languages.is_empty() {
+    return Ok(None);
+  }
+
+  let piece = read_required(&trees.agent_dir(LINE).join("result-languages.md"))?;
+
+  Ok(Some(super::render(&piece, &[("languages", &listed(languages))]).trim().to_owned()))
+}
+
+/// The result-language piece of a run on `model` at `provider`: the registration's languages where the run
+/// goes out on the registry's provider and its registration names some, none on every other road.
+pub async fn result_languages(
+  ground: &Ground,
+  trees: &Trees,
+  provider: &str,
+  model: &str,
+) -> Result<Option<String>, Refusal> {
+  if provider != registry::PROVIDER {
+    return Ok(None);
+  }
+
+  let languages = registry::registration(&ground.db, model)
+    .await
+    .map_err(|refused| fault(refused.error))?
+    .map(|held| held.languages)
+    .unwrap_or_default();
+
+  result_languages_piece(trees, &languages)
 }
 
 /// The documents a worker's row names for its session's prefix (docs/worker-bench.md, 「Prefix
@@ -456,10 +499,18 @@ async fn run_on_line(
     Some(_) => Some(job_trailer(trees, &shown)?),
     None => None,
   };
+  let languages = result_languages(ground, trees, provider, model).await?;
   let StandingRules {
     text: rules_text,
     file: rules,
-  } = standing_rules(trees, folder.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
+  } = standing_rules(
+    trees,
+    folder.as_deref(),
+    worker,
+    trailer.as_deref(),
+    documents.as_deref(),
+    languages.as_deref(),
+  )?;
   let above = match role {
     Some(role) => {
       with_provider_prompt(ground, role, provider, super::role_prompt(&ground.db, role, Some(cwd)).await)

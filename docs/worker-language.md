@@ -29,7 +29,10 @@ screens, the rooms — is read in the owner's language by the units that show it
   written in the language of the person who asked: the item's requester, else its room, as the item's
   brief names it, the same rule a search's result keeps with its question's language. Numbers, tables,
   code, commands, paths, identifiers, sources and quoted words stand as they are. A brief that names no
-  language leaves the result in English.
+  language leaves the result in English. A run on a model that writes only some languages is the one
+  exception (「A model that writes only some languages」).
+- **Every worker reasons in English,** whatever language its brief, its item or a person writes in: its
+  thinking, its plans and what it says to itself between its tools. The worker's standing rules say so.
 - **What else a worker writes back is English:** its notes, the reasons it holds or stops an item for,
   a question it puts to the owner and a subagent's prompt and report. The worker writes in no persona
   and never addresses the owner.
@@ -43,6 +46,25 @@ screens, the rooms — is read in the owner's language by the units that show it
   (`prompts/agents/worker/standing-rules.md`, 「Language」), and every landing refuses a commit that
   breaks it (`docs/worker-slots.md`, 「Landing on main」). Every repository a worker lands in is held
   to it, since every worker reads the same standing rules.
+
+## A model that writes only some languages
+
+- **A registration names the languages a run on it writes a result for a person in,** or none, which
+  means every language (`docs/own-llm.md`, 「What a registration holds」). The owner sets them, for a model
+  whose supported languages lack the language a person asks in or that writes it badly; they are
+  settings, and no model or language is named in the code.
+- **A run on the worker line on such a registration is told the list** in the result-language piece its
+  rules carry (`docs/own-llm.md`, 「A run on the worker line is composed as on Claude」). Where its brief
+  names a result language outside the list, it writes every result for a person in English: the report,
+  the account it closes its item with, and every document it files for a person. It writes nothing in
+  the asker's language and translates nothing; the person reads the English and a translation into
+  their own language shown beside it, made by the units that show it. Where the brief names one of the
+  listed languages, or names none, the rule above holds as written.
+- **A run on any other road writes the asker's language,** as the rule above says: a registration
+  naming no languages, Claude Code, Codex and every member road alike.
+- **The review takes the English report as the run's own language.** The supervisor examining a job is
+  told which language the run writes its results in, so an English report from such a run is never sent
+  back for its language (`docs/job-review.md`, 「The checks」).
 
 ## What agency translates on the way in
 
@@ -120,7 +142,8 @@ screens, the rooms — is read in the owner's language by the units that show it
 
 ## What a worker hands back
 
-- **A job's run ends with the worker's report,** in the asker's language, returned whole in the run's
+- **A job's run ends with the worker's report,** in its result language — the asker's, or English on a
+  model that writes only some languages where the asker's is not among them — returned whole in the run's
   result and in its run record (`docs/run-records.md`). Agency renders nothing of it into the owner's language and
   sends it to nobody: the caller that started the job reads it, and telling the owner is the chat
   agent's.

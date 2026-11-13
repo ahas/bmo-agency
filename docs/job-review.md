@@ -96,9 +96,16 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
      ground that makes it the owner's: a decision only the owner can give. A matter the worker could settle
      from the work, the rules and the documents is not the owner's.
 - **The orderer is told one check at a time:** an instruction naming the job, the item, the stage and its step,
-  the round, the rejections so far, the check due now and what it requires, and the words to examine — the
-  report, the answer to its last question, or the owner's word. The supervisor writes its own questions from
-  what it read; nothing composes them for it.
+  the round, the rejections so far, the check due now and what it requires, the language the run writes its
+  results for a person in, and the words to examine — the report, the answer to its last question, or the
+  owner's word. The supervisor writes its own questions from what it read; nothing composes them for it.
+- **The result language is the run's road's:** read off the road the job's last turn answered on. A run on a
+  registration that names the languages it writes (`docs/own-llm.md`, 「What a registration holds」) writes its
+  results in the brief's language where that is one of them and in English otherwise, and the instruction says
+  so, naming the registration and its languages, and that an English report from it is no reason to send the
+  work back (`docs/worker-language.md`, 「A model that writes only some languages」). Every other run writes them
+  in the language its brief names, and the instruction says that. The words are the policy's
+  (`policy/job-review.toml`).
 - **The check due stays owed until the orderer moves.** Its instruction is a standing notice
   (`docs/agent-control.md`, 「An item's change is told to its orderer」): told again at every start of agency
   and every `retell_seconds` after it was last told (`policy/job-notices.toml`), under the same kind, so the

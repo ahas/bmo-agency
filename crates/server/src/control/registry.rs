@@ -31,6 +31,7 @@ pub const PROVIDER: &str = "registered";
 static NAME: LazyLock<Regex> = LazyLock::new(|| pattern(&REGISTRY.name_pattern));
 static MODEL: LazyLock<Regex> = LazyLock::new(|| pattern(&REGISTRY.model_pattern));
 static KEY_FILE: LazyLock<Regex> = LazyLock::new(|| pattern(&REGISTRY.key_file_pattern));
+static LANGUAGE: LazyLock<Regex> = LazyLock::new(|| pattern(&REGISTRY.language_pattern));
 
 fn pattern(text: &str) -> Regex {
   Regex::new(text).expect("the policy's registry patterns read")
@@ -63,6 +64,9 @@ pub struct Registration {
   pub card_service: Option<String>,
   /// Whether the card service's instances keep role files (docs/own-llm.md, 「Role files」).
   pub role_files: bool,
+  /// The languages a run on it writes a result for a person in, each by its English name; empty for every
+  /// language (docs/own-llm.md, 「What a registration holds」).
+  pub languages: Vec<String>,
   pub addresses: Vec<Address>,
 }
 
@@ -81,6 +85,17 @@ impl Registration {
 
 fn flag(row: &QueryResult, column: &str) -> Result<bool, sea_orm::DbErr> {
   Ok(row.try_get::<i64>("", column)? == 1)
+}
+
+// The languages a registration's row names, kept as a JSON list; none, or a list that does not read, for every
+// language.
+fn languages(row: &QueryResult) -> Result<Vec<String>, sea_orm::DbErr> {
+  Ok(
+    row
+      .try_get::<Option<String>>("", "languages")?
+      .and_then(|text| serde_json::from_str(&text).ok())
+      .unwrap_or_default(),
+  )
 }
 
 /// Every registration in the order they were added, each with its addresses.
@@ -120,6 +135,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       keeps_research: flag(&row, "keeps_research")?,
       card_service: row.try_get("", "card_service")?,
       role_files: flag(&row, "role_files")?,
+      languages: languages(&row)?,
       addresses: held,
       name,
     });
@@ -219,8 +235,8 @@ pub async fn registered_model<C: ConnectionTrait>(
 ) -> Result<Option<Value>, Refused> {
   let Some(row) = one(
     db,
-    r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking"
-       FROM "registered_models" WHERE "name" = $1"#,
+    r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking",
+         "languages" FROM "registered_models" WHERE "name" = $1"#,
     vec![name.into()],
   )
   .await?
@@ -255,6 +271,7 @@ pub async fn registered_model<C: ConnectionTrait>(
     "contextTokens": row.try_get::<i64>("", "context_tokens")?,
     "answerTokens": row.try_get::<i64>("", "answer_tokens")?,
     "thinking": flag(&row, "thinking")?,
+    "languages": languages(&row)?,
   })))
 }
 
@@ -269,6 +286,35 @@ pub async fn listed_models<C: ConnectionTrait>(db: &C, data_root: &Path) -> Resu
   }
 
   Ok(listed)
+}
+
+fn refused_languages<T>() -> Result<T, Fault> {
+  refused(
+    "languages",
+    fill_marks(&CONTROL_WORDS.registry.languages, &[("most", &REGISTRY.languages_most.to_string())]),
+  )
+}
+
+/// The languages a change names, held to the registry's rule: each a name the policy's pattern takes, trimmed,
+/// no more than its most, a name named twice in any case kept once, in the order named.
+pub fn checked_languages(named: &[Value]) -> Result<Vec<String>, Fault> {
+  let mut kept: Vec<String> = vec![];
+
+  for one in named {
+    let Some(language) = one.as_str().map(str::trim).filter(|language| LANGUAGE.is_match(language)) else {
+      return refused_languages();
+    };
+
+    if !kept.iter().any(|held| held.eq_ignore_ascii_case(language)) {
+      kept.push(language.to_owned());
+    }
+  }
+
+  if kept.len() > REGISTRY.languages_most {
+    return refused_languages();
+  }
+
+  Ok(kept)
 }
 
 /// A card service as a registration names it: none, or a name held to the registry's rule.
@@ -516,6 +562,7 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
       "keepsResearch": one.keeps_research,
       "cardService": one.card_service,
       "roleFiles": one.role_files,
+      "languages": one.languages,
       "addresses": addresses,
       "referrers": referrers(db, &one.name).await?,
     }));
@@ -746,7 +793,29 @@ impl<C: ConnectionTrait> Change<'_, C> {
       .await?;
     }
 
-    self.card_service(body, name, held.as_ref()).await
+    self.card_service(body, name, held.as_ref()).await?;
+    self.languages(body, name).await
+  }
+
+  // The languages, where the change names them: a list, or an empty list or null for every language. A change
+  // that names none leaves them as they stand, none on a new registration.
+  async fn languages(&self, body: &Value, name: &str) -> Result<(), Fault> {
+    let named = match body.get("languages") {
+      None => return Ok(()),
+      Some(Value::Null) => vec![],
+      Some(Value::Array(named)) => checked_languages(named)?,
+      Some(_) => return refused_languages(),
+    };
+    let kept = (!named.is_empty()).then(|| Value::from(named.clone()).to_string());
+
+    run(
+      self.db,
+      "UPDATE registered_models SET languages = $1 WHERE name = $2",
+      vec![kept.into(), name.into()],
+    )
+    .await?;
+
+    Ok(())
   }
 
   // The card service and its instances' role files, each as the change names it and else as it stands,

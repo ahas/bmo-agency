@@ -244,6 +244,7 @@ pub struct RegistryWords {
   pub card_service: String,
   pub card_role_files: String,
   pub card_service_address: String,
+  pub languages: String,
 }
 
 /// The model catalogue.

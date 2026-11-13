@@ -932,7 +932,7 @@ impl Route for CreateModel {
       "answerTokens": REGISTRY.answer_tokens.min,
     });
 
-    for field in ["cardService", "roleFiles"] {
+    for field in ["cardService", "roleFiles", "languages"] {
       if let Some(value) = body.get(field) {
         change[field] = value.clone();
       }
@@ -954,8 +954,9 @@ impl Route for CreateModel {
 
 crate::moved!(CreateModel);
 
-/// A model's registration changed: the model name it is registered under, the card service its engine is
-/// and whether that service's instances keep role files, each where the body names it.
+/// A model's registration changed: the model name it is registered under, the card service its engine is,
+/// whether that service's instances keep role files and the languages it writes results in, each where the
+/// body names it.
 pub struct ChangeModel;
 
 impl Route for ChangeModel {
@@ -985,10 +986,15 @@ impl Route for ChangeModel {
           .to_owned(),
       ),
     };
-    let card = ["cardService", "roleFiles"].into_iter().any(|field| body.get(field).is_some());
+    let fields = ["cardService", "roleFiles", "languages"]
+      .into_iter()
+      .any(|field| body.get(field).is_some());
 
-    if model.is_none() && !card {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, "model, cardService or roleFiles is required"));
+    if model.is_none() && !fields {
+      return Err(Refused::new(
+        StatusCode::BAD_REQUEST,
+        "model, cardService, roleFiles or languages is required",
+      ));
     }
 
     let db = call.store();
@@ -1002,10 +1008,10 @@ impl Route for ChangeModel {
       super::registry::change_model(db, &name, model).await.map_err(faulted)?;
     }
 
-    if card {
+    if fields {
       let mut change = json!({ "action": "save", "name": name });
 
-      for field in ["cardService", "roleFiles"] {
+      for field in ["cardService", "roleFiles", "languages"] {
         if let Some(value) = body.get(field) {
           change[field] = value.clone();
         }
