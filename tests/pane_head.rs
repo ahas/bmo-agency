@@ -23,11 +23,11 @@ const SH: &str = "/bin/sh";
 // told to become.
 const HEAD_ENDS_MS: u64 = 10_000;
 
-// The head's binary, built once for this test binary.
+// The head's binary, as Cargo built it for the tests.
 fn head_binary() -> &'static str {
   static HEAD: OnceLock<String> = OnceLock::new();
 
-  HEAD.get_or_init(|| crate::support::binary::built("pane-head", "pane-head").to_str().unwrap().to_owned())
+  HEAD.get_or_init(|| crate::support::binary::path("pane-head").to_str().unwrap().to_owned())
 }
 
 fn now_ms() -> u64 {
@@ -103,7 +103,7 @@ impl Drop for Holder {
   }
 }
 
-// A process the test ends whatever happens.
+// A process the test ends whatever happens, with everything it started where it leads a group of its own.
 struct Reaped(Child);
 
 impl Reaped {
@@ -125,7 +125,6 @@ impl Reaped {
 
 impl Drop for Reaped {
   fn drop(&mut self) {
-    // The loop's children are in its process group only where the test started it so.
     signal(-self.pid(), libc::SIGKILL);
     let _ = self.0.kill();
     let _ = self.0.wait();
@@ -228,8 +227,14 @@ impl Root {
     run_to_end(self.head(agent, pane, more))
   }
 
+  // A head left standing, leading a group of its own, so the program or the follower it becomes and what
+  // that started go with it.
   fn spawn(&self, agent: &str, pane: &str, more: &[(&str, &str)]) -> Reaped {
-    Reaped(self.head(agent, pane, more).stdout(Stdio::null()).spawn().unwrap())
+    let mut head = self.head(agent, pane, more);
+
+    head.stdout(Stdio::null());
+    own_group(&mut head);
+    Reaped(head.spawn().unwrap())
   }
 
   fn head_record(&self, agent: &str, pane: &str) -> Option<Value> {
@@ -373,10 +378,6 @@ fn a_head_record_and_a_start_left_by_a_process_that_is_gone_read_as_absent() {
 
 #[test]
 fn a_program_started_often_waits_its_bound_and_holds_the_place_meanwhile() {
-  // Built before the clock is read: a build that takes longer than the minute the starts are counted over would
-  // leave none of them recent.
-  head_binary();
-
   let root = Root::new();
   let said = root.data.path().join("started");
   let now = now_ms();

@@ -61,7 +61,7 @@ async fn second_login(scratch: &Scratch, login: &Path) {
 fn agency(scratch: &Scratch, data_root: &Path, args: &[&str], input: &str) -> (i32, String, String) {
   use std::io::Write;
 
-  let mut child = std::process::Command::new(binary::built("agency-server", "bmo-agency"))
+  let mut child = std::process::Command::new(binary::path("bmo-agency"))
     .args(args)
     .env("HOME", data_root)
     .env("BMO_DATA_DIR", data_root)

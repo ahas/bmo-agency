@@ -647,7 +647,7 @@ async fn a_job_borrows_a_free_checkout_until_it_no_longer_runs() {
     .await;
 
   let borrow = |run: Option<&str>, repository: &str| {
-    let mut command = std::process::Command::new(binary::built("agency-server", "bmo-agency"));
+    let mut command = std::process::Command::new(binary::path("bmo-agency"));
 
     command
       .env_clear()

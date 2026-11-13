@@ -1,60 +1,71 @@
-//! A workspace binary as a test starts it: built once per test binary by the cargo running the tests,
-//! into the target directory and the profile the test binary itself was built in.
+//! A workspace binary as a test starts it: the root package's copy of it, which Cargo builds before it runs
+//! the tests, placed under the binary's own name beside every other one.
 //!
-//! Cargo names a binary's path to the tests of its own package only, and every test stands in the root
-//! package, so a test builds the binary it starts and finds it where cargo puts it.
+//! The root package compiles each binary a test starts from that crate's own entry point under a name of its
+//! own (the root manifest, `test-binaries`), and Cargo names each one's path to the tests at compile time. A
+//! binary that finds another beside itself, as the server finds the verbs, or that is told apart by the name
+//! it was started under, needs both under their own names in one directory, so the first ask of a test
+//! binary links every one into a directory of its own beside them, under the name the crate gives it.
 
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::Mutex;
+use std::sync::OnceLock;
 
-static BUILT: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
+/// Every binary a test starts: its own name and the root package's copy of it.
+const BINARIES: [(&str, &str); 7] = [
+  ("agency-server", env!("CARGO_BIN_EXE_test-agency-server")),
+  ("bmo-agency", env!("CARGO_BIN_EXE_test-bmo-agency")),
+  ("agent-host", env!("CARGO_BIN_EXE_test-agent-host")),
+  ("pane-head", env!("CARGO_BIN_EXE_test-pane-head")),
+  ("node-link", env!("CARGO_BIN_EXE_test-node-link")),
+  ("llm-gateway", env!("CARGO_BIN_EXE_test-llm-gateway")),
+  ("procedures-tool", env!("CARGO_BIN_EXE_test-procedures-tool")),
+];
 
-// The directory the test binary was built into, `<target>/<profile>/deps`, gives the target directory and
-// the profile.
-fn profile_dir() -> PathBuf {
-  let exe = std::env::current_exe().expect("the test binary has a path");
-  let deps = exe.parent().expect("the test binary stands in a directory");
+// The directory the binaries stand in under their own names. It is not named `bin`, since a binary standing
+// in a `bin` directory takes the directory above it for the tree it was deployed in.
+const PLACED: &str = "checked-binaries";
 
-  deps.parent().expect("the deps directory stands in its profile's").to_owned()
+static PLACED_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+// One binary linked under `name` into `dir`, replacing whatever an earlier test binary linked there: a new
+// link beside it renamed over it, so a test binary of another run reading the old one meanwhile still finds
+// a whole file.
+fn place(dir: &Path, name: &str, built: &Path) {
+  let placed = dir.join(name);
+  let fresh = dir.join(format!(".{name}.{}", std::process::id()));
+  let _ = fs::remove_file(&fresh);
+
+  if fs::hard_link(built, &fresh).is_err() {
+    fs::copy(built, &fresh).unwrap_or_else(|error| panic!("{name} could not be placed: {error}"));
+  }
+
+  fs::rename(&fresh, &placed).unwrap_or_else(|error| panic!("{name} could not be placed: {error}"));
 }
 
-fn profile(dir: &Path) -> String {
-  match dir.file_name().and_then(|name| name.to_str()) {
-    Some("debug") | None => "dev".to_owned(),
-    Some(name) => name.to_owned(),
-  }
+fn placed_dir() -> &'static Path {
+  PLACED_DIR.get_or_init(|| {
+    let (_, first) = BINARIES[0];
+    let dir = Path::new(first).parent().expect("a built binary stands in a directory").join(PLACED);
+
+    fs::create_dir_all(&dir).unwrap_or_else(|error| panic!("{} could not be made: {error}", dir.display()));
+
+    for (name, built) in BINARIES {
+      place(&dir, name, Path::new(built));
+    }
+
+    dir
+  })
 }
 
-/// The path of `binary` of the workspace package `package`, built now where this test binary has not
-/// built it yet.
-pub fn built(package: &str, binary: &str) -> PathBuf {
-  let mut built = BUILT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-  let built = built.get_or_insert_with(HashMap::new);
+/// The path of the workspace binary named `binary`, which Cargo built before the tests began.
+pub fn path(binary: &str) -> PathBuf {
+  assert!(
+    BINARIES.iter().any(|(name, _)| *name == binary),
+    "{binary} is no binary the root package builds for its tests"
+  );
 
-  if let Some(path) = built.get(binary) {
-    return path.clone();
-  }
-
-  let dir = profile_dir();
-  let target = dir.parent().expect("the profile's directory stands in the target directory");
-  let status = Command::new(env!("CARGO"))
-    .args(["build", "--quiet", "--package", package, "--bin", binary, "--profile"])
-    .arg(profile(&dir))
-    .arg("--target-dir")
-    .arg(target)
-    .arg("--manifest-path")
-    .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"))
-    .status()
-    .expect("cargo starts");
-
-  assert!(status.success(), "{binary} of {package} did not build");
-
-  let path = dir.join(binary);
-
-  built.insert(binary.to_owned(), path.clone());
-  path
+  placed_dir().join(binary)
 }

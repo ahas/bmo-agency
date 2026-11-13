@@ -661,9 +661,16 @@ lines held as it closed; an open run's `counts` is empty.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/log-lines` | Log lines across runs: by run, job or agent, kinds, latest, before or after. |
+| GET | `/log-lines` | Log lines across runs: by run, job or agent, kinds, before or after. |
 | POST | `/log-lines` | Add a note in the bot's own words to a run's log, beside the run's own lines. |
 | GET | `/log/agents/{agentName}/lines` | One agent's log across its runs: the newest page, a page before or after an id, or the page at a moment. |
+
+`GET /log-lines` reads the lines that meet every filter it is given: `runId`, `jobId` and `agentName` (the
+agent the lines stand under), at least one of them, else it is refused 400; and `kinds`, a comma-separated
+list of line kinds. With no cursor, or with `after`, it reads the page after that line id; with `before`
+alone, the page just before that line id; with both, the lines between them. Each page stands oldest line
+first and answers `items`, with `more` saying further lines wait the way it was read; `limit` is 500 where
+left out and at most 500.
 
 `runId` names a run as its lines were written under it, or a run of the ledger by its id, whose lines
 are the ones written under its unit. Each line answers the ledger's `runId` where the ledger holds its run, and

@@ -51,7 +51,7 @@ pub fn stand_server_with(
   // deployment's own peer addresses and tokens in its environment, and a test must reach none of them. A
   // test that needs a stand-in names it in `variables`; the marker keeps even that from being called.
   let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned());
-  let program = binary::built("agency-server", "agency-server");
+  let program = binary::path("agency-server");
   let seat = Seat::take();
   let mut child = Command::new(program)
     .env_clear()

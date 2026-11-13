@@ -11,7 +11,7 @@ use crate::support::{binary, standing};
 const TOKEN: &str = "secret";
 
 fn add(port: u16, home: &Path, data: &Path, words: &[&str]) -> Output {
-  Command::new(binary::built("agency-server", "bmo-agency"))
+  Command::new(binary::path("bmo-agency"))
     .arg("repository")
     .arg("add")
     .args(words)

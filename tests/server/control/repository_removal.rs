@@ -12,7 +12,7 @@ use crate::support::{binary, standing};
 const TOKEN: &str = "secret";
 
 fn remove(port: u16, home: &Path, data: &Path, name: &str) -> Output {
-  Command::new(binary::built("agency-server", "bmo-agency"))
+  Command::new(binary::path("bmo-agency"))
     .args(["repository", "remove", name])
     .env_clear()
     .env("HOME", home)

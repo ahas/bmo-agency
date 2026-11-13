@@ -1855,7 +1855,7 @@
         "tags": [
           "log-lines"
         ],
-        "summary": "Log lines across runs: by run, job or agent, kinds, latest, before or after.",
+        "summary": "Log lines across runs: by run, job or agent, kinds, before or after.",
         "responses": {
           "200": {
             "description": "Answered.",

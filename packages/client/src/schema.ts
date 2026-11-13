@@ -445,7 +445,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Log lines across runs: by run, job or agent, kinds, latest, before or after. */
+        /** Log lines across runs: by run, job or agent, kinds, before or after. */
         get: operations["listLogLines"];
         put?: never;
         /** Add a note in the bot's own words to a run's log, beside the run's own lines. */

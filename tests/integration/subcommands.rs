@@ -38,7 +38,7 @@ const SUBCOMMANDS: &[&[&str]] = &[
 // The binary run on `args` in a home and a data root of the test's own, `input` on its standard input.
 fn run(args: &[&str], input: &str) -> Output {
   let home = tempfile::tempdir().unwrap();
-  let mut child = Command::new(binary::built("agency-server", "bmo-agency"))
+  let mut child = Command::new(binary::path("bmo-agency"))
     .args(args)
     .current_dir(home.path())
     .env("HOME", home.path())

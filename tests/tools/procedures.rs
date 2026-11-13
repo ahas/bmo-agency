@@ -294,7 +294,7 @@ fn ask_executable(tree: &Path, request: &Value) -> Value {
 
   std::fs::create_dir_all(&placed).unwrap();
 
-  let mut child = Command::new(binary::built("procedures-tool", "procedures-tool"))
+  let mut child = Command::new(binary::path("procedures-tool"))
     .current_dir(&placed)
     .env_clear()
     .stdin(Stdio::piped())

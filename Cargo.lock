@@ -6,6 +6,7 @@ version = 4
 name = "agency-checks"
 version = "0.1.0-rev.81"
 dependencies = [
+ "agency-checks",
  "agency-server",
  "agent-host",
  "agent-session",
@@ -33,6 +34,7 @@ dependencies = [
  "regex",
  "relay-tool",
  "reqwest",
+ "rmcp",
  "sea-orm",
  "sea-orm-migration",
  "serde",

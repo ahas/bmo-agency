@@ -11,7 +11,7 @@ use crate::support::binary;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
-  let binary = binary::built("agency-server", "bmo-agency");
+  let binary = binary::path("bmo-agency");
 
   let listed = tokio::task::spawn_blocking(move || {
     let mut child = Command::new(binary)
@@ -83,7 +83,7 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_is_refused_where_the_check_cannot_be_made() {
-  let binary = binary::built("agency-server", "bmo-agency");
+  let binary = binary::path("bmo-agency");
   let root = tempfile::tempdir().unwrap();
   let place = root.path().join("place");
 

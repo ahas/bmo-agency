@@ -19,7 +19,7 @@ use crate::support::scratch::{Scratch, address_of};
 const SH: &str = "/bin/sh";
 
 fn binary() -> PathBuf {
-  crate::support::binary::built("agent-host", "agent-host")
+  crate::support::binary::path("agent-host")
 }
 
 fn now_ms() -> u64 {
@@ -352,15 +352,21 @@ fn many_executions_run_side_by_side_in_one_host() {
 fn a_second_host_ends_at_once_and_a_name_already_running_is_not_started_again() {
   let root = Root::new();
   let host = root.start(&[]);
-  let second = Command::new(binary())
-    .args(["serve", "--data-root"])
-    .arg(root.data.path())
-    .stderr(Stdio::piped())
-    .output()
-    .unwrap();
+  // Its error stream is a file, so a second host that went on serving would fail the test, not hold it.
+  let said = root.mark("second.err");
+  let mut second = Running(
+    Command::new(binary())
+      .args(["serve", "--data-root"])
+      .arg(root.data.path())
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(fs::File::create(&said).unwrap())
+      .spawn()
+      .unwrap(),
+  );
 
-  assert!(second.status.success());
-  assert!(String::from_utf8_lossy(&second.stderr).contains("is served by another host"));
+  assert!(second.ended(5_000).is_some_and(|status| status.success()));
+  assert!(fs::read_to_string(&said).unwrap().contains("is served by another host"));
   assert_eq!(root.claim().unwrap()["pid"], host.pid());
 
   let counted = root.mark("counted");

@@ -530,7 +530,7 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["runs", &run_id.to_string()]).json(body)).await
   }
 
-  /// `GET /log-lines`: Log lines across runs: by run, job or agent, kinds, latest, before or after.
+  /// `GET /log-lines`: Log lines across runs: by run, job or agent, kinds, before or after.
   pub async fn list_log_lines(&self, query: &ListLogLinesQuery) -> Answer<LogLinePage> {
     Self::answered(self.request(Method::GET, &["log-lines"]).query(query)).await
   }

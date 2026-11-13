@@ -47,7 +47,7 @@ impl Drop for Link {
 
 #[test]
 fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
-  let binary = crate::support::binary::built("node-link", "node-link");
+  let binary = crate::support::binary::path("node-link");
   let dir = tempfile::tempdir().expect("dir");
   let here = dir.path().join("here");
   let there = dir.path().join("there");
@@ -188,7 +188,7 @@ fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
 
 #[test]
 fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
-  let binary = crate::support::binary::built("node-link", "node-link");
+  let binary = crate::support::binary::path("node-link");
   let dir = tempfile::tempdir().expect("dir");
   let here = dir.path().join("here");
   let there = dir.path().join("there");

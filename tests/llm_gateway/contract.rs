@@ -203,7 +203,7 @@ fn command() -> Command {
       command.args(words);
       command
     }
-    _ => Command::new(crate::support::binary::built("llm-gateway", "llm-gateway")),
+    _ => Command::new(crate::support::binary::path("llm-gateway")),
   }
 }
 

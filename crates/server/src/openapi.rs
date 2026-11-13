@@ -702,7 +702,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/log-lines",
     id: "listLogLines",
     tag: "log-lines",
-    summary: "Log lines across runs: by run, job or agent, kinds, latest, before or after.",
+    summary: "Log lines across runs: by run, job or agent, kinds, before or after.",
     params: &[
       Param {
         name: "runId",

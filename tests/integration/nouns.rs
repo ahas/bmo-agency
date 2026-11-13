@@ -41,7 +41,7 @@ fn run(args: &[&str]) -> Output {
   let home = tempfile::tempdir().unwrap();
   let elsewhere = tempfile::tempdir().unwrap();
 
-  Command::new(binary::built("agency-server", "bmo-agency"))
+  Command::new(binary::path("bmo-agency"))
     .args(args)
     .current_dir(elsewhere.path())
     .env_clear()

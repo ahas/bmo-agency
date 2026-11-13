@@ -122,9 +122,6 @@ async fn ask(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its_id() {
-  // Built before the runs are stamped: a build longer than the sweep's grace would leave them as left behind.
-  crate::support::binary::built("agency-server", "agency-server");
-
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");

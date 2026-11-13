@@ -207,9 +207,6 @@ async fn a_running_job_s_item_waits_on_no_free_worker() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_worker_with_a_running_job_reads_as_working_on_it() {
-  // Built before the jobs are stamped: a build longer than the start's grace would stop them as left behind.
-  crate::support::binary::built("agency-server", "agency-server");
-
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");

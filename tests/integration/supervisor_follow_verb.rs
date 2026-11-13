@@ -50,7 +50,7 @@ async fn the_follow_hint_a_room_prints_runs_with_a_negative_room_number() {
   let room = ROOM.to_string();
   let out = std::fs::File::create(&printed).unwrap();
   let err = std::fs::File::create(&refused).unwrap();
-  let mut child = Command::new(binary::built("agency-server", "bmo-agency"))
+  let mut child = Command::new(binary::path("bmo-agency"))
     .args(["supervisor", "follow", room.as_str(), "--agent", AGENT])
     .current_dir(home.path())
     .env("HOME", home.path())
@@ -97,7 +97,7 @@ async fn a_reset_reads_the_rooms_it_names_as_negative_numbers_too() {
   let home = tempfile::tempdir().unwrap();
   let alone = ROOM.to_string();
   let shared = SHARED.to_string();
-  let output = Command::new(binary::built("agency-server", "bmo-agency"))
+  let output = Command::new(binary::path("bmo-agency"))
     .args([
       "supervisor",
       "reset",

@@ -46,6 +46,12 @@ them.
   modules of a file each at the top of `tests/`, and what they share is the `support` module. One file's
   tests run as `bmo-testbed cargo test -p agency-checks --test main <module>::`. The TypeScript tests
   stand under `tests/packages/`. No test module sits in a source file.
+- **No test runs Cargo.** A workspace binary a test starts is the root package's copy of it, a `[[bin]]`
+  compiled from the crate's own entry point under the `test-binaries` feature, which Cargo builds before
+  the tests run; `tests/support/binary.rs` hands it over under its own name. A binary a test newly starts is
+  added there and in the root manifest.
+- **A test takes down every process it starts, with its descendants, and waits on none without a bound:** a
+  process that should end by itself and does not fails the test rather than holding the test binary.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
   in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
   Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status

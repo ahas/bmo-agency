@@ -91,8 +91,34 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
     json!("/work/notes.txt")
   );
   assert_eq!(lines["items"][0]["metadata"], Value::Null);
+  assert_eq!(lines["more"], json!(true), "{lines}");
 
-  // A job with no line: nothing held.
+  // The filters meet: the kinds named, an agent's lines alone, and the page just before a line, oldest first.
+  let ids = |lines: &Value| -> Vec<i64> {
+    lines["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|line| line["id"].as_i64().unwrap())
+      .collect()
+  };
+  let (_, kinds) = get(port, token, "/log-lines?jobId=12&kinds=tool,compact").await;
+
+  assert_eq!(ids(&kinds), [1, 4, 6, 7], "{kinds}");
+  assert_eq!(kinds["more"], json!(false));
+
+  let (_, other) = get(port, token, "/log-lines?agentName=other").await;
+
+  assert_eq!(ids(&other), [8], "{other}");
+  assert_eq!(ids(&get(port, token, "/log-lines?jobId=12&agentName=other").await.1), Vec::<i64>::new());
+
+  let (_, earlier) = get(port, token, "/log-lines?jobId=12&before=6&limit=2").await;
+
+  assert_eq!(ids(&earlier), [4, 5], "{earlier}");
+  assert_eq!(earlier["more"], json!(true));
+  assert_eq!(ids(&get(port, token, "/log-lines?jobId=12&after=2&before=5").await.1), [3, 4]);
+
+  // No run, job or agent named: nothing to read.
   assert_eq!(get(port, token, "/log-lines").await.0, 400);
 
   // A note written under the job's run becomes its line, kept whole with its road and state.

@@ -87,7 +87,13 @@ fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
 }
 
-/// A run's log lines, after the id given.
+// A query parameter read as a whole number, none where it is left out or reads as none.
+fn query_number(call: &Call, name: &str) -> Option<i64> {
+  call.query(name).and_then(|value| value.parse::<i64>().ok())
+}
+
+/// Log lines across runs (docs/api.md, 「log-lines」): a run's, a job's or an agent's, of the kinds named, the
+/// page after an id or the page before one.
 pub struct RunLogLines;
 
 impl Route for RunLogLines {
@@ -96,46 +102,77 @@ impl Route for RunLogLines {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let run = call.query("runId").or_else(|| call.query("run"));
-    let job = call
-      .query("jobId")
-      .or_else(|| call.query("job"))
-      .and_then(|job| job.parse::<i64>().ok());
-    let after = call.query("after").and_then(|after| after.parse::<i64>().ok()).unwrap_or(0);
-    let limit = call
-      .query("limit")
-      .and_then(|limit| limit.parse::<i64>().ok())
-      .unwrap_or(PAGE)
-      .clamp(1, PAGE);
+    let job = query_number(&call, "jobId").or_else(|| query_number(&call, "job"));
+    let agent = call
+      .query("agentName")
+      .map(|agent| agent.trim().to_owned())
+      .filter(|agent| !agent.is_empty());
+    let kinds: Vec<String> = call
+      .query("kinds")
+      .map(|kinds| {
+        kinds
+          .split(',')
+          .map(str::trim)
+          .filter(|kind| !kind.is_empty())
+          .map(str::to_owned)
+          .collect()
+      })
+      .unwrap_or_default();
+    let after = query_number(&call, "after");
+    let before = query_number(&call, "before");
+    let limit = query_number(&call, "limit").unwrap_or(PAGE).clamp(1, PAGE);
+
+    if run.is_none() && job.is_none() && agent.is_none() {
+      return Err(bad("runId, jobId or agentName is required"));
+    }
+
     // A run of the ledger named by its id reads the lines written under its unit, beside the lines written
     // under that name itself.
     let unit = match run.as_deref().map(str::parse::<i64>) {
       Some(Ok(id)) => run_ledger::read(call.store(), id).await?.map(|held| held.unit),
       _ => None,
     };
-    let (sql, values) = match (run, job) {
-      (Some(run), _) => (
-        r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
-             "truncated", "detail", "metadata"
-           FROM "agent_log" WHERE "run" IN ($1, $4) AND "id" > $2 ORDER BY "id" LIMIT $3"#,
-        vec![run.clone().into(), after.into(), limit.into(), unit.unwrap_or(run).into()],
+    // Before a cursor with none after it, the nearest lines are the newest of the older ones, so they are read
+    // downward and turned back to stand oldest first.
+    let downward = before.is_some() && after.is_none();
+    let rows = all(
+      call.store(),
+      &format!(
+        r#"SELECT {LINE_COLUMNS} FROM "agent_log"
+           WHERE ($1::text IS NULL OR "run" IN ($1, $2))
+             AND ($3::bigint IS NULL OR "job_id" = $3)
+             AND ($4::text IS NULL OR "agent" = $4)
+             AND ($5::jsonb = '[]'::jsonb OR "kind" IN (SELECT jsonb_array_elements_text($5::jsonb)))
+             AND "id" > $6
+             AND ($7::bigint IS NULL OR "id" < $7)
+           ORDER BY "id" {} LIMIT $8"#,
+        if downward { "DESC" } else { "ASC" }
       ),
-      (None, Some(job)) => (
-        r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
-             "truncated", "detail", "metadata"
-           FROM "agent_log" WHERE "job_id" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
-        vec![job.into(), after.into(), limit.into()],
-      ),
-      (None, None) => return Err(bad("runId or jobId is required")),
-    };
-    let rows = all(call.store(), sql, values).await?;
+      vec![
+        run.clone().into(),
+        unit.or(run).into(),
+        job.into(),
+        agent.into(),
+        serde_json::to_string(&kinds).unwrap_or_else(|_| "[]".to_owned()).into(),
+        after.unwrap_or(0).into(),
+        before.into(),
+        (limit + 1).into(),
+      ],
+    )
+    .await?;
+    let more = rows.len() as i64 > limit;
     let mut lines = Vec::with_capacity(rows.len());
     let mut held = HashMap::new();
 
-    for row in rows {
+    for row in rows.into_iter().take(limit as usize) {
       lines.push(line_of(call.store(), row, &mut held).await?);
     }
 
-    Ok(answer(StatusCode::OK, json!({ "items": lines, "more": false })))
+    if downward {
+      lines.reverse();
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "items": lines, "more": more })))
   }
 }
 

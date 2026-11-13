@@ -90,12 +90,119 @@ publish = false
 # One test target, the harness at tests/main.rs, with a module per crate's tests and per repository check
 # (bmo-chat's docs/conventions.md, 「Rust builds」).
 autotests = false
+autobins = false
+
+# The package's library is empty. It stands so the test target's dev-dependency on this package can turn on
+# `test-binaries`: Cargo turns a feature on through a dependency only where the package depended on has a
+# library.
+[lib]
+path = "tests/package.rs"
+doc = false
+test = false
 
 [[test]]
 name = "main"
 path = "tests/main.rs"
 
+# The workspace binaries the tests start, each compiled from its crate's own entry point under a name of its
+# own, so no build of the crate itself overwrites the copy a test binary was built against. Cargo builds a
+# package's binaries before its integration tests and names each one's path to them, so no test runs Cargo.
+# They need `test-binaries`, which only the test target's dev-dependency turns on, so a build of the
+# workspace for a release builds none of them.
+[features]
+test-binaries = [
+  "dep:agency-server",
+  "dep:agent-host",
+  "dep:axum",
+  "dep:bmo-agency-client",
+  "dep:clap",
+  "dep:harness-machine",
+  "dep:harness-providers",
+  "dep:herdr",
+  "dep:llm-gateway",
+  "dep:node-link",
+  "dep:policy",
+  "dep:procedures-tool",
+  "dep:rmcp",
+  "dep:serde_json",
+  "dep:sqlx",
+  "dep:store",
+  "dep:tokio",
+  "dep:tool-call",
+]
+
+[[bin]]
+name = "test-agency-server"
+path = "crates/server/src/bin/agency-server.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-bmo-agency"
+path = "crates/server/src/bin/bmo-agency.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-agent-host"
+path = "crates/agent-host/src/main.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-pane-head"
+path = "crates/pane-head/src/main.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-node-link"
+path = "crates/node-link/src/main.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-llm-gateway"
+path = "crates/llm-gateway/src/main.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+[[bin]]
+name = "test-procedures-tool"
+path = "tools/procedures/src/main.rs"
+required-features = ["test-binaries"]
+test = false
+doc = false
+
+# What the test binaries are compiled against, present only where `test-binaries` is on.
+[dependencies]
+agency-server = { path = "crates/server", optional = true }
+agent-host = { path = "crates/agent-host", optional = true }
+axum = { workspace = true, optional = true }
+bmo-agency-client = { path = "crates/client", optional = true }
+clap = { workspace = true, optional = true }
+harness-machine = { path = "crates/harness-machine", optional = true }
+harness-providers = { path = "crates/harness-providers", optional = true }
+herdr = { path = "crates/herdr", optional = true }
+llm-gateway = { path = "crates/llm-gateway", optional = true }
+node-link = { path = "crates/node-link", optional = true }
+policy = { path = "crates/policy", optional = true }
+procedures-tool = { path = "tools/procedures", optional = true }
+rmcp = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+store = { path = "crates/store", optional = true }
+tokio = { workspace = true, optional = true }
+tool-call = { path = "crates/tool-call", optional = true }
+
 [dev-dependencies]
+agency-checks = { path = ".", features = ["test-binaries"] }
 agency-server = { path = "crates/server" }
 bmo-agency-client = { path = "crates/client" }
 bmo-gate-client.workspace = true

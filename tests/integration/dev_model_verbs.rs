@@ -191,7 +191,7 @@ fn models(
   env: &[(&str, String)],
 ) -> (i32, String, String) {
   let address = scratch.address();
-  let done = std::process::Command::new(binary::built("agency-server", "bmo-agency"))
+  let done = std::process::Command::new(binary::path("bmo-agency"))
     .arg("model")
     .args(args)
     .args(["--db", &address])
