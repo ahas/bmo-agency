@@ -285,3 +285,151 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
   fs::write(place_there.join("running.json"), json!({ "pids": [] }).to_string()).expect("running");
   wait_for("the running record here", || place_here.join("running.json").exists());
 }
+
+/// One call of the CLI's verbs asked of a home bridge at `socket`, as a node asks it, its input ended at once
+/// or held open for as long as the call runs: its exit code, or none where the bridge cannot be reached or the
+/// call ended with no exit code.
+fn ask_bridge(socket: &Path, args: &[&str], input_ends: bool) -> Option<i32> {
+  use std::io::{Read, Write};
+
+  let mut stream = std::os::unix::net::UnixStream::connect(socket).ok()?;
+
+  stream.set_read_timeout(Some(Duration::from_secs(10))).expect("a bounded read");
+  writeln!(stream, "{}", json!({ "script": "bin/bmo", "args": args })).ok()?;
+
+  if input_ends {
+    stream.write_all(&[0, 0, 0, 0, 0]).ok()?;
+  }
+
+  loop {
+    let mut head = [0u8; 5];
+
+    stream.read_exact(&mut head).ok()?;
+
+    let mut body = vec![0; u32::from_be_bytes([head[1], head[2], head[3], head[4]]) as usize];
+
+    stream.read_exact(&mut body).ok()?;
+
+    if head[0] == node_link::bridge::EXIT {
+      return Some(i32::from_be_bytes(body.try_into().expect("an exit code")));
+    }
+  }
+}
+
+/// The link program for `spec`, its far end never reached, so only its home bridge is at work.
+fn bridge_only_link(binary: &Path, spec: &Path, ssh: &Path) -> Link {
+  Link(
+    Command::new(binary)
+      .arg("connect")
+      .arg(spec)
+      .env("NODE_LINK_SSH", ssh)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  )
+}
+
+// The home bridge's verbs held by the link program itself (docs/person-nodes.md, 「Who reaches a node」): a
+// spec that comes to name verbs while the link runs holds the next call to them; the program killed in the
+// middle of a call leaves no run behind; and started again on the same spec it refuses what it refused.
+#[test]
+fn the_bridge_s_verbs_hold_from_the_next_call_and_across_the_link_killed_mid_call_and_started_again() {
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let deploy = dir.path().join("deploy");
+  let ran = dir.path().join("ran");
+  let held = dir.path().join("held.pid");
+  let bmo = deploy.join(node_link::bridge::VERBS_BINARY);
+  let ssh = dir.path().join("ssh");
+
+  fs::create_dir_all(bmo.parent().expect("bin")).expect("bin");
+  // The CLI standing in: each call written down, and a held call standing on its input until it ends.
+  fs::write(
+    &bmo,
+    format!(
+      "#!/bin/sh\necho \"$@\" >> {}\nif [ \"$2\" = --hold ]; then echo $$ > {}; exec cat > /dev/null; fi\n",
+      ran.display(),
+      held.display()
+    ),
+  )
+  .expect("bmo");
+  fs::write(&ssh, "#!/bin/sh\nexit 1\n").expect("ssh");
+
+  for runnable in [&bmo, &ssh] {
+    fs::set_permissions(runnable, fs::Permissions::from_mode(0o755)).expect("runnable");
+  }
+
+  let spec = dir.path().join("link.json");
+  let socket = dir.path().join("b.sock");
+  let write_spec = |verbs: Option<&[&str]>| {
+    let moving = dir.path().join("link.json.new");
+
+    fs::write(
+      &moving,
+      json!({
+        "node": "pc",
+        "ssh": ["tester@pc"],
+        "root": dir.path().join("there"),
+        "binary": binary,
+        "herdr": { "local": dir.path().join("h.sock"), "remote": dir.path().join("rh.sock") },
+        "ports": [],
+        "bridge": socket,
+        "deploy": deploy,
+        "control": dir.path().join("c.sock"),
+        "rewrite": [],
+        "push": [],
+        "pull": [],
+        "proc": dir.path().join("proc"),
+        "state": dir.path().join("state.json"),
+        "follow": [],
+        "withheld": [],
+        "bridge_verbs": verbs
+      })
+      .to_string(),
+    )
+    .expect("spec");
+    fs::rename(&moving, &spec).expect("spec in place");
+  };
+
+  // A node of the deployment's own asks for any verb.
+  write_spec(None);
+
+  let link = bridge_only_link(&binary, &spec, &ssh);
+
+  wait_for("the bridge", || socket.exists());
+  assert_eq!(ask_bridge(&socket, &["node", "work"], true), Some(0));
+
+  // An account's record comes to name the node while the link runs: its next call is held to the verbs.
+  write_spec(Some(&["agent-status"]));
+  assert_eq!(ask_bridge(&socket, &["node", "work"], true), Some(2));
+  assert_eq!(ask_bridge(&socket, &["agent-status"], true), Some(0));
+
+  // The link program killed in the middle of a call: the asker gets no exit code and the run ends with it.
+  let asker = {
+    let socket = socket.clone();
+
+    std::thread::spawn(move || ask_bridge(&socket, &["agent-status", "--hold"], false))
+  };
+
+  wait_for("the held run", || held.exists());
+
+  let run = fs::read_to_string(&held).expect("held pid").trim().to_owned();
+
+  drop(link);
+  assert_eq!(asker.join().expect("asker"), None);
+  wait_for("the held run's end", || !Path::new("/proc").join(&run).exists());
+
+  // Started again on the same spec, it refuses what it refused and runs what it ran.
+  let _link = bridge_only_link(&binary, &spec, &ssh);
+
+  wait_for("the bridge again", || ask_bridge(&socket, &["agent-status"], true).is_some());
+  assert_eq!(ask_bridge(&socket, &["node", "work"], true), Some(2));
+  assert_eq!(
+    fs::read_to_string(&ran).expect("ran"),
+    "node work\nagent-status\nagent-status --hold\nagent-status\n",
+    "a refused call runs nothing"
+  );
+}
