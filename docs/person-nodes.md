@@ -55,19 +55,35 @@ desktop coding agent whose models and tools are served from elsewhere.
 - **One read answers all three for a caller and a node,** `GET /nodes/{nodeName}/access` (`docs/api.md`,
   「person-nodes」), judged as the record's grant is: the node's owners, the caller's account, whether it holds the
   administrator's grant, and whether it reaches the node.
-- **The hub's control token is read by the units that reach a hub, and by no agent:** the node tool, run by the
+- **The hub's settings file is read by the units that reach a hub, and by no agent:** the node tool, run by the
   tool host for a call a caller makes; agency's server and its node verbs, for a PC's workplace and its link; and
-  the node service, for its checks and its readings. No session is handed the token or the path of its file: no
-  record, run variable, place or link spec of a session names it, and the link sends none of it to a PC. An
-  account's sessions stand on its PC (「Which node is a person's」), where the token never is, so their shells
+  the node service, for its checks and its readings. No session is handed the file's path or anything read from
+  it: no record, run variable, place or link spec of a session names it, and the link sends none of it to a PC.
+  An account's sessions stand on its PC (「Which node is a person's」), where the file never is, so their shells
   reach a node through the tool alone.
+- **Agency reaches a hub for one node with a credential scoped to that node's agent alone,** never with the hub's
+  control token: `<agent>.<mac>`, the mac the lowercase hex of HMAC-SHA256 over the agent's name keyed by the
+  hub's control key, `JAKE_CONTROL_KEY` in the hub's settings file (jake's `docs/architecture.md`, 「Configuration
+  and secrets」). The workplace's setup, check and sync present it on every request to the hub, and the link on
+  its listens and to the hub's connect program for every byte stream, so the hub refuses a request naming any
+  other agent with 403 `agent-out-of-reach` and its status shows that one agent alone. A slip that names the
+  wrong node then reaches no other person's machine.
+  - **Agency makes the credential itself,** each time it opens its way to the hub, and keeps it nowhere: the key
+    stands in the hub's settings file beside the control token, which every unit here can read already
+    (「What stands and what is left」), so a credential handed in by the service that binds an account would close
+    nothing more, and a hub node no account's record names is
+    reached the same way.
+  - **A hub whose settings hold no control key is not reached:** the setup and the link say the key is missing
+    rather than falling back to the control token.
+  - **The control token, which reaches every agent, is the node service's alone:** its tool, for a caller the
+    administrator's grant lets reach every node, and its checks and readings.
 - **A person's PC asks the home bridge for the verbs `policy/person-nodes.toml` names alone** (`bridge_verbs`): the
   status line's and the hooks' `agent-status`, a hosted tool's `use`, and the verbs of other units a supervisor's
   manual names. The bridge runs a call of a node any account's record names only where it asks for the CLI's
   `bmo` with one of those verbs as its first word, and refuses every other verb, every script and a call naming
   its verb after an option, saying so with exit code 2. A node no record names is the deployment's own and asks
   for any verb, as an SSH node does. So no session of a PC runs agency's node verbs, the testbed's checks or a
-  script here, any of which would reach the hub's token as this machine's user.
+  script here, any of which would reach the hub's settings file as this machine's user.
 - **The hub's settings file is the owner's user's,** readable by that user alone, and every unit and every session
   of this machine runs as that user, so the file's mode keeps no process here from it. The sessions here are the
   deployment's own, which hold the administrator's grant and reach every node through the tool already; a run of
@@ -91,7 +107,8 @@ desktop coding agent whose models and tools are served from elsewhere.
 
 `bmo-agency node work setup <node> --install`, `check` and `sync` stand, read and bring up a PC's workplace with
 the steps an SSH node's take (`docs/work-nodes.md`, 「The workplace on a node」), through the hub the node service
-names for the node: its control address, the file its control token is kept in, and the agent's name.
+names for the node: its control address, its settings file, and the agent's name, every request carrying a
+credential scoped to that agent (「Who reaches a node」).
 
 - **Each command of the setup is a transient unit of the person's own:** a command through the hub writes the step
   into a script under the PC's cache directory and starts it with the user manager, and further commands watch it
@@ -140,7 +157,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   as it comes: the hub carries what the bridge wrote ahead of its close to the asker on the PC whole.
 - **The spec writer writes a jake spec for a node with no SSH login and a hub reach:** the agent the node service
   names, the hub's connect program run as the hub's executable the deployment names in `AGENCY_JAKE_HUB` with its
-  `connect` mode, the hub's token file as the hub's settings, the far end's three ports from agency's policy, and
+  `connect` mode, the hub's settings file, the far end's three ports from agency's policy, and
   the bridge's relay port here. A node whose hub program is not named, or whose setup left no relay port, has no
   spec, and the pass says why.
 - **Each PC has a bridge relay port of its own here,** since each joins its own bridge socket: the setup gives a PC
@@ -158,6 +175,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
-| who reaches a node | the administrator's grant written into every record agency issues for the deployment's own; the read of a node's owners and a caller's account, grant and reach; no session handed the hub's token or its file's path, an account's sessions standing on its PC, and the home bridge of a person's node running the policy's verbs alone | the hub's settings file belongs to the user every unit and session here runs as, so a session of this machine, a run of an account with no node among them, reads the token without the tool; the token held by a user of its own, which the hub, the tool's executable, agency's node verbs and the node service alone run as, closes it |
+| who reaches a node | the administrator's grant written into every record agency issues for the deployment's own; the read of a node's owners and a caller's account, grant and reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC, and the home bridge of a person's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | the hub's settings file belongs to the user every unit and session here runs as, so a session of this machine, a run of an account with no node among them, reads the token without the tool; the token held by a user of its own, which the hub, the tool's executable, agency's node verbs and the node service alone run as, closes it |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

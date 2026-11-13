@@ -127,8 +127,10 @@ fn ssh_command(spec: &Spec, remote_bridge: &str) -> Command {
   command
 }
 
-// A connection to a port on a person's PC: the hub's connect program, its words ahead of the agent and the port.
-fn jake_command(jake: &crate::spec::Jake, port: u16) -> Command {
+// A connection to a port on a person's PC: the hub's connect program, its words ahead of the agent and the port,
+// presenting a credential that reaches that agent alone.
+fn jake_command(jake: &crate::spec::Jake, port: u16) -> Result<Command, String> {
+  let credential = crate::hub::agent_credential(&jake.hub_env, &jake.agent)?;
   let (program, words) =
     jake.connect.split_first().map_or(("", &[][..]), |(one, rest)| (one.as_str(), rest));
   let mut command = Command::new(program);
@@ -136,11 +138,12 @@ fn jake_command(jake: &crate::spec::Jake, port: u16) -> Command {
   command
     .args(words)
     .args([jake.agent.as_str(), &port.to_string()])
+    .env(crate::hub::CREDENTIAL_VARIABLE, credential)
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
     .kill_on_drop(true);
-  command
+  Ok(command)
 }
 
 // What a link to a person's PC holds beside its mirror, for as long as the connection stands: the herdr socket
@@ -193,7 +196,8 @@ fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHan
 
 // One connection here carried to a port on the PC through the hub's connect program.
 async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jake, port: u16) {
-  let Ok(mut child) = jake_command(jake, port).stderr(Stdio::null()).spawn() else {
+  let Ok(mut command) = jake_command(jake, port) else { return };
+  let Ok(mut child) = command.stderr(Stdio::null()).spawn() else {
     return;
   };
   let (Some(mut input), Some(mut output)) = (child.stdin.take(), child.stdout.take()) else {
@@ -208,30 +212,22 @@ async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jak
   let _ = child.start_kill();
 }
 
-/// The hub asked to have the agent listen on each PC port wanted, joined to the port here, with the control port
-/// and token the hub's own file names. Every listen is asked for on every connection: the hub keeps one the agent
-/// already listens on as it stands and asks the agent only for the rest.
+/// The hub asked to have the agent listen on each PC port wanted, joined to the port here, at the control port the
+/// hub's own file names and with a credential reaching that agent alone. Every listen is asked for on every
+/// connection: the hub keeps one the agent already listens on as it stands and asks the agent only for the rest.
 pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
-  let mut port = 8791u16;
-  let mut token = String::new();
-
-  for item in dotenvy::from_path_iter(hub_env).map_err(|error| format!("{}: {error}", hub_env.display()))? {
-    let (key, value) = item.map_err(|error| format!("{}: {error}", hub_env.display()))?;
-    match key.as_str() {
-      "JAKE_CONTROL_PORT" => {
-        port = value.parse().map_err(|_| format!("JAKE_CONTROL_PORT {value} is no port"))?
-      }
-      "JAKE_CONTROL_TOKEN" => token = value,
-      _ => {}
-    }
-  }
-
+  let port = match crate::hub::setting(hub_env, "JAKE_CONTROL_PORT")? {
+    Some(port) => port.parse::<u16>().map_err(|_| format!("JAKE_CONTROL_PORT {port} is no port"))?,
+    None => 8791,
+  };
+  let credential = crate::hub::agent_credential(hub_env, agent)?;
   let client = reqwest::Client::new();
+
   for (pc, here) in wanted {
     let answer = client
       .post(format!("http://127.0.0.1:{port}/listen"))
       .query(&[("agent", agent), ("port", &pc.to_string())])
-      .bearer_auth(&token)
+      .bearer_auth(&credential)
       .json(&json!({ "target": format!("127.0.0.1:{here}") }))
       .send()
       .await
@@ -440,7 +436,10 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
 async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &mut State) -> String {
   let remote_bridge = format!("{}/data/run/bridge-{}-{}.sock", spec.root, std::process::id(), now_ms());
   let (command, sides) = match &spec.jake {
-    Some(jake) => (jake_command(jake, jake.mirror_port), jake_sides(spec, jake)),
+    Some(jake) => match jake_command(jake, jake.mirror_port) {
+      Ok(command) => (command, jake_sides(spec, jake)),
+      Err(why) => return format!("the connection could not start: {why}"),
+    },
     None => (ssh_command(spec, &remote_bridge), Vec::new()),
   };
   // The sides stand as long as this connection does.

@@ -15,11 +15,15 @@ test = false
 [dependencies]
 base64.workspace = true
 clap.workspace = true
-# The jake hub's own file, which names its control port and token, on a person's PC's link.
+# The jake hub's own file, which names its control port and the key its control credentials are made with.
 dotenvy.workspace = true
+# The control credential scoped to one agent, made as the jake hub checks it.
+hex.workspace = true
+hmac.workspace = true
 # The jake hub asked to listen on a person's PC.
 reqwest.workspace = true
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true

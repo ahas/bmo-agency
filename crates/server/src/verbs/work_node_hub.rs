@@ -1,7 +1,8 @@
 //! A person's PC reached through its hub for the workplace's setup (docs/person-nodes.md, 「The workplace on a
 //! PC」): each command a transient unit of the person's own user manager, started and watched through the hub's
 //! commands, each of which ends well inside the hub's ceiling of time on one; and the copy of the code and of
-//! herdr made through the hub's uploads.
+//! herdr made through the hub's uploads. Every request carries a credential that reaches the node's agent alone
+//! (「Who reaches a node」).
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -12,15 +13,13 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use futures_util::StreamExt;
 use futures_util::future::BoxFuture;
+use node_link::hub;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sse_stream::SseStream;
 
 use super::work_node_setup::{COPY_LEFT_OUT, FarEnd, SetupHands, SetupShell, ShellRun, shell_word};
 use crate::peers::node::HubReach;
-
-/// The variable of the hub's token file its control token is kept under.
-const TOKEN_KEY: &str = "JAKE_CONTROL_TOKEN";
 
 /// The variable of the hub's settings naming the targets here a stream back may be joined to, each `host:port`,
 /// separated by commas, as jake's hub reads it.
@@ -56,7 +55,8 @@ const STEP_DIR: &str = r#"${XDG_CACHE_HOME:-$HOME/.cache}/bmo-node-setup"#;
 pub struct HubDoor {
   client: reqwest::Client,
   address: String,
-  token: String,
+  /// The control credential that reaches this agent alone.
+  credential: String,
   /// The targets here the hub joins a stream back to.
   reverse_targets: Vec<String>,
   agent: String,
@@ -72,21 +72,6 @@ fn expand_home(path: &str, home: &Path) -> PathBuf {
   path.strip_prefix("~/").map_or_else(|| PathBuf::from(path), |rest| home.join(rest))
 }
 
-/// One setting of the hub's file its node names, where the file sets it.
-fn hub_setting(token_file: &Path, wanted: &str) -> Result<Option<String>, String> {
-  let shown = token_file.display();
-
-  for item in dotenvy::from_path_iter(token_file).map_err(|why| format!("{shown}: {why}"))? {
-    let (key, value) = item.map_err(|why| format!("{shown}: {why}"))?;
-
-    if key == wanted {
-      return Ok(Some(value));
-    }
-  }
-
-  Ok(None)
-}
-
 fn failed(why: impl std::fmt::Display) -> ShellRun {
   ShellRun {
     code: 255,
@@ -100,9 +85,8 @@ impl HubDoor {
   /// the hub cannot be asked or the agent is not attached.
   pub async fn open(reach: &HubReach, home: &Path) -> Result<Self, String> {
     let settings = expand_home(&reach.token_file, home);
-    let token = hub_setting(&settings, TOKEN_KEY)?
-      .ok_or_else(|| format!("{} holds no {TOKEN_KEY}", settings.display()))?;
-    let reverse_targets: Vec<String> = hub_setting(&settings, REVERSE_TARGETS_KEY)?
+    let credential = hub::agent_credential(&settings, &reach.agent)?;
+    let reverse_targets: Vec<String> = hub::setting(&settings, REVERSE_TARGETS_KEY)?
       .unwrap_or_default()
       .split(',')
       .map(|target| target.trim().to_owned())
@@ -112,7 +96,7 @@ impl HubDoor {
     let client = reqwest::Client::new();
     let status: Value = client
       .get(format!("{address}/status"))
-      .bearer_auth(&token)
+      .bearer_auth(&credential)
       .send()
       .await
       .and_then(reqwest::Response::error_for_status)
@@ -145,7 +129,7 @@ impl HubDoor {
     Ok(Self {
       client,
       address,
-      token,
+      credential,
       reverse_targets,
       agent: reach.agent.clone(),
       shell,
@@ -205,7 +189,7 @@ impl HubDoor {
       .client
       .post(format!("{}/exec", self.address))
       .query(&[("agent", self.agent.as_str())])
-      .bearer_auth(&self.token)
+      .bearer_auth(&self.credential)
       .json(&json!({ "shell": shell, "command": command }))
       .send()
       .await
@@ -342,7 +326,7 @@ impl HubDoor {
         ("total", &total.to_string()),
         ("checksum", &checksum),
       ])
-      .bearer_auth(&self.token)
+      .bearer_auth(&self.credential)
       .body(body)
       .send()
       .await

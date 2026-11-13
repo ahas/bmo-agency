@@ -13,6 +13,7 @@ type Calls = Arc<Mutex<Vec<String>>>;
 async fn listen(
   State(calls): State<Calls>,
   method: axum::http::Method,
+  headers: axum::http::HeaderMap,
   Query(query): Query<Vec<(String, String)>>,
   axum::Json(body): axum::Json<Value>,
 ) -> axum::Json<Value> {
@@ -23,11 +24,19 @@ async fn listen(
     .unwrap_or_default();
   let target = body.get("target").and_then(Value::as_str).unwrap_or_default();
 
-  calls.lock().unwrap().push(format!("{method} {port} {target}"));
+  // The scope a credential names stands ahead of its mac, which the hub's door test checks.
+  let scope = headers
+    .get("authorization")
+    .and_then(|value| value.to_str().ok())
+    .and_then(|value| value.strip_prefix("Bearer "))
+    .and_then(|credential| credential.rsplit_once('.'))
+    .map_or("", |(scope, _)| scope);
+
+  calls.lock().unwrap().push(format!("{method} {port} {target} as {scope}"));
   axum::Json(serde_json::json!({ "ok": true, "standing": false }))
 }
 
-// "every listen wanted is asked of the hub with its target"
+// "every listen wanted is asked of the hub with its target, with a credential scoped to the agent alone"
 #[tokio::test]
 async fn every_listen_wanted_is_asked_of_the_hub_with_its_target() {
   let calls: Calls = Arc::default();
@@ -37,11 +46,15 @@ async fn every_listen_wanted_is_asked_of_the_hub_with_its_target() {
   let settings = tempfile::NamedTempFile::new().unwrap();
 
   tokio::spawn(async move { axum::serve(hub, app).await });
-  std::fs::write(settings.path(), format!("JAKE_CONTROL_PORT={port}\nJAKE_CONTROL_TOKEN=t\n")).unwrap();
+  std::fs::write(
+    settings.path(),
+    format!("JAKE_CONTROL_PORT={port}\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n"),
+  )
+  .unwrap();
 
   ask_listens("pc", settings.path(), &[(1, 11), (2, 12)]).await.unwrap();
 
-  assert_eq!(*calls.lock().unwrap(), ["POST 1 127.0.0.1:11", "POST 2 127.0.0.1:12"]);
+  assert_eq!(*calls.lock().unwrap(), ["POST 1 127.0.0.1:11 as pc", "POST 2 127.0.0.1:12 as pc"]);
 }
 
 // "the folders the placed programs work in are made on the node, and one that stands is left as it is"

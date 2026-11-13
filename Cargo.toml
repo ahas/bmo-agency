@@ -224,6 +224,8 @@ futures-util.workspace = true
 harness-machine = { path = "crates/harness-machine" }
 harness-providers = { path = "crates/harness-providers" }
 herdr = { path = "crates/herdr" }
+hex.workspace = true
+hmac.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true

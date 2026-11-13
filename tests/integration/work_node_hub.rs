@@ -1,6 +1,9 @@
 //! A person's PC reached through its hub for the workplace's setup (docs/person-nodes.md, 「The workplace on a
 //! PC」), against a hub standing in on the loopback: its commands run here in a scratch home, where the user
-//! manager's `systemd-run` and `systemctl` are stand-ins that run a step at once.
+//! manager's `systemd-run` and `systemctl` are stand-ins that run a step at once. The stand-in judges what each
+//! request presents as jake's hub does (jake's `docs/architecture.md`, 「Configuration and secrets」): the control
+//! token reaches every agent, a credential scoped to named agents reaches those alone, and a request naming an agent
+//! outside its reach is refused 403 `agent-out-of-reach`.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -16,11 +19,15 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use hmac::{Hmac, Mac};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 const TOKEN: &str = "stand-in-token";
+const CONTROL_KEY: &str = "stand-in-control-key";
 const AGENT: &str = "pc";
+/// Another person's node, attached to the same hub.
+const OTHER: &str = "other-pc";
 
 // The user manager stood in for: a transient unit's command run at once to its end, and no unit active.
 const SYSTEMD_RUN: &str = "#!/bin/sh\nwhile [ \"$1\" != /bin/bash ]; do shift; done\nexec \"$@\"\n";
@@ -31,10 +38,59 @@ struct Hub {
   home: PathBuf,
   shims: PathBuf,
   commands: Arc<Mutex<Vec<String>>>,
+  /// Every credential presented to the hub, as it came.
+  presented: Arc<Mutex<Vec<String>>>,
 }
 
-fn authorized(headers: &HeaderMap) -> bool {
-  headers.get("authorization").and_then(|value| value.to_str().ok()) == Some(&format!("Bearer {TOKEN}"))
+// A credential scoped to the names joined by commas, made with the hub's control key as jake makes it.
+fn scoped(names: &str) -> String {
+  let mut mac = Hmac::<Sha256>::new_from_slice(CONTROL_KEY.as_bytes()).unwrap();
+
+  mac.update(names.as_bytes());
+  format!("{names}.{}", hex::encode(mac.finalize().into_bytes()))
+}
+
+// Whether what a request presents reaches the agent named, else the status the hub refuses it with: 401 for a
+// credential that is neither the token nor scoped with the key, 403 for one outside its scope.
+fn reaches(hub: &Hub, headers: &HeaderMap, agent: &str) -> Result<(), StatusCode> {
+  let presented = headers
+    .get("authorization")
+    .and_then(|value| value.to_str().ok())
+    .and_then(|value| value.strip_prefix("Bearer "))
+    .unwrap_or_default()
+    .to_owned();
+
+  hub.presented.lock().unwrap().push(presented.clone());
+
+  if presented == TOKEN {
+    return Ok(());
+  }
+
+  let Some(names) = presented
+    .rsplit_once('.')
+    .map(|(names, _)| names)
+    .filter(|names| !names.is_empty() && scoped(names) == presented)
+  else {
+    return Err(StatusCode::UNAUTHORIZED);
+  };
+
+  if names.split(',').any(|name| name.trim() == agent) {
+    return Ok(());
+  }
+
+  Err(StatusCode::FORBIDDEN)
+}
+
+// The hub's answer to a refused request, a 403 saying the agent is out of reach.
+fn refusal(status: StatusCode) -> Response {
+  match status {
+    StatusCode::FORBIDDEN => (
+      status,
+      axum::Json(json!({ "error": "the agent is out of reach", "code": "agent-out-of-reach" })),
+    )
+      .into_response(),
+    _ => status.into_response(),
+  }
 }
 
 fn events(events: &[(&str, Value)]) -> Response {
@@ -44,21 +100,38 @@ fn events(events: &[(&str, Value)]) -> Response {
   ([("content-type", "text/event-stream")], body).into_response()
 }
 
-async fn status(headers: HeaderMap) -> Response {
-  if !authorized(&headers) {
-    return StatusCode::UNAUTHORIZED.into_response();
+// The agents attached that the credential reaches, each with what it offers.
+async fn status(State(hub): State<Hub>, headers: HeaderMap) -> Response {
+  let capabilities = json!(["exec:linux", "transfer", "stream:47201", "listen:13123"]);
+  let mut agents = Vec::new();
+
+  for name in [AGENT, OTHER] {
+    match reaches(&hub, &headers, name) {
+      Ok(()) => agents.push(json!({ "name": name, "capabilities": capabilities })),
+      Err(StatusCode::UNAUTHORIZED) => return refusal(StatusCode::UNAUTHORIZED),
+      Err(_) => {}
+    }
   }
 
-  axum::Json(json!({ "agents": [{
-    "name": AGENT,
-    "capabilities": ["exec:linux", "transfer", "stream:47201", "listen:13123"],
-  }] }))
-  .into_response()
+  axum::Json(json!({ "agents": agents })).into_response()
+}
+
+fn asked(query: &[(String, String)], name: &str) -> Option<String> {
+  query.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone())
 }
 
 // A command run here as the agent runs it on the PC, its output and its end told as the hub tells them.
-async fn exec(State(hub): State<Hub>, headers: HeaderMap, axum::Json(body): axum::Json<Value>) -> Response {
-  if !authorized(&headers) || body["shell"] != "linux" {
+async fn exec(
+  State(hub): State<Hub>,
+  headers: HeaderMap,
+  Query(query): Query<Vec<(String, String)>>,
+  axum::Json(body): axum::Json<Value>,
+) -> Response {
+  if let Err(refused) = reaches(&hub, &headers, &asked(&query, "agent").unwrap_or_default()) {
+    return refusal(refused);
+  }
+
+  if body["shell"] != "linux" {
     return StatusCode::BAD_REQUEST.into_response();
   }
 
@@ -90,11 +163,16 @@ async fn exec(State(hub): State<Hub>, headers: HeaderMap, axum::Json(body): axum
 }
 
 // An upload written whole where it is named, once its length and checksum match what was declared.
-async fn upload(headers: HeaderMap, Query(query): Query<Vec<(String, String)>>, body: Bytes) -> Response {
-  let asked = |name: &str| query.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone());
+async fn upload(
+  State(hub): State<Hub>,
+  headers: HeaderMap,
+  Query(query): Query<Vec<(String, String)>>,
+  body: Bytes,
+) -> Response {
+  let asked = |name: &str| asked(&query, name);
 
-  if !authorized(&headers) || asked("agent").as_deref() != Some(AGENT) {
-    return StatusCode::BAD_REQUEST.into_response();
+  if let Err(refused) = reaches(&hub, &headers, &asked("agent").unwrap_or_default()) {
+    return refusal(refused);
   }
 
   if asked("total") != Some(body.len().to_string())
@@ -114,10 +192,17 @@ struct Stood {
   reach: HubReach,
   home: PathBuf,
   commands: Arc<Mutex<Vec<String>>>,
+  presented: Arc<Mutex<Vec<String>>>,
   _scratch: tempfile::TempDir,
 }
 
+const SETTINGS: &str = "JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN=stand-in-token\nJAKE_CONTROL_KEY=stand-in-control-key\nJAKE_REVERSE_TARGETS=127.0.0.1:13123,127.0.0.1:47213\n";
+
 async fn stand_hub() -> Stood {
+  stand_hub_with(SETTINGS).await
+}
+
+async fn stand_hub_with(settings: &str) -> Stood {
   let scratch = tempfile::tempdir().unwrap();
   let home = scratch.path().join("home");
   let shims = scratch.path().join("shims");
@@ -134,17 +219,15 @@ async fn stand_hub() -> Stood {
 
   let token_file = scratch.path().join("hub.env");
 
-  std::fs::write(
-    &token_file,
-    format!("JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN={TOKEN}\nJAKE_REVERSE_TARGETS=127.0.0.1:13123,127.0.0.1:47213\n"),
-  )
-  .unwrap();
+  std::fs::write(&token_file, settings).unwrap();
 
   let commands = Arc::new(Mutex::new(Vec::new()));
+  let presented = Arc::new(Mutex::new(Vec::new()));
   let hub = Hub {
     home: home.clone(),
     shims,
     commands: commands.clone(),
+    presented: presented.clone(),
   };
   let app = Router::new()
     .route("/status", get(status))
@@ -164,6 +247,7 @@ async fn stand_hub() -> Stood {
     },
     home,
     commands,
+    presented,
     _scratch: scratch,
   }
 }
@@ -256,4 +340,50 @@ async fn a_tree_goes_up_through_one_upload_and_is_laid_over_the_node_s_copy_leav
   assert!(
     !stood.home.join("w/deploy.incoming").exists() && !stood.home.join("w/deploy.incoming.tar.gz").exists()
   );
+}
+
+// "a node is reached with a credential scoped to its agent alone, which the hub refuses on another person's node"
+#[tokio::test]
+async fn a_node_is_reached_with_a_credential_scoped_to_its_agent_which_the_hub_refuses_on_another_node() {
+  let stood = stand_hub().await;
+  let door = door(&stood).await;
+  let ran = door.run("true").await;
+  let presented = stood.presented.lock().unwrap().clone();
+
+  assert_eq!(ran.code, 0, "{}", ran.stderr);
+  // The status read, the step's start and its read and removal each carried the one scoped credential.
+  assert!(presented.len() >= 4);
+  assert!(presented.iter().all(|credential| *credential == scoped(AGENT)), "{presented:?}");
+  // A door to the other person's node is opened with that node's own credential, never one reaching both.
+  let elsewhere = HubReach {
+    agent: OTHER.into(),
+    ..stood.reach.clone()
+  };
+
+  HubDoor::open(&elsewhere, Path::new("/")).await.unwrap();
+  assert_eq!(stood.presented.lock().unwrap().last(), Some(&scoped(OTHER)));
+
+  // The credential the door holds, sent naming another person's node, is refused before anything runs there.
+  let refused = reqwest::Client::new()
+    .post(format!("{}/exec", stood.reach.address))
+    .query(&[("agent", OTHER)])
+    .bearer_auth(scoped(AGENT))
+    .json(&json!({ "shell": "linux", "command": "touch reached" }))
+    .send()
+    .await
+    .unwrap();
+
+  assert_eq!(refused.status(), 403);
+  assert_eq!(refused.json::<Value>().await.unwrap()["code"], "agent-out-of-reach");
+  assert!(!stood.commands.lock().unwrap().iter().any(|command| command.contains("reached")));
+}
+
+// "a hub whose settings hold no control key is not reached, and the control token is never sent in its place"
+#[tokio::test]
+async fn a_hub_whose_settings_hold_no_control_key_is_not_reached() {
+  let stood = stand_hub_with("JAKE_CONTROL_TOKEN=stand-in-token\n").await;
+  let refused = HubDoor::open(&stood.reach, Path::new("/")).await.err().unwrap();
+
+  assert!(refused.contains("holds no JAKE_CONTROL_KEY"), "{refused}");
+  assert!(stood.presented.lock().unwrap().is_empty());
 }
