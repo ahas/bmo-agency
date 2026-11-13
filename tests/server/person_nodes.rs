@@ -7,9 +7,7 @@ use std::time::Duration;
 
 use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeKind, NodeRead, NodeRow, NodeService};
-use agency_server::person_nodes::{
-  self, Caller, administrator_grants, run_node, supervisors_placed, until_heard,
-};
+use agency_server::person_nodes::{self, ActingFor, Caller, run_node, supervisors_placed, until_heard};
 use agency_server::places::AgentRow;
 use agency_server::role_agents::composed_as;
 use agency_server::watches::links::link_heard;
@@ -193,9 +191,9 @@ async fn a_run_waits_asking_again_until_its_node_is_heard_and_goes_on_at_once_wh
   assert_eq!(asked.load(Ordering::SeqCst), 1);
 }
 
-// "an account's caller reaches its own account's node alone, and the deployment's own reaches every node"
+// "an account's caller reaches its own account's node alone, and a supervisor of no account reaches every node"
 #[tokio::test]
-async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_the_deployment_s_own_reaches_every_node()
+async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervisor_of_no_account_every_node()
  {
   let scratch = Scratch::new().await;
   let db = scratch.db();
@@ -256,15 +254,23 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_the_deploy
 
   // A role agent is read by its name, and a run holding no agent's name by the seat at its role and folder.
   assert_eq!(access("pc-7", "coder-07", None, None).await.account.as_deref(), Some("7"));
-  assert!(access("pc-7", "coder-01", None, None).await.administrator);
+  // A role agent or a seat's run of no account is the deployment's own, yet holds no grant and owns no node.
+  let unowned = access("pc-8", "coder-01", None, None).await;
+
+  assert!(unowned.account.is_none() && !unowned.administrator && !unowned.reaches);
   assert_eq!(
     access("pc-8", "worker", Some("coder"), Some("/work/seven")).await.account.as_deref(),
     Some("7")
   );
   assert!(!access("pc-8", "worker", Some("coder"), Some("/work/seven")).await.reaches);
-  assert!(access("pc-8", "worker", Some("coder"), Some("/work/other")).await.administrator);
+  assert!(!access("pc-8", "worker", Some("coder"), Some("/work/other")).await.reaches);
 
   // The grants a record holds follow the same judgement.
-  assert_eq!(administrator_grants(Some("7")), Vec::<String>::new());
-  assert_eq!(administrator_grants(None), ["node.admin"]);
+  let acting = |administrator| ActingFor {
+    account: None,
+    administrator,
+  };
+
+  assert_eq!(acting(false).grants(), Vec::<String>::new());
+  assert_eq!(acting(true).grants(), ["node.admin"]);
 }

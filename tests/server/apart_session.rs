@@ -712,7 +712,8 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
 
 // A delegation's run is its supervisor's double: its record is held under the supervisor's name with the chat
 // line's capabilities, namespaces and the supervisor bundles beside its line's and its role's, and names the
-// supervisor as the turn's agent, and holds the administrator's grant only where the supervisor is of no account;
+// supervisor as the turn's agent, and holds the administrator's grant only where the supervisor is of no account,
+// which a run no supervisor delegated never holds;
 // the start answers the same as `carries` (docs/tools.md, 「The delegate」).
 #[tokio::test]
 async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
@@ -723,6 +724,7 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
   let machine = hosted(home.path(), &socket);
 
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  crate::support::rows::supervisor(scratch.db(), "bmo", &[]).await;
 
   let ground = ground(&scratch, &machine, None);
   let double = Apart {
@@ -803,6 +805,18 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
   let record = issued.lock().unwrap().pop().expect("a record was issued");
 
   assert_eq!(record["holderName"], json!("u7"), "{record}");
+  assert_eq!(record["grants"], json!([]), "{record}");
+
+  // A run no supervisor delegated is the deployment's own yet no supervisor, so it holds none either.
+  env.remove(agency_server::lines::token::RECORD_SUPERVISOR);
+  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
+    .await
+    .unwrap()
+    .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+  assert_eq!(record["holderName"], json!("doppelganger"), "{record}");
   assert_eq!(record["grants"], json!([]), "{record}");
 }
 

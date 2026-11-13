@@ -18,7 +18,7 @@ use serde_json::{Map, Value, json};
 
 use super::fault;
 use crate::Refusal;
-use crate::person_nodes::{Caller, administrator_grants, caller_account};
+use crate::person_nodes::{Caller, acting_for};
 use crate::places::Ground;
 
 /// The variable a program carries its token in, which every configuration's bearer header reads.
@@ -264,12 +264,10 @@ pub async fn issue(
   issue_record(ground, &request).await.map(Some)
 }
 
-// The administrator's grants a record for `caller` holds: the policy's where it acts for no account, none
-// where it acts for one (docs/person-nodes.md, 「Who reaches a node」).
+// The administrator's grants a record for `caller` holds: the policy's where it is a supervisor of no account,
+// none for any other (docs/person-nodes.md, 「Who reaches a node」).
 async fn granted(ground: &Ground, caller: Caller<'_>) -> Result<Vec<String>, Refusal> {
-  let account = caller_account(&ground.db, &ground.roots.data, caller).await?;
-
-  Ok(administrator_grants(account.as_deref()))
+  Ok(acting_for(&ground.db, &ground.roots.data, caller).await?.grants())
 }
 
 /// The deployment's variables the line hands every record of its runs, each the deployment sets.

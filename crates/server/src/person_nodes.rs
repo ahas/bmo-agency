@@ -147,41 +147,59 @@ pub struct Caller<'a> {
   pub checkout: Option<&'a str>,
 }
 
-/// The account a caller acts for, or none for the deployment's own: the supervisor it is or a double stands for,
-/// else the role agent of its name, else the seat its run holds at its role and folder, each by its
-/// `ownerAccount`. A thrown-away session's place is read as its session's agent.
-pub async fn caller_account<C: ConnectionTrait>(
+/// What a caller acts as: the account it acts for, none for the deployment's own, and whether it holds the
+/// administrator's grant, which an administrator's supervisor alone does.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActingFor {
+  pub account: Option<String>,
+  pub administrator: bool,
+}
+
+impl ActingFor {
+  /// The administrator's grants a tool session's record for this caller holds: the policy's for an
+  /// administrator's supervisor, none for any other.
+  pub fn grants(&self) -> Vec<String> {
+    if self.administrator {
+      policy::person_nodes::PERSON_NODES.administrator_grants.clone()
+    } else {
+      Vec::new()
+    }
+  }
+}
+
+/// What a caller acts as. Its account is the supervisor's it is or a double stands for, else the role agent's
+/// of its name, else the seat's its run holds at its role and folder, each by its `ownerAccount`. It holds the
+/// administrator's grant where it is a supervisor of no account. A thrown-away session's place is read as its
+/// session's agent.
+pub async fn acting_for<C: ConnectionTrait>(
   db: &C,
   data_root: &Path,
   caller: Caller<'_>,
-) -> Result<Option<String>, Refusal> {
+) -> Result<ActingFor, Refusal> {
   let agent =
     crate::apart_places::session_agent(data_root, caller.agent).unwrap_or_else(|| caller.agent.to_owned());
 
   if let Some(supervisor) = crate::supervisors::named(db, &agent).await? {
-    return Ok(supervisor.owner_account.map(|account| account.to_string()));
+    let account = supervisor.owner_account.map(|account| account.to_string());
+
+    return Ok(ActingFor {
+      administrator: account.is_none(),
+      account,
+    });
   }
 
-  if let Some(seat) = crate::role_agents::named(db, &agent).await? {
-    return Ok(seat.owner_account);
-  }
+  let account = match crate::role_agents::named(db, &agent).await? {
+    Some(seat) => seat.owner_account,
+    None if caller.role.is_none() && caller.checkout.is_none() => None,
+    None => crate::role_agents::seated_at(db, caller.role, caller.checkout)
+      .await?
+      .and_then(|seat| seat.owner_account),
+  };
 
-  if caller.role.is_none() && caller.checkout.is_none() {
-    return Ok(None);
-  }
-
-  let seat = crate::role_agents::seated_at(db, caller.role, caller.checkout).await?;
-
-  Ok(seat.and_then(|seat| seat.owner_account))
-}
-
-/// The administrator's grants a tool session's record holds: the policy's for a caller of the deployment's own,
-/// none for an account's.
-pub fn administrator_grants(account: Option<&str>) -> Vec<String> {
-  match account {
-    Some(_) => Vec::new(),
-    None => policy::person_nodes::PERSON_NODES.administrator_grants.clone(),
-  }
+  Ok(ActingFor {
+    account,
+    administrator: false,
+  })
 }
 
 /// Whether a caller reaches a node (docs/api.md, 「person-nodes」).
@@ -206,8 +224,10 @@ pub async fn access<C: ConnectionTrait>(
   caller: Caller<'_>,
 ) -> Result<Access, Refusal> {
   let owners = owners_of(db, node).await?;
-  let account = caller_account(db, data_root, caller).await?;
-  let administrator = account.is_none();
+  let ActingFor {
+    account,
+    administrator,
+  } = acting_for(db, data_root, caller).await?;
   let reaches = administrator || account.as_ref().is_some_and(|account| owners.contains(account));
 
   Ok(Access {

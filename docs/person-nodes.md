@@ -39,19 +39,21 @@ desktop coding agent whose models and tools are served from elsewhere.
   asked by hand and a script holding the hub's token are no way an agent takes. Agency's own setup, check and sync
   of a PC's workplace and the link it holds reach the hub for the deployment (「The workplace on a PC」, 「The link
   over jake」), and run no command an agent names.
-- **A caller reaches the nodes its own account owns, and the deployment's own reaches every node.** The tool judges
-  each call; agency supplies what it judges by, from its records:
+- **A caller reaches the nodes its own account owns, and the administrator's supervisors reach every node.** The
+  tool judges each call; agency supplies what it judges by, from its records:
   - **the node's owners,** the accounts whose record names the node; a node no record names is no person's and is
-    reached by the deployment's own alone;
+    reached by the administrator's supervisors alone;
   - **the account the caller acts for,** read off its agent: the supervisor it is, or the one a double stands for,
     whose record is held under that supervisor's name, and its `ownerAccount`; else the role agent of that name and
     its `ownerAccount`; else the seat its run holds at its role and folder (`docs/role-agents.md`, 「What a run
     reads off its agent」) and that seat's `ownerAccount`. A caller none of these names an account of is the
     deployment's own: the owner's supervisors, his jobs, his runs;
-  - **the administrator's grant,** which a caller of the deployment's own holds and an account's caller never
-    does. Agency writes it into the record of every session it issues for the deployment's own: the grants
-    `policy/person-nodes.toml` names, the resource the node tool reads as reaching every node. A record holds what
-    was true when it was issued, and a session issued again reads its caller afresh.
+  - **the administrator's grant,** which a supervisor of no account holds, as it is and as a double stands for
+    it, and no other caller does: not an account's caller, and not a role agent, a seat's run or a job of the
+    deployment's own, which owns no node and so reaches none through the tool. Agency writes it into the record of
+    every session it issues for such a supervisor: the grants `policy/person-nodes.toml` names, the resource the
+    node tool reads as reaching every node. A record holds what was true when it was issued, and a session issued
+    again reads its caller afresh.
 - **The tool reads the first two over agency's routes and the third off the caller's record** (`docs/api.md`,
   「person-nodes」): the node's owners from the list of these records, the caller's account from the supervisor or
   the role agent its record is held under, and the grant from the record itself, which agency wrote when it
@@ -91,8 +93,9 @@ desktop coding agent whose models and tools are served from elsewhere.
   script here, any of which would reach the hub's settings file as this machine's user.
 - **The hub's settings file is the owner's user's,** readable by that user alone, and every unit and every session
   of this machine runs as that user, so the file's mode keeps no process here from it. The sessions here are the
-  deployment's own, which hold the administrator's grant and reach every node through the tool already; a run of
-  an account with no node is placed here as well, and its shell reads the file. The token is closed to every
+  deployment's own: its supervisors hold the administrator's grant and reach every node through the tool already,
+  and its role agents' and jobs' runs reach none through the tool while their shells read the file; a run of an
+  account with no node is placed here as well, and its shell reads the file too. The token is closed to every
   session only once it is held by a user of its own that only the hub, the tool's executable, agency's node verbs
   and the node service run as (「What stands and what is left」).
 
@@ -180,6 +183,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
-| who reaches a node | the administrator's grant written into every record agency issues for the deployment's own; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC, and the home bridge of a person's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | the hub's settings file belongs to the user every unit and session here runs as, so a session of this machine, a run of an account with no node among them, reads the token without the tool; the token held by a user of its own, which the hub, the tool's executable, agency's node verbs and the node service alone run as, closes it |
+| who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC, and the home bridge of a person's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | the hub's settings file belongs to the user every unit and session here runs as, so a session of this machine, a run of an account with no node among them, reads the token without the tool; the token held by a user of its own, which the hub, the tool's executable, agency's node verbs and the node service alone run as, closes it |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

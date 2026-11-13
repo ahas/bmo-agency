@@ -1196,14 +1196,15 @@ where the shell stands in an agent's program, else the owner.
   holder, required, and `role` and `checkout`, the record's labels, where it holds them. The answer is `node`;
   `owners`, the accounts whose record names the node, none for a node no record names; `agent`; `account`, the
   account the caller acts for, null for the deployment's own, read off the seat at its role and folder as well;
-  `administrator`, whether it holds the administrator's grant, which every caller of the deployment's own holds
-  and no account's does; and `reaches`, true where it holds that grant or its account is among the owners. The
-  node is not asked of the node service: a node it does not keep is answered as one no record names. A missing
-  `agent` is 400.
+  `administrator`, whether it holds the administrator's grant, which a supervisor of no account holds, as it is
+  and as a double stands for it, and no other caller does; and `reaches`, true where it holds that grant or its
+  account is among the owners. The node is not asked of the node service: a node it does not keep is answered as
+  one no record names. A missing `agent` is 400.
 - **The administrator's grant is written into the records agency issues** (`docs/tools.md`, 「The session record」):
-  a record for a caller of the deployment's own holds each grant `policy/person-nodes.toml` names, `node.admin`,
-  which the tool reads as reaching every node, and a record for a caller acting for an account holds none, judged
-  as the access read judges. So the tool reads the grant off the caller's record and asks agency nothing for it.
+  a record held under the name of a supervisor of no account holds each grant `policy/person-nodes.toml` names,
+  `node.admin`, which the tool reads as reaching every node, and every other record holds none: an account's
+  supervisor's, a role agent's, a seat's run's and a job's alike, judged as the access read judges. So the tool
+  reads the grant off the caller's record and asks agency nothing for it.
 
 ### assignments and jobs
 
