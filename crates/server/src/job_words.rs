@@ -77,8 +77,8 @@ impl Job {
     self.run.clone().unwrap_or_else(|| format!("job-{}", self.id))
   }
 
-  /// Whether a note is one the job is not handed: written by its own turn, the job service's own record, or
-  /// carried by the prompt it was launched with.
+  /// Whether a note is one the job is not handed: written by its own turn, the job service's own record,
+  /// carried by the prompt it was launched with, or a handoff, which the turn that goes on opens with already.
   fn passes_over(&self, note: &Note) -> bool {
     let own = note.actor == self.worker || self.agent.as_deref() == Some(note.actor.as_str());
     let carried = match self.notes_through {
@@ -86,7 +86,7 @@ impl Job {
       None => note.created_at < self.started_at,
     };
 
-    own || note.actor == SERVICE_ACTOR || carried
+    own || note.actor == SERVICE_ACTOR || carried || note.handoff
   }
 }
 
@@ -413,6 +413,8 @@ pub struct Note {
   actor: String,
   text: String,
   created_at: i64,
+  // A handoff a job's session left (docs/sessions.md, 「The handoff a job's session leaves」).
+  handoff: bool,
 }
 
 impl Note {
@@ -424,6 +426,7 @@ impl Note {
       actor: data["actorName"].as_str().unwrap_or_default().to_owned(),
       text: data["text"].as_str().filter(|text| !text.trim().is_empty())?.to_owned(),
       created_at: data["createdAt"].as_i64().unwrap_or_default(),
+      handoff: crate::job_handoff::is_handoff(data),
     })
   }
 }

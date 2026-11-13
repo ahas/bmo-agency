@@ -970,8 +970,9 @@ takes them, however the job stands when they arrive.
   events (「An item's change is told to its orderer」 below) reads `note.created` too, and a note on the item of a
   job that runs is handed to that job behind a paragraph naming it a note of the item, with who added it
   (`policy/worker-words.toml`, `[job]`). A note the job's own turn wrote — its worker's or its agent's name as
-  the note's actor — and the job service's own record are not handed back to it, and nor is a note its prompt
-  already carried: the job keeps the newest note its launch composed its prompt with. The note is kept before
+  the note's actor — and the job service's own record are not handed back to it, nor is a note its prompt
+  already carried: the job keeps the newest note its launch composed its prompt with; and nor is a handoff note,
+  which the turn that goes on opens with already (`docs/sessions.md`, 「The handoff a job's session leaves」). The note is kept before
   the pass moves its cursor past the event, so a restart between the two hands it again, and it is kept once.
 - **Kept first, offered after.** Every word for a job, said or noted, is written to the store's `job_words`
   before anything is tried, and marked handed only once a turn of the job took it; a turn that did not take it

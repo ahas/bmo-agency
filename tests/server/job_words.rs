@@ -222,12 +222,19 @@ async fn a_note_added_to_a_running_job_s_item_reaches_its_next_turn_and_is_never
   // Its prompt carried the item's notes up to the third.
   job(&scratch, 63, 8, "reviewing", "worker@run:5", Some(3)).await;
 
-  // Its prompt's own note, its own turn's notes and the job service's records are not handed back to it.
+  // Its prompt's own note, its own turn's notes, the job service's records and a handoff, which the turn that
+  // goes on opens with already, are not handed back to it.
+  let handoff = Note::of(&json!({ "id": 9, "itemId": 8, "actorName": "agency", "text": "a handoff",
+                                  "labels": { "kind": "handoff", "job": "63", "source": "log" },
+                                  "createdAt": now_ms() }))
+  .unwrap();
+
   for passed in [
     note(2, "harness", "old"),
     note(6, "worker", "mine"),
     note(7, "coder-01", "mine"),
     note(8, "bmo-job", "record"),
+    handoff,
   ] {
     job_words::note_added(&db, passed).await.unwrap();
   }
@@ -254,7 +261,10 @@ async fn a_note_added_to_a_running_job_s_item_reaches_its_next_turn_and_is_never
   assert!(prompt.contains("item #8 by harness"), "{prompt}");
   assert_eq!(prompt.matches("Also cover the console's screen.").count(), 1, "{prompt}");
   assert!(
-    !prompt.contains("old") && !prompt.contains("mine") && !prompt.contains("record"),
+    !prompt.contains("old")
+      && !prompt.contains("mine")
+      && !prompt.contains("record")
+      && !prompt.contains("a handoff"),
     "{prompt}"
   );
 
