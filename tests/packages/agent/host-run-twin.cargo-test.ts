@@ -2,7 +2,7 @@ import "@agency/test-support/setup";
 
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { installPlacer, spawnAgentProcess } from "@agency/agent/agent-process";
 import { installProviderSettings, setProviderEnabled } from "@agency/agent/provider-order";
@@ -66,8 +66,8 @@ afterAll(async () => {
   if (previous === undefined) delete process.env.BMO_DATA_DIR; else process.env.BMO_DATA_DIR = previous;
 });
 
-// The program: Codex's events for a thread it opened and what it said, a word on its error stream, and
-// an exit of its own.
+// The program: its launch marked in the folder it runs in, Codex's events for a thread it opened and what it
+// said, a word on its error stream, and an exit of its own.
 function program(exit: number, sleep = 0): string[] {
   const events = [
     JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
@@ -75,12 +75,19 @@ function program(exit: number, sleep = 0): string[] {
     JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "all done\nsecond line" } }),
   ];
 
-  return ["sh", "-c", `${sleep > 0 ? `sleep ${sleep}; ` : ""}printf '%s\\n' ${events.map((one) => `'${one}'`).join(" ")}; echo warn >&2; exit ${exit}`];
+  return ["sh", "-c", `: > ${LAUNCHED}; ${sleep > 0 ? `sleep ${sleep}; ` : ""}printf '%s\\n' ${events.map((one) => `'${one}'`).join(" ")}; echo warn >&2; exit ${exit}`];
 }
+
+// The file a run's program puts down in its folder as it starts.
+const LAUNCHED = "launched";
+
+// How long a stop waits for the program to start before it is put down all the same, in tenths of a second.
+const LAUNCH_WAIT_TENTHS = 600;
 
 interface Asked {
   command: string[];
-  // How long after the run is put in its caller stops it, by putting a file down.
+  // How long after the run's program has started its caller stops it, by putting a file down: a side that
+  // takes long to start its program is stopped as late into the run as one that starts it at once.
   stopAfterMs?: number;
   // Named always, so neither side counts the run under the unit the test itself runs in.
   root: string;
@@ -131,11 +138,15 @@ async function bun(side: Side, asked: Asked): Promise<unknown> {
   }
 }
 
-// The caller's stop, put down by a process of its own, since the Rust side's run holds this one's loop.
+// The caller's stop, put down beside the program's launch mark by a process of its own once the program has
+// started, since the Rust side's run holds this one's loop; the wait for the start is bounded.
 function putDownLater(file: string, afterMs: number | undefined): void {
   if (afterMs === undefined) return;
 
-  Bun.spawn(["sh", "-c", `sleep ${afterMs / 1000}; : > '${file}'`], { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
+  const launched = join(dirname(file), LAUNCHED);
+  const waited = `n=0; while [ ! -e '${launched}' ] && [ $n -lt ${LAUNCH_WAIT_TENTHS} ]; do sleep 0.1; n=$((n + 1)); done`;
+
+  Bun.spawn(["sh", "-c", `${waited}; sleep ${afterMs / 1000}; : > '${file}'`], { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
 }
 
 async function rust(side: Side, asked: Asked): Promise<unknown> {

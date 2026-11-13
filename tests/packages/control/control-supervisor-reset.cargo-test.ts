@@ -128,9 +128,13 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
   }
 
   // Its own line in the lone room, another agent's line there, whose room's whole log goes with it, and
-  // another agent's line in the shared room, which stays.
+  // another agent's line in the shared room, which stays. Each is written now: the server's log pass takes
+  // every agent's lines past the log's age but its newest, so a line dated long ago could be gone before the
+  // reset reads it.
+  const now = Date.now();
+
   for (const [who, chatId, runName] of [[agent, alone, `chat:${alone}:1`], ["other", alone, `chat:${alone}:2`], ["other", shared, `chat:${shared}:1`]] as const) {
-    await run("INSERT INTO agent_log (agent, run, chat_id, at, kind, text) VALUES (?, ?, ?, 1, 'prompt', 'x')", who, runName, chatId);
+    await run("INSERT INTO agent_log (agent, run, chat_id, at, kind, text) VALUES (?, ?, ?, ?, 'prompt', 'x')", who, runName, chatId, now);
   }
 
   // Runs of the ledger: the supervisor's in either room and another agent's in the lone room go with it, and
