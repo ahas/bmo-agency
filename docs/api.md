@@ -46,10 +46,14 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   token, and the route answers for the record's holder alone. `POST /borrowings` is the one such route. A
   session token on any other route, one the host does not know, or one the host cannot be asked about is
   answered 401.
-- Both variables stand in the data root's `env/agency.env`. A process of agency's whose environment holds
-  neither reads them there. A program agency starts is handed the token as the file it stands in,
-  `AGENCY_CONTROL_TOKEN_FILE` (`docs/agent-control.md`, 「A token is handed as the file it stands in」), and
-  every reader of the token reads that file where the variable is not set.
+- Both variables stand in the data root's `env/agency.env`. A verb whose environment names no port reads the
+  port there, under the data root `BMO_DATA_DIR` names: a job's own program is handed neither variable
+  (`docs/agent-control.md`, 「A run apart is handed the launcher's `HOME` by name」), and a verb it runs reaches
+  the server on the deployment's port all the same. The token is read there by `bmo-agency quiet` alone, the
+  deployment's own verb; a job asks with its session token instead (above). A program agency starts that
+  holds the token is handed it as the file it stands in, `AGENCY_CONTROL_TOKEN_FILE` (`docs/agent-control.md`,
+  「A token is handed as the file it stands in」), and every reader of the token reads that file where the
+  variable is not set.
 - The same file names the variables a line hands the session records of its runs
   (`docs/tools.md`, 「The session record」): for the chat line, `BMO_GATE_URL`, the gate's address, and
   `BMO_GATE_TOKEN_FILE`, the path of the gate's token file under the data root's `env/`.
@@ -1758,7 +1762,7 @@ input, so `bmo` finds it from any directory.
 | `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
-| `job borrow` | `<repository>`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
+| `job borrow` | `<repository>`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither; on the port `AGENCY_CONTROL_PORT` names, else the one the data root's `env/agency.env` names (「The control port」) | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
 | `repository` | `add <name> --path <base checkout> [--label <label>]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run say` | `<kind>:<id>` — `session:`, `job:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |

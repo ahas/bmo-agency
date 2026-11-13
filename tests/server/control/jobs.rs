@@ -683,8 +683,8 @@ fn session_host(socket: &std::path::Path) {
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 }
 
-// A job's program holds no control token: it borrows with its own session token, the server reading whose it is
-// from the tool host.
+// A job's program holds no control token and no port: it borrows with its own session token, the server reading
+// whose it is from the tool host, on the port the deployment's settings under its data root name.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_job_borrows_a_free_checkout_with_its_session_token_until_it_no_longer_runs() {
   let scratch = Scratch::new().await;
@@ -727,8 +727,12 @@ async fn a_job_borrows_a_free_checkout_with_its_session_token_until_it_no_longer
     )
     .await;
 
-  // The verb run as a job's shell runs it: the job's run and session token, the agency's port, and no store and
-  // no control token, which `held` adds where a case names them.
+  // The verb run as a job's shell runs it: the job's run and session token and the data root, and no port, no
+  // store and no control token, which `held` adds where a case names them. The port is the deployment's, in the
+  // data root's `env/agency.env`, which the server's own environment came from.
+  std::fs::create_dir_all(data.join("env")).unwrap();
+  std::fs::write(data.join("env").join("agency.env"), format!("AGENCY_CONTROL_PORT={port}\n")).unwrap();
+
   let borrow = |run: Option<&str>, repository: &str, held: &[(&str, &str)]| {
     let mut command = std::process::Command::new(binary::path("bmo-agency"));
 
@@ -737,7 +741,6 @@ async fn a_job_borrows_a_free_checkout_with_its_session_token_until_it_no_longer
       .env("PATH", std::env::var("PATH").unwrap_or_default())
       .env("HOME", home.path())
       .env("BMO_DATA_DIR", &data)
-      .env("AGENCY_CONTROL_PORT", port.to_string())
       .args(["job", "borrow", repository])
       .envs(held.iter().copied());
 

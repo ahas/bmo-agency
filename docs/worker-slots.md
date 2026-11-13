@@ -356,7 +356,8 @@
 - **A job borrows with what its program holds.** A job's program is handed no control token, so the verb
   calls agency's server with the job's session token, and the server lends only to the job running in the
   checkout that token was issued for (`docs/api.md`, 「The control port」). A process holding neither token
-  is refused, naming both.
+  is refused, naming both. Nor is it handed the server's port: the verb reads it from the deployment's
+  settings, `AGENCY_CONTROL_PORT` in `env/agency.env` under the data root the job's `BMO_DATA_DIR` names.
 - **When the job ends the loan ends.** The next read of the assignments releases one its job no longer runs
   under, whichever way the job ended. What it left open stays in the checkout, for its report to name.
 - **Why:** a stopped job parks everything open in its checkout as its own, so a write from any

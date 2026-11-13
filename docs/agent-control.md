@@ -2800,7 +2800,10 @@ enters the prefix.
   under the home it is handed; one started without it reads them under the filesystem root and fails
   at its first read. Nothing else of the launcher's own environment is handed beyond `PATH` and the
   `BMO_` variables, and the store's address is never among them: it names agency's own store, not the
-  archive the program reads (`docs/store.md`, 「Connecting」). A resident program is not handed it:
+  archive the program reads (`docs/store.md`, 「Connecting」). No `AGENCY_` variable is among them either, so
+  a run holds neither the control token nor the control port: a verb of agency's it runs reads the port from
+  the deployment's `env/agency.env` under `BMO_DATA_DIR`, and asks with the run's session token where a route
+  takes one (`docs/api.md`, 「The control port」). A resident program is not handed it:
   herdr lays its own on, and the program's identity stays the same whichever side composed it.
 - **The environment passed to the resident program is only what is given by name** — `PATH`, `BMO_*` but
   the store's address (`docs/store.md`, 「Connecting」), the agent's name, and the variables the line sets

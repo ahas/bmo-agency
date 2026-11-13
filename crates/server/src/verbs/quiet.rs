@@ -66,21 +66,8 @@ fn said(work: &Value) -> String {
 /// The port and the token the quiet asks under: the environment's, else those the data root's
 /// `env/agency.env` names.
 pub fn reached(data_root: &Path) -> (u16, Option<String>) {
-  let file: Vec<(String, String)> = dotenvy::from_path_iter(data_root.join("env").join("agency.env"))
-    .map(|pairs| pairs.filter_map(Result::ok).collect())
-    .unwrap_or_default();
-  let filed = |name: &str| {
-    file
-      .iter()
-      .find(|(key, _)| key == name)
-      .map(|(_, value)| value.trim().to_owned())
-      .filter(|value| !value.is_empty())
-  };
-  let port = std::env::var(super::CONTROL_PORT)
-    .ok()
-    .or_else(|| filed(super::CONTROL_PORT))
-    .and_then(|port| port.trim().parse().ok())
-    .unwrap_or(super::DEFAULT_CONTROL_PORT);
+  let filed = |name: &str| super::deployment_setting(data_root, name);
+  let port = super::control_port_in(data_root);
   let token = super::control_token().or_else(|| {
     filed(super::CONTROL_TOKEN).or_else(|| {
       filed(&crate::places::file_variable(super::CONTROL_TOKEN))

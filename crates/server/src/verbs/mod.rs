@@ -286,12 +286,32 @@ pub const CONTROL_TOKEN: &str = "AGENCY_CONTROL_TOKEN";
 /// The port agency's server listens on where the environment names none.
 pub const DEFAULT_CONTROL_PORT: u16 = 3220;
 
-/// The port agency's server listens on: the one the environment names, or its own.
+/// The port agency's server listens on: the one the environment names, else the one the deployment's
+/// `env/agency.env` under the data root names — a job's own program is handed neither, and finds the server
+/// there (docs/api.md, 「The control port」) — or else its own.
 pub fn control_port() -> u16 {
+  control_port_in(&data_root())
+}
+
+/// The port agency's server listens on, the deployment's settings read under `data_root`.
+pub fn control_port_in(data_root: &Path) -> u16 {
   std::env::var(CONTROL_PORT)
     .ok()
+    .filter(|port| !port.trim().is_empty())
+    .or_else(|| deployment_setting(data_root, CONTROL_PORT))
     .and_then(|port| port.trim().parse::<u16>().ok())
     .unwrap_or(DEFAULT_CONTROL_PORT)
+}
+
+/// A value the deployment's `env/agency.env` under `data_root` names, none where the file or the value is
+/// missing.
+pub fn deployment_setting(data_root: &Path, name: &str) -> Option<String> {
+  dotenvy::from_path_iter(data_root.join("env").join("agency.env"))
+    .ok()?
+    .filter_map(Result::ok)
+    .find(|(key, _)| key == name)
+    .map(|(_, value)| value.trim().to_owned())
+    .filter(|value| !value.is_empty())
 }
 
 /// The server's token, where this process holds one: by value, or in the file `AGENCY_CONTROL_TOKEN_FILE`
