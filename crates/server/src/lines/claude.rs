@@ -93,6 +93,9 @@ pub fn worker_args(
     "project,local".to_owned(),
     "--settings".to_owned(),
     handed_path(settings)?,
+    // Strict, so no MCP server the account's login brings — a claude.ai connector — rides on a run beside
+    // the line's own (docs/launch-lines.md, 「What a line's program is allowed, by road」).
+    "--strict-mcp-config".to_owned(),
     "--mcp-config".to_owned(),
     handed_path(&run.mcp_config)?,
     "--plugin-dir".to_owned(),

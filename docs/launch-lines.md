@@ -506,11 +506,15 @@
   | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
   |---|---|---|---|---|---|
   | chat | a supervisor's resident program — every supervisor's turns | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency`, `artifact` and `explorer` | the supervisor's chat configuration, strict |
-  | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
+  | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them; strict |
   | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
   | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
 
+- **Every line's MCP configuration is strict.** A run carries the servers its line's configuration names and
+  no other: an MCP server the account's login brings with it, a claude.ai connector among them, never rides
+  on a run, since its tools are no part of the line and the firewall in front of the API refuses requests
+  carrying some connectors' descriptions outright.
 - **A supervisor is allowed the same on every road.** Its resident program is started on the chat line's one
   set of words on Claude Code's own road and on DeepSeek's, Codex's, OpenRouter's and the registry's gateway
   roads alike: bypass-permissions, the chat line's denied list as its only restriction, and its chat

@@ -937,7 +937,10 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
   assert_eq!(after(&args, "--permission-mode"), Some("bypassPermissions"), "{args:?}");
   assert_eq!(after(&args, "--disallowedTools"), Some(denied.as_str()), "{args:?}");
   assert!(!args.iter().any(|arg| arg == "--tools"), "every built-in is shown: {args:?}");
-  assert!(!args.iter().any(|arg| arg == "--strict-mcp-config"), "{args:?}");
+  assert!(
+    args.iter().any(|arg| arg == "--strict-mcp-config"),
+    "no server of the login beside the line's own: {args:?}"
+  );
 
   for flag in ["--plugin-dir", "--settings", "--system-prompt-file"] {
     assert!(after(&args, flag).is_some_and(|value| !value.is_empty()), "{flag}: {args:?}");
