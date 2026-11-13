@@ -112,7 +112,10 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   receiver replaces the copy still pending, for as long as the job stands under review with that check due,
   no turn going out and no owner's question out. A move of the orderer's lets it go once the move is made,
   and agency's sender, before each of its passes, lets go of one whose job no longer stands so, however that
-  came; a check that moved to the next is owed afresh.
+  came; a check that moved to the next is owed afresh. The words a check is told with are written on the job as
+  it comes due, so a check whose row a restart of agency cut off before it was written is owed by the sender
+  once `owe_grace_seconds` have passed since it came due (`docs/agent-control.md`, 「An item's change is told to
+  its orderer」).
 - **A check passed moves to the next;** the second passed passes the stage.
 
 ## What the orderer may do

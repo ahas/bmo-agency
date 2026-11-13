@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 
+use policy::job_notices::JOB_NOTICES;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use store::run;
@@ -157,7 +158,8 @@ async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
 
 /// The job's report owed to the item's orderer: an instruction that waits in the receiver for the next turn,
 /// naming the item and carrying the report whole; and a failure in a room other than the owner's own owed to the
-/// owner as well. No receiver named is a deployment that carries none, and then no one is told.
+/// owner as well. Once both rows are written the job's end is marked owed, so the sender owes no end twice and
+/// owes one a stop cut off. No receiver named is a deployment that carries none, and then no one is told.
 async fn tell_room(db: &DatabaseConnection, vars: &BTreeMap<String, String>, member: &Value) {
   if crate::outbox::Receiver::of(vars).is_none() {
     eprintln!("job {}: its end was not told to the room: no receiver is named", id_of(member));
@@ -167,9 +169,11 @@ async fn tell_room(db: &DatabaseConnection, vars: &BTreeMap<String, String>, mem
 
   let orderer = orderer(vars, member).await;
   let ended = Notice::instruction(instruction_body(member, &orderer), Keep::Once);
+  let mut owed = true;
 
   if let Err(why) = crate::outbox::owe(db, vars, ended).await {
     eprintln!("job {}: its end was not owed to the room: {why}", id_of(member));
+    owed = false;
   }
 
   if crate::job_notices::owner_hears_failure(member, &orderer) {
@@ -177,8 +181,51 @@ async fn tell_room(db: &DatabaseConnection, vars: &BTreeMap<String, String>, mem
 
     if let Err(why) = crate::outbox::owe(db, vars, failed).await {
       eprintln!("job {}: its failure was not owed to the owner: {why}", id_of(member));
+      owed = false;
     }
   }
+
+  if owed
+    && let Err(why) =
+      run(db, r#"UPDATE "jobs" SET "end_owed" = true WHERE "id" = $1"#, vec![id_of(member).into()]).await
+  {
+    eprintln!("job {}: its end was not marked owed: {}", id_of(member), why.detail);
+  }
+}
+
+/// The ends no notice is owed for yet, owed (docs/agent-control.md, 「An item's change is told to its orderer」):
+/// each job ended at least `owe_grace_seconds` ago whose end's notice was not written — a stop of agency's cut it
+/// off, the store refused it, or the end was written where no server told it. Answers how many were owed.
+pub async fn unowed_ends(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+) -> Result<usize, String> {
+  if crate::outbox::Receiver::of(vars).is_none() {
+    return Ok(0);
+  }
+
+  let grace = i64::try_from(JOB_NOTICES.owe_grace_seconds * 1000).unwrap_or(i64::MAX / 2);
+  let rows = store::all(
+    db,
+    r#"SELECT "id" FROM "jobs" WHERE NOT "end_owed" AND "ended_at" <= $1
+         AND "state" NOT IN ('starting', 'running', 'reviewing')
+       ORDER BY "id""#,
+    vec![(crate::now_ms() - grace).into()],
+  )
+  .await
+  .map_err(|why| why.detail)?;
+  let mut owed = 0;
+
+  for row in rows {
+    let id: i64 = row.try_get("", "id").map_err(|why| why.to_string())?;
+    let (member, _) = crate::control::work::job(db, id).await.map_err(|why| why.error)?;
+
+    tell_room(db, vars, &member).await;
+    println!("job {id}: its end owed, no notice of it having been written");
+    owed += 1;
+  }
+
+  Ok(owed)
 }
 
 /// The orderer a job's end is told to: the item's, up the chain it was raised from, read from the job service;
@@ -201,43 +248,6 @@ pub async fn orderer(vars: &BTreeMap<String, String>, member: &Value) -> crate::
     room: found.room.or(launched),
     requester: found.requester,
   }
-}
-
-// One instruction handed to the receiver's instruction route.
-async fn post_instruction(url: &str, token: &str, body: &Value) -> Result<(), String> {
-  let answer = reqwest::Client::new()
-    .post(format!("{url}/instructions"))
-    .bearer_auth(token)
-    .json(body)
-    .send()
-    .await;
-
-  match answer {
-    Ok(answer) if answer.status().is_success() => Ok(()),
-    Ok(answer) => Err(answer.status().to_string()),
-    Err(why) => Err(why.to_string()),
-  }
-}
-
-/// An instruction queued for a room's session through the receiver's instruction route, with the address and
-/// token the deployment names; a deployment that carries no receiver queues nothing.
-pub async fn instruct(vars: &BTreeMap<String, String>, body: &Value) -> Result<(), String> {
-  if test_ground(vars) {
-    eprintln!("an instruction was not queued: a test ground reaches no receiver");
-
-    return Err("a test ground reaches no receiver".to_owned());
-  }
-
-  let (Some(url), Some(token)) = (
-    address(vars, "BMO_RECEIVER_URL"),
-    token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
-  ) else {
-    eprintln!("no receiver is named; no instruction was queued");
-
-    return Err("no receiver is named".to_owned());
-  };
-
-  post_instruction(&url, &token, body).await
 }
 
 fn id_of(member: &Value) -> i64 {

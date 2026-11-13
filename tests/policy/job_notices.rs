@@ -40,4 +40,8 @@ fn the_outbox_sends_often_waits_longer_after_each_failure_and_retells_a_standing
       && JOB_NOTICES.retry_first_seconds <= JOB_NOTICES.retry_most_seconds
   );
   assert!(JOB_NOTICES.retell_seconds >= JOB_NOTICES.send_seconds);
+  assert!(
+    JOB_NOTICES.owe_grace_seconds > JOB_NOTICES.answer_seconds,
+    "a change's own path is given longer than one try to owe its notice"
+  );
 }

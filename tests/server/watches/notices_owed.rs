@@ -2,7 +2,8 @@
 //! its orderer」): the job service's events read while the receiver cuts every call are owed, the cursor moves
 //! past them, and each is told once the receiver answers again; a sender stopped in the middle of a telling
 //! leaves the notice owed, the next start tells it, a standing one again at every start under its kind, until
-//! its condition ends and the copy told last is withdrawn.
+//! its condition ends and the copy told last is withdrawn; and a job's end or a review's check whose row a stop cut
+//! off owed by the sender once the grace is past.
 
 use std::collections::BTreeMap;
 
@@ -10,6 +11,8 @@ use agency_server::outbox::{Keep, Notice, owe, owed, restarted};
 use agency_server::queue::settings;
 use agency_server::watches::job_events::{self, CURSOR_KEY};
 use agency_server::watches::notices_owed::pass;
+use policy::job_notices::JOB_NOTICES;
+use policy::job_review::JOB_REVIEW;
 use serde_json::{Value, json};
 
 use crate::support::cut::{Front, Mode};
@@ -166,4 +169,95 @@ async fn a_sender_stopped_mid_telling_leaves_the_check_owed_and_each_start_tells
   assert_eq!(pass(db, &vars).await.unwrap(), 0, "a check no longer due is told no more");
   assert!(owed(db, "job-review:").await.unwrap().is_empty());
   assert_eq!(peers.lock().unwrap().withdrawn(), ["2"], "the copy told last withdrawn");
+}
+
+// Room -120 is item 12's, -130 item 13's: the orderers of the jobs below.
+async fn stand_items(peers: &Peers) {
+  let mut held = peers.lock().unwrap();
+
+  held.items.insert(12, item(12, "leased", json!({ "scope": "-120" })));
+  held.items.insert(13, item(13, "leased", json!({ "scope": "-130" })));
+}
+
+#[tokio::test]
+async fn a_job_s_end_whose_notice_a_stop_cut_off_is_owed_by_the_sender_once_and_a_fresh_one_is_left_to_its_path()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let now = agency_server::now_ms();
+
+  stand_items(&peers).await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "outcome", "report", "started_at", "ended_at", "prompt")
+         VALUES (8, 12, 1, 'runner', 1, 'w1', 'failed', 'failed', 'it broke', 1000, 2000, 'the work'),
+                (9, 13, 2, 'runner', 2, 'w1', 'stopped', 'stopped', 'stopped', 1000, $1, 'the work')"#,
+      vec![now.into()],
+    )
+    .await;
+
+  pass(db, &vars).await.unwrap();
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "only the end past its grace: {told:?}");
+  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-ended:12"), &json!(-120)));
+  assert_eq!(peers.lock().unwrap().noticed()[0]["code"], json!(JOB_NOTICES.failed_code));
+  assert_eq!(
+    scratch.count(r#"SELECT COUNT(*) FROM "jobs" WHERE "end_owed""#, vec![]).await,
+    1,
+    "the end owed is marked so"
+  );
+
+  pass(db, &vars).await.unwrap();
+  assert_eq!(peers.lock().unwrap().instructed().len(), 1, "an end owed is not owed twice");
+}
+
+fn told(heard: &str, words: &str, at: i64) -> String {
+  json!({ "heard": heard, "words": words, "at": at }).to_string()
+}
+
+#[tokio::test]
+async fn a_check_due_whose_row_a_stop_cut_off_is_owed_by_the_sender_with_the_words_it_came_due_with() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  stand_items(&peers).await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt", "review_check", "review_words", "review_told")
+         VALUES (7, 12, 1, 'runner', 1, 'w1', 'reviewing', 1000, 'the work', 'promises', 'the report', $1),
+                (6, 13, 2, 'runner', 2, 'w1', 'reviewing', 1000, 'the work', 'promises', 'the report', $2)"#,
+      vec![
+        told("answer", "It was done so.", 1000).into(),
+        told("report", "the report", agency_server::now_ms()).into(),
+      ],
+    )
+    .await;
+
+  pass(db, &vars).await.unwrap();
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "only the check past its grace: {told:?}");
+  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-review:12"), &json!(-120)));
+
+  let order = told[0]["said"]["order"].as_str().unwrap();
+
+  assert!(
+    order.contains(&JOB_REVIEW.answer_heading) && order.contains("It was done so."),
+    "{order}"
+  );
+  assert!(owed(db, "job-review:12").await.unwrap()[""].told_at.is_some(), "kept standing");
+
+  pass(db, &vars).await.unwrap();
+  assert_eq!(
+    peers.lock().unwrap().instructed().len(),
+    1,
+    "a check owed is not owed again by the sender"
+  );
 }

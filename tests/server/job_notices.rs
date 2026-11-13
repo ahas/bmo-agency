@@ -28,6 +28,25 @@ fn member(item: i64, outcome: Option<&str>, room: Option<i64>) -> Value {
   })
 }
 
+fn waiter(item: i64, room: Option<i64>) -> Value {
+  json!({ "id": 70 + item, "itemId": item, "workerName": "w1", "roomId": room, "state": "starting" })
+}
+
+#[tokio::test]
+async fn a_job_s_wait_whose_item_the_job_service_does_not_answer_is_told_in_the_room_it_was_launched_for() {
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+
+  peers.lock().unwrap().failing.insert("/items/43".to_owned());
+  tell_waiting(scratch.db(), &vars, &waiter(43, Some(-430)), "it waits for a slot of the worker role")
+    .await;
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-waiting:43"), &json!(-430)));
+}
+
 #[tokio::test]
 async fn a_job_s_wait_is_told_to_its_orderer_in_the_room_up_the_chain() {
   let scratch = Scratch::new().await;
@@ -41,8 +60,8 @@ async fn a_job_s_wait_is_told_to_its_orderer_in_the_room_up_the_chain() {
     held.items.insert(42, item(42, "leased", json!({})));
   }
 
-  tell_waiting(scratch.db(), &vars, 41, "w1", "no provider of the order has quota").await;
-  tell_waiting(scratch.db(), &vars, 42, "w1", "it waits for a slot of the worker role").await;
+  tell_waiting(scratch.db(), &vars, &waiter(41, None), "no provider of the order has quota").await;
+  tell_waiting(scratch.db(), &vars, &waiter(42, None), "it waits for a slot of the worker role").await;
 
   let told = peers.lock().unwrap().instructed();
 

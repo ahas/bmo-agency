@@ -16,6 +16,7 @@ use crate::door::turn::Watch;
 use crate::lines::chat::LINE as CHAT;
 use crate::lines::place::{Place, stderr_file, token_of};
 use crate::lines::token;
+use crate::outbox::{Keep, Notice};
 use crate::places::Ground;
 
 // Where the place keeps how far its error stream has been read.
@@ -111,9 +112,10 @@ pub fn absent_instruction(agent: &str, room: i64, server: &str, why: &str) -> se
   })
 }
 
-/// After a turn of a chat line's program: once per program started, each server it did not attach told to
-/// its session in the turn's room and written into the turn's run log. `inactive` is what the program's
-/// harness said of its servers in the error stream's lines just read.
+/// After a turn of a chat line's program: once per program started, each server it did not attach owed to
+/// its session in the turn's room in agency's outbox, keyed by its kind, the agent and the room, and written into
+/// the turn's run log. `inactive` is what the program's harness said of its servers in the error stream's lines
+/// just read.
 pub async fn look<W: Watch>(
   ground: &Ground,
   place: &Place,
@@ -148,10 +150,11 @@ pub async fn look<W: Watch>(
   for (server, why) in absent(line, inactive, connected.as_deref()) {
     watch.note(&absent_fact(&server, &why)).await;
 
-    if let Err(why) =
-      crate::job_end::instruct(ground.vars(), &absent_instruction(agent, room, &server, &why)).await
-    {
-      eprintln!("{agent}: the session was not told its {server} server is absent: {why}");
+    let fact = Notice::instruction(absent_instruction(agent, room, &server, &why), Keep::Once);
+    let key = format!("{}@{agent}:{room}", fact.key);
+
+    if let Err(why) = crate::outbox::owe(&ground.db, ground.vars(), fact.keyed(key)).await {
+      eprintln!("{agent}: the session was not owed its {server} server's absence: {why}");
     }
   }
 

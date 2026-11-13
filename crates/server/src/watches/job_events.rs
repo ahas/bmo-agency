@@ -4,7 +4,8 @@
 //! waits, an item closed by somebody other than its orderer, a run's question asked, a question past its due
 //! time, and a settling reply that withdraws the question's instruction. The cursor advances only past events
 //! whose notices are owed. A pass with no cursor, or one whose cursor left the service's window, reads to the end
-//! and tells nothing of what it passed.
+//! and tells nothing of what it passed but a commit waiting to go live, owed or let go by the last event of each
+//! item it passed, since that notice stands on the item's state rather than on its change.
 
 use std::collections::BTreeMap;
 
@@ -63,7 +64,8 @@ async fn keep(db: &DatabaseConnection, at: i64) -> Result<(), String> {
 
 /// One pass over the job service's events past the cursor, each one's notice owed; nothing where the deployment
 /// names no job service or no receiver. An event whose notice could not be owed ends the pass there, the cursor
-/// kept at the event before it, so the next pass takes it again.
+/// kept at the event before it, so the next pass takes it again. A stretch read without telling keeps its cursor
+/// only once the commits waiting to go live it passed are owed or let go.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
   let (Some(service), Some(_)) = (JobService::of(vars), Receiver::of(vars)) else {
     return Ok(());
@@ -74,6 +76,8 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     .and_then(|value| value.trim().parse::<i64>().ok());
   let mut telling = kept.is_some();
   let mut after = kept;
+  // The last event of each item a stretch read without telling passed.
+  let mut passed: BTreeMap<i64, Value> = BTreeMap::new();
 
   loop {
     let Some((events, more)) = page(&service, after).await? else {
@@ -90,7 +94,13 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     for event in &events {
       let Some(id) = event["id"].as_i64() else { continue };
 
-      if telling && let Err(why) = told(db, vars, &service, event).await {
+      if !telling {
+        if event["kind"] == "item.changed"
+          && let Some(item) = event["data"]["id"].as_i64()
+        {
+          passed.insert(item, event["data"].clone());
+        }
+      } else if let Err(why) = told(db, vars, &service, event).await {
         if let Some(last) = after {
           keep(db, last).await?;
         }
@@ -101,7 +111,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
       after = Some(id);
     }
 
-    if let Some(last) = after {
+    if telling && let Some(last) = after {
       keep(db, last).await?;
     }
 
@@ -110,10 +120,14 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     }
   }
 
-  if after.is_none() {
-    // No event stands yet: the cursor starts at nothing, so the next pass tells what comes.
-    keep(db, 0).await?;
+  for data in passed.values() {
+    deploy_told(db, vars, &service, data)
+      .await
+      .map_err(|why| format!("a commit waiting to go live was not owed, so the cursor stays: {why}"))?;
   }
+
+  // Where no event stands yet, the cursor starts at nothing, so the next pass tells what comes.
+  keep(db, after.unwrap_or(0)).await?;
 
   Ok(())
 }
@@ -215,7 +229,7 @@ async fn told(
     "question.due" => {
       let Some(question) = data["id"].as_i64() else { return Ok(()) };
 
-      crate::job_review::question_due(db, vars, question).await;
+      crate::job_review::question_due(db, vars, question).await?;
       outbox::owe(db, vars, Notice::owner(question, job_notices::question_due(data))).await?;
       println!("queue: question #{question} past its due time, owed to the owner");
     }

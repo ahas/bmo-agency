@@ -297,31 +297,29 @@ pub fn failed(member: &Value, room: Option<i64>) -> Value {
   })
 }
 
-/// A job's wait owed to its item's orderer as it begins (「A job's wait is told as it begins」); a deployment
-/// naming no job service or no receiver tells nothing, and a notice that could not be owed is said and fails
-/// nothing.
+/// A job's wait owed to its item's orderer as it begins (「A job's wait is told as it begins」), the orderer read as
+/// a job's end reads it, so a job service that does not answer sends it to the room the job was launched for; a
+/// deployment naming no job service or no receiver tells nothing, and a notice the store would not take is said
+/// and fails nothing.
 pub async fn tell_waiting(
   db: &sea_orm::DatabaseConnection,
   vars: &BTreeMap<String, String>,
-  item: i64,
-  worker: &str,
+  member: &Value,
   why: &str,
 ) {
-  let (Some(service), Some(_)) = (JobService::of(vars), outbox::Receiver::of(vars)) else {
+  let (Some(_), Some(_)) = (JobService::of(vars), outbox::Receiver::of(vars)) else {
     return;
   };
+  let item = member["itemId"].as_i64().unwrap_or_default();
+  let worker = member["workerName"].as_str().unwrap_or_default();
 
   if item <= 0 {
     return;
   }
 
-  let owed = async {
-    let (_, orderer) = service.orderer_of_id(item).await?;
+  let orderer = crate::job_end::orderer(vars, member).await;
 
-    outbox::owe(db, vars, Notice::instruction(waiting(item, worker, why, &orderer), Keep::Once)).await
-  };
-
-  match owed.await {
+  match outbox::owe(db, vars, Notice::instruction(waiting(item, worker, why, &orderer), Keep::Once)).await {
     Ok(()) => println!("job of item #{item}: its wait owed to its orderer"),
     Err(why) => eprintln!("job of item #{item}: its wait was not owed: {why}"),
   }

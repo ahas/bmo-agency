@@ -9,6 +9,7 @@ use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use bmo_agency_client::JobReviewAsk;
 use policy::fill_marks;
+use policy::job_notices::JOB_NOTICES;
 use policy::job_review::JOB_REVIEW;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -505,6 +506,48 @@ pub async fn result_language(db: &DatabaseConnection, road: Option<&Resumed>) ->
 /// The prefix of the key a job's check is owed under, its item's number after it.
 pub const CHECK_OWED: &str = "job-review:";
 
+/// What the words a check is told with are: the report, the worker's answer to the orderer's question, or the
+/// owner's word.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum Heard {
+  Report,
+  Answer,
+  Ruling,
+}
+
+impl Heard {
+  fn heading(self) -> &'static str {
+    match self {
+      Self::Report => &JOB_REVIEW.report_heading,
+      Self::Answer => &JOB_REVIEW.answer_heading,
+      Self::Ruling => &JOB_REVIEW.ruling_heading,
+    }
+  }
+}
+
+/// The words a due check is told with, kept on the job as the check comes due, so the sender owes the check where
+/// a stop cut its row off (docs/job-review.md, 「The checks」).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct Told {
+  heard: Heard,
+  words: String,
+  /// When the check came due, in epoch milliseconds.
+  at: i64,
+}
+
+impl Told {
+  fn now(heard: Heard, words: &str) -> String {
+    let told = Self {
+      heard,
+      words: words.to_owned(),
+      at: crate::now_ms(),
+    };
+
+    serde_json::to_string(&told).unwrap_or_default()
+  }
+}
+
 // The check due now owed to the orderer, with the words it examines under their heading: a standing notice, told
 // again until the orderer moves (docs/job-review.md, 「The checks」).
 async fn tell_check(
@@ -512,9 +555,11 @@ async fn tell_check(
   vars: &BTreeMap<String, String>,
   id: i64,
   standing: &Standing,
-  heading: &str,
+  heard: Heard,
   words: &str,
 ) {
+  let heading = heard.heading();
+
   if Receiver::of(vars).is_none() {
     eprintln!("job {id}: its review was not told: no receiver is named");
     return;
@@ -591,6 +636,59 @@ pub async fn checks_owed(db: &DatabaseConnection, vars: &BTreeMap<String, String
   Ok(())
 }
 
+/// The checks due that no row is owed for, owed: each job standing under review with a check due, no turn going
+/// out and no owner's question out, whose check came due at least `owe_grace_seconds` ago and whose item has no
+/// check owed — a stop of agency's cut its row off, or the store refused it. Answers how many were owed.
+pub async fn unowed_checks(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+) -> Result<usize, String> {
+  if Receiver::of(vars).is_none() {
+    return Ok(0);
+  }
+
+  let grace = i64::try_from(JOB_NOTICES.owe_grace_seconds * 1000).unwrap_or(i64::MAX / 2);
+  let rows = store::all(
+    db,
+    &format!(
+      r#"SELECT "id", "review_told" FROM "jobs" WHERE "state" = 'reviewing' AND "review_check" IS NOT NULL
+           AND "review_turn" IS NULL AND "review_question" IS NULL AND "review_told" IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM "notices" WHERE "route" <> 'withdrawal'
+             AND "key" = '{CHECK_OWED}' || "jobs"."item_id"::text)
+         ORDER BY "id""#
+    ),
+    vec![],
+  )
+  .await
+  .map_err(|why| why.detail)?;
+  let before = crate::now_ms() - grace;
+  let mut owed = 0;
+
+  for row in rows {
+    let id: i64 = row.try_get("", "id").map_err(|why| why.to_string())?;
+    let told: String = row.try_get("", "review_told").map_err(|why| why.to_string())?;
+    let Ok(told) = serde_json::from_str::<Told>(&told) else {
+      eprintln!("job {id}: the words its check is told with were not read");
+      continue;
+    };
+
+    if told.at > before {
+      continue;
+    }
+
+    let standing = standing(db, id).await.map_err(|why| why.error)?;
+
+    tell_check(db, vars, id, &standing, told.heard, &told.words).await;
+    println!(
+      "job {id}: its review's check {} owed, no row standing for it",
+      standing.check.unwrap_or_default()
+    );
+    owed += 1;
+  }
+
+  Ok(owed)
+}
+
 // The check owed for a job's item as it stood before its orderer's move.
 async fn check_owed(db: &DatabaseConnection, item: i64) -> Option<outbox::Owed> {
   outbox::owed(db, &format!("{CHECK_OWED}{item}")).await.ok()?.remove("")
@@ -620,6 +718,7 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
     return;
   };
   let asked = standing.turn.as_deref() == Some(QUESTION);
+  let heard = if asked { Heard::Answer } else { Heard::Report };
   let first = JOB_REVIEW.checks.first().map(|check| check.name.clone());
 
   if !asked {
@@ -631,7 +730,7 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
     db,
     &format!(
       r#"UPDATE "jobs" SET "state" = 'reviewing', "review_turn" = NULL, "review_check" = $1,
-           "review_words" = $2, "report" = $3, {SPENT_ADDED}
+           "review_words" = $2, "report" = $3, "review_told" = $11, {SPENT_ADDED}
          WHERE "id" = $6 AND "state" IN ('starting', 'running')"#
     ),
     vec![
@@ -645,6 +744,7 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
       spent.map(|spent| spent.output_tokens).into(),
       spent.map(|spent| spent.cache_read_tokens).into(),
       spent.map(|spent| spent.cache_write_tokens).into(),
+      Told::now(heard, words).into(),
     ],
   )
   .await;
@@ -674,9 +774,7 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
   )
   .await;
 
-  let heading = if asked { &JOB_REVIEW.answer_heading } else { &JOB_REVIEW.report_heading };
-
-  tell_check(&ground.db, ground.vars(), id, &standing, heading, words).await;
+  tell_check(&ground.db, ground.vars(), id, &standing, heard, words).await;
 
   if let Ok((member, _)) = job(db, id).await {
     publish(ground, "job.changed", member);
@@ -907,15 +1005,16 @@ async fn passed(
 
   if let Some(next) = JOB_REVIEW.after(check) {
     standing.check = Some(next.name.clone());
-    run(
-      db,
-      r#"UPDATE "jobs" SET "review_check" = $1 WHERE "id" = $2"#,
-      vec![next.name.clone().into(), id.into()],
-    )
-    .await?;
     let words = standing.words.clone().unwrap_or_default();
 
-    tell_check(&ground.db, ground.vars(), id, &standing, &JOB_REVIEW.report_heading, &words).await;
+    run(
+      db,
+      r#"UPDATE "jobs" SET "review_check" = $1, "review_told" = $3 WHERE "id" = $2"#,
+      vec![next.name.clone().into(), id.into(), Told::now(Heard::Report, &words).into()],
+    )
+    .await?;
+
+    tell_check(&ground.db, ground.vars(), id, &standing, Heard::Report, &words).await;
 
     return Ok(());
   }
@@ -1169,43 +1268,45 @@ async fn waiting_on(db: &DatabaseConnection, question: i64) -> Option<i64> {
 }
 
 /// The owner's question past its due time (docs/job-review.md, 「The owner's word」): the job whose work waits on
-/// it gives its checkout up, and its orderer is told to launch the work that can go now.
-pub async fn question_due(db: &DatabaseConnection, vars: &BTreeMap<String, String>, question: i64) {
+/// it gives its checkout up, and its orderer is told to launch the work that can go now. The same event taken
+/// again moves nothing more and owes the notice again, so a stop between the two leaves it owed. Fails only where
+/// the notice could not be owed, so the event is taken again.
+pub async fn question_due(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  question: i64,
+) -> Result<(), String> {
   let Some(id) = waiting_on(db, question).await else {
-    return;
+    return Ok(());
   };
   let Ok(standing) = standing(db, id).await else {
-    return;
+    return Ok(());
   };
 
-  if standing.parked {
-    return;
-  }
+  if !standing.parked {
+    if let Err(why) = run(
+      db,
+      r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" IN ('held', 'running')"#,
+      vec![crate::now_ms().into(), standing.assignment.into()],
+    )
+    .await
+    {
+      eprintln!("job {id}: its checkout was not given up: {}", why.detail);
+      return Ok(());
+    }
 
-  if let Err(why) = run(
-    db,
-    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" IN ('held', 'running')"#,
-    vec![crate::now_ms().into(), standing.assignment.into()],
-  )
-  .await
-  {
-    eprintln!("job {id}: its checkout was not given up: {}", why.detail);
-    return;
+    let _ = run(db, r#"UPDATE "jobs" SET "review_parked" = true WHERE "id" = $1"#, vec![id.into()]).await;
+    println!(
+      "job {id}: gave its checkout {} up while the owner's question #{question} waits",
+      standing.worker
+    );
   }
-
-  let _ = run(db, r#"UPDATE "jobs" SET "review_parked" = true WHERE "id" = $1"#, vec![id.into()]).await;
-  println!(
-    "job {id}: gave its checkout {} up while the owner's question #{question} waits",
-    standing.worker
-  );
 
   if Receiver::of(vars).is_none() {
-    return;
+    return Ok(());
   }
 
-  let Ok((member, _)) = job(db, id).await else {
-    return;
-  };
+  let (member, _) = job(db, id).await.map_err(|why| why.error)?;
   let orderer = crate::job_end::orderer(vars, &member).await;
   let order = fill_marks(
     &JOB_REVIEW.parked_order,
@@ -1224,9 +1325,9 @@ pub async fn question_due(db: &DatabaseConnection, vars: &BTreeMap<String, Strin
     order,
   );
 
-  if let Err(why) = outbox::owe(db, vars, Notice::instruction(body, Keep::Once)).await {
-    eprintln!("job {id}: its checkout given up was not owed: {why}");
-  }
+  outbox::owe(db, vars, Notice::instruction(body, Keep::Once))
+    .await
+    .map_err(|why| format!("job {id}: its checkout given up was not owed: {why}"))
 }
 
 /// The owner's settling answer to a job's question (docs/job-review.md, 「The owner's word」): written as the
@@ -1250,8 +1351,12 @@ pub async fn ruled(db: &DatabaseConnection, vars: &BTreeMap<String, String>, rep
     .join("\n\n");
   let actor = reply["actorName"].as_str().unwrap_or("owner");
 
-  if let Err(why) =
-    run(db, r#"UPDATE "jobs" SET "review_question" = NULL WHERE "id" = $1"#, vec![id.into()]).await
+  if let Err(why) = run(
+    db,
+    r#"UPDATE "jobs" SET "review_question" = NULL, "review_told" = $2 WHERE "id" = $1"#,
+    vec![id.into(), Told::now(Heard::Ruling, &words).into()],
+  )
+  .await
   {
     eprintln!("job {id}: the owner's answer was not taken: {}", why.detail);
     return;
@@ -1268,5 +1373,5 @@ pub async fn ruled(db: &DatabaseConnection, vars: &BTreeMap<String, String>, rep
     json!({ "question": question.to_string() }),
   )
   .await;
-  tell_check(db, vars, id, &standing, &JOB_REVIEW.ruling_heading, &words).await;
+  tell_check(db, vars, id, &standing, Heard::Ruling, &words).await;
 }

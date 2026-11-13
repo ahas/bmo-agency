@@ -612,7 +612,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     (`policy/run-lines.toml`) the tool host saw no client of this session's token reach, where it saw some
     other one reach it (the host's `connected` on `GET /tool-sessions/{token}`; a host that saw none since
     it started says nothing), and every server whose client dsh's error stream says did not activate. Each
-    absent server is one fact queued for the session in the turn's room through the receiver's
+    absent server is one fact owed in agency's outbox (「An item's change is told to its orderer」), keyed by
+    its kind, the agent and the room, and queued for the session in the turn's room through the receiver's
     `POST /instructions`, of the kind `session-tools:<server>`, saying the server is absent from this
     session and why, with no instruction; the tools paragraph says how a hosted tool is reached, and the
     session's own rules say nothing of it is spoken in a room. The fact costs one line of the turn's run
@@ -3006,7 +3007,9 @@ with the session.
   follow-ups, are told to the supervisor whose job raised them. A chain that reaches no room, an item the job
   service no longer answers for, an item already passed on the chain, and a chain deeper than the policy's
   depth (`policy/job-notices.toml`, `orderer_depth`) all end in the owner's private room. One resolver answers
-  this for every notice below; nothing else finds an orderer.
+  this for every notice below; nothing else finds an orderer. A notice of a job's own — its end, its wait, its
+  review — whose orderer cannot be read because the job service does not answer goes to the room the job was
+  launched for, so none waits on that answer or is lost for it.
 - **Through the receiver.** An instruction is `POST /instructions` of the receiver: an order under the sort
   `job` in the orderer's room (null for the owner's private room), with a `kind` of its row and the item's or
   the question's number, so a newer notice of the same kind replaces one still pending there, and one event
@@ -3026,10 +3029,20 @@ with the session.
   answer refusing the notice is said in agency's log and ends that copy. A restart of agency or of the receiver
   loses no notice: the rows stand in the store, and the sender's first pass after agency starts sends every
   one still owed.
+- **A change written before its notice's row stays owed in the store.** Two changes are written before their
+  notice's row can be, since the orderer is read between the two: a job's end, and a check of a job's review
+  coming due. The job keeps beside them whether its end's notice is owed yet, and the words its due check is
+  told with and when it came due (`docs/store.md`). The sender, before each pass, owes the end of every job
+  ended at least `owe_grace_seconds` ago (`policy/job-notices.toml`) whose notice is not owed yet, and the check
+  of every job standing under review with a check due, none owed for its item, that came due at least that long
+  ago. So a restart of agency between the change and the row, a store that refused the row, or a job's end
+  written by `bmo-agency run stop` while the server did not answer, ends with the notice told: told twice at
+  worst, never not at all.
 - **A row told is let go, kept, or kept standing.** How each kind is kept once the receiver took it:
   - **let go**, the notice told at least once and done: a job's end and failure, a job's wait, a checkout
     given up, an item moved under its job, closed by another, waiting on a paused queue, unlaunchable, without
-    a candidate, a draft awaiting approval, a wait ended, a question past its due time, and an idle queue;
+    a candidate, a draft awaiting approval, a wait ended, a question past its due time, an idle queue, and a
+    chat session's absent server;
   - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
     `DELETE /instructions/{id}`: a job's question, withdrawn once a settling reply comes;
   - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
@@ -3048,11 +3061,15 @@ with the session.
   (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `question.created`, `question.due`
   and `reply.created`, past its cursor), keeping the last event's number as the settings row
   `job_events_after`. A pass with no cursor, or one the job service answers 410 because the cursor left its
-  window, reads to the end and keeps the last number, telling nothing of what it passed. The cursor advances
+  window, reads to the end and keeps the last number, telling nothing of what it passed but a commit waiting to
+  go live: that notice stands on the item's state rather than on its change, so the last event the passed
+  stretch holds of each item owes it or lets it go, and the cursor is kept only once that is done. The cursor advances
   only past events whose notices are written: a page's events are taken in order, and an event whose notice
   could not be written — its orderer not read, the store refusing the row — ends the pass there, the cursor
   kept at the event before it, so the next pass takes that event again. Taking an event again owes nothing
-  twice: a row replaces its own kind, and a question past its due time or ruled moves the job's review once.
+  twice: a row replaces its own kind, and a question past its due time or ruled moves the job's review once,
+  a question past its due time owing its job's `job-review-parked` again where the review had already moved,
+  so that notice is told at least once.
   An item's event carries `previousState` and `changedBy`, which are read rather than a snapshot of the item.
 
 | Transition | Who is told | Through | Kind and event |

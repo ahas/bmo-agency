@@ -77,6 +77,7 @@ mod m20261216_000001_job_machine_turn;
 mod m20261217_000001_notices;
 mod m20261218_000001_job_turn_words;
 mod m20261219_000001_registration_languages;
+mod m20261220_000001_job_notices_owed;
 
 use sea_orm_migration::prelude::*;
 
@@ -238,6 +239,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261217_000001_notices::Migration),
       Box::new(m20261218_000001_job_turn_words::Migration),
       Box::new(m20261219_000001_registration_languages::Migration),
+      Box::new(m20261220_000001_job_notices_owed::Migration),
     ]
   }
 

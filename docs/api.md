@@ -1403,8 +1403,10 @@ service.
   orderer through the receiver's `POST /instructions`: an order under the sort `job` in the orderer's room,
   naming the requester of the item the orderer was found on, and carrying the item, the repository, the role,
   the outcome and the report whole, under the kind `job-ended:<item>` and the event `job-ended:#<item>`; an
-  ended job's order names the lease that still stands on the item, which the close ends. The receiver keeps
-  the instruction until a turn takes it, so a chat session being replaced when the job ended loses nothing.
+  ended job's order names the lease that still stands on the item, which the close ends. Agency owes it in its
+  outbox until the receiver takes it, and owes the end of a job whose notice a restart of agency cut off once the
+  policy's grace has passed (`docs/agent-control.md`, 「An item's change is told to its orderer」); the receiver
+  keeps the instruction until a turn takes it, so a chat session being replaced when the job ended loses nothing.
   The supervisor reads the report and relays the job's end in a few lines in that room, as its own manual
   says, the report itself staying whole on the item. The orderer is the item's room, else its parent's up
   the chain it was raised from, read from the job service (`docs/agent-control.md`, 「An item's change is

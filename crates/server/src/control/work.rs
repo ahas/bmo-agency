@@ -1885,10 +1885,7 @@ async fn tell_waiting(ground: &Ground, member: &Value, why: &str) {
     return;
   }
 
-  let item = member["itemId"].as_i64().unwrap_or_default();
-  let worker = member["workerName"].as_str().unwrap_or_default();
-
-  crate::job_notices::tell_waiting(&ground.db, ground.vars(), item, worker, why).await;
+  crate::job_notices::tell_waiting(&ground.db, ground.vars(), member, why).await;
 }
 
 // Whether a job was ended or stopped from outside while this process carried it.

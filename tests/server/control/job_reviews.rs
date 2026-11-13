@@ -370,7 +370,7 @@ async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_a
   assert_eq!((status, refused["code"].as_str()), (409, Some("awaits-owner")), "{refused}");
 
   // Past its due time the job gives its checkout up, its item still its own.
-  agency_server::job_review::question_due(scratch.db(), &vars, 77).await;
+  agency_server::job_review::question_due(scratch.db(), &vars, 77).await.unwrap();
 
   let member = read(port, 25).await;
 

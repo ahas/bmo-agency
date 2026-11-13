@@ -1,7 +1,8 @@
 //! The job service's events told to an item's orderer and the owner (docs/agent-control.md, 「An item's change
 //! is told to its orderer」): an item closed by somebody other than its orderer, a run's question asked and
 //! withdrawn once a reply settles it, a question past its due time told to the owner, each once; and a pass
-//! with no cursor, or one past the window, telling nothing of what it passed.
+//! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
+//! live; and a question past its due time taken again owing its parked job's notice again.
 
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
@@ -311,4 +312,90 @@ async fn a_merged_commit_waiting_for_its_batch_deployment_is_owed_like_one_waiti
 
   assert_eq!(agency_server::outbox::owed(db, DEPLOY_OWED).await.unwrap()["91"].mark, "abc");
   assert_eq!(peers.lock().unwrap().instructed().len(), 1);
+}
+
+fn deploy_waiting(id: i64, item_id: i64, commit: &str) -> Value {
+  event(
+    id,
+    "item.changed",
+    item(
+      item_id,
+      "leased",
+      json!({ "previousState": "leased", "labels": { "close-phase": "waiting-batch", "close-commit": commit } }),
+    ),
+  )
+}
+
+#[tokio::test]
+async fn a_pass_past_the_window_owes_the_commits_its_stretch_left_waiting_and_lets_go_those_that_went_live()
+{
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "10").await.unwrap();
+  peers.lock().unwrap().events = vec![deploy_waiting(11, 92, "abc")];
+  pass(db, &vars).await.unwrap();
+  assert_eq!(owed(db, DEPLOY_OWED).await.unwrap()["92"].mark, "abc");
+
+  // The cursor falls out of the window: 92 went live, 93 began to wait, 94 waited and went live, and a close by
+  // somebody else is passed untold.
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.window_from = 20;
+    held.events = vec![
+      event(
+        20,
+        "item.changed",
+        item(92, "done", json!({ "previousState": "leased", "changedBy": "someone" })),
+      ),
+      deploy_waiting(21, 93, "x1"),
+      deploy_waiting(22, 94, "y1"),
+      event(
+        23,
+        "item.changed",
+        item(94, "done", json!({ "previousState": "leased", "changedBy": "someone" })),
+      ),
+    ];
+  }
+
+  pass(db, &vars).await.unwrap();
+
+  let owed = owed(db, DEPLOY_OWED).await.unwrap();
+  let kinds: Vec<Value> =
+    peers.lock().unwrap().instructed().iter().map(|told| told["kind"].clone()).collect();
+
+  assert_eq!(owed.keys().collect::<Vec<_>>(), ["93"], "{owed:?}");
+  assert_eq!(kinds, [json!("item-awaits-deploy:92"), json!("item-awaits-deploy:93")]);
+  assert_eq!(peers.lock().unwrap().withdrawn(), ["1"], "the copy of the commit gone live withdrawn");
+  assert_eq!(settings::get(db, CURSOR_KEY).await.unwrap().as_deref(), Some("23"));
+}
+
+#[tokio::test]
+async fn a_question_past_its_due_time_taken_again_owes_its_parked_job_s_notice_again() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  peers.lock().unwrap().items.insert(95, item(95, "leased", json!({ "scope": "-950" })));
+  // The process before parked the job and stopped before its notice's row was written.
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt", "review_check", "review_question", "review_parked")
+         VALUES (5, 95, 1, 'runner', 1, 'w1', 'reviewing', 1000, 'the work', 'promises', 31, true)"#,
+      vec![],
+    )
+    .await;
+  settings::set(db, CURSOR_KEY, "70").await.unwrap();
+  peers.lock().unwrap().events =
+    vec![event(71, "question.due", json!({ "id": 31, "itemId": 95, "text": "which?" }))];
+
+  pass(db, &vars).await.unwrap();
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-review-parked:95"), &json!(-950)));
 }
