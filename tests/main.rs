@@ -23,3 +23,4 @@ mod policy;
 mod server;
 mod store;
 mod tools;
+mod typescript_binaries;

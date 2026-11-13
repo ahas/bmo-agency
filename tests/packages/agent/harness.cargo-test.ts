@@ -1,6 +1,8 @@
 import "@agency/test-support/setup";
 
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
 
 import { readClaudeOutput } from "@agency/agent/claude";
 import { ClaudeLimitError } from "@agency/agent/claude-failure";
@@ -18,8 +20,8 @@ import {
   provider,
   providerImplementations,
 } from "@agency/agent/harnesses";
-import { codeRoot, sourceRoot } from "@agency/support/roots";
-import { crateBinary } from "@agency/test-support/cargo";
+import { deployRoot, sourceRoot } from "@agency/support/roots";
+import { workspaceBinary } from "@agency/test-support/binaries";
 
 import type { HarnessRun } from "@agency/agent/harness";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
@@ -54,8 +56,10 @@ function chatRunFor(thinking: boolean, answerShape: HarnessRun["answerShape"] = 
   };
 }
 
-// What the providers answer about the machine is the harness-providers binary's, built as the file loads.
-crateBinary(codeRoot, "harness-providers");
+// What the providers answer about the machine is the harness-providers binary's, the one Cargo built before
+// the tests, standing where the code looks for it: the test home's deploy tree.
+mkdirSync(join(deployRoot(), "bin"), { recursive: true });
+symlinkSync(workspaceBinary("harness-providers"), join(deployRoot(), "bin", "harness-providers"));
 
 
 // Every line as it stands today, flag for flag and value for value. A flag that moves, is added

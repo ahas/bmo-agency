@@ -14,7 +14,7 @@ import type { ControlBase } from "./control-contract-base";
 // environment names, and a consumer reads it off `GET /events` by its kind.
 
 const token = "secret";
-// The binary is built as the file loads, so no hook spends its own time on a build.
+// The binary is read as the file loads, so no hook spends its own time on it.
 const binary = frontBinary();
 // Made at the file's top, as a scratch store must be.
 const store = await emptyDatabase();

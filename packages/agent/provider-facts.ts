@@ -16,8 +16,8 @@ const readings = new Map<string, { at: number; answer: Promise<Presence> }>();
 
 /**
  * The binary the sidecars and the verbs run: the deploy tree's, where the deployment put it, and where
- * none stands there — the code running out of a checkout, a test among it — that checkout's own debug
- * build, in the target directory Cargo builds it into (docs/provider-presence.md).
+ * none stands there — the code running out of a checkout — that checkout's own debug build, in the
+ * target directory Cargo builds it into (docs/provider-presence.md).
  */
 export function providerFactsBinary(): string {
   const deployed = join(deployRoot(), "bin", BINARY);

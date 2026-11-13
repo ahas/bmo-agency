@@ -49,7 +49,9 @@ them.
 - **No test runs Cargo.** A workspace binary a test starts is the root package's copy of it, a `[[bin]]`
   compiled from the crate's own entry point under the `test-binaries` feature, which Cargo builds before
   the tests run; `tests/support/binary.rs` hands it over under its own name. A binary a test newly starts is
-  added there and in the root manifest.
+  added there and in the root manifest. A TypeScript test that starts one is named `*.cargo-test.ts`, which
+  Bun's own run passes over, and `tests/typescript_binaries.rs` runs it under Bun with the directory the
+  built binaries stand in.
 - **A test takes down every process it starts, with its descendants, and waits on none without a bound:** a
   process that should end by itself and does not fails the test rather than holding the test binary.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands

@@ -2,7 +2,7 @@
 // standing on the store the test hands it, its control port and its quota source each on a port the
 // machine picks.
 
-import { crateBinary } from "@agency/test-support/cargo";
+import { workspaceBinary } from "@agency/test-support/binaries";
 import { codeRoot, dataRoot } from "@agency/support/roots";
 
 /** The port a contract test speaks to, and how it is taken down. */
@@ -11,9 +11,9 @@ export interface ControlBase {
   close(): Promise<void>;
 }
 
-/** The binary a file standing the server runs, built as that file loads. */
+/** The binary a file standing the server runs, as Cargo built it before the tests. */
 export function frontBinary(): string {
-  return crateBinary(codeRoot, "agency-server", "agency-server");
+  return workspaceBinary("agency-server");
 }
 
 /**

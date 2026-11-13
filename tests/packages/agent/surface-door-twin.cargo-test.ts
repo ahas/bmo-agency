@@ -17,7 +17,7 @@ import { installProviderSettings } from "@agency/agent/provider-order";
 import { readProgram, readRunning, residentCommand } from "@agency/agent/resident-pane";
 import { headCommand } from "@agency/agent/units";
 import { Archive } from "@agency/archive/archive";
-import { crateBinary } from "@agency/test-support/cargo";
+import { workspaceBinary } from "@agency/test-support/binaries";
 import { codeRoot } from "@agency/support/roots";
 import { scratchDir } from "@agency/test-support/scratch";
 import { toolHostStandIn } from "@agency/test-support/tool-host-stand-in";
@@ -42,7 +42,7 @@ const toolHost = toolHostStandIn(scratchDir("bmo-tool-host-"));
 
 afterAll(() => toolHost.stop());
 
-const binary = crateBinary(codeRoot, "bmo-agency", "agency-server");
+const binary = workspaceBinary("bmo-agency");
 const root = scratchDir("bmo-surface-twin-");
 const realDataDir = process.env.BMO_DATA_DIR;
 // The user's own Codex home, whose login and threads the program's home shares: the bun side is handed

@@ -5,7 +5,8 @@
 //! own (the root manifest, `test-binaries`), and Cargo names each one's path to the tests at compile time. A
 //! binary that finds another beside itself, as the server finds the verbs, or that is told apart by the name
 //! it was started under, needs both under their own names in one directory, so the first ask of a test
-//! binary links every one into a directory of its own beside them, under the name the crate gives it.
+//! binary links every one into a directory of its own beside them, under the name the crate gives it. A
+//! TypeScript test that starts one is handed that directory (`typescript_binaries`).
 
 #![allow(dead_code)]
 
@@ -14,13 +15,14 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 /// Every binary a test starts: its own name and the root package's copy of it.
-const BINARIES: [(&str, &str); 7] = [
+const BINARIES: [(&str, &str); 8] = [
   ("agency-server", env!("CARGO_BIN_EXE_test-agency-server")),
   ("bmo-agency", env!("CARGO_BIN_EXE_test-bmo-agency")),
   ("agent-host", env!("CARGO_BIN_EXE_test-agent-host")),
   ("pane-head", env!("CARGO_BIN_EXE_test-pane-head")),
   ("node-link", env!("CARGO_BIN_EXE_test-node-link")),
   ("llm-gateway", env!("CARGO_BIN_EXE_test-llm-gateway")),
+  ("harness-providers", env!("CARGO_BIN_EXE_test-harness-providers")),
   ("procedures-tool", env!("CARGO_BIN_EXE_test-procedures-tool")),
 ];
 
@@ -45,7 +47,8 @@ fn place(dir: &Path, name: &str, built: &Path) {
   fs::rename(&fresh, &placed).unwrap_or_else(|error| panic!("{name} could not be placed: {error}"));
 }
 
-fn placed_dir() -> &'static Path {
+/// The directory every workspace binary stands in under its own name.
+pub fn placed_dir() -> &'static Path {
   PLACED_DIR.get_or_init(|| {
     let (_, first) = BINARIES[0];
     let dir = Path::new(first).parent().expect("a built binary stands in a directory").join(PLACED);

@@ -4,11 +4,10 @@ import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { codeRoot } from "@agency/support/roots";
 import { installPlacer, spawnAgentProcess } from "@agency/agent/agent-process";
 import { installProviderSettings, setProviderEnabled } from "@agency/agent/provider-order";
 import { scratchArchive } from "@agency/test-support/store";
-import { crateBinary } from "@agency/test-support/cargo";
+import { workspaceBinary } from "@agency/test-support/binaries";
 import { scratchDir } from "@agency/test-support/scratch";
 import queueWords from "@agency/policy/queue-words.toml";
 
@@ -20,9 +19,8 @@ import type { Archive } from "@agency/archive/archive";
 // each came to must be the same: the outcome, what the program wrote, the execution row as it was left, and
 // the lines the agent's view was given.
 
-const root = codeRoot;
-const binary = crateBinary(root, "bmo-agency", "agency-server");
-const hostBinary = crateBinary(root, "agent-host");
+const binary = workspaceBinary("bmo-agency");
+const hostBinary = workspaceBinary("agent-host");
 const agent = "voice-polish";
 const line = "gate";
 const provider = "codex";

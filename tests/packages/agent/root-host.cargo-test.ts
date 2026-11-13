@@ -9,11 +9,10 @@ import { installPlacer, spawnAgentProcess } from "@agency/agent/agent-process";
 import { installProviderSettings } from "@agency/agent/provider-order";
 import { MCP_TOKEN_VARIABLE, ToolHostDown, composeToolRecord, issueToolToken } from "@agency/agent/tool-host";
 import declaredRoles from "@agency/policy/roles.toml";
-import { crateBinary } from "@agency/test-support/cargo";
+import { workspaceBinary } from "@agency/test-support/binaries";
 import { scratchDir } from "@agency/test-support/scratch";
 
 import type { Placer } from "@agency/agent/pane-process";
-import { codeRoot } from "@agency/support/roots";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
 // A line standing on the hosts (docs/agent-control.md, 「The host」), as a launcher
@@ -21,7 +20,6 @@ import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 // tool host's issuing socket that hands out tokens and notes what it was told. The worker the runs are
 // issued for holds the worker role, whose bundles are all the worker line's runs are given.
 
-const root = codeRoot;
 const data = join(scratchDir("bmo-root-host-"), "data");
 const sockets = scratchDir("bmo-root-host-sockets-");
 const told: { issued: Record<string, unknown>[]; revoked: string[] } = { issued: [], revoked: [] };
@@ -76,7 +74,7 @@ beforeAll(async () => {
       return new Response(null, { status: 404 });
     },
   });
-  agentHost = Bun.spawn([crateBinary(root, "agent-host"), "serve", "--data-root", data, "--code-root", data, "--poll-ms", "10"], { stdout: "ignore", stderr: "ignore" });
+  agentHost = Bun.spawn([workspaceBinary("agent-host"), "serve", "--data-root", data, "--code-root", data, "--poll-ms", "10"], { stdout: "ignore", stderr: "ignore" });
   installProviderSettings(archive);
   composeToolRecord((run) => ({ granted: bundlesOf(run.agent === "worker" ? "worker" : null) }));
 

@@ -19,7 +19,7 @@ import type { ControlBase } from "./control-contract-base";
 // down what it was asked.
 
 const token = "secret";
-// The binary is built as the file loads, so no hook spends its own time on a build.
+// The binary is read as the file loads, so no hook spends its own time on it.
 const binary = frontBinary();
 const brainRoot = join(dataRoot(), "brain");
 const brainAsked: { method: string; path: string; query: string }[] = [];
