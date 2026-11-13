@@ -1091,29 +1091,54 @@ pub(crate) async fn role_work_parts(
   })
 }
 
-// The jobs this process carries now, from their launch to their end: one waiting for a road, or between one
-// road and the next, has no live execution behind it and is still no job the process lost.
-static CARRYING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<i64>>> =
+// The jobs this process carries now, from their launch until their end is written: one waiting for a road, or
+// between one road and the next, has no live execution behind it and is still no job the process lost. Each job
+// counts the marks held on it, since a turn its end hands to the review may mark it again before the mark of the
+// turn that ended is let go.
+static CARRYING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<i64, usize>>> =
   std::sync::LazyLock::new(Default::default);
 
 /// Whether this process carries a turn of the job now.
 pub fn is_carrying(id: i64) -> bool {
-  carrying().contains(&id)
+  carrying().contains_key(&id)
 }
 
-fn carrying() -> std::sync::MutexGuard<'static, std::collections::HashSet<i64>> {
+fn carrying() -> std::sync::MutexGuard<'static, std::collections::HashMap<i64, usize>> {
   CARRYING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+// A mark that this process carries a turn of a job, let go as it drops.
+struct Carrying(i64);
+
+impl Carrying {
+  fn of(id: i64) -> Self {
+    *carrying().entry(id).or_default() += 1;
+
+    Self(id)
+  }
+}
+
+impl Drop for Carrying {
+  fn drop(&mut self) {
+    let mut held = carrying();
+
+    if let Some(marks) = held.get_mut(&self.0) {
+      *marks -= 1;
+
+      if *marks == 0 {
+        held.remove(&self.0);
+      }
+    }
+  }
 }
 
 // The run of one job: the worker's session started, the item's turns carried across its roads, and the
 // job's end written, its assignment released, and an end that is no answer noted in the job's log. A job
-// ended from outside while it waited for a road keeps the end written for it.
+// ended from outside while it waited for a road keeps the end written for it. The job stays carried until its
+// end is written, so no pass that ends a job left running takes it in between.
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
-  carrying().insert(id);
-
+  let _carried = Carrying::of(id);
   let ended = launched(&ground, sessions, id, None).await;
-
-  carrying().remove(&id);
 
   finish(&ground, id, ended).await;
 }
@@ -1127,11 +1152,8 @@ pub async fn carry_review_turn(
   id: i64,
   turn: crate::job_review::Turn,
 ) {
-  carrying().insert(id);
-
+  let _carried = Carrying::of(id);
   let ended = launched(&ground, sessions, id, Some(turn)).await;
-
-  carrying().remove(&id);
 
   finish(&ground, id, ended).await;
 }
@@ -1225,7 +1247,8 @@ pub async fn resume_launches(
       closed(ground, run_id, crate::run_sweep::CUT, None, None).await;
     }
 
-    carrying().insert(id);
+    let carried = Carrying::of(id);
+
     noted_line(ground, id, RESUMED).await;
     println!("job {id}: launched again after agency restarted, {state}");
 
@@ -1235,11 +1258,16 @@ pub async fn resume_launches(
     // A job that never reported carries its first turn; one that did carries the turn its review asked for.
     if reported {
       tokio::spawn(async move {
+        let _carried = carried;
+
         crate::job_review::resumed_turn(ground, sessions, id).await;
-        carrying().remove(&id);
       });
     } else {
-      tokio::spawn(async move { launch(ground, sessions, id).await });
+      tokio::spawn(async move {
+        let _carried = carried;
+
+        launch(ground, sessions, id).await;
+      });
     }
 
     resumed += 1;
@@ -1453,7 +1481,7 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
     let started_at: i64 = row.try_get("", "started_at")?;
     let state: String = row.try_get("", "state")?;
 
-    if now - started_at < REAP_GRACE_MS || carrying().contains(&id) {
+    if now - started_at < REAP_GRACE_MS || is_carrying(id) {
       continue;
     }
 
