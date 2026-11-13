@@ -158,9 +158,10 @@ fn an_endpoints_refusals_are_read_as_its_accounts_and_never_as_the_works() {
 // whether the CLI asks for `/login` beside it or not, and in its own words.
 #[test]
 fn a_403_is_the_account_s_refusal_whatever_stands_beside_it() {
+  // The resident program's line, and the line a print run of the CLI leaves.
   for said in [
     "Please run /login · API Error: 403 Attention Required! | Cloudflare",
-    "API Error: 403 Attention Required! | Cloudflare",
+    "Failed to authenticate. API Error: 403 Attention Required! | Cloudflare",
   ] {
     for failed in [of_unanswered(said, "coder"), of_errored(said, "coder")] {
       assert_eq!(failed.account_failure(), Some(AccountFailure::Login), "{said}");
