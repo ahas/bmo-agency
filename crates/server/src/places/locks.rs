@@ -103,14 +103,17 @@ pub async fn hold(path: PathBuf) -> std::io::Result<Held> {
 }
 
 /// Whether somebody holds the lock. A file that is not there is held by nobody; one that cannot be
-/// opened is not taken for free, since nobody could say.
+/// opened is not taken for free, since nobody could say. The look takes the lock shared, which a holder's
+/// exclusive lock refuses and another look at the same moment does not, so two looks never read each other
+/// as a holder.
 pub fn held(path: &Path) -> bool {
   if !path.exists() {
     return false;
   }
 
   match OpenOptions::new().read(true).open(path) {
-    Ok(file) => !take(&file, false),
+    // SAFETY: the descriptor is the open file's own, and flock reads nothing else.
+    Ok(file) => unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_SH | libc::LOCK_NB) != 0 },
     Err(_) => true,
   }
 }
