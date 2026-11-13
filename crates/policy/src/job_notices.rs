@@ -52,8 +52,8 @@ pub struct JobNotices {
   pub retell_seconds: u64,
   /// How long one try waits for the receiver's answer, in seconds; a notice is held to one sender for twice it.
   pub answer_seconds: u64,
-  /// How long after a job's end, or after a check of its review came due, the sender waits before it owes a
-  /// notice of it not yet owed itself, in seconds.
+  /// How long after a job's end, a check of its review coming due or its wait beginning, the sender waits before
+  /// it owes a notice of it not yet owed itself, in seconds.
   pub owe_grace_seconds: u64,
 }
 

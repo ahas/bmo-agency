@@ -1,5 +1,5 @@
-//! A job keeps whether the notice of its end is owed yet, and the words its due review check is told with and
-//! when it came due, so agency's sender owes a notice a stop cut off before its row was written
+//! A job keeps whether the notice of its end is owed yet, the words its due review check is told with and when
+//! it came due, and when the wait it has not yet owed began, so agency's sender owes a notice a stop cut off before its row was written
 //! (docs/agent-control.md, 「An item's change is told to its orderer」).
 
 use sea_orm_migration::prelude::*;

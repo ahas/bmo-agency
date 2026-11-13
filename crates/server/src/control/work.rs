@@ -1859,10 +1859,18 @@ async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
 /// arbiter stands」) — or no longer does: its `heldFor` written and the job published, and its item's orderer
 /// told of the wait where `tell` says this is where the wait begins.
 pub async fn hold_job(ground: &Ground, id: i64, why: Option<&str>, tell: bool) {
+  // A wait told begins unowed until its notice's row is written, so the sender owes one a stop cut off.
   if let Err(why) = run(
     &ground.db,
-    r#"UPDATE "jobs" SET "held_for" = $1 WHERE "id" = $2"#,
-    vec![why.map(str::to_owned).into(), id.into()],
+    r#"UPDATE "jobs" SET "held_for" = $1,
+         "wait_unowed_at" = CASE WHEN $1 IS NULL THEN NULL WHEN $3 THEN $4 ELSE "wait_unowed_at" END
+       WHERE "id" = $2"#,
+    vec![
+      why.map(str::to_owned).into(),
+      id.into(),
+      (why.is_some() && tell).into(),
+      now_ms().into(),
+    ],
   )
   .await
   {

@@ -103,7 +103,8 @@ seeds. The other crates and the server reach the store only through it.
     reason it waits where no road can answer, its state, outcome and report, where its review stands — its
     stages, the stage, round and check under way, its rejections, the owner's question its work waits on and
     whether it gave its checkout up meanwhile, and the words its due check is told with and when it came due
-    (`docs/job-review.md`) —, whether the notice of its end is owed yet, whether its ended job's
+    (`docs/job-review.md`) —, when the wait it has not yet told its orderer of began, whether the notice of its
+    end is owed yet, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, the prompt it was launched with, and the words of the turn it carries until that turn ends, which a server that starts launches a job whose turn had not gone out again from (`docs/sessions.md`, 「A restart hands the session over」); and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);

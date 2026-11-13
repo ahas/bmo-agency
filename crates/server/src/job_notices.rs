@@ -320,7 +320,55 @@ pub async fn tell_waiting(
   let orderer = crate::job_end::orderer(vars, member).await;
 
   match outbox::owe(db, vars, Notice::instruction(waiting(item, worker, why, &orderer), Keep::Once)).await {
-    Ok(()) => println!("job of item #{item}: its wait owed to its orderer"),
+    Ok(()) => {
+      println!("job of item #{item}: its wait owed to its orderer");
+
+      if let Err(why) = store::run(
+        db,
+        r#"UPDATE "jobs" SET "wait_unowed_at" = NULL WHERE "id" = $1"#,
+        vec![member["id"].as_i64().unwrap_or_default().into()],
+      )
+      .await
+      {
+        eprintln!("job of item #{item}: its wait was not marked owed: {}", why.detail);
+      }
+    }
     Err(why) => eprintln!("job of item #{item}: its wait was not owed: {why}"),
   }
+}
+
+/// The waits no notice is owed for yet, owed (docs/agent-control.md, 「An item's change is told to its orderer」):
+/// each job still waiting, of an item, whose wait began at least `owe_grace_seconds` ago and was not owed — a stop
+/// of agency's cut it off, or the store refused it. Answers how many were owed.
+pub async fn unowed_waits(
+  db: &sea_orm::DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+) -> Result<usize, String> {
+  if JobService::of(vars).is_none() || outbox::Receiver::of(vars).is_none() {
+    return Ok(0);
+  }
+
+  let grace = i64::try_from(JOB_NOTICES.owe_grace_seconds * 1000).unwrap_or(i64::MAX / 2);
+  let rows = store::all(
+    db,
+    r#"SELECT "id", "held_for" FROM "jobs" WHERE "held_for" IS NOT NULL AND "wait_unowed_at" <= $1
+         AND "item_id" > 0 AND "state" IN ('starting', 'running', 'reviewing')
+       ORDER BY "id""#,
+    vec![(crate::now_ms() - grace).into()],
+  )
+  .await
+  .map_err(|why| why.detail)?;
+  let mut owed = 0;
+
+  for row in rows {
+    let id: i64 = row.try_get("", "id").map_err(|why| why.to_string())?;
+    let why: String = row.try_get("", "held_for").map_err(|why| why.to_string())?;
+    let (member, _) = crate::control::work::job(db, id).await.map_err(|why| why.error)?;
+
+    tell_waiting(db, vars, &member, &why).await;
+    println!("job {id}: its wait owed, no notice of it having been written");
+    owed += 1;
+  }
+
+  Ok(owed)
 }

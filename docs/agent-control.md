@@ -3029,13 +3029,15 @@ with the session.
   answer refusing the notice is said in agency's log and ends that copy. A restart of agency or of the receiver
   loses no notice: the rows stand in the store, and the sender's first pass after agency starts sends every
   one still owed.
-- **A change written before its notice's row stays owed in the store.** Two changes are written before their
-  notice's row can be, since the orderer is read between the two: a job's end, and a check of a job's review
-  coming due. The job keeps beside them whether its end's notice is owed yet, and the words its due check is
-  told with and when it came due (`docs/store.md`). The sender, before each pass, owes the end of every job
-  ended at least `owe_grace_seconds` ago (`policy/job-notices.toml`) whose notice is not owed yet, and the check
-  of every job standing under review with a check due, none owed for its item, that came due at least that long
-  ago. So a restart of agency between the change and the row, a store that refused the row, or a job's end
+- **A change written before its notice's row stays owed in the store.** Three changes are written before their
+  notice's row can be, since the orderer is read between the two: a job's end, a check of a job's review coming
+  due, and a job's wait beginning. The job keeps beside them whether its end's notice is owed yet, the words its
+  due check is told with and when it came due, and when the wait it has not yet owed began (`docs/store.md`).
+  The sender, before each pass, owes the end of every job ended at least `owe_grace_seconds` ago
+  (`policy/job-notices.toml`) whose notice is not owed yet, the check of every job standing under review with a
+  check due, none owed for its item, that came due at least that long ago, and the wait of every job still
+  waiting, its wait not owed, that began at least that long ago. So a restart of agency between the change and
+  the row, a store that refused the row, or a job's end
   written by `bmo-agency run stop` while the server did not answer, ends with the notice told: told twice at
   worst, never not at all.
 - **A row told is let go, kept, or kept standing.** How each kind is kept once the receiver took it:

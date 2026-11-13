@@ -3,14 +3,24 @@
 //! past them, and each is told once the receiver answers again; a sender stopped in the middle of a telling
 //! leaves the notice owed, the next start tells it, a standing one again at every start under its kind, until
 //! its condition ends and the copy told last is withdrawn; and a job's end or a review's check whose row a stop cut
-//! off owed by the sender once the grace is past.
+//! off owed by the sender once the grace is past; and a job's wait, its end and its review's check each cut off by a
+//! process stopped in the middle of its call to the job service, told once the next process starts and the
+//! receiver, cutting every call as it restarts, answers again.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::control::work::hold_job;
+use agency_server::job_end::delivered;
+use agency_server::job_review::reported;
 use agency_server::outbox::{Keep, Notice, owe, owed, restarted};
+use agency_server::places::Ground;
 use agency_server::queue::settings;
 use agency_server::watches::job_events::{self, CURSOR_KEY};
 use agency_server::watches::notices_owed::pass;
+use harness_providers::Machine;
 use policy::job_notices::JOB_NOTICES;
 use policy::job_review::JOB_REVIEW;
 use serde_json::{Value, json};
@@ -260,4 +270,214 @@ async fn a_check_due_whose_row_a_stop_cut_off_is_owed_by_the_sender_with_the_wor
     1,
     "a check owed is not owed again by the sender"
   );
+}
+
+// A process's ground whose job service and receiver are the fronts given: no test ground, so it tells.
+fn telling_ground(
+  db: &sea_orm::DatabaseConnection,
+  home: &std::path::Path,
+  vars: &BTreeMap<String, String>,
+) -> Ground {
+  let variables: HashMap<String, String> = HashMap::new();
+  let service = Service::new(db.clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let mut env = vec![
+    ("HOME".to_owned(), home.to_string_lossy().into_owned()),
+    ("PATH".to_owned(), "/nowhere".to_owned()),
+  ];
+
+  env.extend(vars.iter().map(|(name, value)| (name.clone(), value.clone())));
+
+  Ground::new(&service, &Machine::with_env(env, home.join("data")), None)
+}
+
+// The stand-in as both peers, each behind a front of its own: what this process reaches.
+async fn cut_peers() -> (Peers, Front, Front, BTreeMap<String, String>) {
+  let (peers, mut vars) = stand().await;
+  let jobs = Front::before(&vars["BMO_JOB_URL"]).await;
+  let receiver = Front::before(&vars["BMO_RECEIVER_URL"]).await;
+
+  vars.insert("BMO_JOB_URL".to_owned(), jobs.address.clone());
+  vars.insert("BMO_RECEIVER_URL".to_owned(), receiver.address.clone());
+  peers.lock().unwrap().items.insert(12, item(12, "leased", json!({ "scope": "-120" })));
+
+  (peers, jobs, receiver, vars)
+}
+
+// The process telling stopped once its call to the job service is held: what a restart of agency does to it.
+async fn stopped_mid_call(jobs: &Front, telling: tokio::task::JoinHandle<()>) {
+  jobs.heard().await;
+  telling.abort();
+  assert!(telling.await.unwrap_err().is_cancelled());
+}
+
+// Past the grace by a millisecond.
+fn grace_ms() -> i64 {
+  i64::try_from(JOB_NOTICES.owe_grace_seconds).unwrap() * 1000 + 1
+}
+
+// The next process starts while the receiver is still restarting: what was cut off is owed, its try cut; then the
+// receiver is back and the next start tells it. Answers what the receiver took on that start.
+async fn started_again(
+  db: &sea_orm::DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  jobs: &Front,
+  receiver: &Front,
+) -> usize {
+  jobs.set(Mode::Pass);
+  receiver.set(Mode::Cut);
+  restarted(db).await.unwrap();
+  assert_eq!(pass(db, vars).await.unwrap(), 0, "the receiver cut every call");
+  receiver.set(Mode::Pass);
+  restarted(db).await.unwrap();
+
+  pass(db, vars).await.unwrap()
+}
+
+#[tokio::test]
+async fn a_job_s_wait_cut_off_by_a_restart_before_its_row_is_told_once_the_next_process_and_the_receiver_are_up()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let (peers, jobs, receiver, vars) = cut_peers().await;
+  let ground = Arc::new(telling_ground(db, home.path(), &vars));
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (21, 12, 1, 'runner', 1, 'w1', 'starting', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+  jobs.set(Mode::Hold);
+
+  let telling = {
+    let ground = ground.clone();
+
+    tokio::spawn(
+      async move { hold_job(&ground, 21, Some("no provider of the order has quota"), true).await },
+    )
+  };
+
+  stopped_mid_call(&jobs, telling).await;
+  assert!(owed(db, "job-waiting:").await.unwrap().is_empty(), "the stop came before the row");
+  scratch
+    .run(r#"UPDATE "jobs" SET "wait_unowed_at" = "wait_unowed_at" - $1"#, vec![grace_ms().into()])
+    .await;
+
+  assert_eq!(started_again(db, &vars, &jobs, &receiver).await, 1);
+  assert_eq!(kinds(&peers), [json!("job-waiting:12")]);
+  assert_eq!(peers.lock().unwrap().instructed()[0]["room"], json!(-120));
+  assert_eq!(pass(db, &vars).await.unwrap(), 0, "told once");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "jobs" WHERE "wait_unowed_at" IS NULL"#, vec![])
+      .await,
+    1
+  );
+}
+
+#[tokio::test]
+async fn a_job_s_end_cut_off_by_a_restart_before_its_row_is_told_once_the_next_process_and_the_receiver_are_up()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let (peers, jobs, receiver, vars) = cut_peers().await;
+  let ground = Arc::new(telling_ground(db, home.path(), &vars));
+  let member = json!({
+    "id": 22, "itemId": 12, "leaseId": 3, "workerName": "w1", "roomId": null,
+    "state": "failed", "outcome": "failed", "report": "it broke",
+  });
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "outcome", "report", "started_at", "ended_at", "prompt")
+         VALUES (22, 12, 3, 'runner', 1, 'w1', 'failed', 'failed', 'it broke', 1000, $1, 'the work')"#,
+      vec![agency_server::now_ms().into()],
+    )
+    .await;
+  jobs.set(Mode::Hold);
+
+  // The end is written; its delivery gives the lease back first, and the process stops while that call hangs.
+  let telling = {
+    let ground = ground.clone();
+
+    tokio::spawn(async move { delivered(&ground, &member).await })
+  };
+
+  stopped_mid_call(&jobs, telling).await;
+  assert!(owed(db, "job-ended:").await.unwrap().is_empty(), "the stop came before the row");
+  scratch
+    .run(r#"UPDATE "jobs" SET "ended_at" = "ended_at" - $1"#, vec![grace_ms().into()])
+    .await;
+
+  assert_eq!(
+    started_again(db, &vars, &jobs, &receiver).await,
+    2,
+    "the end and the owner's failure notice"
+  );
+  assert_eq!(kinds(&peers), [json!("job-ended:12")]);
+  assert_eq!(peers.lock().unwrap().noticed()[0]["code"], json!(JOB_NOTICES.failed_code));
+  restarted(db).await.unwrap();
+  assert_eq!(pass(db, &vars).await.unwrap(), 0, "told once");
+}
+
+#[tokio::test]
+async fn a_review_check_cut_off_by_a_restart_before_its_row_is_told_until_the_orderer_moves() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let (peers, jobs, receiver, vars) = cut_peers().await;
+  let ground = Arc::new(telling_ground(db, home.path(), &vars));
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (23, 12, 1, 'runner', 1, 'w1', 'running', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+  jobs.set(Mode::Hold);
+
+  // The report is written into the review and the check falls due; the process stops while the review's entry is
+  // written to the job service, before the check's row.
+  let telling = {
+    let ground = ground.clone();
+
+    tokio::spawn(async move { reported(&ground, 23, "The screen is changed.", None).await })
+  };
+
+  stopped_mid_call(&jobs, telling).await;
+  assert!(owed(db, "job-review:").await.unwrap().is_empty(), "the stop came before the row");
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "review_told" = jsonb_set("review_told"::jsonb, '{at}', to_jsonb(1000))::text"#,
+      vec![],
+    )
+    .await;
+
+  assert_eq!(started_again(db, &vars, &jobs, &receiver).await, 1);
+  assert_eq!(kinds(&peers), [json!("job-review:12")]);
+
+  let order = peers.lock().unwrap().instructed()[0]["said"]["order"].as_str().unwrap().to_owned();
+
+  assert!(
+    order.contains(&JOB_REVIEW.report_heading) && order.contains("The screen is changed."),
+    "{order}"
+  );
+
+  // Standing, it is told again at the next start; once the orderer moves it is let go and withdrawn.
+  restarted(db).await.unwrap();
+  assert_eq!(pass(db, &vars).await.unwrap(), 1);
+  scratch
+    .run(r#"UPDATE "jobs" SET "review_turn" = 'question' WHERE "id" = 23"#, vec![])
+    .await;
+  restarted(db).await.unwrap();
+  assert_eq!(pass(db, &vars).await.unwrap(), 0);
+  assert!(owed(db, "job-review:").await.unwrap().is_empty());
+  assert_eq!(peers.lock().unwrap().withdrawn().len(), 1, "the copy told last withdrawn");
 }

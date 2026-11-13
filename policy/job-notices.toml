@@ -37,6 +37,6 @@ retry_first_seconds = 5
 retry_most_seconds = 300
 retell_seconds = 300
 answer_seconds = 30
-# How long after a job's end, or after a check of its review came due, the sender waits before it owes a notice
-# of it that was not owed yet itself: past the time the change's own path takes to owe it.
+# How long after a job's end, a check of its review coming due or its wait beginning, the sender waits before it
+# owes a notice of it that was not owed yet itself: past the time the change's own path takes to owe it.
 owe_grace_seconds = 120

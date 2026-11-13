@@ -4,3 +4,5 @@
 ALTER TABLE "jobs" ADD COLUMN "end_owed" boolean NOT NULL DEFAULT false;
 UPDATE "jobs" SET "end_owed" = true WHERE "ended_at" IS NOT NULL;
 ALTER TABLE "jobs" ADD COLUMN "review_told" text;
+-- When the wait a job has not yet told its orderer of began; none once it is owed or ends.
+ALTER TABLE "jobs" ADD COLUMN "wait_unowed_at" bigint;
