@@ -20,6 +20,9 @@ scratch_folder = "tmp"
 # itself, in seconds.
 setup_again_seconds = 3600
 
+# The folder that stands only where systemd is the system manager, which the sandbox's transient units need.
+system_manager_mark = "/run/systemd/system"
+
 # The words every program of an isolation node is started under, ahead of its own command line: a transient unit of
 # the system manager's, started with sudo by the owner's user, running as the account's user with the whole file tree
 # read-only but the home, every other home, /root and every user's runtime folder hidden under empty read-only
@@ -40,3 +43,11 @@ sandbox = [
   "--property=KillMode=process",
   "--",
 ]
+
+# The programs that make an isolation node's user, its home and its folders, run as root by these paths and never
+# by a name a search path resolves; the setup refuses a machine where one does not stand at its path.
+[user_programs]
+useradd = "/usr/sbin/useradd"
+chmod = "/usr/bin/chmod"
+setfacl = "/usr/bin/setfacl"
+install = "/usr/bin/install"

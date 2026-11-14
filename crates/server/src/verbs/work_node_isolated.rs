@@ -7,11 +7,12 @@ use std::path::Path;
 use std::process::Stdio;
 
 use futures_util::future::BoxFuture;
+use policy::account_isolation::ACCOUNT_ISOLATION;
 use tokio::io::AsyncWriteExt;
 
 use super::work_node::{captured, said_tail, say};
 use super::work_node_setup::{COPY_LEFT_OUT, SetupHands, SetupShell, ShellRun, shell_word};
-use crate::account_isolation::Isolation;
+use crate::account_isolation::{Isolation, machine_wants};
 
 /// The system's own directories every command of the setup starts on; the setup lays the workplace's ahead of them.
 const SYSTEM_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
@@ -249,22 +250,36 @@ async fn command_output(program: &str, args: &[&str]) -> Option<String> {
 // The account's system user made, as root, with its home fresh: a member of its own group alone, its home left to
 // it with passage through it for this machine's user, its scratch folder, and the link's folder this machine's user
 // owns and shares with the account's group. Every step runs on a home just made, so none of them follows a link the
-// account's user laid.
+// account's user laid. A machine that lacks a program of it, or the sandbox's system manager, is refused before
+// any step runs.
 async fn make_user(isolation: &Isolation) -> Result<(), String> {
+  let wants = machine_wants();
+
+  if !wants.is_empty() {
+    return Err(format!("the user {} could not be made: {}", isolation.user, wants.join("; ")));
+  }
+
   // SAFETY: getuid reads the process's own user id and cannot fail.
   let owner = unsafe { libc::getuid() };
+  let programs = &ACCOUNT_ISOLATION.user_programs;
+  let (useradd, chmod, setfacl, install) = (
+    shell_word(&programs.useradd),
+    shell_word(&programs.chmod),
+    shell_word(&programs.setfacl),
+    shell_word(&programs.install),
+  );
   let user = shell_word(&isolation.user);
   let home = shell_word(&isolation.home.display().to_string());
   let steps = [
-    format!("useradd --system --create-home --home-dir {home} --shell /bin/bash --user-group {user}"),
-    format!("chmod 0700 {home}"),
-    format!("setfacl -m u:{owner}:x {home}"),
+    format!("{useradd} --system --create-home --home-dir {home} --shell /bin/bash --user-group {user}"),
+    format!("{chmod} 0700 {home}"),
+    format!("{setfacl} -m u:{owner}:x {home}"),
     format!(
-      "install -d -m 0700 -o {user} -g {user} {}",
+      "{install} -d -m 0700 -o {user} -g {user} {}",
       shell_word(&isolation.scratch().display().to_string())
     ),
     format!(
-      "install -d -m {LINK_FOLDER_MODE:o} -o {owner} -g {user} {}",
+      "{install} -d -m {LINK_FOLDER_MODE:o} -o {owner} -g {user} {}",
       shell_word(&isolation.link_folder().display().to_string())
     ),
   ];

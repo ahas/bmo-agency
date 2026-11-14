@@ -70,7 +70,10 @@ every node shares are `docs/work-nodes.md`.
   unit for an account placed on an isolation node that has no workplace yet, and again, once the policy's while has
   passed, for one whose last setup left something missing.
   - **The user first:** made where it is not, with its home, its scratch folder and the link's folder, its home's
-    mode leaving it to the user, and only passage through it to the owner's user.
+    mode leaving it to the user, and only passage through it to the owner's user. The programs that make it are
+    run as root by the paths the policy names for them, never by a name a search path resolves; a machine where
+    one of them does not stand at its path, or whose system manager is not systemd, which the sandbox needs, is
+    refused before any step runs, the answer naming each program missing and the path it was looked for at.
   - **Then every step of a node's setup,** each command run in the sandbox as the account's user: the tools
     installed into its home, the code copied, the binaries built, the herdr session stood.
   - **A copy is written by the account's user alone:** the owner's user reads the tree and streams it, and the
@@ -97,8 +100,12 @@ every node shares are `docs/work-nodes.md`.
 
 ## Where it is checked
 
-- **The isolation itself is a test of the repository's** run on this machine, where its user holds passwordless
-  sudo as the deployment's does, each with a real user made by the setup's own first step and taken away after:
+- **The isolation itself is a test of the repository's,** each with a real user made by the setup's own first step
+  and taken away after. It proves the isolation on a machine that can stand an isolation node: its user holds
+  passwordless sudo, as the deployment's does here, the setup's programs stand at the policy's paths and systemd is
+  its system manager. A machine that lacks any of these, as a placed machine the suite runs on may, makes no user
+  and proves nothing there; the test says on a line what the machine lacks and passes. The isolation is proven on
+  this machine, where agency stands isolation nodes:
   - a program run in the sandbox the policy describes is refused a read of the owner's files, the owner's home, the
     hub's settings file, the data root's tokens and the system's secrets, and a write into the owner's folder, the
     system, beside the homes and into `/root`, as well as `sudo` and docker; it reads and writes its own home, and its

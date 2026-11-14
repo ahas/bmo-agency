@@ -13,8 +13,34 @@ pub struct AccountIsolation {
   pub scratch_folder: String,
   /// How long after a setup that left something missing it is run again by the links pass, in seconds.
   pub setup_again_seconds: i64,
+  /// The folder that stands only where systemd is the system manager, which the sandbox needs.
+  pub system_manager_mark: String,
   /// The words ahead of every program's command line, with `{user}`, `{home}`, `{scratch}` and `{path}` marks.
   pub sandbox: Vec<String>,
+  /// The programs that make the node's user, run as root by their paths.
+  pub user_programs: UserPrograms,
+}
+
+/// The programs that make an isolation node's user, its home and its folders, each by the path it stands at.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UserPrograms {
+  pub useradd: String,
+  pub chmod: String,
+  pub setfacl: String,
+  pub install: String,
+}
+
+impl UserPrograms {
+  /// Each program by its name and the path it is run by.
+  pub fn each(&self) -> [(&'static str, &str); 4] {
+    [
+      ("useradd", &self.useradd),
+      ("chmod", &self.chmod),
+      ("setfacl", &self.setfacl),
+      ("install", &self.install),
+    ]
+  }
 }
 
 crate::part!(pub ACCOUNT_ISOLATION: AccountIsolation = "account-isolation.toml");

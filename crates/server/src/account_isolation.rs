@@ -1,7 +1,8 @@
 //! An account's isolation node on this machine (docs/account-isolation.md): whose runs keep the whole machine, the
 //! node, system user and home every other account is given here, and the sandbox its programs run in.
 
-use std::path::PathBuf;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 
 use policy::account_isolation::ACCOUNT_ISOLATION;
 use policy::fill_marks;
@@ -101,6 +102,34 @@ impl Isolation {
 
     ACCOUNT_ISOLATION.sandbox.iter().map(|word| fill_marks(word, &marks)).collect()
   }
+}
+
+/// What this machine lacks to stand an isolation node, a line each: a program that makes the node's user missing
+/// from the path the policy names it by, or a system manager that is not systemd, which the sandbox needs. None
+/// where it lacks nothing.
+pub fn machine_wants() -> Vec<String> {
+  let policy = &*ACCOUNT_ISOLATION;
+  let mut wants: Vec<String> = policy
+    .user_programs
+    .each()
+    .into_iter()
+    .filter(|(_, path)| !runnable(Path::new(path)))
+    .map(|(name, path)| format!("{name} is not installed at {path}"))
+    .collect();
+
+  if !Path::new(&policy.system_manager_mark).is_dir() {
+    wants.push(format!(
+      "systemd is not this machine's system manager, as {} does not stand",
+      policy.system_manager_mark
+    ));
+  }
+
+  wants
+}
+
+// Whether a path is a file some user may run.
+fn runnable(path: &Path) -> bool {
+  std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
 /// The isolation node's name for an account, whatever the account is.
