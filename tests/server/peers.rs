@@ -34,6 +34,7 @@ fn node(name: &str, label: &str, kind: &str, role: Option<&str>, state: &str, up
     "label": label,
     "kind": kind,
     "role": role,
+    "callers": [],
     "address": format!("worker@{name}.lan"),
     "state": state,
     "tone": if up { "good" } else { "bad" },
