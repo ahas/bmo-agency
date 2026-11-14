@@ -1,7 +1,7 @@
 ---
 name: "bmo-asking-the-owner"
 bundle: worker
-version: "1.2.1"
+version: "1.2.2"
 description: "How a job puts something in front of the owner: a decision that is genuinely his (hard to undo, or settled by his own taste) asked with bmo job ask, and a document for him to read or approve filed in the deployment's 아카이브. Use before asking him anything and before handing him any document."
 ---
 
@@ -22,6 +22,10 @@ description: "How a job puts something in front of the owner: a decision that is
   where he picked one, or his own words where he answered with something the options did not cover.
   Carry on with what that line says, whichever it is. It is a person's answer every time: the
   recommendation is only shown to him, and comes back only where he settled with it.
+- **That line is his answer, and the question is over.** Never run the same ask again to check it, to see
+  whether it still waits or to read the answer a second time: every call opens a question of its own and puts
+  it to him again, so he is asked twice what he already answered. The line stays the answer for the rest of
+  the job, across its stages; carry it into your report as his word.
 - **Where the question could not be put, it exits 1, prints no option on stdout and closes the question
   unsent**, with why on stderr. Nobody has been asked and nobody will answer it, so nothing is settled:
   never carry on as if your recommendation had been chosen. Ask again once what stopped it is mended, or

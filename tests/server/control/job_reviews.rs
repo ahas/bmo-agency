@@ -3,10 +3,11 @@
 //! the owner asked before the ceiling; the checks passed one at a time, a job of one stage ending once its last
 //! check passes, a job of several going on to its next stage; a move's answer read through the agency's own
 //! client while the job stays under review; and a rejection counted, its round moved on and its
-//! rework turned out; and the seat a job holds kept through its review and across a restart, so its next stage
-//! runs on its agent before a job waiting for that agent starts.
+//! rework turned out; the owner asked once for one question, an escalation made again taking the question that
+//! waits, which stays open until a reply settles it; and the seat a job holds kept through its review and across
+//! a restart, so its next stage runs on its agent before a job waiting for that agent starts.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,14 +20,16 @@ use agency_server::now_ms;
 use agency_server::order_run::dispatch::{self, Asked, Wanted};
 use agency_server::outbox::{owed, restarted, send_due};
 use agency_server::places::Ground;
+use agency_server::queue::settings;
 use agency_server::turn_marks::{self, Mark};
+use agency_server::watches::job_events::{CURSOR_KEY, QUESTION_OWED, pass};
 use bmo_agency_client::{AgencyClient, JobReviewAsk, JobState};
 use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use crate::support::grounds::{deepseek_balance, seeded};
-use crate::support::peers::{item, stand};
+use crate::support::peers::{Peers, item, stand};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -45,6 +48,24 @@ fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
   );
 
   Arc::new(Ground::new(&service, &machine, None))
+}
+
+// A ground naming the stand-in as its job service and its receiver, with the stand-in and its settings.
+async fn ground_on_peers(
+  scratch: &Scratch,
+  home: &std::path::Path,
+) -> (Arc<Ground>, Peers, BTreeMap<String, String>) {
+  let (peers, vars) = stand().await;
+  let service = Service::new(scratch.db().clone(), Config::read(|_| None).unwrap());
+  let env = [
+    ("HOME".to_owned(), home.to_string_lossy().into_owned()),
+    ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+  ]
+  .into_iter()
+  .chain(vars.clone());
+  let ground = Arc::new(Ground::new(&service, &Machine::with_env(env, home.join("data")), None));
+
+  (ground, peers, vars)
 }
 
 async fn front(ground: Arc<Ground>) -> u16 {
@@ -256,17 +277,7 @@ async fn the_checks_pass_one_at_a_time_and_a_job_of_one_stage_ends_after_its_las
 async fn a_move_that_leaves_the_job_under_review_answers_a_job_the_client_reads() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
-  let (peers, vars) = crate::support::peers::stand().await;
-  let ground = {
-    let service = Service::new(scratch.db().clone(), Config::read(|_| None).unwrap());
-    let mut env = vec![
-      ("HOME".to_owned(), home.path().to_string_lossy().into_owned()),
-      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
-    ];
-
-    env.extend(vars);
-    Arc::new(Ground::new(&service, &Machine::with_env(env, home.path().join("data")), None))
-  };
+  let (ground, peers, _) = ground_on_peers(&scratch, home.path()).await;
   let port = front(ground.clone()).await;
   let agent = "client-reviewing-agent";
 
@@ -406,6 +417,89 @@ async fn the_owner_s_word_holds_the_review_gives_the_checkout_up_past_its_wait_a
 
   assert_eq!(member["review"]["parked"], false, "{member}");
   turn_marks::ended(agent, "run-e1");
+}
+
+// One question is one row told once (docs/job-review.md, 「The owner's word」): an escalation made again after its
+// question landed but its answer was lost takes the question that waits; with no reply it stays open and the job
+// waits on it; a settling reply alone lets the review move; and a question already answered is never taken again.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_escalation_made_again_asks_the_owner_once_and_waits_until_a_reply_settles_it() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let (ground, peers, vars) = ground_on_peers(&scratch, home.path()).await;
+  let port = front(ground.clone()).await;
+  let agent = "asking-once-agent";
+  let words = Some("Is the colour his call?");
+  let first = format!("{QUESTION_OWED}1");
+
+  peers.lock().unwrap().items.insert(67, item(67, "leased", json!({ "scope": "-670" })));
+  settings::set(db, CURSOR_KEY, "0").await.unwrap();
+  carrying(agent, "run-q1");
+  running(&scratch, "worker-q", 27, 67, &[]).await;
+  agency_server::job_review::reported(&ground, 27, "Done, but one matter is the owner's.", None).await;
+  scratch.run(r#"UPDATE "jobs" SET "rejections" = 10 WHERE "id" = 27"#, vec![]).await;
+
+  // The question lands, but its answer is lost on the way back.
+  peers.lock().unwrap().lost.insert("POST /questions".to_owned());
+
+  let (status, refused) = review(port, agent, 27, "escalate", words).await;
+
+  assert_eq!((status, refused["code"].as_str()), (502, Some("upstream-failed")), "{refused}");
+  peers.lock().unwrap().lost.clear();
+
+  // Made again, the escalation takes the question that waits rather than asking the owner a second time.
+  let (status, member) = review(port, agent, 27, "escalate", words).await;
+
+  assert_eq!((status, &member["review"]["question"]), (200, &json!(1)), "{member}");
+  assert_eq!(peers.lock().unwrap().questions.len(), 1, "one question, one row");
+
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  let told = peers.lock().unwrap().instructed();
+  let questions_told: Vec<_> = told
+    .iter()
+    .filter(|said| said["kind"].as_str().is_some_and(|kind| kind.starts_with(QUESTION_OWED)))
+    .collect();
+
+  assert_eq!(questions_told.len(), 1, "told once: {questions_told:?}");
+
+  // With no reply the question stays open: nothing here moves its state, and the job waits on it.
+  {
+    let held = peers.lock().unwrap();
+
+    assert_eq!(held.questions[0]["state"], "open");
+    assert!(
+      !held
+        .calls
+        .iter()
+        .any(|call| call.method.as_str() == "PATCH" && call.path.starts_with("/questions"))
+    );
+  }
+  assert_eq!(read(port, 27).await["review"]["question"], json!(1));
+  assert!(!owed(db, &first).await.unwrap().is_empty(), "its instruction still owed");
+
+  // A settling reply answers it: the instruction is let go and the owner's word comes back as the check due.
+  peers.lock().unwrap().settle(1, "Send the work back");
+  pass(db, &vars).await.unwrap();
+
+  assert!(owed(db, &first).await.unwrap().is_empty(), "its instruction let go");
+
+  let member = read(port, 27).await;
+
+  assert_eq!(
+    (&member["state"], &member["review"]["question"]),
+    (&json!("reviewing"), &Value::Null),
+    "{member}"
+  );
+
+  // The same words put to the owner again once he answered are a new question: an answered one is never taken.
+  let (status, member) = review(port, agent, 27, "escalate", words).await;
+
+  assert_eq!((status, &member["review"]["question"]), (200, &json!(2)), "{member}");
+  assert_eq!(peers.lock().unwrap().questions.len(), 2);
+  turn_marks::ended(agent, "run-q1");
 }
 
 // One turn's ask of a job's seat, as the job's turn asks it: under the job's owner, at its checkout, naming the

@@ -155,6 +155,14 @@ jobs」), naming the job, one action and its words.
   the work back or to take it as it stands, and its due time the policy's `owner_wait_seconds`, six hundred
   seconds. The question is told to the orderer as every job's question is (`question-awaits-answer`), and the
   orderer puts it to the owner.
+- **The owner is asked once for one question.** Before asking, the review reads the item's questions, and one
+  still waiting (`open` or `paused`) with the same asker, words and choices is the job's question: an
+  escalation made again after its question landed but its answer did not is written onto that one, so no second
+  row is opened and nothing is told twice. Where the item's questions cannot be read, the escalation is refused
+  `upstream-failed` rather than risk a second row.
+- **Agency moves no question's state.** A question leaves `open` only by what the job service does with it: a
+  settling reply answers it, and its asker withdraws it or closes it unsent. Its instruction is withdrawn only
+  once a settling reply comes; a word that settles nothing withdraws nothing.
 - **While it waits the job stays under review** and every action of the orderer's is refused `awaits-owner`.
 - **Past its due time with no answer, the job gives its checkout and its agent's seat up:** its assignment is
   released, so the repository's checkout takes the next launch, its agent is free for other work, and the

@@ -1222,15 +1222,14 @@ async fn escalated(
     "choices": [JOB_REVIEW.send_back, JOB_REVIEW.take_it],
     "waitMs": JOB_REVIEW.owner_wait_seconds * 1000,
   });
-  let asked = call(&service, reqwest::Method::POST, "/questions", Some(&question))
-    .await
-    .map_err(|why| refused(StatusCode::BAD_GATEWAY, "upstream-failed", why))?;
-  let Some(number) = asked["id"].as_i64() else {
-    return Err(refused(
-      StatusCode::BAD_GATEWAY,
-      "upstream-failed",
-      "the job service answered the owner's question with no number".to_owned(),
-    ));
+  let upstream = |why| refused(StatusCode::BAD_GATEWAY, "upstream-failed", why);
+  let number = match waiting_question(&service, &question).await.map_err(upstream)? {
+    Some(number) => number,
+    None => call(&service, reqwest::Method::POST, "/questions", Some(&question))
+      .await
+      .map_err(upstream)?["id"]
+      .as_i64()
+      .ok_or_else(|| upstream("the job service answered the owner's question with no number".to_owned()))?,
   };
 
   entry(
@@ -1252,6 +1251,31 @@ async fn escalated(
   println!("job {id}: its work was put to the owner as question #{number}");
 
   Ok(())
+}
+
+// The question on the item still waiting for an answer that asks what `question` asks — the same asker, words
+// and choices — where one stands: an escalation made again after its question landed but its answer did not
+// takes that one, so the owner is asked once and told once.
+async fn waiting_question(service: &JobService, question: &Value) -> Result<Option<i64>, String> {
+  let Some(item) = question["itemId"].as_i64() else {
+    return Ok(None);
+  };
+  let page =
+    call(service, reqwest::Method::GET, &format!("/questions?itemId={item}&limit=500"), None).await?;
+  let asks_the_same = |standing: &&Value| {
+    matches!(standing["state"].as_str(), Some("open" | "paused"))
+      && ["askerName", "text", "choices"].iter().all(|field| standing[field] == question[field])
+  };
+
+  Ok(
+    page["items"]
+      .as_array()
+      .into_iter()
+      .flatten()
+      .rev()
+      .find(asks_the_same)
+      .and_then(|one| one["id"].as_i64()),
+  )
 }
 
 // The job whose work waits on the owner's question, where one does.

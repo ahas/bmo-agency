@@ -1821,7 +1821,9 @@ pocket, testbed, gate and chat through their clients, and cache-warmer through t
 while it runs, the job service's lease is set to hold fixed what its launch read; as a job is stopped, the
 job service's lease is given back, and while an ended job's lease stands for its item's close it is renewed; as a
 job is written, its item's `GET /items/{itemId}/notes` is read for its handoff, and as a job's work moves to
-another session, `POST /items/{itemId}/notes` is handed the handoff the old session left; as a job ends, the
+another session, `POST /items/{itemId}/notes` is handed the handoff the old session left; as a job's review puts
+its work to the owner, the job service's `GET /questions` by `itemId` is read for a question asking the same that
+still waits, and `POST /questions` asks it only where none does (`docs/job-review.md`, 「The owner's word」); as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh

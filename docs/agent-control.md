@@ -3224,7 +3224,11 @@ with the session.
 - **A job's question goes to the owner through its orderer.** A `question.created` event is told to the
   orderer of the question's item, else to the room its `scope` names: the order carries the question, its
   item and its choices, and the supervisor's manual says to put it to the owner in his own chat and never
-  answer it for him. The instruction's id the receiver answers is kept on the question's row, and a
+  answer it for him. It is owed under the question's own number, so it is told once however often its event
+  is read, and one its asker tells of itself (`toldByAsker`) is not told here at all. Every row is a question
+  of its own: two rows asking the same are two questions, each waited on by its asker, and are never folded
+  into one here, since an answer to one would leave the other's asker waiting. The instruction's id the
+  receiver answers is kept on the question's row, and a
   settling reply (`reply.created` whose `settles` holds) lets the row go, withdrawing it with the receiver's
   `DELETE /instructions/{id}`, or, where the question was not told yet, telling it no more; a withdrawn
   instruction already handed is no refusal. A `question.due` event,

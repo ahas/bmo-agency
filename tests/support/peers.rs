@@ -1,7 +1,8 @@
 //! A stand-in for the job service and the receiver in one, as the queue's notices reach them: items by their
 //! number, the queues, the leases that stand, the events past a cursor and the window's oldest, and every call
-//! heard; the receiver answers each instruction with an id of its own; and the paths that fail while a test
-//! holds them failing.
+//! heard; the questions asked, each told as `question.created` and settled by a reply as the service writes it;
+//! the receiver answers each instruction with an id of its own; and the paths that fail while a test holds them
+//! failing, and the calls whose answer is lost after they landed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -40,6 +41,10 @@ pub struct Held {
   pub failing: BTreeSet<String>,
   /// Each item's notes, oldest first, as the job service keeps them.
   pub notes: BTreeMap<i64, Vec<Value>>,
+  /// The questions asked, oldest first, as the job service keeps them.
+  pub questions: Vec<Value>,
+  /// The calls, as `<method> <path>`, that land but whose answer is lost: answered 503 after they are made.
+  pub lost: BTreeSet<String>,
 }
 
 pub type Peers = Arc<Mutex<Held>>;
@@ -72,6 +77,43 @@ impl Held {
                        "createdAt": chrono::Utc::now().timestamp_millis() });
 
     self.notes.entry(item).or_default().push(note);
+  }
+
+  // The event told next, numbered past every event held.
+  fn told(&mut self, kind: &str, data: Value) {
+    let id = self.events.iter().filter_map(|event| event["id"].as_i64()).max().unwrap_or(0) + 1;
+
+    self.events.push(json!({ "id": id, "kind": kind, "at": id, "data": data }));
+  }
+
+  /// A question asked, kept open and told as the job service tells it.
+  fn ask(&mut self, asked: &Value) -> Value {
+    let question = json!({
+      "id": self.questions.len() as i64 + 1,
+      "itemId": asked["itemId"],
+      "askerName": asked["askerName"],
+      "text": asked["text"],
+      "choices": asked["choices"],
+      "state": "open",
+      "toldByAsker": asked["toldByAsker"].as_bool().unwrap_or(false),
+    });
+
+    self.questions.push(question.clone());
+    self.told("question.created", question.clone());
+
+    question
+  }
+
+  /// A person's settling reply to a question, which answers it, told as the job service tells it.
+  pub fn settle(&mut self, question: i64, choice: &str) {
+    if let Some(asked) = self.questions.iter_mut().find(|asked| asked["id"] == question) {
+      asked["state"] = json!("answered");
+    }
+
+    self.told(
+      "reply.created",
+      json!({ "id": question, "questionId": question, "choice": choice, "text": choice, "settles": true }),
+    );
   }
 
   /// The instructions withdrawn, by their id.
@@ -118,7 +160,7 @@ async fn answer(
     return StatusCode::SERVICE_UNAVAILABLE.into_response();
   }
 
-  match (method.as_str(), path.as_str()) {
+  let answered = match (method.as_str(), path.as_str()) {
     ("POST", "/instructions") => {
       held.instructions += 1;
       (StatusCode::CREATED, axum::Json(json!({ "id": held.instructions }))).into_response()
@@ -201,8 +243,28 @@ async fn answer(
 
       axum::Json(json!({ "items": events, "more": false })).into_response()
     }
+    ("POST", "/questions") => (StatusCode::CREATED, axum::Json(held.ask(&body))).into_response(),
+    ("GET", "/questions") => {
+      let questions: Vec<Value> = held
+        .questions
+        .iter()
+        .filter(|asked| {
+          query.get("itemId").is_none_or(|item| item.parse().ok() == asked["itemId"].as_i64())
+        })
+        .filter(|asked| query.get("state").is_none_or(|state| asked["state"] == state.as_str()))
+        .cloned()
+        .collect();
+
+      axum::Json(json!({ "items": questions, "more": false })).into_response()
+    }
     _ => StatusCode::NOT_FOUND.into_response(),
+  };
+
+  if held.lost.contains(&format!("{method} {path}")) {
+    return StatusCode::SERVICE_UNAVAILABLE.into_response();
   }
+
+  answered
 }
 
 /// The stand-in served, with the settings that name it as both the job service and the receiver.
