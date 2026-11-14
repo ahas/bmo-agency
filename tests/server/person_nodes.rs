@@ -74,7 +74,11 @@ async fn an_account_s_node_is_set_replaced_listed_and_taken_away() {
   assert_eq!((every[0].owner_account.as_str(), every[0].node.as_str()), ("7", "pc-7"));
   assert!(person_nodes::clear(db, "7").await.unwrap());
   assert!(!person_nodes::clear(db, "7").await.unwrap());
-  assert_eq!(person_nodes::node_of(db, "7").await.unwrap(), None);
+  assert_eq!(
+    person_nodes::node_of(db, "7").await.unwrap().as_deref(),
+    Some("account-7"),
+    "an account with no record works on its isolation node"
+  );
 }
 
 // "only a hub node the node service keeps and reserves for no service can be an account's"
@@ -95,21 +99,32 @@ async fn only_a_hub_node_the_node_service_keeps_and_reserves_for_no_service_can_
   );
 }
 
-// "a supervisor of an account with a node stands there, and one of no account stands here"
+// "a supervisor of an account stands on its PC or its isolation node, and one of no account or of the
+// administrator's account stands here"
 #[tokio::test]
-async fn a_supervisor_of_an_account_with_a_node_stands_there_and_one_of_no_account_stands_here() {
+async fn a_supervisor_of_an_account_stands_on_its_node_and_one_of_no_account_or_the_administrator_s_stands_here()
+ {
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
   rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
   rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;
+  rows::supervisor(db, "u9", &[("owner_account", 9i64.into())]).await;
   rows::supervisor(db, "bmo", &[]).await;
   person_nodes::set(db, "7", "pc-7").await.unwrap();
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
+    .await;
 
   let node = |name: &'static str| async move { AgentRow::named(db, name).await.unwrap().unwrap().node };
 
   assert_eq!(node("u7").await.as_deref(), Some("pc-7"));
-  assert_eq!(node("u8").await, None, "an account with no node stands here");
+  assert_eq!(
+    node("u8").await.as_deref(),
+    Some("account-8"),
+    "an account with no PC stands on its isolation node"
+  );
+  assert_eq!(node("u9").await, None, "the administrator's account is the owner's own");
   assert_eq!(node("bmo").await, None);
   assert!(
     AgentRow::standing(db)
@@ -120,7 +135,12 @@ async fn a_supervisor_of_an_account_with_a_node_stands_there_and_one_of_no_accou
   );
   assert_eq!(
     supervisors_placed(db).await.unwrap(),
-    [("bmo".into(), None), ("u7".into(), Some("pc-7".into())), ("u8".into(), None)]
+    [
+      ("bmo".into(), None),
+      ("u7".into(), Some("pc-7".into())),
+      ("u8".into(), Some("account-8".into())),
+      ("u9".into(), None)
+    ]
   );
 }
 
@@ -130,7 +150,7 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
-  for (name, account) in [("coder-07", Some("7")), ("coder-01", None)] {
+  for (name, account) in [("coder-07", Some("7")), ("coder-08", Some("8")), ("coder-01", None)] {
     scratch
       .run(
         r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'coder', $2)"#,
@@ -143,6 +163,7 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
   let placed = |seat: &'static str| composed_as(seat.to_owned(), run_node(db, Some("coder"), "/work"));
 
   assert_eq!(placed("coder-07").await.unwrap().as_deref(), Some("pc-7"));
+  assert_eq!(placed("coder-08").await.unwrap().as_deref(), Some("account-8"));
   assert_eq!(placed("coder-01").await.unwrap(), None);
   assert_eq!(
     run_node(db, Some("coder"), "/work").await.unwrap(),
@@ -200,7 +221,11 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   let data = tempfile::tempdir().unwrap();
 
   rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
+  rows::supervisor(db, "u9", &[("owner_account", 9i64.into())]).await;
   rows::supervisor(db, "bmo", &[]).await;
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
+    .await;
   for (name, account) in [("coder-07", Some("7")), ("coder-01", None)] {
     scratch
       .run(
@@ -251,6 +276,19 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
 
   assert!(deployment.owners.is_empty());
   assert!(deployment.administrator && deployment.reaches && deployment.account.is_none());
+
+  // A supervisor of the administrator's account is the owner's own and holds the grant.
+  let administrator = access("pc-8", "u9", None, None).await;
+
+  assert!(administrator.administrator && administrator.reaches);
+  assert_eq!(administrator.account.as_deref(), Some("9"));
+
+  // An isolation node is owned by the account it is named for, and reached by its callers alone.
+  let isolated = access("account-7", "u7", None, None).await;
+
+  assert_eq!(isolated.owners, ["7"]);
+  assert!(isolated.reaches);
+  assert!(!access("account-8", "u7", None, None).await.reaches, "another account's isolation node");
 
   // A role agent is read by its name, and a run holding no agent's name by the seat at its role and folder.
   assert_eq!(access("pc-7", "coder-07", None, None).await.account.as_deref(), Some("7"));

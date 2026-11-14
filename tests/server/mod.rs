@@ -1,5 +1,6 @@
 //! The server's tests: its ground, each piece asked as a handler or a later part of the server asks it.
 
+mod account_isolation;
 mod account_mark;
 mod one_road_turn;
 mod pin_model;

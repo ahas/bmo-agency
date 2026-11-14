@@ -66,6 +66,20 @@ pub struct Spec {
   /// node.
   #[serde(default)]
   pub jake: Option<Jake>,
+  /// A node on this machine running as a user of its own, reached with neither SSH nor a hub
+  /// (docs/account-isolation.md); none for any other node.
+  #[serde(default)]
+  pub local: Option<Local>,
+}
+
+/// How the link reaches a node on this machine that runs as a user of its own: the words its far end is started
+/// under, ahead of the far end's own command line, which run it as that user with its standard input and output the
+/// near end's; and the socket the far end joins to the node's herdr session, which the near end joins the herdr
+/// socket here to. The bridge socket the spec names is the near end's own, which the node's programs reach.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Local {
+  pub run_as: Vec<String>,
+  pub herdr: PathBuf,
 }
 
 /// How the link reaches a person's PC through the jake hub: the agent, the words the hub's connect program runs

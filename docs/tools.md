@@ -36,8 +36,8 @@ belongs to no one service is a repository of its own, not a folder here.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's,
-  `node.admin`, on the record of a supervisor of no account, a double's held under its name among them, and none
-  on any other record: not an account's supervisor's, a role agent's, a seat's run's or a job's
+  `node.admin`, on the record of a supervisor of no account or of the administrator's account, a double's held
+  under its name among them, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or a job's
   (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's `labels`:
   the line, the store's address and the agent's place where it is a resident program, and on a supervisor's
   double's record `doubleOf`, the supervisor it stands for (「The delegate」 below); an apart session's caller

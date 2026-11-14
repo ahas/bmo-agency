@@ -79,10 +79,11 @@ impl NodeService for LogsInToOne {
   }
 }
 
-/// Units that start every link asked of them and run none before.
+/// Units that start every link and every setup asked of them and run none before.
 #[derive(Default)]
 struct Units {
   started: Mutex<Vec<(String, PathBuf)>>,
+  set_up: Mutex<Vec<String>>,
 }
 
 impl LinkUnits for Units {
@@ -99,6 +100,11 @@ impl LinkUnits for Units {
 
   async fn sync(&self, _node: &str) -> bool {
     false
+  }
+
+  async fn set_up(&self, node: &str) -> bool {
+    self.set_up.lock().unwrap().push(node.to_owned());
+    true
   }
 }
 
@@ -216,4 +222,79 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
     on_node, "/home/tester/node-root/deploy/bin",
     "agency's own tree reads as the node's copy"
   );
+}
+
+#[tokio::test]
+async fn an_account_with_no_pc_is_stood_up_on_its_isolation_node_and_linked_with_no_ssh_and_no_port() {
+  let scratch = Scratch::new().await;
+  let trees = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    data: trees.path().join("data"),
+    deploy: trees.path().join("agency/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
+    agents: trees.path().join("agents"),
+    home: trees.path().to_path_buf(),
+    mcp_port: 3290,
+    jake_hub: None,
+    config_dir: trees.path().join(".claude"),
+    path: "/usr/bin:/bin".into(),
+    bun: "bun".into(),
+  };
+  let db = scratch.db();
+  let home = Path::new(&policy::account_isolation::ACCOUNT_ISOLATION.home_base).join("bmo-account-8");
+  let at = |part: &str| home.join(part).display().to_string();
+
+  // Account 8's supervisor has no PC; account 9 is the administrator's, whose runs are the owner's own.
+  crate::support::rows::supervisor(db, "u8-bmo", &[("owner_account", 8i64.into())]).await;
+  crate::support::rows::supervisor(db, "u9-bmo", &[("owner_account", 9i64.into())]).await;
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
+    .await;
+
+  let units = Units::default();
+  let settled = settle(db, &LogsInToOne, &units, &roots).await.unwrap();
+
+  assert_eq!(
+    settled.setting_up,
+    ["account-8"],
+    "its node is stood up, and none for the administrator's"
+  );
+  assert_eq!(place_node(&roots.place("u8-bmo")).as_deref(), Some("account-8"));
+  assert_eq!(place_node(&roots.place("u9-bmo")), None);
+
+  // Once its setup stands it, its link starts the far end in the sandbox, as its own user.
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "checked_at", "created_at", "updated_at")
+         VALUES ('account-8', '~/.local/share/bmo-node', $1, 'ready', 0, 0, 0)"#,
+      vec![home.display().to_string().into()],
+    )
+    .await;
+  std::fs::create_dir_all(trees.path().join("data/nodes/account-8")).unwrap();
+  std::fs::write(
+    trees.path().join("data/nodes/account-8/setup.json"),
+    serde_json::json!({ "herdrSession": "bmo", "herdrSocket": at(".config/herdr/herdr.sock") }).to_string(),
+  )
+  .unwrap();
+
+  let units = Units::default();
+  let settled = settle(db, &LogsInToOne, &units, &roots).await.unwrap();
+
+  assert!(settled.setting_up.is_empty(), "a ready node is not stood up again");
+  assert_eq!(settled.started, ["account-8"]);
+
+  let spec = Spec::read(&roots.spec_path("account-8")).unwrap();
+  let local = spec.local.expect("the local transport");
+
+  assert!(spec.ssh.is_empty() && spec.jake.is_none());
+  assert!(spec.ports.is_empty(), "the node reaches the tool host over the loopback it shares");
+  assert_eq!(spec.bridge, home.join("link/bridge.sock"));
+  assert_eq!(local.herdr, home.join("link/herdr.sock"));
+  assert_eq!(&local.run_as[..3], ["sudo", "-n", "systemd-run"]);
+  assert!(local.run_as.contains(&"--uid=bmo-account-8".to_owned()));
+  assert!(local.run_as.contains(&format!("--property=BindPaths={}", home.display())));
+  assert_eq!(local.run_as.last().map(String::as_str), Some("--"));
+  assert_eq!(spec.bridge_verbs.as_ref(), Some(&policy::person_nodes::PERSON_NODES.bridge_verbs));
+  assert!(spec.push.iter().any(|push| push.local == roots.place("u8-bmo")));
+  assert_eq!(spec.root, at(".local/share/bmo-node"));
 }

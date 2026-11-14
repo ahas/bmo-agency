@@ -1241,23 +1241,24 @@ where the shell stands in an agent's program, else the owner.
   that cannot answer is 502 `upstream-failed`. Taking away a record no account holds is 404 `not-found`.
 - **These records and the session records agency issues are what the node service's tool judges a caller by**
   before it runs a command on a node (`docs/person-nodes.md`, 「Who reaches a node」). Whether an account owns a
-  node is this list: the node's owners are the accounts whose record names it, and a node no record names is no
+  node is this list: the node's owners are the accounts whose record names it, and the owner of an isolation node,
+  `account-<id>`, is the account it is named for (`docs/account-isolation.md`); a node neither names is no
   person's. The account a caller acts for is the `ownerAccount` of the supervisor its record is held under, on
   `GET /supervisors/{supervisorName}`, else of the role agent of that name, on `GET /role-agents`; a caller neither
   names an account of is the deployment's own.
 - **`GET /nodes/{nodeName}/access` answers the same judgement in one read,** for a caller that would rather ask
   agency than read the lists. The caller is named as its tool session's record names it: `agent`, the record's
   holder, required, and `role` and `checkout`, the record's labels, where it holds them. The answer is `node`;
-  `owners`, the accounts whose record names the node, none for a node no record names; `agent`; `account`, the
+  `owners`, the accounts whose record names the node or whose isolation node it is, none for a node neither names; `agent`; `account`, the
   account the caller acts for, null for the deployment's own, read off the seat at its role and folder as well;
-  `administrator`, whether it holds the administrator's grant, which a supervisor of no account holds, as it is
-  and as a double stands for it, and no other caller does; and `reaches`, true where it holds that grant or its
+  `administrator`, whether it holds the administrator's grant, which a supervisor of no account or of the
+  administrator's account holds, as it is and as a double stands for it, and no other caller does; and `reaches`, true where it holds that grant or its
   account is among the owners. The node is not asked of the node service: a node it does not keep is answered as
   one no record names. A missing `agent` is 400.
 - **The administrator's grant is written into the records agency issues** (`docs/tools.md`, 「The session record」):
-  a record held under the name of a supervisor of no account holds each grant `policy/person-nodes.toml` names,
-  `node.admin`, which the tool reads as reaching every node, and every other record holds none: an account's
-  supervisor's, a role agent's, a seat's run's and a job's alike, judged as the access read judges. So the tool
+  a record held under the name of a supervisor of no account or of the administrator's account holds each grant
+  `policy/person-nodes.toml` names, `node.admin`, which the tool reads as reaching every node, and every other
+  record holds none: another account's supervisor's, a role agent's, a seat's run's and a job's alike, judged as the access read judges. So the tool
   reads the grant off the caller's record and asks agency nothing for it.
 
 ### assignments and jobs

@@ -59,7 +59,14 @@ pub struct Serve {
   pub listen: Option<String>,
   pub herdr_listen: Option<String>,
   pub bridge_port: Option<u16>,
+  /// On a node of this machine running as a user of its own (docs/account-isolation.md): the socket the herdr
+  /// socket is reached at by the owner's user, in the folder the two share.
+  pub herdr_unix: Option<PathBuf>,
 }
+
+/// The mode of the socket the owner's user reaches a node's herdr session at, on a node of this machine running as a
+/// user of its own: open to every user that reaches its folder, which the folder's own mode leaves to the two.
+const SHARED_SOCKET_MODE: u32 = 0o666;
 
 /// How often what must stand on the node is made sure of.
 const STANDING_EVERY: Duration = Duration::from_secs(30);
@@ -161,10 +168,14 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     }
     None => None,
   };
-  let herdr = match (&options.herdr_listen, &options.herdr_socket) {
-    (Some(address), Some(socket)) => {
+  let herdr = match (&options.herdr_listen, &options.herdr_unix, &options.herdr_socket) {
+    (Some(address), _, Some(socket)) => {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
       Some(tokio::spawn(join_tcp_to_unix(listener, socket.clone())))
+    }
+    (None, Some(shared), Some(socket)) => {
+      let listener = crate::connect::bind_mode(shared, SHARED_SOCKET_MODE)?;
+      Some(tokio::spawn(join_unix_to_unix(listener, socket.clone())))
     }
     _ => None,
   };
@@ -177,6 +188,7 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     listen: None,
     herdr_listen: None,
     bridge_port: None,
+    herdr_unix: None,
   };
   let standing = tokio::spawn(async move {
     loop {
@@ -262,6 +274,18 @@ async fn join_unix_to_tcp(listener: tokio::net::UnixListener, target: String) {
     tokio::spawn(async move {
       if let Ok(mut far) = tokio::net::TcpStream::connect(target.as_str()).await {
         let mut client = client;
+        let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+      }
+    });
+  }
+}
+
+// Each connection to a unix socket here joined to a fresh connection to the unix socket `socket`.
+async fn join_unix_to_unix(listener: tokio::net::UnixListener, socket: PathBuf) {
+  while let Ok((mut client, _)) = listener.accept().await {
+    let socket = socket.clone();
+    tokio::spawn(async move {
+      if let Ok(mut far) = tokio::net::UnixStream::connect(&socket).await {
         let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
       }
     });

@@ -47,6 +47,9 @@ enum Verb {
     /// On a person's PC: the loopback port the stream back to the home bridge stands on.
     #[arg(long)]
     bridge_port: Option<u16>,
+    /// On a node of this machine running as a user of its own: the socket the herdr socket is reached at.
+    #[arg(long)]
+    herdr_unix: Option<PathBuf>,
   },
 }
 
@@ -86,6 +89,7 @@ async fn main() -> ExitCode {
       listen,
       herdr_listen,
       bridge_port,
+      herdr_unix,
     } => match serve::serve(serve::Serve {
       root,
       bridge,
@@ -94,6 +98,7 @@ async fn main() -> ExitCode {
       listen,
       herdr_listen,
       bridge_port,
+      herdr_unix,
     })
     .await
     {

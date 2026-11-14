@@ -13,7 +13,8 @@ use agent_host::place::Place;
 use harness_machine::model_use::with_user_bus;
 use harness_providers::Machine;
 use node_link::frame::Pull;
-use node_link::spec::{Forward, Jake, Landing, Push, Spec};
+use node_link::spec::{Forward, Jake, Landing, Local, Push, Spec};
+use policy::account_isolation::ACCOUNT_ISOLATION;
 use policy::person_nodes::PERSON_NODES;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
@@ -75,6 +76,9 @@ pub fn path_head(home: &str, root: &str) -> Vec<String> {
   ]
 }
 
+/// The system's own directories behind a node's search path, for a program its far end starts.
+const SYSTEM_PATH: [&str; 3] = ["/usr/local/bin", "/usr/bin", "/bin"];
+
 /// The commit the deployment runs, as its record beside the deploy tree's link names it.
 pub fn deployed_commit(deploy_link: &Path) -> Option<String> {
   let record = read_json(&deploy_link.parent()?.join("deployed.json"))?;
@@ -97,6 +101,11 @@ const PLACES_DIR: &str = "agent-places";
 /// The unit one node's link runs under.
 pub fn link_unit(node: &str) -> String {
   format!("bmo-node-link-{node}")
+}
+
+/// The unit an isolation node's workplace is stood up under.
+pub fn setup_unit(node: &str) -> String {
+  format!("bmo-node-setup-{node}")
 }
 
 /// The unit a node's copy of the code is brought up under after a deployment.
@@ -184,6 +193,8 @@ pub trait LinkUnits {
   fn stop(&self, unit: &str) -> impl Future<Output = ()> + Send;
   /// The node's copy of the code brought to the deployed commit, apart from the server.
   fn sync(&self, node: &str) -> impl Future<Output = bool> + Send;
+  /// An isolation node's workplace stood up, its user made with it, apart from the server; whether its setup runs.
+  fn set_up(&self, node: &str) -> impl Future<Output = bool> + Send;
 }
 
 /// The user's own service manager, started on with the server's roots.
@@ -276,6 +287,31 @@ impl LinkUnits for Systemd<'_> {
     )
     .await
   }
+
+  async fn set_up(&self, node: &str) -> bool {
+    if self.running(&setup_unit(node)).await {
+      return true;
+    }
+
+    systemd(
+      "systemd-run",
+      &[
+        "--user".into(),
+        "--quiet".into(),
+        "--collect".into(),
+        format!("--unit={}", setup_unit(node)),
+        self.env_file(),
+        format!("--setenv=PATH={}", self.0.path),
+        format!("--working-directory={}", self.0.deploy.display()),
+        self.0.deploy.join("bin").join(VERBS_BINARY).display().to_string(),
+        "work-node".into(),
+        "setup".into(),
+        node.into(),
+        "--install".into(),
+      ],
+    )
+    .await
+  }
 }
 
 /// What one pass over the links came to: the links started, the ones stopped, the nodes whose copy is
@@ -285,6 +321,8 @@ pub struct Settled {
   pub started: Vec<String>,
   pub stopped: Vec<String>,
   pub syncing: Vec<String>,
+  /// The isolation nodes whose setup was started (docs/account-isolation.md, 「Standing it up」).
+  pub setting_up: Vec<String>,
   pub skipped: Vec<Skipped>,
 }
 
@@ -300,6 +338,7 @@ struct Workplace {
   root: String,
   home: Option<String>,
   state: String,
+  checked_at: Option<i64>,
 }
 
 /// A path on a node as its programs take it: one written from the home read against the node's home.
@@ -314,7 +353,7 @@ pub fn node_path(path: &str, home: Option<&str>) -> String {
 async fn workplaces(db: &DatabaseConnection) -> Result<Vec<Workplace>, Refusal> {
   all(
     db,
-    r#"SELECT "node", "root", "home", "state" FROM "node_workplaces" ORDER BY "node""#,
+    r#"SELECT "node", "root", "home", "state", "checked_at" FROM "node_workplaces" ORDER BY "node""#,
     vec![],
   )
   .await?
@@ -325,6 +364,7 @@ async fn workplaces(db: &DatabaseConnection) -> Result<Vec<Workplace>, Refusal> 
       root: row.try_get("", "root")?,
       home: row.try_get("", "home")?,
       state: row.try_get("", "state")?,
+      checked_at: row.try_get("", "checked_at")?,
     })
   })
   .collect::<Result<_, sea_orm::DbErr>>()
@@ -458,10 +498,16 @@ pub async fn spec(
   let places = workplaces(db).await?;
   let workplace = places.iter().find(|place| place.node == node);
   let setup = read_json(&roots.setup_path(node));
-  let ssh = nodes.ssh_login(node).await?;
-  let jake = match &ssh {
+  // An account's isolation node is this machine's under a user of its own, reached with neither SSH nor a hub
+  // (docs/account-isolation.md, 「The link」).
+  let isolation = crate::account_isolation::Isolation::of_node(node);
+  let ssh = match &isolation {
     Some(_) => None,
-    None => match nodes.hub_reach(node).await? {
+    None => nodes.ssh_login(node).await?,
+  };
+  let jake = match (&ssh, &isolation) {
+    (Some(_), _) | (None, Some(_)) => None,
+    (None, None) => match nodes.hub_reach(node).await? {
       None => return Ok(Err(format!("{node} has no SSH route and no hub"))),
       Some(reach) => match jake_of(roots, node, reach, setup.as_ref()) {
         Ok(jake) => Some(jake),
@@ -546,6 +592,16 @@ pub async fn spec(
   }
 
   let bridge = join(&join(&node_root, "data"), "bridge.sock");
+  let local = isolation.as_ref().map(|isolation| {
+    let mut path = path_head(&home, &node_root);
+
+    path.extend(SYSTEM_PATH.map(str::to_owned));
+
+    Local {
+      run_as: isolation.sandbox(&path.join(":")),
+      herdr: isolation.herdr_socket(),
+    }
+  });
   // A node an account's record names asks the bridge for the policy's verbs alone, so no session of a person's
   // runs here what reaches the hub as this machine's user (docs/person-nodes.md, 「Who reaches a node」).
   let owned = !crate::person_nodes::owners_of(db, node).await?.is_empty();
@@ -561,8 +617,11 @@ pub async fn spec(
       remote: socket,
       session: Some(session),
     },
-    ports: vec![roots.mcp_port],
-    bridge: here.join("bridge.sock"),
+    // A node of this machine reaches the tool host over the loopback it shares, and its bridge in the link's folder.
+    ports: if isolation.is_some() { Vec::new() } else { vec![roots.mcp_port] },
+    bridge: isolation
+      .as_ref()
+      .map_or_else(|| here.join("bridge.sock"), |isolation| isolation.bridge_socket()),
     deploy: roots.cli_deploy.clone(),
     control: here.join("control.sock"),
     push: agents
@@ -593,6 +652,7 @@ pub async fn spec(
     bridge_verbs,
     rewrite,
     jake,
+    local,
   }))
 }
 
@@ -758,9 +818,37 @@ pub async fn settle(
     }
   }
 
+  // An account placed on its isolation node whose workplace is not ready is stood up apart from the server: at once
+  // where it has none, and again once a while has passed since its last setup said what it missed
+  // (docs/account-isolation.md, 「Standing it up」).
+  let held = workplaces(db).await.map_err(refused)?;
+  let now = chrono::Utc::now().timestamp();
+
+  for account in crate::person_nodes::accounts_placed(db).await.map_err(refused)? {
+    let Some(node) = crate::person_nodes::node_of(db, &account).await.map_err(refused)? else {
+      continue;
+    };
+
+    if crate::account_isolation::Isolation::of_node(&node).is_none() {
+      continue;
+    }
+
+    let due = match held.iter().find(|place| place.node == node) {
+      None => true,
+      Some(place) => {
+        place.state != "ready"
+          && place.checked_at.is_none_or(|at| now - at >= ACCOUNT_ISOLATION.setup_again_seconds)
+      }
+    };
+
+    if due && units.set_up(&node).await {
+      settled.setting_up.push(node);
+    }
+  }
+
   let deployed = deployed_commit(&roots.deploy);
 
-  for workplace in workplaces(db).await.map_err(refused)? {
+  for workplace in held {
     let node = workplace.node;
     let unit = link_unit(&node);
 

@@ -22,7 +22,7 @@ use crate::bridge;
 use crate::frame::{Frame, decode, encode};
 use crate::rewrite::{NodeEnv, rewrite_json};
 use crate::serve::write_whole;
-use crate::spec::Spec;
+use crate::spec::{Local, Spec};
 
 /// How often the pushed files are looked at, how often the spec is, and the bounds of the wait before
 /// the connection is made again.
@@ -125,6 +125,69 @@ fn ssh_command(spec: &Spec, remote_bridge: &str) -> Command {
     .kill_on_drop(true);
 
   command
+}
+
+// The far end of a node on this machine, started under the words that run it as the node's own user: the bridge
+// socket the near end holds as its bridge, and the socket it joins to its herdr session. Its end is the end of its
+// standard input, so no signal need reach it across the user it runs as.
+fn local_command(spec: &Spec, local: &Local) -> Command {
+  let mut line: Vec<String> = local.run_as.clone();
+
+  line.extend([
+    spec.binary.clone(),
+    "serve".into(),
+    "--root".into(),
+    spec.root.clone(),
+    "--bridge".into(),
+    spec.bridge.display().to_string(),
+    "--herdr-socket".into(),
+    spec.herdr.remote.clone(),
+    "--herdr-unix".into(),
+    local.herdr.display().to_string(),
+  ]);
+
+  if let Some(session) = &spec.herdr.session {
+    line.extend(["--herdr-session".into(), session.clone()]);
+  }
+
+  let mut command = Command::new(&line[0]);
+
+  command
+    .args(&line[1..])
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .kill_on_drop(true);
+
+  command
+}
+
+// What a link to a node on this machine holds beside its mirror: the herdr socket here joined to the socket the far
+// end joins to the node's herdr session.
+fn local_sides(spec: &Spec, local: &Local) -> Vec<tokio::task::JoinHandle<()>> {
+  let _ = std::fs::remove_file(&spec.herdr.local);
+
+  match UnixListener::bind(&spec.herdr.local) {
+    Ok(listener) => {
+      let far = local.herdr.clone();
+
+      vec![tokio::spawn(async move {
+        while let Ok((mut client, _)) = listener.accept().await {
+          let far = far.clone();
+
+          tokio::spawn(async move {
+            if let Ok(mut far) = tokio::net::UnixStream::connect(&far).await {
+              let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+            }
+          });
+        }
+      })]
+    }
+    Err(error) => {
+      eprintln!("{}: {}: {error}", spec.node, spec.herdr.local.display());
+      Vec::new()
+    }
+  }
 }
 
 // A connection to a port on a person's PC: the hub's connect program, its words ahead of the agent and the port,
@@ -244,6 +307,7 @@ pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> 
 fn same_transport(one: &Spec, other: &Spec) -> bool {
   one.ssh == other.ssh
     && one.jake == other.jake
+    && one.local == other.local
     && one.herdr.local == other.herdr.local
     && one.herdr.remote == other.herdr.remote
     && one.herdr.session == other.herdr.session
@@ -435,12 +499,13 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
 /// One connection, from its start to its end; answers why it ended.
 async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &mut State) -> String {
   let remote_bridge = format!("{}/data/run/bridge-{}-{}.sock", spec.root, std::process::id(), now_ms());
-  let (command, sides) = match &spec.jake {
-    Some(jake) => match jake_command(jake, jake.mirror_port) {
+  let (command, sides) = match (&spec.jake, &spec.local) {
+    (Some(jake), _) => match jake_command(jake, jake.mirror_port) {
       Ok(command) => (command, jake_sides(spec, jake)),
       Err(why) => return format!("the connection could not start: {why}"),
     },
-    None => (ssh_command(spec, &remote_bridge), Vec::new()),
+    (None, Some(local)) => (local_command(spec, local), local_sides(spec, local)),
+    (None, None) => (ssh_command(spec, &remote_bridge), Vec::new()),
   };
   // The sides stand as long as this connection does.
   let _sides = Sides(sides);
@@ -614,6 +679,11 @@ async fn control(listener: UnixListener, current: Current, state_path: PathBuf) 
 }
 
 pub fn bind(path: &Path) -> std::io::Result<UnixListener> {
+  bind_mode(path, 0o600)
+}
+
+/// A socket bound at `path` with the mode given, its folder made where it is not.
+pub fn bind_mode(path: &Path, mode: u32) -> std::io::Result<UnixListener> {
   if let Some(dir) = path.parent() {
     fs::create_dir_all(dir)?;
   }
@@ -621,18 +691,23 @@ pub fn bind(path: &Path) -> std::io::Result<UnixListener> {
   let _ = fs::remove_file(path);
   let listener = UnixListener::bind(path)?;
 
-  fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+  fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(mode))?;
 
   Ok(listener)
 }
+
+/// The mode of the bridge socket a node on this machine reaches as its own user: open to every user that reaches
+/// its folder, which the folder's own mode leaves to the owner's user and the node's.
+const SHARED_SOCKET_MODE: u32 = 0o666;
 
 pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
   let mut spec = Spec::read(&spec_path)?;
   let current: Current = Arc::new(Mutex::new(None));
   let control_listener =
     bind(&spec.control).map_err(|error| format!("{}: {error}", spec.control.display()))?;
+  let bridge_mode = if spec.local.is_some() { SHARED_SOCKET_MODE } else { 0o600 };
   let bridge_listener =
-    bind(&spec.bridge).map_err(|error| format!("{}: {error}", spec.bridge.display()))?;
+    bind_mode(&spec.bridge, bridge_mode).map_err(|error| format!("{}: {error}", spec.bridge.display()))?;
 
   tokio::spawn(control(control_listener, current.clone(), spec.state.clone()));
 

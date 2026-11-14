@@ -286,6 +286,121 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
   wait_for("the running record here", || place_here.join("running.json").exists());
 }
 
+#[test]
+fn a_link_to_a_node_of_this_machine_starts_its_far_end_under_its_own_words_with_no_ssh() {
+  use std::io::{Read, Write};
+  use std::os::unix::net::{UnixListener, UnixStream};
+
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let here = dir.path().join("here");
+  let there = dir.path().join("there");
+  let link = there.join("link");
+  let place_here = here.join("agent-places").join("w");
+  let place_there = there.join("data").join("agent-places").join("w");
+
+  for made in [&place_here, &place_there, &there.join("data").join("run"), &link] {
+    fs::create_dir_all(made).expect("made");
+  }
+
+  // The node's herdr session standing in: one answer to each connection.
+  let herdr = dir.path().join("rh.sock");
+  let session = UnixListener::bind(&herdr).expect("herdr");
+
+  std::thread::spawn(move || {
+    for mut client in session.incoming().flatten() {
+      let _ = client.write_all(b"herdr answers\n");
+    }
+  });
+
+  // The words that would run the far end as the node's own user standing in: the far end's own command line run,
+  // and the words it was handed written down.
+  let run_as = dir.path().join("run-as");
+  let said = dir.path().join("run-as.said");
+
+  fs::write(&run_as, "#!/bin/sh\necho \"$@\" > \"$RUN_AS_SAID\"\nexec \"$@\"\n").expect("run-as");
+  fs::set_permissions(&run_as, fs::Permissions::from_mode(0o755)).expect("runnable");
+
+  let spec = dir.path().join("link.json");
+  let state = dir.path().join("state.json");
+  let herdr_here = dir.path().join("h.sock");
+  let bridge = link.join("bridge.sock");
+
+  fs::write(
+    &spec,
+    json!({
+      "node": "account-7",
+      "ssh": [],
+      "root": there,
+      "binary": binary,
+      "herdr": { "local": herdr_here, "remote": herdr },
+      "ports": [],
+      "bridge": bridge,
+      "deploy": dir.path(),
+      "control": dir.path().join("c.sock"),
+      "rewrite": [[here.to_string_lossy(), there.join("data").to_string_lossy()]],
+      "push": [{ "local": place_here, "files": ["program.json"], "rewrite": true }],
+      "pull": [{ "remote": place_there, "local": place_here, "files": ["running.json"] }],
+      "proc": dir.path().join("proc"),
+      "state": state,
+      "follow": [here],
+      "withheld": [],
+      "local": { "run_as": [run_as], "herdr": link.join("herdr.sock") }
+    })
+    .to_string(),
+  )
+  .expect("spec");
+
+  let _link = Link(
+    Command::new(&binary)
+      .arg("connect")
+      .arg(&spec)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .env("RUN_AS_SAID", &said)
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  );
+
+  wait_for("the connection", || read_json(&state).is_some_and(|read| read["state"] == "connected"));
+
+  // The far end went out under the words, handed the bridge the near end holds and the socket it joins to herdr.
+  let words = fs::read_to_string(&said).expect("the words");
+
+  assert!(words.contains(" serve --root "), "{words}");
+  assert!(words.contains(&format!("--bridge {}", bridge.display())), "{words}");
+  assert!(
+    words.contains(&format!("--herdr-unix {}", link.join("herdr.sock").display())),
+    "{words}"
+  );
+
+  // The node's user reaches both sockets in the folder the two share.
+  for socket in [&bridge, &link.join("herdr.sock")] {
+    wait_for("the shared socket", || socket.exists());
+    assert_eq!(fs::metadata(socket).expect("socket").permissions().mode() & 0o777, 0o666);
+  }
+
+  // The herdr socket here reaches the node's session through the far end.
+  let mut answer = String::new();
+
+  wait_for("herdr through the far end", || {
+    UnixStream::connect(&herdr_here).is_ok_and(|mut stream| {
+      answer.clear();
+      stream.set_read_timeout(Some(Duration::from_secs(5))).is_ok()
+        && stream.read_to_string(&mut answer).is_ok()
+    }) && answer == "herdr answers\n"
+  });
+
+  // Both ways over the far end's standard input and output.
+  fs::write(place_here.join("program.json"), json!({ "command": { "args": ["x"] } }).to_string())
+    .expect("program");
+  wait_for("the program on the node", || place_there.join("program.json").exists());
+  fs::write(place_there.join("running.json"), json!({ "pids": [] }).to_string()).expect("running");
+  wait_for("the running record here", || place_here.join("running.json").exists());
+}
+
 /// One call of the CLI's verbs asked of a home bridge at `socket`, as a node asks it, its input ended at once
 /// or held open for as long as the call runs: its exit code, or none where the bridge cannot be reached or the
 /// call ended with no exit code.

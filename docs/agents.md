@@ -85,11 +85,15 @@ flowchart TD
   - A job's guard refuses print mode outright, whatever the job has opened (`docs/live-claude-guard.md`).
 - **The check:** a test reads this repository's code for a place that launches Claude Code in print mode,
   and fails on any it finds.
-- **A supervisor's shell reaches the whole machine.** The machine is the owner's, and a supervisor acts on it
-  with his hands: its shell runs whatever the account may run, a unit's loopback port, its store and the token
-  files under the data root's `env/` among them. Where a tool of its own does a task, the tool is the road; where
-  none does, the shell is, and the task is done before a road of its own is asked for. The shell guard refuses
-  one thing, a command that would start Claude Code (「No print mode」). A role's run is held by the job guard.
+- **The owner's supervisor's shell reaches the whole machine.** The machine is the owner's, and a supervisor of
+  no account or of the administrator's account acts on it with his hands: its shell runs whatever his user may
+  run, a unit's loopback port, its store and the token files under the data root's `env/` among them. Where a
+  tool of its own does a task, the tool is the road; where none does, the shell is, and the task is done before a
+  road of its own is asked for. The shell guard refuses one thing, a command that would start Claude Code (「No
+  print mode」). A role's run is held by the job guard.
+- **Every other account's supervisor and runs reach their own node alone:** its PC, or its isolation node on this
+  machine under a user of its own, reading and writing nothing outside that user's home
+  (`docs/account-isolation.md`).
 
 ## A run in a pane of its own
 

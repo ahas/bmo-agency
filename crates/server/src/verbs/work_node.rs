@@ -18,6 +18,7 @@ use serde_json::{Value, json};
 use store::{all, one, run};
 
 use super::work_node_hub::{HubDoor, HubHands};
+use super::work_node_isolated::{IsolatedDoor, IsolatedHands};
 use super::work_node_setup::{
   COPY_LEFT_OUT, FarEnd, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell,
   ShellRun, set_up_workplace, shell_word,
@@ -280,7 +281,7 @@ fn shared_login_path() -> PathBuf {
   runtime.join("agency").join("ssh-%C")
 }
 
-async fn captured(mut command: tokio::process::Command) -> ShellRun {
+pub(super) async fn captured(mut command: tokio::process::Command) -> ShellRun {
   command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
   match command.output().await {
@@ -318,7 +319,7 @@ struct Hands<'a> {
   label: String,
 }
 
-fn said_tail(text: &str) -> String {
+pub(super) fn said_tail(text: &str) -> String {
   let lines: Vec<&str> = text.trim().split('\n').collect();
 
   lines[lines.len().saturating_sub(3)..].join(" ")
@@ -397,10 +398,12 @@ pub fn say(line: &str) {
   let _ = std::io::stdout().flush();
 }
 
-/// How the setup reaches a node: over its SSH login, or through the hub its agent attaches to.
+/// How the setup reaches a node: over its SSH login, through the hub its agent attaches to, or, for an account's
+/// isolation node, in the sandbox its user runs in.
 enum Door {
   Ssh(SharedLogin),
   Hub(HubDoor),
+  Isolated(IsolatedDoor),
 }
 
 impl Door {
@@ -408,6 +411,7 @@ impl Door {
     match self {
       Self::Ssh(login) => login,
       Self::Hub(door) => door,
+      Self::Isolated(door) => door,
     }
   }
 }
@@ -476,8 +480,13 @@ fn to_node_path(path: &str, data_root: &Path, node_home: &str, node_root: &str) 
 }
 
 // The logins a run on the node may go out on, each account as this machine keeps it; an endpoint account
-// is not offered on a node, since its key file stays on this machine (docs/work-nodes.md).
-async fn logins(db: &DatabaseConnection, data_root: &Path) -> Result<Vec<SetupLogin>, VerbError> {
+// is not offered on a node, since its key file stays on this machine (docs/work-nodes.md). An isolation node is
+// offered the logins of its own account's user alone (docs/account-isolation.md, 「Standing it up」).
+async fn logins(
+  db: &DatabaseConnection,
+  data_root: &Path,
+  only_user: Option<i64>,
+) -> Result<Vec<SetupLogin>, VerbError> {
   let held = accounts(db).await.map_err(|refused| VerbError::Refused(refused.error))?;
   let config_dir = std::env::var_os("CLAUDE_CONFIG_DIR")
     .filter(|dir| !dir.is_empty())
@@ -488,6 +497,7 @@ async fn logins(db: &DatabaseConnection, data_root: &Path) -> Result<Vec<SetupLo
     held
       .iter()
       .filter(|account| account.credential.runs_on_nodes())
+      .filter(|account| only_user.is_none() || account.user_id == only_user)
       .map(|account| SetupLogin {
         account: account.name.clone(),
         own_directory: account.credential.own_home().is_some(),
@@ -508,23 +518,9 @@ async fn logins(db: &DatabaseConnection, data_root: &Path) -> Result<Vec<SetupLo
   )
 }
 
-// The setup, a check or a sync of one node's workplace; whether nothing is missing.
-async fn stand(
-  db: &DatabaseConnection,
-  nodes: &dyn NodeService,
-  data_root: &Path,
-  verb: &WorkNodeVerb,
-) -> Result<Answer, VerbError> {
-  let (node, root, install, copy_code) = match verb {
-    WorkNodeVerb::Setup {
-      node,
-      root,
-      install,
-    } => (node, root.clone(), *install, true),
-    WorkNodeVerb::Sync { node } => (node, None, false, true),
-    WorkNodeVerb::Check { node } => (node, None, false, false),
-    _ => return Err(VerbError::Refused("no such step".into())),
-  };
+// The door to a node the node service keeps, over its SSH login or through its hub, and the label herdr shows it
+// by; refused for a node the service does not keep or that takes no work.
+async fn service_door(nodes: &dyn NodeService, node: &str) -> Result<(Door, String), VerbError> {
   let unreachable = |fault: crate::peers::PeerFault| VerbError::Refused(fault.to_string());
   let unlisted = || VerbError::Refused(format!("{node} is no node the node service keeps"));
   let no_route = || VerbError::Refused(format!("{node} has no route the node service names"));
@@ -533,7 +529,7 @@ async fn stand(
     .await
     .map_err(unreachable)?
     .into_iter()
-    .find(|row| row.node == *node)
+    .find(|row| row.node == node)
     .ok_or_else(unlisted)?;
   let door = match row.kind {
     NodeKind::Ssh => Door::Ssh(SharedLogin::new(
@@ -553,6 +549,39 @@ async fn stand(
   if let Some(refused) = work_refusal(&row.node, true, None) {
     return Err(VerbError::Refused(format!("{node} takes no work: {refused}")));
   }
+
+  Ok((door, row.label.clone().unwrap_or_else(|| row.node.clone())))
+}
+
+// The setup, a check or a sync of one node's workplace; whether nothing is missing.
+async fn stand(
+  db: &DatabaseConnection,
+  nodes: &dyn NodeService,
+  data_root: &Path,
+  verb: &WorkNodeVerb,
+) -> Result<Answer, VerbError> {
+  let (node, root, install, copy_code) = match verb {
+    WorkNodeVerb::Setup {
+      node,
+      root,
+      install,
+    } => (node, root.clone(), *install, true),
+    WorkNodeVerb::Sync { node } => (node, None, false, true),
+    WorkNodeVerb::Check { node } => (node, None, false, false),
+    _ => return Err(VerbError::Refused("no such step".into())),
+  };
+  let isolation = crate::account_isolation::Isolation::of_node(node);
+  let (door, label) = match &isolation {
+    // An account's isolation node is no node the node service keeps: agency names it and stands its user.
+    Some(isolation) => {
+      let door = IsolatedDoor::open(isolation, copy_code)
+        .await
+        .map_err(|why| VerbError::Refused(format!("{node}: {why}")))?;
+
+      (Door::Isolated(door), node.clone())
+    }
+    None => service_door(nodes, node).await?,
+  };
 
   let held = workplace(db, node).await?;
 
@@ -596,7 +625,12 @@ async fn stand(
     root: workplace.root.clone(),
     deploy: deploy_link().to_string_lossy().into_owned(),
     checkouts: checkouts.clone(),
-    logins: logins(db, data_root).await?,
+    logins: logins(
+      db,
+      data_root,
+      isolation.as_ref().map(|isolation| isolation.account.parse().unwrap_or_default()),
+    )
+    .await?,
     to_node: &to_node,
     herdr: local_program("herdr"),
     rust: local_version("rustc", &["--version"], Some("rustc ")),
@@ -609,7 +643,12 @@ async fn stand(
       install,
       copy_code,
       login,
-      label: row.label.clone().unwrap_or_else(|| row.node.clone()),
+      label,
+    }),
+    Door::Isolated(door) => Box::new(IsolatedHands {
+      install,
+      copy_code,
+      door,
     }),
     Door::Hub(door) => Box::new(HubHands {
       install,
@@ -619,6 +658,11 @@ async fn stand(
     }),
   };
   let mut outcome: SetupOutcome = set_up_workplace(door.shell(), &place, hands.as_ref()).await;
+
+  // What an isolation node's user holds beyond its own, missing with the rest, so nothing launches there.
+  if let Door::Isolated(door) = &door {
+    outcome.missing.extend(door.wanting().await);
+  }
 
   // A PC's bridge relay port here, and what its hub and agent do not offer the workplace and its link, missing
   // with the rest.

@@ -3,6 +3,7 @@
 
 use serde::de::DeserializeOwned;
 
+pub mod account_isolation;
 pub mod agent_renames;
 pub mod answer_ceilings;
 pub mod base_prompts;

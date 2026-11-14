@@ -136,9 +136,9 @@ pub struct AgentRow {
   pub resting: bool,
 }
 
-// A supervisor's row as it is read, with its owner account's node.
-const SUPERVISOR_SELECT: &str = r#"SELECT s."name", s."label", s."herdr_label", p."node" FROM "supervisors" s
-  LEFT JOIN "person_nodes" p ON p."owner_account" = s."owner_account"::text"#;
+// A supervisor's row as it is read, with its owner account and the node that account's record names.
+const SUPERVISOR_SELECT: &str = r#"SELECT s."name", s."label", s."herdr_label", s."owner_account"::text AS "account",
+  p."node" FROM "supervisors" s LEFT JOIN "person_nodes" p ON p."owner_account" = s."owner_account"::text"#;
 
 // The kind a supervisor's row is read as, and a checkout's.
 const SUPERVISOR: &str = "chat";
@@ -151,13 +151,23 @@ impl AgentRow {
       kind: SUPERVISOR.to_owned(),
       label: row.try_get("", "label")?,
       herdr_label: row.try_get("", "herdr_label")?,
-      // Its owner account's node, where the account has one (docs/person-nodes.md).
+      // The node its owner account's record names; `placed` gives an account with none its isolation node.
       node: row.try_get("", "node")?,
       cwd: None,
       dev_command: None,
       support_of: None,
       resting: false,
     })
+  }
+
+  // A supervisor's row with the node its owner account's runs stand on: the one its record names, else the
+  // account's isolation node, none for no account or the administrator's (docs/account-isolation.md).
+  async fn placed(db: &DatabaseConnection, row: &QueryResult) -> Result<Self, Refusal> {
+    let mut agent = Self::supervisor(row)?;
+    let account: Option<String> = row.try_get("", "account")?;
+
+    agent.node = crate::person_nodes::placed_for(db, account.as_deref(), agent.node.take()).await?;
+    Ok(agent)
   }
 
   async fn checkouts(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
@@ -192,8 +202,13 @@ impl AgentRow {
   /// Every supervisor: the only rows whose program stands between turns.
   pub async fn standing(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
     let rows = all(db, &format!(r#"{SUPERVISOR_SELECT} ORDER BY s."name""#), vec![]).await?;
+    let mut placed = Vec::new();
 
-    Ok(rows.iter().map(Self::supervisor).collect::<Result<_, _>>()?)
+    for row in &rows {
+      placed.push(Self::placed(db, row).await?);
+    }
+
+    Ok(placed)
   }
 
   /// Every repository's checkouts, in the order the queue lists them.
@@ -207,7 +222,7 @@ impl AgentRow {
       one(db, &format!(r#"{SUPERVISOR_SELECT} WHERE s."name" = $1"#), vec![name.into()]).await?;
 
     if let Some(row) = supervisor {
-      return Ok(Some(Self::supervisor(&row)?));
+      return Ok(Some(Self::placed(db, &row).await?));
     }
 
     Ok(Self::checkouts(db).await?.into_iter().find(|row| row.name == name))

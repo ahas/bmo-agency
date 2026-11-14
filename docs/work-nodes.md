@@ -17,7 +17,9 @@ side of a remote agent, the rotation, and what a dropped node does.
   firewall limiting SSH does. Each command runs there until it ends, however long a cold build takes:
   the shared connection holds a command's output for as long as it runs, and the command's end there, or
   the connection breaking, is what ends the wait here. No clock cuts a step. A person's PC, which has no
-  SSH route, is reached through its hub instead (`docs/person-nodes.md`, 「The workplace on a PC」).
+  SSH route, is reached through its hub instead (`docs/person-nodes.md`, 「The workplace on a PC」), and an
+  account's isolation node on this machine through the sandbox its user runs in, each command run there as that
+  user (`docs/account-isolation.md`, 「Standing it up」).
 - **What setup makes, each step checked before the next, and everything still missing said:**
   1. the login, and the node's home read through it;
   2. the tools: git, rsync and curl are the machine's to have; the JavaScript runtime, the Rust
@@ -86,7 +88,8 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **A node takes jobs where a job can reach it and no other service holds it:** the node service names an
   SSH login to it, since every git question of a job's lifecycle runs there over SSH, and the services it
   reserves the node for, where it reserves it, include the jobs. A node reached through a hub has no SSH
-  route and takes none; one reserved for another service alone takes none.
+  route and takes none; one reserved for another service alone takes none; an account's isolation node is no
+  node the service keeps, and takes none.
 - **The judgement is agency's, read off the node service's list as it stands:** `GET /nodes` answers each
   node with `takesJobs` and the sentence saying why not (`docs/api.md`, 「nodes」), so a screen offers only the
   nodes that take jobs, and a repository's placement or node checkout naming another is refused.
@@ -99,8 +102,10 @@ side of a remote agent, the rotation, and what a dropped node does.
   which agency's server starts with the workplace's spec — as it starts, once a minute and whenever
   the repositories move — and stops for a workplace no longer ready. Agency's server keeps the links; a
   process standing on a copy of the data root keeps none. The node's SSH login is asked of the node
-  service, which keeps the nodes (`docs/api.md`, 「The node service」), and a person's PC, which has none, is
-  reached through the hub the service names for it (`docs/person-nodes.md`, 「The link over jake」).
+  service, which keeps the nodes (`docs/api.md`, 「The node service」), a person's PC, which has none, is
+  reached through the hub the service names for it (`docs/person-nodes.md`, 「The link over jake」), and an
+  account's isolation node, on this machine, by the far end started in its sandbox (`docs/account-isolation.md`,
+  「The link」).
 - **Its spec is the server's:** a link record of the node's under the data root, written whole
   whenever what it says moves — the login, the forwards, what is mirrored each way, how this machine's
   roots read on the node, which variables of a program go there. The link reads it again as it moves,

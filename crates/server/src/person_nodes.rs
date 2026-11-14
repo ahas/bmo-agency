@@ -1,7 +1,7 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): the record agency keeps of the node an
-//! account's runs stand on, set by the service that binds the account to its machine; the supervisors and role
-//! runs placed there by it; the wait of a run of it while the node's link is not heard; and who reaches a node
-//! (「Who reaches a node」).
+//! account's runs stand on, set by the service that binds the account to its machine, else the account's isolation
+//! node on this machine (docs/account-isolation.md); the supervisors and role runs placed there by it; the wait of a
+//! run of it while the node's link is not heard; and who reaches a node (「Who reaches a node」).
 
 use std::path::Path;
 use std::time::Duration;
@@ -39,7 +39,8 @@ pub async fn every(db: &DatabaseConnection) -> Result<Vec<PersonNode>, Refusal> 
   Ok(rows.iter().map(of_row).collect::<Result<_, _>>()?)
 }
 
-/// The node an account's runs stand on, or none where the account has none.
+/// The node an account's runs stand on: the one its record names, else its isolation node; none for the
+/// administrator's account, whose runs are the owner's own (docs/account-isolation.md, 「The scope」).
 pub async fn node_of<C: ConnectionTrait>(db: &C, account: &str) -> Result<Option<String>, Refusal> {
   let row = one(
     db,
@@ -47,8 +48,29 @@ pub async fn node_of<C: ConnectionTrait>(db: &C, account: &str) -> Result<Option
     vec![account.into()],
   )
   .await?;
+  let recorded = row.map(|row| row.try_get::<String>("", "node")).transpose()?;
 
-  Ok(row.map(|row| row.try_get::<String>("", "node")).transpose()?)
+  placed_for(db, Some(account), recorded).await
+}
+
+/// The node the runs of an account stand on, given the node its record names: that node, else the account's
+/// isolation node; none for no account and for the administrator's.
+pub async fn placed_for<C: ConnectionTrait>(
+  db: &C,
+  account: Option<&str>,
+  recorded: Option<String>,
+) -> Result<Option<String>, Refusal> {
+  let Some(account) = account else { return Ok(None) };
+
+  if recorded.is_some() {
+    return Ok(recorded);
+  }
+
+  if crate::account_isolation::owners_own(db, account).await? {
+    return Ok(None);
+  }
+
+  Ok(Some(crate::account_isolation::node_name(account)))
 }
 
 /// An account's node set, replacing the one it had.
@@ -92,23 +114,40 @@ pub async fn refusal(nodes: &dyn NodeService, node: &str) -> Result<Option<Strin
 }
 
 /// The node each supervisor stands on, by name: its owner account's, none for a supervisor of no account or of
-/// an account with no node.
+/// the administrator's account.
 pub async fn supervisors_placed(db: &DatabaseConnection) -> Result<Vec<(String, Option<String>)>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT s."name", p."node" FROM "supervisors" s
+    r#"SELECT s."name", s."owner_account"::text AS "account", p."node" FROM "supervisors" s
        LEFT JOIN "person_nodes" p ON p."owner_account" = s."owner_account"::text
        ORDER BY s."name""#,
     vec![],
   )
   .await?;
+  let mut placed = Vec::new();
 
-  Ok(
-    rows
-      .iter()
-      .map(|row| Ok((row.try_get("", "name")?, row.try_get("", "node")?)))
-      .collect::<Result<_, sea_orm::DbErr>>()?,
+  for row in &rows {
+    let account: Option<String> = row.try_get("", "account")?;
+    let node = placed_for(db, account.as_deref(), row.try_get("", "node")?).await?;
+
+    placed.push((row.try_get("", "name")?, node));
+  }
+
+  Ok(placed)
+}
+
+/// Every account a supervisor or a role agent belongs to, each once: the accounts whose runs may be placed.
+pub async fn accounts_placed(db: &DatabaseConnection) -> Result<Vec<String>, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT "owner_account"::text AS "account" FROM "supervisors" WHERE "owner_account" IS NOT NULL
+       UNION SELECT "owner_account" AS "account" FROM "role_agents" WHERE "owner_account" IS NOT NULL
+       ORDER BY "account""#,
+    vec![],
   )
+  .await?;
+
+  Ok(rows.iter().map(|row| row.try_get("", "account")).collect::<Result<_, _>>()?)
 }
 
 /// The node a role run stands on: its seat's account's, read off the seat its slot holds at the folder it works
@@ -126,7 +165,8 @@ pub async fn run_node<C: ConnectionTrait>(
   node_of(db, &account).await
 }
 
-/// The accounts whose record names `node`, by account; none for a node that is no person's.
+/// The accounts whose record names `node`, and the account an isolation node is named for, by account; none for a
+/// node that is no person's.
 pub async fn owners_of<C: ConnectionTrait>(db: &C, node: &str) -> Result<Vec<String>, Refusal> {
   let rows = all(
     db,
@@ -134,8 +174,17 @@ pub async fn owners_of<C: ConnectionTrait>(db: &C, node: &str) -> Result<Vec<Str
     vec![node.into()],
   )
   .await?;
+  let mut owners: Vec<String> =
+    rows.iter().map(|row| row.try_get("", "owner_account")).collect::<Result<_, _>>()?;
 
-  Ok(rows.iter().map(|row| row.try_get("", "owner_account")).collect::<Result<_, _>>()?)
+  if let Some(isolation) = crate::account_isolation::Isolation::of_node(node)
+    && !owners.contains(&isolation.account)
+  {
+    owners.push(isolation.account);
+    owners.sort();
+  }
+
+  Ok(owners)
 }
 
 /// A caller as its tool session's record names it: the record's holder, and the role and the folder its labels
@@ -169,7 +218,7 @@ impl ActingFor {
 
 /// What a caller acts as. Its account is the supervisor's it is or a double stands for, else the role agent's
 /// of its name, else the seat's its run holds at its role and folder, each by its `ownerAccount`. It holds the
-/// administrator's grant where it is a supervisor of no account. A thrown-away session's place is read as its
+/// administrator's grant where it is a supervisor of no account or of the administrator's account. A thrown-away session's place is read as its
 /// session's agent.
 pub async fn acting_for<C: ConnectionTrait>(
   db: &C,
@@ -181,9 +230,13 @@ pub async fn acting_for<C: ConnectionTrait>(
 
   if let Some(supervisor) = crate::supervisors::named(db, &agent).await? {
     let account = supervisor.owner_account.map(|account| account.to_string());
+    let administrator = match &account {
+      None => true,
+      Some(account) => crate::account_isolation::owners_own(db, account).await?,
+    };
 
     return Ok(ActingFor {
-      administrator: account.is_none(),
+      administrator,
       account,
     });
   }
