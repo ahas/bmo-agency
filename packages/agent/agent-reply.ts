@@ -60,6 +60,16 @@ export interface AgentReply {
   // is written down has to say whose reading it is. Absent on a road that holds no login of
   // Agency's, and on a reply nobody handed the run it came from.
   account?: string | null;
+  // The answer of each turn of the program the round spanned, in order, which `text` was built from,
+  // with what opened that turn; absent where the harness reads no such turns.
+  answers?: TurnAnswer[];
+}
+
+// One turn's answer among those a round spanned: its last response, and whether words handed over
+// opened it or the program opened it on its own.
+export interface TurnAnswer {
+  text: string;
+  opened: "handed" | "program";
 }
 
 // A harness run that keeps a resumable session may strengthen the common reply at its boundary.

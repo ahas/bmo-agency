@@ -17,7 +17,7 @@ import { readClaudeOutput } from "./claude";
 import { handedPath } from "@agency/support/launch-paths";
 import { levelReasoning, levelsIn } from "./reasoning";
 
-import type { AgentReply, SessionUsage, UsageWindowReading } from "./agent-reply";
+import type { AgentReply, SessionUsage, TurnAnswer, UsageWindowReading } from "./agent-reply";
 import { commandDigest } from "./resident";
 import { lineComposesTypedLines, lineKeepsSession } from "./line-declarations";
 import { readTurn } from "./worker-pane";
@@ -655,6 +655,7 @@ export function readClaudeResidentTurn(input: ResidentTurnInput, run: HarnessRun
   let lastEnd = -1;
   let lastInterrupt = -1;
   let answer = "";
+  const answers: TurnAnswer[] = [];
   let from = 0;
 
   records.forEach((record, at) => {
@@ -664,7 +665,12 @@ export function readClaudeResidentTurn(input: ResidentTurnInput, run: HarnessRun
       const turn = input.lines.slice(from, at + 1);
       const text = readTurn(turn as Parameters<typeof readTurn>[0], 0).text;
 
-      if (text !== "") answer = answer === "" || (turn as ResidentRecord[]).some(handedWords) ? text : `${answer}\n\n${text}`;
+      if (text !== "") {
+        const opened = (turn as ResidentRecord[]).some(handedWords) ? "handed" : "program";
+
+        answer = answer === "" || opened === "handed" ? text : `${answer}\n\n${text}`;
+        answers.push({ text, opened });
+      }
       from = at + 1;
     } else if (record.type === "user" && spokenText(record).startsWith(interruptedMark)) {
       lastInterrupt = at;
@@ -696,6 +702,7 @@ export function readClaudeResidentTurn(input: ResidentTurnInput, run: HarnessRun
       liveTasks: whole.liveTasks,
       workflows: whole.workflows,
       account: recordedAccount(run.account),
+      ...(whole.error === null && answers.length > 0 ? { answers } : {}),
     },
   };
 }

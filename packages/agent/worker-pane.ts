@@ -1343,7 +1343,8 @@ export async function runTurnInPane(options: {
       const figures = statusFigures(around.before, around.after);
       const spend = figures.money !== null && read.spend.length === 1 ? read.spend.map((row) => ({ ...row, cost: figures.money as number })) : read.spend;
       // The answer is built out of every turn the round spanned.
-      const spanned = residentReading(records.slice(from), execution).reply.text;
+      const round = residentReading(records.slice(from), execution).reply;
+      const spanned = round.text;
 
       await closeRow("exited");
       return {
@@ -1356,6 +1357,7 @@ export async function runTurnInPane(options: {
           contextRatio: figures.contextRatio,
           ...await loginAnswered(wrote),
           contextTokens: figures.contextTokens ?? read.contextTokens,
+          ...(round.answers === undefined ? {} : { answers: round.answers }),
         },
         records: records.length,
       };

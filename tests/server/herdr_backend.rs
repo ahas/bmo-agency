@@ -63,6 +63,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
       "outcome": "failed",
       "ending": null,
       "answer": null,
+      "answers": [],
       "reason": "API Error",
       "engineError": { "kind": "rate_limit" },
       "went_out": null,

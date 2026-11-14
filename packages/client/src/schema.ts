@@ -2176,6 +2176,12 @@ export interface components {
              */
             reason: string | null;
             answer: string | null;
+            /**
+             * @description The answer of each turn of its program the round spanned, in order, which `answer` was built from;
+             *     empty while the turn runs and where its road reads no such turns.
+             * @default []
+             */
+            answers: components["schemas"]["SpannedAnswer"][];
             text: unknown[];
             /**
              * @description What the running turn waits for before its program is put to work; none while nothing holds it back
@@ -2189,6 +2195,19 @@ export interface components {
          * @enum {string}
          */
         TurnState: "running" | "ended" | "interrupted";
+        /** @description SpannedAnswer: one turn's answer among those a round spanned. */
+        SpannedAnswer: {
+            /** @description That turn's last response. */
+            text: string;
+            /** @description What opened that turn. */
+            opened: components["schemas"]["SpannedAnswerOpened"];
+        };
+        /**
+         * @description What opened a turn of a round: `handed` for words handed over, the round's own prompt or words pushed
+         *     into it; `program` for a turn the program opened on its own, a background task's notice.
+         * @enum {string}
+         */
+        SpannedAnswerOpened: "handed" | "program";
         /** @description TurnWaiting: what a running turn waits for, typed. */
         TurnWaiting: {
             /** @description What it waits for: `card`, a card the arbiter's master has not yet granted. */
