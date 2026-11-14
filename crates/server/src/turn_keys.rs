@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use agent_session::{Delivery, Fault, Outcome, TurnEnd};
+use agent_session::{Delivery, Fault, Outcome, TurnAnswer, TurnEnd};
 use policy::turn_keys::TURN_KEYS;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -36,6 +36,9 @@ pub struct KeptEnd {
   pub reason: Option<String>,
   #[serde(default)]
   pub answer: Option<String>,
+  /// Each turn's answer the round spanned, which `answer` was built from.
+  #[serde(default)]
+  pub answers: Vec<TurnAnswer>,
   pub at: i64,
 }
 
@@ -51,6 +54,7 @@ impl KeptEnd {
       ending: end.ending.clone(),
       reason: end.reason.clone(),
       answer: end.answer.clone(),
+      answers: end.answers.clone(),
       at: now_ms(),
     }
   }
@@ -68,6 +72,7 @@ impl KeptEnd {
       "ending": self.ending,
       "reason": self.reason,
       "answer": self.answer,
+      "answers": self.answers,
       "text": self.answer.as_ref().map(|answer| json!([answer])).unwrap_or_else(|| json!([])),
       "waiting": Value::Null,
     })

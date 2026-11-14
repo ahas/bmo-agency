@@ -852,8 +852,8 @@ The owner's words:
 - **One paragraph wraps it:** these are new messages from the same room — or a quiet instruction
   from the bot — that arrived while the answer was being made, and this same answer takes them in;
   its lines are the chat round policy's `push` table.
-  It also says that only the last answer written after it goes out, and nothing written before it:
-  the reply is written whole, the new words taken in, however much of it was already written.
+  It also says that what is written after it replaces the answer written before it: the reply is
+  written whole, the new words taken in, however much of it was already written.
 - **A push brings only its words.** No gate picks for it: the round's agent reads the brain's index for
   what the pushed words call for, as for any words in its draft step (`reference-selection.md`, 「Words
   pushed into a working round」).
@@ -905,11 +905,15 @@ The owner's words:
   - A turn opened by words handed over — the round's own prompt, a push taken after the last tool
     call — replaces it. The model sees its own finished answer followed by the paragraph that says
     this same answer takes the new words in, and writes the reply again whole, so keeping the earlier
-    answer beside it would send it twice. The paragraph tells the model that only what it writes
-    after it goes out.
+    answer beside it would send it twice. The paragraph tells the model that what it writes after
+    it replaces the answer before it.
   - A turn the program opened on its own — a background task's notice — adds to it, joined after a
     blank line. Such a turn answers the notice, and the answer it came after stands.
   - A turn that wrote no answer leaves it as it was.
+  - Each turn's answer is handed on beside the one built from them, in order and with what opened the turn
+    (`docs/api.md`, a turn's end, `answers`). Agency reads no words of an answer, so whether a later answer
+    that says nothing a consumer counts as an answer leaves an earlier one standing is the consumer's to
+    judge, and it judges from these.
 - **What a round owes, read off the record.** A round ends only when the program is at rest with
   nothing it was handed still queued, and the transcript holds one end line for every turn the round
   owes.

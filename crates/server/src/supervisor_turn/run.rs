@@ -49,6 +49,8 @@ pub struct Reply {
   pub context_tokens: Option<i64>,
   /// The Claude login it went out on, where it went out on one of agency's.
   pub account: Option<String>,
+  /// The answer of each turn of the program the run spanned, which `text` was built from.
+  pub answers: Vec<agent_session::TurnAnswer>,
 }
 
 /// Why a run gave no answer: its guard cut it, with why, it failed, with the harness's own words, its engine
@@ -494,6 +496,7 @@ pub async fn run_turn(
       context_ratio: reply.context_ratio,
       context_tokens: reply.context_tokens,
       account: composed.account.clone(),
+      answers: reply.answers,
     });
   };
   let record = ClaudeCode::records_under(&window.home, &composed.command.cwd, &session_id)
@@ -521,5 +524,6 @@ pub async fn run_turn(
       .or(reply.context_ratio),
     context_tokens: record.or(reply.context_tokens),
     account: composed.account.clone(),
+    answers: reply.answers,
   })
 }

@@ -37,6 +37,7 @@ fn a_road_reply_is_the_roads_with_no_money_and_no_login() {
     account: Some("first".into()),
     last_request_usage: None,
     request_usages: None,
+    answers: Vec::new(),
   };
   let road = road_reply("registered", reply);
 

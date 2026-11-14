@@ -291,6 +291,24 @@ pub struct Reply {
   pub request_usages: Option<Vec<RequestUsage>>,
 }
 
+/// One turn's answer among those a round spanned (docs/agent-control.md, 「The round's answer」): its last
+/// response, and what opened the turn.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TurnAnswer {
+  pub text: String,
+  pub opened: Opened,
+}
+
+/// What opened a turn of a round.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Opened {
+  /// Words handed over: the round's own prompt, or words pushed into it.
+  Handed,
+  /// The program on its own: a background task's notice.
+  Program,
+}
+
 /// What one model of a turn spent.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -448,6 +466,9 @@ pub struct TurnEnd {
   /// and the rest; for any other, the outcome's own word.
   pub ending: Option<String>,
   pub answer: Option<String>,
+  /// Each turn's answer the round spanned, in order, which `answer` was built from; empty where the turn's
+  /// road reads no such turns.
+  pub answers: Vec<TurnAnswer>,
   pub reason: Option<String>,
   #[serde(rename = "engineError")]
   pub engine_error: Option<EngineError>,
@@ -470,6 +491,7 @@ impl TurnEnd {
       outcome,
       ending: None,
       answer: None,
+      answers: Vec::new(),
       reason: None,
       engine_error: None,
       went_out: None,
@@ -486,6 +508,14 @@ impl TurnEnd {
     Self {
       answer: Some(text.into()),
       ..Self::of(run, Outcome::Answered)
+    }
+  }
+
+  /// A turn that answered with its text, built from the answers of the turns its round spanned.
+  pub fn answered_of(run: impl Into<String>, text: impl Into<String>, answers: Vec<TurnAnswer>) -> Self {
+    Self {
+      answers,
+      ..Self::answered(run, text)
     }
   }
 

@@ -917,6 +917,7 @@ pub fn reply(stdout: &str, exit_code: i32, model: &str) -> Reply {
     account: None,
     last_request_usage: None,
     request_usages: None,
+    answers: Vec::new(),
   }
 }
 

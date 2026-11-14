@@ -355,11 +355,35 @@ pub struct Turn {
   #[serde(default)]
   pub reason: Option<String>,
   pub answer: Option<String>,
+  /// The answer of each turn of its program the round spanned, in order, which `answer` was built from;
+  /// empty while the turn runs and where its road reads no such turns.
+  #[serde(default)]
+  pub answers: Vec<SpannedAnswer>,
   pub text: Vec<Value>,
   /// What the running turn waits for before its program is put to work; none while nothing holds it back
   /// and once it has ended.
   #[serde(default)]
   pub waiting: Option<TurnWaiting>,
+}
+
+/// SpannedAnswer: one turn's answer among those a round spanned.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SpannedAnswer {
+  /// That turn's last response.
+  pub text: String,
+  /// What opened that turn.
+  pub opened: SpannedAnswerOpened,
+}
+
+/// What opened a turn of a round: `handed` for words handed over, the round's own prompt or words pushed
+/// into it; `program` for a turn the program opened on its own, a background task's notice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum SpannedAnswerOpened {
+  #[serde(rename = "handed")]
+  Handed,
+  #[serde(rename = "program")]
+  Program,
 }
 
 /// TurnWaiting: what a running turn waits for, typed.

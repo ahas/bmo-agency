@@ -501,6 +501,7 @@ pub fn exec_reply(
     account: None,
     last_request_usage: requests.as_ref().and_then(|requests| requests.last().cloned()),
     request_usages: requests,
+    answers: Vec::new(),
   }
 }
 

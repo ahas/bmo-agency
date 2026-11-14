@@ -14,6 +14,7 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use agent_session::{Opened, TurnAnswer};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde::Serialize;
@@ -255,6 +256,10 @@ pub struct Reply {
   pub last_request_usage: Option<RequestUsage>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub request_usages: Option<Vec<RequestUsage>>,
+  /// The answer of each turn of the program the round spanned, in order, which `text` was built from;
+  /// none where the road reads no such turns.
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub answers: Vec<TurnAnswer>,
 }
 
 /// One of the account's windows a turn came back with: as Claude Code's status line hands it, or as a
@@ -391,6 +396,7 @@ impl TurnRead {
       account: None,
       last_request_usage: None,
       request_usages: None,
+      answers: Vec::new(),
     }
   }
 }
@@ -966,12 +972,14 @@ pub enum RoundState {
 
 /// A round of the program read out of what its record gained since it went in: where it stands, and
 /// the answer built turn by turn — a turn opened by words handed over writes the reply again whole and
-/// replaces it, and a turn the program opened on a background task's notice adds to it. A round with
-/// an error in the answer's place answers nothing.
+/// replaces it, and a turn the program opened on a background task's notice adds to it — with each
+/// turn's answer it was built from, in order. A round with an error in the answer's place answers
+/// nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
   pub state: RoundState,
   pub text: String,
+  pub answers: Vec<TurnAnswer>,
 }
 
 pub fn read_round(records: &[Value]) -> Round {
@@ -981,6 +989,7 @@ pub fn read_round(records: &[Value]) -> Round {
   let mut last_end: Option<usize> = None;
   let mut last_interrupt: Option<usize> = None;
   let mut answer = String::new();
+  let mut answers = Vec::new();
   let mut from = 0;
 
   for (at, record) in records.iter().enumerate() {
@@ -992,11 +1001,14 @@ pub fn read_round(records: &[Value]) -> Round {
       let text = read_turn(turn, 0).text;
 
       if !text.is_empty() {
-        answer = if answer.is_empty() || turn.iter().any(handed_words) {
-          text
+        let opened = if turn.iter().any(handed_words) { Opened::Handed } else { Opened::Program };
+
+        answer = if answer.is_empty() || opened == Opened::Handed {
+          text.clone()
         } else {
           format!("{answer}\n\n{text}")
         };
+        answers.push(TurnAnswer { text, opened });
       }
 
       from = at + 1;
@@ -1021,6 +1033,7 @@ pub fn read_round(records: &[Value]) -> Round {
       RoundState::Working
     },
     text: if whole.error.is_none() { answer } else { String::new() },
+    answers: if whole.error.is_none() { answers } else { Vec::new() },
   }
 }
 

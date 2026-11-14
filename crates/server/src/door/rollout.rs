@@ -340,6 +340,7 @@ pub fn read_rollout(lines: &[Value], run: &Run, provider: &str) -> Reading {
       account: None,
       last_request_usage: requests.last().cloned(),
       request_usages: (!requests.is_empty()).then_some(requests),
+      answers: Vec::new(),
     },
     error: failed,
   }

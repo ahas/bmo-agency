@@ -251,11 +251,13 @@ fn came_of(lines: &[Value], session: &str, failure: Option<(String, Option<Strin
   }
 
   let mut reply = read.reply(session, read.spend.clone());
-  let round = read_round(lines).text;
+  let round = read_round(lines);
 
-  if !round.is_empty() {
-    reply.text = round;
+  if !round.text.is_empty() {
+    reply.text = round.text;
   }
+
+  reply.answers = round.answers;
 
   Came::Answered(Box::new(reply))
 }

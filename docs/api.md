@@ -599,7 +599,7 @@ the turn while it goes and with its end once it has ended, and `turn.ended` carr
   standing under the key, the one this server sent or the one it picked up at its start, and is answered
   with that turn's end as the first send would have been, its `prompt` and `context` the repeat's own.
 - **A repeat after the turn has ended** is answered at once with its end, as kept: its `id`, `state`,
-  `delivery`, `outcome`, `ending`, `reason` and `answer`, `text` holding the answer. An end is kept for
+  `delivery`, `outcome`, `ending`, `reason`, `answer` and `answers`, `text` holding the answer. An end is kept for
   `kept_seconds` in `policy/turn-keys.toml`; a repeat after that, or one naming a key no turn of the
   session stood under, is a send of a new turn.
 - **A send refused before its turn began** — the session in a turn, unknown, or the turn's body refused —
@@ -675,6 +675,13 @@ went in `reprepared`. No turn whose program cannot answer is left waiting: each 
 event, and none is a clock's. A role's session's turn cut because the slot its session is bound to was given
 back — by its holder's finish or its owner's release (「slots, reservations and places」) — ends `stopped`
 with the reason `released`.
+
+A turn's end carries `answers` beside `answer`: the answer of each turn of its program the round spanned, in
+order, each `text`, that turn's last response, and `opened`, what opened that turn — `handed` for words handed
+over, the round's own prompt or words pushed into it, and `program` for a turn the program opened on its own, a
+background task's notice. `answer` is the round's answer built from them (`docs/agent-control.md`, 「The round's
+answer」); agency judges none of them, and a consumer that weighs what a later turn answered against an earlier
+one reads them here. A turn whose road reads no such turns carries `answers` empty, and `answer` alone stands.
 
 Every route that takes a body names the request type it reads, holding only the fields that route reads;
 `docs/openapi.json` names that type, and no route's request is a response type reused.

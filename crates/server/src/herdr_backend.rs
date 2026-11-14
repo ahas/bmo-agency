@@ -26,7 +26,8 @@ use std::time::Instant;
 pub use agent_session::EngineError;
 use agent_session::{
   Answer, Apart, Aside, Context, Conversation, Fault, FaultKind, GateAsk, Outcome, Output, RoomBlock,
-  Scope, Session, SessionId, Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
+  Scope, Session, SessionId, Sessions, Start, State, Turn, TurnAnswer, TurnContext, TurnEnd, WentOut,
+  WorkParts,
 };
 use indexmap::IndexMap;
 use policy::fill_marks;
@@ -593,8 +594,9 @@ fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
 // What a turn on a session came to, before it is published: a failure carries why, and the engine's error
 // where its engine ended the turn with one.
 enum Came {
-  /// The answer, with what the turn spent where its road reported it and the context it left where it read.
-  Answered(String, Option<run_ledger::Spent>, Option<Context>),
+  /// The answer, with what the turn spent where its road reported it, the context it left where it read and
+  /// each turn's answer it was built from where its road read them.
+  Answered(String, Option<run_ledger::Spent>, Option<Context>, Vec<TurnAnswer>),
   Stopped,
   Failed(String, Option<EngineError>),
   /// A job's turn, whose end is read whole where it is carried.
@@ -605,7 +607,7 @@ impl Came {
   // The turn's end under the run it went out as.
   fn end(self, run: &str) -> TurnEnd {
     match self {
-      Self::Answered(text, _, _) => TurnEnd::answered(run, text),
+      Self::Answered(text, _, _, answers) => TurnEnd::answered_of(run, text, answers),
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
       Self::Ended(end) => *end,
@@ -615,7 +617,7 @@ impl Came {
   // What the turn spent, read off the answer where it carried it and off a job's end where that did.
   fn spent(&self) -> Option<run_ledger::Spent> {
     match self {
-      Self::Answered(_, spent, _) => *spent,
+      Self::Answered(_, spent, _, _) => *spent,
       Self::Ended(end) => turn_spent(end),
       _ => None,
     }
@@ -624,7 +626,7 @@ impl Came {
   // The context the turn left, where its answer read it.
   fn context(&self) -> Option<Context> {
     match self {
-      Self::Answered(_, _, context) => *context,
+      Self::Answered(_, _, context, _) => *context,
       Self::Ended(end) => end
         .reply
         .as_ref()
@@ -1694,7 +1696,12 @@ impl HerdrSessions {
       tokio::spawn(async move { hand_over(&ground, &hold, &speaker, chat_id, due).await });
     }
 
-    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
+    Ok(Came::Answered(
+      reply.text.clone(),
+      spent_of(&reply.spend),
+      left(&reply),
+      reply.answers.clone(),
+    ))
   }
 
   #[allow(clippy::too_many_arguments)]
@@ -1980,7 +1987,12 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
+    Ok(Came::Answered(
+      reply.text.clone(),
+      spent_of(&reply.spend),
+      left(&reply),
+      reply.answers.clone(),
+    ))
   }
 
   // One turn of a conversation the caller opened, on the provider and model its scope names: the chat
@@ -2087,7 +2099,12 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
+    Ok(Came::Answered(
+      reply.text.clone(),
+      spent_of(&reply.spend),
+      left(&reply),
+      reply.answers.clone(),
+    ))
   }
 
   // One gate's turn of a conversation: the gate's instructions as the program's whole system prompt, on the
@@ -2243,7 +2260,12 @@ impl HerdrSessions {
       tokio::spawn(seat.start_afresh());
     }
 
-    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
+    Ok(Came::Answered(
+      reply.text.clone(),
+      spent_of(&reply.spend),
+      left(&reply),
+      reply.answers.clone(),
+    ))
   }
 
   // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
@@ -2974,7 +2996,12 @@ impl HerdrSessions {
     }
 
     match came {
-      Ok(reply) => Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply))),
+      Ok(reply) => Ok(Came::Answered(
+        reply.text.clone(),
+        spent_of(&reply.spend),
+        left(&reply),
+        reply.answers.clone(),
+      )),
       Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);

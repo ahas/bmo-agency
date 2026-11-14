@@ -8372,6 +8372,14 @@
               "null"
             ]
           },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpannedAnswer"
+            },
+            "description": "The answer of each turn of its program the round spanned, in order, which `answer` was built from;\nempty while the turn runs and where its road reads no such turns.",
+            "default": []
+          },
           "text": {
             "type": "array",
             "items": true
@@ -8400,6 +8408,7 @@
           "ending",
           "reason",
           "answer",
+          "answers",
           "text",
           "waiting"
         ],
@@ -8413,6 +8422,32 @@
           "interrupted"
         ],
         "description": "One of the values the API accepts."
+      },
+      "SpannedAnswer": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "That turn's last response."
+          },
+          "opened": {
+            "$ref": "#/components/schemas/SpannedAnswerOpened",
+            "description": "What opened that turn."
+          }
+        },
+        "required": [
+          "text",
+          "opened"
+        ],
+        "description": "SpannedAnswer: one turn's answer among those a round spanned."
+      },
+      "SpannedAnswerOpened": {
+        "type": "string",
+        "enum": [
+          "handed",
+          "program"
+        ],
+        "description": "What opened a turn of a round: `handed` for words handed over, the round's own prompt or words pushed\ninto it; `program` for a turn the program opened on its own, a background task's notice."
       },
       "TurnWaiting": {
         "type": "object",

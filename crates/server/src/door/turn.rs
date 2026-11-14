@@ -2312,14 +2312,15 @@ async fn watch_turn<W: Watch>(
       .collect(),
     _ => read.spend.clone(),
   };
-  let spanned = read_round(records.get(from..).unwrap_or_default()).text;
+  let round = read_round(records.get(from..).unwrap_or_default());
   let answered_by = wrote.clone().or_else(|| account_of_login(&accounts, &login, data));
 
   door.close("exited").await;
 
   let mut reply = read.reply(&turn.session, spend);
 
-  reply.text = if spanned.is_empty() { read.text.clone() } else { spanned };
+  reply.text = if round.text.is_empty() { read.text.clone() } else { round.text };
+  reply.answers = round.answers;
 
   if wrote.is_some() {
     reply.session_usage = figures.session_usage.clone();

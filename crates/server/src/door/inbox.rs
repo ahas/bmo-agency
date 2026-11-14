@@ -297,6 +297,7 @@ pub fn read_turn_on(records: &[Value], model: &str, provider: &str) -> (State, O
       account: None,
       last_request_usage: None,
       request_usages: None,
+      answers: Vec::new(),
     },
   )
 }

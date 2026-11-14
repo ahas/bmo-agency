@@ -314,6 +314,46 @@ fn a_word_pushed_after_the_last_tool_call_opens_a_turn_of_its_own_and_the_round_
 }
 
 #[test]
+fn a_round_hands_on_each_turns_answer_with_what_opened_the_turn() {
+  let notice =
+    json!({ "type": "user", "message": { "content": "<task-notification>done</task-notification>" } });
+  let lines = [
+    words("ROUND"),
+    step("a"),
+    queue("enqueue"),
+    response("b", "<<SEND>> the reply"),
+    end(),
+    queue("dequeue"),
+    words("MORE FOR THIS TURN."),
+    response("c", "<<SKIP: nothing new>>"),
+    end(),
+    notice,
+    response("d", "the task finished"),
+    end(),
+  ];
+  let round = read_round(&lines);
+
+  assert_eq!(round.text, "<<SKIP: nothing new>>\n\nthe task finished");
+  assert_eq!(
+    round.answers,
+    [
+      agent_session::TurnAnswer {
+        text: "<<SEND>> the reply".into(),
+        opened: agent_session::Opened::Handed,
+      },
+      agent_session::TurnAnswer {
+        text: "<<SKIP: nothing new>>".into(),
+        opened: agent_session::Opened::Handed,
+      },
+      agent_session::TurnAnswer {
+        text: "the task finished".into(),
+        opened: agent_session::Opened::Program,
+      },
+    ]
+  );
+}
+
+#[test]
 fn words_that_waited_together_open_one_turn_and_an_answer_written_again_goes_out_once() {
   let stop_summary = json!({ "type": "system", "subtype": "stop_hook_summary" });
   let lines = vec![
