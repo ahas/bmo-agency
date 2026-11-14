@@ -3092,13 +3092,15 @@ with the session.
     a candidate, a draft awaiting approval, a wait ended, a question past its due time, an idle queue, and a
     chat session's absent server;
   - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
-    `DELETE /instructions/{id}`: a job's question, withdrawn once a settling reply comes;
+    `DELETE /instructions/{id}`, and never told again while it is kept: a job's question, withdrawn once a
+    settling reply comes, and a job's commit waiting for its repository's batch deployment, withdrawn once the
+    item no longer waits for it;
   - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
     again at every start of agency and every `retell_seconds` after it was last told, under the same kind, so
     the receiver replaces the copy still pending rather than queueing a second one. These are a check of a
-    job's review due with no move of the orderer's, a job's commit handed over and not live, an item awaiting
-    a launch on a free checkout and agent, and an ended job's item left leased. Once the condition ends the
-    row is let go, and the copy told last withdrawn where the receiver still holds it pending.
+    job's review due with no move of the orderer's, an item awaiting a launch on a free checkout and agent,
+    and an ended job's item left leased. Once the condition ends the row is let go, and the copy told last
+    withdrawn where the receiver still holds it pending.
 - **Owed for each transition.** A notice told once keeps a mark in agency's settings table, keyed by the item,
   the job or the question and, where one transition can come again, by the state it reached; a standing
   notice's row is its own mark. The mark is written with the notice's row, not when the receiver takes it,
@@ -3134,7 +3136,7 @@ with the session.
 | A held item whose `follows` or `waiting-on` label names items that are all `done` now, none with its commit still waiting to go live | the orderer | instruction | `item-wait-ended:<item>`, `item-wait-ended:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
-| A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, standing until the item leaves that phase, whether or not a job of agency's still runs on it | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
+| A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, told once for each commit and kept until the item leaves that phase, then withdrawn, whether or not a job of agency's still runs on it; another item's change, a restart or a later event of the item naming the same commit tells it no more | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |

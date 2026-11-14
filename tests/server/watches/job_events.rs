@@ -2,8 +2,10 @@
 //! is told to its orderer」): an item closed by somebody other than its orderer, a run's question asked and
 //! withdrawn once a reply settles it, a question past its due time told to the owner, each once; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
-//! live; a question past its due time taken again owing its parked job's notice again; and a note added to the
-//! item of a running job kept for that job before the cursor moves past it, and offered to its working turn.
+//! live; a commit waiting for its deployment told once for each commit, never again on another change, a start or
+//! the sender's retelling; a question past its due time taken again owing its parked job's notice again; and a
+//! note added to the item of a running job kept for that job before the cursor moves past it, and offered to its
+//! working turn.
 
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
@@ -511,4 +513,53 @@ async fn a_note_added_to_a_running_job_s_item_is_kept_before_the_cursor_moves_an
     scratch.count(r#"SELECT COUNT(*) FROM "job_words" WHERE "job_id" = 64"#, vec![]).await,
     1
   );
+}
+
+#[tokio::test]
+async fn items_waiting_for_their_deployment_are_told_once_each_and_not_again_on_the_next_change() {
+  use agency_server::outbox::{restarted, send_due};
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "80").await.unwrap();
+  peers.lock().unwrap().events = vec![
+    deploy_waiting(81, 101, "c1"),
+    deploy_waiting(82, 102, "c2"),
+    deploy_waiting(83, 103, "c3"),
+  ];
+  pass(db, &vars).await.unwrap();
+  assert_eq!(peers.lock().unwrap().instructed().len(), 3, "each waiting item told once");
+
+  // Another item of the queue changes, the waiting items' own events come again with the same commits, and the
+  // sender's retelling and a start come due: nothing is told again.
+  peers.lock().unwrap().events.extend([
+    event(
+      84,
+      "item.changed",
+      item(104, "leased", json!({ "previousState": "open", "changedBy": "x" })),
+    ),
+    deploy_waiting(85, 101, "c1"),
+    deploy_waiting(86, 102, "c2"),
+    deploy_waiting(87, 103, "c3"),
+  ]);
+  pass(db, &vars).await.unwrap();
+  restarted(db).await.unwrap();
+  assert_eq!(send_due(db, &vars).await.unwrap(), 0, "a kept notice is due no more");
+
+  let owed = owed(db, DEPLOY_OWED).await.unwrap();
+
+  assert_eq!(peers.lock().unwrap().instructed().len(), 3, "told once each, not again");
+  assert_eq!(owed.keys().collect::<Vec<_>>(), ["101", "102", "103"], "kept while they wait");
+
+  // A new commit after a send-back is a new state, told again.
+  peers.lock().unwrap().events.push(deploy_waiting(88, 102, "c2b"));
+  pass(db, &vars).await.unwrap();
+
+  let kinds: Vec<Value> =
+    peers.lock().unwrap().instructed().iter().map(|told| told["kind"].clone()).collect();
+
+  assert_eq!(kinds.len(), 4, "{kinds:?}");
+  assert_eq!(kinds[3], json!("item-awaits-deploy:102"));
 }

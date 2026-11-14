@@ -1,13 +1,13 @@
 //! The job service's events an item's orderer and the owner are told of (docs/agent-control.md, 「An item's
 //! change is told to its orderer」): read as a page past the cursor agency keeps, each event's notice owed in
-//! agency's outbox — a close that handed its commit over and waits on its deployment, standing until it no longer
-//! waits, an item closed by somebody other than its orderer, a run's question asked, a question past its due
-//! time, and a settling reply that withdraws the question's instruction — and a note added to the item of a job
-//! that runs, handed to that job (「Words for a running job」). The cursor advances only past events whose
-//! notices are owed and whose notes are kept. A pass with no cursor, or one whose cursor left the service's
-//! window, reads to the end and tells nothing of what it passed but a commit waiting to go live, owed or let go
-//! by the last event of each item it passed, since that notice stands on the item's state rather than on its
-//! change.
+//! agency's outbox — a close that handed its commit over and waits on its deployment, told once for each commit
+//! and kept until it no longer waits, an item closed by somebody other than its orderer, a run's question asked,
+//! a question past its due time, and a settling reply that withdraws the question's instruction — and a note
+//! added to the item of a job that runs, handed to that job (「Words for a running job」). The cursor advances
+//! only past events whose notices are owed and whose notes are kept. A pass with no cursor, or one whose cursor
+//! left the service's window, reads to the end and tells nothing of what it passed but a commit waiting to go
+//! live, owed or let go by the last event of each item it passed, since that notice stands on the item's state
+//! rather than on its change.
 
 use std::collections::BTreeMap;
 
@@ -141,8 +141,8 @@ async fn by_orderer(db: &DatabaseConnection, by: &str, orderer: &Orderer) -> boo
     || crate::supervisors::named(db, by).await.ok().flatten().is_some()
 }
 
-// A close's commit waiting to go live owed to the item's orderer, standing, once for that commit; and let go once
-// the item no longer reads so.
+// A close's commit waiting to go live owed to the item's orderer once for that commit, kept rather than told again
+// while the item waits on it; and let go, its copy withdrawn, once the item no longer reads so.
 async fn deploy_told(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -162,7 +162,7 @@ async fn deploy_told(
   match (waiting, owed) {
     (Some(commit), owed) if owed.as_ref().is_none_or(|owed| owed.mark != commit) => {
       let orderer = service.orderer_of(data).await?;
-      let notice = Notice::instruction(job_notices::awaits_deploy(data, commit, &orderer), Keep::Standing);
+      let notice = Notice::instruction(job_notices::awaits_deploy(data, commit, &orderer), Keep::Kept);
 
       outbox::owe(db, vars, notice.marked(commit)).await?;
       println!("queue: item #{id}'s commit {commit} waits to go live, owed to its orderer");

@@ -369,3 +369,51 @@ async fn a_job_s_lease_bound_to_a_turn_s_run_is_unbound_and_every_other_binding_
   assert_eq!(bound("session").await, 1, "a lease bound to a role session is kept");
   assert_eq!(bound("unit").await, 1, "another source's lease is kept");
 }
+
+#[tokio::test]
+async fn a_standing_deploy_notice_is_kept_due_no_more_once_told_and_every_other_notice_left_as_it_was() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that keeps a commit waiting for its deployment.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261223_000001_deploy_notices_kept")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "notices" ("key", "route", "body", "keep", "mark", "owed_at", "told_at", "due_at")
+         VALUES
+           ('item-awaits-deploy:1', 'instruction', '{}', 'standing', 'c1', 1, 2, 300),
+           ('item-awaits-deploy:2', 'instruction', '{}', 'standing', 'c2', 1, NULL, 5),
+           ('item-awaits-launch:3', 'instruction', '{}', 'standing', '', 1, 2, 300)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  let rows = |keep: &'static str, due: &'static str| {
+    scratch.count(
+      r#"SELECT count(*) FROM "notices" WHERE "keep" = $1 AND "key" = ANY(string_to_array($2, ','))"#,
+      vec![keep.into(), due.into()],
+    )
+  };
+  let due_no_more = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "key" = 'item-awaits-deploy:1' AND "due_at" IS NULL"#,
+    vec![],
+  );
+  let still_sent = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "key" = 'item-awaits-deploy:2' AND "due_at" = 5"#,
+    vec![],
+  );
+
+  assert_eq!(
+    rows("kept", "item-awaits-deploy:1,item-awaits-deploy:2").await,
+    2,
+    "both deploy rows kept"
+  );
+  assert_eq!(due_no_more.await, 1, "a row told is due no more");
+  assert_eq!(still_sent.await, 1, "a row not yet told is still sent");
+  assert_eq!(rows("standing", "item-awaits-launch:3").await, 1, "another standing notice stands");
+}
