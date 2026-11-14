@@ -63,13 +63,16 @@ desktop coding agent whose models and tools are served from elsewhere.
   tool no account, so it reaches no node at all, its own account's included.
 - **One read answers all three for a caller and a node,** `GET /nodes/{nodeName}/access` (`docs/api.md`,
   「person-nodes」), judged as the record's grant is: the node's owners, the caller's account, whether it holds the
-  administrator's grant, and whether it reaches the node.
+  administrator's grant, and whether it reaches the node. The node service reads it as its owners' read, asked on
+  agency's control port for each run with the run's caller named as `agent`, and takes the node's owners alone
+  from the answer (the node service's `docs/nodes.md`, 「A person's node」).
 - **The hub's settings file is read by the units that reach a hub, and by no agent:** the node tool, run by the
   tool host for a call a caller makes; agency's server and its node verbs, for a PC's workplace and its link; and
-  the node service, for its checks and its readings. No session is handed the file's path or anything read from
-  it: no record, run variable, place or link spec of a session names it, and the link sends none of it to a PC.
-  An account's sessions stand on its PC (「Which node is a person's」), where the file never is, so their shells
-  reach a node through the tool alone.
+  the node service, for its checks, its readings and the runs units make through it, reading the hub's control
+  token for each run's one request and handing it to no caller. No session is handed the file's path or anything
+  read from it: no record, run variable, place or link spec of a session names it, and the link sends none of it
+  to a PC. An account's sessions stand on its PC (「Which node is a person's」), where the file never is, so their
+  shells reach a node through the tool alone.
 - **Agency reaches a hub for one node with a credential scoped to that node's agent alone,** never with the hub's
   control token: `<agent>.<mac>`, the mac the lowercase hex of HMAC-SHA256 over the agent's name keyed by the
   hub's control key, `JAKE_CONTROL_KEY` in the hub's settings file (jake's `docs/architecture.md`, 「Configuration
@@ -85,7 +88,10 @@ desktop coding agent whose models and tools are served from elsewhere.
   - **A hub whose settings hold no control key is not reached:** the setup and the link say the key is missing
     rather than falling back to the control token.
   - **The control token, which reaches every agent, is the node service's alone:** its tool, for a caller the
-    administrator's grant lets reach every node, and its checks and readings.
+    administrator's grant lets reach every node; its runs, `POST /nodes/{nodeName}/runs` (the node service's
+    `docs/api.md`, 「Runs」), each one command a unit that is not a session runs as itself with a token of its own,
+    on a node whose callers setting names the unit and for an account among the node's owners, which the node
+    service reads through agency's access read (「Who reaches a node」, above); and its checks and readings.
 - **An account's node asks the home bridge for the verbs `policy/person-nodes.toml` names alone** (`bridge_verbs`):
   the status line's and the hooks' `agent-status`, a hosted tool's `use`, and the verbs of other units a
   supervisor's manual names. The bridge runs a call of a node an account owns, its PC or its isolation node, only
