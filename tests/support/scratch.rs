@@ -83,7 +83,7 @@ async fn template() -> String {
           .unwrap_or_default();
 
         if !alive(pid) {
-          let _ = admin.execute(format!("DROP DATABASE IF EXISTS \"{old}\" WITH (FORCE)").as_str()).await;
+          drop_database(&mut admin, &old).await;
         }
       }
 
@@ -154,6 +154,20 @@ pub async fn empty_database() -> String {
   database
 }
 
+// A test database dropped, the role's own sessions on it ended first. A forced drop would be refused whole
+// where an autovacuum worker stands on the database, since the test role may not end it; a plain drop asks
+// the server's own workers to stop and waits a few seconds for every holder to leave. A drop that still
+// fails leaves the database to the next binary's sweep.
+async fn drop_database(admin: &mut PgConnection, name: &str) {
+  let _ = sqlx::query(
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND usename = current_user",
+  )
+  .bind(name)
+  .execute(&mut *admin)
+  .await;
+  let _ = admin.execute(format!("DROP DATABASE IF EXISTS \"{name}\"").as_str()).await;
+}
+
 /// A copy dropped, its connections ended with it. It goes on a thread of its own, since a guard dropped inside
 /// the runtime may not block on it.
 pub fn drop_copy(database: String) {
@@ -163,9 +177,7 @@ pub fn drop_copy(database: String) {
     runtime.block_on(async move {
       let mut admin = server().await;
 
-      let _ = admin
-        .execute(format!("DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)").as_str())
-        .await;
+      drop_database(&mut admin, &database).await;
       let _ = admin.close().await;
     });
   })
