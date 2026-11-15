@@ -66,14 +66,25 @@ pub fn dev_pane_lock_path(data_root: &Path, worker: &str) -> PathBuf {
   lock_path(data_root, &format!("dev-pane:{worker}"))
 }
 
-/// A lock held for as long as this stands.
-pub struct Held(#[allow(dead_code)] File);
+/// A lock held for as long as this stands, and let go the moment it goes.
+pub struct Held(File);
 
-fn take(file: &File, wait: bool) -> bool {
-  let how = if wait { libc::LOCK_EX } else { libc::LOCK_EX | libc::LOCK_NB };
+// The lock is let go by name rather than by closing the file: a child forked by another thread holds a copy
+// of the descriptor until it execs, and the lock stands for as long as any copy is open, so a close alone
+// would leave it held past this holder.
+impl Drop for Held {
+  fn drop(&mut self) {
+    flock(&self.0, libc::LOCK_UN);
+  }
+}
 
+fn flock(file: &File, how: libc::c_int) -> bool {
   // SAFETY: the descriptor is the open file's own, and flock reads nothing else.
   unsafe { libc::flock(file.as_raw_fd(), how) == 0 }
+}
+
+fn take(file: &File, wait: bool) -> bool {
+  flock(file, if wait { libc::LOCK_EX } else { libc::LOCK_EX | libc::LOCK_NB })
 }
 
 fn open(path: &Path) -> std::io::Result<File> {
@@ -105,15 +116,23 @@ pub async fn hold(path: PathBuf) -> std::io::Result<Held> {
 /// Whether somebody holds the lock. A file that is not there is held by nobody; one that cannot be
 /// opened is not taken for free, since nobody could say. The look takes the lock shared, which a holder's
 /// exclusive lock refuses and another look at the same moment does not, so two looks never read each other
-/// as a holder.
+/// as a holder. The look lets its shared lock go by name, as a holder does, so a forked copy of its descriptor
+/// never refuses a holder after it.
 pub fn held(path: &Path) -> bool {
   if !path.exists() {
     return false;
   }
 
   match OpenOptions::new().read(true).open(path) {
-    // SAFETY: the descriptor is the open file's own, and flock reads nothing else.
-    Ok(file) => unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_SH | libc::LOCK_NB) != 0 },
+    Ok(file) => {
+      let free = flock(&file, libc::LOCK_SH | libc::LOCK_NB);
+
+      if free {
+        flock(&file, libc::LOCK_UN);
+      }
+
+      !free
+    }
     Err(_) => true,
   }
 }
