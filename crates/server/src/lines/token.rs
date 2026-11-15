@@ -188,6 +188,12 @@ async fn capabilities(
     }
   }
 
+  // A supervisor's settings close what its brain switch and its tool limit close (docs/supervisors.md, 「Its
+  // settings」).
+  if supervisor {
+    held = crate::supervisor_limits::Limits::of(&ground.db, &named).await?.narrowed(held);
+  }
+
   Ok((role, held))
 }
 
@@ -369,6 +375,14 @@ pub async fn carried_by(ground: &Ground, apart: &agent_session::Apart) -> Result
 
   if let Some(allowed) = &apart.tools_allowed {
     capabilities.retain(|capability| allowed.contains(capability));
+  }
+
+  // A double holds no more than the supervisor whose double it is: its brain switch and tool limit narrow the
+  // whole record.
+  if let Some(supervisor) = &apart.supervisor {
+    capabilities = crate::supervisor_limits::Limits::of(&ground.db, supervisor)
+      .await?
+      .narrowed(capabilities);
   }
 
   let lines: Vec<&str> = match apart.supervisor {

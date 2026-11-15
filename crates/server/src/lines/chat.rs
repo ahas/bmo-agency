@@ -38,6 +38,7 @@ use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::stand_in::Step;
+use crate::supervisor_limits::Limits;
 use crate::verbs::CONTROL_TOKEN;
 
 /// The line the deployment's chat goes out on.
@@ -312,9 +313,15 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// that names neither leaves that server out. Every supervisor's program is handed the same servers, whatever
 /// its shape (docs/supervisors.md, 「The bundles a supervisor holds」). Written on every composition, since this line is
 /// the one writer.
-pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str) -> Result<PathBuf, Refusal> {
+pub fn mcp_config(
+  ground: &Ground,
+  trees: &Trees,
+  agent: &str,
+  limits: &Limits,
+) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join(format!("chat.{agent}.mcp.json"));
-  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent))]).pretty());
+  let text =
+    format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent, limits))]).pretty());
 
   agent_host::disk::private_dir(&trees.agents)
     .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
@@ -346,8 +353,9 @@ pub async fn double_of(
     .await
     .map_err(|why| fault(format!("the supervisor {supervisor} could not be read: {why}")))?
     .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?;
+  let limits = Limits::of(&ground.db, supervisor).await?;
   let mut servers: indexmap::IndexMap<String, Ordered> =
-    harness_servers(ground, supervisor).entries().cloned().unwrap_or_default();
+    harness_servers(ground, supervisor, &limits).entries().cloned().unwrap_or_default();
   let read: Ordered = serde_json::from_str(
     &std::fs::read_to_string(line_config)
       .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
@@ -386,7 +394,7 @@ const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || e
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
-fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
+fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
   let env = ground.env();
   let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
@@ -571,6 +579,10 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
     servers.push(("agency".to_owned(), Ordered::map(fields)));
   }
 
+  // A supervisor's tool limit leaves out each server it closes (docs/launch-lines.md, 「What a line's program is
+  // allowed, by road」).
+  servers.retain(|(name, _)| limits.keeps_server(name));
+
   Ordered::map(servers)
 }
 
@@ -630,7 +642,7 @@ pub async fn composed_system(
     discipline,
     tool_discipline,
     documents,
-    servers: harness_servers(ground, agent)
+    servers: harness_servers(ground, agent, &Limits::of(&ground.db, agent).await?)
       .entries()
       .into_iter()
       .flatten()
@@ -692,7 +704,8 @@ pub async fn chat_run(
   let (system, system_hash, parts, persona) =
     (composed.system, composed.hash, composed.parts, composed.persona);
   let system_path = system_prompt_file(&trees, agent, &system)?;
-  let mcp = mcp_config(ground, &trees, agent)?;
+  let limits = Limits::of(&ground.db, agent).await?;
+  let mcp = mcp_config(ground, &trees, agent, &limits)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   for (name, value) in &CLAUDE_CODE.launch.variables {
@@ -731,7 +744,7 @@ pub async fn chat_run(
     tools_shown: CHAT_LINE.tools.shown.clone(),
     // A program told its tools is allowed every one it is shown, and Claude Code denied the line's list alone.
     tools_allowed: CHAT_LINE.tools.shown.clone(),
-    tools_denied: Some(denied()),
+    tools_denied: Some(limits.denied(&denied())),
     mcp_config: mcp,
     mcp_tools: server_digest(ground).await,
     prompt: prompt.to_owned(),

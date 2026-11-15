@@ -252,21 +252,24 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   seeds it; `turnShape`; `provider` and `model`, its road; `registration`, the registration its road names
   where it stands on the registry's provider, or null, and `registrations`, every offered registration, each
   `name` and `label`; `entries`, the model files behind that registration, `serving`, the one its engine
-  serves now, and `modelUse`, the engine's latest use; `settings` — `referenceOn`, `persona`, `generation`,
-  `updatedAt` and `updatedBy`; `generationSettings`, every generation setting with its bounds, as a
+  serves now, and `modelUse`, the engine's latest use; `settings` — `referenceOn`, `brainOn`, `toolsAllowed` (a
+  list of capabilities, or null for everything), `persona`, `generation`, `updatedAt` and `updatedBy`; `generationSettings`, every generation setting with its bounds, as a
   repository's `samplingSettings` are answered (「repositories」), `max_tokens` held under the registration's
   window; `thinking`, on, off or null for the provider's own; `personaFile`, the persona its prompt folder's
   file holds; `basePrompt` and `basePrompts`; `system`, the system prompt its next turn sends —
   `characters`, `hash` and `text` — where its turn shape is `pieces`, and null for the `window` shape; and
   `sessions`, its room sessions, each `chatId`, the room's `title`, `generation`, `systemResetAt`,
   `resetWaiting` and `lastResetAt`. 404 `not-found` for no supervisor of the name.
-- **`PATCH /supervisors/{supervisorName}/settings`** takes `referenceOn`, `persona`, `generation`, an object
+- **`PATCH /supervisors/{supervisorName}/settings`** takes `referenceOn`, `brainOn`, a switch, `toolsAllowed`,
+  a list of capabilities the supervisor could hold or null for everything (`docs/supervisors.md`, 「Its
+  settings」), `persona`, `generation`, an object
   of settings by name, a null letting one go back to the engine's default, `registration`, an offered
   registration its road is moved to on the registry's provider, or null, which leaves the road as it stands,
   since a supervisor always names a road,
   `thinking` and `by`, who saves, each judged before anything is written; a field it does not name is
   refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
-  changes its generation settings or its thinking asks a reset of every room session it holds. The answer
+  changes its generation settings, its thinking, its brain switch or its tool limit asks a reset of every room
+  session it holds. The answer
   is the settings read as it then stands; a program standing on a model its road no longer names is let go.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and

@@ -86,7 +86,8 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
     accounts[accounts.len() - 6..],
     ["rowid", "user_id", "endpoint_url", "key_file", "endpoint_models", "base_prompt"]
   );
-  assert_eq!(columns("supervisor_settings").await.last().unwrap(), "saved_settings");
+  let settings = columns("supervisor_settings").await;
+  assert_eq!(settings[settings.len() - 3..], ["saved_settings", "brain_on", "tools_allowed"]);
   let room_sessions = columns("room_sessions").await;
   assert_eq!(room_sessions[room_sessions.len() - 3..], ["rowid", "spent_calls", "spent_ms"]);
 }

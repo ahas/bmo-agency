@@ -7,6 +7,7 @@ use agency_server::lines::Trees;
 use agency_server::lines::chat::*;
 use agency_server::lines::claude::Session;
 use agency_server::places::Ground;
+use agency_server::supervisor_limits::Limits;
 use harness_providers::Machine;
 use policy::chat_line::CHAT_LINE;
 
@@ -703,7 +704,7 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
-  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent").unwrap();
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", &Limits::open()).unwrap();
   let text = std::fs::read_to_string(&path).unwrap();
 
   // No token stands in the configuration by value: each server is handed the file it stands in, and the job
@@ -750,13 +751,26 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
 
   // Another supervisor's configuration carries the same servers, agency's own plugin among them, under its
   // own name.
-  let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent").unwrap();
+  let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent", &Limits::open()).unwrap();
   let config: serde_json::Value =
     serde_json::from_str(&std::fs::read_to_string(&supervisor).unwrap()).unwrap();
   let agency = config["mcpServers"]["agency"]["args"].as_array().unwrap();
 
   assert!(agency.windows(2).any(|pair| pair == ["--agent", "supervisor-agent"]), "{config}");
   assert!(config["mcpServers"]["job"].is_object(), "{config}");
+  assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
+
+  // A supervisor whose tool limit leaves filing jobs out holds neither the job service's server nor agency's own,
+  // and keeps every server the limit does not close.
+  let limits = Limits::new(true, Some(vec!["web.pages".to_owned()]));
+  let limited = mcp_config(&ground, &Trees::of(&ground), "limited-agent", &limits).unwrap();
+  let config: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(&limited).unwrap()).unwrap();
+
+  assert!(
+    config["mcpServers"]["job"].is_null() && config["mcpServers"]["agency"].is_null(),
+    "{config}"
+  );
   assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
 }
 

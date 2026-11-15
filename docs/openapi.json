@@ -13835,7 +13835,7 @@
           },
           "modelUse": true,
           "settings": {
-            "description": "`referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`."
+            "description": "`referenceOn`, `brainOn`, `toolsAllowed`, `persona`, `generation`, `updatedAt` and `updatedBy`."
           },
           "generationSettings": {
             "type": "array",
@@ -13908,6 +13908,16 @@
               "boolean",
               "null"
             ]
+          },
+          "brainOn": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the supervisor's brain reaches its turns."
+          },
+          "toolsAllowed": {
+            "description": "The capabilities its sessions keep, a list, or null for everything they are given."
           },
           "persona": {
             "type": [

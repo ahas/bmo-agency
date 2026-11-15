@@ -189,6 +189,8 @@ pub struct SupervisorsWords {
   pub generation_pairs: String,
   pub not_generation: String,
   pub reference: String,
+  pub brain: String,
+  pub tools: String,
   pub own_pairs: String,
   pub own_name: String,
   pub own_size: String,

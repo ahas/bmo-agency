@@ -67,6 +67,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none — while the
   turn's agent stays the run's own, so every other tool it calls acts as the run. Every role on the worker
   line holds it but `upkeep`, which stands for no one's work, and `actor`, which reaches nothing itself.
+- **The policy names the capabilities through which a session reaches a brain,** `brain`: `room.chat`,
+  `gate.reference` and `brain.lessons`. A supervisor whose brain switch is off holds none of them on its own
+  turns or on its double's (`docs/supervisors.md`, 「Its settings」).
 - **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.

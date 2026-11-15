@@ -11,6 +11,8 @@
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
 # supervisor: the bundles every supervisor's session record holds (docs/supervisors.md, 「The bundles a
 #   supervisor holds」).
+# brain: the capabilities through which a session reaches a brain, which a supervisor whose brain switch is off
+#   holds none of (docs/supervisors.md, 「Its settings」).
 # name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
 # label_most: the most characters a role's label holds.
 # quota_share: the remaining quota at or below which a road's provider is read as having none, one for every
@@ -33,6 +35,7 @@ renewal = "upkeep"
 translate = "translator"
 send = "room.send"
 supervisor = ["room.chat", "room.send", "web.read"]
+brain = ["room.chat", "gate.reference", "brain.lessons"]
 name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 name_most = 40
 label_most = 60

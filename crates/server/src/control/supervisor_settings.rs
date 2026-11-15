@@ -31,17 +31,34 @@ use crate::text::{grouped, length};
 use store::{all, one, run};
 
 /// The settings fields a save may change, by the names a save marks as saved.
-const FIELDS: [&str; 2] = ["referenceOn", "persona"];
+const FIELDS: [&str; 4] = ["referenceOn", "brainOn", "toolsAllowed", "persona"];
+
+/// The settings fields whose change alters what a session is handed at its start, so a save that changes one
+/// starts every room afresh.
+const STARTING_FIELDS: [&str; 2] = ["brainOn", "toolsAllowed"];
 
 /// Every field a save's body may name: the supervisor, who saves, its settings, its pin and its thinking.
-const BODY_FIELDS: [&str; 7] =
-  ["agent", "by", "referenceOn", "persona", "registration", "generation", "thinking"];
+const BODY_FIELDS: [&str; 9] = [
+  "agent",
+  "by",
+  "referenceOn",
+  "brainOn",
+  "toolsAllowed",
+  "persona",
+  "registration",
+  "generation",
+  "thinking",
+];
 
 /// One supervisor's settings as its row holds them, every default where it holds none.
 #[derive(Clone, Debug)]
 pub struct Settings {
   agent: String,
   pub reference_on: bool,
+  /// Whether the supervisor's brain reaches its turns (docs/supervisors.md, 「Its settings」).
+  pub brain_on: bool,
+  /// The capabilities its sessions keep, or none for everything they are given.
+  pub tools_allowed: Option<Vec<String>>,
   persona: Option<String>,
   generation: Map<String, Value>,
   // The names of every setting a save or the seed has ever written on the row.
@@ -63,6 +80,8 @@ impl Settings {
       return Ok(Self {
         agent: agent.to_owned(),
         reference_on: SUPERVISORS.reference_on,
+        brain_on: true,
+        tools_allowed: None,
         persona: None,
         generation: Map::new(),
         saved: vec![],
@@ -83,6 +102,8 @@ impl Settings {
       reference_on: row
         .try_get::<Option<i64>>("", "reference_on")?
         .map_or(SUPERVISORS.reference_on, |on| on != 0),
+      brain_on: row.try_get::<Option<i64>>("", "brain_on")?.is_none_or(|on| on != 0),
+      tools_allowed: parsed(text("tools_allowed")?).and_then(|read| serde_json::from_value(read).ok()),
       persona: text("persona")?,
       generation: object(parsed(text("generation")?), |value| value.is_number() || value.is_boolean()),
       saved: parsed(text("saved_settings")?)
@@ -97,6 +118,8 @@ impl Settings {
     json!({
       "agent": self.agent,
       "referenceOn": self.reference_on,
+      "brainOn": self.brain_on,
+      "toolsAllowed": self.tools_allowed,
       "persona": self.persona,
       "generation": self.generation,
       "updatedAt": self.updated_at,
@@ -508,6 +531,34 @@ async fn checked<C: ConnectionTrait>(
     change.set("referenceOn", reference.clone());
   }
 
+  if let Some(brain) = body.get("brainOn") {
+    if !brain.is_boolean() {
+      return refused("brainOn", CONTROL_WORDS.supervisors.brain.as_str());
+    }
+
+    change.set("brainOn", brain.clone());
+  }
+
+  if let Some(tools) = body.get("toolsAllowed") {
+    let offered = crate::supervisor_limits::offered();
+    let named = |tools: &Vec<Value>| {
+      tools
+        .iter()
+        .all(|tool| tool.as_str().is_some_and(|tool| offered.iter().any(|one| one == tool)))
+    };
+
+    match tools {
+      Value::Null => change.set("toolsAllowed", Value::Null),
+      Value::Array(listed) if named(listed) => change.set("toolsAllowed", tools.clone()),
+      _ => {
+        return refused(
+          "toolsAllowed",
+          fill_marks(&CONTROL_WORDS.supervisors.tools, &[("offered", &offered.join(", "))]),
+        );
+      }
+    }
+  }
+
   let held = Settings::of(db, agent).await?;
 
   if let Some(persona) = body.get("persona") {
@@ -648,14 +699,21 @@ async fn write(
     marked.dedup();
     run(
       db,
-      "INSERT INTO supervisor_settings (agent, reference_on, pieces, own_pieces, persona, generation, saved_settings,
-       updated_at, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (agent) DO UPDATE SET reference_on = excluded.reference_on, pieces = excluded.pieces,
+      "INSERT INTO supervisor_settings (agent, reference_on, brain_on, tools_allowed, pieces, own_pieces, persona,
+       generation, saved_settings, updated_at, updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (agent) DO UPDATE SET reference_on = excluded.reference_on, brain_on = excluded.brain_on,
+       tools_allowed = excluded.tools_allowed, pieces = excluded.pieces,
        own_pieces = excluded.own_pieces, persona = excluded.persona, generation = excluded.generation,
        saved_settings = excluded.saved_settings, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
       vec![
         agent.into(),
         i64::from(next("referenceOn") != Value::Bool(false)).into(),
+        i64::from(next("brainOn") != Value::Bool(false)).into(),
+        match next("toolsAllowed") {
+          Value::Null => Option::<String>::None,
+          listed => Some(listed.to_string()),
+        }
+        .into(),
         Option::<String>::None.into(),
         "{}".to_owned().into(),
         next("persona").as_str().map(str::to_owned).into(),
@@ -668,6 +726,12 @@ async fn write(
     .await?;
 
     fields_changed.extend(generation);
+    fields_changed.extend(
+      changed
+        .iter()
+        .filter(|field| STARTING_FIELDS.contains(field))
+        .map(|field| (*field).to_owned()),
+    );
   }
 
   // A change to how its answers are generated starts every room afresh, so no conversation goes on

@@ -38,8 +38,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 ## Its settings
 
 - **Every supervisor holds settings beside its row,** a row of the `supervisor_settings` table keyed by its
-  name, every default standing where it holds none: its reference switch, its persona and its generation
-  settings, with who saved them last and when. Its thinking and the registration it runs on at the
+  name, every default standing where it holds none: its reference switch, its brain switch, its tool limit,
+  its persona and its generation settings, with who saved them last and when. Its thinking and the registration it runs on at the
   registry's provider are its road's (「What a supervisor row holds」 above), and a save of the settings
   changes them on the road.
 - **What a turn reads of them is its turn shape's.** A turn of the `pieces` shape is composed with the
@@ -48,10 +48,35 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   「A supervisor of the window shape」), and its settings change nothing of it.
 - **The reference switch** says whether its turns are given their reference — the sheets, memories and gate
   picks in front of its words; the supervisors policy names the default where its settings never held it.
+- **The brain switch** says whether the supervisor's brain reaches its turns, on where its settings never held
+  it. Off, every place the brain reaches a supervisor's turn is closed, and nothing else changes:
+  - its session record holds none of the capabilities the roles policy names as the brain's (`brain`:
+    `room.chat`, which every entry of the brain's tool asks; `gate.reference`, the gate's reading of the index
+    and its pieces; and `brain.lessons`, the lessons form a run working for it holds), on its own turns and on
+    its double's (「What a supervisor hands to a role」 below);
+  - the first prompt of its double's session carries no reference the gate picks (`docs/api.md`, 「sessions」);
+  - the receiver, which reads the switch on the settings page, carries no brain index, hint or due line in the
+    room's block and asks the gate for no core for its turns (the receiver's `docs/drafting.md`, 「A supervisor
+    whose brain is off」).
+  The base persona a `window`-shaped supervisor's system prompt ends with is its identity, not its memory, and
+  stays. The brain's memory tool asks only `room.tools`, which other tools share, so the switch does not take
+  its entries away; the tool limit below does, where it leaves `room.tools` out.
+- **The tool limit** narrows what the supervisor's sessions hold, in the shape a role's session's
+  `toolsAllowed` has (`docs/api.md`, 「sessions」): a list of capabilities, or none for everything, as every
+  supervisor holds by default. A list keeps, of what the chat line and the supervisor bundles give, only the
+  capabilities it names, on its own turns and on its double's, and never widens them. It also names what the
+  chat line holds outside the tool host, each under the capability the run-lines policy declares for it
+  (`policy/run-lines.toml`, the chat line's `held`): the job service's and agency's own servers, the explorer's
+  and the artifact's, and the program's own shell and file-writing tools. A server whose capability the list
+  leaves out is not in the supervisor's MCP configuration, and a program tool whose capability it leaves out is
+  added to the chat line's denied list. A save names only capabilities the supervisor could hold; any other is
+  refused.
 - **The persona** is a text of at most the supervisors policy's length, or none, and a persona left empty is
   none.
 - **A save is checked whole before anything is written** and overwrites what it changes, marking the
   settings it changed as saved. A field no save names is refused, as is a value outside its setting's bounds.
+  A save that changes the brain switch or the tool limit starts every room afresh, as one changing the
+  generation settings does, since both change what a session is handed at its start.
 
 ### Its generation settings
 

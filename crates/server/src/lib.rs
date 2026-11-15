@@ -96,6 +96,7 @@ pub mod session_tools;
 pub mod stand_in;
 pub mod streaming;
 pub mod supervisor_homes;
+pub mod supervisor_limits;
 pub mod supervisors;
 pub mod text;
 pub mod translate;

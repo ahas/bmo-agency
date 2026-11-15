@@ -518,6 +518,12 @@
   roads alike: bypass-permissions, the chat line's denied list as its only restriction, and its chat
   configuration whole. These are the words a role's run and a supervisor's double are started with on the
   worker line, the line's own denied list in place of the chat line's.
+- **A supervisor's tool limit narrows its program, where its settings hold one** (`docs/supervisors.md`, 「Its
+  settings」). The chat line's `held` declares a capability for each server of the chat configuration that
+  stands outside the tool host and for each group of the program's own tools a limit may close; a server whose
+  capability the limit leaves out is not written into that supervisor's configuration, its double's included,
+  and a program tool whose capability it leaves out joins the denied list its program is started with. A
+  supervisor whose settings hold no limit is started exactly as above.
 - **What stands beside the tools goes with them.** A run of the worker line takes its whole line on every road:
   the worker settings and their hooks — the guard on every shell command a job runs among them — the plugin
   and its skills, and the project and local setting sources. A gateway road writes the place's settings over the

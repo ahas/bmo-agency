@@ -241,7 +241,8 @@ pub async fn compose(
   std::fs::create_dir_all(&folder).map_err(|why| fault(format!("{}: {why}", folder.display())))?;
 
   let cwd = folder.to_string_lossy().into_owned();
-  let mcp = super::chat::mcp_config(ground, &trees, turn.agent)?;
+  let limits = crate::supervisor_limits::Limits::of(&ground.db, turn.agent).await?;
+  let mcp = super::chat::mcp_config(ground, &trees, turn.agent, &limits)?;
   // The turn's own variables, which the place holds for the run while the program keeps none of them.
   let variables = [
     ("BMO_TURN_CHAT", turn.chat_id.to_string()),
@@ -340,7 +341,7 @@ pub async fn compose(
     Some((id, _)) => Session::Resume(id.to_owned()),
     None => Session::Open(uuid::Uuid::new_v4().to_string()),
   };
-  let denied = denied();
+  let denied = limits.denied(&denied());
   let line = |model: &str, effort: &str, settings: &std::path::Path| {
     standing_words(
       &Words {

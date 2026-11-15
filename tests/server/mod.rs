@@ -22,6 +22,7 @@ mod command_reading {
 }
 
 mod supervisor_homes;
+mod supervisor_limits;
 mod supervisor_prompt_change;
 mod supervisor_turn {
   mod going;

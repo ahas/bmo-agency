@@ -1339,7 +1339,7 @@ pub struct SupervisorSettings {
   pub entries: Vec<Value>,
   pub serving: Option<String>,
   pub model_use: Option<Value>,
-  /// `referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`.
+  /// `referenceOn`, `brainOn`, `toolsAllowed`, `persona`, `generation`, `updatedAt` and `updatedBy`.
   pub settings: Value,
   /// Every generation setting with its bounds.
   pub generation_settings: Vec<Value>,
@@ -2895,6 +2895,12 @@ pub struct SupervisorSettingsChange {
   pub by: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub reference_on: Option<bool>,
+  /// Whether the supervisor's brain reaches its turns.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub brain_on: Option<bool>,
+  /// The capabilities its sessions keep, a list, or null for everything they are given.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub tools_allowed: Option<Value>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub persona: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

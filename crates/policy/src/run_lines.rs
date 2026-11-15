@@ -39,6 +39,23 @@ pub struct RunLine {
   /// agent staying the run's own.
   #[serde(default)]
   pub lessons: bool,
+  /// What a supervisor's tool limit names beside the tool host's capabilities: each a capability with the
+  /// servers of the line's configuration and the program's own tools that stand under it.
+  #[serde(default)]
+  pub held: Vec<Held>,
+}
+
+/// One capability a supervisor's tool limit may leave out, and what stands under it outside the tool host.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Held {
+  pub capability: String,
+  /// The servers of the line's configuration, by the names it gives them.
+  #[serde(default)]
+  pub servers: Vec<String>,
+  /// The program's own tools.
+  #[serde(default)]
+  pub tools: Vec<String>,
 }
 
 /// Every line, by its name.
@@ -49,6 +66,12 @@ pub struct RunLines(pub BTreeMap<String, RunLine>);
 impl RunLines {
   pub fn line(&self, name: &str) -> Option<&RunLine> {
     self.0.get(name)
+  }
+
+  /// What a supervisor's tool limit names beside the tool host's capabilities on the line; none for a line the
+  /// policy does not name.
+  pub fn held(&self, name: &str) -> &[Held] {
+    self.line(name).map_or(&[], |line| &line.held)
   }
 
   /// The capabilities a run of the line is issued; none for a line the policy does not name.

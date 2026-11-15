@@ -110,6 +110,9 @@ pub struct Roles {
   pub send: String,
   /// The bundles every supervisor's session record holds.
   pub supervisor: Vec<String>,
+  /// The capabilities through which a session reaches a brain, which a supervisor whose brain is off holds
+  /// none of.
+  pub brain: Vec<String>,
   /// The shape of a role's name.
   pub name_pattern: String,
   /// The most characters a role's name holds.

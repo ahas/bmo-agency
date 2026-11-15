@@ -4111,7 +4111,7 @@ export interface components {
             entries: unknown[];
             serving: string | null;
             modelUse: unknown;
-            /** @description `referenceOn`, `persona`, `generation`, `updatedAt` and `updatedBy`. */
+            /** @description `referenceOn`, `brainOn`, `toolsAllowed`, `persona`, `generation`, `updatedAt` and `updatedBy`. */
             settings: unknown;
             /** @description Every generation setting with its bounds. */
             generationSettings: unknown[];
@@ -4128,6 +4128,10 @@ export interface components {
         SupervisorSettingsChange: {
             by?: string | null;
             referenceOn?: boolean | null;
+            /** @description Whether the supervisor's brain reaches its turns. */
+            brainOn?: boolean | null;
+            /** @description The capabilities its sessions keep, a list, or null for everything they are given. */
+            toolsAllowed?: unknown;
             persona?: string | null;
             registration?: string | null;
             generation?: unknown;
