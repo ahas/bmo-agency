@@ -16,10 +16,10 @@ use node_link::frame::Pull;
 use node_link::spec::{Forward, Jake, Landing, Local, Push, Spec};
 use policy::account_isolation::ACCOUNT_ISOLATION;
 use policy::person_nodes::PERSON_NODES;
-use sea_orm::DatabaseConnection;
+use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
 use serde_json::Value;
-use store::all;
+use store::{all, one};
 
 use crate::Refusal;
 use crate::control::claude_accounts::accounts;
@@ -371,6 +371,21 @@ async fn workplaces(db: &DatabaseConnection) -> Result<Vec<Workplace>, Refusal> 
   .map_err(Refusal::from)
 }
 
+/// A node's workplace root as its programs read it, where its workplace is set up and its home known.
+pub async fn node_root<C: ConnectionTrait>(db: &C, node: &str) -> Result<Option<String>, Refusal> {
+  let row = one(
+    db,
+    r#"SELECT "root", "home" FROM "node_workplaces" WHERE "node" = $1"#,
+    vec![node.into()],
+  )
+  .await?;
+  let Some(row) = row else { return Ok(None) };
+  let root: String = row.try_get("", "root")?;
+  let home: Option<String> = row.try_get("", "home")?;
+
+  Ok(home.map(|home| node_path(&root, Some(&home))))
+}
+
 /// The workers, in the order the queue lists them, with the node each stands on and its checkout.
 async fn workers(
   db: &DatabaseConnection,
@@ -530,14 +545,25 @@ pub async fn spec(
   let here = roots.node_dir(node);
   let shown = |path: &Path| path.display().to_string();
 
-  // This machine's roots and the node's for each, the longest first, so a root under another is taken
-  // first.
+  // This machine's roots and the node's for each, and each supervisor's folder of an account sharing the node read
+  // as that folder under its account's root there (docs/person-nodes.md, 「Several accounts on one node」), the
+  // longest first, so a root under another is taken first.
   let mut rewrite = vec![
     (shown(&roots.data), join(&node_root, "data")),
     (shown(&roots.deploy), join(&node_root, "deploy")),
     (shown(&roots.agents), join(&node_root, "agents")),
     (shown(&roots.home), home.clone()),
   ];
+
+  for (supervisor, account) in crate::person_nodes::sharing_supervisors(db, node).await? {
+    let account_root = crate::person_nodes::account_root(&node_root, &account);
+    let homes = harness_machine::supervisor_prompt::homes;
+
+    rewrite.push((
+      shown(&homes(&roots.data).join(&supervisor)),
+      shown(&homes(Path::new(&account_root)).join(&supervisor)),
+    ));
+  }
 
   rewrite.sort_by_key(|(from, _)| std::cmp::Reverse(from.len()));
 

@@ -138,7 +138,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   crate::support::rows::repository(scratch.db(), "worker", "~/work", &[("node", "n1".into())]).await;
   // A supervisor of an account whose node is the PC u7.
   crate::support::rows::supervisor(scratch.db(), "u7-bmo", &[("owner_account", 7i64.into())]).await;
-  agency_server::person_nodes::set(scratch.db(), "7", "u7").await.unwrap();
+  agency_server::person_nodes::set(scratch.db(), "7", "u7", false).await.unwrap().unwrap();
   std::fs::create_dir_all(trees.path().join("data/nodes/n1")).unwrap();
   std::fs::write(
     trees.path().join("data/nodes/n1/setup.json"),
@@ -197,7 +197,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   assert_eq!(
     pc.folders,
     ["/home/tester/node-root/data/supervisor-homes/u7-bmo"],
-    "its folder is made there"
+    "its folder is made there, under the node's data root on a node its account alone owns"
   );
   assert!(pc.pull.iter().any(|landing| landing.local == roots.place("u7-bmo")
     && landing.pull.remote == "/home/tester/node-root/data/agent-places/u7-bmo"));
@@ -297,4 +297,69 @@ async fn an_account_with_no_pc_is_stood_up_on_its_isolation_node_and_linked_with
   assert_eq!(spec.bridge_verbs.as_ref(), Some(&policy::person_nodes::PERSON_NODES.bridge_verbs));
   assert!(spec.push.iter().any(|push| push.local == roots.place("u8-bmo")));
   assert_eq!(spec.root, at(".local/share/bmo-node"));
+}
+
+#[tokio::test]
+async fn each_account_sharing_a_node_keeps_its_supervisors_folders_under_a_root_of_its_own_there() {
+  let scratch = Scratch::new().await;
+  let trees = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    data: trees.path().join("data"),
+    deploy: trees.path().join("agency/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
+    agents: trees.path().join("agents"),
+    home: trees.path().to_path_buf(),
+    mcp_port: 3290,
+    jake_hub: Some("/opt/jake/jake-hub".into()),
+    config_dir: trees.path().join(".claude"),
+    path: "/usr/bin:/bin".into(),
+    bun: "bun".into(),
+  };
+  let db = scratch.db();
+
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "created_at", "updated_at")
+         VALUES ('u7', '~/node-root', '/home/tester', 'ready', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  std::fs::create_dir_all(trees.path().join("data/nodes/u7")).unwrap();
+  std::fs::write(
+    trees.path().join("data/nodes/u7/setup.json"),
+    r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock", "bridgeRelay": 47214 }"#,
+  )
+  .unwrap();
+
+  for (supervisor, account) in [("u7-bmo", 7i64), ("u8-bmo", 8i64)] {
+    crate::support::rows::supervisor(db, supervisor, &[("owner_account", account.into())]).await;
+    agency_server::person_nodes::set(db, &account.to_string(), "u7", true)
+      .await
+      .unwrap()
+      .unwrap();
+  }
+
+  let settled = settle(db, &LogsInToOne, &Units::default(), &roots).await.unwrap();
+
+  assert_eq!(settled.started, ["u7"]);
+
+  let pc = Spec::read(&roots.spec_path("u7")).unwrap();
+  let own = |supervisor: &str| {
+    pc.to_node(
+      &harness_machine::supervisor_prompt::homes(&roots.data)
+        .join(supervisor)
+        .display()
+        .to_string(),
+    )
+  };
+
+  assert_eq!(own("u7-bmo"), "/home/tester/node-root/accounts/7/supervisor-homes/u7-bmo");
+  assert_eq!(own("u8-bmo"), "/home/tester/node-root/accounts/8/supervisor-homes/u8-bmo");
+  let mut folders = pc.folders.clone();
+
+  folders.sort();
+  assert_eq!(folders, [own("u7-bmo"), own("u8-bmo")], "each folder is made under its account's root");
+  // The places stay in the node's data root, which every account on it shares.
+  assert!(pc.pull.iter().any(|landing| landing.local == roots.place("u8-bmo")
+    && landing.pull.remote == "/home/tester/node-root/data/agent-places/u8-bmo"));
 }

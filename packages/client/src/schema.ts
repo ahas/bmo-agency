@@ -4565,15 +4565,21 @@ export interface components {
         PersonNode: {
             ownerAccount: string;
             node: string;
+            /** @description Whether the administrator declared the node shared for the account. */
+            shared: boolean;
             /**
              * Format: int64
              * @description epoch milliseconds
              */
             setAt: number;
         };
-        /** @description The body that sets an account's node: a hub node the node service keeps. */
+        /**
+         * @description The body that sets an account's node: a hub node the node service keeps, and whether it is shared with other
+         *     accounts, false where left out.
+         */
         PersonNodeAsk: {
             node: string;
+            shared?: boolean | null;
         };
         /** @description NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there. */
         NodeAccess: {
@@ -4586,6 +4592,8 @@ export interface components {
             /** @description Whether the caller holds the administrator's grant, which reaches every node. */
             administrator: boolean;
             reaches: boolean;
+            /** @description The node path of the caller's account's workplace root where its record names the node shared; null otherwise. */
+            root: string | null;
         };
         /** @description Slots: every role's slots. */
         Slots: {
@@ -5092,6 +5100,15 @@ export interface components {
         };
         /** @description no-worker-free */
         NoWorkerFree: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description node-taken */
+        NodeTaken: {
             headers: {
                 [name: string]: unknown;
             };
@@ -9112,6 +9129,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["NodeTaken"];
             422: components["responses"]["NotAHubNode"];
             502: components["responses"]["UpstreamFailed"];
         };

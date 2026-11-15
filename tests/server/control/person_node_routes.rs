@@ -1,5 +1,6 @@
 //! Who reaches a node, read over the control routes of a running server (docs/api.md, 「person-nodes」): the
-//! answer a node service's tool reads as agency's client types it, and a caller left unnamed refused.
+//! answer a node service's tool reads as agency's client types it, the root of a caller's account sharing the node
+//! among it, and a caller left unnamed refused.
 
 use agency_server::person_nodes;
 use bmo_agency_client::NodeAccess;
@@ -17,7 +18,14 @@ async fn a_running_server_answers_who_reaches_a_node() {
 
   std::fs::create_dir_all(&data).unwrap();
   supervisor(scratch.db(), "u7", &[("owner_account", 7i64.into())]).await;
-  person_nodes::set(scratch.db(), "7", "pc-7").await.unwrap();
+  person_nodes::set(scratch.db(), "7", "pc-7", true).await.unwrap().unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "created_at", "updated_at")
+         VALUES ('pc-7', '~/node-root', '/home/tester', 'ready', 0, 0)"#,
+      vec![],
+    )
+    .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let client = reqwest::Client::new();
@@ -40,6 +48,7 @@ async fn a_running_server_answers_who_reaches_a_node() {
       account: Some("7".into()),
       administrator: false,
       reaches: true,
+      root: Some("/home/tester/node-root/accounts/7".into()),
     }
   );
   assert_eq!(ask("?agent=%20").await.unwrap().status().as_u16(), 400);

@@ -6986,6 +6986,9 @@
           "422": {
             "$ref": "#/components/responses/NotAHubNode"
           },
+          "409": {
+            "$ref": "#/components/responses/NodeTaken"
+          },
           "502": {
             "$ref": "#/components/responses/UpstreamFailed"
           }
@@ -6993,6 +6996,7 @@
         "x-codes": [
           "unauthorized",
           "not-a-hub-node",
+          "node-taken",
           "upstream-failed"
         ],
         "parameters": [
@@ -15347,6 +15351,10 @@
           "node": {
             "type": "string"
           },
+          "shared": {
+            "type": "boolean",
+            "description": "Whether the administrator declared the node shared for the account."
+          },
           "setAt": {
             "type": "integer",
             "format": "int64",
@@ -15356,6 +15364,7 @@
         "required": [
           "ownerAccount",
           "node",
+          "shared",
           "setAt"
         ],
         "description": "PersonNode: the node an account's runs stand on."
@@ -15365,12 +15374,18 @@
         "properties": {
           "node": {
             "type": "string"
+          },
+          "shared": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         },
         "required": [
           "node"
         ],
-        "description": "The body that sets an account's node: a hub node the node service keeps."
+        "description": "The body that sets an account's node: a hub node the node service keeps, and whether it is shared with other\naccounts, false where left out."
       },
       "NodeAccess": {
         "type": "object",
@@ -15401,6 +15416,13 @@
           },
           "reaches": {
             "type": "boolean"
+          },
+          "root": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The node path of the caller's account's workplace root where its record names the node shared; null otherwise."
           }
         },
         "required": [
@@ -15409,7 +15431,8 @@
           "agent",
           "account",
           "administrator",
-          "reaches"
+          "reaches",
+          "root"
         ],
         "description": "NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there."
       },
@@ -16482,6 +16505,16 @@
       },
       "NoWorkerFree": {
         "description": "no-worker-free",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NodeTaken": {
+        "description": "node-taken",
         "content": {
           "application/json": {
             "schema": {

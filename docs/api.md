@@ -1280,16 +1280,20 @@ where the shell stands in an agent's program, else the owner.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/person-nodes` | Every account's node, by account. |
-| PUT | `/person-nodes/{ownerAccount}` | An account's node set: `node`. |
+| PUT | `/person-nodes/{ownerAccount}` | An account's node set: `node`, and `shared`, false where left out. |
 | DELETE | `/person-nodes/{ownerAccount}` | An account's node taken away. |
 | GET | `/nodes/{nodeName}/access` | Whether a caller reaches a node: its owners, the caller's account and the administrator's grant. |
 
 - **An account's node is where its runs stand** (`docs/person-nodes.md`, 「Which node is a person's」): each record is
-  `ownerAccount`, `node` and `setAt` in epoch milliseconds. The service that binds an account to its machine sets it
-  once the machine is proven, and again when the account is bound to another.
+  `ownerAccount`, `node`, `shared`, whether the administrator declared the node shared for the account, and `setAt`
+  in epoch milliseconds. The service that binds an account to its machine sets it once the machine is proven, and
+  again when the account is bound to another.
 - **The node is one the node service keeps as a hub node reserved for no service:** another is 422
   `not-a-hub-node`, and a node service
   that cannot answer is 502 `upstream-failed`. Taking away a record no account holds is 404 `not-found`.
+- **A node another account's record names is 409 `node-taken`** unless that record and this one are both shared
+  (`docs/person-nodes.md`, 「Several accounts on one node」). An account whose record is shared works on the node
+  under a workplace root of its own, `<node root>/accounts/<account>`.
 - **These records and the session records agency issues are what the node service's tool judges a caller by**
   before it runs a command on a node (`docs/person-nodes.md`, 「Who reaches a node」). Whether an account owns a
   node is this list: the node's owners are the accounts whose record names it, and the owner of an isolation node,
@@ -1304,8 +1308,10 @@ where the shell stands in an agent's program, else the owner.
   account the caller acts for, null for the deployment's own, read off the seat at its role and folder as well;
   `administrator`, whether it holds the administrator's grant, which a supervisor of no account or of the
   administrator's account holds, as it is and as a double stands for it, and no other caller does; and `reaches`, true where it holds that grant or its
-  account is among the owners. The node is not asked of the node service: a node it does not keep is answered as
-  one no record names. A missing `agent` is 400.
+  account is among the owners; and `root`, the node path of the workplace root of the caller's account where that
+  account's record names the node shared and the node's workplace is set up, null otherwise, which the node
+  service's tool runs that caller's command inside. The node is not asked of the node service: a node it does not
+  keep is answered as one no record names. A missing `agent` is 400.
 - **The administrator's grant is written into the records agency issues** (`docs/tools.md`, 「The session record」):
   a record held under the name of a supervisor of no account or of the administrator's account holds each grant
   `policy/person-nodes.toml` names, `node.admin`, which the tool reads as reaching every node, and
@@ -1806,7 +1812,7 @@ input, so `bmo` finds it from any directory.
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
 | `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
 | `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
-| `node person` | none to list every account's node; `<account> <node>` to set one, `<account> --clear` to take it away | the store, and the node service for the node |
+| `node person` | none to list every account's node; `<account> <node>` to set one, with `--shared` where the node is shared with other accounts; `<account> --clear` to take it away | the store, and the node service for the node |
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
 | `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`, the checkouts' dev servers and the runs' records; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, the runs' records, and the store |
 | `dev-pane` | `<checkout>` | the checkout's dev-server pane, and the store |

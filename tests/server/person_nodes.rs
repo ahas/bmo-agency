@@ -65,8 +65,8 @@ async fn an_account_s_node_is_set_replaced_listed_and_taken_away() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
-  person_nodes::set(db, "7", "box").await.unwrap();
-  person_nodes::set(db, "7", "pc-7").await.unwrap();
+  person_nodes::set(db, "7", "box", false).await.unwrap().unwrap();
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
 
   let every = person_nodes::every(db).await.unwrap();
 
@@ -79,6 +79,48 @@ async fn an_account_s_node_is_set_replaced_listed_and_taken_away() {
     Some("account-7"),
     "an account with no record works on its isolation node"
   );
+}
+
+// "a node another account's record names is refused unless both records are shared"
+#[tokio::test]
+async fn a_node_another_account_s_record_names_is_refused_unless_both_records_are_shared() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let taken = |by: &str| person_nodes::Taken {
+    node: "pc-7".into(),
+    by: by.into(),
+  };
+
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
+  assert_eq!(
+    person_nodes::set(db, "8", "pc-7", true).await.unwrap(),
+    Err(taken("7")),
+    "7's is not shared"
+  );
+
+  person_nodes::set(db, "7", "pc-7", true).await.unwrap().unwrap();
+  assert_eq!(
+    person_nodes::set(db, "8", "pc-7", false).await.unwrap(),
+    Err(taken("7")),
+    "8's is not shared"
+  );
+  person_nodes::set(db, "8", "pc-7", true).await.unwrap().unwrap();
+  assert_eq!(
+    person_nodes::set(db, "7", "pc-7", false).await.unwrap(),
+    Err(taken("8")),
+    "an account sharing a node cannot take it back to itself while another shares it"
+  );
+
+  let every = person_nodes::every(db).await.unwrap();
+
+  assert_eq!(
+    every
+      .iter()
+      .map(|one| (one.owner_account.as_str(), one.node.as_str(), one.shared))
+      .collect::<Vec<_>>(),
+    [("7", "pc-7", true), ("8", "pc-7", true)]
+  );
+  assert_eq!(person_nodes::owners_of(db, "pc-7").await.unwrap(), ["7", "8"]);
 }
 
 // "only a hub node the node service keeps and reserves for no service can be an account's"
@@ -111,7 +153,7 @@ async fn a_supervisor_of_an_account_stands_on_its_node_and_one_of_no_account_or_
   rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;
   rows::supervisor(db, "u9", &[("owner_account", 9i64.into())]).await;
   rows::supervisor(db, "bmo", &[]).await;
-  person_nodes::set(db, "7", "pc-7").await.unwrap();
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
   scratch
     .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
     .await;
@@ -158,7 +200,7 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
       )
       .await;
   }
-  person_nodes::set(db, "7", "pc-7").await.unwrap();
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
 
   let placed = |seat: &'static str| composed_as(seat.to_owned(), run_node(db, Some("coder"), "/work"));
 
@@ -243,8 +285,15 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
       vec![],
     )
     .await;
-  person_nodes::set(db, "7", "pc-7").await.unwrap();
-  person_nodes::set(db, "9", "pc-7").await.unwrap();
+  person_nodes::set(db, "7", "pc-7", true).await.unwrap().unwrap();
+  person_nodes::set(db, "9", "pc-7", true).await.unwrap().unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "created_at", "updated_at")
+         VALUES ('pc-7', '~/node-root', '/home/tester', 'ready', 0, 0)"#,
+      vec![],
+    )
+    .await;
 
   let access = |node: &'static str, agent: &'static str, role: Option<&'static str>, checkout| {
     let data = data.path().to_owned();
@@ -270,6 +319,13 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   assert_eq!(own.owners, ["7", "9"]);
   assert_eq!(own.account.as_deref(), Some("7"));
   assert!(own.reaches && !own.administrator);
+  // Its account shares the node, so the tool runs its command inside its account's root there.
+  assert_eq!(own.root.as_deref(), Some("/home/tester/node-root/accounts/7"));
+  assert_eq!(
+    access("pc-8", "u7", None, None).await.root,
+    None,
+    "no root on a node its account does not share"
+  );
   assert!(!access("pc-8", "u7", None, None).await.reaches, "another node is not its account's");
 
   let deployment = access("pc-8", "bmo", None, None).await;
@@ -288,6 +344,7 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
 
   assert_eq!(isolated.owners, ["7"]);
   assert!(isolated.reaches);
+  assert_eq!(isolated.root, None, "an isolation node is its account's alone");
   assert!(!access("account-8", "u7", None, None).await.reaches, "another account's isolation node");
 
   // A role agent is read by its name, and a run holding no agent's name by the seat at its role and folder.

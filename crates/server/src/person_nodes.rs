@@ -1,7 +1,8 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): the record agency keeps of the node an
 //! account's runs stand on, set by the service that binds the account to its machine, else the account's isolation
 //! node on this machine (docs/account-isolation.md); the supervisors and role runs placed there by it; the wait of a
-//! run of it while the node's link is not heard; and who reaches a node (「Who reaches a node」).
+//! run of it while the node's link is not heard; several accounts sharing one node, each under a root of its own
+//! (「Several accounts on one node」); and who reaches a node (「Who reaches a node」).
 
 use std::path::Path;
 use std::time::Duration;
@@ -20,6 +21,9 @@ use crate::peers::node::{NodeKind, NodeService};
 pub struct PersonNode {
   pub owner_account: String,
   pub node: String,
+  /// Whether the administrator declared the node shared for the account, which lets other accounts' shared records
+  /// name it too and gives the account a root of its own there.
+  pub shared: bool,
   /// When it was set, in epoch milliseconds.
   pub set_at: i64,
 }
@@ -28,8 +32,17 @@ fn of_row(row: &sea_orm::QueryResult) -> Result<PersonNode, sea_orm::DbErr> {
   Ok(PersonNode {
     owner_account: row.try_get("", "owner_account")?,
     node: row.try_get("", "node")?,
+    shared: row.try_get("", "shared")?,
     set_at: row.try_get("", "set_at")?,
   })
+}
+
+/// The folder under a node's workplace root the roots of the accounts sharing the node stand in.
+const ACCOUNTS_DIR: &str = "accounts";
+
+/// The workplace root of an account sharing a node, as the node reads it, under the node's own root.
+pub fn account_root(node_root: &str, account: &str) -> String {
+  format!("{node_root}/{ACCOUNTS_DIR}/{account}")
 }
 
 /// Every account's node, by account.
@@ -73,23 +86,100 @@ pub async fn placed_for<C: ConnectionTrait>(
   Ok(Some(crate::account_isolation::node_name(account)))
 }
 
-/// An account's node set, replacing the one it had.
-pub async fn set(db: &DatabaseConnection, account: &str, node: &str) -> Result<PersonNode, Refusal> {
+/// Why a record cannot name a node: another account's record names it, and the two are not both shared.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Taken {
+  pub node: String,
+  /// The account whose record names the node.
+  pub by: String,
+}
+
+impl std::fmt::Display for Taken {
+  fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      out,
+      "{} is account {}'s node; accounts share a node only where each one's record is shared",
+      self.node, self.by
+    )
+  }
+}
+
+/// An account's node set, replacing the one it had, or why it cannot be: another account's record names the node
+/// and the two records are not both shared.
+pub async fn set(
+  db: &DatabaseConnection,
+  account: &str,
+  node: &str,
+  shared: bool,
+) -> Result<Result<PersonNode, Taken>, Refusal> {
+  let taken = one(
+    db,
+    r#"SELECT "owner_account" FROM "person_nodes"
+       WHERE "node" = $1 AND "owner_account" <> $2 AND NOT ("shared" AND $3)
+       ORDER BY "owner_account" LIMIT 1"#,
+    vec![node.into(), account.into(), shared.into()],
+  )
+  .await?;
+
+  if let Some(row) = taken {
+    return Ok(Err(Taken {
+      node: node.to_owned(),
+      by: row.try_get("", "owner_account")?,
+    }));
+  }
+
   let at = crate::now_ms();
 
   run(
     db,
-    r#"INSERT INTO "person_nodes" ("owner_account", "node", "set_at") VALUES ($1, $2, $3)
-       ON CONFLICT ("owner_account") DO UPDATE SET "node" = $2, "set_at" = $3"#,
-    vec![account.into(), node.into(), at.into()],
+    r#"INSERT INTO "person_nodes" ("owner_account", "node", "shared", "set_at") VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("owner_account") DO UPDATE SET "node" = $2, "shared" = $3, "set_at" = $4"#,
+    vec![account.into(), node.into(), shared.into(), at.into()],
   )
   .await?;
 
-  Ok(PersonNode {
+  Ok(Ok(PersonNode {
     owner_account: account.to_owned(),
     node: node.to_owned(),
+    shared,
     set_at: at,
-  })
+  }))
+}
+
+/// Whether an account's record names `node` shared, which gives the account a root of its own there.
+pub async fn shares<C: ConnectionTrait>(db: &C, account: &str, node: &str) -> Result<bool, Refusal> {
+  let row = one(
+    db,
+    r#"SELECT 1 AS "one" FROM "person_nodes" WHERE "owner_account" = $1 AND "node" = $2 AND "shared""#,
+    vec![account.into(), node.into()],
+  )
+  .await?;
+
+  Ok(row.is_some())
+}
+
+/// Each supervisor of an account whose record names `node` shared, with that account, by name: the supervisors whose
+/// folders stand under their account's root on the node.
+pub async fn sharing_supervisors<C: ConnectionTrait>(
+  db: &C,
+  node: &str,
+) -> Result<Vec<(String, String)>, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT s."name", p."owner_account" FROM "supervisors" s
+       JOIN "person_nodes" p ON p."owner_account" = s."owner_account"::text
+       WHERE p."node" = $1 AND p."shared"
+       ORDER BY s."name""#,
+    vec![node.into()],
+  )
+  .await?;
+
+  Ok(
+    rows
+      .iter()
+      .map(|row| Ok((row.try_get("", "name")?, row.try_get("", "owner_account")?)))
+      .collect::<Result<_, sea_orm::DbErr>>()?,
+  )
 }
 
 /// An account's node taken away; whether it had one.
@@ -267,6 +357,9 @@ pub struct Access {
   /// Whether it holds the administrator's grant, which reaches every node.
   pub administrator: bool,
   pub reaches: bool,
+  /// The node path of the workplace root of the caller's account, where its record names the node shared and the
+  /// node's workplace is set up; the node tool runs the caller's command inside it.
+  pub root: Option<String>,
 }
 
 /// Whether `caller` reaches `node`: where it holds the administrator's grant, or its account owns the node.
@@ -282,6 +375,12 @@ pub async fn access<C: ConnectionTrait>(
     administrator,
   } = acting_for(db, data_root, caller).await?;
   let reaches = administrator || account.as_ref().is_some_and(|account| owners.contains(account));
+  let root = match &account {
+    Some(account) if shares(db, account, node).await? => crate::watches::links::node_root(db, node)
+      .await?
+      .map(|node_root| account_root(&node_root, account)),
+    _ => None,
+  };
 
   Ok(Access {
     node: node.to_owned(),
@@ -290,6 +389,7 @@ pub async fn access<C: ConnectionTrait>(
     account,
     administrator,
     reaches,
+    root,
   })
 }
 

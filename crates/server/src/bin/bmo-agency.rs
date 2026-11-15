@@ -303,6 +303,9 @@ enum NodeVerb {
   Person {
     account: Option<String>,
     node: Option<String>,
+    /// The node is shared with other accounts, each under a root of its own there.
+    #[arg(long)]
+    shared: bool,
     #[arg(long)]
     clear: bool,
   },
@@ -589,8 +592,11 @@ async fn run(verb: Verb) -> ExitCode {
       NodeVerb::Person {
         account,
         node,
+        shared,
         clear,
-      } => ended(agency_server::verbs::person_node::person_node(&data_root, account, node, clear).await),
+      } => ended(
+        agency_server::verbs::person_node::person_node(&data_root, account, node, shared, clear).await,
+      ),
       NodeVerb::Work { step } => ended(work_node::work_node(&data_root, step).await),
     },
     Verb::NodePane { name } => ended(node_pane::node_pane(&data_root, &name).await),

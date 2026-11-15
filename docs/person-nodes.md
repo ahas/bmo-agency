@@ -12,7 +12,8 @@ desktop coding agent whose models and tools are served from elsewhere.
   「Invitations and a person's machine」), or another the administrator bound it to. Agency keeps one record an
   account, set and taken away by the service that binds the account (`docs/api.md`, 「person-nodes」), or with
   `bmo-agency node person`; it names a node the node service keeps as a hub node reserved for no service. The
-  node service lists it as any hub node (`docs/work-nodes.md`, 「In herdr」).
+  node service lists it as any hub node (`docs/work-nodes.md`, 「In herdr」). Several accounts' records name one
+  node only where the administrator declared it shared for each (「Several accounts on one node」).
 - **An account with no record has its isolation node on this machine** (`docs/account-isolation.md`), and the
   administrator's account none: its runs are the owner's own. So every account but the administrator's works on a
   node of its own.
@@ -33,6 +34,40 @@ desktop coding agent whose models and tools are served from elsewhere.
   node's link has been heard from, and starts once it has; a head or a room pane of a supervisor of the account is
   not stood until then. Nothing of it runs as this machine's user or on another account's node. A run of no
   account, or of the administrator's account, is placed as before.
+
+## Several accounts on one node
+
+- **The administrator may bind several accounts to one node, declaring it shared for each.** A record carries
+  `shared`, false unless the binding says so (`docs/api.md`, 「person-nodes」, and `bmo-agency node person
+  --shared`). A record naming a node another account's record names is refused, `node-taken`, unless both
+  records are shared, so no account lands on another's PC by a slip, and an account bound alone keeps its PC to
+  itself.
+- **An account whose record is shared has a workplace root of its own on that node:** `accounts/<account>` under
+  the node's workplace root, `<node root>/accounts/<account>`. What agency names for the account's programs
+  stands under it, each at the path it holds under this machine's data root:
+  - each supervisor's own folder, `<account root>/supervisor-homes/<supervisor>`, in place of the one under the
+    node's data root; the link spec reads the supervisor's folder here as that folder, so its program, the
+    records the link brings back and the folder the far end makes all follow (`docs/work-nodes.md`, 「The link」);
+  - a role run's folder is its caller's — a job's checkout, a delegation's task folder — and reads on the node
+    through the roots as every other path, since agency names none of it.
+- **An account whose record is not shared keeps its folders where they stand,** under the node's data root, so
+  no path moves for a PC with one owner.
+- **The rest of the node is one for all its accounts:** its data root with every place, its herdr session, the
+  agent host, the CLI's records under the node's home, and the user every program runs as.
+- **The node tool runs an owner's command inside that owner's root.** The access read answers `root`, the node
+  path of the caller's account's root where its record names the node shared, null otherwise (`docs/api.md`,
+  「person-nodes」). Confining the command to it is the node service's tool's.
+- **One account's programs still read every other account's root on the node.** No launch wrap hides them, since
+  one that hid `<node root>/accounts` alone would not confine a program running as the node's one user:
+  - every program of that user that stands outside the wrap — the herdr session, the agent host, the far end —
+    shows the whole filesystem through its `/proc/<pid>/root` unless the wrapped program has a process namespace
+    and a `/proc` of its own;
+  - the herdr session's socket and the agent host start programs outside any wrap for whoever asks them;
+  - the places under the node's shared data root and the CLI's records under its home hold every account's
+    programs, transcripts and settings side by side.
+  So hiding needs all of these closed at once — a process namespace, the herdr and agent host sockets out of
+  reach, places and records of an account's own — and a setup that installs bubblewrap on the PC and checks its
+  user namespaces; it is left (「What stands and what is left」).
 
 ## Who reaches a node
 
@@ -194,5 +229,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
 | who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
+| several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
 | a check on a real PC | a PC attached as a jake agent with its stream and listen ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

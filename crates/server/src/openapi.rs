@@ -2751,7 +2751,7 @@ pub const OPERATIONS: &[Operation] = &[
     }],
     body: Some("PersonNodeAsk"),
     answers: &[(200, Some("PersonNode"), false)],
-    codes: &["not-a-hub-node", "upstream-failed"],
+    codes: &["not-a-hub-node", "node-taken", "upstream-failed"],
   },
   Operation {
     method: "DELETE",
@@ -3224,6 +3224,7 @@ fn status_of(code: &str) -> u16 {
     "not-the-sender" => 403,
     "conflict"
     | "name-taken"
+    | "node-taken"
     | "seeded"
     | "running"
     | "no-turn"

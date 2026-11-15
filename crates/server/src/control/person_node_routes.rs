@@ -38,7 +38,8 @@ impl Route for ListPersonNodes {
 
 crate::moved!(ListPersonNodes);
 
-/// `PUT /person-nodes/{ownerAccount}`: an account's node set, a hub node the node service keeps.
+/// `PUT /person-nodes/{ownerAccount}`: an account's node set, a hub node the node service keeps, shared with other
+/// accounts where the body says so and theirs are shared too.
 pub struct SetPersonNode;
 
 impl Route for SetPersonNode {
@@ -55,6 +56,12 @@ impl Route for SetPersonNode {
       .filter(|node| !node.is_empty())
       .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "node (string) is required"))?
       .to_owned();
+    let shared = match body.get("shared") {
+      None | Some(Value::Null) => false,
+      Some(shared) => shared
+        .as_bool()
+        .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "shared is a boolean").with_field("shared"))?,
+    };
 
     if let Some(why) = person_nodes::refusal(call.ground().peers.node.as_ref(), &node)
       .await
@@ -63,9 +70,10 @@ impl Route for SetPersonNode {
       return Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, why).with_code("not-a-hub-node"));
     }
 
-    let set = person_nodes::set(call.store(), &account, &node).await?;
-
-    Ok(answer(StatusCode::OK, json!(set)))
+    match person_nodes::set(call.store(), &account, &node, shared).await? {
+      Ok(set) => Ok(answer(StatusCode::OK, json!(set))),
+      Err(taken) => Err(Refused::new(StatusCode::CONFLICT, taken.to_string()).with_code("node-taken")),
+    }
   }
 }
 

@@ -127,7 +127,9 @@ side of a remote agent, the rotation, and what a dropped node does.
   the connection where it does not stand.
 - **The mirror keeps one direction per file:**
   - from here to the node: an agent place's program, its settings, its run and the handed mark, with
-    this machine's data root, deploy tree, prompt tree and home rewritten to the node's, every file
+    this machine's data root, deploy tree, prompt tree and home rewritten to the node's, and the folder of
+    each supervisor of an account whose record names the node shared to that folder under the account's root
+    there (`docs/person-nodes.md`, 「Several accounts on one node」), every file
     the program names under the data root or the prompt tree sent along — never one under the data
     root's credential directory — and of the program's environment only the run's own variables, the
     CLI's (the account's token for the nodes among them), its place, its tool token, the console's

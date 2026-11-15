@@ -28,7 +28,8 @@ pub struct Spec {
   pub deploy: PathBuf,
   /// The socket here the bot asks the link on.
   pub control: PathBuf,
-  /// This machine's roots as the node reads them, the longest first.
+  /// This machine's roots as the node reads them, and the folders an account sharing the node keeps under a root
+  /// of its own there, the longest first.
   #[serde(default)]
   pub rewrite: Vec<(String, String)>,
   #[serde(default)]

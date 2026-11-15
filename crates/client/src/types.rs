@@ -3565,6 +3565,8 @@ pub struct WorkNodeList {
 pub struct PersonNode {
   pub owner_account: String,
   pub node: String,
+  /// Whether the administrator declared the node shared for the account.
+  pub shared: bool,
   /// epoch milliseconds
   pub set_at: i64,
 }
@@ -3603,11 +3605,14 @@ pub struct ClaudeLoginCode {
   pub code: String,
 }
 
-/// The body that sets an account's node: a hub node the node service keeps.
+/// The body that sets an account's node: a hub node the node service keeps, and whether it is shared with other
+/// accounts, false where left out.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PersonNodeAsk {
   pub node: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub shared: Option<bool>,
 }
 
 /// NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there.
@@ -3623,6 +3628,8 @@ pub struct NodeAccess {
   /// Whether the caller holds the administrator's grant, which reaches every node.
   pub administrator: bool,
   pub reaches: bool,
+  /// The node path of the caller's account's workplace root where its record names the node shared; null otherwise.
+  pub root: Option<String>,
 }
 
 /// Repository: one repository as its row holds it, with its checkouts.

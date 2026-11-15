@@ -6,11 +6,13 @@ use std::path::Path;
 use super::{Answer, VerbError, service};
 use crate::person_nodes;
 
-/// Every account's node with no account named; the node named set for the account, or its node taken away.
+/// Every account's node with no account named; the node named set for the account, shared with other accounts where
+/// `shared` says so, or its node taken away.
 pub async fn person_node(
   data_root: &Path,
   account: Option<String>,
   node: Option<String>,
+  shared: bool,
   clear: bool,
 ) -> Result<Answer, VerbError> {
   let service = service(data_root).await?;
@@ -26,10 +28,17 @@ pub async fn person_node(
       }
 
       Ok(Answer::from(
-        every.iter().map(|one| format!("{:<12} {}", one.owner_account, one.node)).collect::<Vec<_>>(),
+        every
+          .iter()
+          .map(|one| {
+            let shared = if one.shared { " (shared)" } else { "" };
+
+            format!("{:<12} {}{shared}", one.owner_account, one.node)
+          })
+          .collect::<Vec<_>>(),
       ))
     }
-    (Some(account), None, true) => {
+    (Some(account), None, true) if !shared => {
       if !person_nodes::clear(db, &account).await.map_err(refused)? {
         return Err(VerbError::Refused(format!("account {account} has no node")));
       }
@@ -43,12 +52,18 @@ pub async fn person_node(
         return Err(VerbError::Refused(why));
       }
 
-      person_nodes::set(db, &account, &node).await.map_err(refused)?;
+      if let Err(taken) = person_nodes::set(db, &account, &node, shared).await.map_err(refused)? {
+        return Err(VerbError::Refused(taken.to_string()));
+      }
 
-      Ok(Answer::from(vec![format!("account {account}: its runs stand on {node}")]))
+      let alongside = if shared { ", shared with other accounts" } else { "" };
+
+      Ok(Answer::from(vec![format!("account {account}: its runs stand on {node}{alongside}")]))
     }
     _ => Err(VerbError::Refused(
-      "name an account and a node to set, an account with --clear to take its node away, or nothing to list".into(),
+      "name an account and a node to set, with --shared to share the node with other accounts, an account with --clear \
+       to take its node away, or nothing to list"
+        .into(),
     )),
   }
 }
