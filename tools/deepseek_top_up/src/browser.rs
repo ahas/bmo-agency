@@ -14,7 +14,7 @@ use std::net::{Ipv4Addr, TcpListener};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdout, Command, Stdio};
 use std::time::Duration;
 
 use chromiumoxide::Page;
@@ -32,6 +32,7 @@ use chromiumoxide::cdp::js_protocol::runtime::{
 };
 use futures_util::StreamExt;
 use serde_json::{Value, json};
+use tokio::io::AsyncBufReadExt;
 use tokio::task::JoinHandle;
 
 /// Where the browser keeps its profile and how it is started.
@@ -148,6 +149,8 @@ const FIND: &str = r#"(spec) => {
 /// One browser, its virtual screen and the one page a call drives, held under the profile's lock.
 pub struct Browser {
   screen: Child,
+  /// Reads the browser's output away once its endpoint is announced.
+  output: JoinHandle<()>,
   handler: JoinHandle<()>,
   browser: chromiumoxide::Browser,
   page: Page,
@@ -199,6 +202,9 @@ pub fn chrome_arguments(profile: &Path, port: u16) -> Vec<String> {
     "about:blank".to_owned(),
   ]
 }
+
+/// The words the browser announces its DevTools endpoint with on its error stream, the endpoint after them.
+const ANNOUNCED: &str = "DevTools listening on ";
 
 /// A loopback port free at this moment, for the browser's DevTools endpoint.
 fn free_port() -> std::io::Result<u16> {
@@ -269,14 +275,16 @@ impl Browser {
       )
       .env("XDG_RUNTIME_DIR", &run)
       .stdin(Stdio::null())
-      .stdout(Stdio::null())
+      // `xvfb-run` hands the browser's error stream on as its own output, which carries the announced endpoint.
+      .stdout(Stdio::piped())
       .stderr(Stdio::null())
       .process_group(0)
       .spawn()
       .map_err(|why| Unopened::Start(format!("xvfb-run could not run: {why}")))?;
 
-    let address = match Self::listening(&mut screen, port, place.start).await {
-      Ok(address) => address,
+    let output = screen.stdout.take();
+    let (address, output) = match Self::announced(output, &mut screen, place.start).await {
+      Ok(announced) => announced,
       Err(why) => {
         end_group(&mut screen);
         return Err(Unopened::Start(why));
@@ -286,6 +294,7 @@ impl Browser {
     let (browser, mut handler) = match chromiumoxide::Browser::connect(address).await {
       Ok(connected) => connected,
       Err(why) => {
+        output.abort();
         end_group(&mut screen);
         return Err(Unopened::Start(format!("its DevTools endpoint did not answer: {why}")));
       }
@@ -309,6 +318,7 @@ impl Browser {
     match opened {
       Ok(page) => Ok(Self {
         screen,
+        output,
         handler,
         browser,
         page,
@@ -317,6 +327,7 @@ impl Browser {
       }),
       Err(why) => {
         handler.abort();
+        output.abort();
         end_group(&mut screen);
         Err(Unopened::Start(why))
       }
@@ -343,24 +354,42 @@ impl Browser {
     }
   }
 
-  /// The DevTools endpoint's address, once the browser accepts a connection on its port, within the start wait.
-  async fn listening(screen: &mut Child, port: u16, start: Duration) -> Result<String, String> {
-    let deadline = tokio::time::Instant::now() + start;
+  /// The DevTools endpoint the browser announces on its output once it listens, within the start wait, and the
+  /// task that reads the rest of its output away so the browser never stands on a full pipe. Only the browser's
+  /// own word names its endpoint: the port it was given may be held on one loopback address by another program,
+  /// and the browser then listens on the other.
+  async fn announced(
+    output: Option<ChildStdout>,
+    screen: &mut Child,
+    start: Duration,
+  ) -> Result<(String, JoinHandle<()>), String> {
+    let output = output.ok_or_else(|| "its output could not be read".to_owned())?;
+    let output = tokio::process::ChildStdout::from_std(output)
+      .map_err(|why| format!("its output could not be read: {why}"))?;
+    let mut lines = tokio::io::BufReader::new(output).split(b'\n');
 
-    loop {
-      if tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await.is_ok() {
-        return Ok(format!("http://127.0.0.1:{port}"));
+    let announced = tokio::time::timeout(start, async {
+      while let Ok(Some(line)) = lines.next_segment().await {
+        if let Some(address) = String::from_utf8_lossy(&line).trim().strip_prefix(ANNOUNCED) {
+          return Some(address.to_owned());
+        }
       }
 
-      if let Ok(Some(status)) = screen.try_wait() {
-        return Err(format!("it ended before it listened, {status}"));
-      }
+      None
+    })
+    .await;
 
-      if tokio::time::Instant::now() >= deadline {
-        return Err(format!("it did not listen within {} seconds", start.as_secs()));
-      }
+    match announced {
+      Ok(Some(address)) => {
+        let rest = tokio::spawn(async move { while let Ok(Some(_)) = lines.next_segment().await {} });
 
-      tokio::time::sleep(Duration::from_millis(100)).await;
+        Ok((address, rest))
+      }
+      Ok(None) => Err(match screen.try_wait() {
+        Ok(Some(status)) => format!("it ended before it listened, {status}"),
+        _ => "it ended before it listened".to_owned(),
+      }),
+      Err(_) => Err(format!("it did not listen within {} seconds", start.as_secs())),
     }
   }
 
@@ -583,5 +612,6 @@ impl Drop for Browser {
   fn drop(&mut self) {
     self.handler.abort();
     end_group(&mut self.screen);
+    self.output.abort();
   }
 }

@@ -265,7 +265,11 @@ belongs to no one service is a repository of its own, not a folder here.
   bot check that refuses a headless browser and a browser started for automation. So the tool drives the
   machine's own Chrome as a person's browser stands: stable Chrome, not headless, on a virtual screen of its own
   (Xvfb, through `xvfb-run`), started with no automation switch and driven over its loopback DevTools endpoint,
-  on a port the tool chooses: a browser left to choose its own DevTools port is met with the human check.
+  on a port the tool chooses: a browser left to choose its own DevTools port is met with the human check. The
+  port is only known free when chosen, so another program may hold it on one loopback address by the time the
+  browser listens, and the browser then listens on the other; the tool drives the endpoint the browser announces
+  on its own output once it listens, never an address made from the port, so it reaches no program but its own
+  browser.
   Its cross-site frames run in the page's own process, so the card frames a payment processor puts on the page
   are reached as the page's own.
 - **The browser keeps one profile,** under the data root's `deepseek-top-up/`, so a sign-in stands from one call

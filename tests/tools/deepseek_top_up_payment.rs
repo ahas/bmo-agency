@@ -502,12 +502,31 @@ fn processes_naming(folder: &std::path::Path) -> Vec<String> {
 /// left; none, said on the error stream, where the machine holds no browser to pay in, so the test that asked is
 /// passed over there, as every browser test of the platform is on such a machine.
 async fn pay_on(fake: &Fake, root: &std::path::Path, confirm: Duration) -> Option<String> {
-  let Some(browser) = machine_browser(&Payer::of(root).platform.place.chrome) else {
+  let browser = browser_on_machine(root)?;
+
+  Some(pay_in(fake, root, confirm, browser).await)
+}
+
+/// The machine's browser for a payer under `root`; none, said on the error stream, where the machine holds none.
+fn browser_on_machine(root: &std::path::Path) -> Option<(String, Vec<String>)> {
+  let browser = machine_browser(&Payer::of(root).platform.place.chrome);
+
+  if browser.is_none() {
     eprintln!(
       "passed over: no browser stands on this machine, neither Chrome on the path nor a Playwright Chromium"
     );
-    return None;
-  };
+  }
+
+  browser
+}
+
+/// One call paid on the fake platform in `browser` and its answer, checked as `pay_on` says.
+async fn pay_in(
+  fake: &Fake,
+  root: &std::path::Path,
+  confirm: Duration,
+  browser: (String, Vec<String>),
+) -> String {
   let stand = Stand::reading(fake.balance.clone());
   let payer = payer(fake, root, confirm, browser).await;
 
@@ -531,7 +550,66 @@ async fn pay_on(fake: &Fake, root: &std::path::Path, confirm: Duration) -> Optio
     "the browser and its screen ended with the call"
   );
 
-  Some(said)
+  said
+}
+
+/// A FIFO at `path`.
+fn fifo(path: &std::path::Path) {
+  let named = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+
+  // SAFETY: `mkfifo` reads the NUL-terminated path it is given and the mode.
+  assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "{}", std::io::Error::last_os_error());
+}
+
+/// The machine's browser behind a stand-in that tells the DevTools port it is started with through the FIFO
+/// `told`, and starts the browser only once a line comes back through the FIFO `held`, so the port can be taken
+/// first, as a free port the tool chose may be taken by another program before its browser listens.
+fn browser_after_its_port_is_held(
+  folder: &std::path::Path,
+  browser: (String, Vec<String>),
+) -> ((String, Vec<String>), std::path::PathBuf, std::path::PathBuf) {
+  use std::os::unix::fs::PermissionsExt;
+
+  let (told, held) = (folder.join("told"), folder.join("held"));
+  let stand_in = folder.join("browser");
+
+  fifo(&told);
+  fifo(&held);
+  std::fs::write(
+    &stand_in,
+    format!(
+      "#!/bin/sh\nfor argument in \"$@\"; do\n  case \"$argument\" in --remote-debugging-port=*) port=\"${{argument#*=}}\" ;; esac\ndone\necho \"$port\" > '{}'\nread answer < '{}'\nexec '{}' \"$@\"\n",
+      told.display(),
+      held.display(),
+      browser.0,
+    ),
+  )
+  .unwrap();
+  std::fs::set_permissions(&stand_in, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+  ((stand_in.display().to_string(), browser.1), told, held)
+}
+
+/// Takes the port told through `told` with a web server that is no browser, as another test's fake platform
+/// would, then answers through `held`; the server answers until the task is aborted.
+async fn hold_the_told_port(told: std::path::PathBuf, held: std::path::PathBuf) {
+  use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+  use tokio::net::unix::pipe::OpenOptions;
+
+  let told = OpenOptions::new().read_write(true).open_receiver(told).unwrap();
+  let mut port = String::new();
+
+  tokio::io::BufReader::new(told).read_line(&mut port).await.unwrap();
+
+  let listener = tokio::net::TcpListener::bind(("127.0.0.1", port.trim().parse::<u16>().unwrap()))
+    .await
+    .unwrap();
+  let mut held = OpenOptions::new().read_write(true).open_sender(held).unwrap();
+
+  held.write_all(b"held\n").await.unwrap();
+  // The FIFO keeps the line only while a writer holds it open, so the writer stands as long as the server.
+  let _held = held;
+  axum::serve(listener, Router::new()).await.unwrap();
 }
 
 #[tokio::test]
@@ -583,6 +661,26 @@ async fn a_refused_payment_moves_no_balance_and_is_not_tried_again() {
   assert!(said.contains("Paid: 0 USD. Balance: 3.5 USD"), "{said}");
   assert_eq!(fake.payments.lock().unwrap().len(), 1, "pay was pressed once");
   assert_eq!(*fake.balance.lock().unwrap(), 3.5);
+}
+
+#[tokio::test]
+async fn a_devtools_port_another_program_takes_before_the_browser_listens_still_reaches_the_browser_itself()
+{
+  let fake = platform(Scenario::Pays).await;
+  let root = data_root(Some(&whole_card()), Some(&whole_login()));
+  let Some(browser) = browser_on_machine(root.path()) else {
+    return;
+  };
+  let folder = tempfile::tempdir().unwrap();
+  let (browser, told, held) = browser_after_its_port_is_held(folder.path(), browser);
+  let holder = tokio::spawn(hold_the_told_port(told, held));
+
+  let said = pay_in(&fake, root.path(), Duration::from_secs(20), browser).await;
+
+  // The stand-in starts the browser only once the port is held, so a payment made shows it was.
+  holder.abort();
+  assert!(said.starts_with("Paid: 10 USD. Balance: 13.5 USD"), "{said}");
+  assert_eq!(fake.payments.lock().unwrap().len(), 1, "pay was pressed once");
 }
 
 #[tokio::test]
