@@ -755,7 +755,10 @@ and `cache_creation_input_tokens`, each where the record states it — so a read
 counts each request once by its `id` and needs no end of the turn for its figures. A job's lines
 keep the metadata their writer filed, and a pane program's shell call carries Claude Code's
 `toolUseResult.bashEditDiff` there, with the files, their hunks, the count of files whose hunks were left
-out and the paths the call changed.
+out and the paths the call changed. A `note` the call clock wrote about a job's tool call carries
+`toolClock` there, the call's id, tool, one-line command, process id and elapsed time and what befell it;
+a clock note filed before its fields were kept is answered with them read back out of its words
+(`docs/agent-control.md`, 「A job turn's tool calls are held to a clock」).
 
 - **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape. A role's
   name reads the lines under it and the lines of every agent of that role, a job's lines standing under the agent

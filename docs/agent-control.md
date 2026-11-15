@@ -1188,6 +1188,21 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   still-running line past its threshold and every interval after it, and its end with its duration and
   outcome. A cut is written as it happens, and so are an ask on a silent call and its verdict. The lines
   go to the run's log and the unit's own log, so a hang is readable while it is happening and after it.
+- **A clock line carries its facts as fields.** In the run's log each such line is a `note` whose words
+  are the sentence the unit's log keeps, and whose metadata holds `toolClock`, the facts the sentence was
+  made of, so a reader draws the call rather than reading the sentence (`docs/api.md`, 「log-lines」):
+  - `event`: `started`, `running` (a still-running line), `asked` (an ask opened on a silent call),
+    `kept` (the supervisor kept it), `ask-failed` (the ask could not be put), `cut` or `ended`;
+  - `call`, the call's id in the record, the same id its `tool` line carries as its `ref`; `tool`, the
+    tool's name; `command`, the one-line summary; `pid`, the call's first process, null before it has one;
+  - `elapsedMs`, how long the call had run when the line was written;
+  - by event: `silentMs`, how long an asked call had been silent and idle; `keptMs`, how much longer a
+    kept call is kept; `why`, why an ask failed or why the supervisor cut; `cut`, what cut the call —
+    `no-progress`, `no-process`, `supervisor` or `stop`; `outcome`, how an ended call ended — `completed`,
+    `failed` or `ended-with-turn`.
+- **A clock line written before the fields were kept is read into them.** The sentence is the unit's
+  own, so the log's reads hand such a line the same `toolClock` read back out of its words, with no
+  `call`, and with `pid` and `elapsedMs` null where its sentence never said them.
 - **A stop cuts a blocked call.** A call that has burned no processor time for the stop's stall is
   stopped when the stop is read, so the stop words — commit, write the handoff, exit — are read at the next
   boundary. A turn that has not ended within the stop's bound is ended by the surface's interrupt as a

@@ -39,7 +39,7 @@ use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
-use crate::door::tool_clock::{CallVerdict, SilentCall, ToolClock};
+use crate::door::tool_clock::{CallVerdict, ClockNote, SilentCall, ToolClock};
 use crate::door::turn::{Ending, Overrun, Overtime, Turn, Watch, put};
 use crate::keepalive::logins;
 use crate::lines::Trees;
@@ -1383,6 +1383,10 @@ struct WorkWatch<'w> {
 impl Watch for WorkWatch<'_> {
   async fn note(&mut self, text: &str) {
     self.log.write(&self.ground.db, Line::note(text)).await;
+  }
+
+  async fn clock(&mut self, _sentence: &str, note: &ClockNote) {
+    self.log.write(&self.ground.db, Line::clock(note)).await;
   }
 
   fn tool_clock(&self) -> Option<ToolClock> {

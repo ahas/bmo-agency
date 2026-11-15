@@ -377,3 +377,69 @@ async fn a_role_s_log_reads_its_agents_lines_and_a_job_s_lines_stand_under_its_i
   assert_eq!(texts(&before), ["the job's note", "the role own line", "m1"]);
   assert_eq!(before["hasMore"], json!(false));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_clock_note_reads_with_its_fields_and_one_filed_before_them_reads_them_back_out_of_its_words() {
+  use agency_server::door::tool_clock::{ClockEvent, ClockNote};
+  use agency_server::run_log::lines::Line;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt", "item_agent")
+         VALUES (41, 4, 1, 'runner', 1, 'checkout-a', 'running', $1, 'the work', 'agent-a')"#,
+      vec![agency_server::now_ms().into()],
+    )
+    .await;
+
+  let mut log = agency_server::run_log::RunLog::new(agency_server::run_log::Target {
+    agent: "checkout-a".to_owned(),
+    run: "job-41".to_owned(),
+    chat_id: None,
+    job_id: Some(41),
+  });
+  let running = ClockNote {
+    run: "job-41".to_owned(),
+    call: Some("toolu_1".to_owned()),
+    tool: "Bash".to_owned(),
+    command: "sleep 600".to_owned(),
+    pid: Some(4242),
+    elapsed_ms: Some(62_000),
+    event: ClockEvent::Running,
+  };
+
+  log.write(scratch.db(), Line::clock(&running)).await.unwrap();
+  log
+    .write(
+      scratch.db(),
+      Line::note("job-41: tool Bash still running pid=4242 after 122s: sleep 600".to_owned()),
+    )
+    .await
+    .unwrap();
+  log.write(scratch.db(), Line::note("the job's own note".to_owned())).await.unwrap();
+
+  let (status, page) = get(port, token, "/log/agents/agent-a/lines").await;
+
+  assert_eq!(status, 200, "{page}");
+
+  let items = page["items"].as_array().unwrap();
+
+  assert_eq!(items[0]["text"], json!(running.sentence()), "the words stay the sentence");
+  assert_eq!(items[0]["metadata"], running.fields());
+  assert_eq!(
+    items[1]["metadata"]["toolClock"],
+    json!({ "event": "running", "call": null, "tool": "Bash", "command": "sleep 600", "pid": 4242, "elapsedMs": 122_000 }),
+    "an older line reads its fields back out of its words"
+  );
+  assert_eq!(items[2]["metadata"], Value::Null, "any other note carries none");
+}

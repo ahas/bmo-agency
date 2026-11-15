@@ -209,6 +209,17 @@ pub trait Watch {
     async {}
   }
 
+  /// What the call clock said of a tool call, as its sentence and its note, for whoever reads the run
+  /// afterwards: a caller that keeps a log keeps the note's fields beside the sentence; any other takes the
+  /// sentence as a note.
+  fn clock(
+    &mut self,
+    sentence: &str,
+    _note: &super::tool_clock::ClockNote,
+  ) -> impl Future<Output = ()> + Send {
+    self.note(sentence)
+  }
+
   /// Whether a question the program stops on is put to this caller rather than left for a person.
   fn puts_questions(&self) -> bool {
     false
@@ -1685,9 +1696,11 @@ async fn watch_turn<W: Watch>(
       let records = door.lines();
       let said = watching.look(&turn.name, &records, from, program, now_ms()).await;
 
-      for line in said {
-        println!("{line}");
-        door.watch.note(&line).await;
+      for note in &said {
+        let sentence = note.sentence();
+
+        println!("{sentence}");
+        door.watch.clock(&sentence, note).await;
       }
 
       // A call with no process of its own is cut by words put into the working turn: the program ends the
@@ -1727,9 +1740,11 @@ async fn watch_turn<W: Watch>(
         let verdict = door.watch.silent_call(&silent).await;
         let answered = watching.answer(&turn.name, &silent.id, verdict, now_ms()).await;
 
-        for line in &answered.lines {
-          println!("{line}");
-          door.watch.note(line).await;
+        for note in &answered.lines {
+          let sentence = note.sentence();
+
+          println!("{sentence}");
+          door.watch.clock(&sentence, note).await;
         }
 
         if let Some(words) = answered.words
@@ -1770,9 +1785,11 @@ async fn watch_turn<W: Watch>(
           let records = door.lines();
           let said = watching.cut_for_stop(&turn.name, &records, from, program, now).await;
 
-          for line in said {
-            println!("{line}");
-            door.watch.note(&line).await;
+          for note in &said {
+            let sentence = note.sentence();
+
+            println!("{sentence}");
+            door.watch.clock(&sentence, note).await;
           }
         }
       }

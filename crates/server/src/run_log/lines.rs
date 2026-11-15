@@ -5,6 +5,8 @@
 
 use harness_providers::toolbook;
 
+use crate::door::tool_clock::ClockNote;
+
 use super::json::Json;
 
 /// One line before it is written.
@@ -34,6 +36,15 @@ impl Line {
       kind: "note",
       text: text.into(),
       ..Self::default()
+    }
+  }
+
+  /// A note of the call clock's: its sentence, and its facts kept as the line's `toolClock`
+  /// (docs/agent-control.md, 「A job turn's tool calls are held to a clock」).
+  pub fn clock(note: &ClockNote) -> Self {
+    Self {
+      metadata: serde_json::from_value(note.fields()).ok(),
+      ..Self::note(note.sentence())
     }
   }
 }

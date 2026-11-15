@@ -510,6 +510,14 @@ impl<W: Watch + Send> Watch for Asked<'_, W> {
     self.inner.note(text)
   }
 
+  fn clock(
+    &mut self,
+    sentence: &str,
+    note: &crate::door::tool_clock::ClockNote,
+  ) -> impl Future<Output = ()> + Send {
+    self.inner.clock(sentence, note)
+  }
+
   fn puts_questions(&self) -> bool {
     self.inner.puts_questions()
   }

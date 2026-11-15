@@ -21,6 +21,7 @@ use serde_json::{Value, json};
 use store::{all, one};
 
 use super::{Call, Refused, Route, answer};
+use crate::door::tool_clock::ClockNote;
 use crate::run_ledger;
 use crate::run_log::lines::{LINE_STATES, Line};
 use crate::run_log::{MAX_TOOL_CHARS, RunLog, Target, preview};
@@ -56,6 +57,16 @@ async fn line_of(
     }
   };
 
+  let kind: String = row.try_get("", "kind")?;
+  let words: String = row.try_get("", "text")?;
+  let metadata = text("metadata")?.and_then(|held| serde_json::from_str::<Value>(&held).ok());
+  // A clock note filed before its fields were kept is answered with them read back out of its sentence
+  // (docs/agent-control.md, 「A job turn's tool calls are held to a clock」).
+  let metadata = match metadata {
+    None if kind == "note" => ClockNote::read(&words).map(|note| note.fields()),
+    held => held,
+  };
+
   Ok(json!({
     "id": row.try_get::<i64>("", "id")?,
     "runId": ledger.as_ref().map_or_else(|| run.parse::<i64>().unwrap_or(0), |ledger| ledger.id),
@@ -64,8 +75,8 @@ async fn line_of(
     "messageId": ledger.as_ref().and_then(|ledger| ledger.message_id),
     "jobId": number("job_id")?,
     "agentName": row.try_get::<String>("", "agent")?,
-    "kind": row.try_get::<String>("", "kind")?,
-    "text": row.try_get::<String>("", "text")?,
+    "kind": kind,
+    "text": words,
     "at": row.try_get::<i64>("", "at")?,
     "fields": {
       "run": run,
@@ -77,9 +88,7 @@ async fn line_of(
       "truncated": row.try_get::<i64>("", "truncated")? != 0,
       "detail": text("detail")?,
     },
-    "metadata": text("metadata")?
-      .and_then(|held| serde_json::from_str::<Value>(&held).ok())
-      .unwrap_or(Value::Null),
+    "metadata": metadata.unwrap_or(Value::Null),
   }))
 }
 

@@ -102,6 +102,7 @@ mod door {
   mod rollout;
   mod stand;
   mod tool_clock;
+  mod tool_clock_notes;
   mod turn;
 }
 mod events;

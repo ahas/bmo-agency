@@ -20,9 +20,9 @@
 //! into the working turn saying the call did not complete, and the program ends the waiting call and hands
 //! the model a failed result. A program that does not take the words ends the turn at the grace.
 //!
-//! The lines this writes go to the run's log and to the unit's own log, so a hang is readable while it is
+//! The notes this writes go to the run's log and to the unit's own log, so a hang is readable while it is
 //! happening: the call's start with its pid and a one-line summary, a still-running line past a threshold,
-//! and its end with its duration and outcome.
+//! and its end with its duration and outcome. Each is a `ClockNote`, its facts kept beside its sentence.
 
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::{Read as _, Seek as _, SeekFrom};
@@ -31,6 +31,10 @@ use std::time::Duration;
 use agent_host::identity::{ProcessStat, boot_ms, clock_ticks, process_stat};
 use policy::tool_clock::CallClock;
 use serde_json::Value;
+
+pub mod notes;
+
+pub use notes::{ClockEvent, ClockNote, Cut, Outcome};
 
 /// How far before a call's record line a process may have begun and still be the call's own: the kernel's
 /// start time is kept to the second, and the record is written a moment before the process starts.
@@ -204,6 +208,19 @@ struct Call {
 }
 
 impl Call {
+  // A note on the call, `elapsed` its time so far where the note tells it.
+  fn note(&self, run: &str, id: &str, elapsed: Option<i64>, event: ClockEvent) -> ClockNote {
+    ClockNote {
+      run: run.to_owned(),
+      call: Some(id.to_owned()),
+      tool: self.name.clone(),
+      command: self.summary.clone(),
+      pid: self.pids.first().copied(),
+      elapsed_ms: elapsed.map(|elapsed| elapsed.max(0)),
+      event,
+    }
+  }
+
   fn words(&self) -> String {
     if self.summary.is_empty() {
       self.name.clone()
@@ -257,11 +274,11 @@ pub enum CallVerdict {
   Failed(String),
 }
 
-/// What an answer on a silent call came to: the lines to keep, and the words to put into the working turn
+/// What an answer on a silent call came to: the notes to keep, and the words to put into the working turn
 /// where it was cut.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Answered {
-  pub lines: Vec<String>,
+  pub lines: Vec<ClockNote>,
   pub words: Option<String>,
 }
 
@@ -316,28 +333,22 @@ impl Watch {
         call.asked = true;
 
         if opened {
-          answered.lines.push(format!(
-            "{name}: tool {} asked about after {:.0}s, silent and idle for {:.0}s",
-            call.words(),
-            elapsed as f64 / 1_000.0,
-            (now - call.output_changed_at).max(0) as f64 / 1_000.0,
-          ));
+          let silent_ms = (now - call.output_changed_at).max(0);
+
+          answered.lines.push(call.note(name, id, Some(elapsed), ClockEvent::Asked { silent_ms }));
         }
       }
       CallVerdict::Kept(until) => {
         call.asking = Asking::Held(until);
         call.asked = true;
-        answered.lines.push(format!(
-          "{name}: tool {} kept on the supervisor's call for {:.0}s more",
-          call.words(),
-          (until - now).max(0) as f64 / 1_000.0,
-        ));
+
+        let for_ms = (until - now).max(0);
+
+        answered.lines.push(call.note(name, id, Some(elapsed), ClockEvent::Kept { for_ms }));
       }
       CallVerdict::Failed(why) => {
         call.asking = Asking::Held(now + window_ms);
-        answered
-          .lines
-          .push(format!("{name}: tool {} could not be asked about: {why}", call.words()));
+        answered.lines.push(call.note(name, id, Some(elapsed), ClockEvent::AskFailed { why }));
       }
       CallVerdict::Cut(why) => {
         call.asking = Asking::Never;
@@ -346,15 +357,13 @@ impl Watch {
 
         let seconds = u64::try_from(elapsed / 1_000).unwrap_or_default();
 
-        answered.lines.push(format!(
-          "{name}: tool {} cut on the supervisor's call after {seconds}s: pid={}: {why}",
-          call.words(),
-          call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-        ));
         answered.words = Some(policy::fill_marks(
           &cut_words,
           &[("tool", &call.words()), ("seconds", &seconds.to_string()), ("why", why.trim())],
         ));
+        answered
+          .lines
+          .push(call.note(name, id, Some(elapsed), ClockEvent::Cut(Cut::Supervisor(why))));
 
         let pids = call.pids.clone();
 
@@ -384,7 +393,7 @@ impl Watch {
     from: usize,
     program: i32,
     now: i64,
-  ) -> Vec<String> {
+  ) -> Vec<ClockNote> {
     let uses = tool_uses(records, from);
     let results = tool_results(records, from);
     let mut lines = vec![];
@@ -422,17 +431,12 @@ impl Watch {
       }
 
       let outcome = match results.get(id) {
-        Some(true) => "failed",
-        Some(false) => "completed",
-        None => "ended with the turn",
+        Some(true) => Outcome::Failed,
+        Some(false) => Outcome::Completed,
+        None => Outcome::EndedWithTurn,
       };
-      let seconds = (now - call.started_at).max(0) as f64 / 1_000.0;
 
-      lines.push(format!(
-        "{name}: tool {} ended pid={} after {seconds:.1}s: {outcome}",
-        call.words(),
-        call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-      ));
+      lines.push(call.note(name, id, Some(now - call.started_at), ClockEvent::Ended(outcome)));
 
       false
     });
@@ -489,7 +493,7 @@ impl Watch {
       if !call.started_said {
         call.started_said = true;
         call.still_said_at = now;
-        lines.push(start_line(name, &used.name, &call.summary, call.pids.first(), elapsed));
+        lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Started));
       }
 
       // A call with no process of its own has nothing in the tree to read, so it is held to a bound of its
@@ -518,32 +522,17 @@ impl Watch {
             seconds,
             words,
           });
-          lines.push(format!(
-            "{name}: tool {} cut after {:.0}s with no process of its own and no answer",
-            call.words(),
-            elapsed as f64 / 1_000.0,
-          ));
+          lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Cut(Cut::NoProcess)));
         } else {
           cutting.push(call.clone());
-          lines.push(format!(
-            "{name}: tool {} cut after {:.0}s with no progress: pid={}",
-            call.words(),
-            elapsed as f64 / 1_000.0,
-            call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-          ));
+          lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Cut(Cut::NoProgress)));
         }
       } else if call.started_said
         && elapsed >= self.clock.log_after_ms
         && now - call.still_said_at >= self.clock.still_every_ms
       {
         call.still_said_at = now;
-        lines.push(format!(
-          "{name}: tool {} still running pid={} after {:.0}s: {}",
-          call.name,
-          call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-          elapsed as f64 / 1_000.0,
-          call.summary,
-        ));
+        lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Running));
       }
     }
 
@@ -607,7 +596,7 @@ impl Watch {
     from: usize,
     program: i32,
     now: i64,
-  ) -> Vec<String> {
+  ) -> Vec<ClockNote> {
     let uses = tool_uses(records, from);
     let procs = scan();
     let mut lines = vec![];
@@ -636,27 +625,11 @@ impl Watch {
       }
 
       call.cut = true;
-      lines.push(format!(
-        "{name}: tool {} cut for the stop after {:.0}s: pid={}",
-        call.words(),
-        elapsed as f64 / 1_000.0,
-        call.pids.first().map_or_else(|| "-".to_owned(), i32::to_string),
-      ));
+      lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Cut(Cut::Stop)));
       stop(&call.pids).await;
     }
 
     lines
-  }
-}
-
-fn start_line(name: &str, tool: &str, summary: &str, pid: Option<&i32>, elapsed: i64) -> String {
-  let pid = pid.map_or_else(|| "-".to_owned(), i32::to_string);
-  let at = elapsed.max(0) as f64 / 1_000.0;
-
-  if summary.is_empty() {
-    format!("{name}: tool {tool} started pid={pid} after {at:.1}s")
-  } else {
-    format!("{name}: tool {tool} started pid={pid} after {at:.1}s: {summary}")
   }
 }
 

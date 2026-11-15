@@ -33,7 +33,7 @@ use crate::door::record::{
   CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round, read_turn,
   turn_closed_since, turn_error,
 };
-use crate::door::tool_clock::{CallVerdict, InProcessCut, ToolClock, Watch as ToolWatch};
+use crate::door::tool_clock::{CallVerdict, ClockNote, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
 use crate::lines::place::Place;
@@ -963,10 +963,7 @@ async fn followed(
         };
         let answered = watch.answer(&turn.run, &silent.id, verdict, now).await;
 
-        for line in &answered.lines {
-          println!("{line}");
-          following.log.write(&ground.db, Line::note(line)).await;
-        }
+        keep_notes(ground, &answered.lines, &mut following.log).await;
 
         if let (Some(words), true, Some(herdr), Some(target)) =
           (answered.words, takes_words_mid_turn(provider), &ground.herdr, target.as_deref())
@@ -1105,14 +1102,9 @@ pub async fn watch_tools(
   now: i64,
 ) -> Vec<String> {
   let Some(program) = program else { return vec![] };
-  let lines = watch.look(&turn.run, records, 0, program, now).await;
+  let notes = watch.look(&turn.run, records, 0, program, now).await;
 
-  for line in &lines {
-    println!("{line}");
-    log.write(&ground.db, Line::note(line)).await;
-  }
-
-  lines
+  keep_notes(ground, &notes, log).await
 }
 
 /// A stop on a picked-up turn: a call that is making no progress is cut so the stop's words can be read at
@@ -1127,14 +1119,25 @@ pub async fn cut_tools(
   now: i64,
 ) -> Vec<String> {
   let Some(program) = program else { return vec![] };
-  let lines = watch.cut_for_stop(&turn.run, records, 0, program, now).await;
+  let notes = watch.cut_for_stop(&turn.run, records, 0, program, now).await;
 
-  for line in &lines {
-    println!("{line}");
-    log.write(&ground.db, Line::note(line)).await;
+  keep_notes(ground, &notes, log).await
+}
+
+// The clock's notes kept as a live turn's are: each sentence in the unit's log, and each note with its fields
+// in the run's log. Answers the sentences.
+async fn keep_notes(ground: &Ground, notes: &[ClockNote], log: &mut RunLog) -> Vec<String> {
+  let mut sentences = vec![];
+
+  for note in notes {
+    let sentence = note.sentence();
+
+    println!("{sentence}");
+    log.write(&ground.db, Line::clock(note)).await;
+    sentences.push(sentence);
   }
 
-  lines
+  sentences
 }
 
 /// A picked-up turn past its bound, with why it is cut; none for one within it. A job's turn is held to the

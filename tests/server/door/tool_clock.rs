@@ -14,7 +14,7 @@ use std::time::Duration;
 use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
 use agency_server::door::stand::Interrupt;
-use agency_server::door::tool_clock::{CallVerdict, SilentClock, ToolClock, Watch as ToolWatch};
+use agency_server::door::tool_clock::{CallVerdict, ClockNote, SilentClock, ToolClock, Watch as ToolWatch};
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
 use agency_server::places::Ground;
 use harness_providers::Machine;
@@ -166,7 +166,7 @@ async fn a_call_blocked_on_a_pipe_is_cut_and_its_lines_carry_the_pid_and_duratio
   for step in 0..40 {
     let now = began + step * 100;
 
-    said.extend(watch.look("job-41", &records, 0, program.pid, now).await);
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
 
     if said.iter().any(|line| line.contains("cut after")) {
       cut = Some(now);
@@ -196,7 +196,7 @@ async fn a_call_blocked_on_a_pipe_is_cut_and_its_lines_carry_the_pid_and_duratio
 
   // The harness reports the killed call to the model, and its end is written with its duration and outcome.
   records.push(answered("t1", began + 2_000, true));
-  said.extend(watch.look("job-41", &records, 0, program.pid, began + 2_000).await);
+  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, began + 2_000).await));
 
   let end = said.iter().find(|line| line.contains("ended pid=")).expect("an end line");
 
@@ -213,7 +213,7 @@ async fn a_call_that_keeps_burning_processor_is_not_cut() {
   let mut said = vec![];
 
   for step in 0..15 {
-    said.extend(watch.look("job-41", &records, 0, program.pid, began + step * 100).await);
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, began + step * 100).await));
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
 
@@ -243,7 +243,7 @@ async fn a_call_with_no_process_of_its_own_is_cut_at_its_in_process_bound() {
   for step in 0..40 {
     let now = began + step * 100;
 
-    said.extend(watch.look("job-41", &records, 0, program.pid, now).await);
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
 
     if let Some(found) = watch.take_in_process_cut() {
       cut = Some((now, found));
@@ -268,7 +268,7 @@ async fn a_call_with_no_process_of_its_own_is_cut_at_its_in_process_bound() {
 
   // The program takes the words and answers the call, so the clock lets it go.
   records.push(answered("t1", at + 100, true));
-  said.extend(watch.look("job-41", &records, 0, program.pid, at + 100).await);
+  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, at + 100).await));
 
   assert!(!watch.in_process_cut_still(), "the answered call is let go");
   assert!(
@@ -288,7 +288,7 @@ async fn a_stop_cuts_a_call_blocked_on_a_pipe_within_its_bound() {
   watch.look("job-41", &records, 0, program.pid, began).await;
   tokio::time::sleep(Duration::from_millis(200)).await;
 
-  let said = watch.cut_for_stop("job-41", &records, 0, program.pid, began + 300).await;
+  let said = sentences(watch.cut_for_stop("job-41", &records, 0, program.pid, began + 300).await);
   let cut = said.iter().find(|line| line.contains("cut for the stop")).unwrap_or_else(|| {
     panic!("the blocked call was cut for the stop: {said:?}");
   });
@@ -327,7 +327,7 @@ async fn looked_until_silent(
   for step in 0..steps {
     let now = began + step * 100;
 
-    said.extend(watch.look("job-41", records, 0, program, now).await);
+    said.extend(sentences(watch.look("job-41", records, 0, program, now).await));
 
     if let Some(silent) = watch.take_silent() {
       return Some((now, silent));
@@ -377,12 +377,12 @@ async fn a_call_that_polls_with_no_new_output_is_asked_about_and_runs_on() {
   let answered = watch.answer("job-41", "t1", CallVerdict::Waiting, at).await;
 
   assert!(
-    answered.lines.iter().any(|line| line.contains("asked about")),
+    sentences(answered.lines.clone()).iter().any(|line| line.contains("asked about")),
     "the ask is written: {answered:?}"
   );
   assert!(answered.words.is_none());
   tokio::time::sleep(Duration::from_millis(100)).await;
-  said.extend(watch.look("job-41", &records, 0, program.pid, at + 100).await);
+  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, at + 100).await));
 
   let polled = watch.take_silent().expect("an ask that stands is looked at again");
 
@@ -429,7 +429,12 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
   let until = at + 600;
   let kept = watch.answer("job-41", "t1", CallVerdict::Kept(until), at).await;
 
-  assert!(kept.lines.iter().any(|line| line.contains("kept on the supervisor's call")), "{kept:?}");
+  assert!(
+    sentences(kept.lines.clone())
+      .iter()
+      .any(|line| line.contains("kept on the supervisor's call")),
+    "{kept:?}"
+  );
 
   let mut again = None;
 
@@ -437,7 +442,7 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
     let now = at + step * 100;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
-    said.extend(watch.look("job-41", &records, 0, program.pid, now).await);
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
 
     if let Some(silent) = watch.take_silent() {
       again = Some((now, silent));
@@ -460,8 +465,8 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
   let cut = watch
     .answer("job-41", "t1", CallVerdict::Cut("it waits on another job's close".into()), again_at)
     .await;
-  let line = cut
-    .lines
+  let said = sentences(cut.lines);
+  let line = said
     .iter()
     .find(|line| line.contains("cut on the supervisor's call"))
     .expect("the cut line");
@@ -469,6 +474,11 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
 
   assert!(words.contains("it waits on another job's close") && words.contains("Bash"), "{words}");
   assert!(gone(pid_of(line)).await, "the cut call's process is gone: {line}");
+}
+
+// The sentences a watcher's notes read as.
+fn sentences(notes: Vec<ClockNote>) -> Vec<String> {
+  notes.iter().map(ClockNote::sentence).collect()
 }
 
 fn append(path: &Path, lines: &[Value]) {
