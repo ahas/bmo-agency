@@ -34,6 +34,21 @@ pub struct FallbackWords {
   pub cell_unresolved: String,
 }
 
+/// A Claude account signed in from the console.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoginsWords {
+  pub which: String,
+  pub not_directory: String,
+  pub directory_taken: String,
+  pub no_link: String,
+  pub none: String,
+  pub code_needed: String,
+  pub refused: String,
+  pub no_login: String,
+  pub silent: String,
+}
+
 /// The Claude accounts.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -305,6 +320,7 @@ pub struct ControlWords {
   pub request: RequestWords,
   pub fallback: FallbackWords,
   pub accounts: AccountsWords,
+  pub logins: LoginsWords,
   pub workers: WorkersWords,
   pub agents: AgentsWords,
   pub agent_roles: AgentRolesWords,

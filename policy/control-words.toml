@@ -68,6 +68,19 @@ last_gone = "The last account cannot be removed."
 chosen_off = "An account that is off cannot be chosen. Turn it on first."
 base_prompt = "There is no base prompt {name} for the account to name."
 
+# A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the console」):
+# what is refused, with `{name}`, `{path}`, `{login}` and `{said}` filled in.
+[logins]
+which = "Name the account to sign in again, or a name for a new one, not both."
+not_directory = "{name} keeps no login of its own: only a directory account is signed in from here."
+directory_taken = "{path} already holds files: give the account another name."
+no_link = "The sign-in gave no address to approve it at: {said}"
+none = "There is no sign-in {login} under way: start it again."
+code_needed = "Paste the code the sign-in page shows."
+refused = "The sign-in did not take the code: {said}"
+no_login = "The sign-in ended but left no login in {path}."
+silent = "the CLI said nothing"
+
 # A worker brought back to this machine with no path of this machine, and a worker's own sampling: an
 # {agent} not known, one whose {label} is no worker's or a support worker's that follows its base, a save
 # that is not names with values, and a setting {name} the sampling does not take.

@@ -11,6 +11,7 @@ mod catalogues;
 mod chat_documents;
 pub mod claude_account_changes;
 pub mod claude_accounts;
+pub mod claude_logins;
 mod documents;
 pub mod events_stream;
 mod executions;

@@ -225,7 +225,7 @@ fn bad(error: impl Into<String>) -> Refused {
   Refused::failed(error.into())
 }
 
-async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
+pub(super) async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
   Ok(answer(
     StatusCode::OK,
     json!({ "ok": true, "accounts": claude_accounts::views(judging).await? }),

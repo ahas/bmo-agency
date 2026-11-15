@@ -15,6 +15,7 @@ pub struct ClaudeCode {
   pub cache: Cache,
   pub login: Login,
   pub node_login: NodeLogin,
+  pub console_login: ConsoleLogin,
   pub usage: Usage,
 }
 
@@ -41,6 +42,20 @@ pub struct Usage {
   /// own margin, inside which a run of it renews the token as it goes out.
   pub renewal_margin_seconds: u64,
   pub windows: Vec<String>,
+}
+
+/// A directory account signed in from the console through the CLI's own sign-in.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConsoleLogin {
+  /// The CLI's sign-in command and its arguments.
+  pub command: Vec<String>,
+  /// How long the CLI is given to print the sign-in's address, in seconds.
+  pub link_seconds: u64,
+  /// How long the CLI is given to end once the code is handed over, in seconds.
+  pub finish_seconds: u64,
+  /// How long a sign-in may stand before it is ended, in minutes.
+  pub keep_minutes: u64,
 }
 
 /// Each account's token for the work nodes: where this machine keeps it, the verb that makes one, and

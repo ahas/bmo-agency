@@ -491,6 +491,32 @@ When a demotion first catches — when a healthy session first drops — two thi
   endpoint account has nothing for it to read. Its wording, how long before the end it speaks and the year a
   token stands for are read from agency's policy (`policy/`).
 
+### Signing an account in from the console
+
+- **A directory account is signed in through the CLI's own sign-in, driven from here,** so the owner needs
+  no terminal on this machine. Agency starts `claude auth login` with the account's configuration directory as
+  the CLI's, no browser of its own, and no token or key of the launching process; the CLI prints the address of
+  the subscription sign-in and waits for the code that page shows. Agency hands the address back, the owner
+  approves the sign-in in their own browser, signed in to the account it is for, and pastes the code; agency
+  writes the code to the CLI, which ends once it has written the login into that directory. Nothing of the
+  OAuth exchange is agency's: the CLI performs it, and no part of it is read.
+- **It signs in an account that is there, or one that is not yet:**
+  - an account that is there is a directory account, signed in again in its own directory, where its login
+    has ended or is about to; a token or endpoint account keeps no login of its own and is refused;
+  - an account that is not yet is named, and its directory is made under the data root's env directory,
+    named by the account's name, readable by this user alone; a name whose directory already holds anything is
+    refused. The account is added, at the end of the order, only once the CLI has left a login there, so a
+    sign-in abandoned leaves no account behind.
+- **A sign-in is held in this process alone and for a bounded while.** It is known by an identifier of its own,
+  answered as it starts; the code is taken by that identifier. One left standing longer than the provider's
+  policy says is ended, as is one the owner gives up, and the process ending ends every one: the CLI is ended
+  with it, and an account not yet added is not added. Waiting for the address and for the CLI's ending after
+  the code are each bounded by the same policy.
+- **The code is the owner's word and is kept nowhere.** It goes to the CLI and nowhere else: no row, log line or
+  answer carries it, and a refusal the CLI gives is answered in its last words with the code taken out.
+- **The login is the CLI's to make, and its file the proof.** The CLI ending well with no credentials file in
+  the directory is answered as a sign-in that did not take, and nothing is added.
+
 ### Availability: whether a provider can answer now
 
 - **A road sets only which provider and model, and the owner's switch only on and off.** Whether a provider

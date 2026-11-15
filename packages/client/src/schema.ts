@@ -809,6 +809,57 @@ export interface paths {
         patch: operations["changeFallback"];
         trace?: never;
     };
+    "/claude-logins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a Claude account's sign-in through the CLI: an account there, or a new one by name. */
+        post: operations["startClaudeLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/claude-logins/{login}/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand a sign-in the code its page showed; the accounts once the login is written. */
+        post: operations["codeClaudeLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/claude-logins/{login}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Give a sign-in up, ending the CLI it holds. */
+        delete: operations["giveUpClaudeLogin"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/item-filings": {
         parameters: {
             query?: never;
@@ -3156,6 +3207,25 @@ export interface components {
              */
             registration?: string | null;
         };
+        /** @description A sign-in under way: its identifier and the address the owner approves it at. */
+        ClaudeLoginStarted: {
+            login: string;
+            url: string;
+        };
+        /**
+         * @description A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
+         *     its name, one of the two.
+         */
+        ClaudeLoginStart: {
+            /** @default null */
+            account: string | null;
+            /** @default null */
+            name: string | null;
+        };
+        /** @description The code the sign-in page showed, handed to the sign-in. */
+        ClaudeLoginCode: {
+            code: string;
+        };
         /** @description ItemFiled: the item as the job service raised it. */
         ItemFiled: {
             /** Format: int64 */
@@ -4885,6 +4955,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description directory-taken */
+        DirectoryTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description double-waits-on-doubles */
         DoubleWaitsOnDoubles: {
             headers: {
@@ -4975,6 +5054,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-sign-in */
+        NoSignIn: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-turn */
         NoTurn: {
             headers: {
@@ -5004,6 +5092,15 @@ export interface components {
         };
         /** @description no-worker-free */
         NoWorkerFree: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-a-directory */
+        NotADirectory: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5094,6 +5191,15 @@ export interface components {
         };
         /** @description service-unavailable */
         ServiceUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description sign-in-refused */
+        SignInRefused: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6974,6 +7080,83 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    startClaudeLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaudeLoginStart"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaudeLoginStarted"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["NotADirectory"];
+        };
+    };
+    codeClaudeLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                login: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClaudeLoginCode"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Fallback"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["NoSignIn"];
+        };
+    };
+    giveUpClaudeLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                login: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["NoSignIn"];
         };
     };
     createItemFilings: {

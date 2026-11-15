@@ -40,6 +40,7 @@ mod control {
   mod chat_documents;
   mod claude_account_changes;
   mod claude_accounts;
+  mod claude_logins;
   mod console_reads;
   mod consumer_calls;
   mod conversation_routes;

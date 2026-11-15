@@ -129,3 +129,13 @@ missing = "does not exist yet."
 ending_in = "ends in {left}."
 after = "Approve it in a browser signed in to this account and paste the token it shows: every node uses the new token from its next run."
 gone_after = "Until then, this account's work on the nodes goes to the next account."
+
+[console_login]
+# A directory account signed in from the console through the CLI's own sign-in (docs/cache-fallback.md,
+# 「Signing an account in from the console」): the CLI's command and its arguments, how long the CLI is given to
+# print the sign-in's address and to end once the code is handed over, in seconds, and how long a sign-in may
+# stand before it is ended, in minutes.
+command = ["claude", "auth", "login", "--claudeai"]
+link_seconds = 30
+finish_seconds = 90
+keep_minutes = 20

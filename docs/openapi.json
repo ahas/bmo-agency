@@ -3407,6 +3407,140 @@
         }
       }
     },
+    "/claude-logins": {
+      "post": {
+        "operationId": "startClaudeLogin",
+        "tags": [
+          "fallback"
+        ],
+        "summary": "Start a Claude account's sign-in through the CLI: an account there, or a new one by name.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeLoginStarted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotADirectory"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "not-a-directory",
+          "directory-taken"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaudeLoginStart"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/claude-logins/{login}/code": {
+      "post": {
+        "operationId": "codeClaudeLogin",
+        "tags": [
+          "fallback"
+        ],
+        "summary": "Hand a sign-in the code its page showed; the accounts once the login is written.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fallback"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoSignIn"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "no-sign-in",
+          "sign-in-refused"
+        ],
+        "parameters": [
+          {
+            "name": "login",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the sign-in"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaudeLoginCode"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/claude-logins/{login}": {
+      "delete": {
+        "operationId": "giveUpClaudeLogin",
+        "tags": [
+          "fallback"
+        ],
+        "summary": "Give a sign-in up, ending the CLI it holds.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoSignIn"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "no-sign-in"
+        ],
+        "parameters": [
+          {
+            "name": "login",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the sign-in"
+            }
+          }
+        ]
+      }
+    },
     "/item-filings": {
       "post": {
         "operationId": "createItemFilings",
@@ -11311,6 +11445,58 @@
         },
         "description": "The body that changes the fallback screen's routes, providers and accounts."
       },
+      "ClaudeLoginStarted": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "login",
+          "url"
+        ],
+        "description": "A sign-in under way: its identifier and the address the owner approves it at."
+      },
+      "ClaudeLoginStart": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "account",
+          "name"
+        ],
+        "description": "A Claude account's sign-in started from the console: a directory account there by its id, or a new account by\nits name, one of the two."
+      },
+      "ClaudeLoginCode": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "description": "The code the sign-in page showed, handed to the sign-in."
+      },
       "ItemFiled": {
         "type": "object",
         "properties": {
@@ -16144,6 +16330,16 @@
           }
         }
       },
+      "DirectoryTaken": {
+        "description": "directory-taken",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "DoubleWaitsOnDoubles": {
         "description": "double-waits-on-doubles",
         "content": {
@@ -16244,6 +16440,16 @@
           }
         }
       },
+      "NoSignIn": {
+        "description": "no-sign-in",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoTurn": {
         "description": "no-turn",
         "content": {
@@ -16276,6 +16482,16 @@
       },
       "NoWorkerFree": {
         "description": "no-worker-free",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotADirectory": {
+        "description": "not-a-directory",
         "content": {
           "application/json": {
             "schema": {
@@ -16376,6 +16592,16 @@
       },
       "ServiceUnavailable": {
         "description": "service-unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "SignInRefused": {
+        "description": "sign-in-refused",
         "content": {
           "application/json": {
             "schema": {

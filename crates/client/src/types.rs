@@ -3577,6 +3577,32 @@ pub struct PersonNodeList {
   pub more: bool,
 }
 
+/// A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
+/// its name, one of the two.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeLoginStart {
+  #[serde(default)]
+  pub account: Option<String>,
+  #[serde(default)]
+  pub name: Option<String>,
+}
+
+/// A sign-in under way: its identifier and the address the owner approves it at.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeLoginStarted {
+  pub login: String,
+  pub url: String,
+}
+
+/// The code the sign-in page showed, handed to the sign-in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeLoginCode {
+  pub code: String,
+}
+
 /// The body that sets an account's node: a hub node the node service keeps.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

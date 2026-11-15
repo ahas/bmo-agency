@@ -937,6 +937,9 @@ node's link keeps of that checkout instead.
 | POST | `/model-catalogue` | Save or remove a model file's entry, or choose one for its engine. |
 | GET | `/fallback` | The Claude accounts, the account in use and the chosen one. |
 | PATCH | `/fallback` | Add, change, order, switch or choose the Claude accounts. |
+| POST | `/claude-logins` | Start a Claude account's sign-in through the CLI: an account there by `account`, or a new one by `name`; answers the sign-in's `login` and the `url` to approve it at. |
+| POST | `/claude-logins/{login}/code` | Hand the sign-in the code its page showed; answers the accounts as the fallback's change does once the login is written. |
+| DELETE | `/claude-logins/{login}` | Give a sign-in up, ending the CLI it holds. |
 
 Each provider answers `name`, `code` (its name, the kebab-case word a screen words it by), `label`,
 `enabled`, `registered`, `gateway`, its `lines`, and `quota`: what it has left as the order reads it
@@ -1007,6 +1010,16 @@ accounts list answers (「accounts, rest and usage」); and `active`, the accoun
 now. Its change takes the account actions `add-account`, `update-account`, `remove-account`, `set-account-order`,
 `set-account-enabled`, `choose-account` and `clear-account-choice` (`docs/cache-fallback.md`, 「The Claude
 Code road is a list of accounts」); no road and no route action is any part of it.
+
+A sign-in (`docs/cache-fallback.md`, 「Signing an account in from the console」) starts with `account`, a
+directory account's id, or `name`, a new account's name, and answers 201 with `login`, the sign-in's identifier,
+and `url`, the address the owner approves it at. It is refused 400 where it names neither or both, 404 where the
+account is none, 422 `not-a-directory` for an account that keeps no login of its own, 409 `directory-taken` where
+a new account's directory already holds anything, and 422 with what the CLI said where the CLI gave no address
+within the bound. The code takes `code`, a non-empty string, and answers 200 as the fallback's change does,
+`{ok, accounts}`; a sign-in that is none, or has ended, is 404 `no-sign-in`, and a code the CLI did not take is
+422 `sign-in-refused`, saying what the CLI said with the code taken out, and ends the sign-in. Giving it up
+answers 204, and 404 `no-sign-in` for one that is none.
 
 ### road-blocks and launch-room
 
