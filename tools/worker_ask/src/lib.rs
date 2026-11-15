@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tool_call::room_gate::{self, AccountService, room_turn_of};
-use tool_call::{Answer, Asked, Handed, Session, Turn};
+use tool_call::{Answer, Asked, Control, Handed, Session, Turn};
 
 /// The entry the manifest declares.
 pub const NAMESPACE: &str = "bmo";
@@ -22,8 +22,6 @@ pub const CAPABILITIES: &[&str] = &["room.tools"];
 /// slot」).
 pub const ROLE: &str = "worker";
 pub const SOURCE: &str = "ask";
-
-const DEFAULT_CONTROL_PORT: u16 = 3220;
 
 /// How often a waiting slot asks again for its admission: a pace, never a bound on how long the ask waits.
 pub const LOOK_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
@@ -40,47 +38,33 @@ pub struct AskInput {
   pub folder: Option<String>,
 }
 
-/// The agency server a tool reaches: its port and token, from its own environment or the server's env file.
+/// Agency's server as the tool reaches it (docs/tools.md, 「The worker ask」), and the pace a waiting slot asks
+/// again at.
 pub struct Api {
-  pub port: u16,
-  pub token: Option<String>,
+  pub control: Control,
   /// The pace a waiting slot asks again at for its admission: never a bound on how long it waits.
   pub pace: std::time::Duration,
 }
 
 impl Api {
+  /// The server the call's data root describes, each variable this process holds standing first.
   pub fn from_record(session: &Session) -> Self {
-    let root = session.data_root();
-    let named = |name: &str| {
-      std::env::var(name).ok().or_else(|| {
-        let text = std::fs::read_to_string(root.join("env").join("agency.env")).ok()?;
-        text.lines().find_map(|line| {
-          let (key, value) = line.split_once('=')?;
-          (key.trim() == name).then(|| value.trim().to_owned())
-        })
-      })
-    };
+    Self::read(&session.data_root(), |name| std::env::var(name).ok())
+  }
 
+  /// The server the data root's `env/agency.env` describes, each variable `variable` answers standing first.
+  pub fn read(data_root: &Path, variable: impl Fn(&str) -> Option<String>) -> Self {
     Self {
-      port: named("AGENCY_CONTROL_PORT")
-        .and_then(|port| port.parse().ok())
-        .unwrap_or(DEFAULT_CONTROL_PORT),
-      // The token by value, else the file its `_FILE` variable names (docs/api.md, 「The control port」).
-      token: named("AGENCY_CONTROL_TOKEN").filter(|token| !token.is_empty()).or_else(|| {
-        named("AGENCY_CONTROL_TOKEN_FILE")
-          .and_then(|file| std::fs::read_to_string(file).ok())
-          .map(|token| token.trim().to_owned())
-          .filter(|token| !token.is_empty())
-      }),
+      control: Control::read(data_root, variable),
       pace: LOOK_EVERY,
     }
   }
 
   // A read answered whenever agency answers: no timeout cuts the wait.
   async fn get(&self, path: &str) -> Result<(reqwest::StatusCode, Value), String> {
-    let mut request = reqwest::Client::new().get(format!("http://127.0.0.1:{}{path}", self.port));
+    let mut request = reqwest::Client::new().get(format!("{}{path}", self.control.base()));
 
-    if let Some(token) = &self.token {
+    if let Some(token) = &self.control.token {
       request = request.bearer_auth(token);
     }
 
@@ -107,10 +91,10 @@ impl Api {
     body: Value,
   ) -> Result<(reqwest::StatusCode, Value), String> {
     let mut request = reqwest::Client::new()
-      .request(method, format!("http://127.0.0.1:{}{path}", self.port))
+      .request(method, format!("{}{path}", self.control.base()))
       .json(&body);
 
-    if let Some(token) = &self.token {
+    if let Some(token) = &self.control.token {
       request = request.bearer_auth(token);
     }
 

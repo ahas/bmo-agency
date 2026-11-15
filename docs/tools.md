@@ -36,7 +36,8 @@ belongs to no one service is a repository of its own, not a folder here.
   - A request that does not read, or a kind the executable does not answer, ends it unclean with why
     on its error stream, which the tool host takes as a failed call.
 - **`crates/tool-call`** is agency's side of that protocol, which every tool here shares: the request,
-  the parts of the session record agency's tools read, the answer, and the tree they read from.
+  the parts of the session record agency's tools read, agency's server as every tool reaches it (its
+  port and token, read as 「The procedures」 states), the answer, and the tree they read from.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's,

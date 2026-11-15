@@ -15,8 +15,8 @@ use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use delegate_tool::{Api, DelegateInput, Held, ListInput, delegate_with, list_with, may_delegate};
 use serde_json::{Value, json};
-use tool_call::Session;
 use tool_call::room_gate::AccountService;
+use tool_call::{Control, Session};
 
 // How the stub slot and session routes behave, and everything they were asked.
 #[derive(Default)]
@@ -206,8 +206,7 @@ async fn server(stub: Stub) -> (Api, Shared) {
 
   (
     Api {
-      port,
-      token: None,
+      control: Control { port, token: None },
       pace: Duration::from_millis(10),
     },
     shared,
@@ -492,8 +491,7 @@ async fn the_listing_names_each_delegation_by_its_title_stage_role_road_and_star
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
   let api = Api {
-    port,
-    token: None,
+    control: Control { port, token: None },
     pace: Duration::from_millis(10),
   };
   let answer = list_with(&api, &session(home.path()), ListInput { ended: Some(3) }).await;
@@ -671,8 +669,7 @@ async fn a_wait_whose_server_goes_down_under_it_is_sent_again_under_the_run_s_ke
   });
 
   let api = Api {
-    port,
-    token: None,
+    control: Control { port, token: None },
     pace: Duration::from_millis(10),
   };
   let session = session(home.path());
@@ -718,4 +715,14 @@ async fn a_wait_whose_server_goes_down_under_it_is_sent_again_under_the_run_s_ke
   assert_eq!(stub.sends, ["doppelganger@run:1"; 2]);
   assert_eq!(stub.keys, [run.clone(), run]);
   assert_eq!(stub.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
+}
+
+#[tokio::test]
+async fn agency_is_asked_where_the_data_roots_env_file_names_it() {
+  let agency = super::agency_named_by_its_file().await;
+  let api = Api::read(agency.root.path(), |_| None);
+
+  list_with(&api, &session(agency.root.path()), ListInput { ended: None }).await;
+
+  agency.assert_asked_under_the_files_token();
 }

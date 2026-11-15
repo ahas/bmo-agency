@@ -2,9 +2,11 @@
 //! (docs/relays.md). The sender is the agent the calling turn belongs to, so a relay is always a BMO's
 //! word and never the person's: a call standing in no agent's turn is refused.
 
+use std::path::Path;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tool_call::{Answer, Asked, Handed, Session, Turn};
+use tool_call::{Answer, Asked, Control, Handed, Session, Turn};
 
 /// The tool's namespace and entries.
 pub const NAMESPACE: &str = "bmo";
@@ -15,8 +17,6 @@ pub const DESCRIPTION: &str = "Hand a line to another person's BMO, recorded for
 pub const CHAT_TITLE: &str = "Open a chat with another person";
 pub const CHAT_DESCRIPTION: &str = "Open a chat into another person's room and hand it a line, answered with the receiving BMO's answer; a refusal is reported to you. The room must be named. This is for another person's BMO, never for another supervisor of your own person: that one is met in a room it answers.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
-
-const DEFAULT_CONTROL_PORT: u16 = 3220;
 
 pub fn entry() -> String {
   format!("{NAMESPACE}/{NAME}")
@@ -40,44 +40,29 @@ pub struct RelayInput {
   pub person: Option<i64>,
 }
 
-/// The agency server a tool reaches: its port and token, from its own environment or the server's env file.
+/// Agency's server as the tool reaches it (docs/tools.md, 「The relay」).
 pub struct Api {
-  pub port: u16,
-  pub token: Option<String>,
+  pub control: Control,
 }
 
 impl Api {
+  /// The server the call's data root describes, each variable this process holds standing first.
   pub fn from_record(session: &Session) -> Self {
-    let root = session.data_root();
-    let named = |name: &str| {
-      std::env::var(name).ok().or_else(|| {
-        let text = std::fs::read_to_string(root.join("env").join("agency.env")).ok()?;
-        text.lines().find_map(|line| {
-          let (key, value) = line.split_once('=')?;
-          (key.trim() == name).then(|| value.trim().to_owned())
-        })
-      })
-    };
+    Self::read(&session.data_root(), |name| std::env::var(name).ok())
+  }
 
+  /// The server the data root's `env/agency.env` describes, each variable `variable` answers standing first.
+  pub fn read(data_root: &Path, variable: impl Fn(&str) -> Option<String>) -> Self {
     Self {
-      port: named("AGENCY_CONTROL_PORT")
-        .and_then(|port| port.parse().ok())
-        .unwrap_or(DEFAULT_CONTROL_PORT),
-      token: named("AGENCY_CONTROL_TOKEN").filter(|token| !token.is_empty()).or_else(|| {
-        named("AGENCY_CONTROL_TOKEN_FILE")
-          .and_then(|file| std::fs::read_to_string(file).ok())
-          .map(|token| token.trim().to_owned())
-          .filter(|token| !token.is_empty())
-      }),
+      control: Control::read(data_root, variable),
     }
   }
 
   // A call answered once agency answers, however long the receiving BMO's turn takes.
   async fn post(&self, path: &str, body: Value) -> Result<(reqwest::StatusCode, Value), String> {
-    let mut request =
-      reqwest::Client::new().post(format!("http://127.0.0.1:{}{path}", self.port)).json(&body);
+    let mut request = reqwest::Client::new().post(format!("{}{path}", self.control.base())).json(&body);
 
-    if let Some(token) = &self.token {
+    if let Some(token) = &self.control.token {
       request = request.bearer_auth(token);
     }
 

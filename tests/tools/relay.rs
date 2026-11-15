@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Json, Router};
 use serde_json::{Value, json};
-use tool_call::Session;
+use tool_call::{Control, Session};
 
 use relay_tool::{Api, RelayInput, send_with};
 
@@ -44,8 +44,10 @@ async fn server(stub: Stub) -> Api {
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
   Api {
-    port,
-    token: Some("test-token".to_owned()),
+    control: Control {
+      port,
+      token: Some("test-token".to_owned()),
+    },
   }
 }
 
@@ -188,4 +190,16 @@ async fn a_call_in_no_agents_turn_reaches_nothing() {
   assert!(answer.is_error);
   assert!(answer.plain().contains("no agent's turn"), "{}", answer.plain());
   assert!(seen.lock().unwrap().asked.is_empty());
+}
+
+#[tokio::test]
+async fn agency_is_asked_where_the_data_roots_env_file_names_it() {
+  let agency = super::agency_named_by_its_file().await;
+  let api = Api::read(agency.root.path(), |_| None);
+
+  send_with(&api, &session(Some("a"), None), input("b", "hello", Some(-5)), false)
+    .await
+    .unwrap();
+
+  agency.assert_asked_under_the_files_token();
 }

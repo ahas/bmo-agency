@@ -958,7 +958,6 @@ name = "delegate-tool"
 version = "0.1.0-rev.81"
 dependencies = [
  "chrono",
- "dotenvy",
  "policy",
  "reqwest",
  "serde",
@@ -2424,7 +2423,6 @@ dependencies = [
 name = "procedures-tool"
 version = "0.1.0-rev.81"
 dependencies = [
- "dotenvy",
  "regex",
  "reqwest",
  "serde_json",

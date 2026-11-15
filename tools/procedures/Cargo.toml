@@ -12,7 +12,6 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
-dotenvy.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true

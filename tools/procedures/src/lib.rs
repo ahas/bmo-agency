@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use regex::Regex;
 use serde_json::{Value, json};
 use sqlx::Row;
-use tool_call::{Answer, Asked, Handed, Session, Turn};
+use tool_call::{Answer, Asked, Control, Handed, Session, Turn};
 
 /// The address every procedure stands under.
 pub const PROCEDURE_PREFIX: &str = "bmo://procedure/";
@@ -17,11 +17,8 @@ pub const PROCEDURE_PREFIX: &str = "bmo://procedure/";
 /// The route of agency's server the verbs of a room's road are asked at.
 pub const ROAD_VERBS_PATH: &str = "/road-verbs";
 
-/// The variables naming the port agency's server listens on and its token, and the port it takes where
-/// none is named.
-const CONTROL_PORT: &str = "AGENCY_CONTROL_PORT";
+/// The variable naming the token agency's server is asked under, which a refusal names.
 const CONTROL_TOKEN: &str = "AGENCY_CONTROL_TOKEN";
-const DEFAULT_CONTROL_PORT: u16 = 3220;
 
 /// A procedure's address by its name.
 pub fn procedure_uri(name: &str) -> String {
@@ -166,12 +163,10 @@ pub fn filter_procedure(text: &str, can: &[String]) -> String {
   format!("{}\n", filter_range(&mark, &lines, 0, lines.len(), can).join("\n").trim_end())
 }
 
-/// Agency's server as a placed tool reaches it: the port and the token the tool's own environment names, else
-/// those the data root's `env/agency.env` names (docs/api.md, 「The control port」).
+/// Agency's server as the tool reaches it (docs/tools.md, 「The procedures」).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Server {
-  pub port: u16,
-  pub token: Option<String>,
+  pub control: Control,
 }
 
 impl Server {
@@ -182,33 +177,15 @@ impl Server {
 
   /// The server the data root's `env/agency.env` describes, each variable `variable` answers standing first.
   pub fn read(data_root: &Path, variable: impl Fn(&str) -> Option<String>) -> Self {
-    let file: Vec<(String, String)> = dotenvy::from_path_iter(data_root.join("env").join("agency.env"))
-      .map(|pairs| pairs.filter_map(Result::ok).collect())
-      .unwrap_or_default();
-    let named = |name: &str| {
-      variable(name)
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| file.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone()))
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty())
-    };
-
     Self {
-      port: named(CONTROL_PORT).and_then(|port| port.parse().ok()).unwrap_or(DEFAULT_CONTROL_PORT),
-      // The token by value, else the file its `_FILE` variable names.
-      token: named(CONTROL_TOKEN).or_else(|| {
-        named(&format!("{CONTROL_TOKEN}_FILE"))
-          .and_then(|file| std::fs::read_to_string(file).ok())
-          .map(|token| token.trim().to_owned())
-          .filter(|token| !token.is_empty())
-      }),
+      control: Control::read(data_root, variable),
     }
   }
 
   /// The verbs the road a room is answered on performs, `via` naming the road where the turn names one, as
   /// agency's server answers them; why not, where it was not asked or did not answer.
   pub async fn road_can(&self, chat: i64, via: Option<&str>) -> Result<Vec<String>, String> {
-    let Some(token) = &self.token else {
+    let Some(token) = &self.control.token else {
       return Err(format!(
         "the verbs of the room's road cannot be asked: no {CONTROL_TOKEN} is named for agency's server"
       ));
@@ -218,7 +195,7 @@ impl Server {
     query.extend(via.map(|via| ("via", via.to_owned())));
 
     let address =
-      reqwest::Url::parse_with_params(&format!("http://127.0.0.1:{}{ROAD_VERBS_PATH}", self.port), &query)
+      reqwest::Url::parse_with_params(&format!("{}{ROAD_VERBS_PATH}", self.control.base()), &query)
         .map_err(|why| format!("the address of agency's server does not read: {why}"))?;
     let answered = reqwest::Client::new()
       .get(address)

@@ -14,7 +14,7 @@ use reqwest::{Method, StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tool_call::room_gate::{self, AccountService, room_turn_of};
-use tool_call::{Answer, Asked, Handed, Session, Turn};
+use tool_call::{Answer, Asked, Control, Handed, Session, Turn};
 
 /// The entry the manifest declares.
 pub const NAMESPACE: &str = "bmo";
@@ -33,10 +33,6 @@ pub const SOURCE: &str = "delegate";
 
 /// How often a waiting slot asks again for its admission: a pace, never a bound on how long it waits.
 pub const LOOK_EVERY: Duration = Duration::from_secs(1);
-
-const DEFAULT_CONTROL_PORT: u16 = 3220;
-const CONTROL_PORT: &str = "AGENCY_CONTROL_PORT";
-const CONTROL_TOKEN: &str = "AGENCY_CONTROL_TOKEN";
 
 // A slot's states it is let in at, and those it has been given back in.
 const ADMITTED: [&str; 2] = ["active", "bound"];
@@ -62,42 +58,23 @@ pub struct DelegateInput {
   pub folder: Option<String>,
 }
 
-/// Agency's server as a placed tool reaches it: the port and the token the tool's own environment names, else
-/// those the data root's `env/agency.env` names (docs/api.md, 「The control port」), and the pace a waiting
-/// slot asks again at.
+/// Agency's server as the tool reaches it (docs/tools.md, 「The delegate」), and the pace a waiting slot asks
+/// again at.
 pub struct Api {
-  pub port: u16,
-  pub token: Option<String>,
+  pub control: Control,
   pub pace: Duration,
 }
 
 impl Api {
+  /// The server the call's data root describes, each variable this process holds standing first.
   pub fn from_record(session: &Session) -> Self {
     Self::read(&session.data_root(), |name| std::env::var(name).ok())
   }
 
   /// The server the data root's `env/agency.env` describes, each variable `variable` answers standing first.
   pub fn read(data_root: &Path, variable: impl Fn(&str) -> Option<String>) -> Self {
-    let file: Vec<(String, String)> = dotenvy::from_path_iter(data_root.join("env").join("agency.env"))
-      .map(|pairs| pairs.filter_map(Result::ok).collect())
-      .unwrap_or_default();
-    let named = |name: &str| {
-      variable(name)
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| file.iter().find(|(key, _)| key == name).map(|(_, value)| value.clone()))
-        .map(|value| value.trim().to_owned())
-        .filter(|value| !value.is_empty())
-    };
-
     Self {
-      port: named(CONTROL_PORT).and_then(|port| port.parse().ok()).unwrap_or(DEFAULT_CONTROL_PORT),
-      // The token by value, else the file its `_FILE` variable names.
-      token: named(CONTROL_TOKEN).or_else(|| {
-        named(&format!("{CONTROL_TOKEN}_FILE"))
-          .and_then(|file| std::fs::read_to_string(file).ok())
-          .map(|token| token.trim().to_owned())
-          .filter(|token| !token.is_empty())
-      }),
+      control: Control::read(data_root, variable),
       pace: LOOK_EVERY,
     }
   }
@@ -116,13 +93,13 @@ impl Api {
   ) -> Result<(StatusCode, Value), String> {
     loop {
       let mut request =
-        reqwest::Client::new().request(method.clone(), format!("http://127.0.0.1:{}{path}", self.port));
+        reqwest::Client::new().request(method.clone(), format!("{}{path}", self.control.base()));
 
       if let Some(body) = &body {
         request = request.json(body);
       }
 
-      if let Some(token) = &self.token {
+      if let Some(token) = &self.control.token {
         request = request.bearer_auth(token);
       }
 

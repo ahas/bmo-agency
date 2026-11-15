@@ -12,8 +12,8 @@ use axum::http::StatusCode;
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
-use tool_call::Session;
 use tool_call::room_gate::{AccountService, room_turn_of_place};
+use tool_call::{Control, Session};
 use worker_ask_tool::{Api, AskInput, ask_with, may_ask};
 
 #[derive(Default)]
@@ -119,8 +119,7 @@ async fn server(stub: Stub) -> Api {
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
   Api {
-    port,
-    token: None,
+    control: Control { port, token: None },
     pace: Duration::from_millis(10),
   }
 }
@@ -352,4 +351,18 @@ fn the_account_service_is_read_from_the_environment_or_the_web_unit_s_env_file()
 
   assert_eq!(named.address, "http://127.0.0.1:5");
   assert_eq!(named.token, "from-file", "a token by value in the env file stands before a file named");
+}
+
+#[tokio::test]
+async fn agency_is_asked_where_the_data_roots_env_file_names_it() {
+  let agency = super::agency_named_by_its_file().await;
+  let api = Api::read(agency.root.path(), |_| None);
+  let input = AskInput {
+    words: "fix the typo".to_owned(),
+    folder: Some("/work/elsewhere".to_owned()),
+  };
+
+  ask_with(&api, &session(agency.root.path()), input).await;
+
+  agency.assert_asked_under_the_files_token();
 }

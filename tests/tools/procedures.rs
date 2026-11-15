@@ -16,7 +16,7 @@ use procedures_tool::{
   Server, as_used, filter_procedure, listed, overtaken, procedure_names, procedures_dir, read_in, written,
 };
 use serde_json::{Value, json};
-use tool_call::Session;
+use tool_call::{Control, Session};
 
 use crate::support::{binary, scratch, standing};
 
@@ -65,8 +65,10 @@ fn session(archive: &str, chat: Option<i64>, agent: Option<(&str, i64)>) -> Sess
 // A server no read in these tests may reach: it holds no token.
 fn unreachable() -> Server {
   Server {
-    port: 1,
-    token: None,
+    control: Control {
+      port: 1,
+      token: None,
+    },
   }
 }
 
@@ -166,22 +168,28 @@ fn the_server_is_named_by_the_environment_first_then_the_data_roots_file() {
   assert_eq!(
     Server::read(data.path(), |_| None),
     Server {
-      port: 4100,
-      token: Some("from-file".into())
+      control: Control {
+        port: 4100,
+        token: Some("from-file".into())
+      }
     }
   );
   assert_eq!(
     Server::read(data.path(), |name| (name == "AGENCY_CONTROL_TOKEN").then(|| "own".to_owned())),
     Server {
-      port: 4100,
-      token: Some("own".into())
+      control: Control {
+        port: 4100,
+        token: Some("own".into())
+      }
     }
   );
   assert_eq!(
     Server::read(&data.path().join("none"), |_| None),
     Server {
-      port: 3220,
-      token: None
+      control: Control {
+        port: 3220,
+        token: None
+      }
     }
   );
 }
@@ -226,8 +234,10 @@ async fn a_rooms_read_is_held_to_the_verbs_the_server_answers_for_its_road() {
   let tree = tree();
   let (port, asked) = stand_in_server().await;
   let server = Server {
-    port,
-    token: Some("secret".into()),
+    control: Control {
+      port,
+      token: Some("secret".into()),
+    },
   };
   let mut room = session("", Some(-5), None);
 
