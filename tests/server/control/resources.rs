@@ -240,8 +240,12 @@ async fn usage_is_grouped_by_what_the_query_names_and_carries_the_sessions_conte
     (&json!("7"), &json!(150))
   );
   assert_eq!(
-    (&by_room["groups"][0]["unsplitJobs"], &by_room["groups"][0]["unsplitTokens"]),
-    (&json!(2), &json!(150)),
+    (
+      &by_room["groups"][0]["unsplitJobs"],
+      &by_room["groups"][0]["unsplitTokens"],
+      &by_room["groups"][0]["inputTokens"]
+    ),
+    (&json!(2), &json!(150), &Value::Null),
     "{by_room}"
   );
   assert_eq!(get(port, token, &format!("{span}&groupBy=nothing")).await.0, 400);
@@ -264,11 +268,12 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
     )
     .await;
 
-  for (checkout, started, tokens, kinds) in [
-    ("site", now - 3_000, 100, "10, 20, 30, 40"),
-    ("site-w2", now - 2_000, 10, "1, 2, 3, 4"),
-    ("site@node-1", now - 1_000, 7, "NULL, NULL, NULL, NULL"),
-    ("gone-w3", now - 1_000, 5, "NULL, NULL, NULL, NULL"),
+  for (checkout, state, started, tokens, kinds) in [
+    ("site", "ended", now - 3_000, 100, "10, 20, 30, 40"),
+    ("site-w2", "ended", now - 2_000, 10, "1, 2, 3, 4"),
+    ("site-w9", "running", now - 2_500, 0, "NULL, NULL, NULL, NULL"),
+    ("site@node-1", "ended", now - 1_000, 7, "NULL, NULL, NULL, NULL"),
+    ("gone-w3", "ended", now - 1_000, 5, "NULL, NULL, NULL, NULL"),
   ] {
     scratch
       .run(
@@ -276,7 +281,7 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
           r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
                 "token_count", "started_at", "prompt", "input_tokens", "output_tokens", "cache_read_tokens",
                 "cache_write_tokens")
-             VALUES (1, 1, 'holder', 1, '{checkout}', 'ended', {tokens}, {started}, 'p', {kinds})"#
+             VALUES (1, 1, 'holder', 1, '{checkout}', '{state}', {tokens}, {started}, 'p', {kinds})"#
         ),
         vec![],
       )
@@ -292,13 +297,13 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
     by_repository["groups"],
     json!([
       {
-        "key": "site", "tokens": 117, "jobs": 3, "firstAt": now - 3_000, "lastAt": now - 1_000,
+        "key": "site", "tokens": 117, "jobs": 4, "firstAt": now - 3_000, "lastAt": now - 1_000,
         "inputTokens": 11, "outputTokens": 22, "cacheReadTokens": 33, "cacheWriteTokens": 44,
         "unsplitJobs": 1, "unsplitTokens": 7, "contextTokens": null,
       },
       {
         "key": "gone-w3", "tokens": 5, "jobs": 1, "firstAt": now - 1_000, "lastAt": now - 1_000,
-        "inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0,
+        "inputTokens": null, "outputTokens": null, "cacheReadTokens": null, "cacheWriteTokens": null,
         "unsplitJobs": 1, "unsplitTokens": 5, "contextTokens": null,
       },
     ])

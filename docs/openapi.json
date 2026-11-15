@@ -12168,7 +12168,9 @@
         "properties": {
           "groups": {
             "type": "array",
-            "items": true
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            }
           },
           "after": {
             "type": "integer",
@@ -12187,6 +12189,108 @@
           "before"
         ],
         "description": "Usage:"
+      },
+      "UsageGroup": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The value the query groups by; empty where the job holds none."
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What the group's jobs' models spent."
+          },
+          "jobs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many jobs are behind the figure; 0 for a round."
+          },
+          "turns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many turns a round holds; absent outside `round`."
+          },
+          "firstAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "lastAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "inputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The input tokens summed over the jobs whose turns reported all four kinds; null where none did."
+          },
+          "outputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The output tokens summed over the jobs whose turns reported all four kinds; null where none did."
+          },
+          "cacheReadTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The cache-read tokens summed over the jobs whose turns reported all four kinds; null where none did."
+          },
+          "cacheWriteTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The cache-write tokens summed over the jobs whose turns reported all four kinds; null where none did."
+          },
+          "unsplitJobs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many jobs spent tokens without reporting all four kinds."
+          },
+          "unsplitTokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What those jobs spent."
+          },
+          "contextTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The tokens the roles' sessions on the key carry; null where no session is matched to the key."
+          }
+        },
+        "required": [
+          "key",
+          "tokens",
+          "jobs",
+          "firstAt",
+          "lastAt",
+          "inputTokens",
+          "outputTokens",
+          "cacheReadTokens",
+          "cacheWriteTokens",
+          "unsplitJobs",
+          "unsplitTokens",
+          "contextTokens"
+        ],
+        "description": "UsageGroup: what the jobs, or a round's turns, under one key of a usage query spent (docs/api.md,\n「accounts, rest and usage」)."
       },
       "Settings": {
         "type": "object",

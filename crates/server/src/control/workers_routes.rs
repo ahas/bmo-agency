@@ -12,6 +12,7 @@
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
+use bmo_agency_client::{Usage, UsageGroup};
 use serde_json::{Value, json};
 
 use super::claude_accounts::Judging;
@@ -386,7 +387,7 @@ impl Grouping {
     db: &sea_orm::DatabaseConnection,
     after: i64,
     before: i64,
-  ) -> Result<Vec<Value>, Refused> {
+  ) -> Result<Vec<UsageGroup>, Refused> {
     let (jobs_by, sessions_by) = match self {
       Self::Column { jobs, sessions } => (*jobs, *sessions),
       Self::Repository => ("worker_name", None),
@@ -403,7 +404,7 @@ impl Grouping {
 
     spends.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.key.cmp(&b.key)));
 
-    Ok(spends.iter().map(|spend| spend.value(contexts.get(&spend.key).copied())).collect())
+    Ok(spends.into_iter().map(|spend| spend.group(&contexts)).collect())
   }
 }
 
@@ -464,20 +465,28 @@ async fn by_repository(
   Ok(repositories.into_values().collect())
 }
 
-/// What the jobs of one group spent: the total, the four kinds summed over the jobs that reported all four,
-/// and the jobs that did not with what they spent.
+/// What the jobs of one group spent: the total, the four kinds summed over the jobs that reported all four
+/// (none where no job did), and the jobs that spent tokens without reporting them with what they spent.
 struct JobSpend {
   key: String,
   tokens: i64,
   jobs: i64,
   first_at: i64,
   last_at: i64,
-  input_tokens: i64,
-  output_tokens: i64,
-  cache_read_tokens: i64,
-  cache_write_tokens: i64,
+  input_tokens: Option<i64>,
+  output_tokens: Option<i64>,
+  cache_read_tokens: Option<i64>,
+  cache_write_tokens: Option<i64>,
   unsplit_jobs: i64,
   unsplit_tokens: i64,
+}
+
+// Two groups' sums of one kind as one: none only where neither group has a job that reported it.
+fn kinds_added(one: Option<i64>, other: Option<i64>) -> Option<i64> {
+  match (one, other) {
+    (None, None) => None,
+    _ => Some(one.unwrap_or(0) + other.unwrap_or(0)),
+  }
 }
 
 impl JobSpend {
@@ -493,11 +502,11 @@ impl JobSpend {
       &format!(
         r#"SELECT "key", SUM("token_count")::bigint AS "tokens", COUNT(*) AS "jobs",
                   MIN("started_at") AS "first", MAX(COALESCE("ended_at", "started_at")) AS "last",
-                  COALESCE(SUM("input_tokens") FILTER (WHERE "split"), 0)::bigint AS "input",
-                  COALESCE(SUM("output_tokens") FILTER (WHERE "split"), 0)::bigint AS "output",
-                  COALESCE(SUM("cache_read_tokens") FILTER (WHERE "split"), 0)::bigint AS "cache_read",
-                  COALESCE(SUM("cache_write_tokens") FILTER (WHERE "split"), 0)::bigint AS "cache_write",
-                  COUNT(*) FILTER (WHERE NOT "split") AS "unsplit_jobs",
+                  (SUM("input_tokens") FILTER (WHERE "split"))::bigint AS "input",
+                  (SUM("output_tokens") FILTER (WHERE "split"))::bigint AS "output",
+                  (SUM("cache_read_tokens") FILTER (WHERE "split"))::bigint AS "cache_read",
+                  (SUM("cache_write_tokens") FILTER (WHERE "split"))::bigint AS "cache_write",
+                  COUNT(*) FILTER (WHERE NOT "split" AND "token_count" > 0) AS "unsplit_jobs",
                   COALESCE(SUM("token_count") FILTER (WHERE NOT "split"), 0)::bigint AS "unsplit_tokens"
            FROM (
              SELECT COALESCE(CAST("{column}" AS text), '') AS "key", "token_count", "started_at", "ended_at",
@@ -517,6 +526,7 @@ impl JobSpend {
 
   fn read(row: &sea_orm::QueryResult) -> Result<Self, sea_orm::DbErr> {
     let figure = |column: &str| row.try_get::<i64>("", column);
+    let kind = |column: &str| row.try_get::<Option<i64>>("", column);
 
     Ok(Self {
       key: row.try_get("", "key")?,
@@ -524,10 +534,10 @@ impl JobSpend {
       jobs: figure("jobs")?,
       first_at: figure("first")?,
       last_at: figure("last")?,
-      input_tokens: figure("input")?,
-      output_tokens: figure("output")?,
-      cache_read_tokens: figure("cache_read")?,
-      cache_write_tokens: figure("cache_write")?,
+      input_tokens: kind("input")?,
+      output_tokens: kind("output")?,
+      cache_read_tokens: kind("cache_read")?,
+      cache_write_tokens: kind("cache_write")?,
       unsplit_jobs: figure("unsplit_jobs")?,
       unsplit_tokens: figure("unsplit_tokens")?,
     })
@@ -541,31 +551,32 @@ impl JobSpend {
       jobs: self.jobs + other.jobs,
       first_at: self.first_at.min(other.first_at),
       last_at: self.last_at.max(other.last_at),
-      input_tokens: self.input_tokens + other.input_tokens,
-      output_tokens: self.output_tokens + other.output_tokens,
-      cache_read_tokens: self.cache_read_tokens + other.cache_read_tokens,
-      cache_write_tokens: self.cache_write_tokens + other.cache_write_tokens,
+      input_tokens: kinds_added(self.input_tokens, other.input_tokens),
+      output_tokens: kinds_added(self.output_tokens, other.output_tokens),
+      cache_read_tokens: kinds_added(self.cache_read_tokens, other.cache_read_tokens),
+      cache_write_tokens: kinds_added(self.cache_write_tokens, other.cache_write_tokens),
       unsplit_jobs: self.unsplit_jobs + other.unsplit_jobs,
       unsplit_tokens: self.unsplit_tokens + other.unsplit_tokens,
     }
   }
 
-  /// The group as the route answers it, with the context its sessions carry where they are matched.
-  fn value(&self, context: Option<i64>) -> Value {
-    json!({
-      "key": self.key,
-      "tokens": self.tokens,
-      "jobs": self.jobs,
-      "firstAt": self.first_at,
-      "lastAt": self.last_at,
-      "inputTokens": self.input_tokens,
-      "outputTokens": self.output_tokens,
-      "cacheReadTokens": self.cache_read_tokens,
-      "cacheWriteTokens": self.cache_write_tokens,
-      "unsplitJobs": self.unsplit_jobs,
-      "unsplitTokens": self.unsplit_tokens,
-      "contextTokens": context,
-    })
+  /// The group as the route answers it, with the context the sessions matched to its key carry.
+  fn group(self, contexts: &std::collections::HashMap<String, i64>) -> UsageGroup {
+    UsageGroup {
+      context_tokens: contexts.get(&self.key).copied(),
+      key: self.key,
+      tokens: self.tokens,
+      jobs: self.jobs,
+      turns: None,
+      first_at: self.first_at,
+      last_at: self.last_at,
+      input_tokens: self.input_tokens,
+      output_tokens: self.output_tokens,
+      cache_read_tokens: self.cache_read_tokens,
+      cache_write_tokens: self.cache_write_tokens,
+      unsplit_jobs: self.unsplit_jobs,
+      unsplit_tokens: self.unsplit_tokens,
+    }
   }
 }
 
@@ -592,7 +603,14 @@ impl Route for UsageRoute {
         .await?
     };
 
-    Ok(answer(StatusCode::OK, json!({ "groups": groups, "after": after, "before": before })))
+    Ok(answer(
+      StatusCode::OK,
+      json!(Usage {
+        groups,
+        after,
+        before
+      }),
+    ))
   }
 }
 
@@ -604,28 +622,26 @@ async fn by_round(
   db: &sea_orm::DatabaseConnection,
   after: i64,
   before: i64,
-) -> Result<Vec<Value>, Refused> {
+) -> Result<Vec<UsageGroup>, Refused> {
   let rounds = crate::run_ledger::spent_by_round(db, after, before).await?;
 
   Ok(
     rounds
       .iter()
-      .map(|round| {
-        json!({
-          "key": round.round,
-          "tokens": round.spent.total(),
-          "jobs": 0,
-          "turns": round.turns,
-          "inputTokens": round.spent.input_tokens,
-          "outputTokens": round.spent.output_tokens,
-          "cacheReadTokens": round.spent.cache_read_tokens,
-          "cacheWriteTokens": round.spent.cache_write_tokens,
-          "unsplitJobs": 0,
-          "unsplitTokens": 0,
-          "firstAt": round.first_at,
-          "lastAt": round.last_at,
-          "contextTokens": Value::Null,
-        })
+      .map(|round| UsageGroup {
+        key: round.round.clone(),
+        tokens: round.spent.total(),
+        jobs: 0,
+        turns: Some(round.turns),
+        first_at: round.first_at,
+        last_at: round.last_at,
+        input_tokens: Some(round.spent.input_tokens),
+        output_tokens: Some(round.spent.output_tokens),
+        cache_read_tokens: Some(round.spent.cache_read_tokens),
+        cache_write_tokens: Some(round.spent.cache_write_tokens),
+        unsplit_jobs: 0,
+        unsplit_tokens: 0,
+        context_tokens: None,
       })
       .collect(),
   )

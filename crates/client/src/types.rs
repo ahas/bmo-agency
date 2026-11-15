@@ -1264,11 +1264,45 @@ pub struct SupervisorRoad {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
-  pub groups: Vec<Value>,
+  pub groups: Vec<UsageGroup>,
   /// epoch milliseconds
   pub after: i64,
   /// epoch milliseconds
   pub before: i64,
+}
+
+/// UsageGroup: what the jobs, or a round's turns, under one key of a usage query spent (docs/api.md,
+/// 「accounts, rest and usage」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageGroup {
+  /// The value the query groups by; empty where the job holds none.
+  pub key: String,
+  /// What the group's jobs' models spent.
+  pub tokens: i64,
+  /// How many jobs are behind the figure; 0 for a round.
+  pub jobs: i64,
+  /// How many turns a round holds; absent outside `round`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub turns: Option<i64>,
+  /// epoch milliseconds
+  pub first_at: i64,
+  /// epoch milliseconds
+  pub last_at: i64,
+  /// The input tokens summed over the jobs whose turns reported all four kinds; null where none did.
+  pub input_tokens: Option<i64>,
+  /// The output tokens summed over the jobs whose turns reported all four kinds; null where none did.
+  pub output_tokens: Option<i64>,
+  /// The cache-read tokens summed over the jobs whose turns reported all four kinds; null where none did.
+  pub cache_read_tokens: Option<i64>,
+  /// The cache-write tokens summed over the jobs whose turns reported all four kinds; null where none did.
+  pub cache_write_tokens: Option<i64>,
+  /// How many jobs spent tokens without reporting all four kinds.
+  pub unsplit_jobs: i64,
+  /// What those jobs spent.
+  pub unsplit_tokens: i64,
+  /// The tokens the roles' sessions on the key carry; null where no session is matched to the key.
+  pub context_tokens: Option<i64>,
 }
 
 /// Settings:

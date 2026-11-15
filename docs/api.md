@@ -1126,15 +1126,16 @@ support checkout or before `@<node>` for a node checkout (`docs/worker-slots.md`
 sums its base, support and node checkouts; a checkout no repository holds now is a group of its own under
 its own name. Each group carries `tokens`, what the jobs' models spent; `jobs`, how many jobs are behind the
 figure; `firstAt` and `lastAt`, the span they cover; `inputTokens`, `outputTokens`, `cacheReadTokens` and
-`cacheWriteTokens`, the spend apart summed over the jobs whose turns reported all four kinds;
-`unsplitJobs` and `unsplitTokens`, the jobs that did not report them and the `tokens` those jobs spent; and
+`cacheWriteTokens`, the spend apart summed over the jobs whose turns reported all four kinds, each null
+where no job of the group did; `unsplitJobs` and `unsplitTokens`, the jobs that spent tokens without
+reporting all four kinds and the `tokens` those jobs spent, a job that spent nothing counting in neither; and
 `contextTokens`, the tokens the roles' sessions answered in the span carry, matched on the session's model,
 role or account for `model`, `agent` and `user`, and null for `repository` and `room`. `round` groups the
 chat turns' runs instead, those started in the span that name a round and report the four kinds, by that
-round: each group's `tokens` is what its turns spent, `turns` how many there were, the four kinds the spend
-apart, and `firstAt` and `lastAt` the span they cover; its `jobs`, `unsplitJobs` and `unsplitTokens` are 0
-and its `contextTokens` null. The span is two moments in epoch milliseconds,
-yesterday to now where none is given.
+round: each group's `tokens` is what its turns spent, `turns` how many there were, a field only a round's
+group carries, the four kinds the spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs`,
+`unsplitJobs` and `unsplitTokens` are 0 and its `contextTokens` null. Every group has the `UsageGroup` shape
+of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday to now where none is given.
 
 ### settings
 

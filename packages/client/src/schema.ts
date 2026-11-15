@@ -3474,7 +3474,7 @@ export interface components {
         };
         /** @description Usage: */
         Usage: {
-            groups: unknown[];
+            groups: components["schemas"]["UsageGroup"][];
             /**
              * Format: int64
              * @description epoch milliseconds
@@ -3485,6 +3485,74 @@ export interface components {
              * @description epoch milliseconds
              */
             before: number;
+        };
+        /**
+         * @description UsageGroup: what the jobs, or a round's turns, under one key of a usage query spent (docs/api.md,
+         *     「accounts, rest and usage」).
+         */
+        UsageGroup: {
+            /** @description The value the query groups by; empty where the job holds none. */
+            key: string;
+            /**
+             * Format: int64
+             * @description What the group's jobs' models spent.
+             */
+            tokens: number;
+            /**
+             * Format: int64
+             * @description How many jobs are behind the figure; 0 for a round.
+             */
+            jobs: number;
+            /**
+             * Format: int64
+             * @description How many turns a round holds; absent outside `round`.
+             */
+            turns?: number | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            firstAt: number;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            lastAt: number;
+            /**
+             * Format: int64
+             * @description The input tokens summed over the jobs whose turns reported all four kinds; null where none did.
+             */
+            inputTokens: number | null;
+            /**
+             * Format: int64
+             * @description The output tokens summed over the jobs whose turns reported all four kinds; null where none did.
+             */
+            outputTokens: number | null;
+            /**
+             * Format: int64
+             * @description The cache-read tokens summed over the jobs whose turns reported all four kinds; null where none did.
+             */
+            cacheReadTokens: number | null;
+            /**
+             * Format: int64
+             * @description The cache-write tokens summed over the jobs whose turns reported all four kinds; null where none did.
+             */
+            cacheWriteTokens: number | null;
+            /**
+             * Format: int64
+             * @description How many jobs spent tokens without reporting all four kinds.
+             */
+            unsplitJobs: number;
+            /**
+             * Format: int64
+             * @description What those jobs spent.
+             */
+            unsplitTokens: number;
+            /**
+             * Format: int64
+             * @description The tokens the roles' sessions on the key carry; null where no session is matched to the key.
+             */
+            contextTokens: number | null;
         };
         /** @description Settings: */
         Settings: {
