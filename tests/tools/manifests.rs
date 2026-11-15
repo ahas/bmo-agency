@@ -1,6 +1,8 @@
 //! Each tool's manifest held to the tool it declares: its name its folder's, the protocol agency's tools speak,
-//! its executable the crate's own binary, and what it declares what the executable answers.
+//! its executable the crate's own binary, and what it declares what the executable answers; and the
+//! deployment step that registers it allowing what it asks for.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use toml::Value;
@@ -189,4 +191,74 @@ fn the_deepseek_top_up_entry_runs_under_the_administrators_payment_grant_and_tak
 
   assert_eq!(properties, ["amount"], "the card is never taken from a call");
   assert_eq!(schema["additionalProperties"], false);
+}
+
+/// Every capability and grant a manifest asks for, as the tool host's placement reads it: its entries'
+/// capabilities and bundles, its resources' capabilities and its entries' grants.
+fn asks(manifest: &Value) -> BTreeSet<&str> {
+  let entries = manifest.get("entry").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+  let entry_asks = entries.iter().flat_map(|entry| {
+    let capabilities = entry.get("capabilities").map(words).unwrap_or_default();
+    let bundle = entry
+      .get("bundle")
+      .and_then(Value::as_table)
+      .into_iter()
+      .flat_map(|bundle| bundle.keys());
+    let grant = entry.get("grant").and_then(Value::as_str);
+
+    capabilities.into_iter().chain(bundle.map(String::as_str)).chain(grant)
+  });
+  let resource_asks =
+    manifest.get("resources").and_then(|resources| resources.get("capabilities")).map(words);
+
+  entry_asks.chain(resource_asks.unwrap_or_default()).collect()
+}
+
+/// The tool each `bmo-pocket put` of a placed folder under `tools/` places, with what its `--allow`s name.
+fn placements(testbed: &Value) -> BTreeMap<String, BTreeSet<String>> {
+  let steps = testbed["deploy"]["step"].as_array().unwrap();
+  let lines = steps.iter().flat_map(|step| text(step, &["command"]).lines());
+
+  lines
+    .filter_map(shlex::split)
+    .filter(
+      |words| matches!(words.as_slice(), [command, verb, ..] if command == "bmo-pocket" && verb == "put"),
+    )
+    .filter_map(|words| {
+      let tool = words
+        .iter()
+        .find_map(|word| word.strip_prefix("tools/")?.strip_suffix("/.placed"))?
+        .to_owned();
+      let allowed = words
+        .windows(2)
+        .filter(|pair| pair[0] == "--allow")
+        .map(|pair| pair[1].clone())
+        .collect();
+
+      Some((tool, allowed))
+    })
+    .collect()
+}
+
+#[test]
+fn each_tools_placing_step_allows_exactly_what_its_manifest_asks_for() {
+  let testbed = read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("testbed.toml"));
+  let placements = placements(&testbed);
+
+  for (tool, allowed) in &placements {
+    let manifest = read(&tools().join(tool).join("tool.toml"));
+    let allowed: BTreeSet<&str> = allowed.iter().map(String::as_str).collect();
+
+    assert_eq!(allowed, asks(&manifest), "the --allow of {tool}'s placing step");
+  }
+
+  let with_entries: Vec<String> = std::fs::read_dir(tools())
+    .unwrap()
+    .map(|folder| folder.unwrap().file_name().to_string_lossy().into_owned())
+    .filter(|tool| read(&tools().join(tool).join("tool.toml")).get("entry").is_some())
+    .collect();
+
+  for tool in &with_entries {
+    assert!(placements.contains_key(tool), "a deployment step puts {tool}, which declares entries");
+  }
 }

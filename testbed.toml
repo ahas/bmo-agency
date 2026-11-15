@@ -248,5 +248,5 @@ set -eu
 rm -rf tools/deepseek_top_up/.placed
 mkdir -p tools/deepseek_top_up/.placed
 cp bin/deepseek-top-up-tool tools/deepseek_top_up/tool.toml tools/deepseek_top_up/deepseek_top_up.json tools/deepseek_top_up/.placed/
-bmo-pocket put tools/deepseek_top_up/.placed --placed --service agency --allow room.tools
+bmo-pocket put tools/deepseek_top_up/.placed --placed --service agency --allow room.tools --allow platform.payment
 '''

@@ -16,6 +16,9 @@ belongs to no one service is a repository of its own, not a folder here.
   deploy tree, under `$HOME/.local/share/bmo-agency` (`docs/agent-control.md`, 「The job's release」),
   the folder the tool host reads: the executable the release's `bin/` holds, beside the manifest and
   the schema files it names. The steps that do it stand in the testbed's declaration, `testbed.toml`.
+  A tool with entries is then registered with `bmo-pocket put`, whose `--allow`s name exactly the
+  capabilities and grants its manifest asks for, since the tool host refuses a tool asking for one no
+  `--allow` names; the manifests' tests hold each step to its manifest.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
   commands, its run command, and either its entries or the resources it serves, each with the
   capabilities a session must hold. It names no timeout, for the tool or an entry: a call is waited on
