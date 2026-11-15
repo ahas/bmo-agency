@@ -191,6 +191,8 @@ seeds. The other crates and the server reach the store only through it.
     highest number the store has dropped (`docs/api.md`, 「events」);
   - the supervisor a run of the search or browse line writes for where no supervisor delegated it,
     `research_supervisor` (`docs/api.md`, 「settings」);
+  - the console secret the DeepSeek top-up reads its card from, `deepseek_card_secret` (`docs/api.md`,
+    「settings」);
   - a supervisor's reset point, `reset_point:*` (`docs/supervisors.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;

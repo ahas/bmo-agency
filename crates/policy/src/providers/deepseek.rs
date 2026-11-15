@@ -29,13 +29,11 @@ pub struct Presence {
   pub not_held: String,
 }
 
-/// The top-up tool's reading (docs/tools.md, 「The DeepSeek top-up」): the card's secret it checks, the cap on
-/// one call by currency, and what it answers.
+/// The top-up tool's reading (docs/tools.md, 「The DeepSeek top-up」): the card's kind and fields it checks, the
+/// cap on one call by currency, and what it answers. Which secret holds the card is agency's setting, not policy.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TopUp {
-  /// The secret's name in the platform administrator's space.
-  pub card_secret: String,
   /// The console's kind the card is saved in.
   pub card_kind: String,
   /// The field keys a saved card holds, each one line.
@@ -51,6 +49,8 @@ pub struct TopUp {
 #[serde(deny_unknown_fields)]
 pub struct TopUpWords {
   pub no_amount: String,
+  pub settings_unasked: String,
+  pub card_unnamed: String,
   pub card_missing: String,
   pub card_lacks: String,
   pub balance_unasked: String,

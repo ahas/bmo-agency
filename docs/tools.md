@@ -211,8 +211,9 @@ belongs to no one service is a repository of its own, not a folder here.
 ## The DeepSeek top-up
 
 - **`tools/deepseek_top_up`** declares `bmo/deepseek_top_up` to a session holding `room.tools`: the supervisor
-  tops the DeepSeek balance up by the amount the owner names. Its words, its card and its caps stand in the
-  `top_up` table of `policy/providers/deepseek.toml`.
+  tops the DeepSeek balance up by the amount the owner names. Its words, its card's kind and fields and its caps
+  stand in the `top_up` table of `policy/providers/deepseek.toml`; which secret holds the card is agency's
+  setting `deepseekCardSecret` (`docs/api.md`, 「settings」), the owner's to change with no deployment.
 - **A call runs only under the administrator's grant,** `platform.payment` (「A tool's folder」 above): the card and
   the DeepSeek account are the platform's own. The tool host refuses any other caller before the tool runs.
 - **Nothing but a call tops the balance up.** No clock, reading or closed road calls it, and its description
@@ -220,8 +221,10 @@ belongs to no one service is a repository of its own, not a folder here.
 - **Its one argument is `amount`,** a number above zero in the currency DeepSeek keeps the balance in. A call
   naming none, or naming anything else, is refused. The card is never taken from a call.
 - **The card is a secret of the console's secret store** (bmo-web's `docs/accounts.md`, 「The secret store」):
-  the file the policy's `card_secret` names, `deepseek-card`, in the platform administrator's space, the data
-  root's `env/`, saved in the console's kind `card`. The tool reads that kind's four fields, `CARD_NUMBER`,
+  the file agency's setting `deepseekCardSecret` names, in the platform administrator's space, the data root's
+  `env/`, saved in the console's kind `card`. The tool asks agency's `GET /settings` for the name at each call,
+  so a change to the setting holds from the next call; where the setting names none, the call is refused with the
+  setting to fill. The tool reads that kind's four fields, `CARD_NUMBER`,
   `CARD_EXPIRY`, `CARD_CVC` and `CARD_HOLDER_NAME`, each one `KEY=VALUE` line written as typed. A secret
   standing nowhere is refused with the name and the kind to ask for (`prompts/agents/chat/procedures/secrets.md`).
   A secret lacking a field, or holding it empty, is refused with the missing keys.

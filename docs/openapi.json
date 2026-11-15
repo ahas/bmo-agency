@@ -3979,7 +3979,7 @@
         "tags": [
           "settings"
         ],
-        "summary": "The agency's own switches: keepalive, downgrade return.",
+        "summary": "Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -12189,11 +12189,19 @@
             ],
             "description": "The supervisor a run of the search or browse line no supervisor delegated writes for, or null."
           },
-          "downgradeReturn": true
+          "downgradeReturn": true,
+          "deepseekCardSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none."
+          }
         },
         "required": [
           "researchSupervisor",
-          "downgradeReturn"
+          "downgradeReturn",
+          "deepseekCardSecret"
         ],
         "description": "Settings:"
       },
@@ -12202,9 +12210,12 @@
         "properties": {
           "researchSupervisor": {
             "description": "A supervisor the store holds, or null for none."
+          },
+          "deepseekCardSecret": {
+            "description": "A console secret's name, one plain file name, or null for none."
           }
         },
-        "description": "The body that throws the warming switch."
+        "description": "The body that changes agency's own switches."
       },
       "WorkerDefinition": {
         "type": "object",

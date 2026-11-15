@@ -80,9 +80,9 @@ top_up = "top the DeepSeek balance up at https://platform.deepseek.com/top_up"
 # top-up」). DeepSeek takes no payment by machine: its top-up is made only by a person signed in to its
 # platform, so the tool checks the call and the card and answers what a person does, and pays nothing.
 
-# The console's secret the card stands in: a file of the platform administrator's space, the data root's
-# `env/`, saved in the console's kind `card`, one `KEY=VALUE` line to each of these fields.
-card_secret = "deepseek-card"
+# The console's kind the card is saved in, one `KEY=VALUE` line to each of these fields. Which secret of the
+# platform administrator's space, the data root's `env/`, holds it is agency's setting `deepseekCardSecret`
+# (docs/api.md, 「settings」), the owner's to change with no deployment.
 card_kind = "card"
 card_fields = ["CARD_NUMBER", "CARD_EXPIRY", "CARD_CVC", "CARD_HOLDER_NAME"]
 
@@ -99,6 +99,10 @@ CNY = 350
 [top_up.words]
 # The call named no amount above zero.
 no_amount = "Name the amount to top the DeepSeek balance up by: a number above zero, in the currency DeepSeek keeps the balance in."
+# Agency's settings could not be read, so the card's secret is unknown.
+settings_unasked = "Agency's settings could not be read for the card's secret: {why}"
+# Agency's setting names no card secret.
+card_unnamed = "No card secret is named for the DeepSeek top-up: fill agency's setting {setting} with the name of the console secret, of the kind {kind}, the card is saved in, then call again."
 # The card's secret stands nowhere.
 card_missing = "No card is saved for DeepSeek: ask for the secret {secret} in the kind {kind} in the console's secret store, then call again."
 # The card's secret lacks fields, named by their keys.

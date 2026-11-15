@@ -1274,6 +1274,8 @@ pub struct Settings {
   /// The supervisor a run of the search or browse line no supervisor delegated writes for, or null.
   pub research_supervisor: Option<String>,
   pub downgrade_return: Value,
+  /// The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none.
+  pub deepseek_card_secret: Option<String>,
 }
 
 /// SupervisorSettings: a supervisor as its settings page shows it.
@@ -2830,13 +2832,16 @@ pub struct RestAsk {
   pub account: Option<String>,
 }
 
-/// The body that throws the warming switch.
+/// The body that changes agency's own switches.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsAsk {
   /// A supervisor the store holds, or null for none.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub research_supervisor: Option<Value>,
+  /// A console secret's name, one plain file name, or null for none.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub deepseek_card_secret: Option<Value>,
 }
 
 /// The body that changes a supervisor's settings.

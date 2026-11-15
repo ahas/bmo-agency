@@ -24,6 +24,8 @@ pub const DESCRIPTION: &str = "Top the DeepSeek balance up by the amount the own
 pub const CAPABILITIES: &[&str] = &["room.tools"];
 /// The administrator's grant a call needs: the card is the platform's own.
 pub const GRANT: &str = "platform.payment";
+/// Agency's setting naming the console secret the card is saved in (docs/api.md, 「settings」).
+pub const CARD_SETTING: &str = "deepseekCardSecret";
 
 pub fn entry() -> String {
   format!("{NAMESPACE}/{NAME}")
@@ -91,18 +93,34 @@ fn amount_of(input: &TopUpInput, policy: &TopUp) -> Result<f64, String> {
     .ok_or_else(|| policy.words.no_amount.clone())
 }
 
+/// The console secret agency's setting names for the card, asked afresh at each call so the owner's change
+/// holds from the next one; the refusal naming the setting to fill where it names none.
+async fn card_secret(agency: &AgencyClient, policy: &TopUp) -> Result<String, String> {
+  let settings = agency
+    .get_settings()
+    .await
+    .map_err(|why| fill_marks(&policy.words.settings_unasked, &[("why", &why.to_string())]))?;
+
+  settings
+    .deepseek_card_secret
+    .map(|name| name.trim().to_owned())
+    .filter(|name| !name.is_empty())
+    .ok_or_else(|| {
+      fill_marks(&policy.words.card_unnamed, &[("setting", CARD_SETTING), ("kind", &policy.card_kind)])
+    })
+}
+
 /// The card's secret checked, or the refusal saying what a person saves.
-fn card_checked(data_root: &Path, policy: &TopUp) -> Result<(), String> {
-  let (line, fields) =
-    match check_card(&data_root.join("env").join(&policy.card_secret), &policy.card_fields) {
-      Ok(()) => return Ok(()),
-      Err(CardFault::Missing) => (&policy.words.card_missing, String::new()),
-      Err(CardFault::Lacks(lacking)) => (&policy.words.card_lacks, lacking.join(", ")),
-    };
+fn card_checked(data_root: &Path, secret: &str, policy: &TopUp) -> Result<(), String> {
+  let (line, fields) = match check_card(&data_root.join("env").join(secret), &policy.card_fields) {
+    Ok(()) => return Ok(()),
+    Err(CardFault::Missing) => (&policy.words.card_missing, String::new()),
+    Err(CardFault::Lacks(lacking)) => (&policy.words.card_lacks, lacking.join(", ")),
+  };
 
   Err(fill_marks(
     line,
-    &[("secret", &policy.card_secret), ("kind", &policy.card_kind), ("fields", &fields)],
+    &[("secret", secret), ("kind", &policy.card_kind), ("fields", &fields)],
   ))
 }
 
@@ -124,8 +142,9 @@ pub async fn top_up_with(
 ) -> Result<Answer, String> {
   let policy = &DEEPSEEK.top_up;
   let amount = amount_of(input, policy)?;
+  let secret = card_secret(agency, policy).await?;
 
-  card_checked(data_root, policy)?;
+  card_checked(data_root, &secret, policy)?;
 
   let quota = quota_of(agency, policy).await?;
   let (Some(balance), Some(currency), Some(seen)) =
@@ -156,7 +175,7 @@ pub async fn top_up_with(
       ("top_up", &DEEPSEEK.balance.top_up),
       ("amount", &amount.to_string()),
       ("currency", currency),
-      ("secret", &policy.card_secret),
+      ("secret", &secret),
     ],
   );
   let outcome = fill_marks(

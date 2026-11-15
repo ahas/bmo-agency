@@ -38,7 +38,8 @@ one provider at once. How the Claude Code provider walks its own accounts inside
 - **A spent balance is topped up only on the owner's word, and only by a person.** The supervisor's DeepSeek
   top-up (`docs/tools.md`, 「The DeepSeek top-up」) runs only when called with the amount the owner names. One
   call is held to the cap `policy/providers/deepseek.toml` holds for the balance's currency, and the card is read
-  from the console's secret store. DeepSeek takes no payment by machine, so the call pays nothing. It answers
+  from the console's secret store, from the secret agency's setting `deepseekCardSecret` names (`docs/api.md`,
+  「settings」), which the owner changes with no deployment; with the setting empty every call is refused. DeepSeek takes no payment by machine, so the call pays nothing. It answers
   what a person does on DeepSeek's platform and the balance as its reader last kept it. The quota stays closed
   until the balance reader reads a balance above zero.
 - **Claude Code's quota is its accounts':** the provider has quota while one of its open accounts has quota

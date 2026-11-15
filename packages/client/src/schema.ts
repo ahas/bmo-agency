@@ -989,7 +989,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The agency's own switches: keepalive, downgrade return. */
+        /** Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card. */
         get: operations["getSettings"];
         put?: never;
         post?: never;
@@ -3485,11 +3485,15 @@ export interface components {
             /** @description The supervisor a run of the search or browse line no supervisor delegated writes for, or null. */
             researchSupervisor: string | null;
             downgradeReturn: unknown;
+            /** @description The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none. */
+            deepseekCardSecret: string | null;
         };
-        /** @description The body that throws the warming switch. */
+        /** @description The body that changes agency's own switches. */
         SettingsAsk: {
             /** @description A supervisor the store holds, or null for none. */
             researchSupervisor?: unknown;
+            /** @description A console secret's name, one plain file name, or null for none. */
+            deepseekCardSecret?: unknown;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {

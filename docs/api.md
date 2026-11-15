@@ -1128,7 +1128,7 @@ yesterday to now where none is given.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/settings` | Agency's own switches: the research supervisor and the downgrade return. |
+| GET | `/settings` | Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card. |
 | PATCH | `/settings` | Change agency's switches. |
 
 - **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
@@ -1136,6 +1136,11 @@ yesterday to now where none is given.
   one whose brain a run of the worker line reads and writes its lessons into where it is no supervisor's
   double (「The bundles」 there), or null for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
   `field`. `downgradeReturn` is always null.
+- **`deepseekCardSecret`** names the console secret, of the kind `card`, the DeepSeek top-up reads its card
+  from at each call (`docs/tools.md`, 「The DeepSeek top-up」), or null for none, in which case the tool refuses
+  every call. It is the owner's to change at any time, with no code change and no deployment. `PATCH /settings`
+  takes a secret's name, one plain file name with no directory in it, or null; anything else is refused 400
+  with `field`. Agency keeps the name alone and never reads the secret.
 
 ### repositories, prefix-checks and room-holdings
 
