@@ -972,7 +972,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Usage by model, agent, user, room or round over a span, with session contexts. */
+        /** Usage by model, checkout, repository, holder, room or round over a span, with session contexts. */
         get: operations["getUsage"];
         put?: never;
         post?: never;

@@ -1098,7 +1098,7 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
-| GET | `/usage` | Usage by model, agent, user, room or round over a span, with session contexts. |
+| GET | `/usage` | Usage by model, checkout, repository, holder, room or round over a span, with session contexts. |
 
 An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
@@ -1118,13 +1118,22 @@ change and null on the list. Accounts are added and changed through
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.
 
-Usage groups the jobs whose turns started in the span by the key the query names — the model the job's
-turn went out on, the role it ran as (`role`), its repository (`repository`), the job's holder (`user`) or
-its room — summing the tokens each job's model spent, the jobs behind the figure and the span they cover, and
-the tokens the roles' kept sessions on that key currently carry (`contextTokens`). `round` groups the chat turns' runs instead, those
-started in the span that name a round, by that round: each group's `tokens` is what its turns spent,
-`turns` how many there were, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens` the
-spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs` is 0 and its `contextTokens` null. The span is two moments in epoch milliseconds,
+Usage groups the jobs whose turns started in the span by the key `groupBy` names, `model` where it names
+none: the model the job's turn went out on (`model`), the checkout it ran in (`agent`), the repository that
+checkout belongs to (`repository`), the job's holder (`user`) or its room (`room`). Another word is refused
+400. A checkout belongs to the repository whose name it is, or whose name it carries before `-w<n>` for a
+support checkout or before `@<node>` for a node checkout (`docs/worker-slots.md`), so a repository's group
+sums its base, support and node checkouts; a checkout no repository holds now is a group of its own under
+its own name. Each group carries `tokens`, what the jobs' models spent; `jobs`, how many jobs are behind the
+figure; `firstAt` and `lastAt`, the span they cover; `inputTokens`, `outputTokens`, `cacheReadTokens` and
+`cacheWriteTokens`, the spend apart summed over the jobs whose turns reported all four kinds;
+`unsplitJobs` and `unsplitTokens`, the jobs that did not report them and the `tokens` those jobs spent; and
+`contextTokens`, the tokens the roles' sessions answered in the span carry, matched on the session's model,
+role or account for `model`, `agent` and `user`, and null for `repository` and `room`. `round` groups the
+chat turns' runs instead, those started in the span that name a round and report the four kinds, by that
+round: each group's `tokens` is what its turns spent, `turns` how many there were, the four kinds the spend
+apart, and `firstAt` and `lastAt` the span they cover; its `jobs`, `unsplitJobs` and `unsplitTokens` are 0
+and its `contextTokens` null. The span is two moments in epoch milliseconds,
 yesterday to now where none is given.
 
 ### settings

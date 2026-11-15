@@ -95,6 +95,21 @@ pub fn node_checkout_name(base: &str, node: &str) -> String {
   format!("{base}@{node}")
 }
 
+/// The repository a checkout's name says it belongs to: the repository's own name for its base, the name
+/// before `-w<n>` for a support worktree and before `@<node>` for a node checkout, whichever names a
+/// repository `held` holds; none for a checkout no repository holds. The name alone settles it, so a
+/// checkout the repository no longer stands, such as a support worktree past its present count, still
+/// belongs to it.
+pub fn repository_named_by(checkout: &str, held: impl Fn(&str) -> bool) -> Option<&str> {
+  let support_base = checkout
+    .rsplit_once("-w")
+    .filter(|(_, slot)| slot.parse::<i64>().is_ok())
+    .map(|(base, _)| base);
+  let node_base = checkout.split_once('@').map(|(base, _)| base);
+
+  [Some(checkout), support_base, node_base].into_iter().flatten().find(|name| held(name))
+}
+
 // A repository's checkouts after its base: its support worktrees by slot, then its node checkouts.
 fn supports(base: &Worker, nodes: &[QueryResult]) -> Vec<Worker> {
   let mut held: Vec<Worker> = (WORKERS.first_support_slot..WORKERS.first_support_slot + base.support_count)

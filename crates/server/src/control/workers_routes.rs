@@ -352,17 +352,220 @@ impl Route for RestWrite {
 
 crate::moved!(RestWrite);
 
-/// Usage by model, agent, user, room or round over a span, with session contexts.
+/// Usage by model, checkout, repository, holder, room or round over a span, with session contexts.
 pub struct UsageRoute;
 
-// The column a job is grouped by, and the column a worker's session is grouped by for the same key.
-fn grouped_by(word: &str) -> Option<(&'static str, Option<&'static str>)> {
-  match word {
-    "model" => Some(("model", Some("model"))),
-    "agent" => Some(("worker_name", Some("role"))),
-    "user" => Some(("holder_name", Some("account"))),
-    "room" => Some(("room_id", None)),
-    _ => None,
+/// What a usage query groups the jobs by (docs/api.md, 「accounts, rest and usage」).
+enum Grouping {
+  /// A column of the job, matched to the roles' sessions on the column named beside it, where one is.
+  Column {
+    jobs: &'static str,
+    sessions: Option<&'static str>,
+  },
+  /// The repository the job's checkout belongs to.
+  Repository,
+}
+
+impl Grouping {
+  fn named(word: &str) -> Option<Self> {
+    let column = |jobs, sessions| Some(Self::Column { jobs, sessions });
+
+    match word {
+      "model" => column("model", Some("model")),
+      "agent" => column("worker_name", Some("role")),
+      "user" => column("holder_name", Some("account")),
+      "room" => column("room_id", None),
+      "repository" => Some(Self::Repository),
+      _ => None,
+    }
+  }
+
+  /// The groups the jobs started in the span make, the most tokens first.
+  async fn groups(
+    &self,
+    db: &sea_orm::DatabaseConnection,
+    after: i64,
+    before: i64,
+  ) -> Result<Vec<Value>, Refused> {
+    let (jobs_by, sessions_by) = match self {
+      Self::Column { jobs, sessions } => (*jobs, *sessions),
+      Self::Repository => ("worker_name", None),
+    };
+    let contexts = match sessions_by {
+      Some(column) => session_contexts(db, column, after, before).await?,
+      None => std::collections::HashMap::new(),
+    };
+    let mut spends = JobSpend::by_column(db, jobs_by, after, before).await?;
+
+    if let Self::Repository = self {
+      spends = by_repository(db, spends).await?;
+    }
+
+    spends.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.key.cmp(&b.key)));
+
+    Ok(spends.iter().map(|spend| spend.value(contexts.get(&spend.key).copied())).collect())
+  }
+}
+
+/// The tokens the roles' sessions answered in the span carry, by the value of one of their columns.
+async fn session_contexts(
+  db: &sea_orm::DatabaseConnection,
+  column: &str,
+  after: i64,
+  before: i64,
+) -> Result<std::collections::HashMap<String, i64>, Refused> {
+  let rows = store::all(
+    db,
+    &format!(
+      r#"SELECT COALESCE(CAST("{column}" AS text), '') AS "key", COALESCE(SUM("context_tokens"), 0)::bigint AS "tokens"
+         FROM "role_sessions" WHERE "answered_at" >= $1 AND "answered_at" <= $2
+         GROUP BY 1"#
+    ),
+    vec![after.into(), before.into()],
+  )
+  .await?;
+
+  rows
+    .iter()
+    .map(|row| Ok((row.try_get("", "key")?, row.try_get("", "tokens")?)))
+    .collect::<Result<_, sea_orm::DbErr>>()
+    .map_err(Refused::from)
+}
+
+/// The checkouts' spends folded into their repositories' (docs/worker-slots.md), a checkout no repository
+/// holds standing as a group of its own.
+async fn by_repository(
+  db: &sea_orm::DatabaseConnection,
+  checkouts: Vec<JobSpend>,
+) -> Result<Vec<JobSpend>, Refused> {
+  let held: std::collections::HashSet<String> =
+    store::all(db, r#"SELECT "name" FROM "repositories""#, vec![])
+      .await?
+      .iter()
+      .map(|row| row.try_get("", "name"))
+      .collect::<Result<_, _>>()?;
+  let mut repositories: std::collections::HashMap<String, JobSpend> = std::collections::HashMap::new();
+
+  for checkout in checkouts {
+    let repository = crate::queue::workers::repository_named_by(&checkout.key, |name| held.contains(name))
+      .unwrap_or(&checkout.key)
+      .to_owned();
+    let spend = match repositories.remove(&repository) {
+      Some(gathered) => gathered.joined(checkout),
+      None => JobSpend {
+        key: repository.clone(),
+        ..checkout
+      },
+    };
+
+    repositories.insert(repository, spend);
+  }
+
+  Ok(repositories.into_values().collect())
+}
+
+/// What the jobs of one group spent: the total, the four kinds summed over the jobs that reported all four,
+/// and the jobs that did not with what they spent.
+struct JobSpend {
+  key: String,
+  tokens: i64,
+  jobs: i64,
+  first_at: i64,
+  last_at: i64,
+  input_tokens: i64,
+  output_tokens: i64,
+  cache_read_tokens: i64,
+  cache_write_tokens: i64,
+  unsplit_jobs: i64,
+  unsplit_tokens: i64,
+}
+
+impl JobSpend {
+  /// The jobs started in the span, a spend to each value of one of their columns.
+  async fn by_column(
+    db: &sea_orm::DatabaseConnection,
+    column: &str,
+    after: i64,
+    before: i64,
+  ) -> Result<Vec<Self>, Refused> {
+    let rows = store::all(
+      db,
+      &format!(
+        r#"SELECT "key", SUM("token_count")::bigint AS "tokens", COUNT(*) AS "jobs",
+                  MIN("started_at") AS "first", MAX(COALESCE("ended_at", "started_at")) AS "last",
+                  COALESCE(SUM("input_tokens") FILTER (WHERE "split"), 0)::bigint AS "input",
+                  COALESCE(SUM("output_tokens") FILTER (WHERE "split"), 0)::bigint AS "output",
+                  COALESCE(SUM("cache_read_tokens") FILTER (WHERE "split"), 0)::bigint AS "cache_read",
+                  COALESCE(SUM("cache_write_tokens") FILTER (WHERE "split"), 0)::bigint AS "cache_write",
+                  COUNT(*) FILTER (WHERE NOT "split") AS "unsplit_jobs",
+                  COALESCE(SUM("token_count") FILTER (WHERE NOT "split"), 0)::bigint AS "unsplit_tokens"
+           FROM (
+             SELECT COALESCE(CAST("{column}" AS text), '') AS "key", "token_count", "started_at", "ended_at",
+                    "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+                    ("input_tokens" IS NOT NULL AND "output_tokens" IS NOT NULL
+                      AND "cache_read_tokens" IS NOT NULL AND "cache_write_tokens" IS NOT NULL) AS "split"
+             FROM "jobs" WHERE "started_at" >= $1 AND "started_at" <= $2
+           ) AS "spent"
+           GROUP BY "key""#
+      ),
+      vec![after.into(), before.into()],
+    )
+    .await?;
+
+    rows.iter().map(Self::read).collect::<Result<_, _>>().map_err(Refused::from)
+  }
+
+  fn read(row: &sea_orm::QueryResult) -> Result<Self, sea_orm::DbErr> {
+    let figure = |column: &str| row.try_get::<i64>("", column);
+
+    Ok(Self {
+      key: row.try_get("", "key")?,
+      tokens: figure("tokens")?,
+      jobs: figure("jobs")?,
+      first_at: figure("first")?,
+      last_at: figure("last")?,
+      input_tokens: figure("input")?,
+      output_tokens: figure("output")?,
+      cache_read_tokens: figure("cache_read")?,
+      cache_write_tokens: figure("cache_write")?,
+      unsplit_jobs: figure("unsplit_jobs")?,
+      unsplit_tokens: figure("unsplit_tokens")?,
+    })
+  }
+
+  /// Two groups' spends as one, under this one's key.
+  fn joined(self, other: Self) -> Self {
+    Self {
+      key: self.key,
+      tokens: self.tokens + other.tokens,
+      jobs: self.jobs + other.jobs,
+      first_at: self.first_at.min(other.first_at),
+      last_at: self.last_at.max(other.last_at),
+      input_tokens: self.input_tokens + other.input_tokens,
+      output_tokens: self.output_tokens + other.output_tokens,
+      cache_read_tokens: self.cache_read_tokens + other.cache_read_tokens,
+      cache_write_tokens: self.cache_write_tokens + other.cache_write_tokens,
+      unsplit_jobs: self.unsplit_jobs + other.unsplit_jobs,
+      unsplit_tokens: self.unsplit_tokens + other.unsplit_tokens,
+    }
+  }
+
+  /// The group as the route answers it, with the context its sessions carry where they are matched.
+  fn value(&self, context: Option<i64>) -> Value {
+    json!({
+      "key": self.key,
+      "tokens": self.tokens,
+      "jobs": self.jobs,
+      "firstAt": self.first_at,
+      "lastAt": self.last_at,
+      "inputTokens": self.input_tokens,
+      "outputTokens": self.output_tokens,
+      "cacheReadTokens": self.cache_read_tokens,
+      "cacheWriteTokens": self.cache_write_tokens,
+      "unsplitJobs": self.unsplit_jobs,
+      "unsplitTokens": self.unsplit_tokens,
+      "contextTokens": context,
+    })
   }
 }
 
@@ -378,62 +581,16 @@ impl Route for UsageRoute {
       .unwrap_or(now - 86_400_000);
     let before = call.query("before").and_then(|before| before.parse::<i64>().ok()).unwrap_or(now);
     let word = call.query("groupBy").unwrap_or_else(|| "model".to_owned());
-
-    if word == "round" {
-      return Ok(answer(
-        StatusCode::OK,
-        json!({ "groups": by_round(call.store(), after, before).await?, "after": after, "before": before }),
-      ));
-    }
-
-    let (jobs_by, sessions_by) = grouped_by(&word)
-      .ok_or_else(|| bad(format!("groupBy is model, agent, user, room or round, not {word}")))?;
-    let mut contexts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
-
-    if let Some(column) = sessions_by {
-      let rows = store::all(
-        call.store(),
-        &format!(
-          r#"SELECT COALESCE(CAST("{column}" AS text), '') AS "key", COALESCE(SUM("context_tokens"), 0)::bigint AS "tokens"
-             FROM "role_sessions" WHERE "answered_at" >= $1 AND "answered_at" <= $2
-             GROUP BY 1"#
-        ),
-        vec![after.into(), before.into()],
-      )
-      .await?;
-
-      for row in rows {
-        contexts.insert(row.try_get("", "key")?, row.try_get("", "tokens")?);
-      }
-    }
-
-    let rows = store::all(
-      call.store(),
-      &format!(
-        r#"SELECT COALESCE(CAST("{jobs_by}" AS text), '') AS "key", SUM("token_count")::bigint AS "tokens",
-                  COUNT(*) AS "jobs", MIN("started_at") AS "first", MAX(COALESCE("ended_at", "started_at")) AS "last"
-           FROM "jobs" WHERE "started_at" >= $1 AND "started_at" <= $2
-           GROUP BY 1 ORDER BY "tokens" DESC, "key""#
-      ),
-      vec![after.into(), before.into()],
-    )
-    .await?;
-    let groups: Vec<Value> = rows
-      .iter()
-      .map(|row| {
-        let key: String = row.try_get("", "key")?;
-        let context = contexts.get(&key);
-
-        Ok::<_, sea_orm::DbErr>(json!({
-          "key": key,
-          "tokens": row.try_get::<i64>("", "tokens")?,
-          "jobs": row.try_get::<i64>("", "jobs")?,
-          "firstAt": row.try_get::<i64>("", "first")?,
-          "lastAt": row.try_get::<i64>("", "last")?,
-          "contextTokens": context,
-        }))
-      })
-      .collect::<Result<_, _>>()?;
+    let groups = if word == "round" {
+      by_round(call.store(), after, before).await?
+    } else {
+      Grouping::named(&word)
+        .ok_or_else(|| {
+          bad(format!("groupBy is model, agent, repository, user, room or round, not {word}"))
+        })?
+        .groups(call.store(), after, before)
+        .await?
+    };
 
     Ok(answer(StatusCode::OK, json!({ "groups": groups, "after": after, "before": before })))
   }
@@ -463,6 +620,8 @@ async fn by_round(
           "outputTokens": round.spent.output_tokens,
           "cacheReadTokens": round.spent.cache_read_tokens,
           "cacheWriteTokens": round.spent.cache_write_tokens,
+          "unsplitJobs": 0,
+          "unsplitTokens": 0,
           "firstAt": round.first_at,
           "lastAt": round.last_at,
           "contextTokens": Value::Null,

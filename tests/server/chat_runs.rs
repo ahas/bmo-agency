@@ -342,6 +342,7 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
   assert_eq!((&groups[0]["key"], &groups[0]["turns"]), (&json!("round:-5:1"), &json!(2)));
   assert_eq!(groups[0]["tokens"], 1200 + 70 + 200 + 20);
   assert_eq!(groups[0]["outputTokens"], 70);
+  assert_eq!((&groups[0]["unsplitJobs"], &groups[0]["unsplitTokens"]), (&json!(0), &json!(0)));
   assert_eq!(groups[0]["firstAt"], now - 30_000);
   assert_eq!(groups[1]["key"], "round:-5:2");
 }

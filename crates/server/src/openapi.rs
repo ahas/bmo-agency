@@ -1540,14 +1540,14 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/usage",
     id: "getUsage",
     tag: "usage",
-    summary: "Usage by model, agent, user, room or round over a span, with session contexts.",
+    summary: "Usage by model, checkout, repository, holder, room or round over a span, with session contexts.",
     params: &[
       Param {
         name: "groupBy",
         place: "query",
         required: false,
         kind: "string",
-        description: "",
+        description: "model, agent, repository, user, room or round; model where absent",
       },
       Param {
         name: "after",

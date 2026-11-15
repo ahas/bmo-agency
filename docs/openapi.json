@@ -3923,7 +3923,7 @@
         "tags": [
           "usage"
         ],
-        "summary": "Usage by model, agent, user, room or round over a span, with session contexts.",
+        "summary": "Usage by model, checkout, repository, holder, room or round over a span, with session contexts.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -3949,7 +3949,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": ""
+              "description": "model, agent, repository, user, room or round; model where absent"
             }
           },
           {
