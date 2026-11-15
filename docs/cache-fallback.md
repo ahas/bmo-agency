@@ -506,7 +506,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   - an account that is not yet is named, and its directory is made under the data root's env directory,
     named by the account's name, readable by this user alone; a name whose directory already holds anything is
     refused. The account is added, at the end of the order, only once the CLI has left a login there, so a
-    sign-in abandoned leaves no account behind.
+    sign-in abandoned leaves no account behind; the directory it made, which the CLI writes its own files into
+    as it starts, is taken away whole as that sign-in ends, given up, refused or ended for standing too long, so
+    the same name may be tried again.
 - **A sign-in is held in this process alone and for a bounded while.** It is known by an identifier of its own,
   answered as it starts; the code is taken by that identifier. One left standing longer than the provider's
   policy says is ended, as is one the owner gives up, and the process ending ends every one: the CLI is ended

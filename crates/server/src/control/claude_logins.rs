@@ -48,6 +48,14 @@ impl Target {
       Self::Again { home } | Self::New { home, .. } => home,
     }
   }
+
+  /// A sign-in that ends with no account added takes a new account's directory away whole: the sign-in made it,
+  /// empty, and the CLI writes its own files there as it starts, so a name tried again finds no directory standing.
+  fn abandon(&self) {
+    if let Self::New { home, .. } = self {
+      let _ = std::fs::remove_dir_all(home);
+    }
+  }
 }
 
 /// One sign-in under way: the CLI running it, what it has said so far, and what it is for. The CLI is ended
@@ -127,7 +135,13 @@ pub fn new_home(data_root: &Path, name: &str) -> PathBuf {
 // Every sign-in that has stood longer than the policy allows, ended.
 fn sweep(held: &mut HashMap<String, SignIn>) {
   let keep = Duration::from_secs(CLAUDE_CODE.console_login.keep_minutes * 60);
-  held.retain(|_, sign_in| sign_in.started.elapsed() < keep);
+  held.retain(|_, sign_in| {
+    let standing = sign_in.started.elapsed() < keep;
+    if !standing {
+      sign_in.target.abandon();
+    }
+    standing
+  });
 }
 
 fn text<'a>(body: &'a Value, field: &str) -> Option<&'a str> {
@@ -226,9 +240,8 @@ impl Route for StartClaudeLogin {
       }
       let ended = cli.try_wait().map_err(Refused::failed)?.is_some();
       if ended || Instant::now() >= bound {
-        if let Target::New { home, .. } = &target {
-          let _ = std::fs::remove_dir(home);
-        }
+        drop(cli);
+        target.abandon();
         return Err(Refused::new(
           StatusCode::UNPROCESSABLE_ENTITY,
           fill_marks(&words().no_link, &[("said", &last_words(&heard, None))]),
@@ -284,6 +297,7 @@ impl Route for ClaudeLoginCode {
       held.remove(&login).ok_or_else(|| no_sign_in(&login))?
     };
     let refused = |said: &str| {
+      sign_in.target.abandon();
       Refused::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         fill_marks(&words().refused, &[("said", &last_words(said, Some(&code)))]),
@@ -304,11 +318,15 @@ impl Route for ClaudeLoginCode {
     let ended = tokio::time::timeout(finish, sign_in.cli.wait()).await;
     let well = matches!(ended, Ok(Ok(status)) if status.success());
     if !well {
+      // A CLI still running past the bound is ended before its directory can be taken away.
+      let _ = sign_in.cli.start_kill();
+      let _ = sign_in.cli.wait().await;
       return Err(refused(&heard()));
     }
 
     let home = sign_in.target.home().to_path_buf();
     if !home.join(CREDENTIAL_FILE).is_file() {
+      sign_in.target.abandon();
       return Err(
         Refused::new(
           StatusCode::UNPROCESSABLE_ENTITY,
@@ -344,10 +362,10 @@ impl Route for GiveUpClaudeLogin {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let login = call.param("login").unwrap_or_default().to_owned();
     let sign_in = SIGN_INS.lock().await.remove(&login).ok_or_else(|| no_sign_in(&login))?;
-    if let Target::New { home, .. } = &sign_in.target {
-      let _ = std::fs::remove_dir(home);
-    }
-    drop(sign_in);
+    let SignIn { cli, target, .. } = sign_in;
+    // The CLI is ended before its directory is taken away, so it writes nothing there after.
+    drop(cli);
+    target.abandon();
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }
