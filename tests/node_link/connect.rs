@@ -183,7 +183,9 @@ async fn socket_again(dir: &tempfile::TempDir) -> PathBuf {
   socket
 }
 
-/// A bridge asker as the tests drive one: the request line, the input, and the frames read back.
+/// A bridge asker as the tests drive one: the request line, the input, and the frames read back. A refused call
+/// is answered on its request line alone, so its input may meet a bridge that already closed: as the CLI's asker
+/// does, a failed write of the input ends nothing and the answer is read.
 pub async fn ask_bridge(socket: &Path, header: &str, input: &[u8]) -> (Vec<u8>, Vec<u8>, i32) {
   use tokio::io::AsyncReadExt;
 
@@ -192,11 +194,11 @@ pub async fn ask_bridge(socket: &Path, header: &str, input: &[u8]) -> (Vec<u8>, 
   stream.write_all(header.as_bytes()).await.expect("header");
   stream.write_all(b"\n").await.expect("line end");
 
-  if !input.is_empty() {
-    bridge::write_frame(&mut stream, bridge::IN, input).await.expect("input");
-  }
+  let input_written = input.is_empty() || bridge::write_frame(&mut stream, bridge::IN, input).await.is_ok();
 
-  bridge::write_frame(&mut stream, 0, &[]).await.expect("end of input");
+  if input_written {
+    let _ = bridge::write_frame(&mut stream, 0, &[]).await;
+  }
 
   let (mut out, mut err, mut code) = (Vec::new(), Vec::new(), -1);
 

@@ -403,7 +403,8 @@ fn a_link_to_a_node_of_this_machine_starts_its_far_end_under_its_own_words_with_
 
 /// One call of the CLI's verbs asked of a home bridge at `socket`, as a node asks it, its input ended at once
 /// or held open for as long as the call runs: its exit code, or none where the bridge cannot be reached or the
-/// call ended with no exit code.
+/// call ended with no exit code. A refused call is answered on its request line alone, so the end of its input
+/// may meet a bridge that already closed: as the CLI's asker does, that write's failure ends nothing.
 fn ask_bridge(socket: &Path, args: &[&str], input_ends: bool) -> Option<i32> {
   use std::io::{Read, Write};
 
@@ -413,7 +414,7 @@ fn ask_bridge(socket: &Path, args: &[&str], input_ends: bool) -> Option<i32> {
   writeln!(stream, "{}", json!({ "script": "bin/bmo", "args": args })).ok()?;
 
   if input_ends {
-    stream.write_all(&[0, 0, 0, 0, 0]).ok()?;
+    let _ = stream.write_all(&[0, 0, 0, 0, 0]);
   }
 
   loop {
@@ -517,9 +518,10 @@ fn the_bridge_s_verbs_hold_from_the_next_call_and_across_the_link_killed_mid_cal
   wait_for("the bridge", || socket.exists());
   assert_eq!(ask_bridge(&socket, &["node", "work"], true), Some(0));
 
-  // An account's record comes to name the node while the link runs: its next call is held to the verbs.
+  // An account's record comes to name the node while the link runs: its next call is held to the verbs, and
+  // refused on its request line alone, its input still open.
   write_spec(Some(&["agent-status"]));
-  assert_eq!(ask_bridge(&socket, &["node", "work"], true), Some(2));
+  assert_eq!(ask_bridge(&socket, &["node", "work"], false), Some(2));
   assert_eq!(ask_bridge(&socket, &["agent-status"], true), Some(0));
 
   // The link program killed in the middle of a call: the asker gets no exit code and the run ends with it.

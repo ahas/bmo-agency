@@ -6,7 +6,9 @@
 //! own variables and the directory it was asked from, then its standing input as frames of a channel
 //! byte and a length — 1 for a piece of input, 0 for its end — since an asker that half-closed its
 //! socket could no longer read the answer. The answer is frames the same way: 1 for output, 2 for
-//! errors, and 3 for the exit code, which ends it.
+//! errors, and 3 for the exit code, which ends it. A call refused, or a request line that cannot be read, is
+//! answered on the request line alone and the connection closed with the asker's input unread, so an asker
+//! keeps reading the answer where writing its input fails.
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
