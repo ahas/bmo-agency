@@ -531,9 +531,12 @@ fn the_bridge_s_verbs_hold_from_the_next_call_and_across_the_link_killed_mid_cal
     std::thread::spawn(move || ask_bridge(&socket, &["agent-status", "--hold"], false))
   };
 
-  wait_for("the held run", || held.exists());
+  // The stand-in creates the file before it writes its pid into it, so the run is known once the pid is.
+  let held_pid = || fs::read_to_string(&held).map(|pid| pid.trim().to_owned()).unwrap_or_default();
 
-  let run = fs::read_to_string(&held).expect("held pid").trim().to_owned();
+  wait_for("the held run", || !held_pid().is_empty());
+
+  let run = held_pid();
 
   drop(link);
   assert_eq!(asker.join().expect("asker"), None);
