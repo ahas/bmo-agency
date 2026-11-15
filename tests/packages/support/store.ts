@@ -155,7 +155,7 @@ function template(): Promise<string> {
       for (const { name: old } of left) {
         const pid = old.replace(TEMPLATE, "").replace(COPY, "").split("_")[0] ?? "";
 
-        if (!alive(pid)) await sql.unsafe(`DROP DATABASE IF EXISTS "${old}" WITH (FORCE)`);
+        if (!alive(pid)) await dropped(sql, old);
       }
 
       await sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`);
@@ -190,27 +190,35 @@ function template(): Promise<string> {
   return made;
 }
 
-// How long a copy's drop waits out a worker of the server's own that holds it, and how often it tries again.
+// How long a database's drop waits for its holders to leave, and how often it tries again.
 const dropWithinMs = 15_000;
 const dropEveryMs = 250;
 
-// A copy dropped. The force ends every connection a role holds to it, but not a background worker of the
-// server's own — an autovacuum worker that opened the fresh copy, say — which holds it for a moment and
-// is named by no role; while one does, the whole drop fails, the test's own connections beside it
-// included. So while any holder is named by no role the drop waits and tries again, the force ending the
-// rest on the next try; it says who held it where it never gets through, or where no such worker held it.
+// The server's SQLSTATE for a database other sessions still stand on.
+const IN_USE = "55006";
+
+function inUse(error: unknown): boolean {
+  return (error as { errno?: unknown } | null)?.errno === IN_USE;
+}
+
+// A test database dropped. The test role ends only its own sessions on it. A forced drop would try to end
+// every holder, and the server refuses the whole drop, before ending any, where one holder is a worker of
+// its own — an autovacuum worker visiting the database, say — since a role without the right to signal
+// every backend may not end it. A plain drop asks the server's own workers there to stop and waits a few
+// seconds for every holder to leave; where one stays past that, or a session of the role came back in
+// between, it fails as in use, and the drop tries again within its bound and then says who held it.
 async function dropped(sql: PostgresClient, name: string): Promise<void> {
   const until = Date.now() + dropWithinMs;
 
   for (;;) {
     try {
-      await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      await sql.unsafe("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND usename = current_user", [name]);
+      await sql.unsafe(`DROP DATABASE IF EXISTS "${name}"`);
       return;
     } catch (error) {
-      const held = await sql.unsafe("SELECT usename::text AS role, backend_type AS kind FROM pg_stat_activity WHERE datname = $1", [name]) as { role: string | null; kind: string }[];
-      const worker = held.some((one) => one.role === null);
+      if (!inUse(error) || Date.now() >= until) {
+        const held = await sql.unsafe("SELECT usename::text AS role, backend_type AS kind FROM pg_stat_activity WHERE datname = $1", [name]) as { role: string | null; kind: string }[];
 
-      if (!worker || Date.now() >= until) {
         throw new Error(`${name} could not be dropped while ${JSON.stringify(held)} held it: ${String(error)}`);
       }
 
