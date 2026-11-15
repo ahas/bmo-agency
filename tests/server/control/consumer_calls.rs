@@ -1,6 +1,6 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
 //! consumer sends: a supervisor's row stood up and taken out with its reset point, a save of its
-//! settings naming a field none takes, agency's card setting kept and refused, why a rest that has just
+//! settings naming a field none takes, agency's card and login settings kept and refused, why a rest that has just
 //! passed silenced the deployment, words pushed into a session's working turn, and a run of the ledger read
 //! by its id and listed by its search beside its opening and closing, on a store the server settled itself.
 
@@ -119,36 +119,34 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   assert_eq!(settings["turnShape"], "pieces");
   assert_eq!(get(port, token, "/supervisors/nobody/settings").await.0, 404);
 
-  // Agency's own setting naming the DeepSeek top-up's card secret: none at first, a secret's name kept, a
-  // name reaching past the secrets' folder refused by its field, and null letting it go.
-  let (status, switches) = get(port, token, "/settings").await;
+  // Agency's own settings naming the DeepSeek top-up's card and login secrets: none at first, a secret's name
+  // kept apart from the other's, a name reaching past the secrets' folder refused by its field, and null
+  // letting it go.
+  for (field, other, name) in [
+    ("deepseekCardSecret", "deepseekLoginSecret", "saved-card"),
+    ("deepseekLoginSecret", "deepseekCardSecret", "saved-login"),
+  ] {
+    let (status, switches) = get(port, token, "/settings").await;
 
-  assert_eq!((status, &switches["deepseekCardSecret"]), (200, &Value::Null), "{switches}");
+    assert_eq!((status, &switches[field]), (200, &Value::Null), "{switches}");
 
-  let (status, switches) =
-    patch(port, token, "/settings", json!({ "deepseekCardSecret": "saved-card" })).await;
+    let (status, switches) = patch(port, token, "/settings", json!({ field: name })).await;
 
-  assert_eq!(
-    (status, switches["deepseekCardSecret"].as_str()),
-    (200, Some("saved-card")),
-    "{switches}"
-  );
+    assert_eq!((status, switches[field].as_str()), (200, Some(name)), "{switches}");
+    assert_eq!(switches[other], Value::Null, "{switches}");
 
-  for name in ["../agency.env", "folder/saved-card", "saved-card/", "..", ""] {
-    let (status, refused) = patch(port, token, "/settings", json!({ "deepseekCardSecret": name })).await;
+    for wrong in ["../agency.env", "folder/saved", "saved/", "..", ""] {
+      let (status, refused) = patch(port, token, "/settings", json!({ field: wrong })).await;
 
-    assert_eq!(
-      (status, refused["field"].as_str()),
-      (400, Some("deepseekCardSecret")),
-      "{name}: {refused}"
-    );
+      assert_eq!((status, refused["field"].as_str()), (400, Some(field)), "{wrong}: {refused}");
+    }
+
+    assert_eq!(get(port, token, "/settings").await.1[field], name);
+
+    let (_, switches) = patch(port, token, "/settings", json!({ field: null })).await;
+
+    assert_eq!(switches[field], Value::Null);
   }
-
-  assert_eq!(get(port, token, "/settings").await.1["deepseekCardSecret"], "saved-card");
-
-  let (_, switches) = patch(port, token, "/settings", json!({ "deepseekCardSecret": null })).await;
-
-  assert_eq!(switches["deepseekCardSecret"], Value::Null);
 
   // A reset point is kept for it, which its removal takes with it.
   scratch

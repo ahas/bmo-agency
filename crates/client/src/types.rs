@@ -1276,6 +1276,8 @@ pub struct Settings {
   pub downgrade_return: Value,
   /// The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none.
   pub deepseek_card_secret: Option<String>,
+  /// The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none.
+  pub deepseek_login_secret: Option<String>,
 }
 
 /// SupervisorSettings: a supervisor as its settings page shows it.
@@ -2842,6 +2844,9 @@ pub struct SettingsAsk {
   /// A console secret's name, one plain file name, or null for none.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub deepseek_card_secret: Option<Value>,
+  /// A console secret's name, one plain file name, or null for none.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub deepseek_login_secret: Option<Value>,
 }
 
 /// The body that changes a supervisor's settings.

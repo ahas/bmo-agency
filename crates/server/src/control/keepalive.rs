@@ -1,6 +1,6 @@
 //! Agency's own switches (docs/api.md, 「settings」): the research supervisor, the downgrade return and the
-//! console secret the DeepSeek top-up reads its card from, read and changed. No switch warms or stops everything
-//! at once: a supervisor's warming is its own row's (docs/keepalive-schedule.md).
+//! console secrets the DeepSeek top-up reads its card from and signs in with, read and changed. No switch warms
+//! or stops everything at once: a supervisor's warming is its own row's (docs/keepalive-schedule.md).
 
 use std::path::{Component, Path};
 
@@ -13,19 +13,42 @@ use super::{Call, Refused, Route, answer};
 use crate::lines::token::{RESEARCH_SUPERVISOR, research_supervisor};
 use crate::queue::settings;
 
-/// The settings key the DeepSeek top-up's card secret stands under.
-const DEEPSEEK_CARD_SECRET: &str = "deepseek_card_secret";
+/// A switch naming a console secret by its file name: the field a caller reads and writes it by, the settings
+/// key it stands under and the refusal of a value that names no secret.
+struct SecretSetting {
+  field: &'static str,
+  key: &'static str,
+  refusal: &'static str,
+}
+
+/// The console secret the DeepSeek top-up reads its card from.
+const DEEPSEEK_CARD_SECRET: SecretSetting = SecretSetting {
+  field: "deepseekCardSecret",
+  key: "deepseek_card_secret",
+  refusal: "The DeepSeek card secret is a console secret's name, one plain file name, or null.",
+};
+
+/// The console secret the DeepSeek top-up signs in to DeepSeek's platform with.
+const DEEPSEEK_LOGIN_SECRET: SecretSetting = SecretSetting {
+  field: "deepseekLoginSecret",
+  key: "deepseek_login_secret",
+  refusal: "The DeepSeek login secret is a console secret's name, one plain file name, or null.",
+};
+
+const SECRET_SETTINGS: [SecretSetting; 2] = [DEEPSEEK_CARD_SECRET, DEEPSEEK_LOGIN_SECRET];
 
 // The switches as a caller reads them.
 async fn view(ground: &crate::places::Ground) -> Result<Value, Refused> {
   let research = research_supervisor(ground).await.map_err(Refused::failed)?;
-  let card_secret = settings::get(&ground.db, DEEPSEEK_CARD_SECRET).await.map_err(Refused::failed)?;
+  let mut switches = json!({ "researchSupervisor": research, "downgradeReturn": Value::Null });
 
-  Ok(json!({
-    "researchSupervisor": research,
-    "downgradeReturn": Value::Null,
-    "deepseekCardSecret": card_secret,
-  }))
+  for setting in &SECRET_SETTINGS {
+    let named = settings::get(&ground.db, setting.key).await.map_err(Refused::failed)?;
+
+    switches[setting.field] = json!(named);
+  }
+
+  Ok(switches)
 }
 
 /// Agency's own switches.
@@ -66,25 +89,21 @@ async fn change_research_supervisor(store: &DatabaseConnection, asked: &Value) -
   }
 }
 
-async fn change_card_secret(store: &DatabaseConnection, asked: &Value) -> Result<(), Refused> {
+async fn change_secret_name(
+  store: &DatabaseConnection,
+  setting: &SecretSetting,
+  asked: &Value,
+) -> Result<(), Refused> {
   match asked {
-    Value::Null => Ok(settings::forget(store, DEEPSEEK_CARD_SECRET).await?),
-    Value::String(name) if is_secret_name(name) => {
-      super::set_setting(store, DEEPSEEK_CARD_SECRET, name).await
-    }
-    _ => Err(
-      Refused::new(
-        StatusCode::BAD_REQUEST,
-        "The DeepSeek card secret is a console secret's name, one plain file name, or null.",
-      )
-      .with_field("deepseekCardSecret"),
-    ),
+    Value::Null => Ok(settings::forget(store, setting.key).await?),
+    Value::String(name) if is_secret_name(name) => super::set_setting(store, setting.key, name).await,
+    _ => Err(Refused::new(StatusCode::BAD_REQUEST, setting.refusal).with_field(setting.field)),
   }
 }
 
 /// Agency's own switches changed as the body names them: the research supervisor, a supervisor the store
-/// holds, or null for none; the DeepSeek top-up's card secret, a console secret's name, or null for none. A
-/// switch the body leaves out stands as it is.
+/// holds, or null for none; the DeepSeek top-up's card and login secrets, each a console secret's name, or null
+/// for none. A switch the body leaves out stands as it is.
 pub struct SettingsWrite;
 
 impl Route for SettingsWrite {
@@ -98,8 +117,10 @@ impl Route for SettingsWrite {
       change_research_supervisor(call.store(), asked).await?;
     }
 
-    if let Some(asked) = body.get("deepseekCardSecret") {
-      change_card_secret(call.store(), asked).await?;
+    for setting in &SECRET_SETTINGS {
+      if let Some(asked) = body.get(setting.field) {
+        change_secret_name(call.store(), setting, asked).await?;
+      }
     }
 
     Ok(answer(StatusCode::OK, view(&call.shared_ground()).await?))

@@ -3979,7 +3979,7 @@
         "tags": [
           "settings"
         ],
-        "summary": "Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card.",
+        "summary": "Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card and login.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -12196,12 +12196,20 @@
               "null"
             ],
             "description": "The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none."
+          },
+          "deepseekLoginSecret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none."
           }
         },
         "required": [
           "researchSupervisor",
           "downgradeReturn",
-          "deepseekCardSecret"
+          "deepseekCardSecret",
+          "deepseekLoginSecret"
         ],
         "description": "Settings:"
       },
@@ -12212,6 +12220,9 @@
             "description": "A supervisor the store holds, or null for none."
           },
           "deepseekCardSecret": {
+            "description": "A console secret's name, one plain file name, or null for none."
+          },
+          "deepseekLoginSecret": {
             "description": "A console secret's name, one plain file name, or null for none."
           }
         },

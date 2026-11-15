@@ -1,37 +1,47 @@
 //! `deepseek_top_up`: the supervisor tops the DeepSeek balance up by an amount the owner names (docs/tools.md,
-//! 「The DeepSeek top-up」). DeepSeek takes no payment by machine, so a call that passes every check answers
-//! what a person does on DeepSeek's platform, and pays nothing. A card value is read only to see that it stands,
-//! and is never kept, answered or written anywhere.
+//! 「The DeepSeek top-up」). DeepSeek has no payment API, so a call that passes every check pays on DeepSeek's web
+//! platform in the machine's own browser, signed in with the platform's DeepSeek login, with the platform's card,
+//! both read from the console secrets agency's settings name. A secret value is typed into the platform's page and
+//! is never answered, logged or written anywhere.
 
-use std::collections::BTreeSet;
+mod browser;
+mod platform;
+mod secret;
+
 use std::path::Path;
+use std::time::Duration;
 
-use bmo_agency_client::{AgencyClient, ProviderQuota};
+use bmo_agency_client::{AgencyClient, ProviderQuota, Settings};
 use chrono::{DateTime, SecondsFormat};
 use harness_providers::Provider;
 use harness_providers::deepseek::DeepSeek;
 use policy::fill_marks;
-use policy::providers::deepseek::{DEEPSEEK, TopUp};
+use policy::providers::deepseek::{DEEPSEEK, SavedSecret, TopUp};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tool_call::{Answer, Asked, Control, Handed, Session};
+
+pub use browser::{Place, chrome_arguments};
+pub use platform::{Paid, Platform, Stop, Waits};
+pub use secret::{Saved, SecretFault};
 
 /// The tool's namespace and entry.
 pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "deepseek_top_up";
 pub const TITLE: &str = "Top the DeepSeek balance up";
-pub const DESCRIPTION: &str = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, with the card saved in the console's secret store; call it only when the owner asks for a top-up. One call is held to a cap. DeepSeek takes no payment by machine, so the answer says what a person does on its platform, the amount paid and the balance as its reader last read it.";
+pub const DESCRIPTION: &str = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, paying with the card saved in the console's secret store on DeepSeek's platform, signed in with the DeepSeek login saved there; call it only when the owner asks for a top-up, and again only on his new word, whatever it answered. One call is held to a cap and pays at most once. Where DeepSeek or the card's issuer asks a person to confirm, it stops there and says what the person does. It answers the amount paid and the balance after, as the balance reader read it.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
-/// The administrator's grant a call needs: the card is the platform's own.
+/// The administrator's grant a call needs: the card and the DeepSeek account are the platform's own.
 pub const GRANT: &str = "platform.payment";
-/// Agency's setting naming the console secret the card is saved in (docs/api.md, 「settings」).
+/// Agency's settings naming the console secrets the card and the login are saved in (docs/api.md, 「settings」).
 pub const CARD_SETTING: &str = "deepseekCardSecret";
+pub const LOGIN_SETTING: &str = "deepseekLoginSecret";
 
 pub fn entry() -> String {
   format!("{NAMESPACE}/{NAME}")
 }
 
-/// What a call names: the amount alone. The card is never taken from a call.
+/// What a call names: the amount alone. Neither the card nor the login is ever taken from a call.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TopUpInput {
@@ -50,32 +60,43 @@ impl TopUpInput {
   }
 }
 
-/// Why the card's secret does not serve.
-#[derive(Debug, PartialEq, Eq)]
-pub enum CardFault {
-  Missing,
-  /// The field keys it holds no value for.
-  Lacks(Vec<String>),
+/// Where a call pays and how long it waits for the balance reader after a payment.
+#[derive(Debug, Clone)]
+pub struct Payer {
+  pub platform: Platform,
+  /// For the balance reader to read the balance after a payment, and how often agency is asked meanwhile.
+  pub balance_wait: Duration,
+  pub balance_look: Duration,
 }
 
-/// The fields of `wanted` the card's secret at `path` holds no value for, or that it stands nowhere.
-///
-/// The console's secret store writes a card as one `KEY=VALUE` line to each field it holds a value for, the value
-/// as typed to the line's end, unquoted and unescaped (bmo-web's `docs/accounts.md`, 「Secret kinds」). That is the
-/// store's own shape, not a dotenv file: a dotenv reader refuses a value holding a space, as a holder's name does,
-/// and reads `$` and `#` as marks. So a line is split at its first `=`. Only the keys of the lines with a value are
-/// kept; every value is dropped where it is read.
-pub fn check_card(path: &Path, wanted: &[String]) -> Result<(), CardFault> {
-  let text = std::fs::read_to_string(path).map_err(|_| CardFault::Missing)?;
-  let filled: BTreeSet<&str> = text
-    .lines()
-    .filter_map(|line| line.split_once('='))
-    .filter(|(_, value)| !value.trim().is_empty())
-    .map(|(key, _)| key.trim())
-    .collect();
-  let lacking: Vec<String> = wanted.iter().filter(|key| !filled.contains(key.as_str())).cloned().collect();
+impl Payer {
+  /// The platform, the browser's place under `data_root` and the waits, as the policy holds them.
+  pub fn of(data_root: &Path) -> Self {
+    let policy = &DEEPSEEK.top_up;
+    let waits = &policy.waits;
 
-  if lacking.is_empty() { Ok(()) } else { Err(CardFault::Lacks(lacking)) }
+    Self {
+      platform: Platform {
+        address: policy.platform.address.clone(),
+        top_up_path: policy.platform.top_up_path.clone(),
+        sign_in_path: policy.platform.sign_in_path.clone(),
+        place: Place {
+          folder: data_root.join(&policy.platform.folder),
+          chrome: policy.platform.chrome.clone(),
+          screen: policy.platform.screen.clone(),
+          added: Vec::new(),
+          start: Duration::from_secs(waits.start),
+        },
+        waits: Waits {
+          step: Duration::from_secs(waits.step),
+          confirm: Duration::from_secs(waits.confirm),
+          look: Duration::from_millis(waits.look_ms),
+        },
+      },
+      balance_wait: Duration::from_secs(waits.balance),
+      balance_look: Duration::from_secs(waits.balance_look),
+    }
+  }
 }
 
 /// The moment a balance was seen, in epoch seconds, as an answer shows it: the UTC time, or the seconds where
@@ -93,35 +114,46 @@ fn amount_of(input: &TopUpInput, policy: &TopUp) -> Result<f64, String> {
     .ok_or_else(|| policy.words.no_amount.clone())
 }
 
-/// The console secret agency's setting names for the card, asked afresh at each call so the owner's change
-/// holds from the next one; the refusal naming the setting to fill where it names none.
-async fn card_secret(agency: &AgencyClient, policy: &TopUp) -> Result<String, String> {
-  let settings = agency
-    .get_settings()
-    .await
-    .map_err(|why| fill_marks(&policy.words.settings_unasked, &[("why", &why.to_string())]))?;
-
-  settings
-    .deepseek_card_secret
-    .map(|name| name.trim().to_owned())
-    .filter(|name| !name.is_empty())
-    .ok_or_else(|| {
-      fill_marks(&policy.words.card_unnamed, &[("setting", CARD_SETTING), ("kind", &policy.card_kind)])
-    })
+/// The console secret a setting names, or the refusal naming the setting to fill where it names none.
+fn named(
+  name: Option<&str>,
+  setting: &str,
+  secret: &SavedSecret,
+  policy: &TopUp,
+) -> Result<String, String> {
+  name.map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned).ok_or_else(|| {
+    fill_marks(
+      &policy.words.secret_unnamed,
+      &[("called", &secret.called), ("setting", setting), ("kind", &secret.kind)],
+    )
+  })
 }
 
-/// The card's secret checked, or the refusal saying what a person saves.
-fn card_checked(data_root: &Path, secret: &str, policy: &TopUp) -> Result<(), String> {
-  let (line, fields) = match check_card(&data_root.join("env").join(secret), &policy.card_fields) {
-    Ok(()) => return Ok(()),
-    Err(CardFault::Missing) => (&policy.words.card_missing, String::new()),
-    Err(CardFault::Lacks(lacking)) => (&policy.words.card_lacks, lacking.join(", ")),
+/// The secret read from the administrator's space, or the refusal saying what a person saves.
+fn saved(data_root: &Path, name: &str, secret: &SavedSecret, policy: &TopUp) -> Result<Saved, String> {
+  let (line, fields) = match Saved::read(&data_root.join("env").join(name), &secret.fields) {
+    Ok(saved) => return Ok(saved),
+    Err(SecretFault::Missing) => (&policy.words.secret_missing, String::new()),
+    Err(SecretFault::Lacks(lacking)) => (&policy.words.secret_lacks, lacking.join(", ")),
   };
 
   Err(fill_marks(
     line,
-    &[("secret", secret), ("kind", &policy.card_kind), ("fields", &fields)],
+    &[
+      ("called", &secret.called),
+      ("secret", name),
+      ("kind", &secret.kind),
+      ("fields", &fields),
+    ],
   ))
+}
+
+/// Agency's settings, asked afresh at each call so the owner's change holds from the next one.
+async fn settings_of(agency: &AgencyClient, policy: &TopUp) -> Result<Settings, String> {
+  agency
+    .get_settings()
+    .await
+    .map_err(|why| fill_marks(&policy.words.settings_unasked, &[("why", &why.to_string())]))
 }
 
 /// What the balance reader last read of DeepSeek's own road, as agency answers it.
@@ -133,29 +165,116 @@ async fn quota_of(agency: &AgencyClient, policy: &TopUp) -> Result<ProviderQuota
     .map_err(|why| fill_marks(&policy.words.balance_unasked, &[("why", &why.to_string())]))
 }
 
-/// One call checked, and answered with what a person does: DeepSeek takes no payment by machine, so nothing is
-/// paid and the balance stands as its reader last read it.
+/// A balance as the reader read it: the amount, its currency and when it was seen, in epoch seconds.
+struct Reading {
+  balance: f64,
+  currency: String,
+  seen: i64,
+}
+
+impl Reading {
+  fn of(quota: ProviderQuota) -> Option<Self> {
+    Some(Self {
+      balance: quota.balance?,
+      currency: quota.currency?,
+      seen: quota.balance_seen_at?,
+    })
+  }
+
+  /// The amount paid and this balance, as an answer says them.
+  fn said(&self, paid: &str, policy: &TopUp) -> String {
+    fill_marks(
+      &policy.words.outcome,
+      &[
+        ("paid", paid),
+        ("balance", &self.balance.to_string()),
+        ("currency", &self.currency),
+        ("seen", &seen_at(self.seen)),
+      ],
+    )
+  }
+}
+
+/// The balance as the reader last read it; the reading taken before the call where agency answers none now.
+async fn reading_now(agency: &AgencyClient, policy: &TopUp, before: Reading) -> Reading {
+  match quota_of(agency, policy).await.ok().and_then(Reading::of) {
+    Some(now) if now.seen >= before.seen => now,
+    _ => before,
+  }
+}
+
+/// The balance the reader read since a payment made at `at`, waited for within the payer's balance wait; the last
+/// reading and false where none came.
+async fn reading_after(
+  agency: &AgencyClient,
+  payer: &Payer,
+  policy: &TopUp,
+  at: i64,
+  before: Reading,
+) -> (Reading, bool) {
+  let deadline = tokio::time::Instant::now() + payer.balance_wait;
+  let mut last = before;
+
+  loop {
+    last = reading_now(agency, policy, last).await;
+
+    if last.seen >= at {
+      return (last, true);
+    }
+
+    if tokio::time::Instant::now() >= deadline {
+      return (last, false);
+    }
+
+    tokio::time::sleep(payer.balance_look).await;
+  }
+}
+
+/// The sentence a call that stopped before pay answers or is refused with: a person's step answered with the
+/// balance, a fault refused.
+fn stopped(stop: Stop, payer: &Payer, login: &str, policy: &TopUp) -> Result<String, String> {
+  let words = &policy.words;
+
+  match stop {
+    Stop::Busy => Err(words.busy.clone()),
+    Stop::Browser(why) => Err(fill_marks(&words.browser_failed, &[("why", &why)])),
+    Stop::Lost(what) => Err(fill_marks(&words.browser_lost, &[("what", what)])),
+    Stop::Unread(what) => Err(fill_marks(
+      &words.page_unread,
+      &[("what", what), ("seconds", &payer.platform.waits.step.as_secs().to_string())],
+    )),
+    Stop::PersonAsked => {
+      Ok(fill_marks(&words.person_asked, &[("command", &payer.platform.sign_in_command())]))
+    }
+    Stop::SignInRefused => {
+      Ok(fill_marks(&words.sign_in_refused, &[("secret", login), ("kind", &policy.login.kind)]))
+    }
+    Stop::IdentityAsked => Ok(fill_marks(&words.identity_asked, &[("address", &payer.platform.address)])),
+  }
+}
+
+/// One call checked and, where it passes every check, paid on DeepSeek's platform, answered with what was paid and
+/// the balance after, or with what a person does where the platform or the card's issuer asks one.
 pub async fn top_up_with(
   agency: &AgencyClient,
   data_root: &Path,
+  payer: &Payer,
   input: &TopUpInput,
 ) -> Result<Answer, String> {
   let policy = &DEEPSEEK.top_up;
   let amount = amount_of(input, policy)?;
-  let secret = card_secret(agency, policy).await?;
+  let settings = settings_of(agency, policy).await?;
+  let card_name = named(settings.deepseek_card_secret.as_deref(), CARD_SETTING, &policy.card, policy)?;
+  let card = saved(data_root, &card_name, &policy.card, policy)?;
+  let login_name = named(settings.deepseek_login_secret.as_deref(), LOGIN_SETTING, &policy.login, policy)?;
+  let login = saved(data_root, &login_name, &policy.login, policy)?;
 
-  card_checked(data_root, &secret, policy)?;
-
-  let quota = quota_of(agency, policy).await?;
-  let (Some(balance), Some(currency), Some(seen)) =
-    (quota.balance, quota.currency.as_deref(), quota.balance_seen_at)
-  else {
-    return Err(policy.words.balance_unread.clone());
-  };
+  let before =
+    Reading::of(quota_of(agency, policy).await?).ok_or_else(|| policy.words.balance_unread.clone())?;
   let cap = policy
     .cap
-    .get(currency)
-    .ok_or_else(|| fill_marks(&policy.words.no_cap, &[("currency", currency)]))?;
+    .get(&before.currency)
+    .ok_or_else(|| fill_marks(&policy.words.no_cap, &[("currency", &before.currency)]))?;
 
   if amount > *cap {
     return Err(fill_marks(
@@ -163,32 +282,52 @@ pub async fn top_up_with(
       &[
         ("amount", &amount.to_string()),
         ("cap", &cap.to_string()),
-        ("currency", currency),
+        ("currency", &before.currency),
         ("reason", &policy.cap_reason),
       ],
     ));
   }
 
-  let by_person = fill_marks(
-    &policy.words.by_person,
-    &[
-      ("top_up", &DEEPSEEK.balance.top_up),
-      ("amount", &amount.to_string()),
-      ("currency", currency),
-      ("secret", &secret),
-    ],
-  );
-  let outcome = fill_marks(
-    &policy.words.outcome,
-    &[
-      ("paid", "0"),
-      ("balance", &balance.to_string()),
-      ("currency", currency),
-      ("seen", &seen_at(seen)),
-    ],
-  );
+  if !policy.platform.card_currencies.contains(&before.currency) {
+    let road = fill_marks(
+      &policy.words.no_card_road,
+      &[("currency", &before.currency), ("top_up", &DEEPSEEK.balance.top_up)],
+    );
 
-  Ok(Answer::text(format!("{by_person}\n{outcome}")))
+    return Ok(Answer::text(format!("{road}\n{}", before.said("0", policy))));
+  }
+
+  let paid = match platform::pay(&payer.platform, &policy.page, &login, &card, &amount.to_string()).await {
+    Ok(paid) => paid,
+    Err(stop) => {
+      let sentence = stopped(stop, payer, &login_name, policy)?;
+      let now = reading_now(agency, policy, before).await;
+
+      return Ok(Answer::text(format!("{sentence}\n{}", now.said("0", policy))));
+    }
+  };
+
+  let answered = match paid {
+    Paid::Paid { at } => {
+      let (after, fresh) = reading_after(agency, payer, policy, at, before).await;
+      let said = after.said(&amount.to_string(), policy);
+
+      if fresh { said } else { format!("{said} {}", policy.words.balance_stale) }
+    }
+    Paid::Refused => format!(
+      "{}\n{}",
+      policy.words.refused,
+      reading_now(agency, policy, before).await.said("0", policy)
+    ),
+    Paid::Unconfirmed => {
+      let waited = payer.platform.waits.confirm.as_secs().to_string();
+      let sentence = fill_marks(&policy.words.unconfirmed, &[("seconds", &waited)]);
+
+      format!("{sentence}\n{}", reading_now(agency, policy, before).await.said("0", policy))
+    }
+  };
+
+  Ok(Answer::text(answered))
 }
 
 async fn top_up(session: &Session, input: &TopUpInput) -> Result<Answer, String> {
@@ -196,7 +335,7 @@ async fn top_up(session: &Session, input: &TopUpInput) -> Result<Answer, String>
   let control = Control::read(&data_root, |name| std::env::var(name).ok());
   let agency = AgencyClient::new(&control.base(), control.token.unwrap_or_default())?;
 
-  top_up_with(&agency, &data_root, input).await
+  top_up_with(&agency, &data_root, &Payer::of(&data_root), input).await
 }
 
 /// The tool's entry point: one call, answered. A call that does not read is refused by a fixed sentence, never

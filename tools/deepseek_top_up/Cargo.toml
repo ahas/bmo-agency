@@ -1,6 +1,6 @@
 [package]
 name = "deepseek-top-up-tool"
-description = "Tops the DeepSeek balance up by the amount the owner names, with the card saved in the console's secret store, or says what a person does where DeepSeek takes no payment by machine."
+description = "Tops the DeepSeek balance up by the amount the owner names, paying on DeepSeek's web platform in the machine's own browser with the card and login saved in the console's secret store."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,10 +13,14 @@ test = false
 
 [dependencies]
 bmo-agency-client.workspace = true
+chromiumoxide.workspace = true
 chrono.workspace = true
+futures-util.workspace = true
+libc.workspace = true
 harness-providers = { path = "../../crates/harness-providers" }
 policy = { path = "../../crates/policy" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 tool-call = { path = "../../crates/tool-call" }
+url.workspace = true

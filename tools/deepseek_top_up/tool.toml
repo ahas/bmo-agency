@@ -1,7 +1,7 @@
-# The supervisor tops the DeepSeek balance up by the amount the owner names, with the card saved in the console's
-# secret store (docs/tools.md, 「The DeepSeek top-up」). DeepSeek takes no payment by machine, so a call that
-# passes every check answers what a person does on its platform and pays nothing. The card is the platform's own:
-# a call runs only under the administrator's grant.
+# The supervisor tops the DeepSeek balance up by the amount the owner names (docs/tools.md, 「The DeepSeek top-up」):
+# it pays on DeepSeek's web platform in the machine's own browser, signed in with the DeepSeek login and paying with
+# the card the console's secret store holds under the names agency's settings give. The card and the account are
+# the platform's own: a call runs only under the administrator's grant.
 [tool]
 name = "deepseek_top_up"
 protocol = 1
@@ -14,11 +14,11 @@ run = ["deepseek-top-up-tool"]
 namespace = "bmo"
 name = "deepseek_top_up"
 title = "Top the DeepSeek balance up"
-description = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, with the card saved in the console's secret store; call it only when the owner asks for a top-up. One call is held to a cap. DeepSeek takes no payment by machine, so the answer says what a person does on its platform, the amount paid and the balance as its reader last read it."
+description = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, paying with the card saved in the console's secret store on DeepSeek's platform, signed in with the DeepSeek login saved there; call it only when the owner asks for a top-up, and again only on his new word, whatever it answered. One call is held to a cap and pays at most once. Where DeepSeek or the card's issuer asks a person to confirm, it stops there and says what the person does. It answers the amount paid and the balance after, as the balance reader read it."
 input = "deepseek_top_up.json"
 capabilities = ["room.tools"]
 grant = "platform.payment"
 
 [entry.listing]
-line = "- deepseek_top_up — top the DeepSeek balance up by the amount the owner names; it says what a person does where DeepSeek takes no payment by machine"
+line = "- deepseek_top_up — top the DeepSeek balance up by the amount the owner names, paying on DeepSeek's platform with the saved card; it stops where a person must confirm"
 order = 9

@@ -212,35 +212,102 @@ belongs to no one service is a repository of its own, not a folder here.
 ## The DeepSeek top-up
 
 - **`tools/deepseek_top_up`** declares `bmo/deepseek_top_up` to a session holding `room.tools`: the supervisor
-  tops the DeepSeek balance up by the amount the owner names. Its words, its card's kind and fields and its caps
-  stand in the `top_up` table of `policy/providers/deepseek.toml`; which secret holds the card is agency's
-  setting `deepseekCardSecret` (`docs/api.md`, 「settings」), the owner's to change with no deployment.
+  tops the DeepSeek balance up by the amount the owner names, paying with the platform's card on DeepSeek's own
+  web platform, signed in with the platform's DeepSeek login. Its words, the kinds and fields of its two
+  secrets, its caps, its waits and the words it finds the platform's controls by stand in the `top_up` table of
+  `policy/providers/deepseek.toml`. Which secrets hold the card and the login are agency's settings
+  `deepseekCardSecret` and `deepseekLoginSecret` (`docs/api.md`, 「settings」), the owner's to change with no
+  deployment.
 - **A call runs only under the administrator's grant,** `platform.payment` (「A tool's folder」 above): the card and
   the DeepSeek account are the platform's own. The tool host refuses any other caller before the tool runs.
 - **Nothing but a call tops the balance up.** No clock, reading or closed road calls it, and its description
-  tells the supervisor to call it only when the owner asks for a top-up.
+  tells the supervisor to call it only when the owner asks for a top-up. A call pays at most once: no step of it
+  submits a payment a second time, whatever the platform answers.
 - **Its one argument is `amount`,** a number above zero in the currency DeepSeek keeps the balance in. A call
-  naming none, or naming anything else, is refused. The card is never taken from a call.
-- **The card is a secret of the console's secret store** (bmo-web's `docs/accounts.md`, 「The secret store」):
-  the file agency's setting `deepseekCardSecret` names, in the platform administrator's space, the data root's
-  `env/`, saved in the console's kind `card`. The tool asks agency's `GET /settings` for the name at each call,
-  so a change to the setting holds from the next call; where the setting names none, the call is refused with the
-  setting to fill. The tool reads that kind's four fields, `CARD_NUMBER`,
-  `CARD_EXPIRY`, `CARD_CVC` and `CARD_HOLDER_NAME`, each one `KEY=VALUE` line written as typed. A secret
-  standing nowhere is refused with the name and the kind to ask for (`prompts/agents/chat/procedures/secrets.md`).
-  A secret lacking a field, or holding it empty, is refused with the missing keys.
-- **No card value leaves the tool.** A value is read only to see that it stands, and is dropped there. No answer,
-  refusal or line on its error stream carries one. A call that does not read is refused by a fixed sentence,
-  never by the reader's own words.
+  naming none, or naming anything else, is refused. Neither the card nor the login is ever taken from a call.
+
+### Its secrets
+
+- **Both are secrets of the console's secret store** (bmo-web's `docs/accounts.md`, 「The secret store」), files
+  of the platform administrator's space, the data root's `env/`, each one `KEY=VALUE` line to a field, written as
+  typed:
+  - the card, in the console's kind `card`, with the fields `CARD_NUMBER`, `CARD_EXPIRY`, `CARD_CVC` and
+    `CARD_HOLDER_NAME`, in the file `deepseekCardSecret` names;
+  - the login, in the console's kind `account-login`, with the fields `USERNAME`, the address or number the
+    DeepSeek account signs in with, and `PASSWORD`, in the file `deepseekLoginSecret` names.
+- **The tool asks agency's `GET /settings` for both names at each call,** so a change to a setting holds from
+  the next call. A setting naming none is refused with the setting to fill and the kind its secret is saved in.
+  A secret standing nowhere is refused with the name and the kind to ask for
+  (`prompts/agents/chat/procedures/secrets.md`); a secret lacking a field, or holding it empty, is refused with
+  the missing keys.
+- **No secret value leaves the tool.** A value is read into the tool's memory and typed into the platform's
+  page, and nowhere else: no answer, refusal or line on its error stream carries one, no screenshot is taken,
+  and the browser keeps no form, card or password of what was typed. A refusal of a step that handles a value
+  is said by a fixed sentence, never by the browser's or the page's own words, and a call that does not read is
+  refused by a fixed sentence, never by the reader's own words.
+
+### The checks before anything is paid
+
+- **In this order, each refusing the call before the next is asked:** the amount; the card's setting and secret;
+  the login's setting and secret; the balance; the cap. A refused call starts no browser.
 - **One call is held to a cap,** the one the policy's `top_up.cap` holds for the currency the balance is kept
-  in. An amount over it is refused with the cap and its reason, and a larger top-up is a person's own. The currency is
-  the balance reader's (`docs/usage-windows.md`, 「Balances」). Until the balance has been read the currency is
+  in. An amount over it is refused with the cap and its reason, and a larger top-up is a person's own. The currency
+  is the balance reader's (`docs/usage-windows.md`, 「Balances」), read from `GET /providers/deepseek` on agency's
+  control port, reached as every tool of agency's reaches it. Until the balance has been read the currency is
   unknown, and the call is refused. A currency the policy holds no cap for is also refused.
-- **DeepSeek takes no payment by machine.** Its API answers no top-up, payment or coupon, and its top-up is
-  made only by a person signed in to its platform with an emailed code, who confirms the payment wherever
-  the card's issuer asks. So a call that passes every check pays nothing and moves no balance. It answers:
-  - the sentence a person acts on: where the balance is topped up, the amount and currency, and the card's
-    secret name;
-  - the amount paid, zero;
-  - the balance as the balance reader last read it, with the moment it was read, from
-    `GET /providers/deepseek` on agency's control port, reached as every tool of agency's reaches it.
+- **Only a balance kept in a currency the card road serves is paid by card.** DeepSeek's platform takes a card
+  for a balance kept in US dollars; a balance kept in yuan is paid only by Alipay, WeChat Pay or a bank's own
+  app, which a person scans, so a call for it pays nothing and says so.
+
+### How it pays
+
+- **DeepSeek has no payment API:** its top-up is made only on its web platform by a signed-in account, behind a
+  bot check that refuses a headless browser and a browser started for automation. So the tool drives the
+  machine's own Chrome as a person's browser stands: stable Chrome, not headless, on a virtual screen of its own
+  (Xvfb, through `xvfb-run`), started with no automation switch and driven over its loopback DevTools endpoint.
+  Its cross-site frames run in the page's own process, so the card frames a payment processor puts on the page
+  are reached as the page's own.
+- **The browser keeps one profile,** under the data root's `deepseek-top-up/`, so a sign-in stands from one call
+  to the next and DeepSeek knows the browser as a device it has seen. The profile's form, card and password
+  saving is off. One call holds it at a time: a call made while another drives it is refused and pays nothing.
+  The browser and its screen are taken down with everything they started when the call ends, whatever its end.
+- **The steps, each waited for within the policy's step wait:**
+  1. Open the platform's top-up page. Where it sends the browser to sign in, sign in with the login: the
+     identity and the password typed into the fields the policy's words name, then the sign-in pressed. A
+     sign-in DeepSeek refuses ends the call, naming the login's secret to save again.
+  2. On the top-up page, choose a custom amount and type the amount; choose the card; go on to the checkout
+     where the page asks for it.
+  3. Type the card's fields into the fields the payment processor shows, found in any frame by their
+     autocomplete purpose or the policy's words for each; the holder's name only where a field asks for it.
+  4. Press pay, once.
+  5. Watch the page for the outcome: the policy's words for a payment made, or for one refused.
+- **The card is charged what the page totals:** the amount and the tax DeepSeek adds to it. The cap holds the
+  amount the balance gains.
+
+### Where a person is asked
+
+- **The tool does nothing a person must do, and stops where the platform asks for one:**
+  - **a human check or a sign-in code.** Where DeepSeek shows a human check, or asks for a code it sends to the
+    account before the sign-in goes on, the call ends before any card is entered, saying so. A person signs
+    the tool's browser in once at the machine's own desktop, with the command the answer names, which opens
+    the same profile in a window; the sign-in then stands for later calls.
+  - **the card issuer's confirmation.** Where the issuer asks the cardholder to confirm the payment (3-D Secure:
+    an approval in the card's app, or a code it sends), the tool stops there, touches nothing more, and waits
+    within the policy's confirmation wait for the page to show the outcome. The issuer's own prompt reaches the
+    person; the answer says what the person does. A payment confirmed within the wait is answered as paid; one
+    not confirmed within it is answered as not paid, with the sentence the person acts on, and the browser
+    closing ends the payment's session.
+  - **an identity check or any request the policy's words do not know.** The call ends, saying what the page
+    showed by the policy's own sentence, never the page's words.
+
+### What it answers
+
+- **Paid:** the amount paid and the currency, and the balance after: the tool asks agency again until the
+  balance reader has read the balance since the payment, within the policy's balance wait, and answers that
+  reading with its moment. Where the reader has not read it again within the wait, it answers the last reading
+  and says it was read before the payment.
+- **Not paid:** a refused payment, a confirmation not given within the wait, a sign-in that did not go through
+  or a page the tool could not read each answer zero paid, the sentence a person acts on, and the balance as the
+  reader last read it. None moves the balance, and none is tried again on its own: a person checks DeepSeek's
+  billing page before asking for another top-up.
+- **A browser that cannot be started** answers that nothing was paid, with why it could not start.

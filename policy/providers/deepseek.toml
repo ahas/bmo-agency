@@ -77,17 +77,25 @@ top_up = "top the DeepSeek balance up at https://platform.deepseek.com/top_up"
 
 [top_up]
 # The supervisor's tool that tops the balance up by an amount the owner names (docs/tools.md, 「The DeepSeek
-# top-up」). DeepSeek takes no payment by machine: its top-up is made only by a person signed in to its
-# platform, so the tool checks the call and the card and answers what a person does, and pays nothing.
-
-# The console's kind the card is saved in, one `KEY=VALUE` line to each of these fields. Which secret of the
-# platform administrator's space, the data root's `env/`, holds it is agency's setting `deepseekCardSecret`
-# (docs/api.md, 「settings」), the owner's to change with no deployment.
-card_kind = "card"
-card_fields = ["CARD_NUMBER", "CARD_EXPIRY", "CARD_CVC", "CARD_HOLDER_NAME"]
+# top-up」). DeepSeek has no payment API: the tool pays on its web platform, in the machine's own browser signed
+# in with the platform's DeepSeek login, with the platform's card.
 
 # Why one call is held to a cap, said with the cap where an amount is over it.
 cap_reason = "one call tops the balance up by no more than this, so that a mistaken amount or a repeated call cannot spend more; a larger top-up is a person's own, made on DeepSeek's platform"
+
+# The two secrets of the console's store the tool reads, each one `KEY=VALUE` line to a field: what its answers
+# call it, the console's kind it is saved in and its fields. Which secret of the platform administrator's space,
+# the data root's `env/`, holds each is agency's setting `deepseekCardSecret` or `deepseekLoginSecret`
+# (docs/api.md, 「settings」), the owner's to change with no deployment.
+[top_up.card]
+called = "card"
+kind = "card"
+fields = ["CARD_NUMBER", "CARD_EXPIRY", "CARD_CVC", "CARD_HOLDER_NAME"]
+
+[top_up.login]
+called = "DeepSeek login"
+kind = "account-login"
+fields = ["USERNAME", "PASSWORD"]
 
 # The largest amount one call names, by the currency DeepSeek keeps the balance in; a currency this table holds
 # no cap for is not topped up.
@@ -95,18 +103,63 @@ cap_reason = "one call tops the balance up by no more than this, so that a mista
 USD = 50
 CNY = 350
 
+# The platform the tool pays on and the browser it pays in: the platform's origin and its two pages, the
+# currencies its card road pays a balance in (a balance in yuan is paid by scanning, a person's own), the
+# browser's executable and the virtual screen it is started on, and the data root's folder its profile stands in.
+[top_up.platform]
+address = "https://platform.deepseek.com"
+top_up_path = "/top_up"
+sign_in_path = "/sign_in"
+card_currencies = ["USD"]
+chrome = "google-chrome"
+screen = "1280x900x24"
+folder = "deepseek-top-up"
+
+# Each wait of a call, in seconds: the browser answering, each step's page or control, the outcome of a payment
+# pressed with a person's confirmation in it, and the balance reader's next reading after a payment, past its
+# five-minute pass; and how often a waited page is looked at, in milliseconds, and the balance, in seconds.
+[top_up.waits]
+start = 30
+step = 45
+confirm = 300
+balance = 420
+look_ms = 500
+balance_look = 15
+
+# The words the platform's English pages show its controls and outcomes by, each matched without regard to case.
+[top_up.page]
+identity = ["Phone number / email address", "email address"]
+password = ["Password"]
+password_tab = ["Password login", "Login with password"]
+sign_in = ["Log in"]
+custom_amount = ["Custom"]
+amount = ["Amount", "Custom"]
+card_method = ["Debit or Credit Card", "Card"]
+next_step = ["Next step"]
+pay = ["Pay"]
+card_number = ["Card number"]
+card_expiry = ["Expiry", "Expiration", "MM / YY", "MM/YY"]
+card_cvc = ["CVV", "CVC", "Security code"]
+card_holder = ["Cardholder", "Name on card"]
+paid = ["Payment successful"]
+refused = ["Payment failed", "Recharge failed", "Invalid card", "card type not supported", "Insufficient balance", "Order timed out", "Card declined"]
+sign_in_refused = ["password is incorrect", "Login failed", "account was suspended", "account has been suspended"]
+person_asked = ["confirm you are human", "security check", "verification code", "Send code", "Verify it's you"]
+person_asked_frames = ["hcaptcha.com", "challenges.cloudflare.com", "captcha.awswaf.com"]
+identity_asked = ["real-name verification", "Identity Verification"]
+
 # What the tool answers. Each `{name}` is filled in with what it names.
 [top_up.words]
 # The call named no amount above zero.
 no_amount = "Name the amount to top the DeepSeek balance up by: a number above zero, in the currency DeepSeek keeps the balance in."
-# Agency's settings could not be read, so the card's secret is unknown.
-settings_unasked = "Agency's settings could not be read for the card's secret: {why}"
-# Agency's setting names no card secret.
-card_unnamed = "No card secret is named for the DeepSeek top-up: fill agency's setting {setting} with the name of the console secret, of the kind {kind}, the card is saved in, then call again."
-# The card's secret stands nowhere.
-card_missing = "No card is saved for DeepSeek: ask for the secret {secret} in the kind {kind} in the console's secret store, then call again."
-# The card's secret lacks fields, named by their keys.
-card_lacks = "The card saved as {secret} lacks {fields}: save it again in the kind {kind} with every field filled."
+# Agency's settings could not be read, so the secrets are unknown.
+settings_unasked = "Agency's settings could not be read for the DeepSeek top-up's secrets: {why}"
+# Agency's setting names no secret.
+secret_unnamed = "No {called} secret is named for the DeepSeek top-up: fill agency's setting {setting} with the name of the console secret, of the kind {kind}, the {called} is saved in, then call again."
+# The secret stands nowhere.
+secret_missing = "No {called} is saved for the DeepSeek top-up: ask for the secret {secret} in the kind {kind} in the console's secret store, then call again."
+# The secret lacks fields, named by their keys.
+secret_lacks = "The {called} saved as {secret} lacks {fields}: save it again in the kind {kind} with every field filled."
 # Agency could not say what the balance reader last read.
 balance_unasked = "The DeepSeek balance could not be read from agency: {why}"
 # The balance reader has not read the balance, so its currency is unknown.
@@ -115,7 +168,27 @@ balance_unread = "The DeepSeek balance has not been read yet, so the currency a 
 no_cap = "No single top-up cap is held for {currency}, so no top-up is made in it."
 # The amount is over the cap.
 over_cap = "{amount} {currency} is over the single top-up cap of {cap} {currency}: {reason}."
-# Nothing was paid, and what a person does to top the balance up.
-by_person = "Nothing was paid: DeepSeek takes no payment by machine, only from a person signed in to its platform. A person is to {top_up}, adding {amount} {currency} with the card saved as {secret}, and to confirm the payment wherever the card's issuer asks."
-# The amount paid and the balance after, as the balance reader last read it.
+# The balance is kept in a currency the platform takes no card for.
+no_card_road = "Nothing was paid: DeepSeek takes no card for a balance kept in {currency}, only a payment a person scans; a person is to {top_up}."
+# Another call holds the browser.
+busy = "Nothing was paid: another DeepSeek top-up is under way on this machine. Call again once it has answered."
+# The browser could not be started or reached.
+browser_failed = "Nothing was paid: the browser the DeepSeek top-up pays in could not be started: {why}"
+# The browser stopped answering at a step before the payment.
+browser_lost = "Nothing was paid: the browser the DeepSeek top-up pays in stopped answering at {what}, before the payment."
+# A step's page or control did not show as the tool finds it.
+page_unread = "Nothing was paid: DeepSeek's platform did not show {what} within {seconds} seconds, so the tool stopped there, before the payment."
+# DeepSeek asks a person to finish the sign-in.
+person_asked = "Nothing was paid: DeepSeek asks a person to finish signing in, with a human check or a code it sends to the account, which the tool never does. A person signs the tool's browser in once at this machine's desktop with `{command}`, closes it, and then the top-up is asked again."
+# DeepSeek refused the login.
+sign_in_refused = "Nothing was paid: DeepSeek refused the sign-in with the login saved as {secret}: save it again in the kind {kind} with the account's sign-in and password, then call again."
+# DeepSeek asks for the account's identity verification.
+identity_asked = "Nothing was paid: DeepSeek asks for the account's identity verification before it takes a payment, which only a person gives on its platform at {address}."
+# The payment was refused.
+refused = "Nothing was paid: DeepSeek or the card's issuer refused the payment, and the tool tries no payment again on its own. A person checks DeepSeek's billing page before asking for another top-up."
+# The payment showed no outcome within the wait, a confirmation asked of a person included.
+unconfirmed = "Nothing was paid that the platform confirmed within {seconds} seconds: where the card's issuer asks to confirm the payment, a person approves it in the card's app or with the code it sends, while the top-up waits. The tool stopped at the payment and tries none again on its own; a person checks DeepSeek's billing page before asking for another top-up."
+# The amount paid and the balance after, as the balance reader read it.
 outcome = "Paid: {paid} {currency}. Balance: {balance} {currency}, as the balance reader last read it at {seen}."
+# The balance reader has not read the balance since the payment.
+balance_stale = "The balance reader has not read the balance since the payment, so the balance above is the one before it."

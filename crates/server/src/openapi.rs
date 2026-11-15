@@ -1573,7 +1573,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/settings",
     id: "getSettings",
     tag: "settings",
-    summary: "Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card.",
+    summary: "Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card and login.",
     params: &[],
     body: None,
     answers: &[(200, Some("Settings"), false)],

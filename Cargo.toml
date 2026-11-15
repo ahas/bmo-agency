@@ -35,6 +35,8 @@ license = "MIT"
 bmo-agency-client = { path = "crates/client" }
 axum = { version = "0.8.9", features = ["macros", "multipart", "ws"] }
 base64 = "0.22.1"
+# Drives the machine's own Chrome over its DevTools endpoint (the DeepSeek top-up, docs/tools.md).
+chromiumoxide = { version = "0.9.1", default-features = false }
 hex = "0.4.3"
 hmac = "0.12.1"
 bmo-brain-client = { path = "../brain/crates/client" }

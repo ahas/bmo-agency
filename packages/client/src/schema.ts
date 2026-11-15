@@ -989,7 +989,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card. */
+        /** Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card and login. */
         get: operations["getSettings"];
         put?: never;
         post?: never;
@@ -3487,6 +3487,8 @@ export interface components {
             downgradeReturn: unknown;
             /** @description The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none. */
             deepseekCardSecret: string | null;
+            /** @description The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none. */
+            deepseekLoginSecret: string | null;
         };
         /** @description The body that changes agency's own switches. */
         SettingsAsk: {
@@ -3494,6 +3496,8 @@ export interface components {
             researchSupervisor?: unknown;
             /** @description A console secret's name, one plain file name, or null for none. */
             deepseekCardSecret?: unknown;
+            /** @description A console secret's name, one plain file name, or null for none. */
+            deepseekLoginSecret?: unknown;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {

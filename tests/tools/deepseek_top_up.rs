@@ -1,51 +1,72 @@
-//! The DeepSeek top-up (docs/tools.md, 「The DeepSeek top-up」): a call naming no amount, a setting naming no card
-//! secret, a card lacking a field and an amount over the cap are refused; the card is read from the secret agency's
-//! setting names at the call; a call that passes every check pays nothing and answers what a person does; no card
-//! value reaches an answer. Agency is a stand-in on the loopback that answers its settings and the balance and
-//! records every request, so a test reaches no network beyond it and no payment is ever asked for.
+//! The DeepSeek top-up's checks (docs/tools.md, 「The DeepSeek top-up」): a call naming no amount, a setting naming
+//! no card or login secret, a secret lacking a field, an amount over the cap, a balance in a currency the card road
+//! does not serve and a browser another call holds are refused or answered before any browser starts; each secret
+//! is read from the one its setting names at the call; no secret value reaches an answer. Agency is a stand-in on
+//! the loopback that answers its settings and the balance and records every request, and the platform's address
+//! is one nothing listens on, so a test here reaches no network beyond the stand-in and pays nothing.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::State;
 use axum::http::{Method, StatusCode, Uri};
 use axum::{Json, Router};
 use bmo_agency_client::AgencyClient;
-use deepseek_top_up_tool::{TopUpInput, answer, top_up_with};
+use deepseek_top_up_tool::{Payer, TopUpInput, answer, top_up_with};
 use serde_json::{Value, json};
 use tool_call::{Asked, Handed, PROTOCOL, Session};
 
-const NUMBER: &str = "4000123412341234";
-const CVC: &str = "987";
-const HOLDER: &str = "TEST HOLDER";
-const EXPIRY: &str = "12/31";
+pub(super) const NUMBER: &str = "4000123412341234";
+pub(super) const CVC: &str = "987";
+pub(super) const HOLDER: &str = "TEST HOLDER";
+pub(super) const EXPIRY: &str = "12/31";
+pub(super) const USERNAME: &str = "tester@example.com";
+pub(super) const PASSWORD: &str = "pass-Word 42";
 const SEEN_AT: i64 = 1_794_700_000;
-/// The console secret the card is saved in, as the stand-in's setting names it.
-const CARD: &str = "saved-card";
+/// The console secrets the card and the login are saved in, as the stand-in's settings name them.
+pub(super) const CARD: &str = "saved-card";
+pub(super) const LOGIN: &str = "saved-login";
 
 /// What the stand-in agency answers, and every request it was asked: the method and the path. `status` is
-/// the balance read's; the settings are always answered.
+/// the balance read's; the settings are always answered. Where `ledger` holds a balance, the balance is read from it
+/// and seen at the moment it is asked, as a balance reader that has just read it.
 #[derive(Clone)]
-struct Stand {
+pub(super) struct Stand {
   status: StatusCode,
   balance: Option<f64>,
+  currency: &'static str,
   card_secret: Option<&'static str>,
+  login_secret: Option<&'static str>,
+  ledger: Option<Arc<Mutex<f64>>>,
   asked: Arc<Mutex<Vec<(Method, String)>>>,
 }
 
 impl Stand {
-  fn kept(balance: Option<f64>) -> Self {
+  pub(super) fn kept(balance: Option<f64>) -> Self {
     Self {
       status: StatusCode::OK,
       balance,
+      currency: "USD",
       card_secret: Some(CARD),
+      login_secret: Some(LOGIN),
+      ledger: None,
       asked: Arc::default(),
     }
   }
 
-  fn naming(card_secret: Option<&'static str>) -> Self {
+  /// A stand-in reading the balance a fake platform keeps, freshly at each ask.
+  pub(super) fn reading(ledger: Arc<Mutex<f64>>) -> Self {
+    Self {
+      ledger: Some(ledger),
+      ..Self::kept(Some(0.0))
+    }
+  }
+
+  fn naming(card_secret: Option<&'static str>, login_secret: Option<&'static str>) -> Self {
     Self {
       card_secret,
+      login_secret,
       ..Self::kept(Some(3.5))
     }
   }
@@ -57,7 +78,7 @@ impl Stand {
     }
   }
 
-  fn asked(&self) -> Vec<(Method, String)> {
+  pub(super) fn asked(&self) -> Vec<(Method, String)> {
     self.asked.lock().unwrap().clone()
   }
 }
@@ -67,7 +88,8 @@ async fn route(State(stand): State<Stand>, method: Method, uri: Uri) -> (StatusC
 
   if uri.path() == "/settings" {
     let settings = json!({
-      "researchSupervisor": null, "downgradeReturn": null, "deepseekCardSecret": stand.card_secret,
+      "researchSupervisor": null, "downgradeReturn": null,
+      "deepseekCardSecret": stand.card_secret, "deepseekLoginSecret": stand.login_secret,
     });
 
     return (StatusCode::OK, Json(settings));
@@ -77,14 +99,18 @@ async fn route(State(stand): State<Stand>, method: Method, uri: Uri) -> (StatusC
     return (stand.status, Json(json!({ "code": "broken", "error": "the stand-in fails" })));
   }
 
-  let read = stand.balance.is_some();
+  let (balance, seen) = match &stand.ledger {
+    Some(ledger) => (Some(*ledger.lock().unwrap()), chrono::Utc::now().timestamp()),
+    None => (stand.balance, SEEN_AT),
+  };
+  let read = balance.is_some();
   let answer = json!({
     "name": "deepseek", "code": "deepseek", "label": "DeepSeek", "enabled": true, "registered": false,
     "gateway": true, "lines": ["chat"], "reason": null, "reasonCode": null, "foldRatioDefault": 0.5,
     "quota": {
-      "has": stand.balance.is_some_and(|balance| balance > 0.0), "left": null, "window": null,
-      "balance": stand.balance, "currency": read.then_some("USD"),
-      "balanceSeenAt": read.then_some(SEEN_AT), "requests": null, "resetsAt": null,
+      "has": balance.is_some_and(|balance| balance > 0.0), "left": null, "window": null,
+      "balance": balance, "currency": read.then_some(stand.currency),
+      "balanceSeenAt": read.then_some(seen), "requests": null, "resetsAt": null,
     },
   });
 
@@ -93,7 +119,7 @@ async fn route(State(stand): State<Stand>, method: Method, uri: Uri) -> (StatusC
 
 /// The stand-in agency on a loopback port, answering its settings and every other route as the provider's
 /// read; the server task ends with the test's runtime.
-async fn agency(stand: &Stand) -> AgencyClient {
+pub(super) async fn agency(stand: &Stand) -> AgencyClient {
   let app = Router::new().fallback(route).with_state(stand.clone());
   let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
   let port = listener.local_addr().unwrap().port();
@@ -103,23 +129,28 @@ async fn agency(stand: &Stand) -> AgencyClient {
   AgencyClient::new(&format!("http://127.0.0.1:{port}"), "test-token").unwrap()
 }
 
-/// A data root whose card secret holds the lines given, as the console's store writes them.
-fn data_root(lines: Option<&[(&str, &str)]>) -> tempfile::TempDir {
+/// A data root whose card and login secrets hold the lines given, as the console's store writes them.
+pub(super) fn data_root(
+  card: Option<&[(&str, &str)]>,
+  login: Option<&[(&str, &str)]>,
+) -> tempfile::TempDir {
   let root = tempfile::tempdir().unwrap();
   let env = root.path().join("env");
 
   std::fs::create_dir_all(&env).unwrap();
 
-  if let Some(lines) = lines {
-    let text: String = lines.iter().map(|(key, value)| format!("{key}={value}\n")).collect();
+  for (name, lines) in [(CARD, card), (LOGIN, login)] {
+    if let Some(lines) = lines {
+      let text: String = lines.iter().map(|(key, value)| format!("{key}={value}\n")).collect();
 
-    std::fs::write(env.join(CARD), text).unwrap();
+      std::fs::write(env.join(name), text).unwrap();
+    }
   }
 
   root
 }
 
-fn whole_card() -> Vec<(&'static str, &'static str)> {
+pub(super) fn whole_card() -> Vec<(&'static str, &'static str)> {
   vec![
     ("CARD_NUMBER", NUMBER),
     ("CARD_EXPIRY", EXPIRY),
@@ -128,26 +159,53 @@ fn whole_card() -> Vec<(&'static str, &'static str)> {
   ]
 }
 
-fn amount(amount: f64) -> TopUpInput {
+pub(super) fn whole_login() -> Vec<(&'static str, &'static str)> {
+  vec![("USERNAME", USERNAME), ("PASSWORD", PASSWORD)]
+}
+
+fn saved_root() -> tempfile::TempDir {
+  data_root(Some(&whole_card()), Some(&whole_login()))
+}
+
+pub(super) fn amount(amount: f64) -> TopUpInput {
   TopUpInput {
     amount: Some(amount),
   }
 }
 
-async fn top_up(stand: &Stand, root: &Path, input: TopUpInput) -> Result<String, String> {
-  top_up_with(&agency(stand).await, root, &input).await.map(|answered| answered.plain())
+/// A payer whose platform nothing listens on: a call that reached the browser would fail there, not pay.
+fn nowhere(root: &Path) -> Payer {
+  let mut payer = Payer::of(root);
+
+  payer.platform.address = "http://127.0.0.1:9".to_owned();
+  payer.balance_wait = Duration::ZERO;
+  payer
 }
 
-fn holds_no_card_value(said: &str) {
-  for value in [NUMBER, CVC, HOLDER, EXPIRY, "1234"] {
-    assert!(!said.contains(value), "a card value stands in: {said}");
+async fn top_up(stand: &Stand, root: &Path, input: TopUpInput) -> Result<String, String> {
+  top_up_with(&agency(stand).await, root, &nowhere(root), &input)
+    .await
+    .map(|answered| answered.plain())
+}
+
+pub(super) fn holds_no_secret_value(said: &str) {
+  for value in [NUMBER, CVC, HOLDER, EXPIRY, "1234", USERNAME, PASSWORD] {
+    assert!(!said.contains(value), "a secret value stands in: {said}");
   }
+}
+
+fn reads_nothing_past_the_settings(stand: &Stand) {
+  assert_eq!(
+    stand.asked(),
+    [(Method::GET, "/settings".to_owned())],
+    "nothing past the settings is read"
+  );
 }
 
 #[tokio::test]
 async fn a_call_naming_no_amount_is_refused_and_reaches_nothing() {
   let stand = Stand::kept(Some(3.5));
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
 
   for input in [TopUpInput { amount: None }, amount(0.0), amount(-5.0), amount(f64::NAN)] {
     let refused = top_up(&stand, root.path(), input).await.unwrap_err();
@@ -160,7 +218,7 @@ async fn a_call_naming_no_amount_is_refused_and_reaches_nothing() {
 
 #[tokio::test]
 async fn a_call_handed_no_arguments_or_a_card_is_refused_before_anything_is_read() {
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
   let handed = |arguments: Value| Handed {
     protocol: PROTOCOL,
     asked: Asked::Call {
@@ -178,100 +236,140 @@ async fn a_call_handed_no_arguments_or_a_card_is_refused_before_anything_is_read
   assert_eq!(none["isError"], true);
   assert!(none["content"][0]["text"].as_str().unwrap().contains("Name the amount"), "{none}");
 
-  let card = answer(handed(json!({ "amount": 10, "CARD_NUMBER": NUMBER }))).await.unwrap();
-  let said = card["content"][0]["text"].as_str().unwrap();
+  for wrong in [
+    json!({ "amount": 10, "CARD_NUMBER": NUMBER }),
+    json!({ "amount": 10, "PASSWORD": PASSWORD }),
+  ] {
+    let refused = answer(handed(wrong)).await.unwrap();
 
-  assert_eq!(card["isError"], true);
-  assert_eq!(said, "ERROR: the call names amount, a number, and nothing else");
+    assert_eq!(refused["isError"], true);
+    assert_eq!(
+      refused["content"][0]["text"].as_str().unwrap(),
+      "ERROR: the call names amount, a number, and nothing else"
+    );
+  }
 
   let wrong = answer(handed(json!({ "amount": NUMBER }))).await.unwrap();
 
-  holds_no_card_value(&wrong.to_string());
+  holds_no_secret_value(&wrong.to_string());
 }
 
 #[tokio::test]
-async fn a_card_standing_nowhere_is_refused_with_the_secret_to_ask_for() {
-  let stand = Stand::kept(Some(3.5));
-  let root = data_root(None);
-
-  let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
-
-  assert!(refused.contains(CARD) && refused.contains("kind card"), "{refused}");
-  assert_eq!(
-    stand.asked(),
-    [(Method::GET, "/settings".to_owned())],
-    "nothing past the setting is read"
-  );
-}
-
-#[tokio::test]
-async fn a_setting_naming_no_card_secret_is_refused_with_the_setting_to_fill() {
-  let root = data_root(Some(&whole_card()));
+async fn a_setting_naming_no_secret_is_refused_with_the_setting_to_fill() {
+  let root = saved_root();
 
   for unset in [None, Some(""), Some("  ")] {
-    let stand = Stand::naming(unset);
-    let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
+    let card = Stand::naming(unset, Some(LOGIN));
+    let refused = top_up(&card, root.path(), amount(10.0)).await.unwrap_err();
 
     assert!(
-      refused.contains("fill agency's setting deepseekCardSecret") && refused.contains("kind card"),
+      refused.contains("fill agency's setting deepseekCardSecret") && refused.contains("kind card,"),
       "{refused}"
     );
-    assert_eq!(
-      stand.asked(),
-      [(Method::GET, "/settings".to_owned())],
-      "nothing past the setting is read"
+    reads_nothing_past_the_settings(&card);
+
+    let login = Stand::naming(Some(CARD), unset);
+    let refused = top_up(&login, root.path(), amount(10.0)).await.unwrap_err();
+
+    assert!(
+      refused.starts_with("No DeepSeek login secret is named")
+        && refused.contains("fill agency's setting deepseekLoginSecret")
+        && refused.contains("kind account-login"),
+      "{refused}"
     );
+    reads_nothing_past_the_settings(&login);
   }
 }
 
 #[tokio::test]
-async fn the_card_is_read_from_the_secret_the_setting_names_at_the_call() {
-  let root = data_root(Some(&whole_card()));
+async fn a_secret_standing_nowhere_is_refused_with_the_secret_to_ask_for() {
+  let stand = Stand::kept(Some(3.5));
 
-  let named = top_up(&Stand::naming(Some(CARD)), root.path(), amount(10.0)).await.unwrap();
+  let card = top_up(&stand, data_root(None, Some(&whole_login())).path(), amount(10.0))
+    .await
+    .unwrap_err();
 
-  assert!(named.contains(&format!("with the card saved as {CARD},")), "{named}");
+  assert!(
+    card.starts_with("No card is saved") && card.contains(CARD) && card.contains("kind card"),
+    "{card}"
+  );
 
-  let elsewhere = top_up(&Stand::naming(Some("other-card")), root.path(), amount(10.0)).await.unwrap_err();
+  let login = top_up(&stand, data_root(Some(&whole_card()), None).path(), amount(10.0))
+    .await
+    .unwrap_err();
+
+  assert!(
+    login.starts_with("No DeepSeek login is saved")
+      && login.contains(LOGIN)
+      && login.contains("kind account-login"),
+    "{login}"
+  );
+}
+
+#[tokio::test]
+async fn each_secret_is_read_from_the_one_its_setting_names_at_the_call() {
+  let root = saved_root();
+
+  let elsewhere = top_up(&Stand::naming(Some("other-card"), Some(LOGIN)), root.path(), amount(10.0))
+    .await
+    .unwrap_err();
 
   assert!(
     elsewhere.starts_with("No card is saved") && elsewhere.contains("other-card"),
     "{elsewhere}"
   );
+
+  let elsewhere = top_up(&Stand::naming(Some(CARD), Some("other-login")), root.path(), amount(10.0))
+    .await
+    .unwrap_err();
+
+  assert!(
+    elsewhere.starts_with("No DeepSeek login is saved") && elsewhere.contains("other-login"),
+    "{elsewhere}"
+  );
 }
 
 #[tokio::test]
-async fn a_card_lacking_its_fields_is_refused_naming_the_keys_alone() {
+async fn a_secret_lacking_its_fields_is_refused_naming_the_keys_alone() {
   let stand = Stand::kept(Some(3.5));
-  let root = data_root(Some(&[("CARD_NUMBER", NUMBER), ("CARD_CVC", " "), ("CARD_EXPIRY", EXPIRY)]));
+  let card = [("CARD_NUMBER", NUMBER), ("CARD_CVC", " "), ("CARD_EXPIRY", EXPIRY)];
+  let root = data_root(Some(&card), Some(&whole_login()));
 
   let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
 
   assert!(refused.contains("lacks CARD_CVC, CARD_HOLDER_NAME:"), "{refused}");
-  holds_no_card_value(&refused);
-  assert_eq!(
-    stand.asked(),
-    [(Method::GET, "/settings".to_owned())],
-    "nothing past the setting is read"
+  holds_no_secret_value(&refused);
+  reads_nothing_past_the_settings(&stand);
+
+  let stand = Stand::kept(Some(3.5));
+  let root = data_root(Some(&whole_card()), Some(&[("USERNAME", USERNAME)]));
+
+  let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
+
+  assert!(
+    refused.starts_with("The DeepSeek login saved as saved-login lacks PASSWORD:"),
+    "{refused}"
   );
+  holds_no_secret_value(&refused);
+  reads_nothing_past_the_settings(&stand);
 }
 
 #[tokio::test]
 async fn an_amount_over_the_cap_is_refused_with_the_cap_and_its_reason() {
   let stand = Stand::kept(Some(3.5));
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
 
   let refused = top_up(&stand, root.path(), amount(50.01)).await.unwrap_err();
 
   assert!(refused.starts_with("50.01 USD is over the single top-up cap of 50 USD: "), "{refused}");
   assert!(refused.contains("a mistaken amount or a repeated call"), "{refused}");
-  holds_no_card_value(&refused);
+  holds_no_secret_value(&refused);
 }
 
 #[tokio::test]
 async fn a_balance_never_read_leaves_the_currency_unknown_and_is_refused() {
   let stand = Stand::kept(None);
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
 
   let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
 
@@ -281,7 +379,7 @@ async fn a_balance_never_read_leaves_the_currency_unknown_and_is_refused() {
 #[tokio::test]
 async fn an_agency_that_cannot_answer_the_balance_refuses_the_call() {
   let stand = Stand::failing();
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
 
   let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
 
@@ -289,29 +387,56 @@ async fn an_agency_that_cannot_answer_the_balance_refuses_the_call() {
 }
 
 #[tokio::test]
-async fn a_call_passing_every_check_pays_nothing_and_says_what_a_person_does() {
-  let stand = Stand::kept(Some(3.5));
-  let root = data_root(Some(&whole_card()));
+async fn a_balance_kept_in_yuan_is_paid_by_no_card_and_says_what_a_person_does() {
+  let stand = Stand {
+    currency: "CNY",
+    ..Stand::kept(Some(3.5))
+  };
+  let root = saved_root();
 
-  let said = top_up(&stand, root.path(), amount(50.0)).await.unwrap();
+  let said = top_up(&stand, root.path(), amount(100.0)).await.unwrap();
 
-  assert!(said.starts_with("Nothing was paid: DeepSeek takes no payment by machine"), "{said}");
-  assert!(said.contains("https://platform.deepseek.com/top_up, adding 50 USD"), "{said}");
+  assert!(
+    said.starts_with("Nothing was paid: DeepSeek takes no card for a balance kept in CNY"),
+    "{said}"
+  );
+  assert!(said.contains("https://platform.deepseek.com/top_up"), "{said}");
   assert!(
     said.ends_with(
-      "Paid: 0 USD. Balance: 3.5 USD, as the balance reader last read it at 2026-11-14T23:46:40Z."
+      "Paid: 0 CNY. Balance: 3.5 CNY, as the balance reader last read it at 2026-11-14T23:46:40Z."
     ),
     "{said}"
   );
-  holds_no_card_value(&said);
+  assert!(!root.path().join("deepseek-top-up").exists(), "no browser was started");
 }
 
 #[tokio::test]
-async fn no_call_moves_the_balance_or_asks_agency_anything_but_its_reads() {
+async fn a_browser_another_call_holds_refuses_the_call_and_pays_nothing() {
   let stand = Stand::kept(Some(3.5));
-  let root = data_root(Some(&whole_card()));
+  let root = saved_root();
+  let folder = root.path().join("deepseek-top-up");
 
-  for input in [amount(10.0), amount(500.0), TopUpInput { amount: None }] {
+  std::fs::create_dir_all(&folder).unwrap();
+
+  let held = std::fs::File::create(folder.join("browser.lock")).unwrap();
+
+  held.lock().unwrap();
+
+  let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
+
+  assert!(
+    refused.starts_with("Nothing was paid: another DeepSeek top-up is under way"),
+    "{refused}"
+  );
+  assert!(!folder.join("profile").join("DevToolsActivePort").exists(), "no browser was started");
+}
+
+#[tokio::test]
+async fn no_refused_call_moves_the_balance_or_asks_agency_anything_but_its_reads() {
+  let stand = Stand::kept(Some(3.5));
+  let root = saved_root();
+
+  for input in [amount(500.0), TopUpInput { amount: None }] {
     let _ = top_up(&stand, root.path(), input).await;
   }
 
@@ -322,8 +447,4 @@ async fn no_call_moves_the_balance_or_asks_agency_anything_but_its_reads() {
     assert_eq!(method, Method::GET);
     assert!(["/settings", "/providers/deepseek"].contains(&path.as_str()), "{path}");
   }
-
-  let after = top_up(&stand, root.path(), amount(1.0)).await.unwrap();
-
-  assert!(after.contains("Balance: 3.5 USD"), "{after}");
 }

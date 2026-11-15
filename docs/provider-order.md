@@ -35,13 +35,16 @@ one provider at once. How the Claude Code provider walks its own accounts inside
     zero, and none once it is at or below zero; a balance never read reads as quota;
   - **the registry's provider** — a registered model on the deployment's own engine — always has quota;
   - **a provider that reports neither** has quota.
-- **A spent balance is topped up only on the owner's word, and only by a person.** The supervisor's DeepSeek
-  top-up (`docs/tools.md`, 「The DeepSeek top-up」) runs only when called with the amount the owner names. One
-  call is held to the cap `policy/providers/deepseek.toml` holds for the balance's currency, and the card is read
-  from the console's secret store, from the secret agency's setting `deepseekCardSecret` names (`docs/api.md`,
-  「settings」), which the owner changes with no deployment; with the setting empty every call is refused. DeepSeek takes no payment by machine, so the call pays nothing. It answers
-  what a person does on DeepSeek's platform and the balance as its reader last kept it. The quota stays closed
-  until the balance reader reads a balance above zero.
+- **A spent balance is topped up only on the owner's word.** The supervisor's DeepSeek top-up (`docs/tools.md`,
+  「The DeepSeek top-up」) runs only when called with the amount the owner names, and pays at most once a call.
+  One call is held to the cap `policy/providers/deepseek.toml` holds for the balance's currency. The card and
+  the DeepSeek login are read from the console's secret store, from the secrets agency's settings
+  `deepseekCardSecret` and `deepseekLoginSecret` name (`docs/api.md`, 「settings」), which the owner changes with
+  no deployment; with either setting empty every call is refused. DeepSeek has no payment API, so the tool pays
+  on its web platform in the machine's own browser, signed in with that login. A step only a person can take,
+  such as a human check, a sign-in code or the card issuer's confirmation, stops it there: it answers the
+  sentence the person acts on and pays nothing it was not confirmed for. It answers the amount paid and the balance its
+  reader kept after the payment. The quota stays closed until the balance reader reads a balance above zero.
 - **Claude Code's quota is its accounts':** the provider has quota while one of its open accounts has quota
   above the share by its own least-left window, and its account walk offers that account first
   (`docs/cache-fallback.md`, 「The account judgement」).

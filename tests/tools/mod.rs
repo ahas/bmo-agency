@@ -9,6 +9,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 
 mod call;
 mod deepseek_top_up;
+mod deepseek_top_up_payment;
 mod delegate;
 mod manifests;
 mod procedures;
