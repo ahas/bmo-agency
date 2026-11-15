@@ -1439,7 +1439,8 @@ service.
     `repository` is 400 `bad-request`. An item for work in no repository, host work, names none and goes to
     whichever worker its launch names;
   - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
-    the owner's — and lose any `asked-by` the call names, so the job service's unattended labels open an item
+    the owner's, said under the owner's own sender, which the account service links to the owner's account, whatever
+    surface it came through, the console's included (`STRUCTURE.md`, 「In the console a person is their account」) — and lose any `asked-by` the call names, so the job service's unattended labels open an item
     the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft
     until an approver approves it: the owner, or the supervisor itself where the deployment marks the chat's
     caller an approver in the job service, for the routine work its own instructions let it judge; agency
