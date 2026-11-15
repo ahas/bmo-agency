@@ -5,6 +5,7 @@
 //! is never answered, logged or written anywhere.
 
 mod browser;
+mod mail;
 mod platform;
 mod secret;
 
@@ -22,7 +23,8 @@ use serde_json::{Value, json};
 use tool_call::{Answer, Asked, Control, Handed, Session};
 
 pub use browser::{Place, chrome_arguments};
-pub use platform::{Paid, Platform, Stop, Waits};
+pub use mail::MailService;
+pub use platform::{MailRoad, Paid, Platform, Stop, Waits};
 pub use secret::{Saved, SecretFault};
 
 /// The tool's namespace and entry.
@@ -91,6 +93,14 @@ impl Payer {
           step: Duration::from_secs(waits.step),
           confirm: Duration::from_secs(waits.confirm),
           look: Duration::from_millis(waits.look_ms),
+        },
+        mail: MailRoad {
+          service: MailService::read(data_root, |name| std::env::var(name).ok()),
+          senders: policy.mail.senders.clone(),
+          link_words: policy.mail.link_words.clone(),
+          code_digits: policy.mail.code_digits,
+          wait: Duration::from_secs(waits.mail),
+          look: Duration::from_secs(waits.mail_look),
         },
       },
       balance_wait: Duration::from_secs(waits.balance),

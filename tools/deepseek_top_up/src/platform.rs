@@ -11,7 +11,10 @@ use policy::providers::deepseek::PageWords;
 use tokio::time::Instant;
 use url::Url;
 
+use std::collections::BTreeSet;
+
 use crate::browser::{Browser, Lost, Place, Unopened, Wanted};
+use crate::mail::{Bodies, MailService};
 use crate::secret::Saved;
 
 /// The card's field keys, as the console's kind `card` writes them.
@@ -32,6 +35,20 @@ pub struct Platform {
   pub sign_in_path: String,
   pub place: Place,
   pub waits: Waits,
+  pub mail: MailRoad,
+}
+
+/// Where the mail approving the sign-in's check is read and what it is read for: the mail service, none where it
+/// is named nowhere; the domains DeepSeek mails from and links to; the words of an approval link; the code's
+/// length; and how long the mailbox is waited on and how often it is read meanwhile.
+#[derive(Debug, Clone)]
+pub struct MailRoad {
+  pub service: Option<MailService>,
+  pub senders: Vec<String>,
+  pub link_words: Vec<String>,
+  pub code_digits: usize,
+  pub wait: Duration,
+  pub look: Duration,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -88,6 +105,31 @@ pub enum Paid {
   Refused,
   /// No outcome within the confirmation wait: a person's confirmation not given, or a page the tool could not read.
   Unconfirmed,
+}
+
+/// How the sign-in's check was approved.
+#[derive(Debug, PartialEq, Eq)]
+enum Approval {
+  Code,
+  Link,
+}
+
+/// What a mail gives to approve the check with.
+enum Found {
+  Code(String),
+  Link(String),
+}
+
+/// Each run of ASCII digits in a text.
+fn digit_runs(text: &str) -> impl Iterator<Item = &str> {
+  text.split(|character: char| !character.is_ascii_digit()).filter(|run| !run.is_empty())
+}
+
+/// The moment now, in epoch milliseconds.
+fn now_ms() -> i64 {
+  std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map_or(0, |since| i64::try_from(since.as_millis()).unwrap_or(i64::MAX))
 }
 
 /// What the page shows at one look: the main frame's address and text, and every frame's address and text.
@@ -226,6 +268,10 @@ impl<'a> Drive<'a> {
     };
     let mut signed = false;
     let mut sent_back = false;
+    let mut checked = false;
+    let mut linked = false;
+    let mut signed_again = false;
+    let mut began = 0;
     let mut deadline = Instant::now() + self.platform.waits.step;
 
     self.browser.go(&top_up).await.map_err(|_| Stop::Lost("the top-up page"))?;
@@ -249,14 +295,23 @@ impl<'a> Drive<'a> {
         return Err(Stop::IdentityAsked);
       }
 
-      if path.starts_with(&self.platform.sign_in_path) {
-        if signed {
-          if shows(&look.text, &self.words.sign_in_refused) {
-            return Err(Stop::SignInRefused);
-          }
-        } else {
+      if signed && !checked && shows(&look.text, &self.words.check_asked) {
+        // The sign-in waits on a check of the account: approved from DeepSeek's mail, once.
+        checked = true;
+        linked = self.approve_by_mail(login, began).await? == Approval::Link;
+        deadline = Instant::now() + self.platform.waits.step;
+      } else if path.starts_with(&self.platform.sign_in_path) {
+        if !signed {
+          began = now_ms();
           self.sign_in(login).await?;
           signed = true;
+          deadline = Instant::now() + self.platform.waits.step;
+        } else if shows(&look.text, &self.words.sign_in_refused) {
+          return Err(Stop::SignInRefused);
+        } else if linked && !signed_again {
+          // A link opened in this profile approves the device; the sign-in is then made again, once.
+          signed_again = true;
+          self.sign_in(login).await?;
           deadline = Instant::now() + self.platform.waits.step;
         }
       } else if path.starts_with(&self.platform.top_up_path) {
@@ -283,6 +338,114 @@ impl<'a> Drive<'a> {
 
       self.pause().await;
     }
+  }
+
+  /// The sign-in's check approved from DeepSeek's mail to the login's address: a code asked for where the check
+  /// offers to send one, then the mail that reached the mailbox after the sign-in began, at `began` in epoch
+  /// milliseconds, read within the mail wait for a code, typed and confirmed, or a link, opened in this profile.
+  /// No mail in time, or no mailbox to read, is the person's step.
+  async fn approve_by_mail(&mut self, login: &Saved, began: i64) -> Result<Approval, Stop> {
+    let what = "the sign-in's check";
+    let road = &self.platform.mail;
+    let Some(service) = road.service.clone() else {
+      return Err(Stop::PersonAsked);
+    };
+    let Some(account) = service.account_for(login.value(USERNAME)).await else {
+      return Err(Stop::PersonAsked);
+    };
+    let words = self.words;
+
+    if let Ok(frames) = self.browser.frames().await
+      && let Some((main, _)) = frames.first()
+      && let Ok(Some(send)) = self
+        .browser
+        .find(
+          main,
+          &Wanted::Control {
+            words: &words.send_code,
+          },
+        )
+        .await
+    {
+      self.browser.press(&send).await.map_err(|_| Stop::Lost(what))?;
+    }
+
+    let deadline = Instant::now() + road.wait;
+    let mut seen = BTreeSet::new();
+
+    let found = 'waiting: loop {
+      for bodies in service.fresh(&account, &road.senders, began.saturating_sub(1_000), &mut seen).await {
+        if let Some(found) = self.read_approval(&bodies).await {
+          break 'waiting found;
+        }
+      }
+
+      if Instant::now() >= deadline {
+        return Err(Stop::PersonAsked);
+      }
+
+      tokio::time::sleep(road.look).await;
+    };
+
+    match found {
+      Found::Code(code) => {
+        let field = self
+          .wait_main(
+            &Wanted::Field {
+              words: &words.code_field,
+              purposes: &["one-time-code"],
+              password: false,
+              alone: false,
+            },
+            "the sign-in's code field",
+          )
+          .await?;
+
+        self.type_into(&field, &code, "the sign-in's code field").await?;
+        self.press_main(&words.code_submit, "the sign-in's confirmation").await?;
+        Ok(Approval::Code)
+      }
+      Found::Link(link) => {
+        self
+          .browser
+          .visit(&link, self.platform.waits.step)
+          .await
+          .map_err(|_| Stop::Lost(what))?;
+        Ok(Approval::Link)
+      }
+    }
+  }
+
+  /// What one mail approves the check with: the one run of digits of the code's length its words hold, else a
+  /// link on one of DeepSeek's hosts whose address or words name an approval.
+  async fn read_approval(&mut self, bodies: &Bodies) -> Option<Found> {
+    let road = &self.platform.mail;
+    let (mut text, links) = match &bodies.html {
+      Some(html) => self.browser.read_mail(html).await.ok()?,
+      None => (String::new(), Vec::new()),
+    };
+
+    text.push('\n');
+    text.push_str(bodies.text.as_deref().unwrap_or_default());
+
+    let codes: BTreeSet<&str> = digit_runs(&text).filter(|run| run.len() == road.code_digits).collect();
+
+    if let [code] = codes.into_iter().collect::<Vec<_>>().as_slice() {
+      return Some(Found::Code((*code).to_owned()));
+    }
+
+    links.into_iter().find_map(|(address, words)| {
+      let parsed = Url::parse(&address).ok()?;
+      let host = parsed.host_str()?;
+      let ours = road
+        .senders
+        .iter()
+        .any(|sender| host == sender || host.ends_with(&format!(".{sender}")));
+      let said = format!("{} {}", address.to_lowercase(), words.to_lowercase());
+      let approving = road.link_words.iter().any(|word| said.contains(&word.to_lowercase()));
+
+      (ours && approving && matches!(parsed.scheme(), "http" | "https")).then_some(Found::Link(address))
+    })
   }
 
   /// The sign-in form filled with the login and sent, once.

@@ -1880,7 +1880,14 @@ back, a namespace's facts, the paragraph on finding and using tools that a chat 
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
 reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a role's session's instruction
 calls for, picked over the supervisor's brain, and attaches the picked entries to the run's first prompt; and it
-reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
+reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here. Of the
+mail service the DeepSeek top-up asks, while DeepSeek's sign-in waits on a code or a link it mails, `GET
+/accounts` for the account carrying the DeepSeek login's address, then `GET /accounts/{accountName}/messages` with
+`q` naming DeepSeek's sender and `after` the moment the sign-in began, and `GET
+/accounts/{accountName}/messages/{messageId}` for each message's bodies (`docs/tools.md`, 「Where a person is
+asked」). It reaches the service at `BMO_MAIL_ADDRESS` with `BMO_MAIL_TOKEN`, acting for `BMO_MAIL_OWNER` with the
+role `administrator`, each else from the mail unit's settings file `env/mail.toml` under the data root: its
+`server.listen`, `server.token` and `accounts.administrator`.
 
 - **Where the arbiter's master is.** `AGENCY_ARBITER_URL` names its address and `AGENCY_ARBITER_TOKEN_FILE`
   the arbiter deployment's settings file whose `CARD_MASTER_TOKEN` is its token. A run on a registration

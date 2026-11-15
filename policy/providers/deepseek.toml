@@ -116,15 +116,26 @@ screen = "1280x900x24"
 folder = "deepseek-top-up"
 
 # Each wait of a call, in seconds: the browser answering, each step's page or control, the outcome of a payment
-# pressed with a person's confirmation in it, and the balance reader's next reading after a payment, past its
-# five-minute pass; and how often a waited page is looked at, in milliseconds, and the balance, in seconds.
+# pressed with a person's confirmation in it, the balance reader's next reading after a payment, past its
+# five-minute pass, and DeepSeek's mail for the sign-in's check; and how often a waited page is looked at, in
+# milliseconds, and the balance and the mailbox, in seconds.
 [top_up.waits]
 start = 30
 step = 45
 confirm = 300
 balance = 420
+mail = 180
 look_ms = 500
 balance_look = 15
+mail_look = 5
+
+# The mail that approves the sign-in's check (docs/tools.md, 「Where a person is asked」): the domains DeepSeek
+# mails from and links to, each matched with its subdomains; the words an approval link's address or text holds;
+# and how many digits a sign-in code has.
+[top_up.mail]
+senders = ["deepseek.com"]
+link_words = ["approve", "confirm", "verify", "authorize", "allow"]
+code_digits = 6
 
 # The words the platform's English pages show its controls and outcomes by, each matched without regard to case.
 [top_up.page]
@@ -144,9 +155,13 @@ card_holder = ["Cardholder", "Name on card"]
 paid = ["Payment successful"]
 refused = ["Payment failed", "Recharge failed", "Invalid card", "card type not supported", "Insufficient balance", "Order timed out", "Card declined"]
 sign_in_refused = ["password is incorrect", "Login failed", "account was suspended", "account has been suspended"]
-person_asked = ["confirm you are human", "security check", "verification code", "Send code", "Verify it's you"]
+person_asked = ["confirm you are human", "security check"]
 person_asked_frames = ["hcaptcha.com", "challenges.cloudflare.com", "captcha.awswaf.com"]
 identity_asked = ["real-name verification", "Identity Verification"]
+check_asked = ["Verify your account", "Enter verification code", "confirmation link", "check your email"]
+send_code = ["Send code"]
+code_field = ["verification code", "code"]
+code_submit = ["Verify and log in", "Verify", "Confirm"]
 
 # What the tool answers. Each `{name}` is filled in with what it names.
 [top_up.words]
@@ -179,7 +194,7 @@ browser_lost = "Nothing was paid: the browser the DeepSeek top-up pays in stoppe
 # A step's page or control did not show as the tool finds it.
 page_unread = "Nothing was paid: DeepSeek's platform did not show {what} within {seconds} seconds, so the tool stopped there, before the payment."
 # DeepSeek asks a person to finish the sign-in.
-person_asked = "Nothing was paid: DeepSeek asks a person to finish signing in, with a human check or a code it sends to the account, which the tool never does. A person signs the tool's browser in once at this machine's desktop with `{command}`, closes it, and then the top-up is asked again."
+person_asked = "Nothing was paid: DeepSeek asks a person to finish signing in, with a human check, or with a check of the account no mail from DeepSeek approved in time, which the tool does not do otherwise. A person signs the tool's browser in once at this machine's desktop with `{command}`, closes it, and then the top-up is asked again."
 # DeepSeek refused the login.
 sign_in_refused = "Nothing was paid: DeepSeek refused the sign-in with the login saved as {secret}: save it again in the kind {kind} with the account's sign-in and password, then call again."
 # DeepSeek asks for the account's identity verification.

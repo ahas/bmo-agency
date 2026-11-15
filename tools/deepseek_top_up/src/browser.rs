@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::fs::{File, TryLockError};
+use std::net::{Ipv4Addr, TcpListener};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -177,8 +178,10 @@ fn first_preferences(profile: &Path) -> std::io::Result<()> {
 
 /// The arguments the browser is started with, beside the executable: its profile, the password store kept in the
 /// profile so no keyring of the person's session is asked, English pages, cross-site frames in the page's own
-/// process, no crash reporter, and a loopback DevTools endpoint on a port it picks itself.
-pub fn chrome_arguments(profile: &Path) -> Vec<String> {
+/// process, no crash reporter, and a loopback DevTools endpoint on the port given. The port is chosen by the
+/// tool, never left to the browser: DeepSeek's bot check meets a browser told to pick its own DevTools port with
+/// a human check, and lets one given its port through.
+pub fn chrome_arguments(profile: &Path, port: u16) -> Vec<String> {
   vec![
     format!("--user-data-dir={}", profile.display()),
     "--password-store=basic".to_owned(),
@@ -192,19 +195,14 @@ pub fn chrome_arguments(profile: &Path) -> Vec<String> {
     "--ozone-platform=x11".to_owned(),
     "--window-size=1280,900".to_owned(),
     "--remote-debugging-address=127.0.0.1".to_owned(),
-    "--remote-debugging-port=0".to_owned(),
+    format!("--remote-debugging-port={port}"),
     "about:blank".to_owned(),
   ]
 }
 
-/// The DevTools address the browser wrote into its profile once it listens: its port and its path.
-fn devtools_address(profile: &Path) -> Option<String> {
-  let written = std::fs::read_to_string(profile.join("DevToolsActivePort")).ok()?;
-  let mut lines = written.lines();
-  let port = lines.next()?.trim().parse::<u16>().ok()?;
-  let path = lines.next()?.trim();
-
-  path.starts_with('/').then(|| format!("ws://127.0.0.1:{port}{path}"))
+/// A loopback port free at this moment, for the browser's DevTools endpoint.
+fn free_port() -> std::io::Result<u16> {
+  Ok(TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?.local_addr()?.port())
 }
 
 /// Ends a process group: asked to end first, so `xvfb-run` clears its screen's files, then killed with whatever
@@ -237,10 +235,7 @@ impl Browser {
     let run = place.folder.join("run");
 
     // The profile holds the platform's sign-in, so its folder is the account's alone.
-    for folder in [&profile, &run] {
-      std::fs::create_dir_all(folder).map_err(|why| Unopened::Start(format!("its folder: {why}")))?;
-    }
-
+    std::fs::create_dir_all(&place.folder).map_err(|why| Unopened::Start(format!("its folder: {why}")))?;
     std::fs::set_permissions(&place.folder, std::fs::Permissions::from_mode(0o700))
       .map_err(|why| Unopened::Start(format!("its folder: {why}")))?;
 
@@ -253,14 +248,18 @@ impl Browser {
       Err(TryLockError::Error(why)) => return Err(Unopened::Start(format!("its lock: {why}"))),
     }
 
+    for folder in [&profile, &run] {
+      std::fs::create_dir_all(folder).map_err(|why| Unopened::Start(format!("its folder: {why}")))?;
+    }
+
     first_preferences(&profile).map_err(|why| Unopened::Start(format!("its preferences: {why}")))?;
-    let _ = std::fs::remove_file(profile.join("DevToolsActivePort"));
+    let port = free_port().map_err(|why| Unopened::Start(format!("no loopback port was free: {why}")))?;
 
     let mut screen = Command::new("xvfb-run")
       .arg("--auto-servernum")
       .arg(format!("--server-args=-screen 0 {} -nolisten tcp", place.screen))
       .arg(&place.chrome)
-      .args(chrome_arguments(&profile))
+      .args(chrome_arguments(&profile, port))
       .args(&place.added)
       .env_clear()
       .env("PATH", std::env::var_os("PATH").unwrap_or_default())
@@ -276,7 +275,7 @@ impl Browser {
       .spawn()
       .map_err(|why| Unopened::Start(format!("xvfb-run could not run: {why}")))?;
 
-    let address = match Self::listening(&mut screen, &profile, place.start).await {
+    let address = match Self::listening(&mut screen, port, place.start).await {
       Ok(address) => address,
       Err(why) => {
         end_group(&mut screen);
@@ -344,13 +343,13 @@ impl Browser {
     }
   }
 
-  /// The DevTools address, once the browser has written it, within the start wait.
-  async fn listening(screen: &mut Child, profile: &Path, start: Duration) -> Result<String, String> {
+  /// The DevTools endpoint's address, once the browser accepts a connection on its port, within the start wait.
+  async fn listening(screen: &mut Child, port: u16, start: Duration) -> Result<String, String> {
     let deadline = tokio::time::Instant::now() + start;
 
     loop {
-      if let Some(address) = devtools_address(profile) {
-        return Ok(address);
+      if tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await.is_ok() {
+        return Ok(format!("http://127.0.0.1:{port}"));
       }
 
       if let Ok(Some(status)) = screen.try_wait() {
@@ -465,6 +464,55 @@ impl Browser {
     }
 
     Ok(None)
+  }
+
+  /// A mail's HTML read by the browser's own HTML reader, in the main frame's world of the tool's own: its visible
+  /// words, styles and scripts left out, and each link's address and words. A document so read runs nothing.
+  pub async fn read_mail(&mut self, html: &str) -> Result<(String, Vec<(String, String)>), Lost> {
+    const READ: &str = r#"(html) => {
+      const read = new DOMParser().parseFromString(html, "text/html");
+      read.querySelectorAll("style, script, head").forEach((element) => element.remove());
+      return {
+        text: read.body ? read.body.textContent : "",
+        links: [...read.querySelectorAll("a[href]")].map((link) => [link.getAttribute("href"), link.textContent]),
+      };
+    }"#;
+    let main = self.frames().await?.into_iter().next().map(|(frame, _)| frame).ok_or(Lost)?;
+    let read = self.evaluate(&main, &format!("({READ})({})", Value::from(html)), true).await?;
+    let read = read.value.unwrap_or(Value::Null);
+    let text = read["text"].as_str().unwrap_or_default().to_owned();
+    let links = read["links"]
+      .as_array()
+      .into_iter()
+      .flatten()
+      .filter_map(|link| {
+        Some((link[0].as_str()?.to_owned(), link[1].as_str().unwrap_or_default().to_owned()))
+      })
+      .collect();
+
+    Ok((text, links))
+  }
+
+  /// An address opened in a tab of its own of the same browser and profile, as a person opens a mailed link: the
+  /// tab is left once its page has loaded or the wait is out, and the page the call drives is brought back to the
+  /// front.
+  pub async fn visit(&self, address: &str, wait: Duration) -> Result<(), Lost> {
+    let tab = self.browser.new_page(address).await?;
+    let deadline = tokio::time::Instant::now() + wait;
+
+    while tokio::time::Instant::now() < deadline {
+      let loaded = tab.evaluate_expression("document.readyState === 'complete'").await;
+
+      if loaded.ok().and_then(|answered| answered.into_value::<bool>().ok()) == Some(true) {
+        break;
+      }
+
+      tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    let _ = tab.close().await;
+    self.page.bring_to_front().await?;
+    Ok(())
   }
 
   /// A press of an element where a person's pointer would press it: its middle, once it is scrolled into view.

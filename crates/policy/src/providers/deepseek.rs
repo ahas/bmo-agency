@@ -43,6 +43,7 @@ pub struct TopUp {
   pub cap: BTreeMap<String, f64>,
   pub platform: Platform,
   pub waits: Waits,
+  pub mail: MailRoad,
   pub page: PageWords,
   pub words: TopUpWords,
 }
@@ -87,8 +88,21 @@ pub struct Waits {
   pub confirm: u64,
   /// For the balance reader to read the balance after a payment.
   pub balance: u64,
+  /// For DeepSeek's mail approving the sign-in's check.
+  pub mail: u64,
   pub look_ms: u64,
   pub balance_look: u64,
+  pub mail_look: u64,
+}
+
+/// The mail that approves the sign-in's check: the domains DeepSeek mails from and links to, the words an approval
+/// link's address or text holds, and how many digits a sign-in code has.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MailRoad {
+  pub senders: Vec<String>,
+  pub link_words: Vec<String>,
+  pub code_digits: usize,
 }
 
 /// The words the platform's controls and outcomes are found by, as its English pages show them; a control is
@@ -123,6 +137,12 @@ pub struct PageWords {
   /// The hosts of the frames a human check stands in.
   pub person_asked_frames: Vec<String>,
   pub identity_asked: Vec<String>,
+  /// The sign-in's check of the account, by the words it shows; its control that sends a code, its code field by
+  /// its placeholder or label, and its confirmation.
+  pub check_asked: Vec<String>,
+  pub send_code: Vec<String>,
+  pub code_field: Vec<String>,
+  pub code_submit: Vec<String>,
 }
 
 /// What the top-up tool answers, each `{name}` filled in with what it names.

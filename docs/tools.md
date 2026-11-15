@@ -264,7 +264,8 @@ belongs to no one service is a repository of its own, not a folder here.
 - **DeepSeek has no payment API:** its top-up is made only on its web platform by a signed-in account, behind a
   bot check that refuses a headless browser and a browser started for automation. So the tool drives the
   machine's own Chrome as a person's browser stands: stable Chrome, not headless, on a virtual screen of its own
-  (Xvfb, through `xvfb-run`), started with no automation switch and driven over its loopback DevTools endpoint.
+  (Xvfb, through `xvfb-run`), started with no automation switch and driven over its loopback DevTools endpoint,
+  on a port the tool chooses: a browser left to choose its own DevTools port is met with the human check.
   Its cross-site frames run in the page's own process, so the card frames a payment processor puts on the page
   are reached as the page's own.
 - **The browser keeps one profile,** under the data root's `deepseek-top-up/`, so a sign-in stands from one call
@@ -286,11 +287,28 @@ belongs to no one service is a repository of its own, not a folder here.
 
 ### Where a person is asked
 
+- **The sign-in's check is approved from the platform's own mailbox.** Where DeepSeek holds the sign-in for a
+  check of the account it mails, the tool approves it itself from the mail service, bmo-mail, as the API
+  document's 「Calls agency makes」 says it is reached:
+  1. Where the check offers to send a code, the tool asks for it, once.
+  2. It reads the mail account carrying the DeepSeek login's address for mail from DeepSeek's sender that
+     reached it after the sign-in began, within the policy's mail wait, looking again at the policy's mail
+     pace.
+  3. A mail's bodies are read by the browser's own HTML reader. A mail whose text holds one run of digits of the
+     policy's code length gives the code, which the tool types into the check's code field before pressing its
+     confirmation. A mail with a link on one of DeepSeek's hosts whose address or words name an approval gives
+     the link, which the tool opens in the same browser profile, then signs in again, once.
+  4. Where no such mail comes within the wait, or no mail account carries the login's address, or the mail
+     service cannot be asked, the call ends before any card is entered, as a person's step below.
+  - No code or link leaves the tool: none is answered, written to its error stream or kept.
+  - The tool needs no capability or grant of the tool host for it: it reaches the mail service directly, with
+    the mail unit's own token.
 - **The tool does nothing a person must do, and stops where the platform asks for one:**
-  - **a human check or a sign-in code.** Where DeepSeek shows a human check, or asks for a code it sends to the
-    account before the sign-in goes on, the call ends before any card is entered, saying so. A person signs
-    the tool's browser in once at the machine's own desktop, with the command the answer names, which opens
-    the same profile in a window; the sign-in then stands for later calls.
+  - **a human check, or a sign-in check no mail approved.** Where DeepSeek shows a human check, or holds the
+    sign-in for a check the mailbox did not approve, the call ends before any card is entered, saying so. A
+    person signs the tool's browser in once at the machine's desktop, which the console's remote desktop
+    reaches, with the command the answer names, which opens the same profile in a window; the sign-in then
+    stands for later calls.
   - **the card issuer's confirmation.** Where the issuer asks the cardholder to confirm the payment (3-D Secure:
     an approval in the card's app, or a code it sends), the tool stops there, touches nothing more, and waits
     within the policy's confirmation wait for the page to show the outcome. The issuer's own prompt reaches the

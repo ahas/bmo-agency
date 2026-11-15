@@ -428,7 +428,7 @@ async fn a_browser_another_call_holds_refuses_the_call_and_pays_nothing() {
     refused.starts_with("Nothing was paid: another DeepSeek top-up is under way"),
     "{refused}"
   );
-  assert!(!folder.join("profile").join("DevToolsActivePort").exists(), "no browser was started");
+  assert!(!folder.join("profile").exists(), "no browser was started");
 }
 
 #[tokio::test]
