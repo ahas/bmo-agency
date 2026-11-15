@@ -66,6 +66,10 @@ struct Fake {
   codes: Arc<Mutex<Vec<String>>>,
   approved: Arc<Mutex<bool>>,
   mail_refused: Arc<Mutex<usize>>,
+  /// What reached the platform on the way to the card's fields, in order: each press of the card among the ways
+  /// to pay and of the next step, and each fetch of the card's frame. A call stopped before the card's fields
+  /// names it, so a stop on any machine says which of them never came.
+  steps: Arc<Mutex<Vec<String>>>,
 }
 
 const SIGN_IN: &str = r#"<!doctype html><html><body>
@@ -124,8 +128,13 @@ const TOP_UP: &str = r#"<!doctype html><html><body>
 <script>
 const shown = (id) => { document.getElementById(id).style.display = "block"; };
 document.getElementById("custom").addEventListener("click", () => shown("amount"));
-document.getElementById("card").addEventListener("click", () => shown("next"));
+const step = (what) => fetch(`/api/step/${what}`, { method: "POST" });
+document.getElementById("card").addEventListener("click", () => {
+  step("card");
+  shown("next");
+});
 document.getElementById("next").addEventListener("click", () => {
+  step("next");
   document.getElementById("frame").src = "{card}";
   shown("checkout");
 });
@@ -171,8 +180,14 @@ async fn usage_page() -> Html<&'static str> {
   Html(USAGE)
 }
 
-async fn card_frame() -> Html<&'static str> {
+async fn card_frame(State(fake): State<Fake>) -> Html<&'static str> {
+  fake.steps.lock().unwrap().push("card frame fetched".to_owned());
   Html(CARD_FRAME)
+}
+
+async fn step(State(fake): State<Fake>, Path(what): Path<String>) -> StatusCode {
+  fake.steps.lock().unwrap().push(format!("{what} pressed"));
+  StatusCode::NO_CONTENT
 }
 
 async fn top_up_page(State(fake): State<Fake>, headers: HeaderMap) -> Response {
@@ -373,6 +388,7 @@ async fn platform(scenario: Scenario) -> Fake {
     codes: Arc::default(),
     approved: Arc::default(),
     mail_refused: Arc::default(),
+    steps: Arc::default(),
   };
 
   // A code mailed ten minutes before any sign-in of the test began.
@@ -385,6 +401,7 @@ async fn platform(scenario: Scenario) -> Fake {
     .route("/card", get(card_frame))
     .route("/api/sign_in", post(sign_in))
     .route("/api/pay", post(pay))
+    .route("/api/step/{what}", post(step))
     .route("/api/send_code", post(send_code))
     .route("/api/verify", post(verify))
     .route("/approve", get(approve))
@@ -532,7 +549,12 @@ async fn pay_in(
 
   let said = top_up_with(&agency(&stand).await, root, &payer, &amount(10.0))
     .await
-    .unwrap_or_else(|refused| panic!("{refused}"))
+    .unwrap_or_else(|refused| {
+      panic!(
+        "{refused}\nWhat reached the platform on the way to the card: {:?}",
+        fake.steps.lock().unwrap()
+      )
+    })
     .plain();
 
   holds_no_secret_value(&said);

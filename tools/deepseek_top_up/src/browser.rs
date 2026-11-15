@@ -154,7 +154,10 @@ pub struct Browser {
   handler: JoinHandle<()>,
   browser: chromiumoxide::Browser,
   page: Page,
-  worlds: HashMap<String, ExecutionContextId>,
+  /// Each frame's document as the frame tree last named it, by its loader.
+  documents: HashMap<String, String>,
+  /// The tool's world in each frame, with the document it was made in.
+  worlds: HashMap<String, (String, ExecutionContextId)>,
   _lock: File,
 }
 
@@ -322,6 +325,7 @@ impl Browser {
         handler,
         browser,
         page,
+        documents: HashMap::new(),
         worlds: HashMap::new(),
         _lock: lock,
       }),
@@ -400,25 +404,34 @@ impl Browser {
     Ok(())
   }
 
-  /// The page's frames, the main frame first, each with its address.
-  pub async fn frames(&self) -> Result<Vec<(FrameId, String)>, Lost> {
-    fn walk(tree: &FrameTree, into: &mut Vec<(FrameId, String)>) {
+  /// The page's frames, the main frame first, each with its address; each frame's document is noted as it
+  /// stands, so a world made in an earlier document of the frame is not used again.
+  pub async fn frames(&mut self) -> Result<Vec<(FrameId, String)>, Lost> {
+    fn walk(tree: &FrameTree, into: &mut Vec<(FrameId, String)>, documents: &mut HashMap<String, String>) {
       into.push((tree.frame.id.clone(), tree.frame.url.clone()));
+      documents.insert(tree.frame.id.inner().clone(), tree.frame.loader_id.inner().clone());
       for child in tree.child_frames.iter().flatten() {
-        walk(child, into);
+        walk(child, into, documents);
       }
     }
 
     let tree = self.page.execute(GetFrameTreeParams::default()).await?.result.frame_tree;
     let mut frames = Vec::new();
 
-    walk(&tree, &mut frames);
+    self.documents.clear();
+    walk(&tree, &mut frames, &mut self.documents);
     Ok(frames)
   }
 
-  /// A world of the tool's own in a frame, kept until the frame's document changes.
+  /// A world of the tool's own in a frame, kept until the frame's document changes: a frame that has loaded
+  /// another document since its world was made gets a world in the document it shows, since a world left in the
+  /// earlier one would go on answering from a page no longer shown.
   async fn world(&mut self, frame: &FrameId) -> Result<ExecutionContextId, Lost> {
-    if let Some(world) = self.worlds.get(frame.inner()) {
+    let document = self.documents.get(frame.inner()).cloned().unwrap_or_default();
+
+    if let Some((made_in, world)) = self.worlds.get(frame.inner())
+      && *made_in == document
+    {
       return Ok(*world);
     }
 
@@ -435,7 +448,7 @@ impl Browser {
       .result
       .execution_context_id;
 
-    self.worlds.insert(frame.inner().clone(), made);
+    self.worlds.insert(frame.inner().clone(), (document, made));
     Ok(made)
   }
 

@@ -189,9 +189,40 @@ async fn top_up(stand: &Stand, root: &Path, input: TopUpInput) -> Result<String,
 }
 
 pub(super) fn holds_no_secret_value(said: &str) {
-  for value in [NUMBER, CVC, HOLDER, EXPIRY, "1234", USERNAME, PASSWORD] {
-    assert!(!said.contains(value), "a secret value stands in: {said}");
+  if let Some(value) = secret_value_in(said) {
+    panic!("a secret value stands in, {value}: {said}");
   }
+}
+
+/// The first secret value `said` holds. The card's short numbers, its last four and its code, are digits any
+/// port, temporary folder or browser build an answer names may hold, so they count where they stand as a number
+/// of their own outside a path or an address, as a card's ending is said.
+fn secret_value_in(said: &str) -> Option<&'static str> {
+  let last_four = &NUMBER[NUMBER.len() - 4..];
+  let whole = [NUMBER, HOLDER, EXPIRY, USERNAME, PASSWORD]
+    .into_iter()
+    .find(|value| said.contains(value));
+  let short = || {
+    said
+      .split_whitespace()
+      .filter(|word| !word.contains('/'))
+      .flat_map(|word| word.split(|letter: char| !letter.is_ascii_digit()))
+      .find_map(|number| [last_four, CVC].into_iter().find(|value| *value == number))
+  };
+
+  whole.or_else(short)
+}
+
+#[test]
+fn the_secret_check_finds_the_card_s_short_numbers_said_as_a_card_says_them_and_not_in_a_machine_s_places()
+{
+  let place = "A person signs the tool's browser in once with `$HOME/.cache/ms-playwright/chromium-1234/\
+    chrome-linux64/chrome --user-data-dir=\"/tmp/.tmp1234ab/deepseek-top-up/profile\" \
+    http://127.0.0.1:41234/sign_in`, then asks again on port 39870.";
+
+  assert_eq!(secret_value_in(place), None);
+  assert_eq!(secret_value_in("Paid 10 with the card ending 1234."), Some("1234"));
+  assert_eq!(secret_value_in("The card's code 987 was refused."), Some(CVC));
 }
 
 fn reads_nothing_past_the_settings(stand: &Stand) {
