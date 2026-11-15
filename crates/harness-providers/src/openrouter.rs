@@ -58,6 +58,10 @@ impl Provider for OpenRouter {
     "openrouter"
   }
 
+  fn key_file(&self) -> Option<&'static str> {
+    Some(OPENROUTER.presence.key_file.as_str())
+  }
+
   fn balance(&self) -> Option<&'static dyn OffersBalance> {
     Some(&OpenRouter)
   }

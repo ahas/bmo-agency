@@ -2793,6 +2793,12 @@ export interface components {
              * @description The compaction threshold a row whose order begins on it is given where its add names none.
              */
             foldRatioDefault: number;
+            /**
+             * @description The file under the data root's `env/` its own key is read from, or null for a provider that reads none. Its
+             *     content is never reported.
+             * @default null
+             */
+            keyFile: string | null;
         };
         /** @description ProviderQuota: what a provider has left as an order reads it at the default share. */
         ProviderQuota: {

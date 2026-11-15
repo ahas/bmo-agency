@@ -722,6 +722,10 @@ pub struct Provider {
   pub reason_code: Option<String>,
   /// The compaction threshold a row whose order begins on it is given where its add names none.
   pub fold_ratio_default: f64,
+  /// The file under the data root's `env/` its own key is read from, or null for a provider that reads none. Its
+  /// content is never reported.
+  #[serde(default)]
+  pub key_file: Option<String>,
 }
 
 /// Model: one registration of the registry's provider and its health.

@@ -10141,6 +10141,14 @@
             "type": "number",
             "format": "double",
             "description": "The compaction threshold a row whose order begins on it is given where its add names none."
+          },
+          "keyFile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file under the data root's `env/` its own key is read from, or null for a provider that reads none. Its\ncontent is never reported.",
+            "default": null
           }
         },
         "required": [
@@ -10154,7 +10162,8 @@
           "quota",
           "reason",
           "reasonCode",
-          "foldRatioDefault"
+          "foldRatioDefault",
+          "keyFile"
         ],
         "description": "Provider: one provider agency carries, with its switch, what it declares and what it has left."
       },

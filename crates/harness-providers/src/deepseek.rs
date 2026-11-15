@@ -58,6 +58,10 @@ impl Provider for DeepSeek {
     "deepseek"
   }
 
+  fn key_file(&self) -> Option<&'static str> {
+    Some(DEEPSEEK.presence.key_file.as_str())
+  }
+
   fn balance(&self) -> Option<&'static dyn OffersBalance> {
     Some(&DeepSeek)
   }

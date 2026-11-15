@@ -38,6 +38,7 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
     "reason": missing.as_ref().map(|missing| missing.text.clone()),
     "reasonCode": missing.as_ref().map(|missing| missing.code.clone()),
     "foldRatioDefault": declared.fold_ratio.unwrap_or(crate::order::DEFAULT_FOLD_RATIO),
+    "keyFile": provider.key_file(),
   }))
 }
 

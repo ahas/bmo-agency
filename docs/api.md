@@ -951,6 +951,9 @@ answer now says why twice over (`docs/provider-presence.md`): `reason`, the Engl
 `foldRatioDefault` as well: the compaction threshold a supervisor or an agent whose road is on it is given
 where its add names none — the provider's own declaration, 0.85 where it declares none (`docs/supervisors.md`,
 「What a provider declares for a conversation」) — so a screen marks the threshold equal to it as the default.
+A provider that reads its own key from a file answers `keyFile`, that file's name under the data root's `env/`
+(`docs/provider-presence.md`): OpenRouter's and DeepSeek's, null on every other, so a console that writes the
+deployment's secrets there sets the key where the provider reads it. Its content is never reported.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer. A provider that is off answers on no road (`docs/provider-order.md`, 「The owner's

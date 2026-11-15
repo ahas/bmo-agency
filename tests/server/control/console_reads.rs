@@ -91,6 +91,23 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   assert_eq!(deepseek["foldRatioDefault"], json!(0.5), "DeepSeek declares 0.5");
 
+  // A provider reading its own key from a file names the file, and no other names one.
+  let key_files: Vec<(String, Value)> = providers["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|one| (one["name"].as_str().unwrap().to_owned(), one["keyFile"].clone()))
+    .collect();
+
+  for (name, file) in &key_files {
+    match name.as_str() {
+      "openrouter" | "deepseek" => {
+        assert!(file.as_str().is_some_and(|file| !file.is_empty()), "{name}: {file}")
+      }
+      _ => assert!(file.is_null(), "{name}: {file}"),
+    }
+  }
+
   // The reset point alone, and the rooms the supervisor's turns went into, the latest first.
   assert_eq!(
     get(port, token, "/supervisors/chat-agent/reset-point").await,

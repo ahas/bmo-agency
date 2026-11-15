@@ -179,6 +179,12 @@ pub trait Provider: Sync {
     None
   }
 
+  /// The file under the data root's `env/` its own key is read from, where it reads one: a console writing the
+  /// deployment's secrets sets the key there. Nothing for a provider that reads no key of its own.
+  fn key_file(&self) -> Option<&'static str> {
+    None
+  }
+
   /// Whether its models are served by agency's gateway: the registry's registrations, or the members of a
   /// road of its own. A gate on such a provider is one request through the gateway, never a program.
   fn models_on_gateway(&self) -> bool {
