@@ -80,6 +80,13 @@ impl Drop for Program {
   }
 }
 
+// A session id of this test's own. The door finds a turn's program by the session its command line carries
+// on the whole machine, so a fixed id would find the same test's program in another harness running beside
+// this one, and read that program's end as this turn's.
+fn own_session(name: &str) -> String {
+  format!("{name}-{}-{}", std::process::id(), agency_server::now_ms())
+}
+
 fn clock(min_ms: i64, stall_ms: i64, stop_stall_ms: i64) -> ToolClock {
   ToolClock {
     min_ms,
@@ -551,7 +558,7 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
   );
   let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
   let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr_model.socket.clone())));
-  let session = "session-cut-1";
+  let session = &own_session("session-cut-1");
   let record = ClaudeCode::records_under(&config, &cwd, session).swap_remove(0);
   append(&record, &[]);
 
@@ -731,7 +738,7 @@ async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result(
   );
   let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
   let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr_model.socket.clone())));
-  let session = "session-cut-2";
+  let session = &own_session("session-cut-2");
   let record = ClaudeCode::records_under(&config, &cwd, session).swap_remove(0);
   append(&record, &[]);
 
