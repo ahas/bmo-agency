@@ -9,6 +9,13 @@ use store::{Fault, all, one};
 use policy::roles::ROLES;
 
 use crate::order::{Entry, Order};
+use crate::rooms::Stays;
+
+crate::room_stays!(Stays {
+  table: "supervisors",
+  stays: "TRUE",
+  why: "a supervisor is its account's, never a room's: its row names only the room its session last ran in",
+});
 
 /// The mark a supervisor of an account leads its system prompt with (docs/agent-ownership.md, 「What the
 /// supervisor's row carries」): a short digest of the account, which says nothing of it.

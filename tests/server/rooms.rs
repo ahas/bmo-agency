@@ -1,5 +1,5 @@
-//! A room forgotten: every row of agency's own tables naming the room goes but a job's run-log lines,
-//! which stay with their reason; a dry run writes nothing; and another room's rows are left.
+//! A room forgotten: every row of agency's own tables naming the room goes but a job's run-log lines and
+//! the supervisors, which stay with their reason; a dry run writes nothing; and another room's rows are left.
 
 use agency_server::rooms::{forget, names_a_room};
 
@@ -57,4 +57,36 @@ async fn a_room_forgotten_takes_its_rows_but_a_jobs_lines_and_leaves_another_roo
   assert_eq!(forgotten, asked);
   assert_eq!(rows(-7).await, 1, "the job's line stays");
   assert_eq!(rows(-8).await, 3, "another room's rows are left");
+}
+
+#[tokio::test]
+async fn a_room_forgotten_leaves_the_supervisor_whose_session_last_ran_there() {
+  let scratch = Scratch::new().await;
+
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "label", "session_scope", "turn_shape", "warming", "fold_ratio",
+           "builtin", "chat_id", "runs", "created_at", "updated_at")
+         VALUES ('pal', 'Pal', 'agent', 'window', '{}', 0.5, 1, -7, 0, 1, 1)"#,
+      vec![],
+    )
+    .await;
+
+  let asked = forget(scratch.db(), -7, true).await.unwrap();
+
+  assert_eq!(asked.gone.get("supervisors"), None, "{asked:?}");
+  assert!(
+    asked.stayed.iter().any(|stayed| stayed.table == "supervisors" && stayed.rows == 1),
+    "{asked:?}"
+  );
+
+  forget(scratch.db(), -7, false).await.unwrap();
+
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "supervisors" WHERE "name" = 'pal'"#, vec![])
+      .await,
+    1,
+    "the supervisor stands after its room is forgotten"
+  );
 }

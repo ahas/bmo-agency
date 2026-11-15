@@ -22,7 +22,8 @@ seeds. The other crates and the server reach the store only through it.
     call it, its prompt and brain folders, its session scope and turn shape, whether the deployment seeds it,
     its road — `provider`, `model`, `effort`, `thinking` and `answer_tokens` —, its warming per provider as a
     JSON object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
-    changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
+    changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」); a room forgotten
+    leaves every row of it, since a supervisor is its account's and never a room's;
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
     the bundles it gives as a JSON list, the skills its runs carry as a JSON list or none, its line, what its declaration gave the agents it was seeded with —
     a road list, a count, a sessions setting, a compaction threshold and a callability, which nothing reads

@@ -587,6 +587,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   account key, or the deployment's where it names none (`docs/api.md`, 「Calls agency makes」). The
   supervisor stands whatever the brain answers: a brain that cannot be reached, or refuses, is logged, and
   no later step makes the brain in its place.
+- **A room forgotten never takes a supervisor.** A supervisor is its owner account's, never a room's, and only
+  its own removal below ends it. Its row carries the room its session last ran in, so the
+  forgetting of a room (`DELETE /room-holdings/{roomId}`, `docs/api.md`) declares every row of `supervisors`
+  as one that stays: the room's turns and runs go, the supervisor answering there does not.
 - **`DELETE /supervisors/{supervisorName}` takes everything of its own,** and only of a supervisor the
   deployment does not seed:
   - first a reset of its conversation, every room the caller names read as one it shares, so each keeps
