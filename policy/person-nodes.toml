@@ -21,8 +21,9 @@ wait_seconds = 5
 
 # The administrator's grants (docs/person-nodes.md, 「Who reaches a node」): the resources every tool session agency
 # issues for a supervisor of no account holds, and no other caller does. The node service's tool reads node.admin
-# as reaching every node.
-administrator_grants = ["node.admin"]
+# as reaching every node, and agency's DeepSeek top-up declares platform.payment, the platform's own card
+# (docs/tools.md, 「The DeepSeek top-up」).
+administrator_grants = ["node.admin", "platform.payment"]
 
 # The verbs of the CLI's bmo a node an account's record names may ask the home bridge to run here, each the first
 # word of its call (docs/person-nodes.md, 「Who reaches a node」): the status line's and the hooks' reading, a hosted

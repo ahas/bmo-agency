@@ -310,5 +310,5 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   };
 
   assert_eq!(acting(false).grants(), Vec::<String>::new());
-  assert_eq!(acting(true).grants(), ["node.admin"]);
+  assert_eq!(acting(true).grants(), ["node.admin", "platform.payment"]);
 }

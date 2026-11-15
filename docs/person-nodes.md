@@ -53,8 +53,9 @@ desktop coding agent whose models and tools are served from elsewhere.
   - **the administrator's grant,** which a supervisor of no account or of the administrator's account holds, as it
     is and as a double stands for it, and no other caller does: not an account's caller, and not a role agent, a seat's run or a job of the
     deployment's own, which owns no node and so reaches none through the tool. Agency writes it into the record of
-    every session it issues for such a supervisor: the grants `policy/person-nodes.toml` names, the resource the
-    node tool reads as reaching every node. A record holds what was true when it was issued, and a session issued
+    every session it issues for such a supervisor: the grants `policy/person-nodes.toml` names, `node.admin`, the
+    resource the node tool reads as reaching every node, and `platform.payment`, the platform's own card, which
+    agency's DeepSeek top-up declares (`docs/tools.md`, 「The DeepSeek top-up」). A record holds what was true when it was issued, and a session issued
     again reads its caller afresh.
 - **The tool reads the first two over agency's routes and the third off the caller's record** (`docs/api.md`,
   「person-nodes」): the node's owners from the list of these records, the caller's account from the supervisor or

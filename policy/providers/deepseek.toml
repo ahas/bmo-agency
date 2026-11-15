@@ -74,3 +74,44 @@ url_env = "BMO_DEEPSEEK_BALANCE_URL"
 pass_seconds = 300
 fresh_passes = 6
 top_up = "top the DeepSeek balance up at https://platform.deepseek.com/top_up"
+
+[top_up]
+# The supervisor's tool that tops the balance up by an amount the owner names (docs/tools.md, 「The DeepSeek
+# top-up」). DeepSeek takes no payment by machine: its top-up is made only by a person signed in to its
+# platform, so the tool checks the call and the card and answers what a person does, and pays nothing.
+
+# The console's secret the card stands in: a file of the platform administrator's space, the data root's
+# `env/`, saved in the console's kind `card`, one `KEY=VALUE` line to each of these fields.
+card_secret = "deepseek-card"
+card_kind = "card"
+card_fields = ["CARD_NUMBER", "CARD_EXPIRY", "CARD_CVC", "CARD_HOLDER_NAME"]
+
+# Why one call is held to a cap, said with the cap where an amount is over it.
+cap_reason = "one call tops the balance up by no more than this, so that a mistaken amount or a repeated call cannot spend more; a larger top-up is a person's own, made on DeepSeek's platform"
+
+# The largest amount one call names, by the currency DeepSeek keeps the balance in; a currency this table holds
+# no cap for is not topped up.
+[top_up.cap]
+USD = 50
+CNY = 350
+
+# What the tool answers. Each `{name}` is filled in with what it names.
+[top_up.words]
+# The call named no amount above zero.
+no_amount = "Name the amount to top the DeepSeek balance up by: a number above zero, in the currency DeepSeek keeps the balance in."
+# The card's secret stands nowhere.
+card_missing = "No card is saved for DeepSeek: ask for the secret {secret} in the kind {kind} in the console's secret store, then call again."
+# The card's secret lacks fields, named by their keys.
+card_lacks = "The card saved as {secret} lacks {fields}: save it again in the kind {kind} with every field filled."
+# Agency could not say what the balance reader last read.
+balance_unasked = "The DeepSeek balance could not be read from agency: {why}"
+# The balance reader has not read the balance, so its currency is unknown.
+balance_unread = "The DeepSeek balance has not been read yet, so the currency a top-up is named in is unknown: call again once its balance reader has read it."
+# The currency the balance is kept in has no cap.
+no_cap = "No single top-up cap is held for {currency}, so no top-up is made in it."
+# The amount is over the cap.
+over_cap = "{amount} {currency} is over the single top-up cap of {cap} {currency}: {reason}."
+# Nothing was paid, and what a person does to top the balance up.
+by_person = "Nothing was paid: DeepSeek takes no payment by machine, only from a person signed in to its platform. A person is to {top_up}, adding {amount} {currency} with the card saved as {secret}, and to confirm the payment wherever the card's issuer asks."
+# The amount paid and the balance after, as the balance reader last read it.
+outcome = "Paid: {paid} {currency}. Balance: {balance} {currency}, as the balance reader last read it at {seen}."

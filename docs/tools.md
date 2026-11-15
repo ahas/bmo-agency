@@ -4,7 +4,8 @@ The tools agency itself provides to the tool host: each a folder of its own unde
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
 to a run of the worker role, let a supervisor delegate a task to a run of any role and read what it has
-delegated, and let one BMO hand a line to another person's BMO and open a chat into that person's room. A tool that
+delegated, let one BMO hand a line to another person's BMO and open a chat into that person's room, and let
+the platform's supervisor ask for a DeepSeek top-up. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
 ## A tool's folder
@@ -36,7 +37,7 @@ belongs to no one service is a repository of its own, not a folder here.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's,
-  `node.admin`, on the record of a supervisor of no account or of the administrator's account, a double's held
+  `node.admin` and `platform.payment`, on the record of a supervisor of no account or of the administrator's account, a double's held
   under its name among them, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or a job's
   (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's `labels`:
   the line, the store's address and the agent's place where it is a resident program, and on a supervisor's
@@ -203,3 +204,36 @@ belongs to no one service is a repository of its own, not a folder here.
 - **It reaches agency's control port as every tool of agency's does,** the address and token from its own
   environment or the server's env file under the data root, and it reaches no other unit. A call waits for the
   receiving BMO's turn to end, however long it takes: no timeout of the tool's own cuts it.
+
+## The DeepSeek top-up
+
+- **`tools/deepseek_top_up`** declares `bmo/deepseek_top_up` to a session holding `room.tools`: the supervisor
+  tops the DeepSeek balance up by the amount the owner names. Its words, its card and its caps stand in the
+  `top_up` table of `policy/providers/deepseek.toml`.
+- **A call runs only under the administrator's grant,** `platform.payment` (「A tool's folder」 above): the card and
+  the DeepSeek account are the platform's own. The tool host refuses any other caller before the tool runs.
+- **Nothing but a call tops the balance up.** No clock, reading or closed road calls it, and its description
+  tells the supervisor to call it only when the owner asks for a top-up.
+- **Its one argument is `amount`,** a number above zero in the currency DeepSeek keeps the balance in. A call
+  naming none, or naming anything else, is refused. The card is never taken from a call.
+- **The card is a secret of the console's secret store** (bmo-web's `docs/accounts.md`, 「The secret store」):
+  the file the policy's `card_secret` names, `deepseek-card`, in the platform administrator's space, the data
+  root's `env/`, saved in the console's kind `card`. The tool reads that kind's four fields, `CARD_NUMBER`,
+  `CARD_EXPIRY`, `CARD_CVC` and `CARD_HOLDER_NAME`, each one `KEY=VALUE` line written as typed. A secret
+  standing nowhere is refused with the name and the kind to ask for (`prompts/agents/chat/procedures/secrets.md`).
+  A secret lacking a field, or holding it empty, is refused with the missing keys.
+- **No card value leaves the tool.** A value is read only to see that it stands, and is dropped there. No answer,
+  refusal or line on its error stream carries one. A call that does not read is refused by a fixed sentence,
+  never by the reader's own words.
+- **One call is held to a cap,** the one the policy's `top_up.cap` holds for the currency the balance is kept
+  in. An amount over it is refused with the cap and its reason, and a larger top-up is a person's own. The currency is
+  the balance reader's (`docs/usage-windows.md`, 「Balances」). Until the balance has been read the currency is
+  unknown, and the call is refused. A currency the policy holds no cap for is also refused.
+- **DeepSeek takes no payment by machine.** Its API answers no top-up, payment or coupon, and its top-up is
+  made only by a person signed in to its platform with an emailed code, who confirms the payment wherever
+  the card's issuer asks. So a call that passes every check pays nothing and moves no balance. It answers:
+  - the sentence a person acts on: where the balance is topped up, the amount and currency, and the card's
+    secret name;
+  - the amount paid, zero;
+  - the balance as the balance reader last read it, with the moment it was read, from
+    `GET /providers/deepseek` on agency's control port, reached as every tool of agency's reaches it.

@@ -1264,7 +1264,8 @@ where the shell stands in an agent's program, else the owner.
   one no record names. A missing `agent` is 400.
 - **The administrator's grant is written into the records agency issues** (`docs/tools.md`, 「The session record」):
   a record held under the name of a supervisor of no account or of the administrator's account holds each grant
-  `policy/person-nodes.toml` names, `node.admin`, which the tool reads as reaching every node, and every other
+  `policy/person-nodes.toml` names, `node.admin`, which the tool reads as reaching every node, and
+  `platform.payment`, which agency's DeepSeek top-up declares (`docs/tools.md`, 「The DeepSeek top-up」), and every other
   record holds none: another account's supervisor's, a role agent's, a seat's run's and a job's alike, judged as the access read judges. So the tool
   reads the grant off the caller's record and asks agency nothing for it.
 

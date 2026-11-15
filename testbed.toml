@@ -76,6 +76,7 @@ binaries = [
   "worker-ask-tool",
   "delegate-tool",
   "relay-tool",
+  "deepseek-top-up-tool",
 ]
 
 # Agency's own deploy tree, which every unit, tool and document of agency names and which holds nothing
@@ -237,4 +238,15 @@ rm -rf tools/relay/.placed
 mkdir -p tools/relay/.placed
 cp bin/relay-tool tools/relay/tool.toml tools/relay/relay.json tools/relay/chat.json tools/relay/.placed/
 bmo-pocket put tools/relay/.placed --placed --service agency --allow room.tools
+'''
+
+[[deploy.step]]
+id = "place-deepseek-top-up"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/deepseek_top_up/.placed
+mkdir -p tools/deepseek_top_up/.placed
+cp bin/deepseek-top-up-tool tools/deepseek_top_up/tool.toml tools/deepseek_top_up/deepseek_top_up.json tools/deepseek_top_up/.placed/
+bmo-pocket put tools/deepseek_top_up/.placed --placed --service agency --allow room.tools
 '''

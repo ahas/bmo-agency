@@ -793,7 +793,11 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
   assert!(!alone.namespaces.contains(&"voice".to_owned()));
   // The supervisor belongs to no account, so its double holds the administrator's grant; an account's
   // supervisor's double holds none (docs/person-nodes.md, 「Who reaches a node」).
-  assert_eq!(record["grants"], json!([{ "resource": "node.admin" }]), "{record}");
+  assert_eq!(
+    record["grants"],
+    json!([{ "resource": "node.admin" }, { "resource": "platform.payment" }]),
+    "{record}"
+  );
 
   crate::support::rows::supervisor(scratch.db(), "u7", &[("owner_account", 7i64.into())]).await;
   env.insert(agency_server::lines::token::RECORD_SUPERVISOR.into(), "u7".into());
