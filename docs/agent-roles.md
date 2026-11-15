@@ -16,8 +16,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator
-  and the transliterator are roles alike.** Nothing tells one role from another but what its row says.
+- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator,
+  the transliterator and the actor are roles alike.** Nothing tells one role from another but what its row
+  says.
 
 ## What a role row holds
 
@@ -65,7 +66,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   supervisor as `BMO_BRAIN_AGENT` — the supervisor whose double the run is, and otherwise the one agency's
   `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none — while the
   turn's agent stays the run's own, so every other tool it calls acts as the run. Every role on the worker
-  line but `upkeep`, which stands for no one's work, holds it.
+  line holds it but `upkeep`, which stands for no one's work, and `actor`, which reaches nothing itself.
 - **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.
@@ -108,6 +109,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `translator` | Translator | translate | none | 4 | `translator.md` | none | policy | fresh |
   | `transliterator` | Transliterator | search | none | 4 | none | none | policy | keep |
   | `upkeep` | Upkeep | worker | none | 1 | none | none | policy | fresh |
+  | `actor` | Actor | worker | none | 1 | `actor.md` | none | policy | fresh |
 
   A prompt and a provider prompt named by file are files under `prompts/roles/`. A `policy` description is
   the sentence the role's declaration states.
@@ -254,6 +256,33 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   gives no bundle and carries no prompt: what such a run holds of a role is one of its agents and its
   sessions setting.
 
+## The actor role
+
+- **The role a rehearsal's actor runs as** (the rehearsal's `docs/scenes.md`, 「Actors」): one person of a mock
+  company, played from that person's roster line and the goal a scene hands them. Its prompt, seeded from
+  `prompts/roles/actor.md`, stands first in every run.
+- **It reaches nothing itself.** Each turn hands it the person's roster line, their language, their goal, the
+  console's screens they may use and what its calls so far answered; it answers one JSON object, `calls`, the
+  console calls the person would make next — each its `service`, `screen`, `method`, `route` and `body`, an
+  empty list once it is done — and `did`, what the person has done so far as facts a read can check. Its
+  caller makes those calls through the person's own sign-in, never through a service token, and judges the
+  goal by its own reads, never by the actor's words. It holds no bundle, and its prompt tells it to use no
+  tool, to leave unread the reference a role session's first prompt carries (`docs/api.md`, 「sessions」),
+  and that none of a job's rules reach it.
+- **Its line is the worker line,** the line that reads a role's prompt into a session a caller starts.
+- **Its runs stand under the person's account.** A slot belongs to the account of the supervisor its ask names
+  as `askedBy` (`docs/role-slots.md`, 「Accounts」), so its caller asks under the person's own supervisor: the
+  run is let in only on an actor agent of that account, counted against that account's agents, and goes out
+  on that account's node (`docs/person-nodes.md`, 「Which node is a person's」).
+- **Its road is its agent's.** The policy seeds one agent of no account on DeepSeek's flash model at low
+  effort, since a cheap general model plays a person through the screens; the deployment changes it as any
+  agent's road. That agent carries no person's run, since a slot of an account is let in on that account's
+  agents alone; it is the agent the console copies for an account it makes ready (the web console's
+  `docs/web.md`, 「The join page」). An account that holds no actor agent is given one with
+  `POST /role-agents`, naming the role, the account as `ownerAccount` and the road its caller chooses.
+- **Its agent is seeded `fresh`:** every turn hands it the whole of what it knows, so no turn resumes another's
+  session.
+
 ## A role's provider prompts
 
 - **A role may give its runs a text beside its prompt by the provider their program stands on:** a run of
@@ -297,7 +326,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
-  names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`.
+  names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`, the
+  rehearsal `actor`.
 - **A run standing for no one's work:** `upkeep`.
 - **A role the store does not hold gives nothing,** and every one of these refuses it with the name.
 

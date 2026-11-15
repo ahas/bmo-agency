@@ -42,7 +42,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   // worker on the worker line, and the translator's prompt its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 10, "{listing}");
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 11, "{listing}");
   assert_eq!(role(&listing, "doppelganger").unwrap()["maxConcurrent"], 2);
   // The double's agents are seeded on no road: its road follows the supervisor that asks it, which a screen
   // shows.
@@ -85,6 +85,29 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
 
   assert!(settings("worker", "sessions").iter().all(|sessions| sessions == "keep"));
   assert!(settings("worker", "foldRatio").iter().all(Value::is_number));
+  // The actor is seeded with one agent of no account on its cheap road, every turn of it a session of its own:
+  // the agent the console copies for an account it makes ready.
+  let actors = role(&listing, "actor").unwrap()["agents"].as_array().unwrap().clone();
+
+  assert_eq!(
+    actors
+      .iter()
+      .map(|agent| (
+        agent["name"].as_str().unwrap(),
+        agent["provider"].as_str().unwrap(),
+        agent["model"].as_str().unwrap(),
+        agent["ownerAccount"].is_null(),
+        agent["sessions"].as_str().unwrap()
+      ))
+      .collect::<Vec<_>>(),
+    [("actor-01", "deepseek", "deepseek-flash", true, "fresh")]
+  );
+  assert!(
+    role(&listing, "actor").unwrap()["prompt"]
+      .as_str()
+      .is_some_and(|text| text.contains("`calls`")),
+    "the actor's prompt is its file's text"
+  );
   for field in ["sessions", "foldRatio"] {
     assert_eq!(role(&listing, "worker").unwrap().get(field), None, "{field}");
   }
@@ -141,7 +164,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 10);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 11);
 
   // A role added, its bundles once each: it holds no agent yet, so it carries no run.
   let (status, added) = ask(

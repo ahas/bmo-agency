@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the ten seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the eleven seeded roles with their
 //! lines, caps, sessions, descriptions, provider prompts and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -23,7 +23,8 @@ fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
       "seeker",
       "translator",
       "transliterator",
-      "upkeep"
+      "upkeep",
+      "actor"
     ]
   );
 }
@@ -40,6 +41,7 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
     ("helper", 2),
     ("producer", 2),
     ("upkeep", 1),
+    ("actor", 1),
   ] {
     assert!(caps.contains(&(name, cap)), "{name} starts at {cap}: {caps:?}");
   }
@@ -169,4 +171,36 @@ fn the_helper_goes_out_on_the_strongest_road_first_and_the_double_on_none() {
     "the double follows the asking supervisor"
   );
   assert!(!ROLES.default_role("helper"), "the helper is a role one names");
+}
+
+#[test]
+fn the_actor_reads_its_prompt_on_the_worker_line_holds_no_bundle_and_starts_on_a_cheap_road() {
+  let actor = ROLES.role("actor").unwrap();
+
+  assert_eq!(
+    actor.line, "worker",
+    "the line that reads a role's prompt into a session a caller starts"
+  );
+  assert_eq!(actor.prompt.as_deref(), Some("actor.md"));
+  assert!(actor.bundles.is_empty(), "an actor reaches nothing itself");
+  assert_eq!(actor.sessions, Sessions::Fresh, "every turn hands it the whole of what it knows");
+  assert_eq!(
+    actor
+      .order
+      .iter()
+      .map(|entry| (entry.provider.as_str(), entry.model.as_str()))
+      .collect::<Vec<_>>(),
+    [("deepseek", "deepseek-flash")]
+  );
+  assert!(!ROLES.default_role("actor"), "the actor is a role its caller names");
+}
+
+#[test]
+fn the_actors_prompt_names_every_field_of_the_answer_its_caller_reads() {
+  let prompt =
+    std::fs::read_to_string(std::env::current_dir().unwrap().join("prompts/roles/actor.md")).unwrap();
+
+  for field in ["calls", "service", "screen", "method", "route", "body", "did"] {
+    assert!(prompt.contains(&format!("`{field}`")), "the actor's prompt names {field}");
+  }
 }

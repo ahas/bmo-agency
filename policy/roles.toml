@@ -212,3 +212,19 @@ max_concurrent = 1
 bundles = []
 sessions = "fresh"
 order = [{ provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" }]
+
+# The actor: one person of a rehearsal's mock company, played under that person's own account; it reaches
+# nothing itself and answers the console calls the person would make (docs/agent-roles.md, 「The actor
+# role」). Its one agent of no account is the one the console copies for an account it makes ready; a cheap
+# general model plays a person through the screens, and the deployment or the rehearsal sets another road on
+# an agent as on any.
+[[roles]]
+name = "actor"
+label = "Actor"
+description = "Plays one person of a rehearsal's mock company from their roster line and the goal handed to them, answering the console calls that person would make and what they have done so far."
+line = "worker"
+prompt = "actor.md"
+max_concurrent = 1
+bundles = []
+sessions = "fresh"
+order = [{ provider = "deepseek", model = "deepseek-flash", effort = "low" }]
