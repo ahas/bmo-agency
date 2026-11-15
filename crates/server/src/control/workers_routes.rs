@@ -10,6 +10,9 @@
 //! whether an item has a road open now, runs asked to stop, which names are alive, and the deployment's
 //! rest. Agency keeps each mark and each block and judges nothing of what a consumer's job is.
 
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bmo_agency_client::{Usage, UsageGroup};
@@ -18,10 +21,13 @@ use serde_json::{Value, json};
 use super::claude_accounts::Judging;
 use super::{Call, Refused, Route, answer, whole};
 use crate::now_ms;
+use crate::places::Ground;
+use crate::queue::paths::resolve;
 use crate::queue::routes::{
   block_id, block_route, clear_block_by_id, kept_blocks, route_blocked, walked_keys,
 };
 use crate::queue::stops::{StoppedRun, clear_job_stop, job_stop_reason, mark_job_stopped};
+use crate::queue::workers::Worker;
 use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, write_rest};
 
 fn bad(error: impl Into<String>) -> Refused {
@@ -358,43 +364,46 @@ pub struct UsageRoute;
 
 /// What a usage query groups the jobs by (docs/api.md, 「accounts, rest and usage」).
 enum Grouping {
-  /// A column of the job, matched to the roles' sessions on the column named beside it, where one is.
-  Column {
-    jobs: &'static str,
-    sessions: Option<&'static str>,
-  },
-  /// The repository the job's checkout belongs to.
+  /// The model the job's turn went out on, matched to the roles' sessions on that model.
+  Model,
+  /// A column of the job no session records, so its groups carry no context.
+  Column(&'static str),
+  /// The checkout the job ran in, matched to the sessions opened in the directory it stands at.
+  Checkout,
+  /// The repository the job's checkout belongs to, matched to the sessions opened in its checkouts'
+  /// directories.
   Repository,
 }
 
 impl Grouping {
   fn named(word: &str) -> Option<Self> {
-    let column = |jobs, sessions| Some(Self::Column { jobs, sessions });
-
     match word {
-      "model" => column("model", Some("model")),
-      "agent" => column("worker_name", Some("role")),
-      "user" => column("holder_name", Some("account")),
-      "room" => column("room_id", None),
+      "model" => Some(Self::Model),
+      "agent" => Some(Self::Checkout),
+      "user" => Some(Self::Column("holder_name")),
+      "room" => Some(Self::Column("room_id")),
       "repository" => Some(Self::Repository),
       _ => None,
     }
   }
 
   /// The groups the jobs started in the span make, the most tokens first.
-  async fn groups(
-    &self,
-    db: &sea_orm::DatabaseConnection,
-    after: i64,
-    before: i64,
-  ) -> Result<Vec<UsageGroup>, Refused> {
-    let (jobs_by, sessions_by) = match self {
-      Self::Column { jobs, sessions } => (*jobs, *sessions),
-      Self::Repository => ("worker_name", None),
-    };
-    let contexts = match sessions_by {
-      Some(column) => session_contexts(db, column, after, before).await?,
-      None => std::collections::HashMap::new(),
+  async fn groups(&self, ground: &Ground, after: i64, before: i64) -> Result<Vec<UsageGroup>, Refused> {
+    let db = &ground.db;
+    let (jobs_by, contexts) = match self {
+      Self::Model => ("model", session_contexts(db, "model", after, before).await?),
+      Self::Column(column) => (*column, HashMap::new()),
+      Self::Checkout => (
+        "worker_name",
+        checkout_contexts(ground, after, before, |checkout| checkout.name.clone()).await?,
+      ),
+      Self::Repository => (
+        "worker_name",
+        checkout_contexts(ground, after, before, |checkout| {
+          checkout.support_of.clone().unwrap_or_else(|| checkout.name.clone())
+        })
+        .await?,
+      ),
     };
     let mut spends = JobSpend::by_column(db, jobs_by, after, before).await?;
 
@@ -414,7 +423,7 @@ async fn session_contexts(
   column: &str,
   after: i64,
   before: i64,
-) -> Result<std::collections::HashMap<String, i64>, Refused> {
+) -> Result<HashMap<String, i64>, Refused> {
   let rows = store::all(
     db,
     &format!(
@@ -433,19 +442,52 @@ async fn session_contexts(
     .map_err(Refused::from)
 }
 
+/// The tokens the sessions answered in the span carry, summed by the key each standing checkout is gathered
+/// under (docs/worker-slots.md) over the distinct directories its checkouts stand at, since a session records
+/// its directory and not the machine; a key no session's directory meets is absent.
+async fn checkout_contexts(
+  ground: &Ground,
+  after: i64,
+  before: i64,
+  key_of: impl Fn(&Worker) -> String,
+) -> Result<HashMap<String, i64>, Refused> {
+  let mut by_directory: HashMap<PathBuf, i64> = HashMap::new();
+
+  for (path, tokens) in session_contexts(&ground.db, "path", after, before).await? {
+    *by_directory.entry(resolve(&path)).or_default() += tokens;
+  }
+
+  let mut directories: HashMap<String, HashSet<PathBuf>> = HashMap::new();
+
+  for checkout in crate::queue::workers::workers(&ground.db, &ground.source).await? {
+    directories.entry(key_of(&checkout)).or_default().insert(resolve(&checkout.cwd));
+  }
+
+  Ok(
+    directories
+      .into_iter()
+      .filter_map(|(key, gathered)| {
+        let met: Vec<i64> =
+          gathered.iter().filter_map(|directory| by_directory.get(directory)).copied().collect();
+
+        (!met.is_empty()).then(|| (key, met.iter().sum()))
+      })
+      .collect(),
+  )
+}
+
 /// The checkouts' spends folded into their repositories' (docs/worker-slots.md), a checkout no repository
 /// holds standing as a group of its own.
 async fn by_repository(
   db: &sea_orm::DatabaseConnection,
   checkouts: Vec<JobSpend>,
 ) -> Result<Vec<JobSpend>, Refused> {
-  let held: std::collections::HashSet<String> =
-    store::all(db, r#"SELECT "name" FROM "repositories""#, vec![])
-      .await?
-      .iter()
-      .map(|row| row.try_get("", "name"))
-      .collect::<Result<_, _>>()?;
-  let mut repositories: std::collections::HashMap<String, JobSpend> = std::collections::HashMap::new();
+  let held: HashSet<String> = store::all(db, r#"SELECT "name" FROM "repositories""#, vec![])
+    .await?
+    .iter()
+    .map(|row| row.try_get("", "name"))
+    .collect::<Result<_, _>>()?;
+  let mut repositories: HashMap<String, JobSpend> = HashMap::new();
 
   for checkout in checkouts {
     let repository = crate::queue::workers::repository_named_by(&checkout.key, |name| held.contains(name))
@@ -561,7 +603,7 @@ impl JobSpend {
   }
 
   /// The group as the route answers it, with the context the sessions matched to its key carry.
-  fn group(self, contexts: &std::collections::HashMap<String, i64>) -> UsageGroup {
+  fn group(self, contexts: &HashMap<String, i64>) -> UsageGroup {
     UsageGroup {
       context_tokens: contexts.get(&self.key).copied(),
       key: self.key,
@@ -599,7 +641,7 @@ impl Route for UsageRoute {
         .ok_or_else(|| {
           bad(format!("groupBy is model, agent, repository, user, room or round, not {word}"))
         })?
-        .groups(call.store(), after, before)
+        .groups(call.ground(), after, before)
         .await?
     };
 

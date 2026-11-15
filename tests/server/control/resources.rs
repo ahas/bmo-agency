@@ -18,6 +18,21 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
+// A role's session opened in a directory, answered at a moment with the context it carries.
+async fn session(scratch: &Scratch, role: &str, path: &str, account: &str, answered: i64, context: i64) {
+  scratch
+    .run(
+      &format!(
+        r#"INSERT INTO "role_sessions" ("role", "path", "provider", "model", "account", "command_key", "session",
+             "opened_at", "answered_at", "context_tokens")
+           VALUES ('{role}', '{path}', 'claude-code', 'opus', '{account}', 'key', 's', {answered}, {answered},
+             {context})"#
+      ),
+      vec![],
+    )
+    .await;
+}
+
 async fn send(port: u16, token: &str, method: reqwest::Method, path: &str, body: Value) -> (u16, Value) {
   let answer = reqwest::Client::new()
     .request(method, format!("http://127.0.0.1:{port}{path}"))
@@ -190,16 +205,9 @@ async fn usage_is_grouped_by_what_the_query_names_and_carries_the_sessions_conte
       .await;
   }
 
-  scratch
-    .run(
-      &format!(
-        r#"INSERT INTO "role_sessions" ("role", "path", "provider", "model", "account", "command_key", "session",
-             "opened_at", "answered_at", "context_tokens")
-           VALUES ('worker', '/checkouts/worker-a', 'claude-code', 'opus', 'default', 'key', 's-1', {now}, {now}, 4_000)"#
-      ),
-      vec![],
-    )
-    .await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  // The session's role and account are named after the checkout and the holder, which match no group.
+  session(&scratch, "worker-b", "/checkouts/worker-a", "holder-1", now, 4_000).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -222,15 +230,29 @@ async fn usage_is_grouped_by_what_the_query_names_and_carries_the_sessions_conte
   let (_, by_agent) = get(port, token, &format!("{span}&groupBy=agent")).await;
 
   assert_eq!(
-    (&by_agent["groups"][0]["key"], &by_agent["groups"][0]["tokens"]),
-    (&json!("worker-a"), &json!(150))
+    (
+      &by_agent["groups"][0]["key"],
+      &by_agent["groups"][0]["tokens"],
+      &by_agent["groups"][0]["contextTokens"]
+    ),
+    (&json!("worker-a"), &json!(150), &json!(4_000)),
+    "{by_agent}"
+  );
+  assert_eq!(
+    (&by_agent["groups"][1]["key"], &by_agent["groups"][1]["contextTokens"]),
+    (&json!("worker-b"), &Value::Null)
   );
 
   let (_, by_user) = get(port, token, &format!("{span}&groupBy=user")).await;
 
   assert_eq!(
-    (&by_user["groups"][0]["key"], &by_user["groups"][0]["tokens"]),
-    (&json!("holder-1"), &json!(130))
+    (
+      &by_user["groups"][0]["key"],
+      &by_user["groups"][0]["tokens"],
+      &by_user["groups"][0]["contextTokens"]
+    ),
+    (&json!("holder-1"), &json!(130), &Value::Null),
+    "{by_user}"
   );
 
   let (_, by_room) = get(port, token, &format!("{span}&groupBy=room")).await;
@@ -263,10 +285,34 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
 
   scratch
     .run(
-      r#"INSERT INTO "repositories" ("name", "path", "created_at", "updated_at") VALUES ('site', '/checkouts/site', 0, 0)"#,
+      r#"INSERT INTO "repositories" ("name", "path", "support_count", "created_at", "updated_at")
+         VALUES ('site', '/checkouts/site', 1, 0, 0)"#,
       vec![],
     )
     .await;
+
+  // A node checkout stands at the same directory as the base, on its node.
+  scratch
+    .run(
+      r#"INSERT INTO "repository_node_checkouts" ("repository", "node", "path", "created_at")
+         VALUES ('site', 'node-1', '/checkouts/site', 0)"#,
+      vec![],
+    )
+    .await;
+
+  // The base, its one support worktree and its node checkout stand; the ninth worktree and gone-w3 stand
+  // nowhere now, and a session answered before the span is not counted. The repository counts the directory
+  // its base and its node checkout share once.
+  for (role, path, answered, context) in [
+    ("coder", "/checkouts/site", now, 300),
+    ("worker", "/checkouts/site/", now, 1),
+    ("worker", "/checkouts/site-w2", now, 20),
+    ("worker", "/checkouts/site-w9", now, 9_000),
+    ("worker", "/checkouts/gone-w3", now, 50),
+    ("coder", "/checkouts/site", now - 120_000, 70_000),
+  ] {
+    session(&scratch, role, path, "default", answered, context).await;
+  }
 
   for (checkout, state, started, tokens, kinds) in [
     ("site", "ended", now - 3_000, 100, "10, 20, 30, 40"),
@@ -299,7 +345,7 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
       {
         "key": "site", "tokens": 117, "jobs": 4, "firstAt": now - 3_000, "lastAt": now - 1_000,
         "inputTokens": 11, "outputTokens": 22, "cacheReadTokens": 33, "cacheWriteTokens": 44,
-        "unsplitJobs": 1, "unsplitTokens": 7, "contextTokens": null,
+        "unsplitJobs": 1, "unsplitTokens": 7, "contextTokens": 321,
       },
       {
         "key": "gone-w3", "tokens": 5, "jobs": 1, "firstAt": now - 1_000, "lastAt": now - 1_000,
@@ -318,6 +364,25 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
       &by_agent["groups"][0]["unsplitJobs"]
     ),
     (&json!("site"), &json!(10), &json!(0)),
+    "{by_agent}"
+  );
+
+  let contexts: Vec<(&Value, &Value)> = by_agent["groups"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|group| (&group["key"], &group["contextTokens"]))
+    .collect();
+
+  assert_eq!(
+    contexts,
+    [
+      (&json!("site"), &json!(301)),
+      (&json!("site-w2"), &json!(20)),
+      (&json!("site@node-1"), &json!(301)),
+      (&json!("gone-w3"), &Value::Null),
+      (&json!("site-w9"), &Value::Null),
+    ],
     "{by_agent}"
   );
 }

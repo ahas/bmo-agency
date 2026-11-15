@@ -1129,8 +1129,14 @@ figure; `firstAt` and `lastAt`, the span they cover; `inputTokens`, `outputToken
 `cacheWriteTokens`, the spend apart summed over the jobs whose turns reported all four kinds, each null
 where no job of the group did; `unsplitJobs` and `unsplitTokens`, the jobs that spent tokens without
 reporting all four kinds and the `tokens` those jobs spent, a job that spent nothing counting in neither; and
-`contextTokens`, the tokens the roles' sessions answered in the span carry, matched on the session's model,
-role or account for `model`, `agent` and `user`, and null for `repository` and `room`. `round` groups the
+`contextTokens`, the tokens the roles' sessions answered in the span carry. A `model` group's are those of
+the sessions on its model; an `agent` group's those of the sessions opened in the directory its checkout
+stands at now (`docs/worker-slots.md`); a `repository` group's the sum over the distinct directories of
+every checkout of it standing now. A session records its directory and not its machine, so a node checkout
+standing at the same directory as another checkout carries the same sessions, and its repository counts
+that directory once. It is null where no such session answered in the span, for a checkout that
+stands nowhere now, and for every `user` and `room` group, since a session records neither the holder nor
+the room of the jobs it served. `round` groups the
 chat turns' runs instead, those started in the span that name a round and report the four kinds, by that
 round: each group's `tokens` is what its turns spent, `turns` how many there were, a field only a round's
 group carries, the four kinds the spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs`,
