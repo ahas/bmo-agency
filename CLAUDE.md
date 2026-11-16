@@ -54,6 +54,14 @@ them.
   built binaries stand in.
 - **A test takes down every process it starts, with its descendants, and waits on none without a bound:** a
   process that should end by itself and does not fails the test rather than holding the test binary.
+- **A test drops every database it makes, and fails where it cannot.** A store of a test's own is a copy of
+  a template its harness migrates once per process on the server `BMO_TEST_POSTGRES` names. The Rust harness
+  names them `agency_rs_tmpl_` and `agency_rs_copy_`, the TypeScript one `agency_ts_tmpl_` and
+  `agency_ts_copy_`, each followed by the process id. The drop ends the suite role's own sessions on the
+  database and drops it without forcing, since forcing needs the right to end an autovacuum worker, which
+  the suite's role need not hold, while the plain drop stops one itself. Before a harness process makes its
+  first database it drops those of its own two names whose process no longer runs on this machine and that
+  no session is on, and names on the error stream any it cannot; it reads no other name.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
   in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
   Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status
