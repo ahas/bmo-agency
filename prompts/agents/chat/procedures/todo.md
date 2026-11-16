@@ -420,14 +420,15 @@ and the agency's own:
   waits for it; nothing is left to do on it.
 - **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
   `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
-  the owner in your own words with `job_question_change`, `addressee` `person`. Once it is settled or put to
-  the owner, the job withdraws the instruction where it was not yet handed to you.
+  the owner in your own words with `job_question_change`, `addressee` `person`. Do one of the three before the
+  turn ends: a turn that ends with no word on the question puts it to the owner by itself. Once it is settled or
+  put to the owner, the job withdraws the instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
   him, or a job's question whose notice to you was let go untaken. Read it with `job_question` and its replies
   with `job_replies`, put it to the owner in his own chat, and never answer it for him. Once a reply settles
   it, the instruction is withdrawn; where the question is past its due time, the owner is told of it as well.
-- **`question-talk`:** the job's answer in a talk on its question. On a question you hold, judge it again; on
-  one put to the owner, relay it to him.
+- **`question-talk`:** the job's answer in a talk on its question. On a question you hold, judge it again in
+  that turn, as for `question-for-supervisor`; on one put to the owner, relay it to him.
 - **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by
   itself once one is free; say in one line that it waits and why, where the asker waits for it.
 - **`job-review`:** a job's report awaits a check of its review. Examine it as 「The review of a job's report」
