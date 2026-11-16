@@ -952,7 +952,9 @@ with `currency` and `balanceSeenAt`, the currency it is in and when it was seen 
 `requests`, the request allowance read with it — `used`, `limit`, `left` and `scope`, what it covers or
 null — or null where its provider
 states none (`docs/usage-windows.md`, 「Balances」), and `resetsAt` in epoch seconds where the counting
-window names one. `gateway` says its models are served by
+window names one. The quota is the provider's as a whole and names no model, so a spent balance reads as
+no quota left although a run on a model the provider says costs nothing still goes out on it
+(`docs/provider-order.md`, 「Quota: what a provider has left」). `gateway` says its models are served by
 agency's model gateway — the registry's registrations and the member roads of Codex, OpenRouter and
 DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
 answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and

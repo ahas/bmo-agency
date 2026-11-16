@@ -530,7 +530,9 @@ When a demotion first catches — when a healthy session first drops — two thi
     its presence (`docs/own-llm.md`, 「An engine the arbiter stands」) — DeepSeek's key file; Claude Code's
     credentials are its logins, below;
   - **its balance spent** — where it offers a balance, the one its reader last kept for its own road is
-    at or below zero (`docs/usage-windows.md`, 「Balances」); a balance never read closes nothing;
+    at or below zero (`docs/usage-windows.md`, 「Balances」); a balance never read closes nothing, and a
+    spent one closes no run on a model the provider says costs nothing (`docs/provider-order.md`, 「Quota:
+    what a provider has left」);
   - **no login open** — where it holds logins, none of its logins is open by the account judgement
     below, each account's own reason beside it.
 - **A provider whose program does not carry a row's line is never that row's road**

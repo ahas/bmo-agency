@@ -415,6 +415,10 @@ never the model's name.
   - `context_tokens`, `answer_tokens`, `thinking`: the window, the answer ceiling and the default
     thinking of a run on the member. A member of a road holds all three; a member of no road may
     leave them out.
+  - `free`: whether a run on the member costs nothing, so its road's spent balance leaves it answering
+    (`docs/provider-order.md`, 「Quota: what a provider has left」). Where the member leaves it out, its
+    road's provider reads it off the member: OpenRouter reads a member whose `model` ends in `:free`, its
+    own mark of a model it serves at no cost, as free, and every other provider reads a member as costing.
 - **A member's key is named by its file and never written in the file.** The launcher reads each key
   file into its child's environment alone, as it does for a registration's address.
 - **A name two entries hold refuses the table.** The launcher answers with the refused table, and the

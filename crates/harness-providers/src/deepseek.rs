@@ -23,8 +23,13 @@ impl DeepSeek {
   }
 }
 
-// DeepSeek's balance: asked with the road's key file, the first of the answer's balances the reading.
+// DeepSeek's balance: asked with the road's key file, the first of the answer's balances the reading. It
+// closes every member but one whose `free` says it costs nothing.
 impl OffersBalance for DeepSeek {
+  fn spent_closes(&self, machine: &Machine, model: &str) -> bool {
+    !member::free(machine, self.name(), model, |_| false)
+  }
+
   fn declared(&self) -> &'static policy::providers::Balance {
     &DEEPSEEK.balance
   }

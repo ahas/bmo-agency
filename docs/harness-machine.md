@@ -68,6 +68,8 @@ flowchart TD
   one road. A member with no road belongs to no provider and is served by the gateway alone.
 - **A member of a road holds its window, its answer ceiling and whether it thinks by default;** a
   caller that runs one refuses a member missing any of them rather than sizing it at a guess.
+- **A member may say whether it costs nothing;** one that leaves it out is read by its road's provider
+  (`docs/own-llm.md`, 「The gateway's members」).
 
 ## An engine's health
 

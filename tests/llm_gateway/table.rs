@@ -218,6 +218,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
+      free: None,
     },
     Member {
       name: "openrouter-deepseek-flash".into(),
@@ -230,6 +231,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
+      free: None,
     },
   ];
   let table = gateway_table_with_members(&[], &members).unwrap();
@@ -261,6 +263,7 @@ fn a_member_naming_a_registration_refuses_the_table() {
     context_tokens: None,
     answer_tokens: None,
     thinking: None,
+    free: None,
   };
   let refused = gateway_table_with_members(&[registration("taken", vec![])], &[member]);
 

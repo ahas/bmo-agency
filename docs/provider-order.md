@@ -31,10 +31,16 @@ one provider at once. How the Claude Code provider walks its own accounts inside
   what agency keeps (`docs/usage-windows.md`, 「What reads the windows」):
   - **a provider with usage windows** — Claude Code and Codex, each with a five-hour and a weekly window —
     has left what its window with the least left has left: one less the used fraction of that window;
-  - **a provider with a balance** — DeepSeek — has quota while the balance its reader last kept is above
-    zero, and none once it is at or below zero; a balance never read reads as quota;
+  - **a provider with a balance** — DeepSeek and OpenRouter — has quota while the balance its reader last
+    kept is above zero, and none once it is at or below zero; a balance never read reads as quota;
   - **the registry's provider** — a registered model on the deployment's own engine — always has quota;
   - **a provider that reports neither** has quota.
+- **A spent balance closes only the models that cost.** A run on a model its provider says costs nothing
+  has quota and can answer whatever the balance: the provider answers it of the gateway member the model is,
+  out of the member's `free`, or where the member leaves that out, out of the provider's own reading of the
+  member (`docs/own-llm.md`, 「The gateway's members」). A read of the provider as a whole, which names no
+  model — the providers' listing, the warming — reads a spent balance as no quota and the provider as
+  unable to answer, as it is for every model that costs.
 - **A spent balance is topped up only on the owner's word.** The supervisor's DeepSeek top-up (`docs/tools.md`,
   「The DeepSeek top-up」) runs only when called with the amount the owner names, and pays at most once a call.
   One call is held to the cap `policy/providers/deepseek.toml` holds for the balance's currency. The card and
@@ -57,7 +63,8 @@ one provider at once. How the Claude Code provider walks its own accounts inside
 - **A road is judged as each run starts, and the judgement is kept for the run:** it can take the run while its
   provider has quota above the share and can answer now. Can answer now is the provider's own answer
   (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」): the owner's switch on it is
-  on, its credential stands on this machine, and, for a provider that holds logins, one of them is open. A run
+  on; its credential stands on this machine; for a provider that offers a balance, the balance is not spent
+  or the road's model costs nothing; and, for a provider that holds logins, one of them is open. A run
   already going finishes where it went out; a change of the road holds from the next run.
 - **It goes out on the model, the effort and the thinking the road names.** An effort or a thinking the road
   leaves to the provider is the provider's own: the effort its program runs at by default, and the thinking

@@ -17,9 +17,18 @@ use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Read
 
 pub struct OpenRouter;
 
+/// The end of a model id OpenRouter serves at no cost.
+const FREE_SUFFIX: &str = ":free";
+
 // OpenRouter's balance: asked with the member's key file, the credits bought less the credits used, in the
-// currency its policy names; and beside it the day's allowance of free-model requests.
+// currency its policy names; and beside it the day's allowance of free-model requests. OpenRouter still
+// answers its free models on a spent balance, so the balance closes only a member that costs: one whose
+// `free` is false, or that leaves `free` out and names no free model id.
 impl OffersBalance for OpenRouter {
+  fn spent_closes(&self, machine: &Machine, model: &str) -> bool {
+    !member::free(machine, self.name(), model, |member| member.model.ends_with(FREE_SUFFIX))
+  }
+
   fn declared(&self) -> &'static policy::providers::Balance {
     &OPENROUTER.balance
   }
@@ -197,7 +206,7 @@ fn price(value: Option<&Value>) -> Option<f64> {
 fn free(id: &str, pricing: Option<&Value>) -> bool {
   let zero = |name: &str| price(pricing.and_then(|pricing| pricing.get(name))) == Some(0.0);
 
-  id.ends_with(":free") && zero("prompt") && zero("completion")
+  id.ends_with(FREE_SUFFIX) && zero("prompt") && zero("completion")
 }
 
 /// The listing as the gateway answers it.

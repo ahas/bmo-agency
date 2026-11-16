@@ -55,11 +55,44 @@ pub fn deepseek_road(home: &std::path::Path) {
   let members = data.join("llm-gateway");
 
   std::fs::create_dir_all(&members).unwrap();
-  std::fs::write(
-    members.join("members.json"),
-    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
-  )
-  .unwrap();
+  std::fs::write(members.join("members.json"), format!("[{DEEPSEEK_FLASH}]")).unwrap();
+}
+
+// DeepSeek's flash model as a member of the gateway.
+const DEEPSEEK_FLASH: &str = r#"{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}"#;
+
+/// OpenRouter's road standing under a home DeepSeek's road already stands under: its key, and beside DeepSeek's
+/// flash model these members of its road, each its name, the upstream model it names and its `free` where it
+/// states one.
+pub fn openrouter_road(home: &std::path::Path, members: &[(&str, &str, Option<bool>)]) {
+  let data = home.join("data");
+  let key = data.join("env").join("openrouter.key");
+
+  std::fs::write(&key, "a key\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let held = members.iter().map(|(name, model, free)| {
+    let mut member = serde_json::json!({
+      "name": name,
+      "road": "openrouter",
+      "provider": "openrouter",
+      "model": model,
+      "api_base": "https://openrouter.ai/api/v1",
+      "key_file": "openrouter.key",
+      "context_tokens": 1_048_576,
+      "answer_tokens": 32_768,
+      "thinking": true,
+    });
+
+    if let Some(free) = free {
+      member["free"] = (*free).into();
+    }
+
+    member.to_string()
+  });
+  let every: Vec<String> = std::iter::once(DEEPSEEK_FLASH.to_owned()).chain(held).collect();
+
+  std::fs::write(data.join("llm-gateway").join("members.json"), format!("[{}]", every.join(","))).unwrap();
 }
 
 /// A ground seeded as the deployment seeds its store, DeepSeek's road standing on it.
@@ -83,11 +116,16 @@ pub async fn seeded_with(
 
 /// DeepSeek's balance as its reader last kept it.
 pub async fn deepseek_balance(ground: &Ground, amount: f64) {
+  provider_balance(ground, "deepseek", amount).await;
+}
+
+/// A provider's own road's balance as its reader last kept it.
+pub async fn provider_balance(ground: &Ground, provider: &str, amount: f64) {
   ground
     .windows
     .replace_balance(
       Slot {
-        mode: "deepseek",
+        mode: provider,
         account: "",
       },
       &Balance {

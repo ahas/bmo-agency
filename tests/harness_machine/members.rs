@@ -16,6 +16,7 @@ fn member(name: &str, road: Option<&str>) -> Member {
     context_tokens: Some(1_048_576),
     answer_tokens: Some(32_768),
     thinking: Some(true),
+    free: None,
   }
 }
 

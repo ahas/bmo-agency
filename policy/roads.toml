@@ -7,7 +7,7 @@
 [reasons]
 # A provider the owner turned off.
 off = "the owner turned it off"
-# A provider that offers a balance, its last reading at or below zero.
+# A provider that offers a balance, its last reading at or below zero, on a model that costs.
 balance = "its balance is spent ({amount} {currency} left)"
 # A provider whose quota left stands at or below the row's share (docs/provider-order.md, 「Quota: what a
 # provider has left」).

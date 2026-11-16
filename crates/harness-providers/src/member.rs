@@ -49,6 +49,16 @@ pub fn member_named(machine: &Machine, road: &str, name: &str) -> Result<Option<
   )
 }
 
+/// Whether the member of a road one name holds costs nothing: its own `free` where it says, else what
+/// `unstated`, the road's provider's reading, reads off it. A name the road holds no member for, and a file
+/// that does not read, cost.
+pub fn free(machine: &Machine, road: &str, name: &str, unstated: impl FnOnce(&Member) -> bool) -> bool {
+  member_named(machine, road, name)
+    .ok()
+    .flatten()
+    .is_some_and(|member| member.free.unwrap_or_else(|| unstated(&member)))
+}
+
 /// Why a road cannot answer on this machine now, or nothing where it can: the gateway's key file, at least
 /// one member of the road, and each member's own key file, all private and not empty.
 pub fn missing(machine: &Machine, road: &str, code: &str, text: &str) -> Option<Reason> {

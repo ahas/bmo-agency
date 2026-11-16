@@ -446,7 +446,8 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
 
 // One provider of the walk asked whether it can answer for the row now, every part of the answer its own
 // member's: whether its program carries the row's line, the owner's switch, its presence on this machine,
-// the balance it offers, the quota it has left above the row's share and the logins it holds.
+// the balance it offers where the entry's model costs, the quota it has left above the row's share and the
+// logins it holds.
 async fn step(
   ground: &Ground,
   machine: &Machine,
@@ -482,7 +483,7 @@ async fn step(
     return cannot(Closed::plain(name, missing.text));
   }
 
-  if let Some(closed) = balance_spent(ground, provider).await {
+  if let Some(closed) = balance_spent(ground, provider, Some(&entry.model)).await {
     return cannot(closed);
   }
 
@@ -671,10 +672,11 @@ fn percent(share: f64) -> String {
   format!("{:.0}%", share * 100.0)
 }
 
-// A provider that offers a balance and whose own road's last reading is at or below zero: closed, with
-// where its member says the balance is topped up. A balance never read, or a keeping that cannot be read,
-// closes nothing.
-async fn balance_spent(ground: &Ground, provider: &dyn Provider) -> Option<Closed> {
+// A provider that offers a balance and whose own road's last reading is at or below zero: closed to a run on
+// `model`, or to every run where none is named, with where its member says the balance is topped up. A
+// balance never read, a keeping that cannot be read, and a model the provider says costs nothing close
+// nothing.
+async fn balance_spent(ground: &Ground, provider: &dyn Provider, model: Option<&str>) -> Option<Closed> {
   let offers = provider.balance()?;
   let kept = match ground
     .windows
@@ -691,7 +693,7 @@ async fn balance_spent(ground: &Ground, provider: &dyn Provider) -> Option<Close
     }
   };
 
-  if kept.balance.amount > 0.0 {
+  if kept.balance.amount > 0.0 || !order::balance_closes(ground, offers, model) {
     return None;
   }
 
@@ -793,7 +795,7 @@ pub async fn provider_closed(ground: &Ground, name: &str) -> Result<Option<Strin
     return Ok(Some(missing.text));
   }
 
-  Ok(balance_spent(ground, provider).await.map(|closed| closed.reason))
+  Ok(balance_spent(ground, provider, None).await.map(|closed| closed.reason))
 }
 
 // ---- the facts of a row's road ----

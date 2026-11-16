@@ -4,6 +4,7 @@
 //! passed over. This module reads an order off its row, judges one a write hands in, and reads what a
 //! provider has left (「Quota: what a provider has left」), each provider answering out of its own member.
 
+use harness_providers::balance::OffersBalance;
 use harness_providers::{Machine, Provider};
 use policy::reasoning::REASONING;
 use policy::roles::ROLES;
@@ -324,7 +325,8 @@ pub fn least_left(
 }
 
 /// What a provider has left now, against a share, read afresh out of what agency keeps; of a provider that
-/// holds logins, what the logins open to `model` have left, or every open login where none is named.
+/// holds logins, what the logins open to `model` have left, or every open login where none is named; of a
+/// provider that offers a balance, quota whatever the balance where `model` is one it says costs nothing.
 pub async fn quota(
   ground: &Ground,
   provider: &dyn Provider,
@@ -338,7 +340,7 @@ pub async fn quota(
     return logins_quota(ground, provider, share, user, model, now).await;
   }
 
-  if provider.balance().is_some() {
+  if let Some(offers) = provider.balance() {
     let kept = ground
       .windows
       .balance(Slot {
@@ -351,7 +353,7 @@ pub async fn quota(
 
     return match kept {
       Some(kept) => Quota {
-        has: kept.balance.amount > 0.0,
+        has: kept.balance.amount > 0.0 || !balance_closes(ground, offers, model),
         balance: Some(kept.balance.amount),
         currency: Some(kept.balance.currency),
         balance_seen_at: Some(kept.seen_at),
@@ -387,6 +389,13 @@ pub async fn quota(
       ..Quota::default()
     },
   }
+}
+
+/// Whether a provider's spent balance closes a run on `model` (docs/provider-order.md, 「Quota: what a
+/// provider has left」): a model the provider says costs nothing goes out on it, and a read that names no
+/// model asks of the provider as a whole, which it closes.
+pub fn balance_closes(ground: &Ground, offers: &dyn OffersBalance, model: Option<&str>) -> bool {
+  model.is_none_or(|model| offers.spent_closes(&ground.machine(), model))
 }
 
 // A provider that holds logins has quota while one of its open logins has quota above the share by its own

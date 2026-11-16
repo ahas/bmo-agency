@@ -44,6 +44,9 @@ pub struct Member {
   /// Whether a run on the member thinks by default.
   #[serde(default)]
   pub thinking: Option<bool>,
+  /// Whether a run on the member costs nothing; none where the member leaves it to its road's provider.
+  #[serde(default)]
+  pub free: Option<bool>,
 }
 
 /// A member of a road, with the three values a run on it is sized to.

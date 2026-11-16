@@ -54,6 +54,14 @@ pub trait OffersBalance: Sync {
     self.declared().requests_url_on(&vars).map(str::to_owned)
   }
 
+  /// Whether a spent balance closes a run on `model` on this machine. Every model costs unless its
+  /// provider answers that this one costs nothing.
+  fn spent_closes(&self, machine: &Machine, model: &str) -> bool {
+    let _ = (machine, model);
+
+    true
+  }
+
   /// The request allowance the second address's answer states, or none.
   fn requests(&self, _answer: &Value) -> Option<Requests> {
     None

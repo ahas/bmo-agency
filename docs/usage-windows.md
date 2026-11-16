@@ -154,7 +154,8 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   road judgement reads a provider's own road's balance as its quota (「What reads a provider's quota」
   below), and the account judgement an endpoint account's: one at or below zero is a road that cannot
   answer now, and one never read closes nothing (`docs/cache-fallback.md`, 「Availability: whether a
-  provider can answer now」).
+  provider can answer now」). A provider's own spent balance leaves its road open to a model the provider
+  says costs nothing; an endpoint account's closes the account whatever the model.
 
 ## What reads the windows
 
@@ -207,8 +208,9 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   row's share, and the account walk offers that account first (`docs/cache-fallback.md`, 「The account
   judgement」). An endpoint account has no window, and has quota while the account judgement holds it open.
 - **A window read at its ceiling and not reset is no quota left,** whatever the share.
-- **A provider whose member reads its quota from a balance — DeepSeek —** has quota while the balance its
-  reader last kept is above zero, and none once it is at or below zero; a balance never read reads as
-  quota (「Balances」 above).
+- **A provider whose member reads its quota from a balance — DeepSeek and OpenRouter —** has quota while
+  the balance its reader last kept is above zero, and none once it is at or below zero; a balance never
+  read reads as quota (「Balances」 above). A run on a model the provider says costs nothing has quota
+  whatever the balance (`docs/provider-order.md`, 「Quota: what a provider has left」).
 - **The registry's provider always has quota:** a registered model runs on the deployment's own engine
   and reports neither a window nor a balance. **A provider that reports neither** has quota as well.

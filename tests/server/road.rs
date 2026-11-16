@@ -1,17 +1,19 @@
 //! The provider order (docs/provider-order.md): a row's run goes out on the first provider of its own order
 //! that has quota above its share and can answer now, every provider it passes named with why, the share read
-//! against the window with the least left, a balance at or below zero closing its provider, and a road its
-//! caller fixed or the owner forced walked alone — waited for, never left; a job's road chosen by the first
-//! that stands of its item's model, its role's forced provider, its repository's pin and its role's order; and
-//! a road a walk left for its provider's failure blocked for its kind's span and passed over by the next run
-//! while a later road can answer, the work's own failure blocking nothing.
+//! against the window with the least left, a balance at or below zero closing its provider to every model
+//! that costs and to none its provider says costs nothing, and a road its caller fixed or the owner forced
+//! walked alone — waited for, never left; a job's road chosen by the first that stands of its item's model,
+//! its role's forced provider, its repository's pin and its role's order; and a road a walk left for its
+//! provider's failure blocked for its kind's span and passed over by the next run while a later road can
+//! answer, the work's own failure blocking nothing.
 
 use agency_server::order::{Entry, Order, least_left, quota, window_left};
+use agency_server::places::Ground;
 use agency_server::repositories::Pin;
 use agency_server::road::*;
 use cache_siren::{KeptWindow, Reading, Slot, Window};
 
-use crate::support::grounds::{deepseek_balance, seeded};
+use crate::support::grounds::{deepseek_balance, openrouter_road, provider_balance, seeded};
 use crate::support::scratch::Scratch;
 
 fn entry(provider: &str, model: &str) -> Entry {
@@ -196,6 +198,64 @@ async fn a_balance_at_zero_closes_its_provider_and_a_balance_topped_up_reopens_i
 
   assert_eq!(topped.road().map(|road| road.provider.as_str()), Some("deepseek"), "{topped:?}");
   assert_eq!(topped.road().map(|road| road.model.as_str()), Some("deepseek-flash"));
+}
+
+// Where a worker's run on one OpenRouter member goes out now.
+async fn on_openrouter(ground: &Ground, model: &str) -> Resolution {
+  let walked = order(&[("openrouter", model)], 0.01);
+
+  resolve(ground, &Ask::of(Row::Role("worker"), "worker", &walked)).await.unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_spent_balance_closes_only_the_members_that_cost_and_a_balance_left_closes_none() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let openrouter = harness_providers::provider("openrouter").unwrap();
+  let costing = ["paid", "paid-though-named-free"];
+  let free = ["free-by-field", "free-by-suffix"];
+
+  openrouter_road(
+    home.path(),
+    &[
+      ("paid", "vendor/a-model", None),
+      ("paid-though-named-free", "vendor/a-model:free", Some(false)),
+      ("free-by-field", "vendor/a-model", Some(true)),
+      ("free-by-suffix", "vendor/a-model:free", None),
+    ],
+  );
+  provider_balance(&ground, "openrouter", -0.5).await;
+
+  for model in costing {
+    let spent = on_openrouter(&ground, model).await;
+
+    assert!(spent.road().is_none(), "{model}: {spent:?}");
+    assert_eq!(spent.closed()[0].reason, "its balance is spent (-0.5 USD left)", "{model}");
+    assert_eq!(
+      spent.command(),
+      Some(("openrouter", "buy OpenRouter credits at https://openrouter.ai/settings/credits"))
+    );
+  }
+
+  for model in free {
+    let going = on_openrouter(&ground, model).await;
+
+    assert_eq!(going.road().map(|road| road.model.as_str()), Some(model), "{going:?}");
+  }
+
+  // The provider as a whole, naming no model, has no quota on a spent balance; a free member has.
+  assert!(!quota(&ground, openrouter, 0.01, None, None).await.has);
+  assert!(quota(&ground, openrouter, 0.01, None, Some("free-by-suffix")).await.has);
+  assert!(!quota(&ground, openrouter, 0.01, None, Some("paid")).await.has);
+
+  provider_balance(&ground, "openrouter", 5.0).await;
+
+  for model in costing.into_iter().chain(free) {
+    let going = on_openrouter(&ground, model).await;
+
+    assert_eq!(going.road().map(|road| road.model.as_str()), Some(model), "{going:?}");
+  }
 }
 
 #[tokio::test(flavor = "multi_thread")]
