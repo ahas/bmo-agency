@@ -710,9 +710,14 @@ fn with_reference(prompt: &str, entries: &[bmo_gate_client::Entry]) -> String {
 }
 
 /// The prompt a job's worker is given, with the reference the gate picked over the job's instruction
-/// attached ahead of the run; a job with no instruction, or a gate that picks nothing, stands as it was.
-async fn referenced(ground: &Ground, instruction: Option<&Value>, prompt: &str) -> String {
-  let Some(instruction) = instruction.filter(|instruction| !instruction.is_null()) else {
+/// attached ahead of the run, read from the brain of the job's holder: the supervisor that launched it, whose
+/// account the item is filed under. A job with no instruction or no holder, or a gate that picks nothing,
+/// stands as it was.
+pub async fn referenced(gate: &dyn crate::peers::gate::Gate, job: &Value, prompt: &str) -> String {
+  let Some(instruction) = job.get("instruction").filter(|instruction| !instruction.is_null()) else {
+    return prompt.to_owned();
+  };
+  let Some(holder) = job["holderName"].as_str().filter(|holder| !holder.is_empty()) else {
     return prompt.to_owned();
   };
   let lines = instruction_lines(instruction);
@@ -721,7 +726,7 @@ async fn referenced(ground: &Ground, instruction: Option<&Value>, prompt: &str) 
     return prompt.to_owned();
   }
 
-  match ground.peers.gate.reference(lines).await {
+  match gate.reference(holder, lines).await {
     Ok(entries) => with_reference(prompt, &entries),
     Err(why) => {
       eprintln!("job: the gate's reference was not picked: {why}");
@@ -2995,7 +3000,7 @@ pub async fn launched<S: Sessions + Send + Sync>(
     None => match kept_turn_words(&ground.db, id).await {
       Some(words) => (words, None, None),
       None => {
-        let prompt = referenced(ground, member.get("instruction"), &prompt).await;
+        let prompt = referenced(ground.peers.gate.as_ref(), &member, &prompt).await;
         let Some(opening) = crate::job_review::opened(ground, id).await else {
           return Ok(None);
         };

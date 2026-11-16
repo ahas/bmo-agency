@@ -1,13 +1,14 @@
 //! The services agency calls, asked through the clients their repositories publish: over HTTP of a
 //! stand-in of the test's own, which writes down each call and answers by its path, and by the defaults
-//! where the deployment names no address.
+//! where the deployment names no address; and the supervisor each of agency's reference calls is read for.
 
 use std::sync::{Arc, Mutex};
 
 use agency_server::config::{Config, PeerAddresses};
 use agency_server::peers::brain::{BrainReset, Made};
+use agency_server::peers::gate::Gate;
 use agency_server::peers::node::NodeKind;
-use agency_server::peers::{PeerFault, Peers};
+use agency_server::peers::{Asking, PeerFault, Peers};
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, Method, StatusCode, Uri};
@@ -160,6 +161,9 @@ async fn answer(
       "name": body["name"],
       "createdAt": 1
     }),
+    ("POST", "reference/selected") => json!({
+      "entries": [{ "path": "knowledge/index.md", "text": "a known fact", "source": "knowledge" }]
+    }),
     ("DELETE", "brains/5") => brain("kept", 5),
     ("DELETE", "brains/6") => {
       return (
@@ -188,7 +192,7 @@ async fn stand_in() -> (String, Calls) {
 
 fn peers_at(address: &str, token: Option<&str>) -> Peers {
   let config = Config::read(|name| match name {
-    "AGENCY_NODE_URL" | "AGENCY_BRAIN_URL" => Some(address.to_owned()),
+    "AGENCY_NODE_URL" | "AGENCY_BRAIN_URL" | "BMO_GATE_URL" => Some(address.to_owned()),
     "AGENCY_NODE_TOKEN" | "AGENCY_BRAIN_TOKEN" => token.map(str::to_owned),
     _ => None,
   })
@@ -480,7 +484,14 @@ async fn a_service_with_no_address_answers_its_default() {
   peers.brain.forget("kept").await.unwrap();
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
   assert_eq!(peers.brain.make("kept", "Kept", None).await.unwrap(), Made::Undeployed);
-  assert!(peers.gate.reference(vec!["the instruction".to_owned()]).await.unwrap().is_empty());
+  assert!(
+    peers
+      .gate
+      .reference("bmo", vec!["the instruction".to_owned()])
+      .await
+      .unwrap()
+      .is_empty()
+  );
 }
 
 #[test]
@@ -499,4 +510,93 @@ fn a_picked_reference_stands_under_a_heading_named_by_path_and_source() {
     ),
     "the prompt\n\n## Reference\n\n`knowledge/index.md` (knowledge)\n\na known fact\n\n"
   );
+}
+
+#[tokio::test]
+async fn the_gate_is_asked_for_a_roomless_reference_read_for_the_supervisor_named() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+  let entries = peers.gate.reference("u7", vec!["the instruction".to_owned()]).await.unwrap();
+
+  assert_eq!(entries.len(), 1);
+  assert_eq!(entries[0].path, "knowledge/index.md");
+
+  let asked = taken(&calls).pop().expect("the gate was asked");
+
+  assert_eq!((asked.method.as_str(), asked.path.as_str()), ("POST", "/base/reference/selected"));
+  assert_eq!(asked.body["agent"], json!("u7"), "{}", asked.body);
+  assert_eq!(asked.body["roomId"], json!(0));
+  assert_eq!(asked.body["lines"], json!(["the instruction"]));
+  assert!(asked.body.get("situation").is_none(), "{}", asked.body);
+}
+
+/// A gate that writes down the supervisor each reference is asked for, and picks nothing.
+#[derive(Default)]
+struct Recording(std::sync::Mutex<Vec<String>>);
+
+impl Gate for Recording {
+  fn reference<'a>(
+    &'a self,
+    supervisor: &'a str,
+    _lines: Vec<String>,
+  ) -> Asking<'a, Vec<bmo_gate_client::Entry>> {
+    self.0.lock().unwrap().push(supervisor.to_owned());
+    Box::pin(async { Ok(Vec::new()) })
+  }
+
+  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
+    Box::pin(async { Ok(Vec::new()) })
+  }
+}
+
+impl Recording {
+  fn asked(&self) -> Vec<String> {
+    std::mem::take(&mut *self.0.lock().unwrap())
+  }
+}
+
+// A job's reference is read for its holder, the supervisor that launched it: an account's own `u<user>`, or
+// the owner's supervisor for the owner's jobs; a job naming no holder asks nothing.
+#[tokio::test]
+async fn a_job_s_reference_is_read_for_the_supervisor_holding_it() {
+  use agency_server::control::work::referenced;
+
+  let gate = Recording::default();
+  let instruction = json!({ "repository": "agency", "sentences": ["Name the supervisor."] });
+
+  for holder in ["u7", "bmo"] {
+    let job = json!({ "holderName": holder, "instruction": instruction });
+
+    assert_eq!(referenced(&gate, &job, "the prompt").await, "the prompt");
+    assert_eq!(gate.asked(), [holder]);
+  }
+
+  referenced(&gate, &json!({ "holderName": "", "instruction": instruction }), "the prompt").await;
+  assert!(gate.asked().is_empty(), "no holder, no supervisor to read for");
+}
+
+// A double's first prompt is read for the supervisor whose double it is; a role's run no supervisor
+// delegated asks nothing and keeps its words.
+#[tokio::test]
+async fn a_double_s_reference_is_read_for_its_own_supervisor() {
+  use agency_server::herdr_backend::first_prompt_referenced;
+  use agent_session::Apart;
+
+  let gate = Recording::default();
+  let double = Apart {
+    role: Some("doppelganger".into()),
+    supervisor: Some("u7".into()),
+    ..Apart::default()
+  };
+
+  assert_eq!(first_prompt_referenced(&gate, &double, "the words").await.unwrap(), "the words");
+  assert_eq!(gate.asked(), ["u7"]);
+
+  let alone = Apart {
+    supervisor: None,
+    ..double
+  };
+
+  assert_eq!(first_prompt_referenced(&gate, &alone, "the words").await.unwrap(), "the words");
+  assert!(gate.asked().is_empty(), "a run that is no double asks nothing");
 }

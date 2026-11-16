@@ -429,6 +429,23 @@ pub fn hears_words(work: Option<&WorkParts>) -> bool {
   work.is_none_or(|work| work.hears_words)
 }
 
+/// A thrown-away session's first prompt with the reference the gate picks over its words attached, read
+/// from the brain of the supervisor whose double the run is. A run that is no supervisor's double asks
+/// nothing and keeps its own words, since the gate reads a brain only for the supervisor a call names.
+pub async fn first_prompt_referenced(
+  gate: &dyn crate::peers::gate::Gate,
+  apart: &Apart,
+  prompt: &str,
+) -> Result<String, crate::peers::PeerFault> {
+  let Some(supervisor) = apart.supervisor.as_deref() else {
+    return Ok(prompt.to_owned());
+  };
+  let lines: Vec<String> = prompt.lines().map(str::to_owned).collect();
+  let entries = gate.reference(supervisor, lines).await?;
+
+  Ok(crate::peers::gate::attach(prompt, &entries))
+}
+
 /// The id a thrown-away session is started under: its agent and the number the backend gave it.
 pub fn apart_id(agent: &str, number: u64) -> SessionId {
   SessionId(format!("{agent}@{APART}:{number}"))
@@ -2434,10 +2451,10 @@ impl HerdrSessions {
       ));
     }
 
-    // A thrown-away session's first prompt carries the reference the gate picks over its instruction; a
-    // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
-    // judgement of its own. A session whose pick fails keeps its own words and nothing else, and a later
-    // turn of the same session is asked over the reference its first prompt already carries.
+    // A double's first prompt carries the reference the gate picks over its instruction from its
+    // supervisor's brain; a co-work branch's prompt is composed by its parent and carries none, and a gate's
+    // turn is a judgement of its own. A session whose pick fails keeps its own words and nothing else, and a
+    // later turn of the same session is asked over the reference its first prompt already carries.
     // A supervisor's double whose brain or reference the supervisor's settings switch off is handed nothing
     // the gate picks (docs/supervisors.md, 「Its settings」).
     let reference_reaches = match &scope {
@@ -2457,10 +2474,8 @@ impl HerdrSessions {
       && turn.context.job.is_none()
       && self.referenced().insert(turn.session.clone())
     {
-      let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
-
-      match self.ground().peers.gate.reference(lines).await {
-        Ok(entries) => turn.prompt = crate::peers::gate::attach(&turn.prompt, &entries),
+      match first_prompt_referenced(self.ground().peers.gate.as_ref(), apart, &turn.prompt).await {
+        Ok(prompt) => turn.prompt = prompt,
         Err(why) => eprintln!("{}: the gate's reference was not picked: {why}", turn.session),
       }
     }

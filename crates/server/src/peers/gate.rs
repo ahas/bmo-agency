@@ -1,7 +1,7 @@
 //! The gate (docs/api.md, 「Calls agency makes」) through the client it publishes: the reference a job's
-//! or a thrown-away session's first prompt is handed, picked over its instruction by the gate's reference
-//! road. The reference is the supervisor's brain's knowledge, rules and documents, chosen by the gate; a
-//! worker and a voyager read the brain only through what the gate hands them here.
+//! or a supervisor's double's first prompt is handed, picked over its instruction by the gate's reference
+//! road. The reference is the knowledge, rules and documents of the brain of the supervisor the call names,
+//! chosen by the gate; a worker and a voyager read the brain only through what the gate hands them here.
 
 use std::sync::Arc;
 
@@ -53,10 +53,10 @@ impl GateAddress {
 
 /// What agency asks the gate.
 pub trait Gate: Send + Sync {
-  /// The reference the gate picks for a job's or a thrown-away session's instruction: the knowledge, rules
-  /// and documents of the supervisor's brain its lines call for, each with its path, text and source. Empty
+  /// The reference the gate picks for a job's or a supervisor's double's instruction: the knowledge, rules
+  /// and documents of `supervisor`'s brain its lines call for, each with its path, text and source. Empty
   /// where the gate is undeployed or does not answer.
-  fn reference<'a>(&'a self, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
+  fn reference<'a>(&'a self, supervisor: &'a str, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
 
   /// The gate kinds and the order they stand in, as the gate publishes them. Empty where the gate is
   /// undeployed, so agency keeps no copy of its order.
@@ -85,7 +85,7 @@ pub fn attach(prompt: &str, entries: &[Entry]) -> String {
 pub struct NoGate;
 
 impl Gate for NoGate {
-  fn reference<'a>(&'a self, _lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
+  fn reference<'a>(&'a self, _supervisor: &'a str, _lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
     Box::pin(async { Ok(Vec::new()) })
   }
 
@@ -107,15 +107,20 @@ impl PublishedGate {
     Ok(Self { client })
   }
 
-  async fn reference_selected(&self, lines: Vec<String>) -> Result<Vec<Entry>, PeerFault> {
-    // A job and a thrown-away session carry no room, no speakers and no situation: the road reads the chat
-    // agent's own libraries, and a turn with no line asks none of them.
+  async fn reference_selected(
+    &self,
+    supervisor: &str,
+    lines: Vec<String>,
+  ) -> Result<Vec<Entry>, PeerFault> {
+    // A job and a double carry no room, no speakers and no situation: the envelope names the supervisor the
+    // turn belongs to, whose brain the road reads, and a turn with no line asks none of it.
     let ask = ReferenceAsk {
       room_id: 0,
       message_id: None,
       lines,
       speaker_ids: vec![],
       situation: None,
+      agent: Some(supervisor.to_owned()),
       holds: None,
       round: None,
       people_spoke: false,
@@ -155,8 +160,8 @@ fn fault(why: bmo_gate_client::ClientFailure) -> PeerFault {
 }
 
 impl Gate for PublishedGate {
-  fn reference<'a>(&'a self, lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
-    Box::pin(async move { self.reference_selected(lines).await })
+  fn reference<'a>(&'a self, supervisor: &'a str, lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
+    Box::pin(async move { self.reference_selected(supervisor, lines).await })
   }
 
   fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {

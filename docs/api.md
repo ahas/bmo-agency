@@ -483,11 +483,13 @@ in on, on the role's line.
   lease back; ending the session the lease is bound to does (`docs/role-slots.md`, 「The line」). A caller
   running sessions one after another on one slot starts the next before it ends the one before.
 
-Every role's session but a co-work branch's carries the reference its first prompt's instruction calls for,
-picked by the gate's reference selection over the supervisor's brain and attached to that first prompt, the same
-way a job's is (「assignments and jobs」); a later turn of the same session is asked over it and not over it
-again. A co-work branch's prompt is composed by its parent and carries none, and neither does a supervisor's
-double whose reference switch or brain switch is off (`docs/supervisors.md`, 「Its settings」).
+A supervisor's double, a role's session naming its `supervisor`, carries the reference its first prompt's
+instruction calls for, picked by the gate's reference selection over that supervisor's brain, the call naming
+the supervisor, and attached to that first prompt, the same way a job's is (「assignments and jobs」); a later turn
+of the same session is asked over it and not over it again. A role's session naming no supervisor asks the gate
+nothing and carries none, since the gate reads a brain only for the supervisor a call names; a co-work branch's
+prompt is composed by its parent and carries none, and neither does a double whose supervisor's reference switch
+or brain switch is off (`docs/supervisors.md`, 「Its settings」).
 
 A role's session may be handed its instructions whole, for a consumer that composes its own — the research unit,
 which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one: the
@@ -1634,10 +1636,12 @@ service.
   leave one, and the turn that goes on opens with it; a note the job service does not take is said in the
   job's log and stops nothing.
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
-  instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
-  the entries the gate picks from the supervisor's brain — knowledge, rules and documents — are attached
-  to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
-  stands on its own words; a job's run reads the brain only through what the gate picked here.
+  instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), with
+  no room and no situation and with `agent` naming the job's holder, the supervisor that launched it and whose
+  account the item is filed under: an account's own supervisor for its jobs, the owner's supervisor for the
+  owner's. The entries the gate picks from that supervisor's brain — knowledge, rules and documents — are
+  attached to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks
+  nothing, stands on its own words; a job's run reads the brain only through what the gate picked here.
 - **A job goes out on the road of the agent its item names, or its launch takes for its item's model**
   (`docs/repositories.md`, 「An agent an item names」), let in on that agent alone. The item's `agent`, `model`
   and `role` labels are read off the item `POST /jobs` is handed, its `labels`. An item naming a model and no
@@ -1927,8 +1931,9 @@ base layer of the agent's persona that prompt ends with. Of the tool host it ask
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a role's session's instruction
-calls for, picked over the supervisor's brain, and attaches the picked entries to the run's first prompt; and it
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a supervisor's double's instruction
+calls for, picked over the brain of the supervisor the call names in its `agent`, and attaches the picked entries
+to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here. Of the
 mail service the DeepSeek top-up asks, while DeepSeek's sign-in waits on a code or a link it mails, `GET
 /accounts` for the account carrying the DeepSeek login's address, then `GET /accounts/{accountName}/messages` with
@@ -1952,8 +1957,8 @@ role `administrator`, each else from the mail unit's settings file `env/mail.tom
   /demands` and gives back every demand under the door's reference (`docs/own-llm.md`, 「The gateway」).
   The launcher reads the master's address and token as 「The gateway」 says.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
-  its token stands in. With no address, no reference is asked and a job or a role's session carries only
-  its own words.
+  its token stands in. With no address, no reference is asked and a job or a double carries only its own
+  words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way
   (`AGENCY_NODE_TOKEN`, `AGENCY_NODE_TOKEN_FILE`). With no address, no agent has a brain: nothing is made, counted or let go.
