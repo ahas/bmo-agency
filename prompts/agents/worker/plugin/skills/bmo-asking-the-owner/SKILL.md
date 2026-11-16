@@ -1,7 +1,7 @@
 ---
 name: "bmo-asking-the-owner"
 bundle: worker
-version: "1.2.2"
+version: "1.3.0"
 description: "How a job puts something in front of the owner: a decision that is genuinely his (hard to undo, or settled by his own taste) asked with bmo job ask, and a document for him to read or approve filed in the deployment's 아카이브. Use before asking him anything and before handing him any document."
 ---
 
@@ -12,6 +12,17 @@ description: "How a job puts something in front of the owner: a decision that is
 - **Put it to him only where the choice is really his** — hard to undo, or settled by his own taste
   and no reading of the code. Everything else the work settles itself and writes under 정한 것: a
   question about something you could have looked up is worse than never asking.
+- **A question is a choice of direction, and nothing else.** It asks him which way the work goes — which of two
+  designs, whether a road may be opened, whether to spend his money or his account's standing. It is never a
+  request for something to be done: never "install this", "run this and paste the output", "measure this",
+  "post this from your phone and tell me", "check that it works after", and never a line addressed to the
+  supervisor. What the job cannot do itself — a node it cannot reach, a step only a person's device can take, a
+  check that needs someone else — goes into its report as what is left and who must do it, and the job ends
+  there; the supervisor reads the report and carries it.
+- **It is read at a glance.** The question in a few lines of his language, each option one short line, the
+  reason one line. No command, script, code block, hash, long address or encoded payload goes into any of them:
+  `bmo job ask` refuses such words and opens nothing. A long reading he needs before choosing goes into the
+  archive (below) and its address into the question.
 - **The command:**
   `bmo job ask --todo <id> --question '<무엇을 정할지>' --option '<하나>' --option '<다른 하나>' --recommend <추천 번호> --why '<왜 네가 못 정하는지 한 줄>'`.
   - Two or more options, the recommendation one of them by its number.
