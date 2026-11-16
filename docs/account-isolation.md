@@ -57,23 +57,26 @@ every node shares are `docs/work-nodes.md`.
   - no new privileges, so no `sudo` or other set-user program gains any;
   - every other user's processes hidden: `/proc` shows the account's own processes alone, and none of the
     kernel's other files there;
-  - a network that reaches the world and nothing of this machine's but the tool host: a connection the account's
-    user makes to any address of this machine, its loopback and its own address on every interface, or to a
-    private, shared, link-local or multicast address, is refused at once, but for the tool host's port on the
-    loopback and the system's stub resolver.
+  - a network that reaches the world and nothing of this machine's but the tool host and the model gateway: a
+    connection the account's user makes to any address of this machine, its loopback and its own address on every
+    interface, or to a private, shared, link-local or multicast address, is refused at once, but for the tool
+    host's port and the gateway's port on the loopback and the system's stub resolver.
 
   The unit's words are the policy's. A program the sandbox started leaves it only by ending: the far end, the
   herdr session and the agent host it starts, and every program in a pane of that session run inside it.
 - **The network rule is a firewall table of the account's own,** named after its user and keyed on that user, so
   it holds for every program the user runs, one left standing after the command that started it among them. The
-  sandbox stands the table afresh, as root, before its program starts, with the tool host's port this machine's
-  runs reach, and a sandbox whose table does not stand runs nothing. The node's own programs therefore speak to one
+  sandbox stands the table afresh, as root, before its program starts, with the tool host's port and the model
+  gateway's port this machine's runs reach, the same ports for the setup's sandbox and the link's, since the one
+  table holds for every program of the user, and a sandbox whose table does not stand runs nothing. The gateway's
+  port is left open only where the gateway's address is on this machine's loopback. The node's own programs therefore speak to one
   another through sockets in the filesystem alone: a server the account starts on the loopback is reached by none
   of its programs either.
 - **What stands for the account on the owner's side** runs no command the account names beyond what a PC may ask:
   the link's near end, the home bridge, which runs the policy's verbs alone for a node an account owns
-  (「Who reaches a node」 in `docs/person-nodes.md`), and the tool host, which the node reaches over this machine's
-  loopback with the run's own tool token, the one port there its network rule leaves it.
+  (「Who reaches a node」 in `docs/person-nodes.md`), the tool host, which the node reaches over this machine's
+  loopback with the run's own tool token, and the model gateway, which a program of the node on a gateway road
+  reaches there with the gateway's key: the two ports there its network rule leaves it.
 
 ## Standing it up
 
@@ -106,11 +109,13 @@ every node shares are `docs/work-nodes.md`.
   output. There is no SSH login and no hub.
 - **Its two sockets stand in the link's folder:** the home bridge's, which the near end binds there and the
   node's programs reach as their bridge, and the far end's way to the node's herdr session, which the near end
-  joins to the node's herdr socket here. No port is forwarded: the node reaches the tool host over this machine's
-  loopback as it is.
+  joins to the node's herdr socket here. No port is forwarded: the node reaches the tool host and the model
+  gateway over this machine's loopback as they are.
 - **It carries what a PC's link carries and nothing more:** the run's own variables, its place and its tool token
-  go to the node; its running record and its transcripts come back. No token of the deployment's goes, and the
-  data root's credential folder is never sent.
+  go to the node, and for a program on a gateway road the road's variables and the gateway's key file its key helper
+  reads, written in the home readable by the account's user alone (`docs/work-nodes.md`, 「The model gateway on a
+  node」); its running record and its transcripts come back. No other token of the deployment's goes, and nothing
+  else of the data root's credential folder is sent.
 
 ## Where it is checked
 

@@ -60,3 +60,21 @@ fn a_program_reads_as_the_nodes_with_its_files_gathered_and_no_token_of_this_mac
     ]
   );
 }
+
+#[test]
+fn a_path_between_single_quotes_reads_as_the_nodes_and_is_gathered() {
+  let mut settings: Value =
+    serde_json::json!({ "apiKeyHelper": "cat '/h/a/.local/share/bmo/data/env/llm-gateway.key'" });
+  let mut named = Vec::new();
+
+  rewrite_json(
+    &mut settings,
+    &roots(),
+    &NodeEnv::default(),
+    &["/h/a/.local/share/bmo/data".to_owned()],
+    &mut named,
+  );
+
+  assert_eq!(settings["apiKeyHelper"], "cat '/n/w/data/env/llm-gateway.key'");
+  assert_eq!(named, ["/h/a/.local/share/bmo/data/env/llm-gateway.key"]);
+}

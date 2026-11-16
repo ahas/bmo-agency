@@ -32,8 +32,11 @@ const PUSHED_PLACE_FILES: [&str; 4] = ["program.json", "settings.json", "run.jso
 const PULLED_PLACE_FILES: [&str; 2] = ["running.json", "start-failed.json"];
 
 /// The variables a program on a node is started with, of those this machine's launch gave it: among them the
-/// console's public address and a supervisor's owner account, which its secret requests are written with.
-const NODE_ENV_KEEP: [&str; 17] = [
+/// console's public address and a supervisor's owner account, which its secret requests are written with, and a
+/// gateway road's own, its address, model names, headers, waits and tool search, so the program reaches the
+/// gateway the link carries (docs/work-nodes.md, 「The model gateway on a node」). An API key or an auth token is
+/// never among them.
+const NODE_ENV_KEEP: [&str; 24] = [
   "BMO_AGENT_PLACE",
   "BMO_CONSOLE_ADDRESS",
   "BMO_SOURCE_DIR",
@@ -46,6 +49,13 @@ const NODE_ENV_KEEP: [&str; 17] = [
   "BMO_TURN_*",
   "CLAUDE_CODE_*",
   "CLAUDE_CONFIG_DIR",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_*",
+  "ANTHROPIC_CUSTOM_HEADERS",
+  "API_TIMEOUT_MS",
+  "BUN_CONFIG_HTTP_IDLE_TIMEOUT",
+  "ENABLE_TOOL_SEARCH",
   "HOME",
   "LANG",
   "LC_*",
@@ -78,6 +88,19 @@ pub fn path_head(home: &str, root: &str) -> Vec<String> {
 
 /// The system's own directories behind a node's search path, for a program its far end starts.
 const SYSTEM_PATH: [&str; 3] = ["/usr/local/bin", "/usr/bin", "/bin"];
+
+/// The port of an address on this machine's loopback, its scheme's own where it names none; none for an address
+/// elsewhere or one that does not read.
+pub fn loopback_port(address: &str) -> Option<u16> {
+  let url = url::Url::parse(address).ok()?;
+  let loopback = match url.host()? {
+    url::Host::Domain(name) => name == "localhost",
+    url::Host::Ipv4(address) => address.is_loopback(),
+    url::Host::Ipv6(address) => address.is_loopback(),
+  };
+
+  loopback.then(|| url.port_or_known_default()).flatten()
+}
 
 /// The commit the deployment runs, as its record beside the deploy tree's link names it.
 pub fn deployed_commit(deploy_link: &Path) -> Option<String> {
@@ -124,6 +147,11 @@ pub struct Roots {
   pub agents: PathBuf,
   pub home: PathBuf,
   pub mcp_port: u16,
+  /// The model gateway's port on this machine's loopback, where its address is there; none where it is
+  /// reached elsewhere, and a node reaches it as it stands (docs/work-nodes.md, 「The model gateway on a node」).
+  pub gateway_port: Option<u16>,
+  /// The gateway's key file, which a pushed program on a gateway road names for its key helper.
+  pub gateway_key: PathBuf,
   /// The jake hub's executable, whose connect mode carries a link to a person's PC, where the deployment
   /// names one (docs/person-nodes.md, 「The link over jake」).
   pub jake_hub: Option<PathBuf>,
@@ -153,12 +181,23 @@ impl Roots {
         .and_then(|port| port.parse().ok())
         .filter(|&port| port > 0)
         .unwrap_or(MCP_HOST_PORT),
+      gateway_port: loopback_port(&harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"))),
+      gateway_key: harness_providers::registered::Registered::key_file(machine),
       jake_hub: machine.var(crate::config::JAKE_HUB).map(PathBuf::from),
       config_dir: machine.var("CLAUDE_CONFIG_DIR").map_or_else(|| home.join(".claude"), PathBuf::from),
       path: machine.var("PATH").unwrap_or("/usr/bin:/bin").to_owned(),
       bun: machine.program("bun").unwrap_or_else(|| PathBuf::from("bun")),
       home,
     }
+  }
+
+  /// The ports of this machine's loopback a node's programs reach through its link, each with what answers
+  /// there: the tool host's, and the model gateway's where its address is on the loopback.
+  pub fn node_ports(&self) -> Vec<(u16, &'static str)> {
+    let mut ports = vec![(self.mcp_port, "the tool host")];
+
+    ports.extend(self.gateway_port.map(|port| (port, "the model gateway")));
+    ports
   }
 
   /// Whether the data root is the machine's own rather than a copy a process was pointed at.
@@ -624,7 +663,7 @@ pub async fn spec(
     path.extend(SYSTEM_PATH.map(str::to_owned));
 
     Local {
-      run_as: isolation.sandbox(&path.join(":"), roots.mcp_port),
+      run_as: isolation.sandbox(&path.join(":"), &ports_of(roots)),
       herdr: isolation.herdr_socket(),
     }
   });
@@ -643,8 +682,9 @@ pub async fn spec(
       remote: socket,
       session: Some(session),
     },
-    // A node of this machine reaches the tool host over the loopback it shares, and its bridge in the link's folder.
-    ports: if isolation.is_some() { Vec::new() } else { vec![roots.mcp_port] },
+    // A node of this machine reaches the tool host and the gateway over the loopback it shares, and its bridge in
+    // the link's folder.
+    ports: if isolation.is_some() { Vec::new() } else { ports_of(roots) },
     bridge: isolation
       .as_ref()
       .map_or_else(|| here.join("bridge.sock"), |isolation| isolation.bridge_socket()),
@@ -663,6 +703,7 @@ pub async fn spec(
     state: here.join("link-state.json"),
     follow: vec![shown(&roots.data), shown(&roots.agents)],
     withheld: vec![roots.data.join("env")],
+    handed: vec![roots.gateway_key.clone()],
     path_head: path_head(&home, &node_root),
     env_keep: NODE_ENV_KEEP.map(str::to_owned).to_vec(),
     env_add: vec![
@@ -680,6 +721,12 @@ pub async fn spec(
     jake,
     local,
   }))
+}
+
+/// The ports of this machine's loopback every node reaches, as a link carries them and an isolation node's network
+/// rule leaves them open.
+pub fn ports_of(roots: &Roots) -> Vec<u16> {
+  roots.node_ports().into_iter().map(|(port, _)| port).collect()
 }
 
 /// The bridge relay port a node's setup record names, where it names one.

@@ -533,6 +533,10 @@ impl<W: Watch + Send> Watch for Asked<'_, W> {
   fn stopping(&mut self) -> bool {
     self.inner.stopping()
   }
+
+  fn waiting(&mut self, waiting: Option<agent_session::Waiting>) -> impl Future<Output = ()> + Send {
+    self.inner.waiting(waiting)
+  }
 }
 
 /// The asks a job's turn opens on its tool calls gone silent and idle: each call a clocked run of its own,

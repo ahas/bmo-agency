@@ -39,6 +39,7 @@ use super::looks::{
   GoneConfirm, Look, folder_trust_keys, is_blocked, pane_listed, plugin_offer_keys, prompt,
   prompt_with_lead, screen_of, send_keys, status_of,
 };
+use super::node_take::{NodeTake, Take};
 use super::place_run::{
   HookRecord, ProgramLogin, begin_run, end_run, hand_run, hooks_file, latest_failure, program_drawn,
   read_hooks, read_run, run_variables, status_after_turn, status_file,
@@ -278,6 +279,12 @@ pub trait Watch {
   ) -> impl Future<Output = Option<String>> + Send {
     async { None }
   }
+
+  /// What the turn waits for before its program is put to work, as it begins, and none as it clears: a program on
+  /// a node that has stood past its notice without taking the turn (docs/work-nodes.md, 「When a node drops」).
+  fn waiting(&mut self, _waiting: Option<agent_session::Waiting>) -> impl Future<Output = ()> + Send {
+    async {}
+  }
 }
 
 /// A caller with nothing to say and nothing to keep.
@@ -515,6 +522,15 @@ struct Door<'a, W: Watch> {
   liveness: Liveness,
   program: Option<Program>,
   judge: Judge,
+  // The bound a standing program on a node is held to until it takes the turn; none here and once it has.
+  node_take: Option<NodeTake>,
+}
+
+// What the wait for a program to be told something came to: ready, as a look read it with the screen it kept, or
+// its program on a node past its bound, and why the turn ends.
+enum Rest {
+  Ready(Look, String),
+  Overdue(String),
 }
 
 impl<W: Watch> Door<'_, W> {
@@ -594,6 +610,59 @@ impl<W: Watch> Door<'_, W> {
 
   fn lines(&mut self) -> Vec<Value> {
     self.tail.look()
+  }
+
+  // The bound a program on a node is held to before it takes the turn, looked at once: the turn's waiting told, its
+  // log and agency's written, as the notice passes, and why the turn ends once the bound has; none here, within it
+  // and once the words are taken.
+  async fn node_overdue(&mut self) -> Option<String> {
+    let take = self.node_take.as_mut()?;
+    let node = take.node().to_owned();
+    let heard = crate::watches::links::link_heard(&self.ground.roots.data, &node);
+
+    match take.look(heard, tokio::time::Instant::now()) {
+      Take::Within => None,
+      Take::Notice { reason, stood } => {
+        eprintln!("{}: {reason}", self.turn.name);
+        self.watch.note(&reason).await;
+        self
+          .watch
+          .waiting(Some(agent_session::Waiting {
+            kind: agent_session::WaitKind::NodeProgram,
+            service: node,
+            reason,
+            since: now_ms() - stood.as_millis() as i64,
+          }))
+          .await;
+
+        None
+      }
+      Take::Overdue(why) => {
+        eprintln!("{}: {why}", self.turn.name);
+        self.watch.note(&why).await;
+
+        Some(why)
+      }
+    }
+  }
+
+  // The turn's words taken, or the turn ended: no bound reads the program any more, and a waiting told is cleared.
+  async fn node_settled(&mut self) {
+    if self.node_take.take().is_some_and(|take| take.noticed()) {
+      self.watch.waiting(None).await;
+    }
+  }
+
+  // The turn ended on its program's bound: the program ended, so the next turn stands a new one, and the words that
+  // never became a turn said so.
+  async fn node_cut(&mut self, pane: &str, why: String) -> Ending {
+    self.interrupt(pane, &Interrupt::EndProgram).await;
+    self.node_settled().await;
+
+    let shown = self.screen(pane).await;
+    let screen = self.kept_screen(&why, shown).await;
+
+    Ending::Unsubmitted { screen, why }
   }
 
   async fn cancelled(&self) -> bool {
@@ -872,7 +941,7 @@ impl<W: Watch> Door<'_, W> {
   // the most worth reading is said by a program about to be gone. The wait lasts until the program is at
   // rest, stands at a question, or its pane is gone, and a herdr that does not answer is waited out. A
   // question the line answers itself is answered here, a counted number of times, and the wait goes on.
-  async fn settled(&mut self, pane: &str) -> Result<(Look, String), String> {
+  async fn settled(&mut self, pane: &str) -> Result<Rest, String> {
     let timings = self.turn.timings.clone();
     let mut screen = String::new();
     let mut answers = OwnAnswers::new(timings.redraw);
@@ -881,10 +950,14 @@ impl<W: Watch> Door<'_, W> {
     loop {
       self.check_launch().await?;
 
+      if let Some(why) = self.node_overdue().await {
+        return Ok(Rest::Overdue(why));
+      }
+
       let now = status_of(self.herdr, pane, timings.gone).await;
 
       if now == Look::Gone {
-        return Ok((now, screen));
+        return Ok(Rest::Ready(now, screen));
       }
 
       if let Look::Silent(cause) = &now {
@@ -911,7 +984,7 @@ impl<W: Watch> Door<'_, W> {
       // A program started again for this turn reads at rest from the one before it until it is up, and
       // words put in meanwhile are lost whole. A pane of the turn's own has only its own program.
       if now.at_rest() && self.standing.as_ref().is_none_or(|(place, _)| program_drawn(place)) {
-        return Ok((now, screen));
+        return Ok(Rest::Ready(now, screen));
       }
 
       let due = answers.due();
@@ -919,7 +992,7 @@ impl<W: Watch> Door<'_, W> {
       if now.is("blocked") && !self.answer_own(pane, &seen, &mut answers).await && due {
         // A question the line does not answer itself, or one its answers did not clear: the turn's to
         // handle.
-        return Ok((now, screen));
+        return Ok(Rest::Ready(now, screen));
       }
 
       tokio::time::sleep(timings.poll).await;
@@ -1156,7 +1229,14 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     liveness,
     program: None,
     judge: Judge::default(),
+    node_take: None,
   };
+
+  door.node_take = door
+    .standing
+    .as_ref()
+    .and_then(|(place, _)| place.node())
+    .map(|node| NodeTake::of_policy(&node));
   let opened = match &turn.seat {
     Seat::Standing(home) => stand(&mut door, home).await,
     Seat::Own(_) => open_own(&mut door).await,
@@ -1167,6 +1247,7 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
   let pane = match opened {
     Ok(pane) => pane,
     Err(why) => {
+      door.node_settled().await;
       door.close("launch-error").await;
       door.liveness.close(&ground.db, "failed", &why).await;
 
@@ -1198,8 +1279,9 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
   // Held on the heap: the wait is the deepest future of a turn.
   let watched = Box::pin(watch_turn(&mut door, &pane, from, &mut attempted, &mut ending)).await;
 
-  // The asks opened on the turn's calls close with it.
+  // The asks opened on the turn's calls close with it, and so does a wait it told.
   door.watch.call_ended(None).await;
+  door.node_settled().await;
 
   let watched = match watched {
     Ok(done) => Ok(done),
@@ -1302,24 +1384,29 @@ async fn stand<W: Watch>(door: &mut Door<'_, W>, home: &Home) -> Result<String, 
   }
 
   let names = [turn.name.clone(), door.row.id().to_owned(), door.row.root().to_owned()];
+  let every = Duration::from_millis(250);
+  let standing = stand_resident(ground, &place, home, &program, &turn.env, &turn.line, every, || async {
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
 
-  stand_resident(
-    ground,
-    &place,
-    home,
-    &program,
-    &turn.env,
-    &turn.line,
-    Duration::from_millis(250),
-    || async {
-      let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    cancelled(&ground.db, &names).await.unwrap_or(false)
+  });
+  let mut standing = std::pin::pin!(standing);
 
-      cancelled(&ground.db, &names).await.unwrap_or(false)
-    },
-  )
-  .await
-  .map(|stood| stood.pane)
-  .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
+  // A program on a node that does not come up is held to the bound it is held to until it takes the turn.
+  let stood = loop {
+    tokio::select! {
+      stood = &mut standing => break stood,
+      () = tokio::time::sleep(turn.timings.poll) => {
+        if let Some(why) = door.node_overdue().await {
+          return Err(why);
+        }
+      }
+    }
+  };
+
+  stood
+    .map(|stood| stood.pane)
+    .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
 }
 
 // A pane of the turn's own, in a workspace of its own labelled with what the run is, on what model and on
@@ -1503,7 +1590,14 @@ async fn watch_turn<W: Watch>(
   let mut reset = false;
 
   loop {
-    let (ready, screen) = door.settled(pane).await?;
+    let (ready, screen) = match door.settled(pane).await? {
+      Rest::Ready(ready, screen) => (ready, screen),
+      Rest::Overdue(why) => {
+        *ending = End::Cancelled;
+
+        return Ok(door.node_cut(pane, why).await);
+      }
+    };
 
     if ready == Look::Gone {
       *ending = End::Cancelled;
@@ -1656,6 +1750,12 @@ async fn watch_turn<W: Watch>(
       return Ok(door.lost(pane, Lost::Program, "unsubmitted").await);
     }
 
+    if let Some(why) = door.node_overdue().await {
+      *ending = End::Cancelled;
+
+      return Ok(door.node_cut(pane, why).await);
+    }
+
     door.watch.note(&DOOR_WORDS.notes.enter_pressed).await;
     let _ = send_keys(door.herdr, pane, &["enter"]).await;
     taken = door.taken(pane, from).await;
@@ -1664,6 +1764,7 @@ async fn watch_turn<W: Watch>(
   door.row.set("state", json!("running"));
   door.save().await;
   door.fed = Some(from);
+  door.node_settled().await;
   door.liveness.phase(Phase::Working);
   door.liveness.write(&door.ground.db).await;
 

@@ -142,6 +142,19 @@ impl<'a> Watched<'a> {
 }
 
 impl Watch for Watched<'_> {
+  // Kept as the turn's waiting for its read and published as `turn.changed`, as a card's wait is.
+  async fn waiting(&mut self, waiting: Option<agent_session::Waiting>) {
+    let Some(shown) = &self.shown else { return };
+
+    shown.waiting(waiting.clone());
+    self.ground.events.publish(crate::herdr_backend::TurnChanged {
+      session: shown.session.0.clone(),
+      turn_id: shown.turn,
+      run: self.run.clone(),
+      waiting,
+    });
+  }
+
   async fn note(&mut self, text: &str) {
     let db = self.ground.db.clone();
 

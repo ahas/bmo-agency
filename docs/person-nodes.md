@@ -157,8 +157,9 @@ desktop coding agent whose models and tools are served from elsewhere.
 - **A user manager of its own that runs while nobody is logged in:** systemd in the Linux shell, with lingering on
   for the person's account, since every long step and the far end run as units of it.
 - **jake's agent offering the link's ports:** the far end's mirror and herdr ports among its stream ports, and the
-  tool host's port and the far end's bridge port among its listen ports. The far end's three ports are agency's
-  policy (`policy/person-nodes.toml`); the tool host's is the deployment's.
+  tool host's port, the model gateway's port and the far end's bridge port among its listen ports. The far end's
+  three ports are agency's policy (`policy/person-nodes.toml`); the tool host's and the gateway's are the
+  deployment's.
 
 ## The workplace on a PC
 
@@ -178,6 +179,10 @@ credential scoped to that agent (「Who reaches a node」).
   program a step starts apart outlives the step's unit, as it outlives an SSH session.
 - **The commands run in the shell the agent offers for Linux:** its own where it runs inside the Linux shell, WSL's
   where it runs on Windows.
+- **A step that fails says why in what the PC wrote:** the code it ended with, what it wrote on its errors, and
+  what it wrote on its output where its errors hold nothing, since WSL's own launcher, failing before any command
+  runs, writes why on its output. Every command asks WSL to write its own messages as UTF-8, so they read here as
+  written.
 - **The copy goes through the hub's uploads:** the same files an SSH copy sends are gathered here into a mirror
   under the node's directory, packed into one archive, uploaded with its length and checksum declared, and laid over
   the PC's copy there with the same files left out, so what is built or installed on the PC stays. A PC without
@@ -193,7 +198,9 @@ credential scoped to that agent (「Who reaches a node」).
   to the bridge port, and keeping the herdr session and the agent host standing. Stopping it stops the far end
   alone; the herdr session and the agent host it started stay, so a restart ends no agent.
 - **What the hub's agent does not offer is said** with the rest of what is missing: a mirror or herdr port not among
-  its stream ports, the tool host's or the bridge port not among its listen ports, or no Linux shell.
+  its stream ports, the tool host's, the model gateway's or the bridge port not among its listen ports, or no Linux
+  shell; and a target here the hub does not list in its `JAKE_REVERSE_TARGETS` — the tool host's, the gateway's or
+  the bridge's relay.
 
 ## The link over jake
 
@@ -204,6 +211,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the mirror | both ways | a byte stream to the far end's mirror port on the PC |
 | the node's herdr session socket | here → PC | a byte stream to the far end's herdr port, which the far end joins to the socket |
 | the tool host's port | PC → here | a stream back: the PC's agent listens on the port at its loopback, each connection joined to the tool host here |
+| the model gateway's port | PC → here | a stream back the same way, each connection joined to the gateway here (`docs/work-nodes.md`, 「The model gateway on a node」) |
 | the home bridge's socket | PC → here | a stream back to a port the near end opens here and joins to the bridge's socket; the far end's bridge socket joins the PC's loopback port |
 
 - **The far end stands on the PC as a service of the person's own,** started by the workplace's setup and kept
@@ -211,11 +219,12 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   and joining the bridge's socket to the stream back. A machine reached through the hub keeps nothing open to the
   world, since jake's agent dials out and listens at its loopback alone.
 - **The near end makes no SSH connection:** it reaches the far end's ports through the hub's byte streams, and asks
-  the hub to listen on the PC for the tool host and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
+  the hub to listen on the PC for the tool host, the model gateway and the bridge, naming targets the hub's `JAKE_REVERSE_TARGETS`
   allows (jake's `docs/architecture.md`, 「Carrying a byte stream back」). What the mirror says is the SSH link's,
   frame for frame.
 - **Each connection asks the hub for every listen it wants:** the hub keeps one the agent already listens on as it
-  stands, joined to the target named this time, and asks the agent only for one it does not listen on yet.
+  stands, joined to the target named this time, and asks the agent only for one it does not listen on yet. A listen
+  the hub refuses leaves the others asked, so a target its settings do not list yet costs that road alone.
 - **The bridge's stream back is joined to the bridge socket both ways,** each side's close passed on to the other
   as it comes: the hub carries what the bridge wrote ahead of its close to the asker on the PC whole.
 - **The spec writer writes a jake spec for a node with no SSH login and a hub reach:** the agent the node service
@@ -226,17 +235,21 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 - **Each PC has a bridge relay port of its own here,** since each joins its own bridge socket: the setup gives a PC
   the lowest port from the policy's base that no other node's setup record holds, keeps it on every later setup,
   and writes it into the node's setup record. The hub's `JAKE_REVERSE_TARGETS` lists it beside the tool host's
-  port, and the setup says either missing where the hub's settings do not.
+  and the gateway's ports, and the setup says any of them missing where the hub's settings do not.
+- **A connection the PC has not been heard on is dropped and dialed again** (`docs/work-nodes.md`, 「The link」),
+  since the hub's connect program can stand open with nothing coming through it after the PC's agent was replaced.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
-  own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address and
-  its supervisor's owner account.
+  own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address,
+  its supervisor's owner account, and for a program on a gateway road the gateway's key file its key helper reads,
+  written there readable by the PC's user alone as the tool token is (`docs/work-nodes.md`, 「The model gateway on a
+  node」).
 
 ## What stands and what is left
 
 | Part | Stands | Left |
 |---|---|---|
 | jake: streams back | the hub's listens by agent and port, refused for a target outside `JAKE_REVERSE_TARGETS`; the agent's listens at its loopback on `JAKE_LISTEN_PORTS`; each accepted connection carried to its target | — |
-| the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host and the bridge; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
+| the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket and the bridge, and asks the hub to listen for the tool host, the model gateway and the bridge, a connection unheard for its bound dropped and dialed again; the far end may listen at the PC's loopback for the mirror and the herdr socket and join its bridge socket to the stream back | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror, herdr and bridge ports; what the agent does not offer is said | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC, its bridge relay port given at setup; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard | — |
 | who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |

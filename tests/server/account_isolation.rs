@@ -97,8 +97,8 @@ async fn a_copy_whose_writer_ends_at_once_fails_at_once_rather_than_holding_its_
 #[test]
 fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_before_its_program() {
   let isolation = Isolation::of_account("7").expect("a login id");
-  let words = isolation.sandbox("/usr/bin", 4321);
-  let firewall = isolation.firewall(4321);
+  let words = isolation.sandbox("/usr/bin", &[4321, 4322]);
+  let firewall = isolation.firewall(&[4321, 4322]);
   let before_program = &words[..words.iter().position(|word| word == "--").expect("the program's place")];
   let stood = format!(
     "--property=ExecStartPre=+{} \"{firewall}\"",
@@ -115,7 +115,7 @@ fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_be
   for rule in [
     "delete table inet bmo-account-7; table inet bmo-account-7 {",
     "meta skuid bmo-account-7 jump account",
-    "ip daddr 127.0.0.1 tcp dport 4321 accept",
+    "ip daddr 127.0.0.1 tcp dport { 4321, 4322 } accept",
     "meta oif lo goto refuse",
     "127.0.0.0/8",
     "::1",
@@ -138,17 +138,25 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  // The tool host's port, another port of this machine's loopback, and a port on another address of the loopback.
+  // The tool host's and the model gateway's ports, another port of this machine's loopback, and a port on another
+  // address of the loopback.
   let tool_host = TcpListener::bind("127.0.0.1:0").expect("a tool host");
+  let gateway = TcpListener::bind("127.0.0.1:0").expect("a gateway");
+  let gateway_port = gateway.local_addr().expect("its port").port();
   let other = TcpListener::bind("127.0.0.1:0").expect("another port");
   let tool_port = tool_host.local_addr().expect("its port").port();
   let other_port = other.local_addr().expect("its port").port();
   let elsewhere = TcpListener::bind("127.0.0.2:0").expect("a port on another address");
   let elsewhere_port = elsewhere.local_addr().expect("its port").port();
 
-  assert!(IsolatedDoor::open(&isolation, false, tool_port).await.is_err(), "a check makes no user");
+  let open_ports = [tool_port, gateway_port];
 
-  let door = IsolatedDoor::open(&isolation, true, tool_port).await.expect("the user is made");
+  assert!(
+    IsolatedDoor::open(&isolation, false, &open_ports).await.is_err(),
+    "a check makes no user"
+  );
+
+  let door = IsolatedDoor::open(&isolation, true, &open_ports).await.expect("the user is made");
 
   assert_eq!(door.wanting().await, Vec::<String>::new(), "the user holds its own group alone");
 
@@ -210,6 +218,10 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   let reached = door.run(&format!("exec 3<>/dev/tcp/127.0.0.1/{tool_port}")).await;
 
   assert_eq!(reached.code, 0, "the tool host's port is the account's to reach: {}", reached.stderr);
+
+  let reached = door.run(&format!("exec 3<>/dev/tcp/127.0.0.1/{gateway_port}")).await;
+
+  assert_eq!(reached.code, 0, "the gateway's port is the account's to reach: {}", reached.stderr);
 
   let scratch_mark = format!("isolation-check-{account}");
   let scratch = door
@@ -292,7 +304,7 @@ async fn an_isolation_node_s_link_runs_its_far_end_as_the_account_s_user_in_the_
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  let door = IsolatedDoor::open(&isolation, true, NO_TOOL_HOST).await.expect("the user is made");
+  let door = IsolatedDoor::open(&isolation, true, &[NO_TOOL_HOST]).await.expect("the user is made");
   let root = isolation.home.join("node");
   let binary = root.join("bin/node-link");
   let place_there = root.join("data/agent-places/w");
@@ -343,7 +355,7 @@ async fn an_isolation_node_s_link_runs_its_far_end_as_the_account_s_user_in_the_
       "follow": [],
       "withheld": [],
       "bridge_verbs": ["agent-status"],
-      "local": { "run_as": isolation.sandbox("/usr/local/bin:/usr/bin:/bin", NO_TOOL_HOST), "herdr": isolation.herdr_socket() }
+      "local": { "run_as": isolation.sandbox("/usr/local/bin:/usr/bin:/bin", &[NO_TOOL_HOST]), "herdr": isolation.herdr_socket() }
     })
     .to_string(),
   )

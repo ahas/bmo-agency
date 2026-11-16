@@ -571,12 +571,15 @@ async fn stand(
     _ => return Err(VerbError::Refused("no such step".into())),
   };
   let isolation = crate::account_isolation::Isolation::of_node(node);
-  let tool_host =
-    Roots::of_machine(&harness_providers::Machine::of_process(data_root), deploy_link()).mcp_port;
+  // The ports of this machine's loopback the node's programs reach: an isolation node's network rule leaves them
+  // open, and a PC's agent and hub must offer them.
+  let home_ports =
+    Roots::of_machine(&harness_providers::Machine::of_process(data_root), deploy_link()).node_ports();
+  let open_ports: Vec<u16> = home_ports.iter().map(|(port, _)| *port).collect();
   let (door, label) = match &isolation {
     // An account's isolation node is no node the node service keeps: agency names it and stands its user.
     Some(isolation) => {
-      let door = IsolatedDoor::open(isolation, copy_code, tool_host)
+      let door = IsolatedDoor::open(isolation, copy_code, &open_ports)
         .await
         .map_err(|why| VerbError::Refused(format!("{node}: {why}")))?;
 
@@ -671,7 +674,7 @@ async fn stand(
   let relay = matches!(door, Door::Hub(_)).then(|| relay_port(data_root, node));
 
   if let (Door::Hub(door), Some(far_end), Some(relay)) = (&door, &place.far_end, relay) {
-    outcome.missing.extend(door.wanting(far_end, tool_host, relay));
+    outcome.missing.extend(door.wanting(far_end, &home_ports, relay));
   }
 
   // A path written from the node's home reads as the node's own from now on, so every lock, record and

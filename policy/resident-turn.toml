@@ -67,3 +67,14 @@ adopted_bound_minutes = 240
 
 # Why such a turn was cut, as its end says. `{minutes}` is the bound in minutes.
 adopted_cut = "cut at the {minutes}-minute bound of a turn picked up after agency restarted: its caller went away with the process before, so the turn is ended"
+
+# How long a program on a node may go without taking its turn — come up, come to rest and take the words — counted
+# while the node's link is heard, before the turn's waiting names it, and before the program is ended and the turn
+# ends unsubmitted (docs/work-nodes.md, 「When a node drops」). A program here is held to no such bound.
+node_take_notice_ms = 60000
+node_take_bound_ms = 300000
+
+# What the turn's waiting, its run log and agency's log say as the notice passes, and why the turn ends as the
+# bound does. {node} is the node, {seconds} how long the program stood there without taking the turn.
+node_take_waiting = "The program on {node} has stood {seconds} seconds without taking the turn"
+node_take_cut = "The program on {node} stood {seconds} seconds without taking the turn, so it was ended and the turn ends unsubmitted"

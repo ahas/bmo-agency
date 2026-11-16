@@ -1,6 +1,6 @@
 //! One turn put into an agent's standing program (docs/agent-control.md, 「The order for putting in one
 //! turn and waiting for it to end」): the lead its words go in behind, and the paces it keeps. None of them
-//! ends a turn or a wait in it.
+//! ends a turn or a wait in it but the bound a program on a node is held to before it takes its turn.
 
 use serde::Deserialize;
 
@@ -32,6 +32,13 @@ pub struct ResidentTurn {
   pub adopted_bound_minutes: u64,
   /// Why such a turn was cut; `{minutes}` is the bound in minutes.
   pub adopted_cut: String,
+  /// How long a program on a node may go without taking its turn, its node's link heard, before the turn's
+  /// waiting names it, and before the turn ends on it.
+  pub node_take_notice_ms: u64,
+  pub node_take_bound_ms: u64,
+  /// What the waiting says, and why the turn ends; `{node}` and `{seconds}` are filled in.
+  pub node_take_waiting: String,
+  pub node_take_cut: String,
 }
 
 crate::part!(pub RESIDENT_TURN: ResidentTurn = "resident-turn.toml");

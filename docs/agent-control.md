@@ -2207,7 +2207,9 @@ The measured, fixed order.
    on. Other `blocked` is a place a person answers, or a wedge the round clears itself
    where nobody is coming to answer it (「When a program will not come to rest」 below). The wait has no
    clock: it lasts until the program is at rest, stands at a question, writes its start failure, loses
-   its pane or is stopped, and a herdr that does not answer meanwhile is waited out. A head pane herdr
+   its pane or is stopped, and a herdr that does not answer meanwhile is waited out. A program on a node
+   alone is held to a bound from its standing to its taking the words, counted while the node's link is
+   heard (`docs/work-nodes.md`, 「When a node drops」). A head pane herdr
    says is gone while the program is being stood is stood again rather than waited on, since nothing in
    a pane that is not there will ever start the program.
    - **At rest counts only from the program standing now.** A program started again for the turn is
@@ -2255,7 +2257,7 @@ The measured, fixed order.
    begins at the same point. Where
    neither has come ten seconds after the words went in, `enter` is pressed, and again each ten seconds
    after that, until one of them comes, the pane is gone or the turn is stopped. The ten seconds pace the
-   presses; none of them ends the turn.
+   presses; none of them ends the turn, but for a program on a node, whose bound from step 1 still runs.
 4. Wait for `idle` or `done` after seeing `working` once. The measured state order is `idle` → `working`
    → `idle`. **Without also seeing `working`**, the `idle` before the prompt went in is read as finished.
    A turn back at rest that was never seen working and wrote no answer is over once its record closes a

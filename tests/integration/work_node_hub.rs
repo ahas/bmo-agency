@@ -299,17 +299,23 @@ async fn an_absent_agent_is_refused_and_what_an_attached_one_does_not_offer_is_s
     bridge_port: 47203,
   };
 
+  // The ports here a node reaches: the tool host's, which the agent and the hub offer, and the gateway's, which
+  // neither does.
+  let home_ports = [(13123, "the tool host"), (18030, "the model gateway")];
+
   assert!(refused.contains("no agent elsewhere attached"));
   assert_eq!(
-    door(&stood).await.wanting(&ports, 13123, 47213),
+    door(&stood).await.wanting(&ports, &home_ports, 47213),
     [
       "jake: the agent pc does not offer port 47202 for herdr to stream to; its JAKE_STREAM_PORTS must list it",
+      "jake: the agent pc does not offer to listen on port 18030 for the model gateway; its JAKE_LISTEN_PORTS must list it",
       "jake: the agent pc does not offer to listen on port 47203 for the bridge; its JAKE_LISTEN_PORTS must list it",
+      "jake: the hub joins no stream back to 127.0.0.1:18030, the model gateway here; its JAKE_REVERSE_TARGETS must list it",
     ]
   );
   // A relay port the hub's settings do not list is said with them.
   assert_eq!(
-    door(&stood).await.wanting(&ports, 13123, 47214)[2],
+    door(&stood).await.wanting(&ports, &home_ports, 47214)[4],
     "jake: the hub joins no stream back to 127.0.0.1:47214, the bridge's relay here; its JAKE_REVERSE_TARGETS must list it"
   );
 }

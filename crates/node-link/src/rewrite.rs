@@ -4,15 +4,15 @@
 
 use serde_json::Value;
 
-/// Where a root may begin inside a string: its start, or after a separator a command line or a list of
-/// paths puts before one.
+/// Where a root may begin inside a string: its start, after a separator a command line or a list of paths
+/// puts before one, or after the single quote a shell command puts around a path, as a key helper's does.
 fn begins_here(text: &str, at: usize) -> bool {
-  at == 0 || matches!(text.as_bytes()[at - 1], b'=' | b':' | b' ')
+  at == 0 || matches!(text.as_bytes()[at - 1], b'=' | b':' | b' ' | b'\'')
 }
 
-/// Where a root may end inside a string: its end, a path going on under it, or a separator.
+/// Where a root may end inside a string: its end, a path going on under it, a separator, or a closing quote.
 fn ends_here(text: &str, at: usize) -> bool {
-  at == text.len() || matches!(text.as_bytes()[at], b'/' | b':' | b' ' | b'"')
+  at == text.len() || matches!(text.as_bytes()[at], b'/' | b':' | b' ' | b'"' | b'\'')
 }
 
 /// Every root of this machine standing in a string replaced by the node's, the first root that holds a
@@ -50,7 +50,7 @@ fn named_under(text: &str, root: &str, found: &mut Vec<String>) {
     let after = start + root.len();
 
     if begins_here(text, start) && after < text.len() && text.as_bytes()[after] == b'/' {
-      let end = text[after..].find([':', ' ', '"', '=']).map_or(text.len(), |stop| after + stop);
+      let end = text[after..].find([':', ' ', '"', '=', '\'']).map_or(text.len(), |stop| after + stop);
 
       found.push(text[start..end].to_owned());
     }

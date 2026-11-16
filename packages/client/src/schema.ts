@@ -2261,9 +2261,12 @@ export interface components {
         SpannedAnswerOpened: "handed" | "program";
         /** @description TurnWaiting: what a running turn waits for, typed. */
         TurnWaiting: {
-            /** @description What it waits for: `card`, a card the arbiter's master has not yet granted. */
+            /**
+             * @description What it waits for: `card`, a card the arbiter's master has not yet granted, or `node-program`, a program on
+             *     a node that has stood past its notice without taking the turn.
+             */
             for: components["schemas"]["TurnWaitKind"];
-            /** @description The service whose grant it waits on. */
+            /** @description The service whose grant it waits on, or the node whose program it waits on. */
             service: string;
             /** @description Why it waits, as it stands now. */
             reason: string;
@@ -2277,7 +2280,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        TurnWaitKind: "card";
+        TurnWaitKind: "card" | "node-program";
         /**
          * @description The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its
          *     own.

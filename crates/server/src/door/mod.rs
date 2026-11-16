@@ -14,6 +14,7 @@ pub mod guard;
 pub mod inbox;
 pub mod liveness;
 pub mod looks;
+pub mod node_take;
 pub mod place_run;
 pub mod record;
 pub mod rollout;

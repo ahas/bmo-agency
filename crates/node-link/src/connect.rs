@@ -32,6 +32,17 @@ const FIRST_WAIT: Duration = Duration::from_secs(1);
 const LONGEST_WAIT: Duration = Duration::from_secs(60);
 /// How often the state file is written while frames keep arriving.
 const HEARD_EVERY: Duration = Duration::from_secs(2);
+/// How long a connection may go without a word from the node before it is dropped and made again: the far end
+/// speaks every few seconds while it stands, so a connection silent this long is a dead one.
+const UNHEARD_BOUND: Duration = Duration::from_secs(120);
+
+/// A bound the environment names in milliseconds under `name`, which a test sets short, else the one given.
+fn bound_named(name: &str, given: Duration) -> Duration {
+  std::env::var(name)
+    .ok()
+    .and_then(|ms| ms.parse().ok())
+    .map_or(given, Duration::from_millis)
+}
 
 fn now_ms() -> u128 {
   SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_millis())
@@ -259,9 +270,17 @@ fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHan
 
 // One connection here carried to a port on the PC through the hub's connect program.
 async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jake, port: u16) {
-  let Ok(mut command) = jake_command(jake, port) else { return };
-  let Ok(mut child) = command.stderr(Stdio::null()).spawn() else {
-    return;
+  let mut command = match jake_command(jake, port) {
+    Ok(command) => command,
+    Err(why) => return eprintln!("{}: port {port} could not be reached: {why}", jake.agent),
+  };
+  let mut child = match command.stderr(Stdio::null()).spawn() {
+    Ok(child) => child,
+    Err(error) => {
+      let program = command.as_std().get_program().to_string_lossy().into_owned();
+
+      return eprintln!("{}: port {port} could not be reached: {program}: {error}", jake.agent);
+    }
   };
   let (Some(mut input), Some(mut output)) = (child.stdin.take(), child.stdout.take()) else {
     return;
@@ -278,6 +297,8 @@ async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jak
 /// The hub asked to have the agent listen on each PC port wanted, joined to the port here, at the control port the
 /// hub's own file names and with a credential reaching that agent alone. Every listen is asked for on every
 /// connection: the hub keeps one the agent already listens on as it stands and asks the agent only for the rest.
+/// A listen refused leaves the others asked all the same, so a target the hub does not list yet costs that road
+/// alone; every refusal is answered together.
 pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
   let port = match crate::hub::setting(hub_env, "JAKE_CONTROL_PORT")? {
     Some(port) => port.parse::<u16>().map_err(|_| format!("JAKE_CONTROL_PORT {port} is no port"))?,
@@ -285,6 +306,7 @@ pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> 
   };
   let credential = crate::hub::agent_credential(hub_env, agent)?;
   let client = reqwest::Client::new();
+  let mut refused = Vec::new();
 
   for (pc, here) in wanted {
     let answer = client
@@ -293,14 +315,16 @@ pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> 
       .bearer_auth(&credential)
       .json(&json!({ "target": format!("127.0.0.1:{here}") }))
       .send()
-      .await
-      .map_err(|error| error.to_string())?;
-    if !answer.status().is_success() {
-      let said = answer.text().await.unwrap_or_default();
-      return Err(format!("port {pc}: {said}"));
+      .await;
+
+    match answer {
+      Ok(answer) if answer.status().is_success() => {}
+      Ok(answer) => refused.push(format!("port {pc}: {}", answer.text().await.unwrap_or_default())),
+      Err(error) => refused.push(format!("port {pc}: {error}")),
     }
   }
-  Ok(())
+
+  if refused.is_empty() { Ok(()) } else { Err(refused.join("; ")) }
 }
 
 /// Whether two specs make the same connection, so a change between them needs no new one.
@@ -343,10 +367,11 @@ impl Pushing {
   }
 
   /// Whether a file named by a pushed one may go along: under a root that follows, under none that is
-  /// withheld, and not one the node itself sends back.
+  /// withheld unless it is one the spec hands all the same, and not one the node itself sends back.
   fn may_follow(spec: &Spec, path: &Path) -> bool {
     spec.follow.iter().any(|root| path.starts_with(root))
-      && !spec.withheld.iter().any(|root| path.starts_with(root))
+      && (spec.handed.iter().any(|handed| path == handed)
+        || !spec.withheld.iter().any(|root| path.starts_with(root)))
       && !spec.pull.iter().any(|landing| path.starts_with(&landing.local))
   }
 
@@ -512,7 +537,11 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
   let mut command = command;
   let mut child = match command.spawn() {
     Ok(child) => child,
-    Err(error) => return format!("the connection could not start: {error}"),
+    Err(error) => {
+      let program = command.as_std().get_program().to_string_lossy().into_owned();
+
+      return format!("the connection could not start: {program}: {error}");
+    }
   };
 
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
@@ -553,11 +582,17 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
   let mut push_tick = tokio::time::interval(PUSH_EVERY);
   let mut spec_tick = tokio::time::interval(SPEC_EVERY);
   let mut stamp = spec_stamp(spec_path);
+  let unheard = bound_named("NODE_LINK_UNHEARD_MS", UNHEARD_BOUND);
+  let mut heard_at = tokio::time::Instant::now();
 
   let reason = loop {
     tokio::select! {
+      () = tokio::time::sleep_until(heard_at + unheard) => {
+        break format!("nothing was heard from the node in {} seconds", unheard.as_secs_f64());
+      }
       line = lines.next_line() => {
         let Ok(Some(line)) = line else { break "the session ended".to_owned() };
+        heard_at = tokio::time::Instant::now();
         let Some(frame) = Frame::read(&line) else { continue };
         let now = now_ms();
 
@@ -732,10 +767,7 @@ pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
 
   let mut state = State::default();
   // A test names a shorter first wait.
-  let first_wait = std::env::var("NODE_LINK_FIRST_WAIT_MS")
-    .ok()
-    .and_then(|ms| ms.parse().ok())
-    .map_or(FIRST_WAIT, Duration::from_millis);
+  let first_wait = bound_named("NODE_LINK_FIRST_WAIT_MS", FIRST_WAIT);
   let mut wait = first_wait;
 
   loop {

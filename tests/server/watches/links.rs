@@ -7,8 +7,8 @@ use std::sync::Mutex;
 use agency_server::peers::Asking;
 use agency_server::peers::node::{HubReach, NodeRow, NodeService};
 use agency_server::watches::links::{
-  LinkUnits, Roots, Skipped, deployed_commit, link_unit, mark_place_node, node_path, place_node,
-  project_dir, settle,
+  LinkUnits, Roots, Skipped, deployed_commit, link_unit, loopback_port, mark_place_node, node_path,
+  place_node, project_dir, settle,
 };
 use node_link::spec::{Spec, rewrite};
 
@@ -20,6 +20,15 @@ fn a_path_from_the_home_is_read_against_the_nodes_home() {
   assert_eq!(node_path("~", Some("/home/tester")), "/home/tester");
   assert_eq!(node_path("/srv/node", Some("/home/tester")), "/srv/node");
   assert_eq!(node_path("~/node-root", None), "~/node-root");
+}
+
+#[test]
+fn the_gateway_is_carried_to_a_node_where_its_address_is_on_this_machine_s_loopback() {
+  assert_eq!(loopback_port("http://127.0.0.1:18030"), Some(18030));
+  assert_eq!(loopback_port("http://localhost/llm"), Some(80));
+  assert_eq!(loopback_port("http://[::1]:4000"), Some(4000));
+  assert_eq!(loopback_port("https://gateway.example/llm"), None);
+  assert_eq!(loopback_port("not an address"), None);
 }
 
 #[test]
@@ -120,6 +129,8 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
     agents: trees.path().join("agents"),
     home: trees.path().to_path_buf(),
     mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
     jake_hub: Some("/opt/jake/jake-hub".into()),
     config_dir: trees.path().join(".claude"),
     path: "/usr/bin:/bin".into(),
@@ -188,7 +199,18 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
     (jake.mirror_port, jake.herdr_port, jake.bridge_port, jake.bridge_relay),
     (47201, 47202, 47203, 47214)
   );
-  assert_eq!(pc.ports, [3290]);
+  // The tool host and the model gateway here are both reached from the PC's loopback, and a program on a gateway
+  // road takes its road's variables and the gateway's key there, never a login's key or token
+  // (docs/work-nodes.md, 「The model gateway on a node」).
+  assert_eq!(pc.ports, [3290, 18030]);
+  assert_eq!(pc.handed, std::slice::from_ref(&roots.gateway_key));
+  assert!(pc.env_keep.iter().any(|kept| kept == "ANTHROPIC_BASE_URL"));
+  assert!(
+    !pc
+      .env_keep
+      .iter()
+      .any(|kept| kept.starts_with("ANTHROPIC_API") || kept.starts_with("ANTHROPIC_AUTH"))
+  );
   // An account's node asks its bridge for the policy's verbs alone (docs/person-nodes.md, 「Who reaches a node」).
   assert_eq!(pc.bridge_verbs.as_ref(), Some(&policy::person_nodes::PERSON_NODES.bridge_verbs));
   // The supervisor's place goes there: its program sent, its running record brought back.
@@ -235,6 +257,8 @@ async fn an_account_with_no_pc_is_stood_up_on_its_isolation_node_and_linked_with
     agents: trees.path().join("agents"),
     home: trees.path().to_path_buf(),
     mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
     jake_hub: None,
     config_dir: trees.path().join(".claude"),
     path: "/usr/bin:/bin".into(),
@@ -310,6 +334,8 @@ async fn each_account_sharing_a_node_keeps_its_supervisors_folders_under_a_root_
     agents: trees.path().join("agents"),
     home: trees.path().to_path_buf(),
     mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
     jake_hub: Some("/opt/jake/jake-hub".into()),
     config_dir: trees.path().join(".claude"),
     path: "/usr/bin:/bin".into(),

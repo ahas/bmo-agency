@@ -89,12 +89,12 @@ impl Isolation {
   }
 
   /// The words every program of the node is started under, ahead of its own command line, with `path` the search
-  /// path its programs are handed and `tool_port` the tool host's port on this machine's loopback, the one port
-  /// there the node's network rule leaves it.
-  pub fn sandbox(&self, path: &str, tool_port: u16) -> Vec<String> {
+  /// path its programs are handed and `ports` the ports of this machine's loopback the node's network rule leaves
+  /// it: the tool host's, and the model gateway's where it stands there.
+  pub fn sandbox(&self, path: &str, ports: &[u16]) -> Vec<String> {
     let home = self.home.display().to_string();
     let scratch = self.scratch().display().to_string();
-    let firewall = self.firewall(tool_port);
+    let firewall = self.firewall(ports);
     let marks = [
       ("user", self.user.as_str()),
       ("home", home.as_str()),
@@ -108,14 +108,11 @@ impl Isolation {
   }
 
   /// The firewall's script of the node's network rule, which replaces the user's own table whole and leaves the
-  /// user, of this machine and the private networks, the tool host's port and the stub resolver alone.
-  pub fn firewall(&self, tool_port: u16) -> String {
-    let port = tool_port.to_string();
+  /// user, of this machine and the private networks, the ports given on the loopback and the stub resolver alone.
+  pub fn firewall(&self, ports: &[u16]) -> String {
+    let ports = ports.iter().map(u16::to_string).collect::<Vec<_>>().join(", ");
 
-    fill_marks(
-      &ACCOUNT_ISOLATION.firewall,
-      &[("user", self.user.as_str()), ("tool_port", port.as_str())],
-    )
+    fill_marks(&ACCOUNT_ISOLATION.firewall, &[("user", self.user.as_str()), ("ports", ports.as_str())])
   }
 }
 

@@ -594,7 +594,7 @@ pub struct Waiting {
   /// What it waits for.
   #[serde(rename = "for")]
   pub kind: WaitKind,
-  /// The service whose grant it waits on.
+  /// The service whose grant it waits on, or the node whose program it waits on.
   pub service: String,
   /// Why it waits, as it stands now.
   pub reason: String,
@@ -608,6 +608,8 @@ pub struct Waiting {
 pub enum WaitKind {
   /// A card the arbiter's master has not yet granted the run on a registration naming a card service.
   Card,
+  /// A program on a node that has stood past its notice without taking the turn.
+  NodeProgram,
 }
 
 /// The context a session's last request carried against the window of the registration it stands on.

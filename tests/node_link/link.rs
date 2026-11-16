@@ -93,7 +93,8 @@ fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
       "proc": dir.path().join("proc"),
       "state": state,
       "follow": [here],
-      "withheld": [],
+      "withheld": [here.join("env")],
+      "handed": [here.join("env/llm-gateway.key")],
       "path_head": ["/node/bin"],
       "env_keep": ["BMO_AGENT_PLACE"],
       "env_add": [["BMO_NODE", "t"]]
@@ -120,13 +121,36 @@ fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
 
   wait_for("the connection", connected);
 
-  // Here to there: the program, its paths read as the node's, the bot's token left here.
-  let program = json!({ "command": { "args": ["x"], "cwd": "/w", "env": { "BMO_AGENT_PLACE": place_here, "BMO_CONTROL_TOKEN": "secret" } } });
+  // Here to there: the program, its paths read as the node's, the bot's token left here. Its settings name the
+  // gateway's key for their key helper, and another file of the credential folder beside it.
+  let key = here.join("env/llm-gateway.key");
+
+  fs::create_dir_all(here.join("env")).expect("the credential folder");
+  fs::write(&key, "gateway-key").expect("the gateway's key");
+  fs::write(here.join("env/other.key"), "other").expect("another credential");
+  fs::write(
+    here.join("settings.json"),
+    json!({ "apiKeyHelper": format!("cat '{}'", key.display()), "other": here.join("env/other.key") })
+      .to_string(),
+  )
+  .expect("settings");
+
+  let program = json!({ "command": { "args": ["x", "--settings", here.join("settings.json")], "cwd": "/w", "env": { "BMO_AGENT_PLACE": place_here, "BMO_CONTROL_TOKEN": "secret" } } });
 
   fs::write(place_here.join("program.json"), program.to_string()).expect("program");
   wait_for("the program on the node", || place_there.join("program.json").exists());
 
   let pushed = read_json(&place_there.join("program.json")).expect("pushed");
+  let key_there = there.join("data/env/llm-gateway.key");
+
+  wait_for("the gateway's key on the node", || key_there.exists());
+  assert_eq!(fs::read_to_string(&key_there).expect("the key there"), "gateway-key");
+  assert_eq!(fs::metadata(&key_there).expect("its mode").permissions().mode() & 0o777, 0o600);
+  assert_eq!(
+    read_json(&there.join("data/settings.json")).expect("the settings there")["apiKeyHelper"],
+    format!("cat '{}'", key_there.display())
+  );
+  assert!(!there.join("data/env/other.key").exists(), "no other credential goes");
 
   assert_eq!(pushed["command"]["env"]["BMO_AGENT_PLACE"], json!(place_there));
   assert_eq!(pushed["command"]["env"]["BMO_NODE"], "t");
@@ -552,4 +576,112 @@ fn the_bridge_s_verbs_hold_from_the_next_call_and_across_the_link_killed_mid_cal
     "node work\nagent-status\nagent-status --hold\nagent-status\n",
     "a refused call runs nothing"
   );
+}
+
+// A hub's connect program standing in that takes the link's frames and says nothing back, its output held open so
+// the link reads silence rather than an end, counting its starts.
+fn silent_connect(dir: &Path) -> std::path::PathBuf {
+  let connect = dir.join("jake-hub");
+
+  fs::write(&connect, "#!/bin/sh\necho start >>\"$CONNECT_STARTS\"\nexec cat 3>&1 >/dev/null\n")
+    .expect("connect");
+  fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
+  connect
+}
+
+fn jake_spec(dir: &Path, connect: &Path) -> std::path::PathBuf {
+  let spec = dir.join("link.json");
+  let hub_env = dir.join("hub.env");
+
+  // A control port nothing listens on, so the listens the link asks for reach no hub of this machine's.
+  fs::write(&hub_env, "JAKE_CONTROL_PORT=1\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n")
+    .expect("hub settings");
+  fs::write(
+    &spec,
+    json!({
+      "node": "u7",
+      "ssh": [],
+      "root": dir.join("there"),
+      "binary": "node-link",
+      "herdr": { "local": dir.join("h.sock"), "remote": dir.join("rh.sock") },
+      "bridge": dir.join("b.sock"),
+      "deploy": dir,
+      "control": dir.join("c.sock"),
+      "proc": dir.join("proc"),
+      "state": dir.join("state.json"),
+      "jake": {
+        "agent": "u7",
+        "connect": [connect, "connect"],
+        "hub_env": hub_env,
+        "mirror_port": 1,
+        "herdr_port": 1,
+        "bridge_port": 2,
+        "bridge_relay": 0
+      }
+    })
+    .to_string(),
+  )
+  .expect("spec");
+  spec
+}
+
+#[test]
+fn a_connection_the_node_is_not_heard_on_is_dropped_and_dialed_again() {
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let starts = dir.path().join("starts");
+  let spec = jake_spec(dir.path(), &silent_connect(dir.path()));
+  let _link = Link(
+    Command::new(&binary)
+      .arg("connect")
+      .arg(&spec)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .env("NODE_LINK_UNHEARD_MS", "300")
+      .env("CONNECT_STARTS", &starts)
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  );
+
+  wait_for("a second dial", || {
+    fs::read_to_string(&starts).is_ok_and(|read| read.lines().count() >= 2)
+  });
+
+  let state = read_json(&dir.path().join("state.json")).expect("the link's state");
+
+  assert!(
+    state["dropped"]
+      .as_str()
+      .is_some_and(|why| why.contains("nothing was heard from the node")),
+    "{state}"
+  );
+}
+
+#[test]
+fn a_connect_program_that_does_not_stand_is_named_by_its_path() {
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let missing = dir.path().join("gone/jake-hub");
+  let spec = jake_spec(dir.path(), &missing);
+  let _link = Link(
+    Command::new(&binary)
+      .arg("connect")
+      .arg(&spec)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  );
+  let said = || {
+    read_json(&dir.path().join("state.json"))
+      .and_then(|state| state["dropped"].as_str().map(str::to_owned))
+      .unwrap_or_default()
+  };
+
+  wait_for("the reason it could not start", || !said().is_empty());
+  assert!(said().contains(&missing.display().to_string()), "{}", said());
 }

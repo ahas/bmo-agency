@@ -16,7 +16,7 @@ async fn listen(
   headers: axum::http::HeaderMap,
   Query(query): Query<Vec<(String, String)>>,
   axum::Json(body): axum::Json<Value>,
-) -> axum::Json<Value> {
+) -> (axum::http::StatusCode, axum::Json<Value>) {
   let port = query
     .iter()
     .find(|(key, _)| key == "port")
@@ -33,10 +33,23 @@ async fn listen(
     .map_or("", |(scope, _)| scope);
 
   calls.lock().unwrap().push(format!("{method} {port} {target} as {scope}"));
-  axum::Json(serde_json::json!({ "ok": true, "standing": false }))
+
+  // A target outside the hub's JAKE_REVERSE_TARGETS is refused, as the hub refuses it.
+  if target.ends_with(":13") {
+    return (
+      axum::http::StatusCode::FORBIDDEN,
+      axum::Json(serde_json::json!({ "error": "target-not-allowed" })),
+    );
+  }
+
+  (
+    axum::http::StatusCode::OK,
+    axum::Json(serde_json::json!({ "ok": true, "standing": false })),
+  )
 }
 
-// "every listen wanted is asked of the hub with its target, with a credential scoped to the agent alone"
+// "every listen wanted is asked of the hub with its target, with a credential scoped to the agent alone, and one
+// refused leaves the rest asked"
 #[tokio::test]
 async fn every_listen_wanted_is_asked_of_the_hub_with_its_target() {
   let calls: Calls = Arc::default();
@@ -52,9 +65,13 @@ async fn every_listen_wanted_is_asked_of_the_hub_with_its_target() {
   )
   .unwrap();
 
-  ask_listens("pc", settings.path(), &[(1, 11), (2, 12)]).await.unwrap();
+  let refused = ask_listens("pc", settings.path(), &[(1, 11), (3, 13), (2, 12)]).await.unwrap_err();
 
-  assert_eq!(*calls.lock().unwrap(), ["POST 1 127.0.0.1:11 as pc", "POST 2 127.0.0.1:12 as pc"]);
+  assert!(refused.starts_with("port 3:") && refused.contains("target-not-allowed"), "{refused}");
+  assert_eq!(
+    *calls.lock().unwrap(),
+    ["POST 1 127.0.0.1:11 as pc", "POST 3 127.0.0.1:13 as pc", "POST 2 127.0.0.1:12 as pc"]
+  );
 }
 
 // "the folders the placed programs work in are made on the node, and one that stands is left as it is"

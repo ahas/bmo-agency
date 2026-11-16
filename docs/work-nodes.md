@@ -115,6 +115,8 @@ side of a remote agent, the rotation, and what a dropped node does.
     herdr call of the bot's for that node goes;
   - the tool host's port, forwarded to the node's loopback, so the program's MCP tools reach the one
     host here;
+  - the model gateway's port, forwarded to the node's loopback at the same port, so a program on a gateway
+    road reaches the one gateway here at the address its launch names (「The model gateway on a node」 below);
   - the home bridge's socket, forwarded to a socket named for that connection under the node's data
     root, which the node's bridge points at. What a node asks of the bridge — the CLI's `bin/bmo` — is the CLI's, not
     agency's, so the bridge runs it out of the CLI's own deploy tree, `$HOME/.local/share/bmo-cli/deploy`,
@@ -131,10 +133,13 @@ side of a remote agent, the rotation, and what a dropped node does.
     each supervisor of an account whose record names the node shared to that folder under the account's root
     there (`docs/person-nodes.md`, 「Several accounts on one node」), every file
     the program names under the data root or the prompt tree sent along — never one under the data
-    root's credential directory — and of the program's environment only the run's own variables, the
-    CLI's (the account's token for the nodes among them), its place, its tool token, the console's
-    public address and a supervisor's owner account: no token of the bot's leaves this machine. The node's own search path and the bridge's socket are laid over
-    it;
+    root's credential directory but the model gateway's key (「The model gateway on a node」 below) — and of
+    the program's environment only the run's own variables, the CLI's (the account's token for the nodes
+    among them), its place, its tool token, the console's public address, a supervisor's owner account and
+    a gateway road's own variables: no other token of the bot's leaves this machine. The node's own search
+    path and the bridge's socket are laid over it. A path a string names counts wherever it stands whole —
+    alone, after a separator a command line or a list of paths puts before one, or between single quotes as
+    a key helper's command quotes it;
   - from the node to here: the place's running record and start failure; the program's transcripts,
     under the same configuration directory here as the account's own, sent as what they grew by; each
     checkout's graph, into a shadow under the node's directory here that the tool host's session
@@ -145,6 +150,35 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **Its state** — connected since, last heard from, the node's home, the reason it last dropped — is
   written beside the node's directory here. A link that drops is made again, waiting a doubling bound
   up to a minute between tries; one heard from in the last twenty seconds is up.
+- **A connection the node has not been heard on for two minutes is dropped and made again.** The far end
+  speaks every few seconds while it stands, so a connection with nothing coming through it is a dead one,
+  as a hub's connect program left standing after the PC's agent was replaced is; the reason it dropped says
+  how long it went unheard.
+- **A connection that cannot start says the program it tried:** the SSH program, the hub's connect program
+  or the sandbox's first word, by the path or name it was started as, beside why it did not start.
+
+## The model gateway on a node
+
+- **A program on a node reaches the deployment's model gateway as a program here does,** at the address its
+  launch names and with the key its settings' key helper reads (`docs/own-llm.md`, 「The gateway」, 「The
+  keys」), so a supervisor or a run on a gateway road — a registration, DeepSeek, OpenRouter, Codex — answers
+  from a node as it answers here.
+- **The address is carried by the link,** where the gateway's address here is on this machine's loopback:
+  its port on the node's loopback joined to the gateway's port here, the same number at both ends, so the
+  address the launch names reads the same on the node. Each transport carries it its own way: an SSH
+  forward, a listen the hub asks of a PC's agent joined back to the gateway here as the tool host's is
+  (`docs/person-nodes.md`, 「The link over jake」), and on an isolation node the network rule leaving the
+  gateway's port on this machine's loopback open beside the tool host's (`docs/account-isolation.md`). A
+  gateway whose address is not on this machine's loopback is reached from the node as it stands, and the
+  link carries nothing for it.
+- **The road's variables go with the program:** its base address, its model names, its headers, its waits
+  and its tool search, which the link's environment keeps beside the run's own. The variables a login of
+  Claude's road would stand in — an API key, an auth token — never go.
+- **The key goes as a file beside the program that names it,** the one file under the data root's
+  credential directory a link sends: the gateway's key file, sent where a pushed program's settings name it
+  for their key helper, written at its path under the node's data root readable by the node's user alone,
+  as the run's tool token is written into the program's file there, and sent again when it changes. It is
+  never put in a command line or an environment, and a node none of whose programs names it holds none.
 
 ## The logins on a node
 
@@ -255,6 +289,18 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **A turn waits for the link** however long the node's herdr does not answer, as a turn here waits
   for a silent herdr; the mirror catches the transcript up when the link is back, and the turn reads on
   from where it stood. It ends on the link's answer — its own end, its pane gone — or on a stop.
+- **A program on a node that does not take its turn is not waited on for ever.** A program can stand on a
+  node and never come to take its words — one with no road to its model, one stuck on a screen it cannot
+  pass — while the link answers for it as standing. So the time a turn waits for its program to come up,
+  come to rest and take its words is counted while the node's link is heard, and counted afresh after any
+  while it is not:
+  - past a minute, the turn's `waiting` names it, `node-program` with the node and the reason (`docs/api.md`,
+    「sessions」), and its run log and agency's log say so;
+  - past five minutes, the program is ended, so the next turn stands a new one, and the turn ends
+    `unsubmitted` with the reason, which its caller reads as the turn's failure; a program that never came up
+    at all fails the turn's launch with the same reason.
+  Once the words are taken the turn is the program's, and no clock of this kind reads it again. The two
+  bounds are the resident turn's policy.
 - **Nothing new goes to a node whose link is down:** neither a launch nor a heavy run.
 
 ## In herdr

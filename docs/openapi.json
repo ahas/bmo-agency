@@ -8592,11 +8592,11 @@
         "properties": {
           "for": {
             "$ref": "#/components/schemas/TurnWaitKind",
-            "description": "What it waits for: `card`, a card the arbiter's master has not yet granted."
+            "description": "What it waits for: `card`, a card the arbiter's master has not yet granted, or `node-program`, a program on\na node that has stood past its notice without taking the turn."
           },
           "service": {
             "type": "string",
-            "description": "The service whose grant it waits on."
+            "description": "The service whose grant it waits on, or the node whose program it waits on."
           },
           "reason": {
             "type": "string",
@@ -8619,7 +8619,8 @@
       "TurnWaitKind": {
         "type": "string",
         "enum": [
-          "card"
+          "card",
+          "node-program"
         ],
         "description": "One of the values the API accepts."
       },

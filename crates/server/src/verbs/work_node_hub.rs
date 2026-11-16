@@ -18,7 +18,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sse_stream::SseStream;
 
-use super::work_node_setup::{COPY_LEFT_OUT, FarEnd, SetupHands, SetupShell, ShellRun, shell_word};
+use super::work_node_setup::{
+  COPY_LEFT_OUT, FarEnd, NO_CODE, SetupHands, SetupShell, ShellRun, shell_word,
+};
 use crate::peers::node::HubReach;
 
 /// The variable of the hub's settings naming the targets here a stream back may be joined to, each `host:port`,
@@ -61,6 +63,13 @@ bash "$b.cmd" </dev/null >"$b.out" 2>"$b.err"
 echo $? >"$b.code.part" && mv "$b.code.part" "$b.code"
 "#;
 
+/// What a command through the hub is run with beside its words: WSL's own messages asked for as UTF-8, since its
+/// launcher otherwise writes them as UTF-16, which reads here as nothing legible. A shell of the agent's own is
+/// handed nothing.
+fn shell_env(shell: &str) -> Value {
+  if shell == WSL { json!({ "WSL_UTF8": "1" }) } else { json!({}) }
+}
+
 /// The directory a step's files stand in on the PC.
 const STEP_DIR: &str = r#"${XDG_CACHE_HOME:-$HOME/.cache}/bmo-node-setup"#;
 
@@ -87,7 +96,7 @@ fn expand_home(path: &str, home: &Path) -> PathBuf {
 
 fn failed(why: impl std::fmt::Display) -> ShellRun {
   ShellRun {
-    code: 255,
+    code: NO_CODE,
     stdout: String::new(),
     stderr: why.to_string(),
   }
@@ -153,9 +162,10 @@ impl HubDoor {
   }
 
   /// What the hub and its agent do not offer that the workplace and its link need, one thing per line: a Linux
-  /// shell, the far end's mirror and herdr ports to stream to, the tool host's and the bridge's ports to listen
-  /// on, and the tool host's port and the bridge's relay port here among the hub's targets of a stream back.
-  pub fn wanting(&self, far_end: &FarEnd, tool_host_port: u16, bridge_relay: u16) -> Vec<String> {
+  /// shell, the far end's mirror and herdr ports to stream to, this machine's ports the node reaches — the tool
+  /// host's and the model gateway's — and the bridge's port to listen on, and those ports and the bridge's relay
+  /// port here among the hub's targets of a stream back.
+  pub fn wanting(&self, far_end: &FarEnd, home_ports: &[(u16, &str)], bridge_relay: u16) -> Vec<String> {
     let offers = |capability: String| self.capabilities.contains(&capability);
     let agent = &self.agent;
     let mut wanting = Vec::new();
@@ -172,7 +182,9 @@ impl HubDoor {
       }
     }
 
-    for (port, what) in [(tool_host_port, "the tool host"), (far_end.bridge_port, "the bridge")] {
+    let listened = home_ports.iter().copied().chain([(far_end.bridge_port, "the bridge")]);
+
+    for (port, what) in listened {
       if !offers(format!("listen:{port}")) {
         wanting.push(format!(
           "jake: the agent {agent} does not offer to listen on port {port} for {what}; its JAKE_LISTEN_PORTS must list it"
@@ -180,7 +192,9 @@ impl HubDoor {
       }
     }
 
-    for (port, what) in [(tool_host_port, "the tool host"), (bridge_relay, "the bridge's relay")] {
+    let joined = home_ports.iter().copied().chain([(bridge_relay, "the bridge's relay")]);
+
+    for (port, what) in joined {
       let target = format!("127.0.0.1:{port}");
 
       if !self.reverse_targets.contains(&target) {
@@ -203,7 +217,7 @@ impl HubDoor {
       .post(format!("{}/exec", self.address))
       .query(&[("agent", self.agent.as_str())])
       .bearer_auth(&self.credential)
-      .json(&json!({ "shell": shell, "command": carried(command) }))
+      .json(&json!({ "shell": shell, "command": carried(command), "env": shell_env(shell) }))
       .send()
       .await
       .and_then(reqwest::Response::error_for_status);
@@ -283,7 +297,7 @@ impl HubDoor {
     // A start the hub told no end of is not asked again, since the step may already run.
     let started = match self.exec(&format!("{start} && {watch}")).await {
       Ok(started) if started.code == 0 => started,
-      Ok(started) => return failed(format!("the step's unit did not start: {}", started.stderr.trim())),
+      Ok(started) => return failed(format!("the step's unit did not start: {}", started.said())),
       Err(why) => return failed(format!("the step's unit may not have started: {why}")),
     };
     let mut state = started.stdout.trim().to_owned();
@@ -291,9 +305,7 @@ impl HubDoor {
     while state == "running" {
       match self.exec_again(&watch).await {
         Ok(watched) if watched.code == 0 => state = watched.stdout.trim().to_owned(),
-        Ok(watched) => {
-          return failed(format!("the step's unit could not be watched: {}", watched.stderr.trim()));
-        }
+        Ok(watched) => return failed(format!("the step's unit could not be watched: {}", watched.said())),
         Err(why) => return failed(format!("the step's unit could not be watched: {why}")),
       }
     }
@@ -468,7 +480,7 @@ impl HubHands<'_> {
       .await;
 
     if laid.code != 0 {
-      return Err(format!("the copy could not be laid out on the node: {}", laid.stderr.trim()));
+      return Err(format!("the copy could not be laid out on the node: {}", laid.said()));
     }
 
     Ok(())
@@ -484,7 +496,7 @@ impl HubHands<'_> {
     let changed = self.door.run(&format!("chmod {mode:o} {}", shell_word(to))).await;
 
     if changed.code != 0 {
-      return Err(format!("{to}: {}", changed.stderr.trim()));
+      return Err(format!("{to}: {}", changed.said()));
     }
 
     Ok(())

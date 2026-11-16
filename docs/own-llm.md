@@ -449,7 +449,9 @@ never the model's name.
 - **Where its callers find it:** every caller — a run with tools and a request with none alike — reads
   the gateway's address in one place, an environment variable where the process names one and a loopback
   default otherwise. The bot names none. A check that stands a launcher of its own on another port names
-  it for its own runs, so they reach that launcher and never the one serving the bot.
+  it for its own runs, so they reach that launcher and never the one serving the bot. A run on a work node, a
+  person's PC or an isolation node reads the same address there, which the node's link carries to the gateway
+  here, and its key in a file the link sends beside it (`docs/work-nodes.md`, 「The model gateway on a node」).
 - **Who goes through it:** every request on a registered model.
   - A run with tools, on the Messages API: Claude Code speaks nothing else, and a registration is an
     OpenAI-compatible address.

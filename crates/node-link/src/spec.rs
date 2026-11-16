@@ -46,6 +46,11 @@ pub struct Spec {
   pub follow: Vec<String>,
   #[serde(default)]
   pub withheld: Vec<PathBuf>,
+  /// The files under a withheld root that go along all the same where a pushed program names them: the model
+  /// gateway's key, which a program on a gateway road reads on the node (docs/work-nodes.md, 「The model gateway
+  /// on a node」).
+  #[serde(default)]
+  pub handed: Vec<PathBuf>,
   /// The directories put ahead of the node's own search path in every program pushed there.
   #[serde(default)]
   pub path_head: Vec<String>,

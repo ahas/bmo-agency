@@ -28,9 +28,9 @@ pub struct IsolatedDoor {
 
 impl IsolatedDoor {
   /// The door to an isolation node, its user made with its home, its scratch folder and the link's folder where
-  /// the user is not and `make` lets the door write, or why it could not be; `tool_port` is the tool host's port,
-  /// which the sandbox's network rule leaves the node.
-  pub async fn open(isolation: &Isolation, make: bool, tool_port: u16) -> Result<Self, String> {
+  /// the user is not and `make` lets the door write, or why it could not be; `ports` are the ports of this machine's
+  /// loopback the sandbox's network rule leaves the node, the same its link's sandbox leaves it.
+  pub async fn open(isolation: &Isolation, make: bool, ports: &[u16]) -> Result<Self, String> {
     if !user_exists(&isolation.user).await {
       if !make {
         return Err(format!("the user {} is not made; run the setup", isolation.user));
@@ -40,7 +40,7 @@ impl IsolatedDoor {
     }
 
     Ok(Self {
-      sandbox: isolation.sandbox(SYSTEM_PATH, tool_port),
+      sandbox: isolation.sandbox(SYSTEM_PATH, ports),
       isolation: isolation.clone(),
     })
   }

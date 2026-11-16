@@ -23,6 +23,28 @@ pub struct ShellRun {
   pub stderr: String,
 }
 
+/// The code of a command that came to no code of its own, its errors saying why: one that never ran, or whose end
+/// was never seen. No program ends with it, where a launcher on Windows may end with any other negative code.
+pub const NO_CODE: i32 = i32::MIN;
+
+impl ShellRun {
+  /// Why a command that failed failed, as the node said it: the code it ended with and what it wrote on its
+  /// errors, or on its output where its errors hold nothing, since a launcher that fails before the command runs,
+  /// as WSL's does, may write why there alone; a command that came to no code is its errors alone.
+  pub fn said(&self) -> String {
+    let words = [self.stderr.trim(), self.stdout.trim()]
+      .into_iter()
+      .find(|words| !words.is_empty())
+      .unwrap_or("nothing was written on its output or its errors");
+
+    if self.code == NO_CODE {
+      words.to_owned()
+    } else {
+      format!("it ended with code {}: {words}", self.code)
+    }
+  }
+}
+
 /// The node's shell the setup runs its commands in.
 pub trait SetupShell: Sync {
   fn run<'a>(&'a self, command: &'a str) -> BoxFuture<'a, ShellRun>;

@@ -99,6 +99,7 @@ mod door {
   mod inbox;
   mod liveness;
   mod looks;
+  mod node_take;
   mod place_run;
   mod record;
   mod rollout;
@@ -216,6 +217,7 @@ mod verbs {
   mod claude_batch;
   mod quiet;
   mod reload;
+  mod work_node_setup;
 }
 
 mod watches {
