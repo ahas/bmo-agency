@@ -1,5 +1,71 @@
-//! A link to a person's PC (docs/person-nodes.md, 「The link over jake」): the folders and the bridge the far end
-//! serves.
+//! A link to a person's PC (docs/person-nodes.md, 「The link over jake」): the hub let go of the listens it keeps for
+//! the agent, and the folders and the bridge the far end serves.
+
+use std::sync::{Arc, Mutex};
+
+use axum::Router;
+use axum::extract::{Query, State};
+use serde_json::{Value, json};
+
+type Calls = Arc<Mutex<Vec<String>>>;
+
+// The scope a credential names, which stands ahead of its mac.
+fn scope(headers: &axum::http::HeaderMap) -> String {
+  headers
+    .get("authorization")
+    .and_then(|value| value.to_str().ok())
+    .and_then(|value| value.strip_prefix("Bearer "))
+    .and_then(|credential| credential.rsplit_once('.'))
+    .map_or(String::new(), |(scope, _)| scope.to_owned())
+}
+
+async fn listens(State(calls): State<Calls>, headers: axum::http::HeaderMap) -> axum::Json<Value> {
+  calls.lock().unwrap().push(format!("GET as {}", scope(&headers)));
+
+  axum::Json(json!({ "listens": [
+    { "port": 13123, "target": "127.0.0.1:13123", "listening": false },
+    { "port": 18030, "target": "127.0.0.1:18030", "listening": true },
+  ] }))
+}
+
+async fn unlisten(
+  State(calls): State<Calls>,
+  headers: axum::http::HeaderMap,
+  Query(query): Query<Vec<(String, String)>>,
+) -> axum::Json<Value> {
+  let port = query
+    .iter()
+    .find(|(key, _)| key == "port")
+    .map(|(_, port)| port.clone())
+    .unwrap_or_default();
+
+  calls.lock().unwrap().push(format!("DELETE {port} as {}", scope(&headers)));
+
+  axum::Json(json!({ "ok": true }))
+}
+
+// "every listen the hub keeps for the agent is let go of, with a credential scoped to that agent alone"
+#[tokio::test]
+async fn every_listen_the_hub_keeps_for_the_agent_is_let_go_of() {
+  let calls: Calls = Arc::default();
+  let app = Router::new()
+    .route("/listens", axum::routing::get(listens))
+    .route("/listen", axum::routing::delete(unlisten))
+    .with_state(calls.clone());
+  let hub = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = hub.local_addr().unwrap().port();
+  let settings = tempfile::NamedTempFile::new().unwrap();
+
+  tokio::spawn(async move { axum::serve(hub, app).await });
+  std::fs::write(
+    settings.path(),
+    format!("JAKE_CONTROL_PORT={port}\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n"),
+  )
+  .unwrap();
+
+  assert_eq!(node_link::hub::drop_listens(settings.path(), "pc").await.unwrap(), [13123, 18030]);
+  assert_eq!(*calls.lock().unwrap(), ["GET as pc", "DELETE 13123 as pc", "DELETE 18030 as pc"]);
+}
 
 // "the folders the placed programs work in are made on the node, and one that stands is left as it is"
 #[test]

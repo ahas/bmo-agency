@@ -224,9 +224,22 @@ fn jake_command(jake: &crate::spec::Jake, port: u16) -> Result<Command, String> 
 }
 
 // What a link to a person's PC holds beside its mirror, for as long as the connection stands: the herdr socket
-// here joined to the far end's herdr port (docs/person-nodes.md, 「The link over jake」).
+// here joined to the far end's herdr port, and the hub let go of every listen it keeps for the agent
+// (docs/person-nodes.md, 「The link over jake」).
 fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHandle<()>> {
   let mut sides = Vec::new();
+  let (agent, hub_env, node) = (jake.agent.clone(), jake.hub_env.clone(), spec.node.clone());
+
+  sides.push(tokio::spawn(async move {
+    match crate::hub::drop_listens(&hub_env, &agent).await {
+      Ok(dropped) => {
+        for port in dropped {
+          eprintln!("{node}: the hub let go of its listen on port {port}");
+        }
+      }
+      Err(why) => eprintln!("{node}: the hub was not asked to let go of its listens: {why}"),
+    }
+  }));
   let _ = std::fs::remove_file(&spec.herdr.local);
 
   match UnixListener::bind(&spec.herdr.local) {

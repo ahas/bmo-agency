@@ -262,7 +262,8 @@ fn a_link_to_a_persons_pc_mirrors_and_carries_home_over_the_hubs_connect_program
   let connect = dir.path().join("jake-hub");
   let hub_env = dir.path().join("hub.env");
 
-  fs::write(&hub_env, "JAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n").expect("hub settings");
+  fs::write(&hub_env, "JAKE_CONTROL_PORT=1\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n")
+    .expect("hub settings");
   fs::write(
     &connect,
     "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\n[ \"${JAKE_CONTROL_CREDENTIAL%%.*}\" = \"$2\" ] || exit 3\nexec 3<>/dev/tcp/127.0.0.2/$3\ncat <&3 &\ncat >&3\n",

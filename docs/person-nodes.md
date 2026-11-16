@@ -241,6 +241,11 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
     twenty seconds is closed;
   - the near end joins a connection to a port here only where it named that port itself, so the far end reaches
     nothing else here.
+- **The hub listens for the link on nothing, and the near end lets go of whatever it holds:** as each connection
+  is made, the near end reads the listens the hub keeps for the node's agent and asks it to drop each one, with the
+  same credential scoped to that agent. A listen the agent holds at Windows' loopback takes the same port from the
+  far end, since mirrored networking shares one set of loopback ports between the two sides, and nothing of the link
+  asks for one.
 - **A port the far end could not listen on is the link's state,** with why, written with the rest of the state, and
   said once in the link's log, which is agency's, each time what it could not listen on changes; a turn of a program
   on the node says it waits on that port, and ends on it (`docs/work-nodes.md`, 「When a node drops」).

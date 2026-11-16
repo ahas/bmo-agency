@@ -20,6 +20,8 @@ dotenvy.workspace = true
 # The control credential scoped to one agent, made as the jake hub checks it.
 hex.workspace = true
 hmac.workspace = true
+# The jake hub asked to let go of the listens it keeps for a person's PC.
+reqwest.workspace = true
 libc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
