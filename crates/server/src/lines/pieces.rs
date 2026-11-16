@@ -262,6 +262,15 @@ pub async fn compose(
     .and_then(|declared| declared.declared().resident.as_ref())
     .is_some_and(|resident| resident.turns == Turns::Inbox)
   {
+    // Such a program takes its tools whole or not at all, so it cannot hold a limited supervisor to the
+    // built-in tools its limit keeps (docs/supervisors.md, 「What each capability stands for」).
+    if limits.kept().is_some() {
+      return Err(fault(format!(
+        "{} holds a tool limit, so its turns go out on Claude Code alone and never on a harness of its own.",
+        turn.agent
+      )));
+    }
+
     let mut env = ground.env().clone();
 
     env.extend(own);
@@ -342,6 +351,7 @@ pub async fn compose(
     None => Session::Open(uuid::Uuid::new_v4().to_string()),
   };
   let denied = limits.denied(&denied());
+  let kept = limits.kept();
   let line = |model: &str, effort: &str, settings: &std::path::Path| {
     standing_words(
       &Words {
@@ -349,7 +359,10 @@ pub async fn compose(
         effort,
         system: &system,
         mcp: &mcp,
-        hands: Hands::AllBut(&denied),
+        hands: Hands::AllBut {
+          denied: &denied,
+          kept: kept.as_deref(),
+        },
         host_commands: true,
       },
       settings,

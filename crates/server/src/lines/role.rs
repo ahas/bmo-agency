@@ -157,6 +157,7 @@ impl RoleLine {
       tools_shown: self.tools_shown,
       tools_allowed: self.tools_allowed,
       tools_denied: None,
+      tools_kept: None,
       mcp_config: self.mcp_config,
       mcp_tools: None,
       prompt: turned.prompt,

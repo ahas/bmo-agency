@@ -43,6 +43,10 @@ pub struct RunLine {
   /// servers of the line's configuration and the program's own tools that stand under it.
   #[serde(default)]
   pub held: Vec<Held>,
+  /// The program's own tools no capability gives that the program of a supervisor whose tool limit names its
+  /// capabilities keeps beside those the limit's capabilities hold.
+  #[serde(default)]
+  pub limited_keeps: Vec<String>,
 }
 
 /// One capability a supervisor's tool limit may leave out, and what stands under it outside the tool host.
@@ -72,6 +76,12 @@ impl RunLines {
   /// policy does not name.
   pub fn held(&self, name: &str) -> &[Held] {
     self.line(name).map_or(&[], |line| &line.held)
+  }
+
+  /// The program's own tools no capability gives that a limited supervisor's program keeps on the line; none for
+  /// a line the policy does not name.
+  pub fn limited_keeps(&self, name: &str) -> &[String] {
+    self.line(name).map_or(&[], |line| &line.limited_keeps)
   }
 
   /// The capabilities a run of the line is issued; none for a line the policy does not name.

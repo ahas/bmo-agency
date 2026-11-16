@@ -27,7 +27,10 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
     effort: "low",
     system,
     mcp: dir,
-    hands: Hands::AllBut("WebSearch,mcp__job__job_item_create"),
+    hands: Hands::AllBut {
+      denied: "WebSearch,mcp__job__job_item_create",
+      kept: None,
+    },
     host_commands: false,
   }
 }
@@ -820,46 +823,74 @@ fn after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
   args.iter().position(|arg| arg == flag).map(|at| args[at + 1].as_str())
 }
 
-// A supervisor's program runs in bypass-permissions mode with the chat line's denied list as its only
-// restriction, writes no allow list and narrows nothing it is shown, and holds every server of its chat
-// configuration, on Claude Code's own road and on DeepSeek's gateway road alike (docs/launch-lines.md, 「What a
-// line's program is allowed, by road」).
-#[tokio::test]
-async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server_on_every_road() {
+// The machine a supervisor's program is composed on: the deploy tree, the variables its chat servers are started
+// from, and DeepSeek's member on agency's gateway, its key where the settings' key helper reads it.
+fn launch_machine(home: &Path) -> Machine {
   use std::os::unix::fs::PermissionsExt;
 
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
   let at = |path: &Path| path.to_string_lossy().into_owned();
-  let artifact_token = home.path().join("artifact.token");
+  let data = home.join("data");
+  let artifact_token = home.join("artifact.token");
+  let key = data.join("env/llm-gateway.key");
+  let members = data.join("llm-gateway/members.json");
 
   std::fs::write(&artifact_token, "artifact-token-value").unwrap();
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+  std::fs::create_dir_all(members.parent().unwrap()).unwrap();
+  std::fs::write(
+    &members,
+    serde_json::json!([{
+      "name": "deepseek-flash",
+      "road": "deepseek",
+      "label": "DeepSeek Flash",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "api_base": "http://[::1]:4/v1",
+      "key_file": "deepseek.key",
+      "context_tokens": 131_072,
+      "answer_tokens": 16_384,
+      "thinking": true
+    }])
+    .to_string(),
+  )
+  .unwrap();
 
-  let machine = Machine::with_env(
+  Machine::with_env(
     [
-      ("HOME".to_owned(), at(home.path())),
+      ("HOME".to_owned(), at(home)),
       ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
       ("BMO_DEPLOY_DIR".to_owned(), at(&tree())),
-      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.join("agents"))),
       ("BMO_JOB_PLUGIN".to_owned(), "/opt/bmo-job".to_owned()),
       ("BMO_JOB_URL".to_owned(), "http://[::1]:1".to_owned()),
       ("BMO_AGENCY_URL".to_owned(), "http://[::1]:2".to_owned()),
       ("BMO_EXPLORER_PLUGIN".to_owned(), "/opt/bmo-explorer".to_owned()),
-      ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
+      ("BMO_DATA_DIR".to_owned(), at(&data)),
       ("BMO_ARTIFACT_URL".to_owned(), "http://127.0.0.1:3".to_owned()),
       ("BMO_ARTIFACT_TOKEN_FILE".to_owned(), at(&artifact_token)),
       ("BMO_ARTIFACT_PLUGIN".to_owned(), "/opt/bmo-artifact".to_owned()),
     ],
-    home.path().join("data"),
-  );
+    data,
+  )
+}
+
+/// What `chat-agent`'s program is started with: the words of a window-shaped turn on Claude Code's own road and
+/// on DeepSeek's gateway road and of a pieces-shaped turn on that gateway road, each under the road it names,
+/// and the refusal its turn meets on a program that is a harness of its own, where it meets one.
+struct Launched {
+  words: Vec<(&'static str, Vec<String>)>,
+  on_own_harness: Option<String>,
+}
+
+async fn launched_supervisor(scratch: &Scratch, home: &Path) -> Launched {
+  let machine = launch_machine(home);
   let variables: HashMap<String, String> = HashMap::new();
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
-
-  chat_agent(&scratch, "agent").await;
-
-  let cwd = at(home.path());
+  let cwd = home.to_string_lossy().into_owned();
   let launch = ChatLaunch {
     agent: "chat-agent",
     chat_id: -5,
@@ -882,14 +913,6 @@ async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server
     .unwrap()
     .command
     .args;
-
-  // DeepSeek's member on agency's gateway, its key where the settings' key helper reads it.
-  let key = ground.roots.data.join("env/llm-gateway.key");
-
-  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
-  std::fs::write(&key, "sk-gateway\n").unwrap();
-  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
-
   let door = Door::Gateway {
     held: Box::new(agency_server::lines::standing::GatewayModel {
       name: "deepseek-flash".into(),
@@ -915,12 +938,83 @@ async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server
     .unwrap()
     .command
     .args;
+  let on_own_harness =
+    compose_stand_in(&ground, &machine, &run, &step, &Door::Codex { thread: None }, &[], 1)
+      .await
+      .err()
+      .map(|refused| refused.detail);
+  let generation = indexmap::IndexMap::new();
+  let pieces = agency_server::lines::pieces::compose(
+    &ground,
+    &machine,
+    &agency_server::lines::pieces::SupervisorTurn {
+      agent: "chat-agent",
+      chat_id: -5,
+      provider: "deepseek",
+      model: "deepseek-flash",
+      system: "the supervisor's system prompt",
+      prompt: "hello",
+      privileged: true,
+      resume: None,
+      card: None,
+      run: "run-1",
+      answers: &[],
+      generation: &generation,
+      began: 1,
+    },
+  )
+  .await
+  .unwrap()
+  .command
+  .args;
+
+  Launched {
+    words: vec![("claude-code", on_claude), ("deepseek", on_deepseek), ("pieces on deepseek", pieces)],
+    on_own_harness,
+  }
+}
+
+/// The items of the list a flag names, none where the words name no such flag.
+fn listed<'a>(args: &'a [String], flag: &str) -> Vec<&'a str> {
+  after(args, flag).map(|list| list.split(',').collect()).unwrap_or_default()
+}
+
+/// The servers of the MCP configuration the words hand the program.
+fn configured(args: &[String]) -> serde_json::Value {
+  let path = after(args, "--mcp-config").unwrap();
+  let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+
+  config["mcpServers"].clone()
+}
+
+async fn limited_to(scratch: &Scratch, capabilities: &[String]) {
+  agency_server::control::supervisor_settings::saved(
+    scratch.db(),
+    &serde_json::json!({ "agent": "chat-agent", "toolsAllowed": capabilities }),
+    "tester",
+  )
+  .await
+  .unwrap();
+}
+
+// A supervisor's program runs in bypass-permissions mode with the chat line's denied list as its only
+// restriction, writes no allow list and narrows nothing it is shown, and holds every server of its chat
+// configuration, on Claude Code's own road and on DeepSeek's gateway road alike (docs/launch-lines.md, 「What a
+// line's program is allowed, by road」).
+#[tokio::test]
+async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server_on_every_road() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  chat_agent(&scratch, "agent").await;
+
+  let launched = launched_supervisor(&scratch, home.path()).await;
   let denied = denied();
   let mut servers: Vec<String> = policy::run_lines::RUN_LINES.namespaces(LINE).to_vec();
 
   servers.extend(["job", "agency", "artifact", "explorer"].map(str::to_owned));
 
-  for (road, args) in [("claude-code", &on_claude), ("deepseek", &on_deepseek)] {
+  for (road, args) in &launched.words {
     assert_eq!(args.first().map(String::as_str), Some("claude"), "{road}: {args:?}");
     assert_eq!(after(args, "--permission-mode"), Some("bypassPermissions"), "{road}: {args:?}");
     assert_eq!(after(args, "--disallowedTools"), Some(denied.as_str()), "{road}: {args:?}");
@@ -929,18 +1023,138 @@ async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server
       "{road}: no allow list and nothing narrowed: {args:?}"
     );
 
-    let config: serde_json::Value =
-      serde_json::from_str(&std::fs::read_to_string(after(args, "--mcp-config").unwrap()).unwrap())
-        .unwrap();
+    let config = configured(args);
 
     for server in &servers {
-      assert!(config["mcpServers"][server].is_object(), "{road}: {server}: {config}");
+      assert!(config[server].is_object(), "{road}: {server}: {config}");
     }
   }
 
   for server in ["eye", "ear", "testbed", "voice", "research"] {
     assert!(servers.contains(&server.to_owned()), "the chat line names {server}: {servers:?}");
   }
+}
+
+// A tool limit naming every capability a supervisor could hold but one: on every road, each built-in tool under
+// that capability is neither among the only built-in tools the program is started with nor missing from its
+// denied list, and each server under it is not in its configuration, while those of every other capability stay
+// (docs/supervisors.md, 「What each capability stands for」).
+async fn a_limit_leaving_out(capability: &str) {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  chat_agent(&scratch, "agent").await;
+
+  let offered = agency_server::supervisor_limits::offered();
+
+  assert!(offered.iter().any(|one| one == capability), "{capability}: {offered:?}");
+
+  let named: Vec<String> = offered.into_iter().filter(|one| one != capability).collect();
+
+  limited_to(&scratch, &named).await;
+
+  let launched = launched_supervisor(&scratch, home.path()).await;
+  let held = policy::run_lines::RUN_LINES.held(LINE);
+
+  for (road, args) in &launched.words {
+    let kept = listed(args, "--tools");
+    let denied = listed(args, "--disallowedTools");
+    let config = configured(args);
+
+    assert!(kept.contains(&"ToolSearch"), "{road}: {args:?}");
+
+    for entry in held {
+      let stays = entry.capability != capability;
+
+      for tool in &entry.tools {
+        assert_eq!(kept.contains(&tool.as_str()), stays, "{road}: {tool} kept: {args:?}");
+        assert_eq!(denied.contains(&tool.as_str()), !stays, "{road}: {tool} denied: {args:?}");
+      }
+
+      for server in &entry.servers {
+        assert_eq!(config[server].is_object(), stays, "{road}: {server}: {config}");
+      }
+    }
+  }
+}
+
+#[tokio::test]
+async fn a_limit_without_program_files_starts_the_program_with_no_file_tool() {
+  a_limit_leaving_out("program.files").await;
+}
+
+#[tokio::test]
+async fn a_limit_without_program_shell_starts_the_program_with_no_shell() {
+  a_limit_leaving_out("program.shell").await;
+}
+
+#[tokio::test]
+async fn a_limit_without_jobs_file_starts_the_program_with_no_job_or_agency_server() {
+  a_limit_leaving_out("jobs.file").await;
+}
+
+#[tokio::test]
+async fn a_limit_without_web_pages_starts_the_program_with_no_explorer() {
+  a_limit_leaving_out("web.pages").await;
+}
+
+#[tokio::test]
+async fn a_limit_without_documents_file_starts_the_program_with_no_artifact_server() {
+  a_limit_leaving_out("documents.file").await;
+}
+
+// A supervisor limited to `room.chat` is started on every road with the tool search alone of the program's own
+// tools, every file, shell, web and subagent tool denied, no server the chat line holds outside the tool host,
+// and its turn refused on a program that is a harness of its own (docs/supervisors.md, 「What each capability
+// stands for」).
+#[tokio::test]
+async fn a_supervisor_limited_to_room_chat_is_started_with_no_file_shell_or_web_tool() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  chat_agent(&scratch, "agent").await;
+  limited_to(&scratch, &["room.chat".to_owned()]).await;
+
+  let launched = launched_supervisor(&scratch, home.path()).await;
+
+  for (road, args) in &launched.words {
+    let denied = listed(args, "--disallowedTools");
+    let config = configured(args);
+
+    assert_eq!(after(args, "--permission-mode"), Some("bypassPermissions"), "{road}: {args:?}");
+    assert_eq!(after(args, "--tools"), Some("ToolSearch"), "{road}: {args:?}");
+
+    for tool in [
+      "Read",
+      "Grep",
+      "Glob",
+      "LS",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "NotebookEdit",
+      "NotebookRead",
+      "Bash",
+      "BashOutput",
+      "KillShell",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "Task",
+    ] {
+      assert!(denied.contains(&tool), "{road}: {tool}: {args:?}");
+    }
+
+    for server in ["job", "agency", "explorer", "artifact"] {
+      assert!(config[server].is_null(), "{road}: {server}: {config}");
+    }
+  }
+
+  let refused = launched
+    .on_own_harness
+    .expect("a harness of its own refuses a limited supervisor's turn");
+
+  assert!(refused.contains("holds a tool limit"), "{refused}");
 }
 
 #[test]

@@ -121,6 +121,10 @@ pub struct ChatRun {
   /// supervisor's, on every road whose program is Claude Code (docs/launch-lines.md, 「What a line's program is
   /// allowed, by road」); none for a run in don't-ask mode over what it is shown and allowed.
   pub tools_denied: Option<String>,
+  /// The only built-in tools the program is started with, beside what it is denied, where a supervisor's tool
+  /// limit narrows it (docs/supervisors.md, 「What each capability stands for」); none for a program that keeps
+  /// every built-in tool but those it is denied.
+  pub tools_kept: Option<String>,
   pub mcp_config: PathBuf,
   /// The digest of what the deployment's own server shows, where the tool host says it.
   pub mcp_tools: Option<String>,
@@ -745,6 +749,7 @@ pub async fn chat_run(
     // A program told its tools is allowed every one it is shown, and Claude Code denied the line's list alone.
     tools_allowed: CHAT_LINE.tools.shown.clone(),
     tools_denied: Some(limits.denied(&denied())),
+    tools_kept: limits.kept(),
     mcp_config: mcp,
     mcp_tools: server_digest(ground).await,
     prompt: prompt.to_owned(),
@@ -956,6 +961,7 @@ pub fn gate_run(
     tools_shown: String::new(),
     tools_allowed: String::new(),
     tools_denied: None,
+    tools_kept: None,
     mcp_config,
     mcp_tools: None,
     prompt: prompt.to_owned(),
@@ -988,8 +994,12 @@ pub struct Words<'a> {
 /// allowed, by road」).
 #[derive(Clone, Copy, Debug)]
 pub enum Hands<'a> {
-  /// Every tool of its own but these, each call going ahead unasked: a supervisor's, on every road.
-  AllBut(&'a str),
+  /// Every tool of its own but `denied`, each call going ahead unasked: a supervisor's, on every road. Where
+  /// `kept` names any, its built-in tools are those alone: a supervisor's whose tool limit narrows it.
+  AllBut {
+    denied: &'a str,
+    kept: Option<&'a str>,
+  },
   /// Only what it is shown, and of that only what it is allowed, in don't-ask mode: a gate's judgement, shown
   /// nothing, and a runner line's turn on a gateway road.
   Listed { shown: &'a str, allowed: &'a str },
@@ -1019,8 +1029,12 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
 
   // Each list flag reads every word after it as another item, so a flag of its own always follows it.
   match line.hands {
-    Hands::AllBut(denied) => {
+    Hands::AllBut { denied, kept } => {
       args.extend(["--permission-mode", "bypassPermissions"].map(str::to_owned));
+
+      if let Some(kept) = kept {
+        args.extend(["--tools".to_owned(), kept.to_owned()]);
+      }
 
       if !denied.is_empty() {
         args.extend(["--disallowedTools".to_owned(), denied.to_owned()]);
@@ -1068,7 +1082,10 @@ impl ChatRun {
       system: &self.system_path,
       mcp: &self.mcp_config,
       hands: match &self.tools_denied {
-        Some(denied) => Hands::AllBut(denied),
+        Some(denied) => Hands::AllBut {
+          denied,
+          kept: self.tools_kept.as_deref(),
+        },
         None => Hands::Listed {
           shown: &self.tools_shown,
           allowed: &self.tools_allowed,
@@ -1127,6 +1144,8 @@ pub struct StandIn<'a> {
   pub tools_shown: &'a str,
   pub tools_allowed: &'a str,
   pub tools_denied: Option<&'a str>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub tools_kept: Option<&'a str>,
   pub mcp_config_path: &'a std::path::Path,
   pub mcp_tools: Option<&'a str>,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -1171,6 +1190,7 @@ impl ChatRun {
       tools_shown: &self.tools_shown,
       tools_allowed: &self.tools_allowed,
       tools_denied: self.tools_denied.as_deref(),
+      tools_kept: self.tools_kept.as_deref(),
       mcp_config_path: &self.mcp_config,
       mcp_tools: self.mcp_tools.as_deref(),
       prompt: None,
@@ -1212,6 +1232,8 @@ struct Prefix<'a> {
   tools_shown: &'a str,
   tools_allowed: &'a str,
   tools_denied: Option<&'a str>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  tools_kept: Option<&'a str>,
   mcp: Option<String>,
   mcp_tools: Option<&'a str>,
   cwd: &'a str,
@@ -1232,6 +1254,7 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
     tools_shown: &run.tools_shown,
     tools_allowed: &run.tools_allowed,
     tools_denied: run.tools_denied.as_deref(),
+    tools_kept: run.tools_kept.as_deref(),
     mcp: file(&run.mcp_config),
     mcp_tools: run.mcp_tools.as_deref(),
     cwd: &run.cwd,
@@ -1308,6 +1331,15 @@ pub async fn compose_stand_in(
     run_env: None,
     given: None,
   };
+
+  // A program that is a harness of its own takes its tools whole or not at all, so it cannot hold a limited
+  // supervisor to the built-in tools its limit keeps (docs/supervisors.md, 「What each capability stands for」).
+  if run.tools_kept.is_some() && !matches!(door, Door::Gateway { .. }) {
+    return Err(fault(format!(
+      "{} holds a tool limit, so its turns go out on Claude Code alone and never on a harness of its own.",
+      run.agent
+    )));
+  }
 
   match door {
     Door::Codex { thread } => {

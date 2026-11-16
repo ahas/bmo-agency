@@ -19,6 +19,7 @@ fn a_supervisor_whose_settings_close_nothing_is_handed_everything_as_before() {
 
   assert_eq!(open.narrowed(capabilities()), capabilities());
   assert_eq!(open.denied(&denied()), denied());
+  assert_eq!(open.kept(), None, "and keeps every built-in tool but the denied list");
   assert!(
     ["job", "agency", "explorer", "artifact", "bmo"]
       .iter()

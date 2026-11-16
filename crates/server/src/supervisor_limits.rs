@@ -1,9 +1,9 @@
 //! What a supervisor's settings close of its sessions (docs/supervisors.md, 「Its settings」): its brain
 //! switch, which takes away every capability through which a session reaches a brain, its reference switch,
 //! which takes away those through which it reaches the gate's reading of the brain, and its tool limit,
-//! which keeps only the capabilities it names and leaves out the servers and the program's own tools the
-//! chat line holds under a capability it does not name. A supervisor whose settings hold neither is handed
-//! everything, as every supervisor is by default.
+//! which keeps only the capabilities it names, leaves out the servers and the program's own tools the chat line
+//! holds under a capability it does not name, and starts the program with no built-in tool but those it keeps. A
+//! supervisor whose settings hold neither is handed everything, as every supervisor is by default.
 
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
@@ -99,6 +99,28 @@ impl Limits {
       .chain(closed)
       .collect::<Vec<_>>()
       .join(",")
+  }
+
+  /// The built-in tools the chat line's program is started with and no other, where a limit is held: those no
+  /// capability gives that a limited program keeps, then those under each capability the limit allows. None
+  /// where no limit is held, so the program keeps every tool of its own but the denied list.
+  pub fn kept(&self) -> Option<String> {
+    self.tools_allowed.as_ref()?;
+
+    let held = RUN_LINES
+      .held(CHAT_LINE)
+      .iter()
+      .filter(|held| self.allows(&held.capability))
+      .flat_map(|held| held.tools.iter());
+    let mut kept: Vec<&str> = vec![];
+
+    for tool in RUN_LINES.limited_keeps(CHAT_LINE).iter().chain(held) {
+      if !kept.contains(&tool.as_str()) {
+        kept.push(tool);
+      }
+    }
+
+    Some(kept.join(","))
   }
 
   fn allows(&self, capability: &str) -> bool {

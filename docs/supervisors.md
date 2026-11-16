@@ -89,20 +89,75 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   its entries away; the tool limit below does, where it leaves `room.tools` out.
 - **The tool limit** narrows what the supervisor's sessions hold, in the shape a role's session's
   `toolsAllowed` has (`docs/api.md`, 「sessions」): a list of capabilities, or none for everything, as every
-  supervisor holds by default. A list keeps, of what the chat line and the supervisor bundles give, only the
-  capabilities it names, on its own turns and on its double's, and never widens them. It also names what the
-  chat line holds outside the tool host, each under the capability the run-lines policy declares for it
-  (`policy/run-lines.toml`, the chat line's `held`): the job service's and agency's own servers, the explorer's
-  and the artifact's, and the program's own shell and file-writing tools. A server whose capability the list
-  leaves out is not in the supervisor's MCP configuration, and a program tool whose capability it leaves out is
-  added to the chat line's denied list. A save names only capabilities the supervisor could hold; any other is
-  refused.
+  supervisor holds by default. A list is the whole of what its sessions keep, on its own turns and on its
+  double's, and it never widens them (「What each capability stands for」 below):
+  - of the tool host's entries, only those asking a capability it names, since the session record keeps only
+    those of the chat line's and the supervisor bundles' capabilities it names;
+  - of the servers the chat configuration starts outside the tool host, only those standing under a capability
+    it names; every other is not in the supervisor's MCP configuration, which is strict, so no server the
+    configuration does not name rides on the program either;
+  - of the supervisor's own program's built-in tools, only those standing under a capability it names and the
+    one the chat line keeps for every limited supervisor; no other built-in tool of the program is there, a tool
+    the map below names and one a later version of the program adds alike. Its double's program holds its
+    role's own, as any run it hands off does (「What each capability stands for」 below).
+  A save names only capabilities the supervisor could hold; any other is refused.
 - **The persona** is a text of at most the supervisors policy's length, or none, and a persona left empty is
   none.
 - **A save is checked whole before anything is written** and overwrites what it changes, marking the
   settings it changed as saved. A field no save names is refused, as is a value outside its setting's bounds.
   A save that changes the reference switch, the brain switch or the tool limit starts every room afresh, as one
   changing the generation settings does, since each changes what a session is handed at its start.
+
+### What each capability stands for
+
+- **What the chat line holds outside the tool host stands under a capability the run-lines policy declares**
+  (`policy/run-lines.toml`, the chat line's `held`), and a limit that leaves the capability out leaves all of it
+  out:
+
+  | Capability | Servers of the chat configuration | The program's own tools |
+  |---|---|---|
+  | `jobs.file` | `job`, `agency` | none |
+  | `web.pages` | `explorer` | none |
+  | `documents.file` | `artifact` | none |
+  | `program.shell` | none | `Bash`, `BashOutput`, `KillShell` |
+  | `program.files` | none | `Read`, `Grep`, `Glob`, `LS`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `NotebookRead`, `EnterWorktree`, `ExitWorktree` |
+
+- **Every other capability stands for the tool host's entries that ask it,** reached through the tool host's
+  namespaces in the chat configuration, and its grant lock refuses an entry whose capability the session record
+  does not hold. `room.chat` is the brain's tools and the supervisor's records; `room.tools` carries, among
+  others, `bmo/delegate` and `bmo/worker_ask`; `web.read` is the tool host's web search and page fetch.
+- **The program's own web search and fetch, its subagents and its schedulers stand under no capability.** The
+  chat line denies them to every supervisor (`WebSearch`, `WebFetch`, `Agent`, `Task`, `Monitor`, the cron and
+  wake-up tools), and a limited supervisor's program is not started with them, nor with `Workflow`,
+  `SendMessage`, `Skill` or any built-in tool the table does not name.
+- **A limited supervisor's program keeps one tool no capability gives:** `ToolSearch`, which loads the
+  definitions of the MCP tools it holds and reaches nothing else (the chat line's `limited_keeps`).
+- **How the program is narrowed:** a limited supervisor's program is started with the program's own list of the
+  built-in tools it may have, those it keeps and no other, beside the chat line's denied list with every tool
+  under a capability the limit leaves out added to it (`docs/launch-lines.md`, 「What a line's program is allowed,
+  by road」). A supervisor with no limit is started with no such list, so its line stays the one every
+  supervisor's warm prefix stands on.
+- **A limited supervisor's turn goes out on Claude Code alone,** on its own road or on a gateway road. A rollback
+  harness, which takes its own tools whole or not at all rather than by name, refuses the turn.
+- **A run a supervisor hands off holds its role's tools.** `bmo/delegate` and `bmo/worker_ask`, both under
+  `room.tools`, start a run of a role on the worker line, and that run holds the worker line's own program tools,
+  the shell and the file tools among them (`docs/launch-lines.md`). A limit meant to keep a supervisor away from
+  files and the shell leaves `room.tools` out with `program.files` and `program.shell`.
+
+### What confines a session allowed files
+
+- **A session holding `program.files` or `program.shell` reads and writes as the user its program runs as,** on
+  the machine it runs on, whatever that user may reach; the tool limit narrows nothing below that.
+- **A supervisor of an account works on its person's node or its isolation node** (`docs/account-isolation.md`,
+  「The scope」): its program runs as that node's own user, and on this machine an isolation node reads and
+  writes inside its own home alone, so the data root, its `env/` folder with the units' token and settings files,
+  and every other account's home are refused it.
+- **A supervisor of no account, or of the administrator's account, runs as the owner's own user on this
+  machine.** Allowed files or the shell, it reads everything that user reads: the data root, every unit's token
+  and settings files under `env/`, every room's files and every account's data; and what it reads goes to the
+  provider its road names. Such a supervisor is set on a road whose engine is not the owner's own, any road but
+  the registry's own engines and Claude Code under the owner's accounts, on the owner's word alone, or with a
+  tool limit that leaves `program.files`, `program.shell` and `room.tools` out.
 
 ### Its generation settings
 

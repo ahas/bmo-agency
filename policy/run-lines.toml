@@ -49,11 +49,17 @@ tools_denied = [
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.
 variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
 
-# What a supervisor's tool limit names beside the tool host's capabilities (docs/supervisors.md, 「Its
-# settings」): each a capability, the servers of the chat configuration that stand under it outside the tool
-# host, by the names the configuration gives them, and the program's own tools that stand under it. A limit that
-# leaves the capability out leaves those servers out of the supervisor's configuration and adds those tools to
-# the denied list; a supervisor with no limit holds them all.
+# What a supervisor's tool limit names beside the tool host's capabilities (docs/supervisors.md, 「What each
+# capability stands for」): each a capability, the servers of the chat configuration that stand under it outside
+# the tool host, by the names the configuration gives them, and the program's own tools that stand under it. A
+# limit that leaves the capability out leaves those servers out of the supervisor's configuration and adds those
+# tools to the denied list; a limited supervisor's program is started with the built-in tools of the capabilities
+# it names and those of `limited_keeps`, and no other. A supervisor with no limit holds them all.
+#
+# limited_keeps: the program's own tools no capability gives that a limited supervisor's program keeps: the
+#   tool search, which loads the definitions of the MCP tools it holds and reaches nothing else.
+limited_keeps = ["ToolSearch"]
+
 [[chat.held]]
 capability = "jobs.file"
 servers = ["job", "agency"]
@@ -72,7 +78,10 @@ tools = ["Bash", "BashOutput", "KillShell"]
 
 [[chat.held]]
 capability = "program.files"
-tools = ["Edit", "Write", "MultiEdit", "NotebookEdit"]
+tools = [
+  "Read", "Grep", "Glob", "LS", "Write", "Edit", "MultiEdit", "NotebookEdit", "NotebookRead", "EnterWorktree",
+  "ExitWorktree",
+]
 
 [gate]
 needs = []

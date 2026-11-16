@@ -75,6 +75,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     tools_shown: "Bash,Read".into(),
     tools_allowed: "Bash,Read".into(),
     tools_denied: Some(agency_server::lines::chat::denied()),
+    tools_kept: None,
     mcp_config: home.join("chat.mcp.json"),
     mcp_tools: None,
     prompt: "what is new".into(),

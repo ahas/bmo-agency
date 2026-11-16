@@ -312,9 +312,16 @@ function chatLine(run: HarnessRun): string[] {
 
   // A run that names what it is denied is a supervisor's: every tool of its own but those, each call
   // going ahead unasked, with no list of what it is shown or allowed. What it is shown and allowed stand
-  // for a program that is told its tools, which this one is not.
+  // for a program that is told its tools, which this one is not. A limited supervisor's run also names the
+  // only built-in tools it keeps.
   if (run.toolsDenied !== null) {
-    args.push("--permission-mode", "bypassPermissions", "--disallowedTools", run.toolsDenied);
+    args.push("--permission-mode", "bypassPermissions");
+
+    if (run.toolsKept !== undefined && run.toolsKept !== null) {
+      args.push("--tools", run.toolsKept);
+    }
+
+    args.push("--disallowedTools", run.toolsDenied);
   } else {
     // A run with no allow list allows what it is shown, every call going ahead unasked as a job's do.
     // Every other run is refused whatever it was not allowed, and a run that says nothing of what it is

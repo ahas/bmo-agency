@@ -123,6 +123,10 @@ export interface HarnessRun {
   toolsShown: string | null;
   toolsAllowed: string | null;
   toolsDenied: string | null;
+  // The only built-in tools a run that names what it is denied holds beside that, where a supervisor's tool
+  // limit narrows its program (docs/supervisors.md, 「What each capability stands for」). Absent or null where
+  // the program keeps every built-in tool but those it is denied.
+  toolsKept?: string | null;
   // The file naming the MCP servers this run may reach, or null for a run that reaches none.
   mcpConfigPath: string | null;
   // What those servers show, where the file naming them does not settle it — a digest of their tools
