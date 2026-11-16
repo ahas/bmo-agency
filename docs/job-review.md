@@ -153,8 +153,9 @@ jobs」), naming the job, one action and its words.
 - **`escalate` asks the owner through the job service:** a question on the item (`POST /questions`), asked by
   agency, its text the supervisor's words with the job, the stage and the rejections named, its choices to send
   the work back or to take it as it stands, and its due time the policy's `owner_wait_seconds`, six hundred
-  seconds. The question is told to the orderer as every job's question is (`question-awaits-answer`), and the
-  orderer puts it to the owner.
+  seconds. It is put to a person, the owner, since the supervisor itself escalates it; the question is told
+  to the orderer as every question asked of the owner is (`question-awaits-answer`), and the orderer puts it to
+  him.
 - **The owner is asked once for one question.** Before asking, the review reads the item's questions, and one
   still waiting (`open` or `paused`) with the same asker, words and choices is the job's question: an
   escalation made again after its question landed but its answer did not is written onto that one, so no second

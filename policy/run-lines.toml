@@ -88,7 +88,7 @@ keeps_session = false
 #   claude.ai Docs connector, named by its server so every tool it serves is covered, the tools that
 #   bring a session back after its turn has ended, which a job, whose turn's end is its answer, has no
 #   use for, and the CLI's own question tool, whose choice among options the session contract cannot
-#   answer and a job's pane has nobody to answer; a job asks the owner through bmo job ask.
+#   answer and a job's pane has nobody to answer; a job asks its supervisor through bmo job ask.
 [worker]
 needs = []
 keeps_session = true

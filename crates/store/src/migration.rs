@@ -83,6 +83,7 @@ mod m20261222_000001_job_words;
 mod m20261223_000001_deploy_notices_kept;
 mod m20261224_000001_person_node_shared;
 mod m20261225_000001_supervisor_limits;
+mod m20261226_000001_asking_skill_name;
 
 use sea_orm_migration::prelude::*;
 
@@ -254,6 +255,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261223_000001_deploy_notices_kept::Migration),
       Box::new(m20261224_000001_person_node_shared::Migration),
       Box::new(m20261225_000001_supervisor_limits::Migration),
+      Box::new(m20261226_000001_asking_skill_name::Migration),
     ]
   }
 

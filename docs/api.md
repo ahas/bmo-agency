@@ -442,7 +442,8 @@ know, carries the question on the session's state and publishes it as `question.
 `POST /sessions/{sessionId}/answers` answers it with `allow`, `leave` or `refuse` (`Answer`), the
 question's `Asks` naming a permission question or an unknown screen. The CLI's own question tool puts
 a choice among options, which that shape cannot answer; no run on the worker line is shown it, and a
-job asks the owner through the job service's question (`docs/launch-lines.md`, 「Worker line」).
+job asks its supervisor through the job service's question, which the supervisor settles or puts to the owner
+(`docs/launch-lines.md`, 「Worker line」).
 
 A job's run is a role's run at its checkout. A session is started at one scope — `agent` or `room` for a
 supervisor, `role` for a role's run, or `conversation` — and the scope says what is kept. Its id names its

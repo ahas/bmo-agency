@@ -2479,8 +2479,8 @@ one of several options, and the session contract's question state has no shape f
 role's run the state carries a permission question or a screen the reading does not know, and it is
 answered by allowing, leaving or refusing it, none of which chooses an option. A worker's pane has
 nobody to pick one either, so the worker line disallows the tool (`docs/launch-lines.md`, 「Worker
-line」). A job that needs the owner to decide between options asks through `bmo job ask`, and the job
-service's questions carry it to him.
+line」). A job that needs a decision or a step it cannot take itself asks its supervisor through `bmo job ask`,
+and the supervisor settles it or puts it to the owner through the job service's questions.
 
 - **What asks, measured on 2.1.274.**
   - A removal whose target the CLI cannot resolve statically. The one met in practice: `rm` or `rmdir`
@@ -3156,8 +3156,8 @@ with the session.
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
 | A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, told once for each commit and kept until the item leaves that phase, then withdrawn, whether or not a job of agency's still runs on it; another item's change, a restart or a later event of the item naming the same commit tells it no more | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
-| A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does, through the same instruction: the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
-| A job's question past its due time while open | the owner | owner notice, from the events | code `job-question-due` |
+| A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does: it hands every question to the supervisor as `question-for-supervisor`, and one whose notice was let go untaken to the owner's supervisor as `question-awaits-answer`; the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
+| A job's question past its due time while open; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
 | A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |

@@ -79,15 +79,15 @@ flowchart TD
 
 ## Nothing handed back
 
-- **No option is put to the owner.** Never `bmo job ask` between options the job can try, and never a report
-  that lists them for him to pick from: trying them is the work.
+- **No option is put up to be picked.** Never `bmo job ask` between options the job can try, and never a report
+  that lists them for the owner to pick from: trying them is the work.
 - **No interim report.** The job reports once, at the end, with the final document; nothing is told
   to a room about how far it has got.
 
 ## The final document
 
 - **A deep dive in the deployment's 아카이브,** filed with `bmo archive doc` and given its narration with
-  `bmo brief-attach` as the `bmo-asking-the-owner` skill says, in the verification shape `research.md` sets: the conclusion,
+  `bmo brief-attach` as the `bmo-asking` skill says, in the verification shape `research.md` sets: the conclusion,
   what the owner decides, the maker's figures against ours, how it was run, what was kept, the
   application plan, the open questions and the sources.
 - **What is still open is only what no job can reach now,** each with what puts it there. A value a

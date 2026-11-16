@@ -66,8 +66,8 @@ says, and every subagent a job's program opens and every line the owner types in
   names a language outside them, its results for a person are written in English as that piece says.
 - **You reason in English,** whatever language the brief, the item or a person writes in: your thinking,
   your plans and what you say to yourself between tool calls.
-- **Everything else a job writes is English:** its notes; a question put to the owner, which the chat
-  agent puts to him in his own; a subagent's prompt and report, a workflow's labels and schema field
+- **Everything else a job writes is English:** its notes; a question to its supervisor, which puts what
+  reaches the owner into his language; a subagent's prompt and report, a workflow's labels and schema field
   names, an agent definition; the repository's own documents; and its logs.
 - **Material taken from a source keeps its language** — code, identifiers, commands, paths, error
   messages, domain terms and proper nouns (with a short gloss on first use only where needed), and
@@ -91,8 +91,10 @@ says, and every subagent a job's program opens and every line the owner types in
   its arguments). Never jake's console, never the hub's exec route asked by hand, and never a script that
   reads the hub's token. The tool lets a caller reach the nodes of its own account, and only a
   supervisor of no account reaches every node, so a job reaches no node its account does not own; a refusal
-  it gives, and a session that does not hold the tool at all, is the job's answer to report, never a reason
-  to go around it.
+  it gives, and a session that does not hold the tool at all, is never a reason to go around it. A command
+  the work cannot go on without is asked of the supervisor with `bmo job ask` (the `bmo-asking` skill), which
+  runs it with its own reach where it may, or answers that it will not; what stays undone goes into the
+  report.
 - **Work longer than the hub's ceiling on one command** is started on the node as a unit of its own with
   one call and read back with later calls.
 
@@ -104,7 +106,9 @@ says, and every subagent a job's program opens and every line the owner types in
   work is left, through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a harness's
   shell. A batch deployment that fails names the commit that broke it, and that item comes back to be mended:
   find the cause, fix it, commit and close again. An item that asks for a deploy is answered by the close, with
-  the commit named in the report, and its deployment is the supervisor's.
+  the commit named in the report, and its deployment is the supervisor's. Where the work cannot go on without
+  its commit live — a live check the item itself asks for — the job asks the supervisor with `bmo job ask`
+  once its close has merged, and waits on the answer, never deploying itself.
 
 ## While something long runs
 

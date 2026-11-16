@@ -4,7 +4,8 @@ Read this before filing, approving, holding, merging or dropping an item, and be
 launching its run. When to file is in the manual; this is how. Your tools are the job service's:
 `job_item_update`, `job_item`, `job_items`, `job_note_add`, `job_notes`, `job_report`,
 `job_work_order`, `job_tasks`, `job_reviews`, `job_queues`, `job_lease_next`, `job_lease_renew`,
-`job_lease_release`, `job_question_ask`, `job_question` and `job_replies`; and the agency's own:
+`job_lease_release`, `job_question_ask`, `job_question`, `job_question_change`, `job_replies` and `job_reply`;
+and the agency's own:
 `file_item`, `review_job`, `stop_job`, `assign_worker`, `release_worker` and `run_job`.
 
 ## The queue
@@ -321,10 +322,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
   whole on the item.
-- **A question the run asks** is named on the item's notes; read it with `job_question` and its
-  replies with `job_replies`. Put it to the owner in his own chat, and never answer it for him. A
-  question you ask is `job_question_ask` with `itemId`, `text`, `choices`, `dueAt` and `askerName`
-  `harness`; wait for its answer with `job_replies`.
+- **A question the run asks** comes to you first (`question-for-supervisor`); read it with `job_question`
+  and its replies with `job_replies`, and settle it yourself, talk it over with the job, or put it to the
+  owner, as the manual's judgement of a job's question says. A question you ask the owner yourself is
+  `job_question_ask` with `itemId`, `text`, `choices`, `waitMs` and `askerName` `harness`, put to a person
+  as every question that names no addressee is; wait for its answer with `job_replies`.
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
   `itemId` and a `reason`, one short line that becomes the job's report. Only a turn whose every
   message is the owner's stops one: anyone else asking is refused `not-owner`, and you say so rather
@@ -416,10 +418,16 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   told. A merge names the item that carries the work.
 - **`item-closed`:** somebody other than you closed the item. Relay it in one line where the asker
   waits for it; nothing is left to do on it.
-- **`question-awaits-answer`:** a run asked a question. Read it with `job_question` and its replies
-  with `job_replies`, put it to the owner in his own chat, and never answer it for him. Once a reply
-  settles it, the instruction is withdrawn; where the question is past its due time, the owner is told
-  of it as well.
+- **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
+  `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
+  the owner in your own words with `job_question_change`, `addressee` `person`. Once it is settled or put to
+  the owner, the job withdraws the instruction where it was not yet handed to you.
+- **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
+  him, or a job's question whose notice to you was let go untaken. Read it with `job_question` and its replies
+  with `job_replies`, put it to the owner in his own chat, and never answer it for him. Once a reply settles
+  it, the instruction is withdrawn; where the question is past its due time, the owner is told of it as well.
+- **`question-talk`:** the job's answer in a talk on its question. On a question you hold, judge it again; on
+  one put to the owner, relay it to him.
 - **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by
   itself once one is free; say in one line that it waits and why, where the asker waits for it.
 - **`job-review`:** a job's report awaits a check of its review. Examine it as 「The review of a job's report」
