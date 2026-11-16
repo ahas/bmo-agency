@@ -166,29 +166,42 @@ pub fn apart_args(run: &ApartRun, session: &str) -> Result<Vec<String>, Refusal>
   Ok(args)
 }
 
-/// Where a program goes out from, as its login is handed to it: this machine, whose logins are the
-/// accounts' own, or a work node, which is handed each account's token for the nodes, kept under the
-/// data root named (docs/work-nodes.md, 「The logins on a node」).
+/// Where a program goes out from, as its login is handed to it, each account's token for the nodes kept
+/// under the data root named (docs/work-nodes.md, 「The logins on a node」).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Runs {
-  Here,
+  /// This machine, on the account's login, or on its token for the nodes beside it while it carries on by
+  /// that token (docs/cache-fallback.md, 「A directory account carries on by its token」).
+  Here { data_root: PathBuf },
+  /// This machine, on the account's own login alone: the run that renews that login, and an endpoint
+  /// account's launch, whose credential is its own.
+  OwnLogin,
+  /// A work node, which is handed each account's token for the nodes.
   OnNode { data_root: PathBuf },
 }
 
 impl Runs {
+  /// This machine, on agency's ground.
+  pub fn here(ground: &crate::places::Ground) -> Self {
+    Self::Here {
+      data_root: ground.roots.data.clone(),
+    }
+  }
+
   /// Where a program standing in a place goes out from: the node the place is marked with, or here.
   pub fn of_place(data_root: &Path, place: &Path) -> Self {
+    let data_root = data_root.to_path_buf();
+
     match place_node(place) {
-      Some(_) => Self::OnNode {
-        data_root: data_root.to_path_buf(),
-      },
-      None => Self::Here,
+      Some(_) => Self::OnNode { data_root },
+      None => Self::Here { data_root },
     }
   }
 }
 
 /// The login as the program is handed it: a directory account names its configuration home and clears
-/// any token, or on a node hands its token for the nodes beside it where this machine holds one; a token
+/// any token, or hands its token for the nodes beside it on a node where this machine holds one and here
+/// while it carries on by that token; a token
 /// account hands the token read from its file; an endpoint account names its configuration home, its
 /// base URL, the key read from its file as the run's authorisation token and the model id its map names
 /// for each family, clearing every other credential the launching process carried, and never goes out
@@ -208,7 +221,8 @@ pub fn account_env(
     }
     Credential::Directory { home } => {
       let token = match runs {
-        Runs::Here => None,
+        Runs::OwnLogin => None,
+        Runs::Here { data_root } => account.carrying_token(data_root, crate::now_ms()),
         Runs::OnNode { data_root } => account.node_token(data_root),
       };
 
@@ -279,7 +293,7 @@ pub fn endpoint_launch(account: &Account, model: &str, effort: &str) -> Result<C
           .join(",")
       ))
     })?;
-  let mut env = account_env(Some(account), &Runs::Here)?;
+  let mut env = account_env(Some(account), &Runs::OwnLogin)?;
   // An Endpoint account's environment names no `PATH` of its own, and a program stood with an
   // empty `PATH` finds none of the binaries the deployment keeps under the home; the launching
   // process's own is carried over so the CLI is found where this machine keeps it.

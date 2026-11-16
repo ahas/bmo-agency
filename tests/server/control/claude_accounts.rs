@@ -3,6 +3,7 @@
 //! it names none — the chosen account serving only while it can answer, and each account's view carrying
 //! its own two headline windows whichever road the chat stands on.
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -56,7 +57,18 @@ async fn a_login_rests_until_a_full_window_s_reset_and_on_one_naming_none_only_w
     duration_minutes: Some(300),
     limit_name: None,
   };
-  let rest = |windows| async move { rest_until(Judging { db, windows }, "spare").await.unwrap() };
+  let rest = |windows| async move {
+    rest_until(
+      Judging {
+        db,
+        windows,
+        data_root: Path::new("/nonexistent"),
+      },
+      "spare",
+    )
+    .await
+    .unwrap()
+  };
 
   read.replace(SPARE, &[five_hour(1.0, Some(resets_at))], now - 10).await.unwrap();
 
@@ -122,6 +134,7 @@ async fn a_chosen_account_spent_until_its_reset_is_not_serving_and_serves_again_
   let judging = Judging {
     db,
     windows: &windows,
+    data_root: Path::new("/nonexistent"),
   };
   let serving = || async {
     views(judging)
@@ -232,6 +245,7 @@ async fn each_account_s_view_carries_its_own_headline_windows_and_an_endpoint_ac
   let views = views(Judging {
     db,
     windows: &windows,
+    data_root: Path::new("/nonexistent"),
   })
   .await
   .unwrap();
@@ -262,6 +276,7 @@ async fn an_account_reports_only_the_windows_of_the_login_answering_for_it() {
   let judging = Judging {
     db,
     windows: &windows,
+    data_root: Path::new("/nonexistent"),
   };
   let week = |used: f64| Window {
     name: "seven_day".into(),
@@ -360,6 +375,7 @@ fn the_earliest_moment_under_an_expiring_name_answers_in_milliseconds() {
     needs_login_at: Some(1),
     user_id: None,
     base_prompt: None,
+    node_token_gone: None,
   };
 
   std::fs::write(

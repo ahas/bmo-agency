@@ -23,11 +23,13 @@ use crate::places::Ground;
 
 pub use cache_siren::claude::window_ceiling;
 
-/// What the account judgement reads: the store, and the keeping of every account's windows.
+/// What the account judgement reads: the store, the keeping of every account's windows, and the data root
+/// this machine keeps each account's token for the work nodes under.
 #[derive(Clone, Copy)]
 pub struct Judging<'a> {
   pub db: &'a DatabaseConnection,
   pub windows: &'a Keeping,
+  pub data_root: &'a Path,
 }
 
 impl<'a> Judging<'a> {
@@ -36,6 +38,7 @@ impl<'a> Judging<'a> {
     Self {
       db: &ground.db,
       windows: &ground.windows,
+      data_root: &ground.roots.data,
     }
   }
 }
@@ -49,6 +52,10 @@ pub(crate) const IN_USE_KEY: &str = "claude_account_in_use";
 
 // The file a directory account's login sits in.
 pub const CREDENTIAL_FILE: &str = ".credentials.json";
+
+/// What the mark of an account's token for the work nodes found gone is kept under, the account's id after
+/// it (docs/work-nodes.md, 「The logins on a node」).
+pub const NODE_TOKEN_GONE_KEY: &str = "claude_node_token_gone:";
 
 // A token carries no ending of its own, so what stands for it is the year it was issued for, as Claude
 // Code declares it.
@@ -336,6 +343,9 @@ pub struct Account {
   pub user_id: Option<i64>,
   /// The base prompt a worker's run on it opens on, where it names one (docs/base-prompts.md).
   pub base_prompt: Option<String>,
+  /// The token for the work nodes its mark of one found gone names, as the token file's moment stood then;
+  /// a token written since stands clear of it.
+  pub node_token_gone: Option<String>,
 }
 
 impl Account {
@@ -408,6 +418,63 @@ impl Account {
     self.node_token_written(data_root).map(|written| written + token_life_ms())
   }
 
+  /// Which token for the work nodes this machine holds now, as a mark names it: the moment its file was
+  /// written, or none held.
+  pub fn node_token_stamp(&self, data_root: &Path) -> String {
+    self
+      .node_token_written(data_root)
+      .map_or_else(|| "none".to_owned(), crate::keepalive::logins::moment_text)
+  }
+
+  /// Its token for the work nodes where this machine holds one that is not marked gone.
+  pub fn answering_node_token(&self, data_root: &Path) -> Option<String> {
+    let token = self.node_token(data_root)?;
+
+    (self.node_token_gone.as_deref() != Some(self.node_token_stamp(data_root).as_str())).then_some(token)
+  }
+
+  /// Whether its login here cannot be counted on at `now` (docs/cache-fallback.md, 「A directory account
+  /// carries on by its token」): a directory account's login marked as waiting for a person, or past the end
+  /// its file states, or within the policy's span before it.
+  pub fn login_here_failing(&self, now: i64) -> bool {
+    let ahead = CLAUDE_CODE.login.hand_over_ahead_hours as f64 * 60.0 * 60_000.0;
+
+    self.credential.node_token_apart()
+      && (self.needs_login_at.is_some() || login_end(self).is_some_and(|end| end - now as f64 <= ahead))
+  }
+
+  /// The token a run here goes out on beside the account's configuration directory at `now`: its token for
+  /// the work nodes, where its login here cannot be counted on and that token answers; none otherwise, and
+  /// never for a token or endpoint account, whose own credential is its login here.
+  pub fn carrying_token(&self, data_root: &Path, now: i64) -> Option<String> {
+    if !self.login_here_failing(now) {
+      return None;
+    }
+
+    self.answering_node_token(data_root)
+  }
+
+  /// Whether a login marked as waiting for a person stands again on this machine, whose data root holds the
+  /// accounts' tokens for the work nodes: as `login_back` says, and, for a directory account that carries on by
+  /// such a token meanwhile, only once its credential was written after the mark, by a person signing in
+  /// again. A credential that merely still states a moment ahead would lift the mark at once, send the next
+  /// run out on the login that refused it, and tell the owner again (docs/cache-fallback.md, 「A login that is
+  /// about to end」).
+  pub fn login_back_here(&self, data_root: &Path, now: i64) -> bool {
+    if !self.login_back(now) {
+      return false;
+    }
+
+    if !self.credential.node_token_apart() || self.answering_node_token(data_root).is_none() {
+      return true;
+    }
+
+    match (self.needs_login_at, self.credential_file().and_then(|file| written_ms(&file))) {
+      (Some(marked), Some(written)) => written >= (marked + 1) as f64 * 1000.0,
+      _ => true,
+    }
+  }
+
   /// Whether a login marked as waiting for a person stands again, read off its credential rather than
   /// anybody's word: a login whose credential states a moment after `now`, which somebody signed in to
   /// since, or an endpoint account whose key file was written after the mark and is not empty.
@@ -449,10 +516,13 @@ pub fn machine_config_dir(machine: &Machine) -> PathBuf {
 pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
   let rows = all(
     db,
-    "SELECT id, name, place, enabled, credential_kind, credential_path, endpoint_url, key_file,
-       endpoint_models, needs_login_at, user_id, base_prompt
-     FROM claude_accounts ORDER BY place, rowid",
-    vec![],
+    r#"SELECT a.id, a.name, a.place, a.enabled, a.credential_kind, a.credential_path, a.endpoint_url,
+       a.key_file, a.endpoint_models, a.needs_login_at, a.user_id, a.base_prompt,
+       s."value" AS node_token_gone
+     FROM claude_accounts a
+     LEFT JOIN "settings" s ON s."key" = $1 || a.id
+     ORDER BY a.place, a.rowid"#,
+    vec![NODE_TOKEN_GONE_KEY.into()],
   )
   .await?;
   let mut held = Vec::new();
@@ -477,6 +547,7 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
         needs_login_at: row.try_get("", "needs_login_at")?,
         user_id: row.try_get("", "user_id")?,
         base_prompt: row.try_get("", "base_prompt")?,
+        node_token_gone: row.try_get("", "node_token_gone")?,
       }),
       Err(why) => eprintln!("claude account {id}: left out, {why}"),
     }
@@ -597,23 +668,26 @@ pub async fn resting(judging: Judging<'_>, account: &str, now: i64) -> Result<bo
   Ok(rest_until(judging, account).await?.is_some_and(|until| until > now.div_euclid(1000)))
 }
 
-// Every moment a credential file states under a name that speaks of expiring, read as seconds or
-// milliseconds by its own size.
-fn expiries(value: &Value, found: &mut Vec<f64>) {
+// Every moment a credential file states under a name that speaks of expiring and that `named` takes, read as
+// seconds or milliseconds by its own size.
+fn expiries(value: &Value, found: &mut Vec<f64>, named: &dyn Fn(&str) -> bool) {
   if let Value::Object(fields) = value {
     for (name, held) in fields {
+      let name = name.to_lowercase();
+
       if let Some(number) = held.as_f64()
-        && name.to_lowercase().contains("expir")
+        && name.contains("expir")
+        && named(&name)
         && number > 1_000_000_000.0
       {
         found.push(if number > 1_000_000_000_000.0 { number } else { number * 1000.0 });
       }
 
-      expiries(held, found);
+      expiries(held, found, named);
     }
   } else if let Value::Array(items) = value {
     for held in items {
-      expiries(held, found);
+      expiries(held, found, named);
     }
   }
 }
@@ -627,7 +701,7 @@ pub fn credential_expiry(account: &Account) -> Option<f64> {
   let said = serde_json::from_str::<Value>(&text).ok().and_then(|held| {
     let mut found = Vec::new();
 
-    expiries(&held, &mut found);
+    expiries(&held, &mut found, &|_| true);
     found.into_iter().reduce(f64::min)
   });
 
@@ -641,12 +715,14 @@ pub fn credential_expiry(account: &Account) -> Option<f64> {
 /// Whether a login is waiting for a person. One marked so is asked once more of its own credential:
 /// signing in again writes a new moment there, or a new key is written into an endpoint account's file,
 /// and the mark goes.
-async fn needs_login(db: &DatabaseConnection, account: &Account, now: i64) -> Result<bool, Refused> {
+async fn needs_login(judging: Judging<'_>, account: &Account, now: i64) -> Result<bool, Refused> {
+  let db = judging.db;
+
   if account.needs_login_at.is_none() {
     return Ok(false);
   }
 
-  if !account.login_back(now) {
+  if !account.login_back_here(judging.data_root, now) {
     return Ok(true);
   }
 
@@ -788,7 +864,8 @@ pub async fn closed_why(
     return Ok(Some(LoginClosed::Key));
   }
 
-  if needs_login(judging.db, account, now).await? {
+  // A directory account that carries on by its token for the work nodes answers on it, mark and all.
+  if needs_login(judging, account, now).await? && account.carrying_token(judging.data_root, now).is_none() {
     return Ok(Some(LoginClosed::Person));
   }
 
@@ -836,11 +913,21 @@ pub async fn open_accounts(judging: Judging<'_>) -> Result<Vec<Account>, Refused
 
   for account in road_order(judging.db).await? {
     if open_now(judging, &account, None, now).await? {
-      open.push(account);
+      open.push(judged(account, judging.data_root, now));
     }
   }
 
   Ok(open)
+}
+
+/// An account as the judgement leaves it: a mark its own credential lifted is gone from it too, so the run it
+/// is offered to is handed the login a person signed in to rather than the token it carried on by.
+pub fn judged(mut account: Account, data_root: &Path, now: i64) -> Account {
+  if account.needs_login_at.is_some() && account.login_back_here(data_root, now) {
+    account.needs_login_at = None;
+  }
+
+  account
 }
 
 /// The account the owner chose to run on now, where the one chosen is on.
@@ -881,7 +968,7 @@ pub async fn walk_for_user(
 
   for account in carried_for_user(judging.db, user).await? {
     if open_now(judging, &account, model, now).await? {
-      open.push(account);
+      open.push(judged(account, judging.data_root, now));
     }
   }
 
@@ -963,18 +1050,32 @@ fn renews(value: &Value) -> bool {
   }
 }
 
-/// When a login ends in the only sense worth telling the owner: nothing where its file holds a refresh,
-/// since the CLI renews that login for itself; the moment its credential states otherwise; nothing for an
-/// endpoint account, which has no login to end.
-pub fn login_end(account: &Account) -> Option<f64> {
-  let renewing = account.credential.may_renew()
-    && account
-      .credential_file()
-      .and_then(|file| std::fs::read_to_string(file).ok())
-      .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-      .is_some_and(|held| renews(&held));
+// The earliest moment a credential file states under a name that speaks of refreshing and of expiring: when
+// its refresh itself stops being taken.
+fn refresh_end(value: &Value) -> Option<f64> {
+  let mut found = Vec::new();
 
-  if renewing { None } else { credential_expiry(account) }
+  expiries(value, &mut found, &|name| name.contains("refresh"));
+  found.into_iter().reduce(f64::min)
+}
+
+/// When a login ends in the only sense worth telling the owner: where its file holds a refresh, which the
+/// CLI renews the login by for itself, the moment the file states that refresh stops being taken, and
+/// nothing where it states none; the moment its credential states otherwise; nothing for an endpoint
+/// account, which has no login to end.
+pub fn login_end(account: &Account) -> Option<f64> {
+  let held = account
+    .credential
+    .may_renew()
+    .then(|| account.credential_file())
+    .flatten()
+    .and_then(|file| std::fs::read_to_string(file).ok())
+    .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+
+  match held {
+    Some(held) if renews(&held) => refresh_end(&held),
+    _ => credential_expiry(account),
+  }
 }
 
 // How long before its end a login is told as ending.
@@ -1024,6 +1125,7 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
       "models": models,
       "basePrompt": account.base_prompt,
       "login": login_standing(&account, now),
+      "onToken": account.carrying_token(judging.data_root, now).is_some(),
       "loginEndsAt": login_end(&account).map(|end| (end / 1000.0).floor() as i64),
       "chosen": chosen.as_deref() == Some(account.id.as_str()),
       "serving": serving.as_deref() == Some(account.id.as_str()),

@@ -95,6 +95,10 @@ words_mid_turn = true
 # issues stands for a year from the day its file was written, since it states no end of its own.
 notice_ahead_hours = 24
 token_life_days = 365
+# How long before a directory account's login here ends its runs here go out on the account's token for the
+# work nodes instead (docs/cache-fallback.md, 「A directory account carries on by its token」), so no turn goes
+# out on a login that would end under it.
+hand_over_ahead_hours = 12
 # How long an account rests once a run came back with its own refusal, a request for /login or a 403, where
 # its credential still states a moment ahead and so would let it straight back into the walk; a person settles
 # it by signing in again, and the walk carries the run to the next account meanwhile.
@@ -113,6 +117,10 @@ token_after = "Write the new token over the file in use now."
 directory_after = "Where the login screen does not open at once, start claude with the same line and type /login."
 gone_after = "Until then, this account's work goes to the next account, and then to the next provider."
 ending_after = "Done before it ends, nothing stops."
+# The closing line where the account carries on by its token for the work nodes, with `{end}` the day that
+# token's own year ends.
+carried_on = "Until then, its runs on this machine go out on its token for the work nodes, which ends {end}; signing in again puts them back on the login."
+carries_on = "Its runs on this machine move to its token for the work nodes before then, which ends {end}, until it is signed in again."
 
 [node_login]
 # Each account's token for the work nodes (docs/work-nodes.md, 「The logins on a node」): the directory
@@ -120,6 +128,9 @@ ending_after = "Done before it ends, nothing stops."
 # the owner runs on this machine to make one, with `{deploy}` the deploy tree and `{name}` the account's name.
 token_dir = "claude-tokens"
 command = "{deploy}/bin/bmo-agency node claude-token '{name}'"
+# How long before its year ends a token is told as ending, once as each lead is crossed: only a browser
+# approval makes another, and the account carries on by it here once its login here ends.
+notice_ahead_days = [30, 7, 1]
 # How a token that stopped answering on a node, or is about to, is told to the owner, one entry to a line, with
 # `{name}`, `{when}` and `{left}` filled in; how long is left, the line asking them to run the command and
 # the closing line of a warning are the login's own.

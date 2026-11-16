@@ -71,16 +71,17 @@ pub fn due(account: &Account) -> bool {
     && credential_expiry(account).is_some_and(|expiry| expiry - now_ms() as f64 <= margin)
 }
 
-/// The renewal step before a run goes out on a login: nothing where the login is not near its end; the
-/// renewal, under the account's lock, where this run takes it; and otherwise the wait for the run that holds
-/// it, which ends once the credential shows the renewal written or the lock is let go. A credential whose
-/// renewal was refused ends the run as that login's failure; any other end of the step lets the run go out.
+/// The renewal step before a run goes out on a login: nothing where the login is not near its end, or where
+/// the run goes out on the account's token for the work nodes, which renews nothing; the renewal, under the
+/// account's lock, where this run takes it; and otherwise the wait for the run that holds it, which ends once
+/// the credential shows the renewal written or the lock is let go. A credential whose renewal was refused
+/// ends the run as that login's failure; any other end of the step lets the run go out.
 pub async fn renewed(
   ground: &Ground,
   account: &Account,
   renewing: &mut impl Renewing,
 ) -> Result<(), Failure> {
-  if !due(account) {
+  if !due(account) || account.carrying_token(&ground.roots.data, now_ms()).is_some() {
     return Ok(());
   }
 
@@ -227,7 +228,7 @@ pub async fn run(ground: &Ground, account: &Account) -> Result<(), Failure> {
     &session,
   )
   .map_err(|why| Failure::error(why.detail))?;
-  let env = command_env(ground.env(), Some(account), &Runs::Here, false)
+  let env = command_env(ground.env(), Some(account), &Runs::OwnLogin, false)
     .map_err(|why| Failure::error(why.detail))?;
   let cwd = Trees::of(ground).agents.join(RENEWAL);
 

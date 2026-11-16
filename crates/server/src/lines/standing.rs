@@ -197,7 +197,8 @@ pub async fn claude_program(
       .await
       .map_err(|refused| fault(refused.error))?
       .into_iter()
-      .find(|one| &one.id == account),
+      .find(|one| &one.id == account)
+      .map(|one| claude_accounts::judged(one, &ground.roots.data, crate::now_ms())),
   };
   let mut line = configured_pinned(
     ground,

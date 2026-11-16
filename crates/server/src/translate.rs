@@ -428,7 +428,7 @@ impl Attempt<String> for OnLogin<'_> {
       &session,
     )
     .map_err(|why| Failure::error(why.detail))?;
-    let env = command_env(self.ground.env(), account.as_ref(), &Runs::Here, false)
+    let env = command_env(self.ground.env(), account.as_ref(), &Runs::here(self.ground), false)
       .map_err(|why| Failure::error(why.detail))?;
     let cwd = self.trees.agents.join(AGENT);
 

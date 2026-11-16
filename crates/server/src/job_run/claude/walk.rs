@@ -8,8 +8,11 @@
 //! 403 — is marked and published once as waiting for a person, and, where its credential would lift that
 //! mark at once, rests alone for the provider's span so the credential's own moment cannot put it back in
 //! the walk before then; the rest that closed the last login to a limit is published once too (docs/api.md,
-//! 「Events」). A run every login of which refused it ends on the login failure naming each with its words,
-//! which a person settles by signing in again. A login near its
+//! 「Events」). A directory account whose refusal hands it to its token for the work nodes takes no rest and
+//! carries the same run again on that token, and a run handed that token which fails on its login has found
+//! the token gone (docs/cache-fallback.md, 「A directory account carries on by its token」). A run every login
+//! of which refused it ends on the login failure naming each with its words, which a person settles by
+//! signing in again. A login near its
 //! credential's end is renewed before the turn goes out on it, in a step of its own (`super::renewal`): one
 //! short run of the CLI by one run at a time under the account's own lock, which no run holds across its
 //! turn; a renewal that fails on the login, or that the run waited on and saw fail so, is that login's
@@ -122,66 +125,100 @@ pub async fn on_accounts<T, A: Attempt<T>>(
   let mut other: Option<Failure> = None;
   let mut refusals: Vec<(&Account, String)> = vec![];
 
-  for (place, account) in walk.iter().enumerate() {
-    let tried = match renewed(walking.ground, account, attempt).await {
-      Ok(()) => attempt.attempt(Some(account.clone())).await,
-      Err(failed) => Err(failed),
+  for (place, walked) in walk.iter().enumerate() {
+    // The account as this attempt goes out on it: the walk's, or the same account handed its token after
+    // its login here refused the run.
+    let mut held = walked.clone();
+    let mut retried = false;
+    let account = walked;
+
+    let (failed, failure) = loop {
+      let on_token = held.carrying_token(&walking.ground.roots.data, now_ms()).is_some();
+      let tried = match renewed(walking.ground, &held, attempt).await {
+        Ok(()) => attempt.attempt(Some(held.clone())).await,
+        Err(failed) => Err(failed),
+      };
+
+      let mut failed = match tried {
+        Ok(result) => {
+          hold_where_moved(walking.ground, &account.id).await?;
+
+          return Ok(result);
+        }
+        Err(failed) => failed,
+      };
+      let failure = match failed.account_failure() {
+        None | Some(AccountFailure::Outage) => return Err(failed),
+        // A run handed the token for the work nodes that fails on its login has found that token gone.
+        Some(AccountFailure::Login) if on_token => {
+          failed = Failure::Account {
+            failure: AccountFailure::NodeToken,
+            detail: failed.message(),
+          };
+
+          AccountFailure::NodeToken
+        }
+        Some(failure) => failure,
+      };
+
+      match failure {
+        AccountFailure::Limit => rest_limit(walking, account, &mut failed).await?,
+        _ => {
+          if let Some(carried) = pass_over(walking, &held, failure).await?
+            && !on_token
+            && !retried
+          {
+            let words = format!(
+              "Claude account {} refused the turn on its login here; the turn goes out again on its token for \
+               the work nodes",
+              account.words()
+            );
+
+            println!("claude {key}: {words}");
+            attempt.say(&words).await;
+            held = carried;
+            retried = true;
+
+            continue;
+          }
+        }
+      }
+
+      break (failed, failure);
     };
 
-    match tried {
-      Ok(result) => {
-        hold_where_moved(walking.ground, &account.id).await?;
+    let said = said_of(&failed, key);
+    let next = walk.get(place + 1);
+    let state = match (&failed, failure) {
+      (
+        Failure::Limit {
+          model: Some(model), ..
+        },
+        _,
+      ) => format!("is at its {model} limit"),
+      (_, AccountFailure::Limit) => "is at its ceiling".to_owned(),
+      (_, AccountFailure::NodeToken) => "needs a token for the work nodes".to_owned(),
+      _ => format!("refused the run ({said})"),
+    };
 
-        return Ok(result);
-      }
-      Err(mut failed) => {
-        let failure = match failed.account_failure() {
-          None | Some(AccountFailure::Outage) => return Err(failed),
-          Some(failure) => failure,
-        };
+    println!(
+      "claude {key}: {} {state}{}",
+      account.id,
+      next.map_or_else(|| ", and no login is left".to_owned(), |next| format!(", carried by {}", next.id))
+    );
+    attempt
+      .passed_over(&PassedOver {
+        account,
+        failure,
+        said: &said,
+        next,
+      })
+      .await;
 
-        match failure {
-          AccountFailure::Limit => rest_limit(walking, account, &mut failed).await?,
-          _ => pass_over(walking, account, failure).await?,
-        }
-
-        let said = said_of(&failed, key);
-        let next = walk.get(place + 1);
-        let state = match (&failed, failure) {
-          (
-            Failure::Limit {
-              model: Some(model), ..
-            },
-            _,
-          ) => format!("is at its {model} limit"),
-          (_, AccountFailure::Limit) => "is at its ceiling".to_owned(),
-          (_, AccountFailure::NodeToken) => "needs a token for the work nodes".to_owned(),
-          _ => format!("refused the run ({said})"),
-        };
-
-        println!(
-          "claude {key}: {} {state}{}",
-          account.id,
-          next.map_or_else(
-            || ", and no login is left".to_owned(),
-            |next| format!(", carried by {}", next.id)
-          )
-        );
-        attempt
-          .passed_over(&PassedOver {
-            account,
-            failure,
-            said: &said,
-            next,
-          })
-          .await;
-
-        if failure == AccountFailure::Login {
-          refusals.push((account, said));
-        } else {
-          other = Some(failed);
-        }
-      }
+    if failure == AccountFailure::Login {
+      refusals.push((account, said));
+    } else {
+      other = Some(failed);
     }
   }
 
@@ -309,12 +346,14 @@ async fn rest_limit(walking: &Walking<'_>, account: &Account, failed: &mut Failu
 
 // What passing a login over for anything but a limit leaves behind: a login gone or refusing the run waits
 // for a person, published once, and rests alone for the provider's span where its credential would lift that
-// mark at once; and a token for the work nodes gone waits for a person on the nodes alone.
+// mark at once; and a token for the work nodes gone waits for a person on the nodes, and here, alone. A
+// directory account the refusal hands to its token for the work nodes takes no rest, and is answered as it
+// now stands, to carry the same run on that token.
 async fn pass_over(
   walking: &Walking<'_>,
   account: &Account,
   failure: AccountFailure,
-) -> Result<(), Failure> {
+) -> Result<Option<Account>, Failure> {
   let db = &walking.ground.db;
   let now = now_ms();
 
@@ -329,7 +368,7 @@ async fn pass_over(
       .await
       .map_err(|why| Failure::error(why.detail))?;
 
-    return Ok(());
+    return Ok(None);
   }
 
   if failure == AccountFailure::Login {
@@ -343,10 +382,16 @@ async fn pass_over(
       .into_iter()
       .find(|one| one.id == account.id);
 
-    if let Some(held) = held {
-      logins::tell(db, &walking.ground.events, &held, now)
+    if let Some(held) = &held {
+      logins::tell(db, &walking.ground.events, held, &walking.ground.roots.data, now)
         .await
         .map_err(|why| Failure::error(why.detail))?;
+    }
+
+    let carried = held.filter(|held| held.carrying_token(&walking.ground.roots.data, now).is_some());
+
+    if carried.is_some() {
+      return Ok(carried);
     }
 
     // A subscription's credential states a moment ahead at almost any time, which lifts the mark at once:
@@ -359,7 +404,7 @@ async fn pass_over(
     }
   }
 
-  Ok(())
+  Ok(None)
 }
 
 /// A login's own rest — a full window's, or a refusal's — written under that login by the one writer of rests

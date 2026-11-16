@@ -143,7 +143,7 @@ pub async fn runner_command(
     return Err(crate::lines::fault("a session on the worker line names no runner line"));
   };
   let run = given_run(ground, &trees, line, instructions, (apart.model.as_str(), effort, tier)).await?;
-  let mut env = command_env(ground.env(), account, &Runs::Here, run.thinking)?;
+  let mut env = command_env(ground.env(), account, &Runs::here(ground), run.thinking)?;
 
   for (name, value) in
     work.variables.clone().into_iter().chain(crate::lines::token::record_variables(apart))
@@ -214,7 +214,7 @@ pub async fn role_command(
     .mcp_config;
   }
 
-  let mut env = command_env(ground.env(), account, &Runs::Here, line.thinking)?;
+  let mut env = command_env(ground.env(), account, &Runs::here(ground), line.thinking)?;
 
   for (name, value) in
     work.variables.clone().into_iter().chain(crate::lines::token::record_variables(apart))

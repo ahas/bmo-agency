@@ -14,6 +14,7 @@ fn account(id: &str, credential: Credential) -> Account {
     needs_login_at: None,
     user_id: None,
     base_prompt: None,
+    node_token_gone: None,
   }
 }
 
@@ -26,14 +27,14 @@ fn a_directory_login_clears_any_token_and_a_token_login_hands_its_token() {
 
   let directory = |home: &Path| account("a", Credential::Directory { home: home.into() });
   let tokened = |file: &Path| account("a", Credential::Token { file: file.into() });
-  let directory = account_env(Some(&directory(dir.path())), &Runs::Here).unwrap();
-  let handed = account_env(Some(&tokened(&token)), &Runs::Here).unwrap();
+  let directory = account_env(Some(&directory(dir.path())), &Runs::OwnLogin).unwrap();
+  let handed = account_env(Some(&tokened(&token)), &Runs::OwnLogin).unwrap();
 
   assert_eq!(directory["CLAUDE_CODE_OAUTH_TOKEN"], None);
   assert_eq!(directory["CLAUDE_CONFIG_DIR"].as_deref(), dir.path().to_str());
   assert_eq!(handed["CLAUDE_CODE_OAUTH_TOKEN"].as_deref(), Some("sk-test"));
   assert_eq!(handed.len(), 1);
-  assert!(account_env(Some(&tokened(&dir.path().join("gone"))), &Runs::Here).is_err());
+  assert!(account_env(Some(&tokened(&dir.path().join("gone"))), &Runs::OwnLogin).is_err());
 }
 
 #[test]
@@ -58,7 +59,7 @@ fn an_endpoint_login_hands_its_home_its_url_its_key_and_its_models_and_clears_ev
 
   std::fs::write(&key, "sk-endpoint\n").unwrap();
 
-  let env = account_env(Some(&endpoint(&key)), &Runs::Here).unwrap();
+  let env = account_env(Some(&endpoint(&key)), &Runs::OwnLogin).unwrap();
 
   assert_eq!(env["CLAUDE_CONFIG_DIR"].as_deref(), dir.path().join("home").to_str());
   assert_eq!(env["ANTHROPIC_BASE_URL"].as_deref(), Some("https://endpoint.test/anthropic"));
@@ -71,8 +72,8 @@ fn an_endpoint_login_hands_its_home_its_url_its_key_and_its_models_and_clears_ev
 
   // A key that cannot be read is refused, and so is a run from a work node.
   std::fs::write(dir.path().join("empty.key"), "\n").unwrap();
-  assert!(account_env(Some(&endpoint(&dir.path().join("empty.key"))), &Runs::Here).is_err());
-  assert!(account_env(Some(&endpoint(&dir.path().join("gone.key"))), &Runs::Here).is_err());
+  assert!(account_env(Some(&endpoint(&dir.path().join("empty.key"))), &Runs::OwnLogin).is_err());
+  assert!(account_env(Some(&endpoint(&dir.path().join("gone.key"))), &Runs::OwnLogin).is_err());
 
   let node = Runs::OnNode {
     data_root: dir.path().into(),
@@ -85,7 +86,7 @@ fn an_endpoint_login_hands_its_home_its_url_its_key_and_its_models_and_clears_ev
     ("ANTHROPIC_API_KEY".to_owned(), "sk-process".to_owned()),
     ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), "sk-ant-oat01-process".to_owned()),
   ]);
-  let program = command_env(&process, Some(&endpoint(&key)), &Runs::Here, true).unwrap();
+  let program = command_env(&process, Some(&endpoint(&key)), &Runs::OwnLogin, true).unwrap();
 
   assert_eq!(program["ANTHROPIC_API_KEY"], None);
   assert_eq!(program["CLAUDE_CODE_OAUTH_TOKEN"], None);
@@ -116,7 +117,7 @@ fn a_pane_on_an_endpoint_account_is_handed_its_url_its_key_and_its_models_by_nam
   let command = Command {
     args: vec![],
     cwd: "/w".into(),
-    env: command_env(&process, Some(&endpoint), &Runs::Here, true).unwrap(),
+    env: command_env(&process, Some(&endpoint), &Runs::OwnLogin, true).unwrap(),
   };
   let env = line_environment(&command, "bmo-standby-worker", Some(&endpoint));
 
@@ -144,7 +145,12 @@ fn a_directory_login_on_a_node_is_handed_its_token_for_the_nodes_beside_its_dire
   let runs = || Runs::of_place(data.path(), &place);
 
   std::fs::create_dir_all(&place).unwrap();
-  assert_eq!(runs(), Runs::Here);
+  assert_eq!(
+    runs(),
+    Runs::Here {
+      data_root: data.path().into()
+    }
+  );
   agency_server::watches::links::mark_place_node(&place, Some("node-a")).unwrap();
 
   // No token made for the nodes yet: the directory alone, the node's own login in it.
@@ -158,7 +164,13 @@ fn a_directory_login_on_a_node_is_handed_its_token_for_the_nodes_beside_its_dire
   std::fs::write(&file, "sk-ant-oat01-node\n").unwrap();
 
   let on_node = account_env(Some(&account), &runs()).unwrap();
-  let here = account_env(Some(&account), &Runs::Here).unwrap();
+  let here = account_env(
+    Some(&account),
+    &Runs::Here {
+      data_root: data.path().into(),
+    },
+  )
+  .unwrap();
 
   assert_eq!(on_node["CLAUDE_CODE_OAUTH_TOKEN"].as_deref(), Some("sk-ant-oat01-node"));
   assert_eq!(on_node["CLAUDE_CONFIG_DIR"].as_deref(), login.path().to_str());
@@ -178,7 +190,7 @@ fn the_pane_is_handed_the_lines_variables_by_name_and_never_the_launchers_whole_
   let command = Command {
     args: vec![],
     cwd: "/w".into(),
-    env: command_env(&process, None, &Runs::Here, false).unwrap(),
+    env: command_env(&process, None, &Runs::OwnLogin, false).unwrap(),
   };
   let env = line_environment(&command, "bmo-standby-worker", None);
 
@@ -236,4 +248,132 @@ fn an_endpoint_launch_names_the_model_in_the_environment_and_refuses_an_unknown_
     },
   );
   assert!(endpoint_launch(&directory, "deepseek-flash", "high").is_err());
+}
+
+// A subscription login's credential file whose access token ends at `access` and whose refresh stops being
+// taken at `refresh`, both in milliseconds.
+fn subscription(access: i64, refresh: i64) -> String {
+  serde_json::json!({
+    "claudeAiOauth": {
+      "accessToken": "a",
+      "refreshToken": "r",
+      "expiresAt": access,
+      "refreshTokenExpiresAt": refresh,
+    }
+  })
+  .to_string()
+}
+
+// A directory account runs here on its token for the work nodes, beside its configuration directory, at each of
+// the three moments its login here cannot be counted on — past its end, marked as waiting for a person, inside
+// the policy's span before its end — and on its login alone otherwise: while its login stands, where it holds
+// no token, where that token is marked gone, for the run that renews the login, and once it is signed in again.
+#[test]
+fn a_directory_account_carries_on_by_its_token_where_its_login_here_cannot_be_counted_on() {
+  const HOUR: i64 = 3_600_000;
+  let data = tempfile::tempdir().unwrap();
+  let home = tempfile::tempdir().unwrap();
+  let credentials = home.path().join(".credentials.json");
+  let now = agency_server::now_ms();
+  let mut held = account(
+    "spare",
+    Credential::Directory {
+      home: home.path().into(),
+    },
+  );
+  let here = Runs::Here {
+    data_root: data.path().into(),
+  };
+  let handed = |account: &Account, runs: &Runs| {
+    let env = account_env(Some(account), runs).unwrap();
+
+    assert_eq!(env["CLAUDE_CONFIG_DIR"].as_deref(), home.path().to_str(), "the directory stays handed");
+    env["CLAUDE_CODE_OAUTH_TOKEN"].clone()
+  };
+
+  // Its login stands: a month of refresh ahead.
+  std::fs::write(&credentials, subscription(now + HOUR, now + 720 * HOUR)).unwrap();
+  assert_eq!(handed(&held, &here), None);
+
+  // Its login has ended, but this machine holds no token for the nodes: nothing to carry on by.
+  std::fs::write(&credentials, subscription(now - HOUR, now - HOUR)).unwrap();
+  assert_eq!(handed(&held, &here), None);
+
+  let token = held.node_token_file(data.path()).unwrap();
+
+  std::fs::create_dir_all(token.parent().unwrap()).unwrap();
+  std::fs::write(&token, "sk-ant-oat01-node\n").unwrap();
+
+  // Past its end.
+  assert_eq!(handed(&held, &here).as_deref(), Some("sk-ant-oat01-node"));
+  // The run that renews the login is never handed the token.
+  assert_eq!(handed(&held, &Runs::OwnLogin), None);
+
+  // Inside the policy's span before its end, and not before it.
+  let span = policy::providers::claude_code::CLAUDE_CODE.login.hand_over_ahead_hours * HOUR;
+
+  std::fs::write(&credentials, subscription(now + HOUR, now + span - HOUR)).unwrap();
+  assert_eq!(handed(&held, &here).as_deref(), Some("sk-ant-oat01-node"));
+  std::fs::write(&credentials, subscription(now + HOUR, now + span + HOUR)).unwrap();
+  assert_eq!(handed(&held, &here), None);
+
+  // Marked as waiting for a person, its file's moments still ahead.
+  held.needs_login_at = Some(now / 1000);
+  assert_eq!(handed(&held, &here).as_deref(), Some("sk-ant-oat01-node"));
+
+  // A token marked gone answers for nothing, and one made since stands clear of the mark.
+  held.node_token_gone = Some(held.node_token_stamp(data.path()));
+  assert_eq!(handed(&held, &here), None);
+  held.node_token_gone = Some("1".into());
+  assert_eq!(handed(&held, &here).as_deref(), Some("sk-ant-oat01-node"));
+
+  // While it carries on by its token, a credential that merely still states a moment ahead lifts no mark
+  // made after it was written; one written after the mark, by a person signing in again, does.
+  held.needs_login_at = Some(now / 1000 + 5);
+  assert!(held.login_back(now));
+  assert!(!held.login_back_here(data.path(), now));
+  held.needs_login_at = Some(now / 1000 - 5);
+  std::fs::write(&credentials, subscription(now + HOUR, now + 720 * HOUR)).unwrap();
+  assert!(held.login_back_here(data.path(), now));
+
+  // Signed in again: the judgement lifts the mark off that credential, and the login is handed alone.
+  let held = agency_server::control::claude_accounts::judged(held, data.path(), now);
+
+  assert_eq!(held.needs_login_at, None);
+  assert_eq!(handed(&held, &here), None);
+
+  // A token account's own token is its login here, never a token for the nodes beside a directory.
+  let tokened = account(
+    "tokened",
+    Credential::Token {
+      file: token.clone(),
+    },
+  );
+
+  assert_eq!(tokened.carrying_token(data.path(), now), None);
+}
+
+// A subscription login's end is the moment its file states its refresh stops being taken, and a file that
+// states none has no end this side can read.
+#[test]
+fn a_subscription_login_ends_when_its_refresh_stops_being_taken() {
+  let home = tempfile::tempdir().unwrap();
+  let held = account(
+    "spare",
+    Credential::Directory {
+      home: home.path().into(),
+    },
+  );
+  let credentials = home.path().join(".credentials.json");
+
+  std::fs::write(&credentials, subscription(1_900_000_000_000, 1_950_000_000_000)).unwrap();
+  assert_eq!(agency_server::control::claude_accounts::login_end(&held), Some(1_950_000_000_000.0));
+
+  std::fs::write(
+    &credentials,
+    serde_json::json!({ "claudeAiOauth": { "refreshToken": "r", "expiresAt": 1_900_000_000_000_i64 } })
+      .to_string(),
+  )
+  .unwrap();
+  assert_eq!(agency_server::control::claude_accounts::login_end(&held), None);
 }

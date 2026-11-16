@@ -17,6 +17,7 @@ use crate::integration::common;
 use agency_server::control::claude_accounts::{
   Account, CREDENTIAL_FILE, Judging, open_accounts, rest_until, walk_for, walk_for_user,
 };
+use agency_server::lines::claude::{Runs, account_env};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_errore
 use agency_server::job_run::claude::renewal::{Renewing, lock_path};
 use agency_server::job_run::claude::turn::{JobMoves, JobWaits};
 use agency_server::job_run::claude::walk::{Attempt, PassedOver, Walking, on_accounts};
-use agency_server::keepalive::logins::retire_closed;
+use agency_server::keepalive::logins::{node_token_refused, retire_closed};
 use agency_server::now_ms;
 use agency_server::places::{Ground, locks};
 use agency_server::rest::DeploymentResting;
@@ -921,4 +922,215 @@ async fn a_run_every_login_of_which_refuses_ends_on_the_login_failure_naming_eac
     )
   );
   assert_eq!(turn.prompts.last(), Some(&None));
+}
+
+// What the CLI answers a run on a login whose sign-in has ended.
+const SIGNED_OUT: &str = "Not logged in · Please run /login";
+
+// A subscription login whose access token ended a minute ago and whose file states a refresh a month ahead:
+// a sign-in that ended before the moment its file states, as only a run on it can tell.
+fn ended_early() -> String {
+  let now = now_ms() as i64;
+
+  json!({ "claudeAiOauth": {
+    "accessToken": "a", "refreshToken": "r", "expiresAt": now - 60_000,
+    "refreshTokenExpiresAt": now + 720 * HOUR * 1000,
+  } })
+  .to_string()
+}
+
+// A job's turn on this machine as the handed login answers it: the logins named answer, a token for the work
+// nodes answers while the turn says so, and anything else is refused as an ended sign-in refuses it, a
+// renewal among them. Every login it went out on is kept, with what it was handed.
+struct Handed {
+  data: std::path::PathBuf,
+  logins: Vec<&'static str>,
+  token_answers: bool,
+  tried: Vec<String>,
+}
+
+impl Handed {
+  fn of(bench: &Bench, logins: Vec<&'static str>) -> Self {
+    Self {
+      data: bench.data.path().to_owned(),
+      logins,
+      token_answers: true,
+      tried: vec![],
+    }
+  }
+}
+
+impl Renewing for Handed {
+  async fn renew(&mut self, _ground: &Ground, account: &Account) -> Result<(), Failure> {
+    self.tried.push(format!("{} renewed", account.id));
+
+    if self.logins.contains(&account.id.as_str()) {
+      Ok(())
+    } else {
+      Err(of_unanswered(SIGNED_OUT, "coder"))
+    }
+  }
+}
+
+impl Attempt<String> for Handed {
+  async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
+    let account = account.unwrap();
+    let env = account_env(
+      Some(&account),
+      &Runs::Here {
+        data_root: self.data.clone(),
+      },
+    )
+    .unwrap();
+    let on_token = env["CLAUDE_CODE_OAUTH_TOKEN"].as_deref() == Some("sk-ant-oat01-node");
+
+    self
+      .tried
+      .push(format!("{} on its {}", account.id, if on_token { "token" } else { "login" }));
+
+    if (on_token && self.token_answers) || (!on_token && self.logins.contains(&account.id.as_str())) {
+      Ok(account.id)
+    } else {
+      Err(of_unanswered(SIGNED_OUT, "coder"))
+    }
+  }
+}
+
+impl Bench {
+  // `main`'s token for the work nodes, kept where this machine keeps it.
+  async fn node_token(&self) {
+    let main = walk_for(self.judging())
+      .await
+      .unwrap()
+      .into_iter()
+      .find(|one| one.id == "main")
+      .unwrap();
+    let file = main.node_token_file(self.data.path()).unwrap();
+
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(file, "sk-ant-oat01-node\n").unwrap();
+  }
+
+  async fn marked(&self, id: &str) -> bool {
+    store::one(
+      self.scratch.db(),
+      r#"SELECT "needs_login_at" FROM "claude_accounts" WHERE "id" = $1"#,
+      vec![id.into()],
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .try_get::<Option<i64>>("", "needs_login_at")
+    .unwrap()
+    .is_some()
+  }
+}
+
+// A sign-in that ended before its file says: the renewal its run asks for is refused, the login is marked and
+// takes no rest, and the same run goes out again on the same account on its token for the work nodes, beside
+// its directory; the next run goes out on the token at once, renewing nothing; and once a person signs in
+// again the mark lifts off the credential and the next run is handed the login alone.
+#[tokio::test]
+async fn a_login_here_that_ends_hands_its_runs_to_its_token_and_takes_them_back_once_signed_in() {
+  let bench = Bench::new().await;
+  let credentials = bench.homes.path().join("main").join(CREDENTIAL_FILE);
+
+  bench.node_token().await;
+  std::fs::write(&credentials, ended_early()).unwrap();
+
+  let mut turn = Handed::of(&bench, vec![]);
+
+  assert_eq!(on_accounts(&bench.walking(), "coder", None, &mut turn).await, Ok("main".to_owned()));
+  assert_eq!(turn.tried, ["main renewed", "main on its token"]);
+  assert!(bench.marked("main").await, "the login here waits for a person");
+  assert_eq!(bench.setting("rest_until:main").await, None, "an account on its token takes no rest");
+  assert_eq!(bench.walk().await, ["main", "default"], "the account stays open on its token");
+
+  let mut next = Handed::of(&bench, vec![]);
+
+  assert_eq!(on_accounts(&bench.walking(), "coder", None, &mut next).await, Ok("main".to_owned()));
+  assert_eq!(next.tried, ["main on its token"]);
+
+  // A credential that still states a moment ahead, never written since the mark, does not take the run back to
+  // the login that refused it.
+  bench
+    .scratch
+    .run(
+      r#"UPDATE "claude_accounts" SET "needs_login_at" = "needs_login_at" + 5 WHERE "id" = 'main'"#,
+      vec![],
+    )
+    .await;
+
+  let mut still = Handed::of(&bench, vec![]);
+
+  std::fs::write(&credentials, credential(now_ms() as i64 + HOUR * 1000)).unwrap();
+  assert_eq!(on_accounts(&bench.walking(), "coder", None, &mut still).await, Ok("main".to_owned()));
+  assert_eq!(still.tried, ["main on its token"]);
+
+  // Signed in again, after the mark.
+  bench
+    .scratch
+    .run(
+      r#"UPDATE "claude_accounts" SET "needs_login_at" = "needs_login_at" - 10 WHERE "id" = 'main'"#,
+      vec![],
+    )
+    .await;
+  std::fs::write(&credentials, credential(now_ms() as i64 + HOUR * 1000)).unwrap();
+
+  let mut back = Handed::of(&bench, vec!["main"]);
+
+  assert_eq!(on_accounts(&bench.walking(), "coder", None, &mut back).await, Ok("main".to_owned()));
+  assert_eq!(back.tried, ["main on its login"]);
+  assert!(!bench.marked("main").await, "the mark lifted off the credential");
+}
+
+// A run here on the token that fails on its login has found the token gone: it is marked gone, the account,
+// its login here gone too, is closed, and the run goes out on the next account.
+#[tokio::test]
+async fn a_token_that_fails_here_is_marked_gone_and_the_run_goes_to_the_next_account() {
+  let bench = Bench::new().await;
+
+  bench.node_token().await;
+  std::fs::write(bench.homes.path().join("main").join(CREDENTIAL_FILE), ended_early()).unwrap();
+  std::fs::write(
+    bench.homes.path().join("default").join(CREDENTIAL_FILE),
+    credential(now_ms() as i64 + HOUR * 1000),
+  )
+  .unwrap();
+
+  let mut turn = Handed {
+    token_answers: false,
+    ..Handed::of(&bench, vec!["default"])
+  };
+  let walked = on_accounts(&bench.walking(), "coder", None, &mut turn).await;
+
+  assert_eq!(turn.tried, ["main renewed", "main on its token", "default on its login"]);
+  assert_eq!(walked, Ok("default".to_owned()));
+  assert!(bench.setting("claude_node_token_gone:main").await.is_some());
+  assert_eq!(bench.walk().await, ["default"]);
+}
+
+// A supervisor's turn into a program handed a directory account's token for the work nodes that fails on its
+// login marks that token gone, as a job's run does; a turn that fails on anything else, and a program on the
+// login alone, marks nothing.
+#[tokio::test]
+async fn a_turn_refused_on_the_token_for_the_work_nodes_marks_that_token_gone() {
+  let bench = Bench::new().await;
+
+  bench.node_token().await;
+
+  let home = bench.homes.path().join("main").to_string_lossy().into_owned();
+  let on_login = std::collections::BTreeMap::from([("CLAUDE_CONFIG_DIR".to_owned(), home.clone())]);
+  let mut on_token = on_login.clone();
+
+  on_token.insert("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), "sk-ant-oat01-node".to_owned());
+
+  let refused = "Please run /login · API Error: 401 OAuth token has been revoked";
+
+  node_token_refused(&bench.ground, &on_token, "API Error: 529 Overloaded").await;
+  node_token_refused(&bench.ground, &on_login, refused).await;
+  assert_eq!(bench.setting("claude_node_token_gone:main").await, None);
+
+  node_token_refused(&bench.ground, &on_token, refused).await;
+  assert!(bench.setting("claude_node_token_gone:main").await.is_some());
 }

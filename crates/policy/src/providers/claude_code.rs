@@ -66,6 +66,8 @@ pub struct NodeLogin {
   /// The directory under the data root's env directory, one file in it per account, named by its id.
   pub token_dir: String,
   pub command: String,
+  /// The leads before a token's year ends, in days, at each of which its ending is told once.
+  pub notice_ahead_days: Vec<i64>,
   pub head: String,
   pub gone: String,
   pub missing: String,
@@ -81,6 +83,8 @@ pub struct NodeLogin {
 pub struct Login {
   pub notice_ahead_hours: i64,
   pub token_life_days: i64,
+  /// How long before a directory account's login here ends its runs here go out on its token for the nodes.
+  pub hand_over_ahead_hours: i64,
   pub refused_rest_minutes: i64,
   pub head: String,
   pub gone: String,
@@ -95,6 +99,8 @@ pub struct Login {
   pub directory_after: String,
   pub gone_after: String,
   pub ending_after: String,
+  pub carried_on: String,
+  pub carries_on: String,
 }
 
 /// How long a prefix it holds stays cached, and how long an agent's session may stand idle before it

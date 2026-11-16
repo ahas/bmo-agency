@@ -75,6 +75,7 @@ impl Logins {
     let judging = Judging {
       db: self.scratch.db(),
       windows,
+      data_root: std::path::Path::new("/nonexistent"),
     };
 
     open_accounts(judging).await.unwrap().into_iter().map(|account| account.id).collect()

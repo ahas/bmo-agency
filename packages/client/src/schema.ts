@@ -3164,6 +3164,12 @@ export interface components {
              * @description epoch seconds
              */
             loginEndsAt: number | null;
+            /**
+             * @description Whether its runs here go out on its token for the work nodes now, its login here having ended, waiting
+             *     for a person or near its end (docs/cache-fallback.md, 「A directory account carries on by its token」).
+             * @default false
+             */
+            onToken: boolean;
             chosen: boolean;
             serving: boolean;
             /**

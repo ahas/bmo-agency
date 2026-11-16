@@ -161,10 +161,15 @@ side of a remote agent, the rotation, and what a dropped node does.
     renews it and no other machine's use of it signs anyone out;
   - the token is the account's that approves the sign-in in the browser, whatever configuration
     directory the command was run under;
-  - it is inference-only: a run on it answers prompts, while a remote-control surface and the
-    browser-driving surface refuse it, and no run on a node uses either;
+  - it is inference-only: a run on it answers prompts, while a remote-control surface, the
+    browser-driving surface and the provider's usage read refuse it, and no run on a node uses any of
+    them;
   - a program handed `CLAUDE_CODE_OAUTH_TOKEN` signs in with it ahead of any login its configuration
-    directory holds, so a node needs no login file.
+    directory holds and writes no login there, so a node needs no login file.
+- **It carries the account here too, once its login here cannot be counted on:** a directory account
+  whose login here has ended, waits for a person or is near its end is handed the same token beside its
+  configuration directory for its runs on this machine, and goes back to its login once a person signs
+  in again (`docs/cache-fallback.md`, 「A directory account carries on by its token」).
 - **The token goes with each run, not with the node.** A job's program on a node is composed here for
   the account its walk goes out on: a directory account's program is handed that account's
   configuration directory and its token for the nodes, and the link carries the program's
@@ -183,16 +188,19 @@ side of a remote agent, the rotation, and what a dropped node does.
   takes the printed token pasted in, unechoed, refuses one not shaped as a Claude Code token, and
   writes it to the account's file. `--paste` takes a token already made, without the sign-in, from the
   terminal or from standard input.
-- **A token that stops answering is told, once.** A run on a node that fails on its login is read as
-  that account's token for the nodes gone — expired, revoked or never made — and never as the
-  account's login here, which still answers:
+- **A token that stops answering is told, once.** A run on a node that fails on its login, or a run here
+  that was handed the token and fails on its login, is read as that account's token for the nodes gone —
+  expired, revoked or never made — and never as the account's login here:
   - the mark is a setting holding the token file's moment as it stood, and while it stands the account
-    is passed over for every run on a node, its work there going to the next account in the walk;
+    is passed over for every run on a node, its work there going to the next account in the walk, and
+    is not carried by the token here either;
   - a new token is a new file, so the mark lifts by itself, on nobody's word;
   - the owner hears of it once per mark, in a private chat: which account, and the one command that
     makes its token again;
-  - a token's year is warned about a day before it is out, once, by the keepalive pass's login watch
-    (`docs/cache-fallback.md`, 「A login that is about to end」).
+  - a token's year is warned about well before it is out, since only a browser approval makes another:
+    once as each of the leads the Claude Code provider's policy names is crossed — a month, a week and a
+    day before — by the keepalive pass's login watch (`docs/cache-fallback.md`, 「A login that is about to
+    end」).
 - **Where it runs:** the composing, the reading of a failure and the warning are agency's server's,
   whose job runner runs every job.
 

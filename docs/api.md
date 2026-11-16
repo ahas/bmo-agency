@@ -1013,7 +1013,9 @@ choice for each engine (`docs/model-catalogue.md`). Its entries are not models, 
 nor changes them.
 
 The fallback's view answers `accounts`, every Claude account with its kind, path, place, switch, login
-standing, whether it is chosen and in use, its rest and its own `session`, `week` and `balance`, the same the
+standing, `onToken` — whether its runs here go out on its token for the work nodes now
+(`docs/cache-fallback.md`, 「A directory account carries on by its token」) —, whether it is chosen and in
+use, its rest and its own `session`, `week` and `balance`, the same the
 accounts list answers (「accounts, rest and usage」); and `active`, the account runs on Claude Code go out on
 now. Its change takes the account actions `add-account`, `update-account`, `remove-account`, `set-account-order`,
 `set-account-enabled`, `choose-account` and `clear-account-choice` (`docs/cache-fallback.md`, 「The Claude

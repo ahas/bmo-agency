@@ -5,6 +5,7 @@
 //! account's token for the work nodes (docs/work-nodes.md, 「The logins on a node」), marked apart from its
 //! login here. Nothing here launches anything, and nothing here keeps a credential.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use policy::providers::claude_code::CLAUDE_CODE;
@@ -13,13 +14,14 @@ use store::run;
 
 use crate::Refusal;
 use crate::control::claude_accounts::{
-  Account, Judging, account_open, accounts, login_end, login_standing,
+  Account, Judging, NODE_TOKEN_GONE_KEY, account_open, accounts, login_end, login_standing,
 };
 use crate::door::place_run::read_run;
 use crate::door::turn::{account_of_login, program_login};
 use crate::events::{Bus, Event};
 use crate::lines::fault;
 use crate::lines::place::{Place, places_dir};
+use crate::now_ms;
 use crate::queue::settings;
 use crate::watches::links::Roots;
 
@@ -69,7 +71,7 @@ pub async fn watch(judging: Judging<'_>, events: &Bus, roots: &Roots, now: i64) 
 
   // An endpoint account holds no login for the watch to read: the judgement lifts its mark off its key.
   for account in every(db).await?.into_iter().filter(|account| account.credential_file().is_some()) {
-    clear_if_back(db, &account.id, now).await?;
+    clear_if_back(db, &account.id, &roots.data, now).await?;
 
     let held = named(db, &account.id).await?.unwrap_or(account);
 
@@ -79,7 +81,7 @@ pub async fn watch(judging: Judging<'_>, events: &Bus, roots: &Roots, now: i64) 
 
     let held = named(db, &held.id).await?.unwrap_or(held);
 
-    tell(db, events, &held, now).await?;
+    tell(db, events, &held, &roots.data, now).await?;
 
     // A token account's own file is its login here too, whose year the watch above already reads.
     if held.credential.node_token_apart()
@@ -139,10 +141,15 @@ pub async fn retire_closed(judging: Judging<'_>, data_root: &Path, now: i64) -> 
 // A login standing again, read off the credential rather than anybody's word: a moment in the future is
 // a login somebody has signed in to since, as a key written after the mark is an endpoint account's, and
 // the mark goes.
-async fn clear_if_back(db: &sea_orm::DatabaseConnection, id: &str, now: i64) -> Result<(), Refusal> {
+async fn clear_if_back(
+  db: &sea_orm::DatabaseConnection,
+  id: &str,
+  data_root: &Path,
+  now: i64,
+) -> Result<(), Refusal> {
   let Some(held) = named(db, id).await? else { return Ok(()) };
 
-  if held.needs_login_at.is_none() || !held.login_back(now) {
+  if held.needs_login_at.is_none() || !held.login_back_here(data_root, now) {
     return Ok(());
   }
 
@@ -197,9 +204,16 @@ fn span(left: f64) -> String {
   }
 }
 
-/// The warning about one login's ending, as the owner reads it: the account, when it ends, and the one
-/// command the owner runs, never anything out of its credential.
-pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>) -> String {
+// A moment as the day it falls on, which is how a token's end is said.
+fn day_text(moment: f64) -> String {
+  chrono::DateTime::from_timestamp_millis(moment as i64)
+    .map_or_else(|| moment_text(moment), |at| at.format("%Y-%m-%d").to_string())
+}
+
+/// The warning about one login's ending, as the owner reads it: the account, when it ends, the one command
+/// the owner runs, and, where the account carries on by its token for the work nodes once its login ends,
+/// that it does and the moment that token ends; never anything out of its credential.
+pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>, carried_until: Option<f64>) -> String {
   let wording = &CLAUDE_CODE.login;
   let span = left_ms.map(span);
   let when = match (gone, span) {
@@ -209,13 +223,19 @@ pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>) -> String {
   };
   let token = account.credential.token_file().is_some();
   let command = if token { &wording.token_command } else { &wording.directory_command };
+  let after = match (carried_until, gone) {
+    (Some(end), true) => wording.carried_on.replace("{end}", &day_text(end)),
+    (Some(end), false) => wording.carries_on.replace("{end}", &day_text(end)),
+    (None, true) => wording.gone_after.clone(),
+    (None, false) => wording.ending_after.clone(),
+  };
 
   [
     wording.head.replace("{name}", &account.name).replace("{when}", &when),
     wording.run.clone(),
     command.replace("{path}", &account.credential.path().to_string_lossy()),
     if token { wording.token_after.clone() } else { wording.directory_after.clone() },
-    if gone { wording.gone_after.clone() } else { wording.ending_after.clone() },
+    after,
   ]
   .join("\n")
 }
@@ -227,6 +247,7 @@ pub async fn tell(
   db: &sea_orm::DatabaseConnection,
   events: &Bus,
   account: &Account,
+  data_root: &Path,
   now: i64,
 ) -> Result<(), Refusal> {
   let standing = login_standing(account, now);
@@ -245,13 +266,21 @@ pub async fn tell(
 
   let left = end.map(|end| (end - now as f64).max(0.0));
   let gone = standing == "gone";
+  // A directory account carries on by its token for the work nodes once its login here ends, where that
+  // token answers (docs/cache-fallback.md, 「A directory account carries on by its token」).
+  let carried_until = account
+    .credential
+    .node_token_apart()
+    .then(|| account.answering_node_token(data_root))
+    .flatten()
+    .and_then(|_| account.node_token_end(data_root));
 
   events.publish(AccountLoginNotice {
     account: account.id.clone(),
     login: LOGIN_HERE,
     stands: if gone { "gone" } else { "ending" },
     left_ms: left,
-    notice: notice(account, gone, left),
+    notice: notice(account, gone, left, carried_until),
   });
 
   settings::set(db, &key, &about).await
@@ -260,7 +289,7 @@ pub async fn tell(
 // The settings an account's token for the work nodes is kept apart under (docs/work-nodes.md, 「The
 // logins on a node」): the mark of one found gone, and the notice said about it.
 fn node_gone_key(account: &str) -> String {
-  format!("claude_node_token_gone:{account}")
+  format!("{NODE_TOKEN_GONE_KEY}{account}")
 }
 
 fn node_notice_key(account: &str) -> String {
@@ -269,7 +298,7 @@ fn node_notice_key(account: &str) -> String {
 
 // Which token for the nodes this machine holds now: the moment its file was written, or none held.
 fn node_stamp(account: &Account, data_root: &Path) -> String {
-  account.node_token_written(data_root).map_or_else(|| "none".to_owned(), moment_text)
+  account.node_token_stamp(data_root)
 }
 
 /// Whether the account's token for the work nodes is marked gone. The mark names the token held when it
@@ -305,6 +334,46 @@ pub async fn mark_node_token_gone(
   Ok(())
 }
 
+/// A program's turn that failed on its login where the program was handed a directory account's token for
+/// the work nodes, on this machine or on a node: that token is found gone, marked and told once, as a job's
+/// run finds it (docs/cache-fallback.md, 「A directory account carries on by its token」). Anything else the
+/// turn failed on, and a program on any other login, leaves every mark as it stands. A mark that cannot be
+/// written is said, never the turn's own failure.
+pub async fn node_token_refused(
+  ground: &crate::places::Ground,
+  env: &BTreeMap<String, String>,
+  said: &str,
+) {
+  use crate::job_run::claude::failure::{AccountFailure, of_unanswered};
+
+  if of_unanswered(said, "").account_failure() != Some(AccountFailure::Login) {
+    return;
+  }
+
+  let login = program_login(Path::new(""), env);
+
+  if login.token.is_none() {
+    return;
+  }
+
+  let marked = async {
+    let held = every(&ground.db).await?;
+    let Some(id) = account_of_login(&held, &login, &ground.roots.data) else {
+      return Ok(());
+    };
+    let Some(account) = held.iter().find(|one| one.id == id && one.credential.node_token_apart()) else {
+      return Ok(());
+    };
+
+    mark_node_token_gone(&ground.db, account, &ground.roots.data).await?;
+    tell_node_token(&ground.db, &ground.events, account, &ground.roots, now_ms()).await
+  };
+
+  if let Err(why) = marked.await {
+    eprintln!("a turn refused on a token for the work nodes: its mark was not written: {}", why.detail);
+  }
+}
+
 /// How an account's token for the work nodes stands where it is told.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeToken {
@@ -338,9 +407,10 @@ pub fn node_notice(account: &Account, deploy: &Path, standing: NodeToken, left_m
   .join("\n")
 }
 
-/// An account's token for the work nodes published once: gone or never made where it is marked so, ending
-/// inside the notice window otherwise. A token account's own file is its login here too, and its ending is
-/// told as the login's.
+/// An account's token for the work nodes published once: gone or never made where it is marked so, and
+/// otherwise ending, once as each of the policy's leads before its year's end is crossed, the nearest lead
+/// crossed standing for those it passed at once. A token account's own file is its login here too, and its
+/// ending is told as the login's.
 pub async fn tell_node_token(
   db: &sea_orm::DatabaseConnection,
   events: &Bus,
@@ -359,9 +429,9 @@ pub async fn tell_node_token(
 
     (standing, format!("gone:{stamp}"))
   } else {
-    match end {
-      Some(end) if end - now as f64 <= notice_ahead_ms() => (NodeToken::Ending, moment_text(end)),
-      _ => return Ok(()),
+    match end.zip(end.and_then(|end| node_token_lead(end - now as f64))) {
+      Some((end, lead)) => (NodeToken::Ending, format!("{}:{lead}", moment_text(end))),
+      None => return Ok(()),
     }
   };
   let key = node_notice_key(&account.id);
@@ -387,7 +457,14 @@ pub async fn tell_node_token(
   settings::set(db, &key, &about).await
 }
 
-// How long before its end a token for the nodes is told as ending: the login's own notice window.
-fn notice_ahead_ms() -> f64 {
-  CLAUDE_CODE.login.notice_ahead_hours as f64 * 60.0 * 60_000.0
+/// The nearest of the policy's leads, in days, that a token `left_ms` before its end has crossed; none where
+/// it is still further away than every lead.
+pub fn node_token_lead(left_ms: f64) -> Option<i64> {
+  CLAUDE_CODE
+    .node_login
+    .notice_ahead_days
+    .iter()
+    .copied()
+    .filter(|days| left_ms <= *days as f64 * 24.0 * 60.0 * 60_000.0)
+    .min()
 }

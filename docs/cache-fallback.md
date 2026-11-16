@@ -307,7 +307,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   stands on the line it always stood on and only the cache it is warm in changes.
   - A directory account is handed its configuration home, and any token the launching process carried
     goes with it, since a token left in place would answer for the run instead of the login the owner
-    chose.
+    chose. The one token it is handed is its own token for the work nodes, beside that home, while it
+    carries on by that token (「A login that is about to end」).
   - A token account is handed its token alone.
   - An endpoint account is handed its configuration home, its base URL, its key as the run's
     authorisation token, and the model ids its map names for each family; every other credential the
@@ -331,14 +332,18 @@ When a demotion first catches — when a healthy session first drops — two thi
     no other account rests for it and the credential's own moment cannot open it again before the rest
     ends. A credential already past its moment, and an endpoint account's key, hold the mark until a person
     signs in or writes the key again, so they take no rest;
-  - the same run goes out on the next account of its walk. A job's log says which account refused and in
+  - a directory account that the refusal hands to its token for the work nodes (「A login that is about to
+    end」) takes no rest and is not passed over: the same run goes out again on the same account, on that
+    token, once, and its log says so;
+  - otherwise the same run goes out on the next account of its walk. A job's log says which account refused and in
     its own words, the job keeps the account it moved to among its roads with that refusal as the reason
     (`docs/api.md`, 「assignments and jobs」), and its prompt on the next account opens with the line saying
     it continues work already in the checkout, since the session it was on belongs to the account that
     refused.
   - Only where every account of the walk refused does the run end, on the login failure naming each account
     with its words and saying a person must sign in to it again.
-- **An account whose login is near its end is renewed before a run goes out on it, never during the run.**
+- **An account whose login is near its end is renewed before a run goes out on it, never during the run,**
+  unless the run goes out on its token for the work nodes, which renews nothing.
   As the walk reaches such an account, the run renews the login in a short step of its own: the one run that
   takes the account's lock renews it with one run of the CLI and lets the lock go before its turn goes out,
   and every other run on the account waits only for that step, saying so in its log as it starts waiting
@@ -421,17 +426,20 @@ When a demotion first catches — when a healthy session first drops — two thi
   carrying no refresh. No command renews either from outside a run.
 - **The moment a credential states is not the login's end.** A subscription login's file states when
   the access token in it stops being accepted, about an hour away at any moment, which the CLI renews
-  for itself out of the refresh token beside it. So a file that holds something to renew with is a login
-  with no end this side can read, and the two questions are kept apart: the moment the file states is
-  what a renewal is timed against, and the login's own end is what a person is told about.
+  for itself out of the refresh token beside it. The two questions are kept apart: the moment the access
+  token stops is what a renewal is timed against, and the login's own end is what a person is told about.
 - **What does end:** a long-lived token, which holds no refresh and dies a year after it was issued;
-  and a login whose refresh has stopped being taken, which no file says and only a run that went out on
-  it can tell.
-- **Only moments are read, never the credential.** A credential file is opened to learn two things —
-  when its access token stops, and whether it holds anything to renew with — and nothing else. No token
-  and no part of the file's body enters a row, a log line, a document or a report. Both are looked for
-  as shapes rather than fields, since the file's shape is the CLI's and free to move. A token file
-  states no ending, so what stands for its year is the day the file was written.
+  and a subscription's sign-in, whose refresh stops being taken at a moment renewing does not move. Where
+  the file states when its refresh stops — a moment under a name that speaks of refreshing and of
+  expiring — that moment is the login's end; a file that holds something to renew with and states no
+  such moment is a login with no end this side can read. The sign-in may still end before the moment
+  its file states, which no file says and only a run that went out on it can tell.
+- **Only moments are read, never the credential.** A credential file is opened to learn three things —
+  when its access token stops, when its refresh stops where it says, and whether it holds anything to
+  renew with — and nothing else. No token and no part of the file's body enters a row, a log line, a
+  document or a report. All three are looked for as shapes rather than fields, since the file's shape is
+  the CLI's and free to move. A token file states no ending, so what stands for its year is the day the
+  file was written.
 - **A login whose end cannot be read is left standing and nothing is said about it.**
 - **A renewal is timed against the CLI's own margin.** The CLI renews a token only as a run goes out
   inside the last minutes before the moment its file states, and passes it by before them, so a login
@@ -457,16 +465,23 @@ When a demotion first catches — when a healthy session first drops — two thi
   login as a turn would. A renewal that fails any other way is said, and the run goes out regardless, its
   own CLI renewing as it goes out.
 - **A long-lived token removes the renewal:** an account pointed at one needs no browser for a year, so
-  none of the above happens for it; it is warned about before that year is out like any other account.
+  none of the above happens for it; it is warned about before that year is out like any other account. A
+  run that goes out on a directory account's token for the work nodes (below) renews nothing either.
+- **A renewal run that the login refuses marks it.** The run the usage reader asks for, refused on its
+  login, marks the account as waiting for a person and tells the owner once, as a turn's refusal does, so a
+  sign-in that ended before its stated moment is found by the reader's next ask and not only by a turn;
+  a login already marked or past its end is not run on for a renewal at all.
 - **An endpoint account has no login to end.** Its key states no ending and is renewed by nobody, so it
   takes no renewal lock, is never warned about, and is marked as waiting for a person only when the
   endpoint refuses its key or its balance (「Automatic walks only on providers, in order」).
 - **An account's token for the work nodes is a login of its own** (`docs/work-nodes.md`, 「The logins on
   a node」), counted and warned about separately; a node login found gone is marked for the nodes alone,
-  and the account's login here is neither marked nor passed over for it.
+  and the account's login here is neither marked nor passed over for it. It is also what a directory
+  account carries on by here once its login here ends (「A directory account carries on by its token」).
 - **A login that has ended is marked, and the mark is the walk's instruction:** the account's row says
   it waits for a person, the walk passes it over, and its work moves to the next account; with none left
-  the road cannot answer.
+  the road cannot answer. A directory account that carries on by its token is the exception: the mark
+  stands, and the walk offers the account on that token.
 - **The mark is lifted by the credential, not by anybody's word.** Signing in again writes a moment in
   the future, and the walk's own reading of that credential takes the mark off, so no console action is
   needed to put the account back in the order. An endpoint account's mark is lifted by its key file
@@ -474,12 +489,16 @@ When a demotion first catches — when a healthy session first drops — two thi
   endpoint leaves nothing on this side to read. A subscription's file states a moment ahead at almost any
   time, so the mark a run's refusal writes there is lifted at once; the rest written beside it (「The Claude
   Code road is a list of accounts」) is what keeps the account out of the walk, and it ends at its own moment.
-- **The owner is told before it ends, once — and never about a login that renews itself.** Agency
-  publishes `account-login-notice` (`docs/api.md`, 「Events」), carrying the account, how long is left,
-  and the one command the owner runs to be done with it, with that account's own configuration
-  directory in front of it; the consumer that owns the owner's private chat says it there. The command
-  is passed over verbatim rather than reworded, because a command reworded is a command that does not
-  run.
+  An account that carries on by its token takes no such rest: its mark lifts only off a credential written
+  after the mark, by a person signing in again, so a file that still states a moment ahead neither sends the
+  next run back to the login that refused it nor tells the owner again.
+- **The owner is told before it ends, once — and never about a login that renews itself with no end
+  stated.** Agency publishes `account-login-notice` (`docs/api.md`, 「Events」), carrying the account, how
+  long is left, and the one command the owner runs to be done with it, with that account's own
+  configuration directory in front of it; the consumer that owns the owner's private chat says it there.
+  The command is passed over verbatim rather than reworded, because a command reworded is a command that
+  does not run. Where the account carries on by its token, or will once its login ends, the notice says
+  so in place of saying its work moves to the next account, with the day that token's own year ends.
 - **Once is per ending, not per login.** The warning is recorded under the moment it is about as it is
   published, so a later pass over the same ending publishes nothing; a login signed in again is a new
   moment and is warned about again. Delivering it is the consumer's.
@@ -490,6 +509,54 @@ When a demotion first catches — when a healthy session first drops — two thi
   warning happen without anything being launched for them. It watches directory and token accounts; an
   endpoint account has nothing for it to read. Its wording, how long before the end it speaks and the year a
   token stands for are read from agency's policy (`policy/`).
+
+### A directory account carries on by its token
+
+- **A directory account whose login here cannot be counted on runs here on its token for the work nodes.**
+  Its login here cannot be counted on at three moments: it has ended, past the end its file states; it is
+  marked as waiting for a person, by a run's or a renewal's refusal or by the watch; or it is within the span
+  before that end the Claude Code provider's policy names (`policy/providers/claude-code.toml`, `[login]`), so
+  no turn goes out on a login that would end under it. At each of them, where this machine holds that
+  account's token for the work nodes (`docs/work-nodes.md`, 「The logins on a node」) and that token is not
+  marked gone, every run here on the account — a supervisor's program, a job's turn, a role's run — is handed
+  the token beside the account's configuration directory.
+- **Beside the directory, never in place of it.** A program handed `CLAUDE_CODE_OAUTH_TOKEN` signs in with it
+  ahead of any login its configuration directory holds and writes no login there, so the account's sessions,
+  transcripts and settings stay where they are, and a session kept under the account resumes on the token. A
+  program standing on the login is another program than one on the token, so the next turn into a standing
+  program stands it again, between turns, on what the account is handed then, as any change of its login does.
+- **The account stays open.** The account judgement counts an account that carries on by its token as a
+  login that answers, mark and all; its windows and rests close it as they close any other account. A refusal
+  on its login here writes no rest for it, and the run that met the refusal goes out again on the same
+  account, on the token, rather than on the next account.
+- **A token that fails here is the token's failure.** A run here handed the token that fails on its login — a
+  job's turn, a supervisor's turn into its program — has found that token gone, as a run on a node does: the token is marked gone, for here and the nodes alike, the
+  owner is told once with the command that makes it again, and the run is carried on as a node token's
+  failure is.
+- **It goes back to the login by itself.** A person signing in again writes a credential, after the mark,
+  whose moments stand ahead: the mark lifts off it, its end is no longer within the span, and the next run is
+  handed the directory alone. Nobody's word is needed.
+- **What the token cannot do.** It is inference-only, so every surface here that needs the account's full
+  login does without it meanwhile:
+  - **the usage read** (`docs/usage-windows.md`, 「The Claude account reader」): the provider's usage endpoint
+    refuses the token for its scope, and the login here is not renewed for the reader once it has ended or is
+    marked, so the reader cannot ask for the account's windows. They come instead from each turn's answer:
+    the status line of a program on the token carries the account's `rate_limits` as one on the login does,
+    and they are kept under the account as any turn's are;
+  - **the renewal step** before a run (above): a run on the token renews nothing, so it neither takes the
+    account's renewal lock nor waits for it;
+  - **remote control and the browser-driving surface** of the CLI refuse the token. No line here asks for
+    either: the CLI's browser integration is off unless a run asks for it and none does, the browse role
+    drives its browser through its own chrome-devtools server, and nothing here starts remote control. A
+    person who starts either by hand on the account meets the refusal until the account is signed in again;
+  - **the console's sign-in** (「Signing an account in from the console」) never runs on the token: it starts
+    the CLI with no token of the launching process, so it signs the account's own login in as it always
+    does, and that sign-in is what puts the account back on its login.
+- **The token's own year is watched.** The token holds no refresh and ends a year after it was made, and only
+  a browser approval makes another, so the owner is warned well ahead of that end (`docs/work-nodes.md`,
+  「The logins on a node」).
+- **An account with no such token, or whose token is marked gone, has nothing to carry on by:** its login's
+  end, mark and refusal are what the rest of this document says, and its work moves to the next account.
 
 ### Signing an account in from the console
 
@@ -572,8 +639,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   keeps a judgement of its own, and none falls back to the machine's own login in place of one.
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a rest standing
   under it, a limit's or a refusal's, nor a reading of its own windows showing one at its ceiling that has not reset —
-  `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」). A login that
-  waits for a person is closed.
+  `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」), or it carries on by
+  its token for the work nodes (「A directory account carries on by its token」). A login that waits for a
+  person and has no such token to carry on by is closed.
 - **A run on a model asks one thing more: that model does not rest on that login.** A model's rest is one
   login's and one model's, so a login whose model rests is closed to runs on that model alone and stays
   open to every other model, and its rest never counts toward the deployment's rest

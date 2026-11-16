@@ -921,6 +921,10 @@ pub struct FallbackAccount {
   pub login: String,
   /// epoch seconds
   pub login_ends_at: Option<i64>,
+  /// Whether its runs here go out on its token for the work nodes now, its login here having ended, waiting
+  /// for a person or near its end (docs/cache-fallback.md, 「A directory account carries on by its token」).
+  #[serde(default)]
+  pub on_token: bool,
   pub chosen: bool,
   pub serving: bool,
   /// epoch seconds

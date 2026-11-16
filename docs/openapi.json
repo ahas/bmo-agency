@@ -11258,6 +11258,11 @@
             "format": "int64",
             "description": "epoch seconds"
           },
+          "onToken": {
+            "type": "boolean",
+            "description": "Whether its runs here go out on its token for the work nodes now, its login here having ended, waiting\nfor a person or near its end (docs/cache-fallback.md, 「A directory account carries on by its token」).",
+            "default": false
+          },
           "chosen": {
             "type": "boolean"
           },
@@ -11316,6 +11321,7 @@
           "basePrompt",
           "login",
           "loginEndsAt",
+          "onToken",
           "chosen",
           "serving",
           "restUntil",

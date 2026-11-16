@@ -19,9 +19,11 @@ use harness_providers::{Machine, Provider};
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
-use crate::control::claude_accounts::{Account, Credential, SEED_ACCOUNT, accounts};
+use crate::control::claude_accounts::{self, Account, Credential, SEED_ACCOUNT, accounts};
 use crate::door::record::Reply;
+use crate::job_run::claude::failure::AccountFailure;
 use crate::job_run::claude::renewal;
+use crate::keepalive::logins;
 use crate::now_ms;
 use crate::places::{Ground, locks};
 
@@ -83,7 +85,9 @@ impl Renewals for LoginRenewals {
 
 /// One run of Claude Code on a directory account's own login, so the CLI renews its token as it goes out
 /// (`renewal::run`), under the account's renewal lock, waited for where a run near its login's end holds it
-/// for the same renewal. A token or endpoint account, and a login waiting for a person, is never run on.
+/// for the same renewal. A token or endpoint account, a login waiting for a person and a login past its end
+/// are never run on. A run its login refuses marks the account as waiting for a person and tells the owner
+/// once, as a turn's refusal does (docs/cache-fallback.md, 「A login that is about to end」).
 pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
   let account = accounts(&ground.db)
     .await
@@ -96,15 +100,47 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
     return Err("it holds no login the CLI renews".to_owned());
   }
 
-  if account.needs_login_at.is_some() && !account.login_back(now_ms()) {
+  let now = now_ms();
+
+  if account.needs_login_at.is_some() && !account.login_back_here(&ground.roots.data, now) {
     return Err("its login waits for a person to sign in again".to_owned());
+  }
+
+  if claude_accounts::login_end(&account).is_some_and(|end| end <= now as f64) {
+    return Err("its login has ended and waits for a person to sign in again".to_owned());
   }
 
   let _held = locks::hold(renewal::lock_path(&ground.roots.data, &account))
     .await
     .map_err(|why| format!("the account's renewal lock: {why}"))?;
 
-  renewal::run(ground, &account).await.map_err(|failure| failure.message())
+  match renewal::run(ground, &account).await {
+    Ok(()) => Ok(()),
+    Err(failure) if failure.account_failure() == Some(AccountFailure::Login) => {
+      let now = now_ms();
+      let marked = async {
+        logins::mark_gone(&ground.db, &account.id, now).await?;
+
+        if let Some(held) = accounts(&ground.db)
+          .await
+          .map_err(|refused| crate::lines::fault(refused.error))?
+          .into_iter()
+          .find(|one| one.id == account.id)
+        {
+          logins::tell(&ground.db, &ground.events, &held, &ground.roots.data, now).await?;
+        }
+
+        Ok::<(), crate::Refusal>(())
+      };
+
+      if let Err(why) = marked.await {
+        eprintln!("claude account {}: its refused login was not marked: {}", account.id, why.detail);
+      }
+
+      Err(failure.message())
+    }
+    Err(failure) => Err(failure.message()),
+  }
 }
 
 /// One provider's balance as its member declares the reading: its own road where it can answer on this

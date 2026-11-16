@@ -232,7 +232,7 @@ fn turn_on(
     Seat::Standing(home) => {
       claude::Runs::of_place(&ground.roots.data, &Place::of(&ground.roots.data, &home.agent).path)
     }
-    Seat::Own(_) => claude::Runs::Here,
+    Seat::Own(_) => claude::Runs::here(ground),
   };
   let command = Command {
     args: claude::worker_args(line, settings, Some(session))?,

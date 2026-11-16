@@ -87,8 +87,14 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   - **Only a directory account is renewed so.** A token account's long-lived token holds nothing to
     renew with and an endpoint account holds no login, so neither is ever run on for it; a token account
     refused stays marked until its file holds a token the endpoint takes. A login waiting for a person
-    (`docs/cache-fallback.md`, 「A login that is about to end」) is not run on either: only signing in
-    again brings it back.
+    or past its end (`docs/cache-fallback.md`, 「A login that is about to end」) is not run on either: only
+    signing in again brings it back. A renewal run its login refuses marks the account as waiting for a
+    person and tells the owner once, as a turn's refusal does.
+  - **A directory account carrying on by its token for the work nodes is read from its turns.** The usage
+    endpoint refuses that token for its scope, so the reader asks with the login alone: inside the span
+    before its end, while the login still stands, the reader goes on reading and renewing it, and once the
+    login has ended or is marked the reader cannot ask for it. The windows each turn's answer carries are
+    then its readings (`docs/cache-fallback.md`, 「A directory account carries on by its token」).
   - **One renewal of an account at a time, at a pace.** None is asked while one runs, none before a pass
     after it has ended, and, while the account still cannot be read, none sooner than five minutes after
     the last was asked. The pass does not wait for the run, so every other account is read on time. The

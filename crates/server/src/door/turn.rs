@@ -2264,6 +2264,8 @@ async fn watch_turn<W: Watch>(
       door.record_children().await;
     }
 
+    crate::keepalive::logins::node_token_refused(door.ground, &turn.env, &error).await;
+
     return Ok(Ending::Errored { error, kind });
   }
 
