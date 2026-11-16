@@ -392,7 +392,7 @@ async fn a_standing_deploy_notice_is_kept_due_no_more_once_told_and_every_other_
       vec![],
     )
     .await;
-  Migrator::up(scratch.db(), None).await.unwrap();
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
 
   let rows = |keep: &'static str, due: &'static str| {
     scratch.count(
@@ -417,4 +417,66 @@ async fn a_standing_deploy_notice_is_kept_due_no_more_once_told_and_every_other_
   assert_eq!(due_no_more.await, 1, "a row told is due no more");
   assert_eq!(still_sent.await, 1, "a row not yet told is still sent");
   assert_eq!(rows("standing", "item-awaits-launch:3").await, 1, "another standing notice stands");
+}
+
+#[tokio::test]
+async fn a_standing_launch_or_close_notice_is_kept_due_no_more_once_told_and_marked_with_its_lease() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that keeps the launch and close notices.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261227_000001_queue_notices_kept")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "notices" ("key", "route", "body", "keep", "mark", "owed_at", "told_at", "due_at")
+         VALUES
+           ('item-awaits-launch:1', 'instruction', '{}', 'standing', '', 1, 2, 300),
+           ('job-awaits-close:2', 'instruction', '{}', 'standing', '', 1, 2, 300),
+           ('job-awaits-close:3', 'instruction', '{}', 'standing', '', 1, NULL, 5),
+           ('job-review:4', 'instruction', '{}', 'standing', '', 1, 2, 300)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+                             "started_at", "prompt", "lease_kept")
+         VALUES (1, 2, 15, 'harness', 1, 'w1', 'ended', 1, 'work', true)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  let told = scratch.count(
+    r#"SELECT count(*) FROM "notices"
+        WHERE "keep" = 'kept' AND "due_at" IS NULL AND "key" IN ('item-awaits-launch:1', 'job-awaits-close:2')"#,
+    vec![],
+  );
+  let still_sent = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "keep" = 'kept' AND "due_at" = 5 AND "key" = 'job-awaits-close:3'"#,
+    vec![],
+  );
+  let review = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "keep" = 'standing' AND "key" = 'job-review:4'"#,
+    vec![],
+  );
+
+  assert_eq!(told.await, 2, "a row told is kept, due no more");
+  assert_eq!(still_sent.await, 1, "a row not yet told is kept and still sent");
+  assert_eq!(review.await, 1, "a review's check stands");
+
+  let marked = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "key" = 'job-awaits-close:2' AND "mark" = '15'"#,
+    vec![],
+  );
+
+  assert_eq!(
+    marked.await,
+    1,
+    "a close notice told before is marked with the lease its ended job keeps"
+  );
 }

@@ -2,10 +2,10 @@
 //! job service that a free checkout could take, and no job started for the idle minutes, told to the owner once
 //! for each idle stretch through the receiver's owner notice. The same minute pass owes each item's orderer
 //! what calls for its judgement (「An item's change is told to its orderer」), each in agency's outbox: an open
-//! item waiting a minute on a free checkout, standing while it waits so, and, each once, an open item its paused
-//! queue holds, an open item whose assignee no checkout is of, a draft awaiting approval, and a held item every
-//! item it waits on has ended; and it reads the job service's events for the rest. The owner's switch silences
-//! the idle notice and the launch notice until the next job starts.
+//! item waiting a minute on a free checkout, once for each stretch it waits so, and, each once, an open item its
+//! paused queue holds, an open item whose assignee no checkout is of, a draft awaiting approval, and a held item
+//! every item it waits on has ended; and it reads the job service's events for the rest. The owner's switch
+//! silences the idle notice and the launch notice until the next job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -485,10 +485,10 @@ async fn orderer(service: Option<&JobService>, item: &Value) -> Result<Orderer, 
   }
 }
 
-/// The items awaiting a launch owed to their orderer while they wait, and the rows kept for them brought up to
-/// date: a waiting item first seen now marked, and both the mark and the standing notice of an item no longer
-/// waiting, or of every item while the switch is off, let go, so it is told again once its checkout and its agent
-/// are free again.
+/// The items awaiting a launch owed to their orderer once for each stretch they wait, and the rows kept for them
+/// brought up to date: a waiting item first seen now marked, and both the mark and the kept notice of an item no
+/// longer waiting, or of every item while the switch is off, let go, so it is told again only once the reason it
+/// waits changes — its checkout and its agent free again, its hold lifted, its queue opened again.
 pub async fn tell_launches(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -534,7 +534,7 @@ pub async fn tell_launches(
   for item in launches_due(standing, &seen, &told, now) {
     let orderer = orderer(service.as_ref(), &item.as_item()).await?;
     let seat = seats.get(&item.id).map(String::as_str);
-    let notice = Notice::instruction(launch_instruction(item, seat, &orderer), Keep::Standing);
+    let notice = Notice::instruction(launch_instruction(item, seat, &orderer), Keep::Kept);
 
     outbox::owe(db, vars, notice).await?;
     println!(

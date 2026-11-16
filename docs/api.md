@@ -1526,7 +1526,8 @@ service.
   moves」), or, where the item is not to close, gives that lease back itself, and the next renewal finds it
   gone and stops. A lease the job service no longer holds is not taken again for an ended job. An item the
   lease pass still finds leased at the pass after the one that first found its job ended is owed to its
-  orderer as a standing notice, told again until the lease ends (`job-awaits-close`).
+  orderer once for that lease and kept until the lease ends (`job-awaits-close`), unless its commit waits for
+  its repository's batch deployment, which the notice of that commit tells instead.
 - **An item whose commit waits to go live stays leased until it is live.** Where the job's close handed a commit
   over, the item's labels say so (the job service's `docs/cli.md`, 「`bmo-job job close`」), and the requester
   does not move it to `done` at the job's end: it puts the commit live, and closes the item once the deployment

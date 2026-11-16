@@ -2,7 +2,8 @@
 //! the harness that took it, a restart of agency under the job among them: a lease that stands is renewed, one
 //! run out is taken again on the same item and the job keeps the new id, an item another holder took or one no
 //! longer open is left; a running job's checkout reads as held by it and its item waits on no free worker. A
-//! running job's lease holds fixed what its launch read, and an ended job's holds nothing fixed.
+//! running job's lease holds fixed what its launch read, and an ended job's holds nothing fixed. An ended job's
+//! item left leased is told once for its lease, and not at all where its commit waits for its deployment.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -341,7 +342,7 @@ async fn an_item_moved_under_a_running_job_is_told_once_to_its_orderer_and_the_c
 }
 
 #[tokio::test]
-async fn an_ended_job_s_item_left_leased_is_told_once_at_the_pass_after_the_one_that_found_it() {
+async fn an_ended_job_s_item_left_leased_is_told_once_for_its_lease() {
   use crate::support::peers::{item, stand};
 
   let scratch = Scratch::new().await;
@@ -375,13 +376,16 @@ async fn an_ended_job_s_item_left_leased_is_told_once_at_the_pass_after_the_one_
 
   pass(scratch.db(), &vars).await.unwrap();
   pass(scratch.db(), &vars).await.unwrap();
+  agency_server::outbox::restarted(scratch.db()).await.unwrap();
+  agency_server::outbox::send_due(scratch.db(), &vars).await.unwrap();
   assert_eq!(
     awaiting(&peers),
     [
       (json!("job-awaits-close:105"), json!(-1000)),
       (json!("job-awaits-close:106"), Value::Null)
     ],
-    "told once each, a derived item's in its parent's room, one naming none in the owner's private room"
+    "told once each for its lease, never again on a timer or a start, a derived item's in its parent's room, one \
+     naming none in the owner's private room"
   );
 
   let said = peers.lock().unwrap().instructed()[0]["said"]["order"].as_str().unwrap().to_owned();
@@ -401,4 +405,40 @@ async fn an_ended_job_s_item_left_leased_is_told_once_at_the_pass_after_the_one_
       .unwrap()
       .is_some()
   );
+}
+
+#[tokio::test]
+async fn an_ended_job_s_item_whose_commit_waits_for_its_deployment_is_never_told_as_left_leased() {
+  use crate::support::peers::{item, stand};
+
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+
+  running_and_ended(&scratch).await;
+  scratch.run(r#"DELETE FROM "jobs" WHERE "id" <> 5"#, vec![]).await;
+  // A notice of it told before, standing.
+  scratch
+    .run(
+      r#"INSERT INTO "notices" ("key", "route", "body", "keep", "instruction_id", "owed_at", "told_at")
+         VALUES ('job-awaits-close:105', 'instruction', '{}', 'standing', 7, 1, 2)"#,
+      vec![],
+    )
+    .await;
+
+  {
+    let mut held = peers.lock().unwrap();
+    let labels = json!({ "labels": { "close-phase": "waiting-batch", "close-commit": "c1" } });
+
+    held.items.insert(105, item(105, "leased", labels));
+    held.leases = [15].into();
+  }
+
+  for _ in 0..3 {
+    pass(scratch.db(), &vars).await.unwrap();
+  }
+
+  let held = peers.lock().unwrap();
+
+  assert!(held.instructed().is_empty(), "{:?}", held.instructed());
+  assert_eq!(held.withdrawn(), ["7"], "the notice told before withdrawn");
 }

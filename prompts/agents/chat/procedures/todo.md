@@ -391,7 +391,9 @@ and the agency's own:
   question's number. Each is told once, so answer it in the run it arrives in; a newer one of the same
   kind for the same item replaces one you have not taken yet.
 - **`item-awaits-launch`:** an open item waits on a free worker. Launch it as 「Assigning and
-  launching」 says, or say in one line why not. For an item naming a model the notice names the agent a launch
+  launching」 says, or say in one line why not. It is told once for each stretch it waits, and again only
+  once its checkout or agent was taken and is free again, its hold was lifted or its queue opened again; where
+  you said why not for a reason agency does not read, launch it yourself once that reason ends. For an item naming a model the notice names the agent a launch
   would take now; the launch itself takes whichever is free when it goes. An item whose labels say its commit waits to go live is
   not launched: take its lease and carry on its deployment as 「The run, its report and its close」 says.
 - **`item-awaits-approval`:** a draft waits for an approval. Judge it as 「Filing an item」 says: approve
@@ -438,9 +440,10 @@ and the agency's own:
   the job takes its checkout again by itself once the owner answers and you act on it.
 - **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
   job that failed in a room other than the owner's own is told to the owner as well.
-- **`job-awaits-close`:** an ended job's item is still leased. Close it as 「The run, its report and its
-  close」 says, at once where nothing of it waits to go live and once its commit is live where one does,
-  or give back the lease the instruction names so the item is open again.
+- **`job-awaits-close`:** an ended job's item is still leased and no commit of it waits for its deployment;
+  one whose commit waits is told as `item-awaits-deploy` alone, and its lease is kept until the deployment
+  closes it. Close the item as 「The run, its report and its close」 says, or give back the lease the
+  instruction names so the item is open again. It is told once for each lease.
 
 ## Never launch the same item twice
 

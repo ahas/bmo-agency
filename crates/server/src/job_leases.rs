@@ -5,10 +5,10 @@
 //! holder — is left as it stands and told once to its orderer. An ended job whose lease stands for the item's
 //! close has it renewed the same way until the service holds it no more — the close moved the item to done, or
 //! the lease was given back — and is never leased again; an item still leased at the pass after the one that
-//! first found its job ended is told once to its orderer (docs/agent-control.md, 「An item's change is told to
-//! its orderer」). A running job's lease holds fixed what its launch read of the item, and an ended job's holds
-//! nothing fixed (docs/repositories.md, 「An agent an item names」). A deployment that names no job service keeps
-//! nothing.
+//! first found its job ended is told once for that lease to its orderer, unless its commit waits for its
+//! repository's batch deployment (docs/agent-control.md, 「An item's change is told to its orderer」). A running
+//! job's lease holds fixed what its launch read of the item, and an ended job's holds nothing fixed
+//! (docs/repositories.md, 「An agent an item names」). A deployment that names no job service keeps nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -22,9 +22,10 @@ use crate::Refusal;
 use crate::job_end::{address, token};
 use crate::job_notices;
 use crate::outbox::{self, Keep, Notice, Receiver};
-use crate::queue::orderer::JobService;
+use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
 use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL};
+use crate::watches::queue_idle::merged_awaiting_deploy;
 
 /// The item fields a job's launch reads beside its labels: the repository its job runs in and the room it
 /// answers to.
@@ -70,9 +71,10 @@ pub async fn hold_launch(vars: &BTreeMap<String, String>, job: i64, lease: i64, 
 /// The settings rows, one a running job by its id, of the state its item was told to have moved to.
 pub const MOVED_TOLD_PREFIX: &str = "job_moved_told:";
 /// The settings rows, one an ended job by its id, of its item's close: `seen` once a pass found the lease
-/// still standing, `told` once the orderer was told.
+/// still standing.
 pub const CLOSE_PREFIX: &str = "job_close_mark:";
-/// The prefix of the key an ended job's unclosed item is owed under, the item's number after it.
+/// The prefix of the key an ended job's unclosed item is owed under, the item's number after it; the row is
+/// marked with the lease it was told for.
 pub const CLOSE_OWED: &str = "job-awaits-close:";
 
 /// What a pass did with one running job's lease.
@@ -375,8 +377,9 @@ impl Tells<'_> {
     }
   }
 
-  // An ended job's item still leased: marked at the first pass that finds it so, owed to its orderer at the next
-  // as a standing notice, told again until the lease ends.
+  // An ended job's item still leased: marked at the first pass that finds it so, and read at each pass after it.
+  // An item whose commit waits for its repository's batch deployment is told by the notice of that commit, so a
+  // notice of it told before is let go; any other is owed to its orderer once for the lease and kept.
   async fn unclosed(&self, job: i64, item: i64, lease: i64) {
     if !self.receiver {
       return;
@@ -384,32 +387,50 @@ impl Tells<'_> {
 
     let key = format!("{CLOSE_PREFIX}{job}");
 
-    match self.mark(&key).await.as_deref() {
-      None => self.set(&key, "seen").await,
-      Some("seen") => {
-        let owed = async {
-          let (_, orderer) = self.service.orderer_of_id(item).await?;
-          let notice =
-            Notice::instruction(job_notices::awaits_close(item, lease, &orderer), Keep::Standing);
+    if self.mark(&key).await.is_none() {
+      self.set(&key, "seen").await;
+      return;
+    }
 
-          outbox::owe(self.db, self.vars, notice).await
-        };
+    let owed_key = format!("{CLOSE_OWED}{item}");
+    let lease_mark = lease.to_string();
+    let told = async {
+      let owed = outbox::owed(self.db, &owed_key).await?.remove("");
+      let read = self.service.item(item).await?;
 
-        match owed.await {
-          Ok(()) => {
-            self.set(&key, "told").await;
-            println!("job {job}: item #{item} still leased after its end, owed to its orderer");
-          }
-          Err(why) => eprintln!("job {job}: item #{item} awaiting its close was not owed: {why}"),
+      if read.as_ref().is_some_and(merged_awaiting_deploy) {
+        if let Some(owed) = owed {
+          outbox::let_go_as_read(self.db, self.vars, &owed_key, &owed).await?;
         }
+
+        return Ok(false);
       }
-      Some(_) => {}
+
+      if owed.is_some_and(|owed| owed.mark == lease_mark) {
+        return Ok(false);
+      }
+
+      let orderer = match &read {
+        Some(read) => self.service.orderer_of(read).await?,
+        None => Orderer::default(),
+      };
+      let notice = Notice::instruction(job_notices::awaits_close(item, lease, &orderer), Keep::Kept);
+
+      outbox::owe(self.db, self.vars, notice.marked(lease_mark)).await?;
+
+      Ok::<_, String>(true)
+    };
+
+    match told.await {
+      Ok(true) => println!("job {job}: item #{item} still leased after its end, owed to its orderer"),
+      Ok(false) => {}
+      Err(why) => eprintln!("job {job}: item #{item} awaiting its close was not owed: {why}"),
     }
   }
 
   // The marks of jobs that moved on let go: a moved item's once its job no longer runs, a close's once its job's
-  // lease is no longer kept, and with it the standing notice of its item, where no other ended job keeps that
-  // item's lease.
+  // lease is no longer kept, and with it the notice of its item, where no other ended job keeps that item's
+  // lease.
   async fn let_go(&self, running: &BTreeSet<i64>, ended: &BTreeSet<i64>, unclosed: &BTreeSet<i64>) {
     match outbox::owed(self.db, CLOSE_OWED).await {
       Ok(owed) => {

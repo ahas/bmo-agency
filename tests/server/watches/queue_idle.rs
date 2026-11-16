@@ -447,6 +447,62 @@ async fn a_told_item_that_stops_waiting_is_let_go_so_it_is_told_again_once_free(
 }
 
 #[tokio::test]
+async fn an_item_awaiting_a_launch_is_told_once_for_its_stretch_and_again_once_its_worker_is_free_again() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let peers = Peers::default();
+  let calls = peers.calls.clone();
+  let vars = stand(&peers).await;
+
+  repository(db, "w1", "/checkouts/w1", &[]).await;
+  repository(db, "w2", "/checkouts/w2", &[]).await;
+  supervisor(db, "chat", &[]).await;
+
+  let told_11 = |calls: &Calls| {
+    calls
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|(path, body)| path == "/instructions" && body["kind"] == format!("{LAUNCH_OWED}11"))
+      .count()
+  };
+  // The moment item 11 was first seen waiting set past the launch seconds.
+  let waited = || {
+    scratch.run(
+      r#"UPDATE "settings" SET "value" = $1 WHERE "key" = $2"#,
+      vec![(agency_server::now_ms() - 61_000).to_string().into(), format!("{SEEN_PREFIX}11").into()],
+    )
+  };
+
+  pass(db, &vars).await.unwrap();
+  waited().await;
+  pass(db, &vars).await.unwrap();
+  assert_eq!(told_11(&calls), 1);
+
+  // Neither agency's start nor the sender tells it again while the stretch lasts.
+  agency_server::outbox::restarted(db).await.unwrap();
+  agency_server::outbox::send_due(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+  assert_eq!(told_11(&calls), 1, "told once for the stretch");
+
+  // Its worker takes another run and is free again: a new stretch, told again.
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (20, 1, 'runner', 1, 'w1', 'running', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+  pass(db, &vars).await.unwrap();
+  scratch.run(r#"UPDATE "jobs" SET "state" = 'ended' WHERE "item_id" = 20"#, vec![]).await;
+  pass(db, &vars).await.unwrap();
+  waited().await;
+  pass(db, &vars).await.unwrap();
+  assert_eq!(told_11(&calls), 2, "the worker free again");
+}
+
+#[tokio::test]
 async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
