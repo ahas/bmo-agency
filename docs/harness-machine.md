@@ -126,8 +126,9 @@ flowchart TD
 - **Read out of the asset root for every call:** the platform's harness opening `prompts/harness.md`, the
   rulebooks under `prompts/rules/`, the frame, turn and tools under `prompts/agents/pieces/`, and the
   `persona.md` of the supervisor's own prompt folder.
-- **What the caller hands it:** the supervisor's name, the prompt folder its supervisor row names under
-  `prompts/agents/` or none, the persona its settings hold or none, the model its turn goes out on, and
+- **What the caller hands it:** the supervisor's name; its label and its call names, which the frame tells it
+  it is called by (`docs/supervisors.md`, 「What a turn is given」); the prompt folder its supervisor row names
+  under `prompts/agents/` or none, the persona its settings hold or none, the model its turn goes out on, and
   whether its program takes the platform's harness opening — every program on Claude Code does, and one that
   is a harness of its own does not. The crate never derives a prompt folder from the name, and a folder that
   is not one plain name is refused.
@@ -150,8 +151,9 @@ flowchart TD
   health, or `null`.
 - **`harness-machine model-use start`** starts a choice's unit, **`model-use install`** runs an engine's
   installer into a log, and **`model-use log`** prints a log's last lines.
-- **`harness-machine supervisor-system`** reads a supervisor's settings from standard input, with `ownHarness`
-  true where its program is a harness of its own, and prints the composed system prompt;
+- **`harness-machine supervisor-system`** reads a supervisor's settings from standard input, with `label` and
+  `callNames` where it holds them and `ownHarness` true where its program is a harness of its own, and prints
+  the composed system prompt;
   **`supervisor-persona <folder>`** prints the persona the prompt folder's file holds, or nothing where it
   has none.
 - **Every answer is one line of JSON on standard output.** A refusal the owner reads ends with status

@@ -18,6 +18,11 @@ persona_most = 100000
 # letter, then lowercase letters, digits and hyphens, forty characters at most.
 name_pattern = '^[a-z][a-z0-9-]{0,39}$'
 
+# The call names a supervisor's row may hold, the words beside its label that call it in a room
+# (docs/supervisors.md, 「Its call names」): at most this many, each one to this many characters once trimmed.
+call_names_most = 10
+call_name_longest = 40
+
 # The mark a screen puts beside a supervisor added on the console.
 added_icon = "i-material-symbols-face-outline"
 

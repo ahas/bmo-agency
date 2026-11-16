@@ -3905,6 +3905,7 @@ export interface components {
             label: string | null;
             /** Format: int64 */
             ownerAccount: number | null;
+            /** @description its call names as one line, joined by a comma and a space; null for none */
             aliases: string | null;
             icon: string | null;
             sessionScope: string;
@@ -4171,6 +4172,8 @@ export interface components {
         /** @description SupervisorChange: the fields a change of a supervisor names. */
         SupervisorChange: {
             label?: string | null;
+            /** @description The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none. */
+            aliases?: string[] | null;
             /** @description Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named. */
             provider?: string | null;
             model?: string | null;

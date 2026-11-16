@@ -14,6 +14,10 @@ pub struct SupervisorRules {
   pub persona_most: usize,
   /// The pattern a supervisor is registered by.
   pub name_pattern: String,
+  /// The most call names a supervisor's row may hold.
+  pub call_names_most: usize,
+  /// The longest a call name may be, in characters once trimmed.
+  pub call_name_longest: usize,
   /// The mark a screen puts beside a supervisor added on the console.
   pub added_icon: String,
   /// Whether a supervisor's turns are given their reference where its settings never held the switch.

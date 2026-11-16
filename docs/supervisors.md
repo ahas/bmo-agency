@@ -11,8 +11,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 - **One row of the `supervisors` table is the supervisor's whole declaration.** Nothing in the code lists
   the supervisors or answers a question about one by its name.
-- **Who it is:** its name, the key every reader finds it by; its label; the words that call it in a room;
-  its owner, the login account it belongs to, or none for the administrator's; its mark on a screen; and
+- **Who it is:** its name, the key every reader finds it by; its label; its call names, the words beside its
+  label that call it in a room (「Its call names」 below); its owner, the login account it belongs to, or none for the administrator's; its mark on a screen; and
   whether the deployment seeds it.
 - **What it is told:** its own prompt folder, the documents its system prompt is composed from, and its
   brain folder, whose base persona its system prompt ends with (`docs/agent-documents.md`).
@@ -34,6 +34,22 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Its draft questions** are the receiver's, kept by the receiver and shown on the supervisor's page in the
   console; agency holds none of them and names the supervisor a session is for, so the receiver reads the
   supervisor's own (「What a session's state names」 below).
+
+## Its call names
+
+- **Its call names are the one list of words beside its label that call it in a room,** kept on its row's
+  `aliases` column; no other column holds a word that calls it. The receiver wakes the supervisor on a message
+  that holds its label or one of its call names, in either case.
+- **They are written by `PATCH /supervisors/{supervisorName}`** as a list (`docs/api.md`, 「supervisors」), the
+  whole list each time: at most the supervisors policy's count, each name one to the policy's length of
+  characters once trimmed, and none holding a comma (`policy/supervisors.toml`). An empty list or null leaves
+  it none. A list outside those bounds is refused whole and nothing is written.
+- **They are read as one line,** the names joined by a comma and a space, as `aliases` on `GET /supervisors`
+  and `GET /supervisors/{supervisorName}`. Every reader splits that line at its commas, which is why no name
+  holds one.
+- **A supervisor of the `pieces` shape is told them,** with its label, in its system prompt (「What a turn is
+  given」 below). A change of either moves that prompt: its next turn in each room is sent the prompt as it now
+  is, and the session is then replaced while it is quiet (`docs/sessions.md`, 「Session replacement」).
 
 ## Its settings
 
@@ -461,8 +477,12 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     the role and the persona — goes as its persona suffix after its own prompt, and the platform's
     opening is not sent.
   - **The pieces role** is the same for every supervisor of that shape: the rulebook against destroying
-    the system, the absolute rules, the frame with its tools, the turn, and the rulebook on another
-    agent's words, in that order (`policy/supervisors.toml`, `pieces_role`; `prompts/agents/pieces/`).
+    the system, the absolute rules, the frame with its name and its tools, the turn, and the rulebook on
+    another agent's words, in that order (`policy/supervisors.toml`, `pieces_role`; `prompts/agents/pieces/`).
+  - **Its name** is filled into the frame: the label it stands as in the rooms, its registration name where
+    it holds no label, and the call names a person calls it by, its label where it holds none (「Its call
+    names」 above). The frame tells it that this is its own name, to answer and speak of itself by, and that
+    BMO is the platform's name. A supervisor of the `window` shape is told who it is by its own documents.
   - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`.
 - **Its turn** is the round the receiver composes, the same for either shape: its new words, the room's block
   and the draft process's first question, as the session it goes on in keeps the conversation (「A session in

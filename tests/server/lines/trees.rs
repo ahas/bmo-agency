@@ -60,6 +60,8 @@ fn a_supervisor_composed_out_of_the_tree_opens_on_its_harness_opening() {
   };
   let supervisor = Supervisor {
     name: "tester-pal",
+    label: None,
+    call_names: &[],
     prompts: None,
   };
   let composed =

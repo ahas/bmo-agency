@@ -49,8 +49,9 @@ enum Ask {
     ask: UseAsk,
   },
   /// A supervisor's system prompt, composed out of what standard input holds:
-  /// `{"agent", "prompts": <folder> | null, "settings": {"pieces", "ownPieces", "persona"},
-  /// "base": {"text", "model"} | null}`, where `prompts` is the prompt folder the agent's row names.
+  /// `{"agent", "label": <label> | null, "callNames": [<name>], "prompts": <folder> | null,
+  /// "settings": {"persona"}, "base": {"text", "model"} | null, "ownHarness"}`, where `prompts` is the prompt
+  /// folder the agent's row names.
   SupervisorSystem,
   /// The persona a prompt folder's file holds, or an empty text where it has none.
   SupervisorPersona { folder: String },
@@ -110,6 +111,12 @@ enum UseAsk {
 #[derive(Deserialize)]
 struct SupervisorAsk {
   agent: String,
+  /// The label it stands as in the rooms, none for its name.
+  #[serde(default)]
+  label: Option<String>,
+  /// The words beside its label that call it in a room.
+  #[serde(default, rename = "callNames")]
+  call_names: Vec<String>,
   /// The prompt folder the agent's row names under `prompts/agents/`, none where it names none.
   #[serde(default)]
   prompts: Option<String>,
@@ -215,6 +222,8 @@ async fn answer(cli: Cli) -> Result<Value, Fault> {
 
       let supervisor = Supervisor {
         name: &asked.agent,
+        label: asked.label.as_deref(),
+        call_names: &asked.call_names,
         prompts: asked.prompts.as_deref(),
       };
 

@@ -578,8 +578,11 @@ async fn system_of(
     assets: ground.code_root(),
     data: ground.roots.data.clone(),
   };
+  let call_names = pinned.supervisor.call_names();
   let supervisor = harness_machine::supervisor_prompt::Supervisor {
     name: &pinned.speaker.name,
+    label: pinned.supervisor.label.as_deref(),
+    call_names: &call_names,
     prompts: pinned.prompts.as_deref(),
   };
 

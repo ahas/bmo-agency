@@ -3086,6 +3086,7 @@ pub struct Supervisor {
   pub name: String,
   pub label: Option<String>,
   pub owner_account: Option<i64>,
+  /// its call names as one line, joined by a comma and a space; null for none
   pub aliases: Option<String>,
   pub icon: Option<String>,
   pub session_scope: String,
@@ -3202,6 +3203,9 @@ pub struct SupervisorRegistered {
 pub struct SupervisorChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  /// The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none.
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub aliases: Option<Option<Vec<String>>>,
   /// Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,

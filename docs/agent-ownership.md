@@ -35,7 +35,7 @@ Beside its one road, its cache warming per provider and its compaction threshold
 |---|---|---|---|
 | `voice` | the voice its words are spoken in, or none | the briefing voice it speaks in now | none |
 | `window_seconds` | how long a room it answered keeps it listening without a call, or none | the conversation window it has now | none |
-| `wake_words` | the words that call it, beside its label | the deployment's trigger keywords | its aliases |
+| `aliases` | its call names, the words that call it beside its label (`docs/supervisors.md`, 「Its call names」) | the owner's other words for it | the call names written for it, or none |
 | `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
 | `turn_shape` | the shape of its turns: the window (`window`) or the pieces (`pieces`) | `window` | `pieces` |
 | `prompts` | the folder under `prompts/agents/` a pieces-shaped turn's persona is read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
@@ -53,7 +53,8 @@ Beside its one road, its cache warming per provider and its compaction threshold
 - **A supervisor with no voice makes no voice.** No briefing, voice chip or reading is made for its
   turns, and a voice given to its row later turns all three on with no other change
   (`voice-briefing.md`).
-- **The window and the wake words are read by the receiver alone.**
+- **The window and the call names are read by the receiver,** which wakes the supervisor on them; the call
+  names are also told to a supervisor of the `pieces` shape in its system prompt.
 - **No column locates its memory.** Its long-term memory is its brain, found by its account and its
   key (「Long-term memory」 below). The row's `brain_folder` locates nothing; a supervisor's reset reads it
   only to refuse the supervisor whose value is empty, the brain's root.

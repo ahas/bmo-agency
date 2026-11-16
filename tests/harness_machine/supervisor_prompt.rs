@@ -11,6 +11,8 @@ use policy::supervisors::SUPERVISORS;
 // from the name so a prompt read by the name would show.
 const PAL: Supervisor = Supervisor {
   name: "tester-pal",
+  label: None,
+  call_names: &[],
   prompts: Some("pal-prompts"),
 };
 
@@ -27,7 +29,10 @@ fn roots(dir: &Path) -> Roots {
   write("prompts/rules/self-preservation.md", "keep the system");
   write("prompts/rules/absolute-rules.md", "ABSOLUTE RULES");
   write("prompts/rules/agent-words.md", "agent words");
-  write("prompts/agents/pieces/frame.md", "frame\n{{tools}}\n{{unknown}}");
+  write(
+    "prompts/agents/pieces/frame.md",
+    "frame of {{label}}, called {{call_names}}\n{{tools}}\n{{unknown}}",
+  );
   write("prompts/agents/pieces/turn.md", "turn");
   write("prompts/agents/pieces/tools.md", "tools at {{workplace}}, verbs in {{tree}}");
   write("prompts/agents/pal-prompts/persona.md", "persona file");
@@ -43,8 +48,8 @@ fn roots(dir: &Path) -> Roots {
 fn a_supervisor_whose_row_names_no_prompt_folder_is_sent_no_persona() {
   let dir = tempfile::tempdir().unwrap();
   let bare = Supervisor {
-    name: "tester-pal",
     prompts: None,
+    ..PAL
   };
   let composed = system(&roots(dir.path()), bare, &Composition::default(), None, true).unwrap();
 
@@ -98,9 +103,26 @@ fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
   assert_eq!(
     composed,
     format!(
-      "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
+      "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
     )
   );
+}
+
+// The frame tells a supervisor the label it stands as and the call names it is called by
+// (docs/supervisors.md, 「What a turn is given」); one holding neither is told its name for both, as the exact
+// prompt above shows.
+#[test]
+fn the_frame_names_the_label_and_the_call_names() {
+  let dir = tempfile::tempdir().unwrap();
+  let names = ["Dear".to_owned(), "dear".to_owned()];
+  let named = Supervisor {
+    label: Some("Tester's Dear"),
+    call_names: &names,
+    ..PAL
+  };
+  let frame = piece(&roots(dir.path()), named, "frame", &Composition::default()).unwrap();
+
+  assert!(frame.starts_with("frame of Tester's Dear, called Dear, dear\n"), "{frame}");
 }
 
 // On Claude Code a supervisor that chooses no base opens on the platform's harness opening, read out of the
@@ -134,7 +156,7 @@ fn the_base_prompt_is_the_harness_and_the_settings_persona_closes_the_prompt() {
   assert_eq!(
     system(&roots, PAL, &settings, Some(&base), true).unwrap(),
     format!(
-      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
+      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
     )
   );
 }

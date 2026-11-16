@@ -1,7 +1,8 @@
-//! A supervisor's one road, asked of a running server over its control routes (docs/api.md, 「supervisors」): the
-//! road route names the road and whether a turn would go out on it now, no stand-in route stands, a body naming
-//! an order or a forced provider is refused, and a session is started at no scope the contract does not name —
-//! on a store the server settled itself.
+//! A supervisor's one road and its call names, asked of a running server over its control routes (docs/api.md,
+//! 「supervisors」): the road route names the road and whether a turn would go out on it now, no stand-in route
+//! stands, a body naming an order or a forced provider is refused, call names are written whole and read back as
+//! one line or refused out of their bounds, and a session is started at no scope the contract does not name — on
+//! a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -32,7 +33,7 @@ async fn send(method: reqwest::Method, port: u16, token: &str, path: &str, body:
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_running_server_answers_a_supervisor_s_one_road_and_refuses_an_order_or_a_stand_in() {
+async fn a_running_server_answers_a_supervisor_s_road_and_call_names_and_refuses_an_order_or_a_stand_in() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -96,6 +97,56 @@ async fn a_running_server_answers_a_supervisor_s_one_road_and_refuses_an_order_o
 
     assert_eq!((status, &refused["field"]), (400, &json!(field)), "{refused}");
   }
+
+  // Call names are written as a whole list and read back on both reads as the one line the receiver wakes it on;
+  // a list out of the policy's bounds is refused by its field and leaves the names standing.
+  let (status, named) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent",
+    json!({ "aliases": ["Dear", " dear ", "\u{B514}\u{C5B4}"] }),
+  )
+  .await;
+  let line = json!("Dear, dear, \u{B514}\u{C5B4}");
+
+  assert_eq!((status, &named["aliases"]), (200, &line), "{named}");
+  assert_eq!(get(port, token, "/supervisors/chat-agent").await.1["aliases"], line);
+  let (_, every) = get(port, token, "/supervisors").await;
+  let listed = every["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .find(|one| one["name"] == "chat-agent")
+    .unwrap();
+
+  assert_eq!(listed["aliases"], line);
+
+  for names in [
+    json!(["a,b"]),
+    json!([" "]),
+    json!(["x".repeat(41)]),
+    json!(vec!["n"; 11]),
+    json!("Dear"),
+  ] {
+    let (status, refused) = send(
+      reqwest::Method::PATCH,
+      port,
+      token,
+      "/supervisors/chat-agent",
+      json!({ "aliases": names }),
+    )
+    .await;
+
+    assert_eq!((status, &refused["field"]), (400, &json!("aliases")), "{names}: {refused}");
+  }
+
+  assert_eq!(get(port, token, "/supervisors/chat-agent").await.1["aliases"], line);
+
+  let (_, cleared) =
+    send(reqwest::Method::PATCH, port, token, "/supervisors/chat-agent", json!({ "aliases": [] })).await;
+
+  assert_eq!(cleared["aliases"], Value::Null, "{cleared}");
 
   let (status, refused) = send(
     reqwest::Method::POST,

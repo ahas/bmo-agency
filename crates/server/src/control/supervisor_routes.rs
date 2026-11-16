@@ -1,7 +1,7 @@
 //! The supervisors' routes (docs/api.md, 「supervisors」; docs/supervisors.md): every supervisor read, one
-//! registered on its one road and given its brain, changed — its road, warming, threshold, repository, gates,
-//! sampling and voice — its road judged for a turn now, and its registration ended with everything of its own but
-//! its brain where the caller keeps it.
+//! registered on its one road and given its brain, changed — its label, call names, road, warming, threshold,
+//! repository, gates, sampling and voice — its road judged for a turn now, and its registration ended with
+//! everything of its own but its brain where the caller keeps it.
 
 use std::collections::BTreeMap;
 
@@ -305,6 +305,39 @@ async fn repository_of(db: &DatabaseConnection, body: &Value) -> Result<Option<O
   }
 }
 
+// The call names a body names, as the row keeps them: none where it names none, and the line or none for an
+// empty list or null where it names them; refused whole where a name is out of the policy's bounds
+// (docs/supervisors.md, 「Its call names」).
+fn call_names_of(body: &Value) -> Result<Option<Option<String>>, Refused> {
+  let refused = || {
+    let words = &CONTROL_WORDS.supervisor_roster.call_names;
+    let most = SUPERVISORS.call_names_most.to_string();
+    let longest = SUPERVISORS.call_name_longest.to_string();
+
+    bad("aliases", fill_marks(words, &[("most", &most), ("longest", &longest)]))
+  };
+  let names = match body.get("aliases") {
+    None => return Ok(None),
+    Some(Value::Null) => vec![],
+    Some(Value::Array(names)) if names.len() <= SUPERVISORS.call_names_most => names
+      .iter()
+      .map(|name| {
+        let name = name.as_str().map(str::trim).ok_or_else(refused)?;
+        let length = name.chars().count();
+
+        if (1..=SUPERVISORS.call_name_longest).contains(&length) && !name.contains(',') {
+          Ok(name.to_owned())
+        } else {
+          Err(refused())
+        }
+      })
+      .collect::<Result<Vec<_>, _>>()?,
+    Some(_) => return Err(refused()),
+  };
+
+  Ok(Some(supervisors::call_names_line(&names)))
+}
+
 // The compaction threshold a supervisor added on a road is given where it names none: its provider's declared
 // default, 0.85 where it declares none (docs/supervisors.md, 「What a provider declares for a conversation」).
 fn default_fold_ratio(road: &Entry) -> f64 {
@@ -439,6 +472,7 @@ impl Route for SupervisorChange {
       Some(Value::String(label)) if !label.trim().is_empty() => Some(label.trim().to_owned()),
       Some(_) => return Err(bad("label", CONTROL_WORDS.supervisor_roster.label.as_str())),
     };
+    let aliases = call_names_of(&body)?.unwrap_or(held.aliases.clone());
     let warming = match body.get("warming") {
       None => held.warming.clone(),
       Some(Value::Object(switches)) => {
@@ -493,7 +527,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider" = $3, "model" = $4, "effort" = $5, "thinking" = $6,
            "answer_tokens" = $7, "warming" = $8, "fold_ratio" = $9, "repository" = $10, "voice" = $11,
-           "updated_at" = $12, "card_rank" = $13
+           "updated_at" = $12, "card_rank" = $13, "aliases" = $14
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -509,6 +543,7 @@ impl Route for SupervisorChange {
         voice.into(),
         now_ms().into(),
         card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
+        aliases.into(),
       ],
     )
     .await?;

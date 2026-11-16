@@ -94,6 +94,8 @@ fn a_supervisor_whose_documents_did_not_move_keeps_its_prompt() {
       &roots,
       Supervisor {
         name: "pieces-agent",
+        label: None,
+        call_names: &[],
         prompts: None,
       },
       &Composition::default(),

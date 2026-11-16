@@ -165,7 +165,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
 | PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
 | POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
-| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's road, warming, threshold, gates, sampling or voice. |
+| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's label, call names, road, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
@@ -173,8 +173,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **A supervisor is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
   an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
   which supervisor is the caller's to judge; agency writes the owner it is handed.
-- **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
-  `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
+- **A supervisor answers its row:** `name`, `label`, `ownerAccount`; `aliases`, its call names as one line
+  joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `sessionScope`,
+  `turnShape`, `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
   `thinking` and `answerTokens` (below), every turn of it going out there; `cardRank`, the rank of the demands of
   the runs for it, or null; `warming`, for each provider whether its prefix is kept warm there; `foldRatio`, its
   compaction threshold; `gates`, `voice` and `sampling`; `seeded`, true for a supervisor the deployment seeds,
@@ -226,13 +227,15 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
-- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, the road —
+- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, the road —
   `provider` and `model`, both or neither, `effort`, `thinking` and `answerTokens` —, `warming`, `foldRatio`,
   `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and
   `voice`, each judged as the registration judges it; a road's fields it does not name keep what the road
   holds, except that a changed provider or model drops the effort, thinking and answer ceiling the body does
-  not name, since they were the old model's. A body naming `order`, `quotaShare` or `active` is refused 400
-  with that field. A changed road reaches
+  not name, since they were the old model's. `aliases` is the whole list of the supervisor's call names, or
+  null or an empty list for none: at most ten, each one to forty characters once trimmed and holding no comma,
+  else refused 400 `bad-request` with `field` `aliases`. A body naming `order`, `quotaShare` or `active` is
+  refused 400 with that field. A changed road reaches
   the supervisor's next turn; a turn already going finishes where it went out.
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:

@@ -13294,7 +13294,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "its call names as one line, joined by a comma and a space; null for none"
           },
           "icon": {
             "type": [
@@ -14030,6 +14031,16 @@
               "string",
               "null"
             ]
+          },
+          "aliases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none."
           },
           "provider": {
             "type": [

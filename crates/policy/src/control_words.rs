@@ -303,6 +303,7 @@ pub struct SupervisorRosterWords {
   pub name: String,
   pub name_taken: String,
   pub label: String,
+  pub call_names: String,
 }
 
 /// A supervisor's reset.

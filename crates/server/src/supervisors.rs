@@ -61,8 +61,8 @@ pub struct Supervisor {
   pub name: String,
   pub label: Option<String>,
   pub owner_account: Option<i64>,
+  /// Its call names as the row keeps them, one line joined by commas (docs/supervisors.md, 「Its call names」).
   pub aliases: Option<String>,
-  pub wake_words: Option<String>,
   pub icon: Option<String>,
   pub prompts: Option<String>,
   pub brain_folder: Option<String>,
@@ -115,7 +115,6 @@ impl Supervisor {
       label: row.try_get("", "label")?,
       owner_account: row.try_get("", "owner_account")?,
       aliases: row.try_get("", "aliases")?,
-      wake_words: row.try_get("", "wake_words")?,
       icon: row.try_get("", "icon")?,
       prompts: row.try_get("", "prompts")?,
       brain_folder: row.try_get("", "brain_folder")?,
@@ -133,6 +132,19 @@ impl Supervisor {
       last_effort: row.try_get("", "last_effort")?,
       session_id: row.try_get("", "session_id")?,
     })
+  }
+
+  /// The words beside its label that call it in a room, in the order they were written: the line its row keeps
+  /// them in, split at its commas, since no call name holds one.
+  pub fn call_names(&self) -> Vec<String> {
+    self
+      .aliases
+      .iter()
+      .flat_map(|line| line.split(','))
+      .map(str::trim)
+      .filter(|name| !name.is_empty())
+      .map(str::to_owned)
+      .collect()
   }
 
   /// Whether its prefix is kept warm while it stands idle on this provider: the row's switch for it, off
@@ -156,6 +168,11 @@ impl Supervisor {
       forced: None,
     }
   }
+}
+
+/// The line a row keeps these call names in, joined by a comma and a space, or none for no name.
+pub fn call_names_line(names: &[String]) -> Option<String> {
+  (!names.is_empty()).then(|| names.join(", "))
 }
 
 /// Every supervisor the store holds, by name.

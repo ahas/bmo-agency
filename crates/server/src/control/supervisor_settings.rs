@@ -279,15 +279,14 @@ pub fn roots(call: &Call) -> Roots {
 async fn system<C: ConnectionTrait>(
   db: &C,
   roots: &Roots,
-  agent: &str,
-  prompts: Option<&str>,
+  supervisor: Supervisor<'_>,
   settings: &Settings,
   (provider, model): (&str, &str),
 ) -> Result<String, Refused> {
   let chosen = one(
     db,
     "SELECT p.text FROM agent_base_prompts c JOIN base_prompts p ON p.name = c.prompt WHERE c.agent = $1",
-    vec![agent.into()],
+    vec![supervisor.name.into()],
   )
   .await?
   .map(|row| row.try_get::<String>("", "text"))
@@ -296,11 +295,6 @@ async fn system<C: ConnectionTrait>(
     text,
     model: model.to_owned(),
   });
-
-  let supervisor = Supervisor {
-    name: agent,
-    prompts,
-  };
 
   let platform = crate::lines::pieces::takes_harness(provider);
 
@@ -360,7 +354,16 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
     None => (pinned_provider.clone().unwrap_or_default(), pinned_model.clone().unwrap_or_default()),
   };
   let text = if pieces(&row) {
-    Some(system(db, roots, agent, prompts.as_deref(), &settings, (&provider_now, &model_now)).await?)
+    let held = crate::supervisors::Supervisor::of(&row)?;
+    let call_names = held.call_names();
+    let supervisor = Supervisor {
+      name: agent,
+      label: held.label.as_deref(),
+      call_names: &call_names,
+      prompts: prompts.as_deref(),
+    };
+
+    Some(system(db, roots, supervisor, &settings, (&provider_now, &model_now)).await?)
   } else {
     None
   };

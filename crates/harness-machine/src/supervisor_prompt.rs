@@ -44,12 +44,31 @@ pub struct Base {
   pub model: String,
 }
 
-/// The supervisor a prompt is composed for: its name, which its working folder is kept under, and the
-/// prompt folder its agent row names under `prompts/agents/`, none where the row names none.
+/// The supervisor a prompt is composed for: its name, which its working folder is kept under; its label and
+/// its call names, which its frame tells it it is called by; and the prompt folder its agent row names under
+/// `prompts/agents/`, none where the row names none.
 #[derive(Clone, Copy, Debug)]
 pub struct Supervisor<'a> {
   pub name: &'a str,
+  pub label: Option<&'a str>,
+  pub call_names: &'a [String],
   pub prompts: Option<&'a str>,
+}
+
+impl Supervisor<'_> {
+  /// The name it stands as in the rooms: its label, else its registration name.
+  fn standing_name(&self) -> &str {
+    self.label.map(str::trim).filter(|label| !label.is_empty()).unwrap_or(self.name)
+  }
+
+  /// The names a person calls it by, as the frame lists them: its call names, else the name it stands as.
+  fn called_by(&self) -> String {
+    if self.call_names.is_empty() {
+      self.standing_name().to_owned()
+    } else {
+      self.call_names.join(", ")
+    }
+  }
 }
 
 /// The roots a prompt is composed out of: the documents' tree, and the data root a supervisor's folder
@@ -223,7 +242,13 @@ pub fn piece(
     "absolute-rules" => roots.absolute_rules(),
     "frame" => {
       let frame = roots.agent_file("pieces", "frame.md")?;
-      Ok(render(&frame, &BTreeMap::from([("tools", tools_text(roots, supervisor.name)?)])))
+      let values = BTreeMap::from([
+        ("label", supervisor.standing_name().to_owned()),
+        ("call_names", supervisor.called_by()),
+        ("tools", tools_text(roots, supervisor.name)?),
+      ]);
+
+      Ok(render(&frame, &values))
     }
     "turn" => roots.agent_file("pieces", "turn.md"),
     "agent-words" => roots.rulebook("agent-words"),
