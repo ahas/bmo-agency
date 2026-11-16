@@ -136,8 +136,16 @@ async fn exec(
   }
 
   let command = body["command"].as_str().unwrap_or_default().to_owned();
+  // What the door hands the hub is one line carrying the command whole, and what was asked is what it decodes
+  // to; a line handed in any other way is what was asked as it stands.
+  let asked = command
+    .strip_prefix("printf %s ")
+    .and_then(|rest| rest.strip_suffix(" | base64 -d | /bin/bash"))
+    .and_then(|coded| base64::Engine::decode(&base64::engine::general_purpose::STANDARD, coded).ok())
+    .and_then(|bytes| String::from_utf8(bytes).ok())
+    .unwrap_or_else(|| command.clone());
 
-  hub.commands.lock().unwrap().push(command.clone());
+  hub.commands.lock().unwrap().push(asked);
 
   let path = format!("{}:{}", hub.shims.display(), std::env::var("PATH").unwrap_or_default());
   let done = tokio::process::Command::new("bash")

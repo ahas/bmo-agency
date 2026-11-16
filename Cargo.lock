@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-brain-client"
-version = "0.1.0-rev.35"
+version = "0.1.0-rev.36"
 dependencies = [
  "reqwest",
  "schemars",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-testbed-client"
-version = "0.1.0-rev.35"
+version = "0.1.0-rev.36"
 dependencies = [
  "schemars",
  "serde",

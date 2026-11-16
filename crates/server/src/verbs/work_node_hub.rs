@@ -25,6 +25,12 @@ use crate::peers::node::HubReach;
 /// separated by commas, as jake's hub reads it.
 const REVERSE_TARGETS_KEY: &str = "JAKE_REVERSE_TARGETS";
 
+/// A command as the hub is handed it (docs/person-nodes.md, 「The workplace on a PC」): one line that decodes it and
+/// gives it to the Linux shell, holding nothing a shell on the way would read in the command's place.
+pub fn carried(command: &str) -> String {
+  format!("printf %s {} | base64 -d | /bin/bash", STANDARD.encode(command))
+}
+
 /// The shells the hub's agent may offer for Linux, the agent's own first: where the agent runs inside the
 /// Linux shell, and WSL's where it runs on Windows.
 const LINUX_SHELLS: [&str; 2] = ["linux", "wsl"];
@@ -190,7 +196,7 @@ impl HubDoor {
       .post(format!("{}/exec", self.address))
       .query(&[("agent", self.agent.as_str())])
       .bearer_auth(&self.credential)
-      .json(&json!({ "shell": shell, "command": command }))
+      .json(&json!({ "shell": shell, "command": carried(command) }))
       .send()
       .await
       .and_then(reqwest::Response::error_for_status);

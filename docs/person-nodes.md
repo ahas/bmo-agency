@@ -162,6 +162,9 @@ the steps an SSH node's take (`docs/work-nodes.md`, 「The workplace on a node�
 names for the node: its control address, its settings file, and the agent's name, every request carrying a
 credential scoped to that agent (「Who reaches a node」).
 
+- **A command goes through the hub whole, as bytes no shell on the way reads:** the hub is handed one line that
+  decodes the command and gives it to the Linux shell, since an agent on a Windows PC hands its Linux shell a line
+  another shell has already read once, and a variable the command sets and reads would come out empty.
 - **Each command of the setup is a transient unit of the person's own:** a command through the hub writes the step
   into a script under the PC's cache directory and starts it with the user manager, and further commands watch it
   until it ends, each well inside the hub's ceiling of time on one command, then read back what it wrote and the
