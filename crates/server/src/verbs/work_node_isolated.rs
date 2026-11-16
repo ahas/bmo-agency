@@ -178,40 +178,48 @@ impl IsolatedHands<'_> {
   }
 
   // What `reading` prints, handed to `writing` run in the sandbox as the account's user.
-  async fn piped(&self, mut reading: tokio::process::Command, writing: &str) -> (bool, String) {
-    let mut writer = self.door.command(&["/bin/bash", "-c", writing]);
+  async fn piped(&self, reading: tokio::process::Command, writing: &str) -> (bool, String) {
+    carried(reading, self.door.command(&["/bin/bash", "-c", writing])).await
+  }
+}
 
-    writer.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped());
-    reading.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+/// What `reading` prints, handed to `writing` on its standard input: whether both ended well, else what either said.
+/// A writer that ends before the reader has printed everything ends the carry, and the reader, its output no longer
+/// read, ends on the broken pipe rather than waiting on a pipe nobody reads.
+pub async fn carried(
+  mut reading: tokio::process::Command,
+  mut writing: tokio::process::Command,
+) -> (bool, String) {
+  writing.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::piped());
+  reading.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let (mut reader, mut writer) = match (reading.spawn(), writer.spawn()) {
-      (Ok(reader), Ok(writer)) => (reader, writer),
-      (Err(why), _) | (_, Err(why)) => return (false, why.to_string()),
-    };
-    let (Some(mut out), Some(mut input)) = (reader.stdout.take(), writer.stdin.take()) else {
-      return (false, "the copy's pipe could not be opened".to_owned());
-    };
-    let carried = tokio::io::copy(&mut out, &mut input).await;
-    let _ = input.shutdown().await;
+  let (mut reader, mut writer) = match (reading.spawn(), writing.spawn()) {
+    (Ok(reader), Ok(writer)) => (reader, writer),
+    (Err(why), _) | (_, Err(why)) => return (false, why.to_string()),
+  };
+  let (Some(mut out), Some(mut input)) = (reader.stdout.take(), writer.stdin.take()) else {
+    return (false, "the copy's pipe could not be opened".to_owned());
+  };
+  let carry = tokio::io::copy(&mut out, &mut input).await;
+  let _ = input.shutdown().await;
 
-    drop(input);
+  drop((out, input));
 
-    let (read, written) = (reader.wait_with_output().await, writer.wait_with_output().await);
+  let (read, written) = (reader.wait_with_output().await, writer.wait_with_output().await);
 
-    match (carried, read, written) {
-      (Ok(_), Ok(read), Ok(written)) if read.status.success() && written.status.success() => {
-        (true, String::new())
-      }
-      (_, Ok(read), Ok(written)) => (
-        false,
-        said_tail(&format!(
-          "{}{}",
-          String::from_utf8_lossy(&read.stderr),
-          String::from_utf8_lossy(&written.stderr)
-        )),
-      ),
-      (_, Err(why), _) | (_, _, Err(why)) => (false, why.to_string()),
+  match (carry, read, written) {
+    (Ok(_), Ok(read), Ok(written)) if read.status.success() && written.status.success() => {
+      (true, String::new())
     }
+    (_, Ok(read), Ok(written)) => (
+      false,
+      said_tail(&format!(
+        "{}{}",
+        String::from_utf8_lossy(&read.stderr),
+        String::from_utf8_lossy(&written.stderr)
+      )),
+    ),
+    (_, Err(why), _) | (_, _, Err(why)) => (false, why.to_string()),
   }
 }
 

@@ -53,11 +53,13 @@ sandbox = [
 # The network rule of an isolation node's user, one script of the firewall's, which replaces the user's own table
 # whole in one step: every connection the user makes to an address of this machine, its loopback and its own address
 # on every interface, or to a private, shared, link-local or multicast address is refused at once, a stream with a
-# reset, but for the tool host's port on the loopback and the system's stub resolver. It is keyed on the user, so it
-# holds for every program the user runs, and handed to the firewall's program as one word, so it holds no double
-# quote, backslash, dollar sign or percent sign. {user} is the account's user, which names the table, and
+# reset, but for the tool host's port on the loopback and the system's stub resolver. An address of this machine is
+# told by the loopback device the system routes every one of them through, which every kernel's firewall reads,
+# where a lookup of the address's type needs a module some kernels lack, WSL's among them. It is keyed on the user,
+# so it holds for every program the user runs, and handed to the firewall's program as one word, so it holds no
+# double quote, backslash, dollar sign or percent sign. {user} is the account's user, which names the table, and
 # {tool_port} the tool host's port.
-firewall = "add table inet {user}; delete table inet {user}; table inet {user} { chain refuse { meta l4proto tcp reject with tcp reset; reject; }; chain account { ip daddr 127.0.0.1 tcp dport {tool_port} accept; ip daddr { 127.0.0.53, 127.0.0.54 } meta l4proto { tcp, udp } th dport 53 accept; fib daddr type local goto refuse; ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4 } goto refuse; ip6 daddr { fc00::/7, fe80::/10, ff00::/8 } goto refuse; }; chain out { type filter hook output priority filter; policy accept; meta skuid {user} jump account; }; }"
+firewall = "add table inet {user}; delete table inet {user}; table inet {user} { chain refuse { meta l4proto tcp reject with tcp reset; reject; }; chain account { ip daddr 127.0.0.1 tcp dport {tool_port} accept; ip daddr { 127.0.0.53, 127.0.0.54 } meta l4proto { tcp, udp } th dport 53 accept; meta oif lo goto refuse; ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4 } goto refuse; ip6 daddr { fc00::/7, fe80::/10, ff00::/8 } goto refuse; }; chain out { type filter hook output priority filter; policy accept; meta skuid {user} jump account; }; }"
 
 # The programs that make an isolation node's user, its home and its folders, and the firewall's program its sandbox
 # stands the network rule with, run as root by these paths and never by a name a search path resolves; the setup

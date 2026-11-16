@@ -91,7 +91,8 @@ every node shares are `docs/work-nodes.md`.
     installed into its home, the code copied, the binaries built, the herdr session stood.
   - **A copy is written by the account's user alone:** the owner's user reads the tree and streams it, and the
     account's user writes it into its home, so once the user and its fresh home are made nothing running as root
-    writes inside the home, where a link the account's user laid could lead it elsewhere.
+    writes inside the home, where a link the account's user laid could lead it elsewhere. A copy whose writing side
+    ends before the stream does, a sandbox that runs nothing among them, fails at once with what that side said.
   - **The logins checked are the account's own,** the logins whose user is the account; the owner's are never
     offered to it, and its run goes out on its own login's token for the work nodes, carried by the link.
 - **The setup refuses an account's user that holds more:** a user that is a member of any group but its own, or a
@@ -122,9 +123,10 @@ every node shares are `docs/work-nodes.md`.
   - a program run in the sandbox the policy describes is refused a read of the owner's files, the owner's home, the
     hub's settings file, the data root's tokens and the system's secrets, and a write into the owner's folder, the
     system, beside the homes and into `/root`, as well as `sudo` and docker, a connection to a port of this
-    machine's loopback and a sight of another user's process; it reads and writes its own home, reaches the tool
-    host's port, and its temporary folders are its scratch folder; while a program of the owner's user still runs
-    `sudo`, reaches the port the account was refused and reads and writes what the account was refused;
+    machine's loopback or of another of its addresses, and a sight of another user's process; it reads and writes
+    its own home, reaches the tool host's port, and its temporary folders are its scratch folder; while a program of
+    the owner's user still runs `sudo`, reaches the ports the account was refused and reads and writes what the
+    account was refused;
   - an isolation node's link starts its far end as the account's user with no new privileges, mirrors a place both
     ways through it, lets a program of the node reach the home bridge in the link's folder for the policy's verbs
     alone, run as the owner's user, and leaves nothing of the account's running once the link ends.

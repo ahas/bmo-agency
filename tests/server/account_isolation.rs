@@ -1,9 +1,10 @@
 //! An account's isolation (docs/account-isolation.md, 「Where it is checked」): a user made by the setup's own first
 //! step, and a program run as it in the sandbox the policy describes, is refused a read and a write outside its
-//! home, the owner's files, the hub's settings file, sudo and docker, a port of this machine's loopback and a sight of
-//! another user's process, and is allowed its own home and the tool host's port; while a program of the owner's user
-//! still reads and writes them. The user is real and is taken away again with its firewall table, so the test runs
-//! where this machine's user holds passwordless sudo, as the deployment's does.
+//! home, the owner's files, the hub's settings file, sudo and docker, a port of this machine's loopback or of another
+//! of its addresses and a sight of another user's process, and is allowed its own home and the tool host's port; while
+//! a program of the owner's user still reads and writes them. The user is real and is taken away again with its
+//! firewall table, so the test runs where this machine's user holds passwordless sudo, as the deployment's does. A
+//! copy into the node whose writing side ends early fails at once, which needs no user.
 
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
@@ -69,6 +70,30 @@ fn shown(path: &Path) -> String {
   path.display().to_string()
 }
 
+#[tokio::test]
+async fn a_copy_whose_writer_ends_at_once_fails_at_once_rather_than_holding_its_reader() {
+  // More than a pipe holds, so the reader is still printing once the writer has gone.
+  let source = tempfile::NamedTempFile::new().expect("a source");
+
+  std::fs::write(source.path(), vec![b'x'; 4 << 20]).expect("its bytes");
+
+  let mut reading = tokio::process::Command::new("cat");
+  let mut writing = tokio::process::Command::new("/bin/sh");
+
+  reading.arg(source.path()).kill_on_drop(true);
+  writing.args(["-c", "echo the sandbox ran nothing >&2; exit 3"]).kill_on_drop(true);
+
+  let (copied, said) = tokio::time::timeout(
+    std::time::Duration::from_secs(60),
+    agency_server::verbs::work_node_isolated::carried(reading, writing),
+  )
+  .await
+  .expect("the copy ends once its writer has");
+
+  assert!(!copied);
+  assert!(said.contains("the sandbox ran nothing"), "{said}");
+}
+
 #[test]
 fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_before_its_program() {
   let isolation = Isolation::of_account("7").expect("a login id");
@@ -91,7 +116,7 @@ fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_be
     "delete table inet bmo-account-7; table inet bmo-account-7 {",
     "meta skuid bmo-account-7 jump account",
     "ip daddr 127.0.0.1 tcp dport 4321 accept",
-    "fib daddr type local goto refuse",
+    "meta oif lo goto refuse",
     "192.168.0.0/16",
   ] {
     assert!(firewall.contains(rule), "{rule} in {firewall}");
@@ -111,11 +136,14 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  // The tool host's port, and another port of this machine's loopback.
+  // The tool host's port, another port of this machine's loopback, and a port on another address of this machine,
+  // which no private range names, so only the rule on this machine's own addresses refuses it.
   let tool_host = TcpListener::bind("127.0.0.1:0").expect("a tool host");
   let other = TcpListener::bind("127.0.0.1:0").expect("another port");
   let tool_port = tool_host.local_addr().expect("its port").port();
   let other_port = other.local_addr().expect("its port").port();
+  let elsewhere = TcpListener::bind("127.0.0.2:0").expect("a port on another address");
+  let elsewhere_port = elsewhere.local_addr().expect("its port").port();
 
   assert!(IsolatedDoor::open(&isolation, false, tool_port).await.is_err(), "a check makes no user");
 
@@ -155,6 +183,10 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
     (
       "a connection to a port of this machine's loopback",
       format!("exec 3<>/dev/tcp/127.0.0.1/{other_port}"),
+    ),
+    (
+      "a connection to another address of this machine",
+      format!("exec 3<>/dev/tcp/127.0.0.2/{elsewhere_port}"),
     ),
     ("a sight of another user's process", "ls /proc/1".to_owned()),
   ];
@@ -202,6 +234,10 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   assert!(
     TcpStream::connect(("127.0.0.1", other_port)).is_ok(),
     "the owner's user reaches the port"
+  );
+  assert!(
+    TcpStream::connect(("127.0.0.2", elsewhere_port)).is_ok(),
+    "the owner's user reaches the other address"
   );
   assert!(owner_runs(&format!("cat {} && touch {}", shown(&secret), shown(&written))));
 
