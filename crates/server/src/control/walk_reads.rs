@@ -33,6 +33,7 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
     "enabled": provider_enabled(&ground.db, name).await?,
     "registered": provider.unregistered().is_some(),
     "gateway": provider.models_on_gateway(),
+    "ownersEngine": declared.owners_engine,
     "lines": declared.lines,
     "quota": quota,
     "reason": missing.as_ref().map(|missing| missing.text.clone()),

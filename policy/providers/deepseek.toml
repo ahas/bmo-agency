@@ -12,6 +12,9 @@ lines = ["chat", "gate", "worker", "search"]
 # A mapping of it carries a ceiling on the answer's tokens: its member names one.
 caps_answer_tokens = true
 
+# Its engine is not the owner's own: what a session reads goes to the outside service.
+owners_engine = false
+
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
 # holds no row for (docs/sessions.md, 「Session compaction」): half the window.
 fold_ratio = 0.5

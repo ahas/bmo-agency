@@ -73,6 +73,9 @@ pub struct Declared {
   pub lines: Vec<String>,
   /// Whether a mapping of it carries a ceiling on the answer's tokens.
   pub caps_answer_tokens: bool,
+  /// Whether its engine is the owner's own, so what a session on it reads stays with the owner
+  /// (docs/provider-presence.md); every provider declares it, none is left to a default.
+  pub owners_engine: bool,
   /// The share of a model's window a session on it may fill before it is folded, where the fold-ratio
   /// table holds none for the session's tier (docs/sessions.md, 「Session compaction」); none leaves the
   /// general share `resident-turn.toml` names.

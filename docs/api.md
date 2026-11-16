@@ -962,7 +962,12 @@ window names one. The quota is the provider's as a whole and names no model, so 
 no quota left although a run on a model the provider says costs nothing still goes out on it
 (`docs/provider-order.md`, 「Quota: what a provider has left」). `gateway` says its models are served by
 agency's model gateway — the registry's registrations and the member roads of Codex, OpenRouter and
-DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
+DeepSeek — and `registered` says the models are the registry's registrations alone. `ownersEngine` says its
+engine is the owner's own, so what a session on it reads stays with the owner: the provider's own declaration
+(`docs/provider-presence.md`), true for the registry's registrations and Claude Code on the owner's logins and
+false for every road that hands what it reads to an outside service (`docs/supervisors.md`, 「What confines a
+session allowed files」). A consumer judging where a session's reading goes reads it, never `registered` or
+`gateway` in its place, since a provider may be neither and still not the owner's own. A provider that cannot
 answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
 `reasonCode`, its kebab-case code, both null on a provider that can answer. Each provider answers
 `foldRatioDefault` as well: the compaction threshold a supervisor or an agent whose road is on it is given

@@ -2832,6 +2832,11 @@ export interface components {
             registered: boolean;
             /** @description Whether its models are served by agency's model gateway. */
             gateway: boolean;
+            /**
+             * @description Whether its engine is the owner's own, as the provider declares it: what a session on it reads stays with
+             *     the owner. Neither `registered` nor `gateway` stands in for it.
+             */
+            ownersEngine: boolean;
             /** @description The launch lines its program carries. */
             lines: string[];
             quota: components["schemas"]["ProviderQuota"];

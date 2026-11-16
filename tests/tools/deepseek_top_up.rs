@@ -106,7 +106,7 @@ async fn route(State(stand): State<Stand>, method: Method, uri: Uri) -> (StatusC
   let read = balance.is_some();
   let answer = json!({
     "name": "deepseek", "code": "deepseek", "label": "DeepSeek", "enabled": true, "registered": false,
-    "gateway": true, "lines": ["chat"], "reason": null, "reasonCode": null, "foldRatioDefault": 0.5,
+    "gateway": true, "ownersEngine": false, "lines": ["chat"], "reason": null, "reasonCode": null, "foldRatioDefault": 0.5,
     "quota": {
       "has": balance.is_some_and(|balance| balance > 0.0), "left": null, "window": null,
       "balance": balance, "currency": read.then_some(stand.currency),

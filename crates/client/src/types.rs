@@ -713,6 +713,9 @@ pub struct Provider {
   pub registered: bool,
   /// Whether its models are served by agency's model gateway.
   pub gateway: bool,
+  /// Whether its engine is the owner's own, as the provider declares it: what a session on it reads stays with
+  /// the owner. Neither `registered` nor `gateway` stands in for it.
+  pub owners_engine: bool,
   /// The launch lines its program carries.
   pub lines: Vec<String>,
   pub quota: ProviderQuota,

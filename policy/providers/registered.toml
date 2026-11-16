@@ -12,6 +12,9 @@ lines = ["chat", "gate", "worker", "translate", "search"]
 # A mapping of it carries a ceiling on the answer's tokens beside its model and effort.
 caps_answer_tokens = true
 
+# Its engine is the owner's own: the registry's registrations, the engines the owner registers.
+owners_engine = true
+
 [effort]
 # Every effort word a mapping of it may hold: whether the registration thinks.
 words = ["thinking", "no-thinking"]

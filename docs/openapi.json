@@ -10251,6 +10251,10 @@
             "type": "boolean",
             "description": "Whether its models are served by agency's model gateway."
           },
+          "ownersEngine": {
+            "type": "boolean",
+            "description": "Whether its engine is the owner's own, as the provider declares it: what a session on it reads stays with\nthe owner. Neither `registered` nor `gateway` stands in for it."
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -10296,6 +10300,7 @@
           "enabled",
           "registered",
           "gateway",
+          "ownersEngine",
           "lines",
           "quota",
           "reason",

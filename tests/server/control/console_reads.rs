@@ -108,6 +108,21 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
     }
   }
 
+  // Each provider answers its own declaration of whether its engine is the owner's own: the registry's engines
+  // and Claude Code on the owner's logins are, the outside roads are not.
+  let owners_engines: Vec<(String, Value)> = providers["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|one| (one["name"].as_str().unwrap().to_owned(), one["ownersEngine"].clone()))
+    .collect();
+
+  for (name, own) in &owners_engines {
+    let expected = matches!(name.as_str(), "claude-code" | "registered");
+
+    assert_eq!(own, &json!(expected), "{name}: {own}");
+  }
+
   // The reset point alone, and the rooms the supervisor's turns went into, the latest first.
   assert_eq!(
     get(port, token, "/supervisors/chat-agent/reset-point").await,

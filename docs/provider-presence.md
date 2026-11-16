@@ -11,9 +11,15 @@
     publishes none;
   - whether it holds logins of its own: Claude Code alone, whose logins are its accounts.
 - **What each provider is** — its label, its lines, its effort words, the sentence it says where it is
-  missing, where its catalogue is read — is its own file of agency's policy (`policy/providers/`); whether
-  its models are the registry's registrations is its own member's answer. A consumer reads them, with
-  whether the owner has each on (`docs/api.md`, 「providers, models and model files」).
+  missing, where its catalogue is read, whether its engine is the owner's own — is its own file of agency's
+  policy (`policy/providers/`); whether its models are the registry's registrations is its own member's
+  answer. A consumer reads them, with whether the owner has each on (`docs/api.md`, 「providers, models and
+  model files」).
+- **Whether its engine is the owner's own** is a declaration every provider's file makes, none left to a
+  default: an engine of the registry's registrations, and Claude Code on the owner's own logins, are the
+  owner's own; a road that hands what it reads to an outside service, Codex, OpenRouter and DeepSeek among
+  them, is not. A new provider declares it in its own file, and nothing else reads it off another of its
+  answers (`docs/supervisors.md`, 「What confines a session allowed files」).
 - **Agency's server links the crate;** the TypeScript that asks — the verbs and the provider
   modules they import — runs its binary of the same name, out of the deploy tree's `bin/`. Where the
   deploy tree holds none — code running out of a checkout — it runs the checkout's own debug build,

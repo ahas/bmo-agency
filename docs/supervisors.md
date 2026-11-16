@@ -155,9 +155,11 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **A supervisor of no account, or of the administrator's account, runs as the owner's own user on this
   machine.** Allowed files or the shell, it reads everything that user reads: the data root, every unit's token
   and settings files under `env/`, every room's files and every account's data; and what it reads goes to the
-  provider its road names. Such a supervisor is set on a road whose engine is not the owner's own, any road but
-  the registry's own engines and Claude Code under the owner's accounts, on the owner's word alone, or with a
-  tool limit that leaves `program.files`, `program.shell` and `room.tools` out.
+  provider its road names. Such a supervisor is set on a road whose engine is not the owner's own on the owner's
+  word alone, or with a tool limit that leaves `program.files`, `program.shell` and `room.tools` out.
+- **Whether a road's engine is the owner's own is its provider's declaration** (`docs/provider-presence.md`),
+  answered as `ownersEngine` on the provider (`docs/api.md`, 「providers, models and model files」): the
+  registry's own engines and Claude Code under the owner's accounts declare it, every other provider does not.
 
 ### Its generation settings
 

@@ -11,6 +11,9 @@ lines = ["chat", "gate", "worker"]
 # A mapping of it carries a ceiling on the answer's tokens: its member names one.
 caps_answer_tokens = true
 
+# Its engine is not the owner's own: what a session reads goes to the outside service.
+owners_engine = false
+
 [effort]
 # Every effort word a mapping of it may hold.
 words = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]

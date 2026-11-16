@@ -10,6 +10,9 @@ lines = ["chat", "gate", "worker", "search", "browse", "translate"]
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
 caps_answer_tokens = false
 
+# Its engine is the owner's own: Claude Code on the owner's own logins.
+owners_engine = true
+
 [effort]
 # Every effort word a mapping of it may hold, in the order a screen shows them.
 words = ["low", "medium", "high", "xhigh", "max"]
