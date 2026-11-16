@@ -15,6 +15,7 @@ use policy::run_groups::RUN_GROUPS;
 use serde::{Deserialize, Serialize};
 
 pub use launcher::{LAUNCH_VERB, REAP_VERB, launch, launch_line, reap};
+use processes::Members;
 pub use processes::{Seen, ticks_now};
 
 /// The variable a run is told its own name in.
@@ -173,19 +174,35 @@ fn signal(pid: i32, signal: i32) {
   }
 }
 
+// Looks until a look reads every process or the bound has passed, so what is found first is the whole of
+// the mark wherever the machine lets it be read whole.
+fn first_look(mark: &Mark, own: i32, bound: Duration, look: Duration) -> Members {
+  let deadline = Instant::now() + bound;
+
+  loop {
+    let first = processes::members(mark, own);
+
+    if first.whole || Instant::now() >= deadline {
+      return first;
+    }
+
+    std::thread::sleep(look);
+  }
+}
+
 // Waits until nothing of the mark is left or the bound has passed, sending each process found the
 // signal, so a process the run started during the wait is asked too; answers what is still there.
-fn wait_out(mark: &Mark, own: i32, bound: Duration, look: Duration, sent: i32) -> Vec<Seen> {
+fn wait_out(mark: &Mark, own: i32, bound: Duration, look: Duration, sent: i32) -> Members {
   let deadline = Instant::now() + bound;
 
   loop {
     let standing = processes::members(mark, own);
 
-    if standing.is_empty() || Instant::now() >= deadline {
+    if standing.none_left() || Instant::now() >= deadline {
       return standing;
     }
 
-    for seen in &standing {
+    for seen in &standing.seen {
       signal(seen.pid, sent);
     }
 
@@ -194,23 +211,24 @@ fn wait_out(mark: &Mark, own: i32, bound: Duration, look: Duration, sent: i32) -
 }
 
 /// Every process of the mark taken down: asked to end with TERM, given the grace, and what still stands
-/// killed with its group, then the group removed. This process is never among them.
+/// killed with its group, then the group removed. This process is never among them. A look that could not
+/// read every process never counts as finding nothing left.
 pub fn take_down(mark: &Mark, timing: Timing) -> TakenDown {
   let own = std::process::id() as i32;
-  let found = processes::members(mark, own);
+  let first = first_look(mark, own, timing.grace, timing.look);
   let group = match mark {
     Mark::Run { group, .. } => group.clone(),
     Mark::Place { .. } => None,
   };
 
-  if !found.is_empty() {
-    for seen in &found {
+  if !first.none_left() {
+    for seen in &first.seen {
       signal(seen.pid, libc::SIGTERM);
     }
 
     let standing = wait_out(mark, own, timing.grace, timing.look, libc::SIGTERM);
 
-    if !standing.is_empty() {
+    if !standing.none_left() {
       if let Some(group) = &group {
         let _ = std::fs::write(group.join("cgroup.kill"), "1");
       }
@@ -219,7 +237,7 @@ pub fn take_down(mark: &Mark, timing: Timing) -> TakenDown {
     }
   }
 
-  let left = !processes::members(mark, own).is_empty();
+  let left = !processes::members(mark, own).none_left();
 
   if let Some(group) = &group
     && !left
@@ -227,7 +245,10 @@ pub fn take_down(mark: &Mark, timing: Timing) -> TakenDown {
     processes::remove_group(group);
   }
 
-  TakenDown { found, left }
+  TakenDown {
+    found: first.seen,
+    left,
+  }
 }
 
 /// A grouped run taken down, its record removed once nothing of it is left, and a line written for it
@@ -364,7 +385,7 @@ pub async fn standing(data: &Path) -> Vec<Standing> {
       .map(|record| Standing {
         record: record.clone(),
         program_runs: record.program_runs(),
-        holds: processes::members(&record.mark(&all), own),
+        holds: processes::members(&record.mark(&all), own).seen,
       })
       .collect()
   })

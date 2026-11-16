@@ -79,6 +79,15 @@ So what is taken down is keyed on the program ending, never on which of the ways
 A take-down is the same whoever does it and may be done twice: a process already gone is passed over, and a
 group or record already removed is not an error.
 
+- **A look reads the machine's processes one at a time,** letting each go before the next, so it holds only
+  a few files open however many processes run. A unit's soft limit on open files stands far below the number
+  of processes a busy machine runs, and a reaper started in herdr's pane carries that limit.
+- **A look that could not read every process never counts as finding nothing.** A process gone or not the
+  account's to read is passed over; a reading this process failed itself, for want of a descriptor or of
+  memory, makes the look partial. The first look is taken again until one is whole, up to the grace; a
+  partial look during the waits counts as something still standing; and a take-down whose last look was
+  partial leaves the group and the record for the sweep.
+
 ## Who takes it down
 
 - **The run's reaper.** The launcher starts it before the program, outside the run's group and in a

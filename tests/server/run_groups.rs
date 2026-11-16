@@ -4,6 +4,7 @@
 //! was hung up on or was killed.
 
 use std::ffi::OsString;
+use std::os::unix::process::CommandExt as _;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -17,6 +18,11 @@ use crate::support::binary;
 
 // How long a condition the test waits on may take before the test fails.
 const BOUND: Duration = Duration::from_secs(30);
+
+// The open files a launched run may hold at once: well under the number of processes any machine runs, as a
+// unit's soft limit is under a busy machine's, so a take-down that held a file for each process it read would
+// miss the run's own.
+const FEW_FILES: libc::rlim_t = 32;
 
 // A take-down's waits, short: the test's processes end at once on what they are sent.
 const SHORT: Timing = Timing {
@@ -204,7 +210,8 @@ enum Ending {
 
 // A run launched as a pane launches it: a background process, a daemon that leaves the program's session
 // and is re-parented, and one that moves itself out of the run's group as a browser does; then the program
-// ends the way the test asks. Nothing of the run is left once its reaper is done.
+// ends the way the test asks. Nothing of the run is left once its reaper is done, though the launcher, its
+// reaper and the run may hold only a few files open.
 fn a_launched_run_leaves_nothing(ending: Ending) {
   let data = tempfile::tempdir().unwrap();
   let name = unique("run-launched");
@@ -221,7 +228,9 @@ fn a_launched_run_leaves_nothing(ending: Ending) {
   let script = format!(
     "sleep 600 & setsid sleep 600 & sh -c 'echo $$ > \"$ESCAPE_TO/cgroup.procs\" 2>/dev/null; exec setsid sleep 600' & {end}"
   );
-  let mut program = Command::new(binary::path("bmo-agency"))
+  let mut launch = Command::new(binary::path("bmo-agency"));
+
+  launch
     .args([LAUNCH_VERB, &name, "--record"])
     .arg(&record)
     .args(["--", "sh", "-c", &script])
@@ -229,9 +238,31 @@ fn a_launched_run_leaves_nothing(ending: Ending) {
     .env("ESCAPE_TO", &own_group)
     .stdin(Stdio::null())
     .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .spawn()
-    .unwrap();
+    .stderr(Stdio::null());
+
+  // SAFETY: getrlimit and setrlimit are async-signal-safe and touch only the child's own limit.
+  unsafe {
+    launch.pre_exec(|| {
+      let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+      };
+
+      if libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) < 0 {
+        return Err(std::io::Error::last_os_error());
+      }
+
+      limit.rlim_cur = limit.rlim_cur.min(FEW_FILES);
+
+      if libc::setrlimit(libc::RLIMIT_NOFILE, &limit) < 0 {
+        return Err(std::io::Error::last_os_error());
+      }
+
+      Ok(())
+    });
+  }
+
+  let mut program = launch.spawn().unwrap();
   let pid = program.id();
 
   wait_until("the launcher's record with its reaper", || {

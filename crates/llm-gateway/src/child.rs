@@ -126,18 +126,28 @@ fn held_by_another(pid: u32, port: u16) -> bool {
   }
 
   let Ok(all) = procfs::process::all_processes() else { return false };
-  let processes: Vec<procfs::process::Process> = all.filter_map(Result::ok).collect();
-  let parents: Vec<(i32, i32)> = processes
-    .iter()
-    .filter_map(|one| one.stat().ok().map(|stat| (one.pid, stat.ppid)))
+  // Each process is read and its handle let go before the next is opened, since a handle holds a
+  // descriptor: the look holds a few files open however many processes the machine runs.
+  let processes: Vec<(i32, Option<i32>, bool)> = all
+    .filter_map(Result::ok)
+    .map(|one| {
+      let parent = one.stat().ok().map(|stat| stat.ppid);
+      let listens = one.fd().is_ok_and(|fds| {
+        fds.filter_map(Result::ok).any(
+          |fd| matches!(fd.target, procfs::process::FDTarget::Socket(inode) if sockets.contains(&inode)),
+        )
+      });
+
+      (one.pid, parent, listens)
+    })
     .collect();
   let mut family = BTreeSet::from([pid as i32]);
 
   loop {
     let before = family.len();
 
-    for (child, parent) in &parents {
-      if family.contains(parent) {
+    for (child, parent, _) in &processes {
+      if parent.is_some_and(|parent| family.contains(&parent)) {
         family.insert(*child);
       }
     }
@@ -147,13 +157,7 @@ fn held_by_another(pid: u32, port: u16) -> bool {
     }
   }
 
-  processes.iter().filter(|one| !family.contains(&one.pid)).any(|one| {
-    one.fd().is_ok_and(|fds| {
-      fds
-        .filter_map(Result::ok)
-        .any(|fd| matches!(fd.target, procfs::process::FDTarget::Socket(inode) if sockets.contains(&inode)))
-    })
-  })
+  processes.iter().any(|(one, _, listens)| *listens && !family.contains(one))
 }
 
 // Whether the child answers its liveliness path with a success: a refused or broken connection is no, and
