@@ -1945,7 +1945,8 @@ Of the brain it asks an agent's own brain made as the agent is registered, found
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
 with the issuer token, a session token for each program and run that holds a capability, which it takes
-back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
+back, the asynchronous calls still running (`GET /uses`, `state=running`) before it takes back a token a
+supervisor's replaced program carried, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
 reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a supervisor's double's instruction
 calls for, picked over the brain of the supervisor the call names in its `agent`, and attaches the picked entries

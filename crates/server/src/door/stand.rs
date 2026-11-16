@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use agent_host::place::RunningProgram;
 use herdr::Fault;
+use policy::handoff::HANDOFF;
 use policy::resident_turn::RESIDENT_TURN;
 use serde::Deserialize;
 use serde_json::json;
@@ -203,12 +204,13 @@ where
     .await
     .map_err(|refused| fault("program_not_written", refused.detail))?;
 
-  // A token the place's program no longer carries is taken back from the tool host.
+  // A token the place's program no longer carries is given up to the tool host, once no asynchronous call
+  // asked under it still runs.
   if let Some(old) = before.as_ref().and_then(token_of)
     && Some(old) != token_of(&written)
     && place.program().as_ref().and_then(token_of) != Some(old)
   {
-    token::revoke(ground, old).await;
+    token::let_go(ground, old, Duration::from_secs(HANDOFF.calls_look_seconds)).await;
   }
 
   // A start failure written from now on, for this program, is the answer; one written before is a head

@@ -192,6 +192,17 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A room's session opened because the session it had is gone carries nothing:** there is no session
   left to ask. So does a room's session cleared by the owner's reset, whose program is taken down with
   it (`docs/session-resets.md`, 「Who holds a session」).
+- **A supervisor's asynchronous calls go on into its next session.** A call a session started with
+  `bmo use --async` — a deployment, a wait, a delegation — runs under the tool host's record of the session
+  token its program carried, and the tool host cancels it the moment that record is taken back. Its wake is
+  queued for an agent and a room, never for a session, so the session that follows is the one it wakes. So where a
+  supervisor's program is replaced or taken down — stood afresh on a new session, or taken down with a session
+  that ended — the token it carried is taken back only once no asynchronous call asked under its record still
+  runs, as is the token of any resident program a place stands afresh: agency reads the calls running
+  (`GET /uses`) and, while one under that record runs, leaves the record standing and looks again every
+  `calls_look_seconds` (`policy/handoff.toml`), taking it back after the last has ended. A host that does not
+  answer the read is taken to hold none. A record left waiting when agency's own process ends lapses at its
+  backstop, a day after it was issued.
 
 ## Document reload
 

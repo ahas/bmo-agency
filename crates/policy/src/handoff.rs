@@ -8,6 +8,8 @@ use serde::Deserialize;
 pub struct Handoff {
   /// How long agency waits before asking again while a handoff is under way, in seconds.
   pub retry_seconds: u64,
+  /// How often a replaced program's tool record is looked at for asynchronous calls still running, in seconds.
+  pub calls_look_seconds: u64,
   pub reasons: Reasons,
 }
 

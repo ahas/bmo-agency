@@ -15,6 +15,7 @@ use bmo_pocket_client::{Failure, Granted, Pocket, SessionRequest};
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use super::fault;
 use crate::Refusal;
@@ -647,6 +648,54 @@ pub async fn revoke(ground: &Ground, token: &str) {
   };
 
   let _ = pocket(ground, issuer).revoke(token).await;
+}
+
+/// The token a replaced or taken-down resident program carried, given up (docs/sessions.md, 「A restart hands the
+/// session over」): taken back at once where no asynchronous call asked under its record still runs, else left
+/// standing and looked at again every `look` until none does, then taken back. Such a call wakes its agent by name
+/// and room, whichever session stands then, so a deployment, a wait or a delegation the session going away started
+/// runs on and wakes the next one. The waiting goes on beside the caller, which never waits for it.
+pub async fn let_go(ground: &Ground, token: &str, look: Duration) {
+  let Some(issuer) = issuer_token(ground) else {
+    return;
+  };
+  let socket = host_socket(ground);
+
+  if calls_running(&socket, &issuer, token).await == 0 {
+    let _ = Pocket::at(&socket, issuer).revoke(token).await;
+    return;
+  }
+
+  let token = token.to_owned();
+
+  tokio::spawn(async move {
+    loop {
+      tokio::time::sleep(look).await;
+
+      if calls_running(&socket, &issuer, &token).await == 0 {
+        let _ = Pocket::at(&socket, issuer).revoke(&token).await;
+        return;
+      }
+    }
+  });
+}
+
+/// How many asynchronous calls asked under the record `token` names the tool host keeps running; none where the
+/// host does not answer the read, which leaves nothing to wait for.
+async fn calls_running(socket: &Path, issuer: &str, token: &str) -> usize {
+  let record = hex::encode(Sha256::digest(token.as_bytes()));
+  let read = bmo_pocket_client::transport::request(
+    socket,
+    reqwest::Method::GET,
+    "/uses?state=running",
+    Some(issuer),
+    None,
+  )
+  .await;
+  let page = read.ok().filter(|reply| reply.status.is_success()).and_then(|reply| reply.json());
+  let calls = page.as_ref().and_then(|page| page["items"].as_array());
+
+  calls.map_or(0, |calls| calls.iter().filter(|call| call["session"] == record.as_str()).count())
 }
 
 /// The checkout a program's tool session reads its graph from: its own, or for a program on a work

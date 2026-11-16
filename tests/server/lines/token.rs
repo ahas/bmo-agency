@@ -106,3 +106,102 @@ fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set(
   );
   assert!(line_variables(&ground, "worker").is_empty());
 }
+
+/// A tool host standing on `socket` that keeps one asynchronous call running under the record of `token` while
+/// `running` holds, and one under another record always, answers them to the issuer's running read, and keeps the
+/// tokens taken back from it.
+fn host_keeping_a_call(
+  socket: &std::path::Path,
+  token: &str,
+  running: std::sync::Arc<std::sync::atomic::AtomicBool>,
+  taken_back: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+) {
+  use sha2::Digest;
+
+  let record = hex::encode(sha2::Sha256::digest(token.as_bytes()));
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new()
+    .route(
+      "/uses",
+      axum::routing::get(move |query: axum::extract::Query<std::collections::HashMap<String, String>>| {
+        let record = record.clone();
+        let running = running.clone();
+
+        async move {
+          assert_eq!(query.get("state").map(String::as_str), Some("running"));
+
+          let mut items = vec![json!({ "id": "other", "session": "another-record", "state": "running" })];
+
+          if running.load(std::sync::atomic::Ordering::SeqCst) {
+            items.push(json!({ "id": "deploy", "session": record, "state": "running" }));
+          }
+
+          axum::Json(json!({ "items": items }))
+        }
+      }),
+    )
+    .route(
+      "/tool-sessions/{token}",
+      axum::routing::delete(move |axum::extract::Path(token): axum::extract::Path<String>| {
+        let taken_back = taken_back.clone();
+
+        async move {
+          taken_back.lock().unwrap().push(token);
+          axum::http::StatusCode::NO_CONTENT
+        }
+      }),
+    );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+}
+
+#[tokio::test]
+async fn a_replaced_programs_token_stands_while_a_call_asked_under_it_runs_and_is_taken_back_once_it_ends()
+{
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+  let taken_back = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+
+  host_keeping_a_call(&socket, "old-token", running.clone(), taken_back.clone());
+
+  let ground = ground_with_host(home.path(), &socket, "issuer");
+
+  let_go(&ground, "old-token", std::time::Duration::from_millis(20)).await;
+
+  assert!(taken_back.lock().unwrap().is_empty(), "the record stands while its call runs");
+
+  running.store(false, std::sync::atomic::Ordering::SeqCst);
+
+  let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+
+  while taken_back.lock().unwrap().is_empty() && std::time::Instant::now() < deadline {
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+  }
+
+  assert_eq!(*taken_back.lock().unwrap(), ["old-token"], "taken back once its last call ended");
+}
+
+#[tokio::test]
+async fn a_replaced_programs_token_with_no_call_of_its_own_running_is_taken_back_at_once() {
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let taken_back = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+
+  host_keeping_a_call(
+    &socket,
+    "old-token",
+    std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    taken_back.clone(),
+  );
+
+  let ground = ground_with_host(home.path(), &socket, "issuer");
+
+  let_go(&ground, "old-token", std::time::Duration::from_secs(3_600)).await;
+
+  assert_eq!(
+    *taken_back.lock().unwrap(),
+    ["old-token"],
+    "another record's running call holds nothing back"
+  );
+}

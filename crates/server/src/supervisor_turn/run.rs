@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use harness_providers::claude_code::ClaudeCode;
 use policy::fill_marks;
+use policy::handoff::HANDOFF;
 use policy::providers::Turns;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
 use serde_json::{Value, json};
@@ -306,7 +307,7 @@ async fn take_down(
   };
 
   if let Some(old) = released.as_ref().and_then(token_of) {
-    token::revoke(ground, old).await;
+    token::let_go(ground, old, Duration::from_secs(HANDOFF.calls_look_seconds)).await;
   }
 
   println!("supervisor {agent}: its program stood on a session that ended, and was taken down");

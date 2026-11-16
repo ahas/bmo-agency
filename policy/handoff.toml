@@ -3,6 +3,9 @@
 # one is under way, and the reasons it names, each by what makes the session go. The ask itself waits for
 # the receiver's answer however long it takes.
 retry_seconds = 5
+# How often agency looks again whether an asynchronous call asked under a replaced supervisor program's tool
+# record still runs, before it takes that record back.
+calls_look_seconds = 30
 
 [reasons]
 lost = "the kept session is gone: the program no longer holds it"
