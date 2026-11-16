@@ -177,11 +177,29 @@ pub(super) fn amount(amount: f64) -> TopUpInput {
   }
 }
 
-/// The session a throwaway profile is planted with, by its path in the profile, each a file of its own words.
-const PLANTED: [(&str, &str); 2] = [
+/// The session and settings a throwaway profile is planted with, by their path in the profile, each a file of its
+/// own words. The owner's preferences hold settings of his that equal what Firefox's remote agent recommends for
+/// automation, which a browser applying those would leave out of what it writes as it ends, and keep the test's
+/// browser off Mozilla's servers. He keeps no user file, as the owner's profile holds none.
+const PLANTED: [(&str, &str); 3] = [
   ("sessionstore.jsonlz4", "the owner's last session"),
   ("sessionstore-backups/recovery.jsonlz4", "the owner's recovered tabs"),
+  ("prefs.js", OWNER_PREFERENCES),
 ];
+
+const OWNER_PREFERENCES: &str = r#"user_pref("browser.safebrowsing.malware.enabled", false);
+user_pref("browser.urlbar.suggest.searches", false);
+user_pref("browser.newtabpage.activity-stream.showSponsoredTopSites", false);
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
+user_pref("toolkit.telemetry.server", "data:,");
+user_pref("services.settings.server", "data:,#remote-settings-dummy/v1");
+user_pref("network.captive-portal-service.enabled", false);
+user_pref("network.connectivity-service.enabled", false);
+user_pref("app.normandy.enabled", false);
+user_pref("browser.startup.homepage_override.mstone", "ignore");
+user_pref("startup.homepage_welcome_url", "about:blank");
+"#;
 
 /// A throwaway Firefox profiles folder made in `near`, as the owner's Firefox keeps his: `profiles.ini` naming the
 /// one profile, `profile`, its default, which holds the planted session.
@@ -204,9 +222,9 @@ pub(super) fn firefox_profiles(near: &Path) -> tempfile::TempDir {
   root
 }
 
-/// The profile's session stands as it was planted, nothing beside it, and neither the call's endpoint note nor
-/// its folder is left.
-pub(super) fn assert_session_as_planted(root: &Path) {
+/// The profile's session and settings stand as they were planted, nothing beside the session, no user file, and
+/// neither the call's endpoint note nor its folder is left.
+pub(super) fn assert_profile_as_planted(root: &Path) {
   let profile = root.join("profile");
 
   for (path, words) in PLANTED {
@@ -223,6 +241,7 @@ pub(super) fn assert_session_as_planted(root: &Path) {
     .collect();
 
   assert_eq!(backups, ["recovery.jsonlz4"], "nothing of the call's own session is left");
+  assert!(!profile.join("user.js").exists(), "none of the call's preferences is left");
   assert!(
     !profile.join("WebDriverBiDiServer.json").exists(),
     "no note of the call's endpoint is left"
@@ -533,7 +552,7 @@ async fn a_profile_another_call_holds_refuses_the_call_and_leaves_the_session_as
     refused.starts_with("Nothing was paid: another DeepSeek top-up is under way"),
     "{refused}"
   );
-  assert_session_as_planted(&profiles);
+  assert_profile_as_planted(&profiles);
 }
 
 /// A record lock on the whole file, as a Firefox that has its profile open holds one on the profile's
@@ -564,11 +583,11 @@ async fn a_profile_the_owners_firefox_has_open_refuses_the_call_and_leaves_the_s
       && refused.ends_with("Call again once Firefox is closed."),
     "{refused}"
   );
-  assert_session_as_planted(&profiles);
+  assert_profile_as_planted(&profiles);
 }
 
 #[tokio::test]
-async fn a_browser_that_cannot_start_gives_the_owners_session_back_as_it_stood() {
+async fn a_browser_that_cannot_start_gives_the_owners_session_and_settings_back_as_they_stood() {
   let stand = Stand::kept(Some(3.5));
   let root = saved_root();
   let profiles = profiles_under(root.path());
@@ -580,7 +599,7 @@ async fn a_browser_that_cannot_start_gives_the_owners_session_back_as_it_stood()
     "{refused}"
   );
   holds_no_secret_value(&refused);
-  assert_session_as_planted(&profiles);
+  assert_profile_as_planted(&profiles);
 }
 
 /// The default profile a `profiles.ini` of the lines given names, in a folder of its own.

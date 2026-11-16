@@ -151,7 +151,10 @@ password_tab = ["Password login", "Login with password"]
 sign_in = ["Log in"]
 custom_amount = ["Custom"]
 amount = ["Amount", "Custom"]
-card_method = ["Debit or Credit Card", "Card"]
+# The card is paid through the platform's own card processor, whose way to pay shows only the card networks'
+# marks, named for a reader by their labels. The way to pay labelled "Debit or Credit Card" is PayPal's guest
+# checkout, which asks for a mail address, a billing address and a phone behind a reCAPTCHA, and is never chosen.
+card_method = ["Visa", "Mastercard"]
 next_step = ["Next step"]
 pay = ["Pay"]
 card_number = ["Card number"]

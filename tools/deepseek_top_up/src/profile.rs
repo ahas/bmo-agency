@@ -1,8 +1,9 @@
 //! The owner's own Firefox profile, found as his Firefox finds it and held for one call (docs/tools.md, 「How it
 //! pays」): never while his Firefox has it open, never by two calls at once, and handed back with his saved session
-//! as it stood, so a call leaves his tabs as he left them.
+//! and his settings as they stood, so a call leaves his tabs and his preferences as he left them.
 
 use std::fs::{File, OpenOptions, TryLockError};
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +13,10 @@ use ini::Ini;
 const PARENT_LOCK: &str = ".parentlock";
 /// What Firefox keeps the session it restores in: the last session's file and the folder of its backups.
 const SESSION: [&str; 2] = ["sessionstore.jsonlz4", "sessionstore-backups"];
+/// What Firefox keeps the owner's settings in: the preferences it writes out as it ends, and the user file it lays
+/// over them at each start.
+const SETTINGS: [&str; 2] = ["prefs.js", USER_FILE];
+const USER_FILE: &str = "user.js";
 /// What Firefox writes into its profile while its WebDriver BiDi endpoint listens, the endpoint's address, and
 /// leaves there where it is ended rather than closed.
 const ENDPOINT_NOTE: &str = "WebDriverBiDiServer.json";
@@ -120,15 +125,17 @@ fn whole_file(kind: libc::c_int) -> libc::flock {
   lock
 }
 
-/// The owner's profile held for one call, its saved session moved aside into a private folder of the call's in
-/// the profiles' folder, which also keeps what the call's browser needs readable beside it. Dropped, it gives the
-/// session back as it stood, under Firefox's own lock so no Firefox opens the profile meanwhile; where a Firefox
-/// has the profile open by then, the session stays aside in its folder, which is kept, rather than being written
-/// under a running Firefox.
+/// The owner's profile held for one call, its saved session moved aside and his settings copied aside into a private
+/// folder of the call's in the profiles' folder, which also keeps what the call's browser needs readable beside it,
+/// and the call's own preferences laid over his for its one start. Dropped, it gives the session and the settings
+/// back as they stood, under Firefox's own lock so no Firefox opens the profile meanwhile; where a Firefox has the
+/// profile open by then, they stay aside in its folder, which is kept, rather than being written under a running
+/// Firefox.
 pub struct Held {
   profile: PathBuf,
   folder: Option<tempfile::TempDir>,
-  /// Whether the whole session was set aside, so whatever stands in its place by the end is the call's own.
+  /// Whether the whole session and the settings were set aside, so whatever stands in their place by the end is the
+  /// call's own.
   whole: bool,
   /// The `.parentlock`, locked against another call for as long as this is held. The lock between calls is a whole
   /// file lock, which never meets Firefox's record lock on the same file.
@@ -136,8 +143,9 @@ pub struct Held {
 }
 
 impl Held {
-  /// The profile at `profile` held, its session moved aside into a folder made in `beside`.
-  pub fn take(profile: &Path, beside: &Path) -> Result<Self, Unheld> {
+  /// The profile at `profile` held, its session moved aside and its settings copied aside into a folder made in
+  /// `beside`, and `preferences`, lines of a Firefox user file, laid over the owner's own for the call's start.
+  pub fn take(profile: &Path, beside: &Path, preferences: &str) -> Result<Self, Unheld> {
     let lock = OpenOptions::new()
       .read(true)
       .write(true)
@@ -180,7 +188,24 @@ impl Held {
       }
     }
 
+    for name in SETTINGS {
+      let kept = profile.join(name);
+
+      if kept.exists() {
+        std::fs::copy(&kept, held.aside().join(name))
+          .map_err(|why| Unheld::Fault(format!("the profile's {name} could not be set aside: {why}")))?;
+      }
+    }
+
     held.whole = true;
+
+    OpenOptions::new()
+      .create(true)
+      .append(true)
+      .open(profile.join(USER_FILE))
+      .and_then(|mut user| write!(user, "\n{preferences}\n"))
+      .map_err(|why| Unheld::Fault(format!("the call's preferences could not be laid over: {why}")))?;
+
     Ok(held)
   }
 
@@ -194,11 +219,12 @@ impl Held {
   }
 
   fn aside(&self) -> PathBuf {
-    self.folder().join("session")
+    self.folder().join("kept")
   }
 
-  /// The owner's session put back as it stood, and, once the whole of it was set aside, whatever the call's browser
-  /// wrote in its place and the note of its endpoint removed first; an error where any of it could not be.
+  /// The owner's session and settings put back as they stood, and, once the whole of them was set aside, whatever
+  /// the call's browser wrote in their place and the note of its endpoint removed first; an error where any of it
+  /// could not be.
   fn give_back(&self) -> std::io::Result<()> {
     let note = self.profile.join(ENDPOINT_NOTE);
 
@@ -206,7 +232,7 @@ impl Held {
       std::fs::remove_file(note)?;
     }
 
-    for name in SESSION {
+    for name in SESSION.into_iter().chain(SETTINGS) {
       let left = self.profile.join(name);
 
       if self.whole && left.is_dir() {
@@ -240,8 +266,8 @@ impl Drop for Held {
       let kept = folder.keep();
 
       eprintln!(
-        "the owner's Firefox session could not be given back ({why}); it stands in {}",
-        kept.join("session").display()
+        "the owner's Firefox session and settings could not be given back ({why}); they stand in {}",
+        kept.join("kept").display()
       );
     }
   }

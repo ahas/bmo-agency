@@ -11,7 +11,13 @@
 //! loopback port it chooses itself, its pages' input dispatched inside the browser and never through the screen,
 //! and the mark an automated browser shows its pages is hidden from them, since DeepSeek's bot check meets a
 //! browser showing it with a human check. What is typed goes in as key presses and is never written anywhere by
-//! this module.
+//! this module, and the browser is told for its one start to keep no form entry, login or card.
+//!
+//! Firefox's remote agent would otherwise lay its recommended preferences for automation over the default branch
+//! while it runs. The owner's own setting that equals one of them is then left out of what Firefox writes as it
+//! ends, and they turn telemetry upload off and point Sync and telemetry at servers that do not exist, which resets
+//! his telemetry identity and queues a request to delete his data. So the call starts Firefox with them switched
+//! off, as an ordinary start of his own browser, and the profile's settings are given back as they stood.
 
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
@@ -84,7 +90,8 @@ pub enum Wanted<'a> {
     password: bool,
     alone: bool,
   },
-  /// A visible control that is not disabled, whose own text is one of the words, the first word first.
+  /// A visible control that is not disabled, whose own text, else the name it is given for a reader, as a mark
+  /// standing for a word is, is one of the words, the first word first.
   Control { words: &'a [String] },
 }
 
@@ -133,7 +140,7 @@ const FIND: &str = r#"(spec) => {
     return spec.alone && fields.length === 1 ? fields[0] : null;
   }
   const disabled = (element) => Boolean(element.closest('[disabled], [aria-disabled="true"], [class*="disabled"]'));
-  const own = (element) => lower(element.innerText || element.value);
+  const own = (element) => lower(element.innerText || element.value || element.getAttribute("aria-label"));
   const elements = [...document.querySelectorAll("body *")].filter(shown);
   for (const word of words) {
     const found = elements.find(
@@ -151,6 +158,17 @@ const UNMARKED: &str = "() => { Object.defineProperty(Navigator.prototype, 'webd
 /// The name of the tool's own sandbox in each frame: its scripts see the frame's document, never the page's own
 /// scripts, and the page never sees them.
 const SANDBOX: &str = "top-up";
+
+/// The preferences the call's Firefox starts with, as lines of a Firefox user file laid over the owner's own for
+/// that start alone: the remote agent's recommended preferences off; no form entry, login or card kept from what
+/// the call types; and its window, unfocused on a screen nobody looks at, behaving as focused, as a payment
+/// processor's fields expect of a person's window.
+const CALL_PREFERENCES: &str = r#"user_pref("remote.prefs.recommended", false);
+user_pref("browser.formfill.enable", false);
+user_pref("signon.rememberSignons", false);
+user_pref("extensions.formautofill.creditCards.enabled", false);
+user_pref("extensions.formautofill.addresses.enabled", false);
+user_pref("focusmanager.testmode", true);"#;
 
 /// The words Firefox announces its WebDriver BiDi endpoint with on its error stream, the endpoint after them.
 const ANNOUNCED: &str = "WebDriver BiDi listening on ";
@@ -241,7 +259,7 @@ impl Browser {
   pub async fn open(place: &Place) -> Result<Self, Unopened> {
     let profile = default_profile(&place.profiles)
       .map_err(|why| Unopened::Start(format!("the owner's Firefox profile was not found: {why}")))?;
-    let held = Held::take(&profile, &place.profiles).map_err(|unheld| match unheld {
+    let held = Held::take(&profile, &place.profiles, CALL_PREFERENCES).map_err(|unheld| match unheld {
       Unheld::Busy => Unopened::Busy,
       Unheld::Open => Unopened::Open,
       Unheld::Fault(why) => Unopened::Start(why),

@@ -26,7 +26,7 @@ use deepseek_top_up_tool::{MailService, Payer, top_up_with};
 use serde_json::{Value, json};
 
 use super::deepseek_top_up::{
-  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, USERNAME, agency, amount, assert_session_as_planted,
+  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, USERNAME, agency, amount, assert_profile_as_planted,
   data_root, firefox_profiles, holds_no_secret_value, whole_card, whole_login,
 };
 
@@ -112,15 +112,18 @@ document.getElementById("verify").addEventListener("click", async () => {
 
 const USAGE: &str = "<!doctype html><html><body><h1>Usage</h1></body></html>";
 
-/// The top-up form; `{card}` is the card frame's address on the other site.
+/// The top-up form, its ways to pay as the platform shows them: PayPal's guest checkout under the words of a card,
+/// the platform's own card processor by the card networks' marks alone, and Google Pay; `{card}` is the card
+/// frame's address on the other site.
 const TOP_UP: &str = r#"<!doctype html><html><body>
 <div>Amount</div>
 <label id="ten"><input type="radio" name="amount" value="10"> $10</label>
 <label id="custom"><input type="radio" name="amount"> Custom</label>
 <input type="text" id="amount" placeholder="Enter amount" style="display: none">
 <div>Payment method</div>
-<label id="card"><input type="radio" name="way"> Debit or Credit Card</label>
-<label id="paypal"><input type="radio" name="way"> PayPal</label>
+<label id="paypal"><input type="radio" name="way"> Debit or Credit Card</label>
+<label id="card"><input type="radio" name="way"><svg role="img" aria-label="Visa" width="40" height="20"><rect width="40" height="20"/></svg><svg role="img" aria-label="Mastercard" width="40" height="20"><rect width="40" height="20"/></svg></label>
+<label id="gpay"><input type="radio" name="way"><svg role="img" aria-label="Google Pay" width="40" height="20"><rect width="40" height="20"/></svg></label>
 <div role="button" id="next" style="display: none; padding: 8px; width: 80px">Next step</div>
 <div id="checkout" style="display: none">
   <iframe id="frame" width="420" height="260"></iframe>
@@ -135,6 +138,8 @@ document.getElementById("card").addEventListener("click", () => {
   step("card");
   shown("next");
 });
+document.getElementById("paypal").addEventListener("click", () => step("paypal"));
+document.getElementById("gpay").addEventListener("click", () => step("gpay"));
 document.getElementById("next").addEventListener("click", () => {
   step("next");
   document.getElementById("frame").src = "{card}";
@@ -575,8 +580,8 @@ async fn pay_on(fake: &Fake, root: &std::path::Path, confirm: Duration) -> Optio
 }
 
 /// One call paid on the fake platform in `firefox` from the profiles folder `profiles`, and its answer, checked
-/// for what no answer holds, for the processes it left, for the session it gave back, and for any saved value the
-/// profile kept.
+/// for what no answer holds, for the processes it left, for the session and settings it gave back, and for any saved
+/// value the profile kept.
 async fn pay_in(
   fake: &Fake,
   root: &std::path::Path,
@@ -608,7 +613,7 @@ async fn pay_in(
     "every read of the mail service carried its token and owner"
   );
   assert!(processes_naming(profiles).is_empty(), "the browser and its screen ended with the call");
-  assert_session_as_planted(profiles);
+  assert_profile_as_planted(profiles);
   assert_eq!(
     files_holding_a_secret(profiles),
     Vec::<String>::new(),

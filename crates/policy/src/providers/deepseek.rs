@@ -119,7 +119,7 @@ pub struct PageWords {
   pub password: Vec<String>,
   pub password_tab: Vec<String>,
   pub sign_in: Vec<String>,
-  /// The top-up form's controls, by their labels.
+  /// The top-up form's controls, by their own words or the names their marks are given for a reader.
   pub custom_amount: Vec<String>,
   pub amount: Vec<String>,
   pub card_method: Vec<String>,

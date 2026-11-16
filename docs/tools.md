@@ -283,17 +283,31 @@ belongs to no one service is a repository of its own, not a folder here.
   the tool reads, so the endpoint is the call's alone. Every press and key is dispatched inside the browser, into
   the page or the payment processor's frame it is meant for, never through the screen. Every page is told, before
   its own scripts run, that the browser is not automated, as a person's Firefox tells it.
+- **The call's Firefox starts as an ordinary start of the owner's own,** with a few preferences laid over his
+  for that start alone, in the profile's user file:
+  - the recommended preferences Firefox's remote agent would otherwise lay over the default branch, off. While
+    they stand, Firefox leaves out of what it writes as it ends every setting of the owner's that equals one of
+    them, and they turn telemetry upload off and point Sync and telemetry at servers that do not exist, which
+    resets his telemetry identity and queues a request to delete his telemetry data;
+  - no form entry, login or card kept from what the call types;
+  - its window, unfocused on a screen nobody looks at, behaving as focused, as a payment processor's fields
+    expect of a person's window.
+
+  Sync and telemetry run as they do whenever he starts Firefox, and the top-up page the call opens stands in his
+  history as a visit of his own would.
 - **The owner's profile is held for the call and handed back as it stood.**
   - A call pays nothing while the owner's Firefox has the profile open, found by the record lock Firefox holds on
     the profile's `.parentlock`, and says so: Firefox opens a profile once at a time. A call made while another
     call drives the profile is refused the same way, by a whole-file lock on the same file, which never meets
     Firefox's own.
   - The owner's saved session, `sessionstore.jsonlz4` and `sessionstore-backups/`, is set aside in the call's
-    private folder before Firefox starts, so his tabs neither load out of sight nor are overwritten. Once the
-    call's Firefox has ended, whatever it left in their place, and the note of its endpoint Firefox keeps in the
-    profile while it listens, are removed and his session is put back, under Firefox's own lock so no Firefox
-    opens the profile meanwhile. Where a Firefox has the profile open by then, his session stays in the call's
-    folder, which is kept and named on the tool's error stream, rather than being written under a running Firefox.
+    private folder before Firefox starts, so his tabs neither load out of sight nor are overwritten. His settings,
+    `prefs.js` and `user.js`, are copied there too, and the call's preferences are added to the user file. Once
+    the call's Firefox has ended, whatever it left in their place, and the note of its endpoint Firefox keeps in
+    the profile while it listens, are removed and his session and settings are put back as they stood, a user
+    file he did not keep removed, under Firefox's own lock so no Firefox opens the profile meanwhile. Where a
+    Firefox has the profile open by then, they stay in the call's folder, which is kept and named on the tool's
+    error stream, rather than being written under a running Firefox.
   - The call's tab is opened and closed by the call, and Firefox is closed through its endpoint, so what DeepSeek
     stored in the profile stays for the next call; whatever has not ended is then ended with everything it
     started.
@@ -304,8 +318,11 @@ belongs to no one service is a repository of its own, not a folder here.
      sign in, sign in with the login: the identity and the password typed into the fields the policy's words
      name, then the sign-in pressed. A sign-in DeepSeek refuses ends the call, naming the login's secret to save
      again.
-  2. On the top-up page, choose a custom amount and type the amount; choose the card; go on to the checkout
-     where the page asks for it.
+  2. On the top-up page, choose a custom amount and type the amount; choose the card, the way to pay that shows
+     the card networks' marks the policy's words name, which is the platform's own card processor; go on to the
+     checkout where the page asks for it. The way to pay labelled for a debit or credit card is PayPal's guest
+     checkout, which asks for a mail address, a billing address and a phone behind a reCAPTCHA, and is never
+     chosen.
   3. Type the card's fields into the fields the payment processor shows, found in any frame by their
      autocomplete purpose or the policy's words for each; the holder's name only where a field asks for it.
   4. Press pay, once.
