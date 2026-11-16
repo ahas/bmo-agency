@@ -55,6 +55,20 @@ every screen answers to and the sweep.
   3. Only a failure that was actually met wears the error colour, in a short line.
   4. Once it is confirmed, nothing is said.
   5. A count or a state is not shown as nought or none before it has been read.
+- What the user just did is not news, and no notice restates it.
+  1. A change made by the user's own press — a state toggled, an item held or released, approved,
+     moved, removed, a value chosen, an entry added or saved — is shown by the thing it changed: its
+     state mark, the group it stands in, the value in its field, the dialog that closed.
+  2. A notice speaks for an act only where the act was refused, where it brings something the user
+     has not seen yet — a new item, a place it leads to — where nothing on the screen can show it, as
+     a copy to the clipboard, or where it offers to take the act back.
+- Every notice goes on its own time.
+  1. It closes after a few seconds set by its tone, and is never left standing until something else
+     clears it.
+  2. Only a notice offering the one chance to take something back, or to take up something waiting
+     such as a newer version to load, has no time of its own.
+  3. A line a screen keeps of its own to say what an act did is a second road and a notice that never
+     goes: it is not built.
 
 ## Always-visible indicators
 
