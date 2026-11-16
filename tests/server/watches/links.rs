@@ -8,7 +8,7 @@ use agency_server::peers::Asking;
 use agency_server::peers::node::{HubReach, NodeRow, NodeService};
 use agency_server::watches::links::{
   LinkUnits, Roots, Skipped, deployed_commit, link_unit, loopback_port, mark_place_node, node_path,
-  place_node, project_dir, settle,
+  place_node, program_records, project_dir, settle,
 };
 use node_link::spec::{Spec, rewrite};
 
@@ -44,6 +44,25 @@ fn the_deployed_commit_is_read_off_the_record_beside_the_deploy_tree_s_link() {
 #[test]
 fn a_working_directory_names_its_records_with_every_other_character_a_hyphen() {
   assert_eq!(project_dir("/home/tester/work-n1", "/r/projects"), "/r/projects/-home-tester-work-n1");
+}
+
+#[test]
+fn a_place_names_the_home_its_program_keeps_its_records_under() {
+  let scratch = tempfile::tempdir().unwrap();
+  let place = scratch.path().join("agent-a");
+
+  std::fs::create_dir_all(&place).unwrap();
+  assert_eq!(program_records(&place), None);
+
+  std::fs::write(
+    place.join("program.json"),
+    r#"{"command": {"args": [], "env": {"CLAUDE_CONFIG_DIR": "/data/claude-roads/road-a/model-a"}}}"#,
+  )
+  .unwrap();
+  assert_eq!(program_records(&place).as_deref(), Some("/data/claude-roads/road-a/model-a"));
+
+  std::fs::write(place.join("program.json"), r#"{"command": {"args": [], "env": {}}}"#).unwrap();
+  assert_eq!(program_records(&place), None);
 }
 
 #[test]

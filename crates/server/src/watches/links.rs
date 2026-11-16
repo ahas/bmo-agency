@@ -513,6 +513,20 @@ async fn record_dirs(db: &DatabaseConnection, roots: &Roots) -> Result<Vec<Strin
   Ok(dirs)
 }
 
+/// The directory the program standing in a place keeps its records under, where the place's program names one: a
+/// gateway road's own home, which is no account's records directory, so its records are read off the node only
+/// where the link pulls this directory too.
+pub fn program_records(place: &Path) -> Option<String> {
+  let program = read_json(&place.join("program.json"))?;
+
+  program
+    .get("command")?
+    .get("env")?
+    .get("CLAUDE_CONFIG_DIR")?
+    .as_str()
+    .map(str::to_owned)
+}
+
 fn read_json(path: &Path) -> Option<Value> {
   serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
 }
@@ -627,7 +641,9 @@ pub async fn spec(
       local: place.into(),
     });
 
-    for records in &records {
+    let own = program_records(&roots.place(&placed.agent)).filter(|own| !records.contains(own));
+
+    for records in records.iter().chain(own.iter()) {
       pull.push(Landing {
         pull: Pull {
           remote: project_dir(&cwd, &join(&to_node(records), "projects")),

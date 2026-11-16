@@ -276,6 +276,9 @@ side of a remote agent, the rotation, and what a dropped node does.
   (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
 - **The records read here as they always did,** off the mirrored files: the turn's answer and
   activity, the session collection, the run log, the token usage, a job's quiet and stalled watch.
+  The link pulls them from every account's records directory and, for a place whose program keeps its
+  records under a home of its own — a gateway road's — from that home as well, so a turn on a registered or
+  member model is read off a node as one on a Claude account is.
 
 ## The rotation
 
