@@ -6,14 +6,13 @@
 
 use std::time::Duration;
 
-use chromiumoxide::cdp::js_protocol::runtime::RemoteObjectId;
 use policy::providers::deepseek::PageWords;
 use tokio::time::Instant;
 use url::Url;
 
 use std::collections::BTreeSet;
 
-use crate::browser::{Browser, Lost, Place, Unopened, Wanted};
+use crate::browser::{Browser, Element, Lost, Place, Unopened, Wanted};
 use crate::mail::{Bodies, MailService};
 use crate::secret::Saved;
 
@@ -61,28 +60,12 @@ pub struct Waits {
   pub look: Duration,
 }
 
-impl Platform {
-  /// The command a person runs at the machine's desktop to sign the tool's browser in: the same profile, opened
-  /// in a window on the sign-in page. The profile is written from `$HOME` where it stands under it.
-  pub fn sign_in_command(&self) -> String {
-    let profile = self.place.profile();
-    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
-    let shown = match home.as_deref().and_then(|home| profile.strip_prefix(home).ok()) {
-      Some(under) => format!("$HOME/{}", under.display()),
-      None => profile.display().to_string(),
-    };
-
-    format!(
-      "{} --user-data-dir=\"{shown}\" --password-store=basic --lang=en-US {}{}",
-      self.place.chrome, self.address, self.sign_in_path
-    )
-  }
-}
-
 /// Why a call stopped before pay was pressed: nothing was paid.
 #[derive(Debug)]
 pub enum Stop {
   Busy,
+  /// The owner's Firefox has its profile open.
+  FirefoxOpen,
   /// The browser could not be started, with why.
   Browser(String),
   /// The browser stopped answering at a step.
@@ -198,7 +181,7 @@ impl<'a> Drive<'a> {
   }
 
   /// The main frame's control or field for what is wanted, waited for within the step wait.
-  async fn wait_main(&mut self, wanted: &Wanted<'_>, what: &'static str) -> Result<RemoteObjectId, Stop> {
+  async fn wait_main(&mut self, wanted: &Wanted<'_>, what: &'static str) -> Result<Element, Stop> {
     let deadline = Instant::now() + self.platform.waits.step;
 
     loop {
@@ -225,7 +208,7 @@ impl<'a> Drive<'a> {
     wanted: &Wanted<'_>,
     what: &'static str,
     needed: bool,
-  ) -> Result<Option<RemoteObjectId>, Stop> {
+  ) -> Result<Option<Element>, Stop> {
     let deadline = Instant::now() + self.platform.waits.step;
 
     loop {
@@ -251,12 +234,7 @@ impl<'a> Drive<'a> {
     self.browser.press(&control).await.map_err(|_| Stop::Lost(what))
   }
 
-  async fn type_into(
-    &mut self,
-    field: &RemoteObjectId,
-    text: &str,
-    what: &'static str,
-  ) -> Result<(), Stop> {
+  async fn type_into(&mut self, field: &Element, text: &str, what: &'static str) -> Result<(), Stop> {
     self.browser.type_into(field, text).await.map_err(|_| Stop::Lost(what))
   }
 
@@ -498,7 +476,7 @@ impl<'a> Drive<'a> {
   }
 
   /// The custom amount typed, the card chosen and its fields typed, up to the pay button, unpressed.
-  async fn fill(&mut self, amount: &str, card: &Saved) -> Result<RemoteObjectId, Stop> {
+  async fn fill(&mut self, amount: &str, card: &Saved) -> Result<Element, Stop> {
     let words = self.words;
 
     self.press_main(&words.custom_amount, "the custom amount").await?;
@@ -634,8 +612,8 @@ impl<'a> Drive<'a> {
 }
 
 /// One payment of `amount`, typed as given, with the card, signed in with the login where the platform asks.
-/// Pay is pressed once at most; a stop before it pays nothing. The browser is closed through DevTools whatever the
-/// end, so its profile keeps what the platform stored for the next call.
+/// Pay is pressed once at most; a stop before it pays nothing. The browser is closed through its endpoint whatever
+/// the end, so the owner's profile keeps what the platform stored.
 pub async fn pay(
   platform: &Platform,
   words: &PageWords,
@@ -645,6 +623,7 @@ pub async fn pay(
 ) -> Result<Paid, Stop> {
   let browser = Browser::open(&platform.place).await.map_err(|unopened| match unopened {
     Unopened::Busy => Stop::Busy,
+    Unopened::Open => Stop::FirefoxOpen,
     Unopened::Start(why) => Stop::Browser(why),
   })?;
   let mut drive = Drive {

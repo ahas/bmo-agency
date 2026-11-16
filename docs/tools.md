@@ -213,7 +213,8 @@ belongs to no one service is a repository of its own, not a folder here.
 
 - **`tools/deepseek_top_up`** declares `bmo/deepseek_top_up` to a session holding `room.tools`: the supervisor
   tops the DeepSeek balance up by the amount the owner names, paying with the platform's card on DeepSeek's own
-  web platform, signed in with the platform's DeepSeek login. Its words, the kinds and fields of its two
+  web platform, in the owner's own Firefox on this machine, on his own profile and its sign-in, out of his sight;
+  the platform's DeepSeek login signs in only where DeepSeek asks for a sign-in. Its words, the kinds and fields of its two
   secrets, its caps, its waits and the words it finds the platform's controls by stand in the `top_up` table of
   `policy/providers/deepseek.toml`. Which secrets hold the card and the login are agency's settings
   `deepseekCardSecret` and `deepseekLoginSecret` (`docs/api.md`, 「settings」), the owner's to change with no
@@ -242,14 +243,15 @@ belongs to no one service is a repository of its own, not a folder here.
   the missing keys.
 - **No secret value leaves the tool.** A value is read into the tool's memory and typed into the platform's
   page, and nowhere else: no answer, refusal or line on its error stream carries one, no screenshot is taken,
-  and the browser keeps no form, card or password of what was typed. A refusal of a step that handles a value
+  and the owner's profile keeps no card, password or login of what was typed: Firefox's offers to save one are
+  never accepted, and the session it would keep form fields in is the owner's own, given back as it stood. A refusal of a step that handles a value
   is said by a fixed sentence, never by the browser's or the page's own words, and a call that does not read is
   refused by a fixed sentence, never by the reader's own words.
 
 ### The checks before anything is paid
 
 - **In this order, each refusing the call before the next is asked:** the amount; the card's setting and secret;
-  the login's setting and secret; the balance; the cap. A refused call starts no browser.
+  the login's setting and secret; the balance; the cap. A refused call starts no browser and touches no profile.
 - **One call is held to a cap,** the one the policy's `top_up.cap` holds for the currency the balance is kept
   in. An amount over it is refused with the cap and its reason, and a larger top-up is a person's own. The currency
   is the balance reader's (`docs/usage-windows.md`, 「Balances」), read from `GET /providers/deepseek` on agency's
@@ -262,24 +264,46 @@ belongs to no one service is a repository of its own, not a folder here.
 ### How it pays
 
 - **DeepSeek has no payment API:** its top-up is made only on its web platform by a signed-in account, behind a
-  bot check that refuses a headless browser and a browser started for automation. So the tool drives the
-  machine's own Chrome as a person's browser stands: stable Chrome, not headless, on a virtual screen of its own
-  (Xvfb, through `xvfb-run`), started with no automation switch and driven over its loopback DevTools endpoint,
-  on a port the tool chooses: a browser left to choose its own DevTools port is met with the human check. The
-  port is only known free when chosen, so another program may hold it on one loopback address by the time the
-  browser listens, and the browser then listens on the other; the tool drives the endpoint the browser announces
-  on its own output once it listens, never an address made from the port, so it reaches no program but its own
-  browser.
-  Its cross-site frames run in the page's own process, so the card frames a payment processor puts on the page
-  are reached as the page's own.
-- **The browser keeps one profile,** under the data root's `deepseek-top-up/`, so a sign-in stands from one call
-  to the next and DeepSeek knows the browser as a device it has seen. The profile's form, card and password
-  saving is off. One call holds it at a time: a call made while another drives it is refused and pays nothing.
-  The browser and its screen are taken down with everything they started when the call ends, whatever its end.
+  bot check that meets a browser it does not know, or one marked as automated, with a human check or a check of
+  the account by mail. So the tool pays in the owner's own Firefox, the browser he signs in to DeepSeek with and
+  DeepSeek knows as his device: the default profile of the Firefox the policy's `top_up.platform` names, as its
+  `profiles.ini` in the policy's profiles folder names it, used in place, never copied, so its cookies, its device
+  mark and its sign-in are his. No other profile is ever used.
+- **Nothing reaches the owner's screen, keyboard or mouse.** Firefox is started out of his sight:
+  - on a virtual screen of its own (Xvfb, through `xvfb-run`), its authority file in a private folder the call
+    makes in the profiles folder, where a confined Firefox reads it;
+  - in an environment of its own: told away from the owner's Wayland session onto that screen, with a runtime
+    folder of the call's own and a session bus address that leads nowhere, so no window, notification or portal
+    dialog of it reaches his desktop;
+  - with `--no-remote`, so it neither hands itself to a Firefox he opens nor takes one of his over;
+  - for the snap's Firefox, in a user scope named as the snap's launcher expects, made first through the user's
+    service manager, since the launcher otherwise asks the session bus for one; the bus is cut only inside it.
+
+  It is driven over WebDriver BiDi on a loopback port it chooses itself and announces on its own output, which
+  the tool reads, so the endpoint is the call's alone. Every press and key is dispatched inside the browser, into
+  the page or the payment processor's frame it is meant for, never through the screen. Every page is told, before
+  its own scripts run, that the browser is not automated, as a person's Firefox tells it.
+- **The owner's profile is held for the call and handed back as it stood.**
+  - A call pays nothing while the owner's Firefox has the profile open, found by the record lock Firefox holds on
+    the profile's `.parentlock`, and says so: Firefox opens a profile once at a time. A call made while another
+    call drives the profile is refused the same way, by a whole-file lock on the same file, which never meets
+    Firefox's own.
+  - The owner's saved session, `sessionstore.jsonlz4` and `sessionstore-backups/`, is set aside in the call's
+    private folder before Firefox starts, so his tabs neither load out of sight nor are overwritten. Once the
+    call's Firefox has ended, whatever it left in their place, and the note of its endpoint Firefox keeps in the
+    profile while it listens, are removed and his session is put back, under Firefox's own lock so no Firefox
+    opens the profile meanwhile. Where a Firefox has the profile open by then, his session stays in the call's
+    folder, which is kept and named on the tool's error stream, rather than being written under a running Firefox.
+  - The call's tab is opened and closed by the call, and Firefox is closed through its endpoint, so what DeepSeek
+    stored in the profile stays for the next call; whatever has not ended is then ended with everything it
+    started.
+  - Opening Firefox at the desktop while a call runs, for the minute or three a payment takes, shows Firefox's
+    own notice that it is already running, and the call is not disturbed by it.
 - **The steps, each waited for within the policy's step wait:**
-  1. Open the platform's top-up page. Where it sends the browser to sign in, sign in with the login: the
-     identity and the password typed into the fields the policy's words name, then the sign-in pressed. A
-     sign-in DeepSeek refuses ends the call, naming the login's secret to save again.
+  1. Open the platform's top-up page. The owner's sign-in usually stands; where the page sends the browser to
+     sign in, sign in with the login: the identity and the password typed into the fields the policy's words
+     name, then the sign-in pressed. A sign-in DeepSeek refuses ends the call, naming the login's secret to save
+     again.
   2. On the top-up page, choose a custom amount and type the amount; choose the card; go on to the checkout
      where the page asks for it.
   3. Type the card's fields into the fields the payment processor shows, found in any frame by their
@@ -301,7 +325,7 @@ belongs to no one service is a repository of its own, not a folder here.
   3. A mail's bodies are read by the browser's own HTML reader. A mail whose text holds one run of digits of the
      policy's code length gives the code, which the tool types into the check's code field before pressing its
      confirmation. A mail with a link on one of DeepSeek's hosts whose address or words name an approval gives
-     the link, which the tool opens in the same browser profile, then signs in again, once.
+     the link, which the tool opens in a background tab of the same profile, then signs in again, once.
   4. Where no such mail comes within the wait, or no mail account carries the login's address, or the mail
      service cannot be asked, the call ends before any card is entered, as a person's step below.
   - No code or link leaves the tool: none is answered, written to its error stream or kept.
@@ -309,10 +333,9 @@ belongs to no one service is a repository of its own, not a folder here.
     the mail unit's own token.
 - **The tool does nothing a person must do, and stops where the platform asks for one:**
   - **a human check, or a sign-in check no mail approved.** Where DeepSeek shows a human check, or holds the
-    sign-in for a check the mailbox did not approve, the call ends before any card is entered, saying so. A
-    person signs the tool's browser in once at the machine's desktop, which the console's remote desktop
-    reaches, with the command the answer names, which opens the same profile in a window; the sign-in then
-    stands for later calls.
+    sign-in for a check the mailbox did not approve, the call ends before any card is entered, saying so. The
+    owner signs in to DeepSeek in his own Firefox at the machine's desktop, which the console's remote desktop
+    reaches, and closes it; the sign-in then stands in his profile for later calls.
   - **the card issuer's confirmation.** Where the issuer asks the cardholder to confirm the payment (3-D Secure:
     an approval in the card's app, or a code it sends), the tool stops there, touches nothing more, and waits
     within the policy's confirmation wait for the page to show the outcome. The issuer's own prompt reaches the
@@ -332,4 +355,5 @@ belongs to no one service is a repository of its own, not a folder here.
   or a page the tool could not read each answer zero paid, the sentence a person acts on, and the balance as the
   reader last read it. None moves the balance, and none is tried again on its own: a person checks DeepSeek's
   billing page before asking for another top-up.
-- **A browser that cannot be started** answers that nothing was paid, with why it could not start.
+- **A browser that cannot be started** answers that nothing was paid, with why it could not start; a profile
+  the owner's Firefox has open, or another call holds, answers that nothing was paid and when to call again.

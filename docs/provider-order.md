@@ -47,11 +47,12 @@ one provider at once. How the Claude Code provider walks its own accounts inside
   the DeepSeek login are read from the console's secret store, from the secrets agency's settings
   `deepseekCardSecret` and `deepseekLoginSecret` name (`docs/api.md`, 「settings」), which the owner changes with
   no deployment; with either setting empty every call is refused. DeepSeek has no payment API, so the tool pays
-  on its web platform in the machine's own browser, signed in with that login, and approves the sign-in's
-  check from the code or link DeepSeek mails to the platform's own mailbox. A step only a person can take, such
-  as a human check, a sign-in check no mail approved or the card issuer's confirmation, stops it there: it
-  answers the sentence the person acts on and pays nothing it was not confirmed for. It answers the amount paid and the balance its
-  reader kept after the payment. The quota stays closed until the balance reader reads a balance above zero.
+  on its web platform in the owner's own Firefox, on his profile and sign-in, out of his sight, and refuses while
+  his Firefox is open; it signs in with that login only where DeepSeek asks, and approves the sign-in's check from
+  the code or link DeepSeek mails to the platform's own mailbox. A step only a person can take, such as a human
+  check, a sign-in check no mail approved or the card issuer's confirmation, stops it there: it answers the
+  sentence the person acts on and pays nothing it was not confirmed for. It answers the amount paid and the
+  balance its reader kept after the payment. The quota stays closed until the balance reader reads a balance above zero.
 - **Claude Code's quota is its accounts':** the provider has quota while one of its open accounts has quota
   above the share by its own least-left window, and its account walk offers that account first
   (`docs/cache-fallback.md`, 「The account judgement」).

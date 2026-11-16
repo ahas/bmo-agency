@@ -54,6 +54,9 @@ them.
   built binaries stand in.
 - **A test takes down every process it starts, with its descendants, and waits on none without a bound:** a
   process that should end by itself and does not fails the test rather than holding the test binary.
+- **No test touches the owner's own browser profile.** The DeepSeek top-up pays in the owner's Firefox profile
+  (`docs/tools.md`, 「How it pays」); every test of it that can reach the browser points the payer at a throwaway
+  profiles folder, and one that drives the machine's Firefox does so on a throwaway profile alone.
 - **A test drops every database it makes, and fails where it cannot.** A store of a test's own is a copy of
   a template its harness migrates once per process on the server `BMO_TEST_POSTGRES` names. The Rust harness
   names them `agency_rs_tmpl_` and `agency_rs_copy_`, the TypeScript one `agency_ts_tmpl_` and

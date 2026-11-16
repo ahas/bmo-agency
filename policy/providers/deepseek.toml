@@ -80,8 +80,9 @@ top_up = "top the DeepSeek balance up at https://platform.deepseek.com/top_up"
 
 [top_up]
 # The supervisor's tool that tops the balance up by an amount the owner names (docs/tools.md, 「The DeepSeek
-# top-up」). DeepSeek has no payment API: the tool pays on its web platform, in the machine's own browser signed
-# in with the platform's DeepSeek login, with the platform's card.
+# top-up」). DeepSeek has no payment API: the tool pays on its web platform, in the owner's own Firefox, its own
+# profile and sign-in, with the platform's card, signing in with the platform's DeepSeek login only where the
+# platform asks for it.
 
 # Why one call is held to a cap, said with the cap where an amount is over it.
 cap_reason = "one call tops the balance up by no more than this, so that a mistaken amount or a repeated call cannot spend more; a larger top-up is a person's own, made on DeepSeek's platform"
@@ -107,21 +108,23 @@ USD = 50
 CNY = 350
 
 # The platform the tool pays on and the browser it pays in: the platform's origin and its two pages, the
-# currencies its card road pays a balance in (a balance in yuan is paid by scanning, a person's own), the
-# browser's executable and the virtual screen it is started on, and the data root's folder its profile stands in.
+# currencies its card road pays a balance in (a balance in yuan is paid by scanning, a person's own), and the
+# owner's Firefox: its executable, the folder under `$HOME` its profiles and `profiles.ini` stand in, the user scope
+# its snap's launcher expects to start in, and the virtual screen it is started on.
 [top_up.platform]
 address = "https://platform.deepseek.com"
 top_up_path = "/top_up"
 sign_in_path = "/sign_in"
 card_currencies = ["USD"]
-chrome = "google-chrome"
+firefox = "/snap/bin/firefox"
+profiles = "snap/firefox/common/.mozilla/firefox"
+scope = "snap.firefox.firefox"
 screen = "1280x900x24"
-folder = "deepseek-top-up"
 
-# Each wait of a call, in seconds: the browser answering, each step's page or control, the outcome of a payment
-# pressed with a person's confirmation in it, the balance reader's next reading after a payment, past its
-# five-minute pass, and DeepSeek's mail for the sign-in's check; and how often a waited page is looked at, in
-# milliseconds, and the balance and the mailbox, in seconds.
+# Each wait of a call, in seconds: the browser announcing its endpoint and answering each command, each step's
+# page or control, the outcome of a payment pressed with a person's confirmation in it, the balance reader's next
+# reading after a payment, past its five-minute pass, and DeepSeek's mail for the sign-in's check; and how often a
+# waited page is looked at, in milliseconds, and the balance and the mailbox, in seconds.
 [top_up.waits]
 start = 30
 step = 45
@@ -188,8 +191,10 @@ no_cap = "No single top-up cap is held for {currency}, so no top-up is made in i
 over_cap = "{amount} {currency} is over the single top-up cap of {cap} {currency}: {reason}."
 # The balance is kept in a currency the platform takes no card for.
 no_card_road = "Nothing was paid: DeepSeek takes no card for a balance kept in {currency}, only a payment a person scans; a person is to {top_up}."
-# Another call holds the browser.
+# Another call drives the owner's Firefox.
 busy = "Nothing was paid: another DeepSeek top-up is under way on this machine. Call again once it has answered."
+# The owner's Firefox is open on its profile, which the top-up pays in.
+firefox_open = "Nothing was paid: the owner's Firefox is open on this machine, and the top-up pays in his Firefox's own profile, which one Firefox opens at a time. Call again once Firefox is closed."
 # The browser could not be started or reached.
 browser_failed = "Nothing was paid: the browser the DeepSeek top-up pays in could not be started: {why}"
 # The browser stopped answering at a step before the payment.
@@ -197,7 +202,7 @@ browser_lost = "Nothing was paid: the browser the DeepSeek top-up pays in stoppe
 # A step's page or control did not show as the tool finds it.
 page_unread = "Nothing was paid: DeepSeek's platform did not show {what} within {seconds} seconds, so the tool stopped there, before the payment."
 # DeepSeek asks a person to finish the sign-in.
-person_asked = "Nothing was paid: DeepSeek asks a person to finish signing in, with a human check, or with a check of the account no mail from DeepSeek approved in time, which the tool does not do otherwise. A person signs the tool's browser in once at this machine's desktop with `{command}`, closes it, and then the top-up is asked again."
+person_asked = "Nothing was paid: DeepSeek asks a person to finish signing in, with a human check, or with a check of the account no mail from DeepSeek approved in time, which the tool does not do otherwise. The owner signs in to DeepSeek at {address} in his own Firefox at this machine's desktop, closes Firefox, and then the top-up is asked again."
 # DeepSeek refused the login.
 sign_in_refused = "Nothing was paid: DeepSeek refused the sign-in with the login saved as {secret}: save it again in the kind {kind} with the account's sign-in and password, then call again."
 # DeepSeek asks for the account's identity verification.

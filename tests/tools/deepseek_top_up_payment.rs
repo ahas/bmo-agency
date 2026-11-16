@@ -1,7 +1,8 @@
 //! The DeepSeek top-up's payment (docs/tools.md, 「How it pays」 and 「Where a person is asked」), driven in the
-//! machine's own Chrome against a fake top-up platform on the loopback: its sign-in page, a landing page, its top-up
-//! form with a custom amount, the card among the ways to pay and a next step, and the card's fields in a frame
-//! served from another site, as a payment processor's are. The platform pays, refuses, or waits for a confirmation
+//! machine's Firefox, on a throwaway profile planted with a session of its own, against a fake top-up platform on
+//! the loopback: its sign-in page, a landing page, its top-up form with a custom amount, the card among the ways
+//! to pay and a next step, and the card's fields in a frame served from another site, as a payment processor's
+//! are. The platform pays, refuses, or waits for a confirmation
 //! nobody gives, and a human check stops the sign-in; no step reaches DeepSeek, so no test spends anything.
 //!
 //! Where the fake holds the sign-in for a check of the account, a fake mail service on the loopback serves the
@@ -9,7 +10,8 @@
 //! device, beside an older code mailed before the sign-in began, which is never the one taken.
 //!
 //! A payment made moves the fake's balance, which the stand-in agency reads back as a balance reader that has just
-//! read it; anything else leaves it where it stood. Every call ends its browser and the browser's screen with it.
+//! read it; anything else leaves it where it stood. Every call ends its browser and the browser's screen with it,
+//! gives the profile's session back as it was planted, and leaves no saved value in the profile.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -24,8 +26,8 @@ use deepseek_top_up_tool::{MailService, Payer, top_up_with};
 use serde_json::{Value, json};
 
 use super::deepseek_top_up::{
-  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, USERNAME, agency, amount, data_root, holds_no_secret_value,
-  whole_card, whole_login,
+  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, USERNAME, agency, amount, assert_session_as_planted,
+  data_root, firefox_profiles, holds_no_secret_value, whole_card, whole_login,
 };
 
 /// What the fake platform does with a sign-in and a payment.
@@ -432,57 +434,60 @@ async fn mail_service(fake: &Fake) -> MailService {
   }
 }
 
-/// The browser the fake platform is paid on and the arguments added to it: the machine's stable Chrome, as the
-/// tool's policy names it, where it stands on the path; else the newest Chromium Playwright keeps, its full build
-/// first and its headless shell after, as on a machine whose browser tests run on Playwright's. The tool starts
-/// each the same way, on a virtual screen of its own. Playwright's builds carry no profile of the machine's
-/// security module that would let their sandbox start, so they run without it, on the fake platform alone. None
-/// where the machine holds neither, as a placed test machine holding no browser build does.
-fn machine_browser(named: &str) -> Option<(String, Vec<String>)> {
-  let on_path = std::env::var_os("PATH")
-    .map(|path| std::env::split_paths(&path).any(|folder| folder.join(named).is_file()))
-    .unwrap_or(false);
+/// The Firefox the fake platform is paid in, in the owner's Firefox's stead: its executable, the scope its
+/// launcher starts in, and the folder a throwaway profiles folder is made in, which the executable can read.
+struct Firefox {
+  executable: String,
+  scope: String,
+  near: std::path::PathBuf,
+}
 
-  if on_path {
-    return Some((named.to_owned(), Vec::new()));
+/// The machine's Firefox: the owner's, as the tool's policy names it, where it stands, with a throwaway profiles
+/// folder made beside his profiles, the place a snap's confined Firefox reads; else the newest Firefox Playwright
+/// keeps, as on a machine whose browser tests run on Playwright's, with its profiles in the temporary folder. None
+/// where the machine holds neither, as a placed test machine holding no browser build does.
+fn machine_firefox(root: &std::path::Path) -> Option<Firefox> {
+  let place = Payer::of(root).platform.place;
+
+  if std::path::Path::new(&place.firefox).is_file() && place.profiles.is_dir() {
+    return Some(Firefox {
+      executable: place.firefox,
+      scope: place.scope,
+      near: place.profiles,
+    });
   }
 
   let kept = std::env::var_os("PLAYWRIGHT_BROWSERS_PATH").map(std::path::PathBuf::from).or_else(|| {
     std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".cache/ms-playwright"))
   })?;
-  let builds: [(&str, &[&str]); 2] = [
-    ("chromium-", &["chrome-linux64/chrome", "chrome-linux/chrome"]),
-    (
-      "chromium_headless_shell-",
-      &["chrome-headless-shell-linux64/chrome-headless-shell", "chrome-linux/headless_shell"],
-    ),
-  ];
-  let newest = |prefix: &str, inside: &[&str]| {
-    std::fs::read_dir(&kept)
-      .into_iter()
-      .flatten()
-      .filter_map(Result::ok)
-      .filter_map(|entry| {
-        let revision = entry.file_name().to_str()?.strip_prefix(prefix)?.parse::<u32>().ok()?;
-        let binary = inside.iter().map(|path| entry.path().join(path)).find(|binary| binary.is_file())?;
+  let executable = std::fs::read_dir(&kept)
+    .into_iter()
+    .flatten()
+    .filter_map(Result::ok)
+    .filter_map(|entry| {
+      let revision = entry.file_name().to_str()?.strip_prefix("firefox-")?.parse::<u32>().ok()?;
+      let binary = entry.path().join("firefox/firefox");
 
-        Some((revision, binary))
-      })
-      .max()
-      .map(|(_, binary)| binary.display().to_string())
-  };
-  let binary = builds.iter().find_map(|(prefix, inside)| newest(prefix, inside))?;
+      binary.is_file().then_some((revision, binary))
+    })
+    .max()
+    .map(|(_, binary)| binary.display().to_string())?;
 
-  Some((binary, vec!["--no-sandbox".to_owned()]))
+  Some(Firefox {
+    executable,
+    scope: String::new(),
+    near: std::env::temp_dir(),
+  })
 }
 
-/// A payer on the fake platform under `root`, reading the fake mail service, its waits short: `confirm` for a
-/// confirmation nobody gives, and two seconds for a mail.
+/// A payer on the fake platform, paying in `firefox` from the profiles folder `profiles`, reading the fake mail
+/// service, its waits short: `confirm` for a confirmation nobody gives, and two seconds for a mail.
 async fn payer(
   fake: &Fake,
   root: &std::path::Path,
+  profiles: &std::path::Path,
   confirm: Duration,
-  browser: (String, Vec<String>),
+  firefox: &Firefox,
 ) -> Payer {
   let mut payer = Payer::of(root);
 
@@ -491,7 +496,9 @@ async fn payer(
   payer.platform.mail.wait = Duration::from_secs(2);
   payer.platform.mail.look = Duration::from_millis(100);
 
-  (payer.platform.place.chrome, payer.platform.place.added) = browser;
+  payer.platform.place.firefox = firefox.executable.clone();
+  payer.platform.place.scope = firefox.scope.clone();
+  payer.platform.place.profiles = profiles.to_owned();
 
   payer.platform.address = format!("http://127.0.0.1:{}", fake.port);
   payer.platform.waits.step = Duration::from_secs(20);
@@ -515,37 +522,70 @@ fn processes_naming(folder: &std::path::Path) -> Vec<String> {
     .collect()
 }
 
-/// One call paid on the fake platform and its answer, checked for what no answer holds and for the processes it
-/// left; none, said on the error stream, where the machine holds no browser to pay in, so the test that asked is
-/// passed over there, as every browser test of the platform is on such a machine.
-async fn pay_on(fake: &Fake, root: &std::path::Path, confirm: Duration) -> Option<String> {
-  let browser = browser_on_machine(root)?;
+/// Every file under `folder` holding one of the saved values whole, each named with the value's field.
+fn files_holding_a_secret(folder: &std::path::Path) -> Vec<String> {
+  let values = [
+    ("CARD_NUMBER", NUMBER),
+    ("CARD_HOLDER_NAME", HOLDER),
+    ("USERNAME", USERNAME),
+    ("PASSWORD", PASSWORD),
+  ];
+  let mut found = Vec::new();
+  let mut folders = vec![folder.to_owned()];
 
-  Some(pay_in(fake, root, confirm, browser).await)
-}
+  while let Some(folder) = folders.pop() {
+    for entry in std::fs::read_dir(&folder).into_iter().flatten().filter_map(Result::ok) {
+      let path = entry.path();
 
-/// The machine's browser for a payer under `root`; none, said on the error stream, where the machine holds none.
-fn browser_on_machine(root: &std::path::Path) -> Option<(String, Vec<String>)> {
-  let browser = machine_browser(&Payer::of(root).platform.place.chrome);
-
-  if browser.is_none() {
-    eprintln!(
-      "passed over: no browser stands on this machine, neither Chrome on the path nor a Playwright Chromium"
-    );
+      if path.is_dir() {
+        folders.push(path);
+      } else if let Ok(bytes) = std::fs::read(&path) {
+        for (field, value) in values {
+          if bytes.windows(value.len()).any(|window| window == value.as_bytes()) {
+            found.push(format!("{field} in {}", path.display()));
+          }
+        }
+      }
+    }
   }
 
-  browser
+  found
 }
 
-/// One call paid on the fake platform in `browser` and its answer, checked as `pay_on` says.
+/// The machine's Firefox and a throwaway profiles folder for it; none, said on the error stream, where the machine
+/// holds no Firefox, so the test that asked is passed over there, as every browser test of the platform is on
+/// such a machine.
+fn firefox_on_machine(root: &std::path::Path) -> Option<(Firefox, tempfile::TempDir)> {
+  let Some(firefox) = machine_firefox(root) else {
+    eprintln!(
+      "passed over: no Firefox stands on this machine, neither the policy's nor a Playwright Firefox"
+    );
+    return None;
+  };
+  let profiles = firefox_profiles(&firefox.near);
+
+  Some((firefox, profiles))
+}
+
+/// One call paid on the fake platform in the machine's Firefox and its answer, checked as `pay_in` says.
+async fn pay_on(fake: &Fake, root: &std::path::Path, confirm: Duration) -> Option<String> {
+  let (firefox, profiles) = firefox_on_machine(root)?;
+
+  Some(pay_in(fake, root, profiles.path(), confirm, &firefox).await)
+}
+
+/// One call paid on the fake platform in `firefox` from the profiles folder `profiles`, and its answer, checked
+/// for what no answer holds, for the processes it left, for the session it gave back, and for any saved value the
+/// profile kept.
 async fn pay_in(
   fake: &Fake,
   root: &std::path::Path,
+  profiles: &std::path::Path,
   confirm: Duration,
-  browser: (String, Vec<String>),
+  firefox: &Firefox,
 ) -> String {
   let stand = Stand::reading(fake.balance.clone());
-  let payer = payer(fake, root, confirm, browser).await;
+  let payer = payer(fake, root, profiles, confirm, firefox).await;
 
   let said = top_up_with(&agency(&stand).await, root, &payer, &amount(10.0))
     .await
@@ -567,71 +607,15 @@ async fn pay_in(
     0,
     "every read of the mail service carried its token and owner"
   );
-  assert!(
-    processes_naming(&payer.platform.place.folder).is_empty(),
-    "the browser and its screen ended with the call"
+  assert!(processes_naming(profiles).is_empty(), "the browser and its screen ended with the call");
+  assert_session_as_planted(profiles);
+  assert_eq!(
+    files_holding_a_secret(profiles),
+    Vec::<String>::new(),
+    "the profile kept no saved value"
   );
 
   said
-}
-
-/// A FIFO at `path`.
-fn fifo(path: &std::path::Path) {
-  let named = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
-
-  // SAFETY: `mkfifo` reads the NUL-terminated path it is given and the mode.
-  assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "{}", std::io::Error::last_os_error());
-}
-
-/// The machine's browser behind a stand-in that tells the DevTools port it is started with through the FIFO
-/// `told`, and starts the browser only once a line comes back through the FIFO `held`, so the port can be taken
-/// first, as a free port the tool chose may be taken by another program before its browser listens.
-fn browser_after_its_port_is_held(
-  folder: &std::path::Path,
-  browser: (String, Vec<String>),
-) -> ((String, Vec<String>), std::path::PathBuf, std::path::PathBuf) {
-  use std::os::unix::fs::PermissionsExt;
-
-  let (told, held) = (folder.join("told"), folder.join("held"));
-  let stand_in = folder.join("browser");
-
-  fifo(&told);
-  fifo(&held);
-  std::fs::write(
-    &stand_in,
-    format!(
-      "#!/bin/sh\nfor argument in \"$@\"; do\n  case \"$argument\" in --remote-debugging-port=*) port=\"${{argument#*=}}\" ;; esac\ndone\necho \"$port\" > '{}'\nread answer < '{}'\nexec '{}' \"$@\"\n",
-      told.display(),
-      held.display(),
-      browser.0,
-    ),
-  )
-  .unwrap();
-  std::fs::set_permissions(&stand_in, std::fs::Permissions::from_mode(0o755)).unwrap();
-
-  ((stand_in.display().to_string(), browser.1), told, held)
-}
-
-/// Takes the port told through `told` with a web server that is no browser, as another test's fake platform
-/// would, then answers through `held`; the server answers until the task is aborted.
-async fn hold_the_told_port(told: std::path::PathBuf, held: std::path::PathBuf) {
-  use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
-  use tokio::net::unix::pipe::OpenOptions;
-
-  let told = OpenOptions::new().read_write(true).open_receiver(told).unwrap();
-  let mut port = String::new();
-
-  tokio::io::BufReader::new(told).read_line(&mut port).await.unwrap();
-
-  let listener = tokio::net::TcpListener::bind(("127.0.0.1", port.trim().parse::<u16>().unwrap()))
-    .await
-    .unwrap();
-  let mut held = OpenOptions::new().read_write(true).open_sender(held).unwrap();
-
-  held.write_all(b"held\n").await.unwrap();
-  // The FIFO keeps the line only while a writer holds it open, so the writer stands as long as the server.
-  let _held = held;
-  axum::serve(listener, Router::new()).await.unwrap();
 }
 
 #[tokio::test]
@@ -639,9 +623,10 @@ async fn a_payment_the_platform_makes_answers_the_amount_and_the_balance_after_a
   let fake = platform(Scenario::Pays).await;
   let root = data_root(Some(&whole_card()), Some(&whole_login()));
 
-  let Some(said) = pay_on(&fake, root.path(), Duration::from_secs(20)).await else {
+  let Some((firefox, profiles)) = firefox_on_machine(root.path()) else {
     return;
   };
+  let said = pay_in(&fake, root.path(), profiles.path(), Duration::from_secs(20), &firefox).await;
 
   assert!(
     said.starts_with("Paid: 10 USD. Balance: 13.5 USD, as the balance reader last read it at "),
@@ -659,9 +644,7 @@ async fn a_payment_the_platform_makes_answers_the_amount_and_the_balance_after_a
     "the login was typed as saved"
   );
 
-  let Some(again) = pay_on(&fake, root.path(), Duration::from_secs(20)).await else {
-    return;
-  };
+  let again = pay_in(&fake, root.path(), profiles.path(), Duration::from_secs(20), &firefox).await;
 
   assert!(again.starts_with("Paid: 10 USD. Balance: 23.5 USD"), "{again}");
   assert_eq!(fake.sign_ins.lock().unwrap().len(), 1, "the profile kept the sign-in for the next call");
@@ -683,26 +666,6 @@ async fn a_refused_payment_moves_no_balance_and_is_not_tried_again() {
   assert!(said.contains("Paid: 0 USD. Balance: 3.5 USD"), "{said}");
   assert_eq!(fake.payments.lock().unwrap().len(), 1, "pay was pressed once");
   assert_eq!(*fake.balance.lock().unwrap(), 3.5);
-}
-
-#[tokio::test]
-async fn a_devtools_port_another_program_takes_before_the_browser_listens_still_reaches_the_browser_itself()
-{
-  let fake = platform(Scenario::Pays).await;
-  let root = data_root(Some(&whole_card()), Some(&whole_login()));
-  let Some(browser) = browser_on_machine(root.path()) else {
-    return;
-  };
-  let folder = tempfile::tempdir().unwrap();
-  let (browser, told, held) = browser_after_its_port_is_held(folder.path(), browser);
-  let holder = tokio::spawn(hold_the_told_port(told, held));
-
-  let said = pay_in(&fake, root.path(), Duration::from_secs(20), browser).await;
-
-  // The stand-in starts the browser only once the port is held, so a payment made shows it was.
-  holder.abort();
-  assert!(said.starts_with("Paid: 10 USD. Balance: 13.5 USD"), "{said}");
-  assert_eq!(fake.payments.lock().unwrap().len(), 1, "pay was pressed once");
 }
 
 #[tokio::test]
@@ -739,10 +702,10 @@ async fn a_human_check_at_the_sign_in_stops_before_any_card_is_typed() {
   );
   assert!(
     said.contains(&format!(
-      "--user-data-dir=\"{}\"",
-      root.path().join("deepseek-top-up/profile").display()
+      "The owner signs in to DeepSeek at http://127.0.0.1:{} in his own Firefox",
+      fake.port
     )),
-    "the answer names the profile a person signs in: {said}"
+    "the answer says where the owner signs in: {said}"
   );
   assert!(said.contains("Paid: 0 USD. Balance: 3.5 USD"), "{said}");
   assert!(fake.payments.lock().unwrap().is_empty(), "no card was typed or paid");

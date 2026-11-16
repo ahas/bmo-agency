@@ -1,12 +1,15 @@
 //! `deepseek_top_up`: the supervisor tops the DeepSeek balance up by an amount the owner names (docs/tools.md,
 //! 「The DeepSeek top-up」). DeepSeek has no payment API, so a call that passes every check pays on DeepSeek's web
-//! platform in the machine's own browser, signed in with the platform's DeepSeek login, with the platform's card,
-//! both read from the console secrets agency's settings name. A secret value is typed into the platform's page and
-//! is never answered, logged or written anywhere.
+//! platform in the owner's own Firefox, on his own profile and its sign-in, with the platform's card, signing in
+//! with the platform's DeepSeek login only where the platform asks for it, both read from the console secrets
+//! agency's settings name. A secret value is typed into the platform's page and is never answered, logged or
+//! written anywhere.
 
+mod bidi;
 mod browser;
 mod mail;
 mod platform;
+mod profile;
 mod secret;
 
 use std::path::Path;
@@ -22,16 +25,17 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tool_call::{Answer, Asked, Control, Handed, Session};
 
-pub use browser::{Place, chrome_arguments};
+pub use browser::{Place, firefox_environment, launch_line};
 pub use mail::MailService;
 pub use platform::{MailRoad, Paid, Platform, Stop, Waits};
+pub use profile::default_profile;
 pub use secret::{Saved, SecretFault};
 
 /// The tool's namespace and entry.
 pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "deepseek_top_up";
 pub const TITLE: &str = "Top the DeepSeek balance up";
-pub const DESCRIPTION: &str = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, paying with the card saved in the console's secret store on DeepSeek's platform, signed in with the DeepSeek login saved there; call it only when the owner asks for a top-up, and again only on his new word, whatever it answered. One call is held to a cap and pays at most once. Where DeepSeek or the card's issuer asks a person to confirm, it stops there and says what the person does. It answers the amount paid and the balance after, as the balance reader read it.";
+pub const DESCRIPTION: &str = "Top the DeepSeek balance up by the amount the owner names, in the currency DeepSeek keeps the balance in, paying with the card saved in the console's secret store on DeepSeek's platform in the owner's own Firefox on this machine, on his own profile and sign-in and out of his sight, signing in with the DeepSeek login saved there only where DeepSeek asks; call it only when the owner asks for a top-up, and again only on his new word, whatever it answered. It pays nothing while his Firefox is open, and says so. One call is held to a cap and pays at most once. Where DeepSeek or the card's issuer asks a person to confirm, it stops there and says what the person does. It answers the amount paid and the balance after, as the balance reader read it.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
 /// The administrator's grant a call needs: the card and the DeepSeek account are the platform's own.
 pub const GRANT: &str = "platform.payment";
@@ -72,10 +76,12 @@ pub struct Payer {
 }
 
 impl Payer {
-  /// The platform, the browser's place under `data_root` and the waits, as the policy holds them.
+  /// The platform, the owner's Firefox under `$HOME` and the waits, as the policy holds them; the mail service as
+  /// `data_root` names it.
   pub fn of(data_root: &Path) -> Self {
     let policy = &DEEPSEEK.top_up;
     let waits = &policy.waits;
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
 
     Self {
       platform: Platform {
@@ -83,10 +89,10 @@ impl Payer {
         top_up_path: policy.platform.top_up_path.clone(),
         sign_in_path: policy.platform.sign_in_path.clone(),
         place: Place {
-          folder: data_root.join(&policy.platform.folder),
-          chrome: policy.platform.chrome.clone(),
+          firefox: policy.platform.firefox.clone(),
+          profiles: home.join(&policy.platform.profiles),
+          scope: policy.platform.scope.clone(),
           screen: policy.platform.screen.clone(),
-          added: Vec::new(),
           start: Duration::from_secs(waits.start),
         },
         waits: Waits {
@@ -247,15 +253,14 @@ fn stopped(stop: Stop, payer: &Payer, login: &str, policy: &TopUp) -> Result<Str
 
   match stop {
     Stop::Busy => Err(words.busy.clone()),
+    Stop::FirefoxOpen => Err(words.firefox_open.clone()),
     Stop::Browser(why) => Err(fill_marks(&words.browser_failed, &[("why", &why)])),
     Stop::Lost(what) => Err(fill_marks(&words.browser_lost, &[("what", what)])),
     Stop::Unread(what) => Err(fill_marks(
       &words.page_unread,
       &[("what", what), ("seconds", &payer.platform.waits.step.as_secs().to_string())],
     )),
-    Stop::PersonAsked => {
-      Ok(fill_marks(&words.person_asked, &[("command", &payer.platform.sign_in_command())]))
-    }
+    Stop::PersonAsked => Ok(fill_marks(&words.person_asked, &[("address", &payer.platform.address)])),
     Stop::SignInRefused => {
       Ok(fill_marks(&words.sign_in_refused, &[("secret", login), ("kind", &policy.login.kind)]))
     }

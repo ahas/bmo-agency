@@ -1198,7 +1198,8 @@ of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday
   takes a secret's name, one plain file name with no directory in it, or null; anything else is refused 400
   with `field`. Agency keeps the name alone and never reads the secret.
 - **`deepseekLoginSecret`** names the console secret, of the kind `account-login`, the DeepSeek top-up signs in to
-  DeepSeek's platform with at each call, or null for none, in which case the tool refuses every call. It is the
+  DeepSeek's platform with where DeepSeek asks a call for a sign-in, or null for none, in which case the tool
+  refuses every call. It is the
   owner's to change as `deepseekCardSecret` is, and `PATCH /settings` takes and refuses it the same way, with its
   own `field`. Agency keeps the name alone and never reads the secret.
 

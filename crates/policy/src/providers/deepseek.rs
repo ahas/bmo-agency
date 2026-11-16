@@ -58,7 +58,7 @@ pub struct SavedSecret {
   pub fields: Vec<String>,
 }
 
-/// DeepSeek's web platform and the browser that pays on it.
+/// DeepSeek's web platform and the owner's own Firefox that pays on it.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Platform {
@@ -68,11 +68,15 @@ pub struct Platform {
   pub sign_in_path: String,
   /// The currencies a balance is paid in by card.
   pub card_currencies: Vec<String>,
-  /// The browser's executable and the virtual screen it is started on.
-  pub chrome: String,
+  /// Firefox's executable, by its absolute path.
+  pub firefox: String,
+  /// The folder Firefox keeps its profiles and their list, `profiles.ini`, in, from `$HOME`.
+  pub profiles: String,
+  /// The user scope a snap's launcher expects to find Firefox started in, without its unique suffix; empty for a
+  /// Firefox that is no snap.
+  pub scope: String,
+  /// The virtual screen Firefox is started on.
   pub screen: String,
-  /// The data root's folder the browser's profile and its lock stand in.
-  pub folder: String,
 }
 
 /// How long each wait of a call lasts, in seconds, and how often a waited condition is looked at, in
@@ -80,7 +84,7 @@ pub struct Platform {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Waits {
-  /// For the browser to answer on its DevTools endpoint.
+  /// For the browser to announce its WebDriver BiDi endpoint, and to answer each command on it.
   pub start: u64,
   /// For each step's page or control to show.
   pub step: u64,
@@ -160,6 +164,7 @@ pub struct TopUpWords {
   pub over_cap: String,
   pub no_card_road: String,
   pub busy: String,
+  pub firefox_open: String,
   pub browser_failed: String,
   pub browser_lost: String,
   pub page_unread: String,

@@ -1,11 +1,15 @@
 //! The DeepSeek top-up's checks (docs/tools.md, 「The DeepSeek top-up」): a call naming no amount, a setting naming
 //! no card or login secret, a secret lacking a field, an amount over the cap, a balance in a currency the card road
-//! does not serve and a browser another call holds are refused or answered before any browser starts; each secret
-//! is read from the one its setting names at the call; no secret value reaches an answer. Agency is a stand-in on
-//! the loopback that answers its settings and the balance and records every request, and the platform's address
-//! is one nothing listens on, so a test here reaches no network beyond the stand-in and pays nothing.
+//! does not serve, a profile another call holds and a profile the owner's Firefox has open are refused or answered
+//! before any browser starts; each secret is read from the one its setting names at the call; no secret value
+//! reaches an answer. The owner's Firefox is found by the default profile its `profiles.ini` names, and started
+//! with no bus, display or remote of his session. Agency is a stand-in on the loopback that answers its settings
+//! and the balance and records every request, the profiles are a throwaway folder's, the browser an executable that
+//! stands nowhere and the platform's address one nothing listens on, so a test here starts no browser, reaches no
+//! network beyond the stand-in and pays nothing.
 
-use std::path::Path;
+use std::os::fd::AsRawFd;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -13,7 +17,7 @@ use axum::extract::State;
 use axum::http::{Method, StatusCode, Uri};
 use axum::{Json, Router};
 use bmo_agency_client::AgencyClient;
-use deepseek_top_up_tool::{Payer, TopUpInput, answer, top_up_with};
+use deepseek_top_up_tool::{Payer, Place, TopUpInput, answer, default_profile, launch_line, top_up_with};
 use serde_json::{Value, json};
 use tool_call::{Asked, Handed, PROTOCOL, Session};
 
@@ -173,13 +177,87 @@ pub(super) fn amount(amount: f64) -> TopUpInput {
   }
 }
 
-/// A payer whose platform nothing listens on: a call that reached the browser would fail there, not pay.
+/// The session a throwaway profile is planted with, by its path in the profile, each a file of its own words.
+const PLANTED: [(&str, &str); 2] = [
+  ("sessionstore.jsonlz4", "the owner's last session"),
+  ("sessionstore-backups/recovery.jsonlz4", "the owner's recovered tabs"),
+];
+
+/// A throwaway Firefox profiles folder made in `near`, as the owner's Firefox keeps his: `profiles.ini` naming the
+/// one profile, `profile`, its default, which holds the planted session.
+pub(super) fn firefox_profiles(near: &Path) -> tempfile::TempDir {
+  let root = tempfile::Builder::new().prefix(".top-up-test-").tempdir_in(near).unwrap();
+
+  std::fs::write(
+    root.path().join("profiles.ini"),
+    "[Profile0]\nName=default\nIsRelative=1\nPath=profile\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n",
+  )
+  .unwrap();
+
+  for (path, words) in PLANTED {
+    let planted = root.path().join("profile").join(path);
+
+    std::fs::create_dir_all(planted.parent().unwrap()).unwrap();
+    std::fs::write(planted, words).unwrap();
+  }
+
+  root
+}
+
+/// The profile's session stands as it was planted, nothing beside it, and neither the call's endpoint note nor
+/// its folder is left.
+pub(super) fn assert_session_as_planted(root: &Path) {
+  let profile = root.join("profile");
+
+  for (path, words) in PLANTED {
+    assert_eq!(
+      std::fs::read_to_string(profile.join(path)).unwrap(),
+      words,
+      "{path} was given back as it stood"
+    );
+  }
+
+  let backups: Vec<_> = std::fs::read_dir(profile.join("sessionstore-backups"))
+    .unwrap()
+    .map(|entry| entry.unwrap().file_name())
+    .collect();
+
+  assert_eq!(backups, ["recovery.jsonlz4"], "nothing of the call's own session is left");
+  assert!(
+    !profile.join("WebDriverBiDiServer.json").exists(),
+    "no note of the call's endpoint is left"
+  );
+
+  let left: Vec<_> = std::fs::read_dir(root)
+    .unwrap()
+    .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+    .filter(|name| name.starts_with(".deepseek-top-up-"))
+    .collect();
+
+  assert!(left.is_empty(), "the call's folder is gone: {left:?}");
+}
+
+/// A payer on a throwaway profile under `root`'s `firefox`, with a browser that stands nowhere and a platform
+/// nothing listens on: a call that reached the browser would fail there, not pay.
 fn nowhere(root: &Path) -> Payer {
   let mut payer = Payer::of(root);
+  let place = &mut payer.platform.place;
 
+  place.profiles = root.join("firefox");
+  place.firefox = root.join("no-firefox").display().to_string();
+  place.scope = String::new();
   payer.platform.address = "http://127.0.0.1:9".to_owned();
   payer.balance_wait = Duration::ZERO;
   payer
+}
+
+/// The throwaway profiles folder `nowhere` pays from, made under `root`.
+fn profiles_under(root: &Path) -> PathBuf {
+  let made = firefox_profiles(root).keep();
+  let named = root.join("firefox");
+
+  std::fs::rename(&made, &named).unwrap();
+  named
 }
 
 async fn top_up(stand: &Stand, root: &Path, input: TopUpInput) -> Result<String, String> {
@@ -438,18 +516,14 @@ async fn a_balance_kept_in_yuan_is_paid_by_no_card_and_says_what_a_person_does()
     ),
     "{said}"
   );
-  assert!(!root.path().join("deepseek-top-up").exists(), "no browser was started");
 }
 
 #[tokio::test]
-async fn a_browser_another_call_holds_refuses_the_call_and_pays_nothing() {
+async fn a_profile_another_call_holds_refuses_the_call_and_leaves_the_session_as_it_stood() {
   let stand = Stand::kept(Some(3.5));
   let root = saved_root();
-  let folder = root.path().join("deepseek-top-up");
-
-  std::fs::create_dir_all(&folder).unwrap();
-
-  let held = std::fs::File::create(folder.join("browser.lock")).unwrap();
+  let profiles = profiles_under(root.path());
+  let held = std::fs::File::create(profiles.join("profile/.parentlock")).unwrap();
 
   held.lock().unwrap();
 
@@ -459,7 +533,162 @@ async fn a_browser_another_call_holds_refuses_the_call_and_pays_nothing() {
     refused.starts_with("Nothing was paid: another DeepSeek top-up is under way"),
     "{refused}"
   );
-  assert!(!folder.join("profile").exists(), "no browser was started");
+  assert_session_as_planted(&profiles);
+}
+
+/// A record lock on the whole file, as a Firefox that has its profile open holds one on the profile's
+/// `.parentlock`, held as long as the file stays open.
+fn record_lock(file: &std::fs::File) {
+  // SAFETY: `flock` is plain integers, for which zero is a valid value of every field.
+  let mut lock: libc::flock = unsafe { std::mem::zeroed() };
+
+  lock.l_type = libc::F_WRLCK as libc::c_short;
+  lock.l_whence = libc::SEEK_SET as libc::c_short;
+  // SAFETY: `fcntl` reads the descriptor and the lock description, which outlives the call.
+  assert_eq!(unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLK, &raw const lock) }, 0);
+}
+
+#[tokio::test]
+async fn a_profile_the_owners_firefox_has_open_refuses_the_call_and_leaves_the_session_as_it_stood() {
+  let stand = Stand::kept(Some(3.5));
+  let root = saved_root();
+  let profiles = profiles_under(root.path());
+  let open = std::fs::File::create(profiles.join("profile/.parentlock")).unwrap();
+
+  record_lock(&open);
+
+  let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
+
+  assert!(
+    refused.starts_with("Nothing was paid: the owner's Firefox is open on this machine")
+      && refused.ends_with("Call again once Firefox is closed."),
+    "{refused}"
+  );
+  assert_session_as_planted(&profiles);
+}
+
+#[tokio::test]
+async fn a_browser_that_cannot_start_gives_the_owners_session_back_as_it_stood() {
+  let stand = Stand::kept(Some(3.5));
+  let root = saved_root();
+  let profiles = profiles_under(root.path());
+
+  let refused = top_up(&stand, root.path(), amount(10.0)).await.unwrap_err();
+
+  assert!(
+    refused.starts_with("Nothing was paid: the browser the DeepSeek top-up pays in could not be started"),
+    "{refused}"
+  );
+  holds_no_secret_value(&refused);
+  assert_session_as_planted(&profiles);
+}
+
+/// The default profile a `profiles.ini` of the lines given names, in a folder of its own.
+fn default_of(lines: &str) -> Result<PathBuf, String> {
+  let root = tempfile::tempdir().unwrap();
+
+  std::fs::write(root.path().join("profiles.ini"), lines).unwrap();
+  default_profile(root.path())
+    .map(|found| found.strip_prefix(root.path()).map_or(found.clone(), Path::to_owned))
+}
+
+#[test]
+fn the_owners_profile_is_the_one_firefox_opens_by_default() {
+  let two = "[Profile1]\nName=work\nIsRelative=1\nPath=b.work\n\n[Profile0]\nName=default\nIsRelative=1\nPath=a.default\n";
+
+  assert_eq!(
+    default_of(&format!("{two}Default=1\n")).unwrap(),
+    Path::new("a.default"),
+    "the marked one"
+  );
+  assert_eq!(
+    default_of(&format!("[Install4F96D1932A9F858E]\nDefault=b.work\nLocked=1\n\n{two}Default=1\n"))
+      .unwrap(),
+    Path::new("b.work"),
+    "the install's default before the marked one"
+  );
+  assert_eq!(
+    default_of("[Profile0]\nName=default\nIsRelative=1\nPath=only.default\n").unwrap(),
+    Path::new("only.default"),
+    "the only one"
+  );
+  assert_eq!(
+    default_of("[Profile0]\nName=default\nIsRelative=0\nPath=/elsewhere/x.default\nDefault=1\n").unwrap(),
+    Path::new("/elsewhere/x.default"),
+    "an absolute path as it stands"
+  );
+  assert!(default_of(two).unwrap_err().ends_with("names no default profile"));
+  assert!(default_profile(Path::new("/nowhere-at-all")).unwrap_err().contains("could not be read"));
+}
+
+#[test]
+fn firefox_starts_in_the_snaps_scope_with_no_bus_display_or_remote_of_the_owners_session() {
+  let place = Place {
+    firefox: "/opt/firefox/firefox".to_owned(),
+    profiles: PathBuf::from("/profiles"),
+    scope: "snap.firefox.firefox".to_owned(),
+    screen: "1280x900x24".to_owned(),
+    start: Duration::from_secs(1),
+  };
+  let line = launch_line(&place, Path::new("/profiles/.call"), Path::new("/profiles/a.default"), "unique");
+  let at = |word: &str| line.iter().position(|said| said == word).unwrap();
+  let environment = &line[at("-i") + 1..at("xvfb-run")];
+
+  assert_eq!(
+    line[..at("-i") + 1],
+    [
+      "systemd-run",
+      "--user",
+      "--scope",
+      "--quiet",
+      "--collect",
+      "--unit=snap.firefox.firefox-unique",
+      "--",
+      "env",
+      "-i"
+    ]
+  );
+
+  for set in [
+    "DBUS_SESSION_BUS_ADDRESS=unix:path=/profiles/.call/no-bus",
+    "XDG_RUNTIME_DIR=/profiles/.call/run",
+    "DISABLE_WAYLAND=1",
+    "GDK_BACKEND=x11",
+  ] {
+    assert!(environment.iter().any(|said| said == set), "{set} in {environment:?}");
+  }
+
+  assert!(
+    !environment
+      .iter()
+      .any(|said| said.starts_with("WAYLAND_DISPLAY=") || said.starts_with("DISPLAY=")),
+    "no display of the owner's session: {environment:?}"
+  );
+  assert!(line.contains(&"-f".to_owned()) && line.contains(&"/profiles/.call/Xauthority".to_owned()));
+  assert_eq!(
+    line[at("/opt/firefox/firefox")..],
+    [
+      "/opt/firefox/firefox",
+      "--no-remote",
+      "--profile",
+      "/profiles/a.default",
+      "--remote-debugging-port",
+      "0",
+      "about:blank"
+    ]
+  );
+
+  let unscoped = launch_line(
+    &Place {
+      scope: String::new(),
+      ..place
+    },
+    Path::new("/profiles/.call"),
+    Path::new("/profiles/a.default"),
+    "unique",
+  );
+
+  assert_eq!(unscoped[..2], ["env", "-i"], "no scope for a Firefox that is no snap");
 }
 
 #[tokio::test]
