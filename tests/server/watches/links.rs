@@ -158,10 +158,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   .unwrap();
 
   for (node, setup) in [
-    (
-      "u7",
-      r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock", "bridgeRelay": 47214 }"#,
-    ),
+    ("u7", r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock" }"#),
     ("u8", r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock" }"#),
   ] {
     std::fs::create_dir_all(trees.path().join("data/nodes").join(node)).unwrap();
@@ -171,23 +168,17 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   let units = Units::default();
   let settled = settle(scratch.db(), &LogsInToOne, &units, &roots).await.unwrap();
 
-  assert_eq!(settled.started, ["n1", "u7"]);
+  assert_eq!(settled.started, ["n1", "u7", "u8"]);
   assert_eq!(
     settled.skipped,
-    [
-      Skipped {
-        node: "n2".into(),
-        why: "n2 has no SSH route and no hub".into(),
-      },
-      Skipped {
-        node: "u8".into(),
-        why: "u8's setup left no bridge relay port".into(),
-      },
-    ]
+    [Skipped {
+      node: "n2".into(),
+      why: "n2 has no SSH route and no hub".into(),
+    }]
   );
   assert_eq!(units.started.lock().unwrap()[0], (link_unit("n1"), roots.spec_path("n1")));
 
-  // A person's PC: no login, its hub's connect program and settings, the far end's ports and its relay here.
+  // A person's PC: no login, its hub's connect program and settings, and the far end's ports.
   let pc = Spec::read(&roots.spec_path("u7")).unwrap();
   let jake = pc.jake.unwrap();
 
@@ -195,10 +186,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   assert_eq!(jake.agent, "u7-agent");
   assert_eq!(jake.connect, ["/opt/jake/jake-hub", "connect"]);
   assert_eq!(jake.hub_env, trees.path().join("hub.env"));
-  assert_eq!(
-    (jake.mirror_port, jake.herdr_port, jake.bridge_port, jake.bridge_relay),
-    (47201, 47202, 47203, 47214)
-  );
+  assert_eq!((jake.mirror_port, jake.herdr_port), (47201, 47202));
   // The tool host and the model gateway here are both reached from the PC's loopback, and a program on a gateway
   // road takes its road's variables and the gateway's key there, never a login's key or token
   // (docs/work-nodes.md, 「The model gateway on a node」).
@@ -353,7 +341,7 @@ async fn each_account_sharing_a_node_keeps_its_supervisors_folders_under_a_root_
   std::fs::create_dir_all(trees.path().join("data/nodes/u7")).unwrap();
   std::fs::write(
     trees.path().join("data/nodes/u7/setup.json"),
-    r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock", "bridgeRelay": 47214 }"#,
+    r#"{ "herdrSession": "bmo", "herdrSocket": "/home/tester/h.sock" }"#,
   )
   .unwrap();
 

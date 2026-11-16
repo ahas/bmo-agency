@@ -81,6 +81,7 @@ async fn a_supervisor_program_on_an_old_model_is_let_go_for_its_pin() {
       args: vec!["claude".into(), "--model".into(), "flash-next-coder@n3".into()],
       cwd: home.path().to_path_buf(),
       env: [].into(),
+      login_file: None,
     },
     restart: None,
     opened: None,

@@ -30,6 +30,7 @@ fn program(identity: &str, cwd: &std::path::Path) -> Program {
       args: vec!["bmo-tui".into(), identity.into()],
       cwd: cwd.to_path_buf(),
       env: Default::default(),
+      login_file: None,
     },
     restart: None,
     opened: None,

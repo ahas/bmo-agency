@@ -22,6 +22,11 @@ pub struct ResidentCommand {
   pub cwd: PathBuf,
   #[serde(default)]
   pub env: BTreeMap<String, String>,
+  /// The configuration file the program's login keeps, whose first-run screens are marked as passed and in which
+  /// its folder is trusted by the agent host that starts it, on whichever machine that is (docs/work-nodes.md,
+  /// 「The logins on a node」).
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub login_file: Option<PathBuf>,
 }
 
 /// The program the launcher wrote into the place.

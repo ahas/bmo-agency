@@ -131,3 +131,27 @@ async fn a_call_herdr_answers_late_is_waited_for_and_written_down_as_a_silence_m
   );
   assert!(std::fs::read_to_string(&silences).unwrap().contains("agent.list"));
 }
+
+// "a node's herdr that never answers is answered silent past its ceiling, and the call goes out once"
+#[tokio::test]
+async fn a_node_s_herdr_that_never_answers_is_answered_silent_past_its_ceiling() {
+  let dir = tempfile::tempdir().unwrap();
+  let socket = dir.path().join("herdr.sock");
+  let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+  let held = tokio::spawn(async move {
+    let mut kept = Vec::new();
+
+    while let Ok((stream, _)) = listener.accept().await {
+      kept.push(stream);
+    }
+  });
+  let silent = Herdr::there(socket)
+    .within(Duration::from_millis(200))
+    .call("pane.read", json!({ "pane_id": "p" }), Some(Duration::from_millis(50)))
+    .await
+    .unwrap_err();
+
+  held.abort();
+  assert_eq!(silent.code, herdr::SILENT);
+  assert!(silent.message.contains("pane.read"), "{}", silent.message);
+}

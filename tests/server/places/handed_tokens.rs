@@ -123,6 +123,7 @@ fn hand_tokens_rewrites_a_place_written_before_without_overwriting_the_launcher_
       ("BMO_CARRIED_424D4F5F4A4F425F544F4B454E".to_owned(), "job-token".to_owned()),
       ("HOME".to_owned(), "/".to_owned()),
     ]),
+    login_file: None,
   };
   let program = Program {
     identity: command_digest(&command),

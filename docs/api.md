@@ -664,11 +664,13 @@ and `reason`, why it did not go in, where it did not.
 the turn waits before its program is put to work it names the wait, typed: `for`, what it waits for —
 `card`, a card the arbiter's master has not yet granted the run on a registration naming a card service
 (`docs/own-llm.md`, 「An engine the arbiter stands」), or `node-program`, a program on a node that has stood
-past its notice without taking the turn (`docs/work-nodes.md`, 「When a node drops」) —, `service`, the card
+past its notice without taking the turn, or whose node's far end could not listen on a port the program reaches
+home through (`docs/work-nodes.md`, 「When a node drops」) —, `service`, the card
 service or the node, `reason`, why it waits as it stands now — the master's reason, the master unreached, the
-gateway taking the granted card's entry into its table, or the program on the node not yet taking the turn —,
+gateway taking the granted card's entry into its table, or the program on the node not yet taking the turn, or the port its far end could not listen on —,
 and `since`, the moment in epoch milliseconds the wait began. A `node-program` wait the bound overtakes ends
-the turn `unsubmitted`, its `reason` saying how long the program stood on which node. The wait is
+the turn `unsubmitted`, its `reason` saying how long the program stood on which node, or which port its far end
+could not listen on. The wait is
 published as `turn.changed` — `session`, `turnId`, `run` and `waiting` — as it begins, each time its reason
 changes, and once more with `waiting` null as it clears, on the grant or on the wait's end, so a consumer
 shows it on the room's working line from the event or from the read and never from the run's log. A turn

@@ -392,6 +392,7 @@ pub async fn compose(
         args: command.args,
         cwd: PathBuf::from(&cwd),
         env,
+        login_file: None,
       },
       session: session.id().to_owned(),
       prompt: turn.prompt.to_owned(),

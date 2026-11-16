@@ -894,6 +894,7 @@ pub async fn compose_prepared(
       args: command.args,
       cwd: PathBuf::from(&cwd),
       env,
+      login_file: None,
     },
     session: run.resume.clone().unwrap_or(opened),
     prompt: prompt.to_owned(),

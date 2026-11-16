@@ -563,7 +563,7 @@ pub async fn spec(
     (Some(_), _) | (None, Some(_)) => None,
     (None, None) => match nodes.hub_reach(node).await? {
       None => return Ok(Err(format!("{node} has no SSH route and no hub"))),
-      Some(reach) => match jake_of(roots, node, reach, setup.as_ref()) {
+      Some(reach) => match jake_of(roots, node, reach) {
         Ok(jake) => Some(jake),
         Err(why) => return Ok(Err(why)),
       },
@@ -729,24 +729,13 @@ pub fn ports_of(roots: &Roots) -> Vec<u16> {
   roots.node_ports().into_iter().map(|(port, _)| port).collect()
 }
 
-/// The bridge relay port a node's setup record names, where it names one.
-pub fn bridge_relay(setup: &Value) -> Option<u16> {
-  setup
-    .get("bridgeRelay")
-    .and_then(Value::as_u64)
-    .and_then(|port| u16::try_from(port).ok())
-}
-
 // How the link reaches a person's PC through its hub, or why it cannot yet.
-fn jake_of(roots: &Roots, node: &str, reach: HubReach, setup: Option<&Value>) -> Result<Jake, String> {
+fn jake_of(roots: &Roots, node: &str, reach: HubReach) -> Result<Jake, String> {
   let Some(program) = &roots.jake_hub else {
     return Err(format!(
       "{node} is reached through a hub, and the deployment names no hub program in {}",
       crate::config::JAKE_HUB
     ));
-  };
-  let Some(bridge_relay) = setup.and_then(bridge_relay) else {
-    return Err(format!("{node}'s setup left no bridge relay port"));
   };
   let ports = &PERSON_NODES;
   let hub_env = match reach.token_file.strip_prefix("~/") {
@@ -760,8 +749,6 @@ fn jake_of(roots: &Roots, node: &str, reach: HubReach, setup: Option<&Value>) ->
     hub_env,
     mirror_port: ports.mirror_port,
     herdr_port: ports.herdr_port,
-    bridge_port: ports.bridge_port,
-    bridge_relay,
   })
 }
 
@@ -821,6 +808,30 @@ pub fn mark_place_on(place: &Path, node: Option<&str>, cwd: &str) -> Result<(), 
     .map_err(|why| why.to_string())?;
 
   write_whole(&place.join(PLACE_NODE_FILE), &format!("{body}\n"))
+}
+
+/// Each port the far end on a person's PC could not listen on, with why, as the link last wrote its state here
+/// while connected; none where it wrote none or is down (docs/person-nodes.md, 「The link over jake」).
+pub fn link_refused(data_root: &Path, node: &str) -> Vec<(u16, String)> {
+  let Some(state) = read_json(&data_root.join("nodes").join(node).join("link-state.json")) else {
+    return Vec::new();
+  };
+
+  if state.get("state").and_then(Value::as_str) != Some("connected") {
+    return Vec::new();
+  }
+
+  state
+    .get("refused")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter_map(|one| {
+      let port = u16::try_from(one.get("port")?.as_u64()?).ok()?;
+
+      Some((port, one.get("why").and_then(Value::as_str).unwrap_or_default().to_owned()))
+    })
+    .collect()
 }
 
 /// Whether a node's link was heard from lately, as the link last wrote its state here: connected, and heard

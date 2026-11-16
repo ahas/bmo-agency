@@ -435,6 +435,29 @@ fn a_session_is_opened_until_its_record_exists_and_resumed_after() {
   assert_eq!(root.read("chat", "running.json")["starts"], 3);
 }
 
+// "the login a program's command names is readied as it starts: its directory made, its first-run screens passed and
+// the program's folder trusted"
+#[test]
+fn the_login_a_program_names_is_readied_as_it_starts() {
+  let root = Root::new();
+  let login = root.data.path().join("road-home").join(".claude.json");
+  let head = Holder::new();
+
+  root.program(
+    "chat",
+    "true",
+    json!({ "command": { "args": [SH, "-c", "true"], "cwd": root.data.path(), "env": {}, "login_file": login } }),
+  );
+
+  assert!(matches!(root.ask("chat", head.0.id() as i32), Answer::Program { .. }));
+
+  let marked: Value = serde_json::from_str(&fs::read_to_string(&login).unwrap()).unwrap();
+  let folder = root.data.path().to_str().unwrap();
+
+  assert_eq!(marked["hasCompletedOnboarding"], true);
+  assert_eq!(marked["projects"][folder]["hasTrustDialogAccepted"], true);
+}
+
 #[test]
 fn a_program_that_cannot_start_is_written_down_and_the_head_ends_for_the_loop() {
   let root = Root::new();

@@ -234,6 +234,22 @@ pub fn mark_onboarded(file: &Path) -> Trust {
   marked
 }
 
+/// A program's login readied just before the program starts (docs/work-nodes.md, 「The logins on a node」): the
+/// file's directory made where it is not, the login's first-run screens marked as passed, and the program's folder
+/// trusted in it.
+pub fn ready_login(file: &Path, folder: &Path) -> Trust {
+  if let Some(dir) = file.parent() {
+    let _ = std::fs::create_dir_all(dir);
+  }
+
+  mark_onboarded(file);
+
+  match folder.to_str() {
+    Some(folder) => trust_folder(file, folder),
+    None => Trust::Unreadable,
+  }
+}
+
 /// The configuration file of a configuration directory.
 pub fn config_file(dir: &Path) -> PathBuf {
   dir.join(CONFIG_NAME)

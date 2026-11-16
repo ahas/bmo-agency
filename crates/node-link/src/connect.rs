@@ -19,7 +19,8 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use crate::bridge;
-use crate::frame::{Frame, decode, encode};
+use crate::frame::{Frame, Home, Refused, decode, encode};
+use crate::home::{DIAL_WAIT, Stream};
 use crate::rewrite::{NodeEnv, rewrite_json};
 use crate::serve::write_whole;
 use crate::spec::{Local, Spec};
@@ -49,13 +50,14 @@ fn now_ms() -> u128 {
 }
 
 /// What the bot reads of the link: whether it is up, since when, when it last heard the node, the
-/// node's home, and why it last dropped.
+/// node's home, why it last dropped, and on a person's PC each port its far end could not listen on.
 #[derive(Default)]
 pub struct State {
   connected_since: Option<u128>,
   heard: Option<u128>,
   home: Option<String>,
   dropped: Option<String>,
+  refused: Vec<Refused>,
   written: Option<u128>,
 }
 
@@ -68,6 +70,7 @@ impl State {
       "heard": self.heard,
       "home": self.home,
       "dropped": self.dropped,
+      "refused": self.refused,
       "pid": std::process::id(),
     });
 
@@ -221,8 +224,7 @@ fn jake_command(jake: &crate::spec::Jake, port: u16) -> Result<Command, String> 
 }
 
 // What a link to a person's PC holds beside its mirror, for as long as the connection stands: the herdr socket
-// here joined to the far end's herdr port, the bridge's stream back joined to the bridge socket here, and the hub
-// asked to listen on the PC for the tool host and the bridge (docs/person-nodes.md, 「The link over jake」).
+// here joined to the far end's herdr port (docs/person-nodes.md, 「The link over jake」).
 fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHandle<()>> {
   let mut sides = Vec::new();
   let _ = std::fs::remove_file(&spec.herdr.local);
@@ -240,32 +242,59 @@ fn jake_sides(spec: &Spec, jake: &crate::spec::Jake) -> Vec<tokio::task::JoinHan
     Err(error) => eprintln!("{}: {}: {error}", spec.node, spec.herdr.local.display()),
   }
 
-  let bridge = spec.bridge.clone();
-  let relay = jake.bridge_relay;
-  sides.push(tokio::spawn(async move {
-    let Ok(listener) = tokio::net::TcpListener::bind(("127.0.0.1", relay)).await else {
-      return;
-    };
-    while let Ok((mut client, _)) = listener.accept().await {
-      let bridge = bridge.clone();
-      tokio::spawn(async move {
-        if let Ok(mut far) = tokio::net::UnixStream::connect(&bridge).await {
-          let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
-        }
-      });
-    }
-  }));
-
-  let mut wanted: Vec<(u16, u16)> = spec.ports.iter().map(|port| (*port, *port)).collect();
-  wanted.push((jake.bridge_port, jake.bridge_relay));
-  let (agent, hub_env, node) = (jake.agent.clone(), jake.hub_env.clone(), spec.node.clone());
-  sides.push(tokio::spawn(async move {
-    if let Err(error) = ask_listens(&agent, &hub_env, &wanted).await {
-      eprintln!("{node}: the hub was not asked to listen: {error}");
-    }
-  }));
-
   sides
+}
+
+/// A connection the far end on a person's PC holds dialed home (docs/person-nodes.md, 「The link over jake」): what
+/// it reaches here joined first, a port the link carries or the bridge's socket and nothing else, then a new stream
+/// opened to the far end's mirror port, its greeting read, the connection named on it, and the two joined.
+pub async fn dial_home(
+  jake: &crate::spec::Jake,
+  id: u64,
+  to: Home,
+  ports: &[u16],
+  bridge: &Path,
+) -> Result<(), String> {
+  let mut here: Box<dyn Stream> = match to {
+    Home::Port(port) if ports.contains(&port) => Box::new(
+      tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .map_err(|why| format!("port {port} here: {why}"))?,
+    ),
+    Home::Port(port) => return Err(format!("port {port} is not one the link carries")),
+    Home::Bridge => Box::new(
+      tokio::net::UnixStream::connect(bridge)
+        .await
+        .map_err(|why| format!("{}: {why}", bridge.display()))?,
+    ),
+  };
+  let mut command = jake_command(jake, jake.mirror_port)?;
+  let mut child = command.stderr(Stdio::null()).spawn().map_err(|why| {
+    let program = command.as_std().get_program().to_string_lossy().into_owned();
+
+    format!("{program}: {why}")
+  })?;
+  let (Some(mut input), Some(output)) = (child.stdin.take(), child.stdout.take()) else {
+    return Err("the hub's connect program gave no input or output".into());
+  };
+  let mut output = BufReader::new(output);
+  let mut greeting = String::new();
+
+  match tokio::time::timeout(DIAL_WAIT, output.read_line(&mut greeting)).await {
+    Ok(Ok(read)) if read > 0 && matches!(Frame::read(&greeting), Some(Frame::Hello { .. })) => {}
+    _ => return Err("the far end did not greet the stream".into()),
+  }
+
+  input
+    .write_all(Frame::Back { id }.line().as_bytes())
+    .await
+    .map_err(|why| format!("the stream: {why}"))?;
+
+  let mut stream = tokio::io::join(output, input);
+  let _ = tokio::io::copy_bidirectional(&mut stream, &mut here).await;
+  let _ = child.start_kill();
+
+  Ok(())
 }
 
 // One connection here carried to a port on the PC through the hub's connect program.
@@ -292,39 +321,6 @@ async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jak
     _ = tokio::io::copy(&mut output, &mut writer) => {}
   }
   let _ = child.start_kill();
-}
-
-/// The hub asked to have the agent listen on each PC port wanted, joined to the port here, at the control port the
-/// hub's own file names and with a credential reaching that agent alone. Every listen is asked for on every
-/// connection: the hub keeps one the agent already listens on as it stands and asks the agent only for the rest.
-/// A listen refused leaves the others asked all the same, so a target the hub does not list yet costs that road
-/// alone; every refusal is answered together.
-pub async fn ask_listens(agent: &str, hub_env: &Path, wanted: &[(u16, u16)]) -> Result<(), String> {
-  let port = match crate::hub::setting(hub_env, "JAKE_CONTROL_PORT")? {
-    Some(port) => port.parse::<u16>().map_err(|_| format!("JAKE_CONTROL_PORT {port} is no port"))?,
-    None => 8791,
-  };
-  let credential = crate::hub::agent_credential(hub_env, agent)?;
-  let client = reqwest::Client::new();
-  let mut refused = Vec::new();
-
-  for (pc, here) in wanted {
-    let answer = client
-      .post(format!("http://127.0.0.1:{port}/listen"))
-      .query(&[("agent", agent), ("port", &pc.to_string())])
-      .bearer_auth(&credential)
-      .json(&json!({ "target": format!("127.0.0.1:{here}") }))
-      .send()
-      .await;
-
-    match answer {
-      Ok(answer) if answer.status().is_success() => {}
-      Ok(answer) => refused.push(format!("port {pc}: {}", answer.text().await.unwrap_or_default())),
-      Err(error) => refused.push(format!("port {pc}: {error}")),
-    }
-  }
-
-  if refused.is_empty() { Ok(()) } else { Err(refused.join("; ")) }
 }
 
 /// Whether two specs make the same connection, so a change between them needs no new one.
@@ -517,7 +513,31 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
       }
     }
     Frame::Trouble { said } => eprintln!("{}: the node said: {said}", spec.node),
+    Frame::Carried { refused } => {
+      if refused != state.refused {
+        for one in &refused {
+          eprintln!("{}: the far end could not listen on port {}: {}", spec.node, one.port, one.why);
+        }
+
+        if refused.is_empty() {
+          eprintln!("{}: the far end listens on every port it carries", spec.node);
+        }
+      }
+
+      state.refused = refused;
+      state.written = None;
+    }
     _ => {}
+  }
+}
+
+// The ports here a program on a person's PC reaches, named to its far end to carry home; nothing for a node
+// reached otherwise, whose connection forwards them itself.
+fn carry(spec: &Spec, send: &mpsc::UnboundedSender<Frame>) {
+  if spec.jake.is_some() {
+    let _ = send.send(Frame::Carry {
+      ports: spec.ports.clone(),
+    });
   }
 }
 
@@ -608,7 +628,19 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
           state.dropped = None;
           let _ = send.send(Frame::Watch { pulls: spec.pulls() });
           let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
+          carry(spec, &send);
           pushing = Pushing::new();
+        }
+
+        if let (Frame::Dial { id, to }, Some(jake)) = (&frame, &spec.jake) {
+          let (id, to, jake, ports, bridge) = (*id, *to, jake.clone(), spec.ports.clone(), spec.bridge.clone());
+          let node = spec.node.clone();
+
+          tokio::spawn(async move {
+            if let Err(why) = dial_home(&jake, id, to, &ports, &bridge).await {
+              eprintln!("{node}: a connection on the node was not dialed home: {why}");
+            }
+          });
         }
 
         apply(spec, frame, state);
@@ -633,7 +665,8 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
             Ok(read) if same_transport(spec, &read) => {
               *spec = read;
               let _ = send.send(Frame::Watch { pulls: spec.pulls() });
-          let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
+              let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
+              carry(spec, &send);
             }
             Ok(read) => {
               *spec = read;

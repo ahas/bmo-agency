@@ -101,7 +101,6 @@ pub struct SetupPlace<'a> {
 pub struct FarEnd {
   pub mirror_port: u16,
   pub herdr_port: u16,
-  pub bridge_port: u16,
 }
 
 /// The user service the link's far end stands as on a node that keeps it standing itself.
@@ -298,8 +297,6 @@ pub fn far_end_unit(home: &str, root: &str, session: &str, socket: &str, ports: 
     format!("127.0.0.1:{}", ports.mirror_port),
     "--herdr-listen".into(),
     format!("127.0.0.1:{}", ports.herdr_port),
-    "--bridge-port".into(),
-    ports.bridge_port.to_string(),
   ]
   .iter()
   .map(|word| unit_word(word))

@@ -38,15 +38,13 @@ enum Verb {
     herdr_session: Option<String>,
     #[arg(long)]
     herdr_socket: Option<PathBuf>,
-    /// On a person's PC: the loopback address the mirror is spoken on, one session after another.
+    /// On a person's PC: the loopback address the mirror is spoken on, one session after another, and the road
+    /// home dialed over it; the ports the near end names are listened on at the same address.
     #[arg(long)]
     listen: Option<String>,
     /// On a person's PC: the loopback address the herdr socket is reached at.
     #[arg(long)]
     herdr_listen: Option<String>,
-    /// On a person's PC: the loopback port the stream back to the home bridge stands on.
-    #[arg(long)]
-    bridge_port: Option<u16>,
     /// On a node of this machine running as a user of its own: the socket the herdr socket is reached at.
     #[arg(long)]
     herdr_unix: Option<PathBuf>,
@@ -88,7 +86,6 @@ async fn main() -> ExitCode {
       herdr_socket,
       listen,
       herdr_listen,
-      bridge_port,
       herdr_unix,
     } => match serve::serve(serve::Serve {
       root,
@@ -97,7 +94,6 @@ async fn main() -> ExitCode {
       herdr_socket,
       listen,
       herdr_listen,
-      bridge_port,
       herdr_unix,
     })
     .await

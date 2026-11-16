@@ -320,6 +320,7 @@ pub fn resident_command_of(
     args,
     cwd: PathBuf::from(&shape.cwd),
     env,
+    login_file: None,
   })
 }
 

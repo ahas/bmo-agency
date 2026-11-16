@@ -39,6 +39,14 @@ pub struct ResidentTurn {
   /// What the waiting says, and why the turn ends; `{node}` and `{seconds}` are filled in.
   pub node_take_waiting: String,
   pub node_take_cut: String,
+  /// How long a program on a person's PC is waited on while the far end there could not listen on a port the
+  /// program reaches home through, before the turn ends on it.
+  pub node_listen_bound_ms: u64,
+  /// What the waiting says, and why the turn ends; `{node}`, `{port}` and `{why}` are filled in.
+  pub node_listen_waiting: String,
+  pub node_listen_cut: String,
+  /// How long a call to a node's herdr is waited on before it is answered as herdr silent.
+  pub node_herdr_ceiling_ms: u64,
 }
 
 crate::part!(pub RESIDENT_TURN: ResidentTurn = "resident-turn.toml");

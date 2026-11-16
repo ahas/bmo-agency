@@ -619,9 +619,16 @@ impl<W: Watch> Door<'_, W> {
     let take = self.node_take.as_mut()?;
     let node = take.node().to_owned();
     let heard = crate::watches::links::link_heard(&self.ground.roots.data, &node);
+    let refused = crate::watches::links::link_refused(&self.ground.roots.data, &node);
+    let refused = refused.first().map(|(port, why)| (*port, why.as_str()));
 
-    match take.look(heard, tokio::time::Instant::now()) {
+    match take.look(heard, refused, tokio::time::Instant::now()) {
       Take::Within => None,
+      Take::Cleared => {
+        self.watch.waiting(None).await;
+
+        None
+      }
       Take::Notice { reason, stood } => {
         eprintln!("{}: {reason}", self.turn.name);
         self.watch.note(&reason).await;

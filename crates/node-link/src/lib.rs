@@ -5,6 +5,7 @@
 pub mod bridge;
 pub mod connect;
 pub mod frame;
+pub mod home;
 pub mod hub;
 pub mod rewrite;
 pub mod serve;

@@ -23,9 +23,10 @@ use super::work_node_setup::{
 };
 use crate::peers::node::HubReach;
 
-/// The variable of the hub's settings naming the targets here a stream back may be joined to, each `host:port`,
-/// separated by commas, as jake's hub reads it.
-const REVERSE_TARGETS_KEY: &str = "JAKE_REVERSE_TARGETS";
+/// What a Windows PC's Linux shell is asked of its networking: WSL's networking mode, then the range of ports Linux
+/// takes for its own connections, which mirrored networking keeps from every Windows program.
+const WSL_NETWORKING: &str =
+  "wslinfo --networking-mode 2>/dev/null || echo unknown; cat /proc/sys/net/ipv4/ip_local_port_range";
 
 /// A command as the hub is handed it (docs/person-nodes.md, 「The workplace on a PC」): one line that decodes it and
 /// gives it to the Linux shell, holding nothing a shell on the way would read in the command's place.
@@ -79,8 +80,6 @@ pub struct HubDoor {
   address: String,
   /// The control credential that reaches this agent alone.
   credential: String,
-  /// The targets here the hub joins a stream back to.
-  reverse_targets: Vec<String>,
   agent: String,
   shell: Option<&'static str>,
   capabilities: Vec<String>,
@@ -108,12 +107,6 @@ impl HubDoor {
   pub async fn open(reach: &HubReach, home: &Path) -> Result<Self, String> {
     let settings = expand_home(&reach.token_file, home);
     let credential = hub::agent_credential(&settings, &reach.agent)?;
-    let reverse_targets: Vec<String> = hub::setting(&settings, REVERSE_TARGETS_KEY)?
-      .unwrap_or_default()
-      .split(',')
-      .map(|target| target.trim().to_owned())
-      .filter(|target| !target.is_empty())
-      .collect();
     let address = reach.address.trim_end_matches('/').to_owned();
     let client = reqwest::Client::new();
     let status: Value = client
@@ -152,7 +145,6 @@ impl HubDoor {
       client,
       address,
       credential,
-      reverse_targets,
       agent: reach.agent.clone(),
       shell,
       capabilities,
@@ -161,11 +153,9 @@ impl HubDoor {
     })
   }
 
-  /// What the hub and its agent do not offer that the workplace and its link need, one thing per line: a Linux
-  /// shell, the far end's mirror and herdr ports to stream to, this machine's ports the node reaches — the tool
-  /// host's and the model gateway's — and the bridge's port to listen on, and those ports and the bridge's relay
-  /// port here among the hub's targets of a stream back.
-  pub fn wanting(&self, far_end: &FarEnd, home_ports: &[(u16, &str)], bridge_relay: u16) -> Vec<String> {
+  /// What the hub's agent does not offer that the workplace and its link need, one thing per line: a Linux shell,
+  /// and the far end's mirror and herdr ports to stream to.
+  pub fn wanting(&self, far_end: &FarEnd) -> Vec<String> {
     let offers = |capability: String| self.capabilities.contains(&capability);
     let agent = &self.agent;
     let mut wanting = Vec::new();
@@ -178,28 +168,6 @@ impl HubDoor {
       if !offers(format!("stream:{port}")) {
         wanting.push(format!(
           "jake: the agent {agent} does not offer port {port} for {what} to stream to; its JAKE_STREAM_PORTS must list it"
-        ));
-      }
-    }
-
-    let listened = home_ports.iter().copied().chain([(far_end.bridge_port, "the bridge")]);
-
-    for (port, what) in listened {
-      if !offers(format!("listen:{port}")) {
-        wanting.push(format!(
-          "jake: the agent {agent} does not offer to listen on port {port} for {what}; its JAKE_LISTEN_PORTS must list it"
-        ));
-      }
-    }
-
-    let joined = home_ports.iter().copied().chain([(bridge_relay, "the bridge's relay")]);
-
-    for (port, what) in joined {
-      let target = format!("127.0.0.1:{port}");
-
-      if !self.reverse_targets.contains(&target) {
-        wanting.push(format!(
-          "jake: the hub joins no stream back to {target}, {what} here; its {REVERSE_TARGETS_KEY} must list it"
         ));
       }
     }
@@ -262,6 +230,21 @@ impl HubDoor {
     }
 
     Err("the hub's answer ended before the command did".into())
+  }
+
+  /// WSL's networking on a Windows PC, said plainly (docs/person-nodes.md, 「The workplace on a PC」): its mode, and
+  /// in mirrored mode the range of ports its Linux side takes for its own connections, with every port of the far
+  /// end's that lies in it; nothing where the agent runs inside the Linux shell itself.
+  pub async fn wsl_networking(&self, ports: &[(u16, &str)]) -> Vec<String> {
+    if self.shell != Some("wsl") {
+      return Vec::new();
+    }
+
+    match self.exec_again(WSL_NETWORKING).await {
+      Ok(read) if read.code == 0 => wsl_said(&read.stdout, ports),
+      Ok(read) => vec![format!("wsl: its networking could not be read: {}", read.said())],
+      Err(why) => vec![format!("wsl: its networking could not be read: {why}")],
+    }
   }
 
   /// A command that reads and may run again, asked again while the hub cannot reach the agent.
@@ -539,4 +522,33 @@ impl SetupHands for HubHands<'_> {
   fn say(&self, line: &str) {
     super::work_node::say(line);
   }
+}
+
+/// What WSL's networking reading says, a line each: the mode, and in mirrored mode the range Windows keeps for the
+/// Linux side's own connections and each of the ports given that lies in it. The reading is the mode on its first
+/// line and the kernel's two bounds on its second, as the kernel writes them, separated by white space.
+pub fn wsl_said(reading: &str, ports: &[(u16, &str)]) -> Vec<String> {
+  let mut lines = reading.lines().map(str::trim).filter(|line| !line.is_empty());
+  let mode = lines.next().unwrap_or("unknown").to_owned();
+  let range: Vec<u16> = lines
+    .next()
+    .unwrap_or_default()
+    .split_whitespace()
+    .filter_map(|n| n.parse().ok())
+    .collect();
+  let mut said = vec![format!("wsl: networking mode {mode}")];
+
+  if let ([low, high], "mirrored") = (range.as_slice(), mode.as_str()) {
+    said[0] = format!(
+      "wsl: networking mode mirrored; Windows keeps ports {low}-{high} for the Linux side's own connections"
+    );
+
+    for (port, what) in ports.iter().filter(|(port, _)| (low..=high).contains(&port)) {
+      said.push(format!(
+        "wsl: port {port} for {what} lies in that range, where a Linux connection's own port may hold it when the far end starts again"
+      ));
+    }
+  }
+
+  said
 }

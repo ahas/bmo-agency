@@ -170,6 +170,7 @@ fn a_program_on_the_thread_it_opened_resumes_it() {
     args: vec!["codex".into(), "--model".into(), "gpt-5.6-luna".into()],
     cwd: "/w".into(),
     env: BTreeMap::new(),
+    login_file: None,
   };
 
   assert_eq!(resumed(&command, "t1").args, vec!["codex", "resume", "t1", "--model", "gpt-5.6-luna"]);

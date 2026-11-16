@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use agency_server::peers::node::HubReach;
-use agency_server::verbs::work_node_hub::{HubDoor, HubHands};
+use agency_server::verbs::work_node_hub::{HubDoor, HubHands, wsl_said};
 use agency_server::verbs::work_node_setup::{FarEnd, SetupHands, SetupShell};
 use axum::Router;
 use axum::body::Bytes;
@@ -102,7 +102,7 @@ fn events(events: &[(&str, Value)]) -> Response {
 
 // The agents attached that the credential reaches, each with what it offers.
 async fn status(State(hub): State<Hub>, headers: HeaderMap) -> Response {
-  let capabilities = json!(["exec:linux", "transfer", "stream:47201", "listen:13123"]);
+  let capabilities = json!(["exec:linux", "transfer", "stream:47201"]);
   let mut agents = Vec::new();
 
   for name in [AGENT, OTHER] {
@@ -204,7 +204,8 @@ struct Stood {
   _scratch: tempfile::TempDir,
 }
 
-const SETTINGS: &str = "JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN=stand-in-token\nJAKE_CONTROL_KEY=stand-in-control-key\nJAKE_REVERSE_TARGETS=127.0.0.1:13123,127.0.0.1:47213\n";
+const SETTINGS: &str =
+  "JAKE_HUB_PORT=8790\nJAKE_CONTROL_TOKEN=stand-in-token\nJAKE_CONTROL_KEY=stand-in-control-key\n";
 
 async fn stand_hub() -> Stood {
   stand_hub_with(SETTINGS).await
@@ -296,28 +297,31 @@ async fn an_absent_agent_is_refused_and_what_an_attached_one_does_not_offer_is_s
   let ports = FarEnd {
     mirror_port: 47201,
     herdr_port: 47202,
-    bridge_port: 47203,
   };
-
-  // The ports here a node reaches: the tool host's, which the agent and the hub offer, and the gateway's, which
-  // neither does.
-  let home_ports = [(13123, "the tool host"), (18030, "the model gateway")];
 
   assert!(refused.contains("no agent elsewhere attached"));
   assert_eq!(
-    door(&stood).await.wanting(&ports, &home_ports, 47213),
+    door(&stood).await.wanting(&ports),
     [
-      "jake: the agent pc does not offer port 47202 for herdr to stream to; its JAKE_STREAM_PORTS must list it",
-      "jake: the agent pc does not offer to listen on port 18030 for the model gateway; its JAKE_LISTEN_PORTS must list it",
-      "jake: the agent pc does not offer to listen on port 47203 for the bridge; its JAKE_LISTEN_PORTS must list it",
-      "jake: the hub joins no stream back to 127.0.0.1:18030, the model gateway here; its JAKE_REVERSE_TARGETS must list it",
+      "jake: the agent pc does not offer port 47202 for herdr to stream to; its JAKE_STREAM_PORTS must list it"
     ]
   );
-  // A relay port the hub's settings do not list is said with them.
+}
+
+// "WSL's mirrored networking is said with the range Windows keeps for the Linux side and each far end port in it;
+// another mode is said alone"
+#[test]
+fn wsl_s_mirrored_range_is_said_with_each_far_end_port_inside_it() {
+  let ports = [(47201, "the mirror"), (13123, "the tool host")];
+
   assert_eq!(
-    door(&stood).await.wanting(&ports, &home_ports, 47214)[4],
-    "jake: the hub joins no stream back to 127.0.0.1:47214, the bridge's relay here; its JAKE_REVERSE_TARGETS must list it"
+    wsl_said("mirrored\n44620\t48715\n", &ports),
+    [
+      "wsl: networking mode mirrored; Windows keeps ports 44620-48715 for the Linux side's own connections",
+      "wsl: port 47201 for the mirror lies in that range, where a Linux connection's own port may hold it when the far end starts again",
+    ]
   );
+  assert_eq!(wsl_said("nat\n32768 60999\n", &ports), ["wsl: networking mode nat"]);
 }
 
 // "a tree goes up through one upload and is laid over the node's copy, leaving what was built there"

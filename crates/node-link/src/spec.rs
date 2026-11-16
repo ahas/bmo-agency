@@ -89,9 +89,8 @@ pub struct Local {
 }
 
 /// How the link reaches a person's PC through the jake hub: the agent, the words the hub's connect program runs
-/// with ahead of the agent and a port, the hub's settings file its control port and token stand in, the far end's
-/// loopback ports on the PC for the mirror, the herdr socket and the stream back to the bridge, and the port here
-/// the bridge's stream back joins.
+/// with ahead of the agent and a port, the hub's settings file its control key stands in, and the far end's
+/// loopback ports on the PC for the mirror, over which the road home is dialed too, and for the herdr socket.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Jake {
   pub agent: String,
@@ -99,8 +98,6 @@ pub struct Jake {
   pub hub_env: PathBuf,
   pub mirror_port: u16,
   pub herdr_port: u16,
-  pub bridge_port: u16,
-  pub bridge_relay: u16,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

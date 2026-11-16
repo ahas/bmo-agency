@@ -8,8 +8,6 @@ use serde::Deserialize;
 pub struct PersonNodes {
   pub mirror_port: u16,
   pub herdr_port: u16,
-  pub bridge_port: u16,
-  pub bridge_relay_base: u16,
   pub wait_seconds: u64,
   /// The resources every tool session issued for a supervisor of no account holds.
   pub administrator_grants: Vec<String>,

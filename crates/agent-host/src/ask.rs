@@ -269,6 +269,12 @@ impl Asks {
       self.unheld_since.remove(&name_component(agent));
       self.record_head(agent, pane, &head, Holds::Program, host_head);
 
+      // The login the program goes out on readied where it starts, so a configuration directory new to this
+      // machine stops it at neither its first-run screens nor the folder check.
+      if let Some(file) = &start.command.login_file {
+        crate::trust::ready_login(file, &start.command.cwd);
+      }
+
       return Answer::Program {
         identity: start.identity,
         args: start.command.args,

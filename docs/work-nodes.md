@@ -64,7 +64,9 @@ side of a remote agent, the rotation, and what a dropped node does.
      turn stops at the folder check, and its push to the remote tried. The trust is written by the
      node's own host binary, built in step 4, since the node's deploy tree holds no `bmo-agency` and
      the node runs nothing out of its scripts (`docs/agent-control.md`, 「A first interactive run stops
-     at the trust-this-folder check」).
+     at the trust-this-folder check」). A login a road makes after the setup — a gateway road's
+     configuration directory among them — is marked by the node's agent host as it starts the program
+     (「The logins on a node」 below).
 - **A credential file is never copied.** A subscription login renews itself by a token that changes
   as it is used, so two machines sharing one sign each other out. So:
   - Claude Code on a node runs on each account's token for the nodes, which this machine hands each
@@ -147,8 +149,9 @@ side of a remote agent, the rotation, and what a dropped node does.
     node's directory here, every few seconds;
   - which processes of a remote place's running record are alive, written beside it, and a signal
     asked for a process on the node through the link's control socket.
-- **Its state** — connected since, last heard from, the node's home, the reason it last dropped — is
-  written beside the node's directory here. A link that drops is made again, waiting a doubling bound
+- **Its state** — connected since, last heard from, the node's home, the reason it last dropped, and on a
+  person's PC each port its far end could not listen on with why — is written beside the node's directory
+  here. A link that drops is made again, waiting a doubling bound
   up to a minute between tries; one heard from in the last twenty seconds is up.
 - **A connection the node has not been heard on for two minutes is dropped and made again.** The far end
   speaks every few seconds while it stands, so a connection with nothing coming through it is a dead one,
@@ -166,7 +169,7 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **The address is carried by the link,** where the gateway's address here is on this machine's loopback:
   its port on the node's loopback joined to the gateway's port here, the same number at both ends, so the
   address the launch names reads the same on the node. Each transport carries it its own way: an SSH
-  forward, a listen the hub asks of a PC's agent joined back to the gateway here as the tool host's is
+  forward, a port a PC's far end listens on and dials home as it dials the tool host's
   (`docs/person-nodes.md`, 「The link over jake」), and on an isolation node the network rule leaving the
   gateway's port on this machine's loopback open beside the tool host's (`docs/account-isolation.md`). A
   gateway whose address is not on this machine's loopback is reached from the node as it stands, and the
@@ -237,6 +240,13 @@ side of a remote agent, the rotation, and what a dropped node does.
     end」).
 - **Where it runs:** the composing, the reading of a failure and the warning are agency's server's,
   whose job runner runs every job.
+- **A program's own login file is marked where the program starts:** a resident program whose command names
+  the configuration file its login keeps has that file's first-run screens marked as passed and the program's
+  folder trusted in it by the agent host that starts it, on whichever machine that is, its directory made where it
+  is not, just before the program comes up. A road whose configuration directory is new to a node — a gateway
+  road's home made after the setup — so stops at neither the first-run screens nor the folder check there, for
+  every folder a program of it is started in (`docs/agent-control.md`, 「A first interactive run stops at the
+  trust-this-folder check」).
 
 ## The bot's side of a remote agent
 
@@ -301,6 +311,16 @@ side of a remote agent, the rotation, and what a dropped node does.
     at all fails the turn's launch with the same reason.
   Once the words are taken the turn is the program's, and no clock of this kind reads it again. The two
   bounds are the resident turn's policy.
+- **A program on a node whose far end could not listen on a port it reaches home through is not waited on
+  either.** Such a program can never reach the tool host, the gateway or the bridge, so while the link's state
+  names a port its far end could not listen on (`docs/person-nodes.md`, 「The link over jake」), the turn's
+  `waiting` names it at once, `node-program` with the node and the port, and once that has held for half a minute
+  the program is ended and the turn ends `unsubmitted` with the same reason, as it ends past the bound above. The
+  half minute is the resident turn's policy.
+- **A call to a node's herdr is answered within half a minute:** one unanswered that long is answered as herdr
+  silent, so the waits above go on reading their bounds rather than standing on a socket nothing answers through,
+  and a turn goes on waiting for the link as it waits for a silent herdr. The ceiling is the resident turn's
+  policy.
 - **Nothing new goes to a node whose link is down:** neither a launch nor a heavy run.
 
 ## In herdr

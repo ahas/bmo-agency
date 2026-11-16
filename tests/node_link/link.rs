@@ -210,8 +210,11 @@ fn the_link_mirrors_both_ways_and_is_made_again_after_its_connection_drops() {
   });
 }
 
+// "a link to a person's PC mirrors both ways over the hub's connect program with no SSH, and carries home each
+// connection taken on a port it names or on the node's bridge socket, saying which port the far end could not
+// listen on"
 #[test]
-fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
+fn a_link_to_a_persons_pc_mirrors_and_carries_home_over_the_hubs_connect_program_with_no_ssh() {
   let binary = crate::support::binary::path("node-link");
   let dir = tempfile::tempdir().expect("dir");
   let here = dir.path().join("here");
@@ -223,15 +226,30 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
     fs::create_dir_all(made).expect("made");
   }
 
-  // The far end stands on the PC as its own service, listening at the loopback for the mirror.
-  let mirror = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+  // The far end stands on the PC as its own service, listening at the loopback for the mirror. The PC's loopback is
+  // another address of this machine's, so a port it carries home stands apart from the same port here.
+  let mirror = std::net::TcpListener::bind("127.0.0.2:0").expect("a port");
   let mirror_port = mirror.local_addr().expect("its address").port();
   drop(mirror);
+
+  // Here, a stand-in for the tool host, answering a line with its name; and a port the PC already holds, which its
+  // far end cannot listen on. The home bridge is the near end's own.
+  let tool_host = std::net::TcpListener::bind("127.0.0.1:0").expect("a port here");
+  let tool_port = tool_host.local_addr().expect("its address").port();
+  let held = std::net::TcpListener::bind("127.0.0.2:0").expect("a port held on the PC");
+  let held_port = held.local_addr().expect("its address").port();
+
+  std::thread::spawn(move || {
+    for stream in tool_host.incoming().flatten() {
+      answer_line("tool", Box::new(stream));
+    }
+  });
+
   let _far = Link(
     Command::new(&binary)
       .args(["serve", "--root"])
       .arg(&there)
-      .args(["--listen", &format!("127.0.0.1:{mirror_port}")])
+      .args(["--listen", &format!("127.0.0.2:{mirror_port}")])
       .stdin(Stdio::null())
       .stdout(Stdio::null())
       .stderr(Stdio::null())
@@ -247,7 +265,7 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
   fs::write(&hub_env, "JAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n").expect("hub settings");
   fs::write(
     &connect,
-    "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\n[ \"${JAKE_CONTROL_CREDENTIAL%%.*}\" = \"$2\" ] || exit 3\nexec 3<>/dev/tcp/127.0.0.1/$3\ncat <&3 &\ncat >&3\n",
+    "#!/bin/bash\n[ \"$1\" = connect ] || exit 2\n[ \"${JAKE_CONTROL_CREDENTIAL%%.*}\" = \"$2\" ] || exit 3\nexec 3<>/dev/tcp/127.0.0.2/$3\ncat <&3 &\ncat >&3\n",
   )
   .expect("connect");
   fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
@@ -263,7 +281,7 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
       "root": there,
       "binary": binary,
       "herdr": { "local": dir.path().join("h.sock"), "remote": dir.path().join("rh.sock") },
-      "ports": [],
+      "ports": [tool_port, held_port],
       "bridge": dir.path().join("b.sock"),
       "deploy": dir.path(),
       "control": dir.path().join("c.sock"),
@@ -279,9 +297,7 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
         "connect": [connect, "connect"],
         "hub_env": hub_env,
         "mirror_port": mirror_port,
-        "herdr_port": 1,
-        "bridge_port": 2,
-        "bridge_relay": 0
+        "herdr_port": 1
       }
     })
     .to_string(),
@@ -308,6 +324,52 @@ fn a_link_to_a_persons_pc_mirrors_over_the_hubs_connect_program_with_no_ssh() {
   wait_for("the program on the PC", || place_there.join("program.json").exists());
   fs::write(place_there.join("running.json"), json!({ "pids": [] }).to_string()).expect("running");
   wait_for("the running record here", || place_here.join("running.json").exists());
+
+  // The port the PC holds is said in the link's state, with why; the tool host's is listened on there.
+  wait_for("the refused port in the state", || {
+    read_json(&state).is_some_and(|read| read["refused"][0]["port"] == held_port)
+  });
+  assert_eq!(read_json(&state).unwrap()["refused"].as_array().map(Vec::len), Some(1));
+  drop(held);
+
+  // A program on the PC reaches the tool host and the home bridge here through the far end; the bridge answers a
+  // request it cannot read in its own words.
+  let on_pc = std::net::TcpStream::connect(("127.0.0.2", tool_port)).expect("the far end listens");
+  on_pc.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+  assert_eq!(ask_line(Box::new(on_pc)), "tool:hi\n");
+
+  let on_pc =
+    std::os::unix::net::UnixStream::connect(there.join("data").join("bridge.sock")).expect("bridge");
+  on_pc.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+  let said = ask_line(Box::new(on_pc));
+
+  assert!(said.contains("node-link bridge: unreadable request"), "{said:?}");
+}
+
+/// A stream either kind of socket gives, read and written alike.
+trait ReadWrite: std::io::Read + std::io::Write + Send {}
+
+impl<T: std::io::Read + std::io::Write + Send> ReadWrite for T {}
+
+/// A line read and answered with the stand-in's name ahead of it.
+fn answer_line(name: &str, mut stream: Box<dyn ReadWrite>) {
+  use std::io::{BufRead, Write};
+
+  let mut line = String::new();
+
+  if std::io::BufReader::new(&mut stream).read_line(&mut line).is_ok() {
+    let _ = stream.write_all(format!("{name}:{line}").as_bytes());
+  }
+}
+
+/// A line asked over a stream and the line answered.
+fn ask_line(mut stream: Box<dyn ReadWrite>) -> String {
+  use std::io::{BufRead, Write};
+
+  stream.write_all(b"hi\n").expect("asked");
+  let mut line = String::new();
+  std::io::BufReader::new(stream).read_line(&mut line).expect("answered");
+  line
 }
 
 #[test]
@@ -614,9 +676,7 @@ fn jake_spec(dir: &Path, connect: &Path) -> std::path::PathBuf {
         "connect": [connect, "connect"],
         "hub_env": hub_env,
         "mirror_port": 1,
-        "herdr_port": 1,
-        "bridge_port": 2,
-        "bridge_relay": 0
+        "herdr_port": 1
       }
     })
     .to_string(),

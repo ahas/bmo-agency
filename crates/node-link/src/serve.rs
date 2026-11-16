@@ -16,6 +16,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
 use crate::frame::{Frame, Identity, Pull, decode, encode};
+use crate::home::{Carrier, listen_again, take_bridge};
 
 /// How often what is watched is looked at, how often a place's processes are told without a change,
 /// and how often the node's load is read.
@@ -54,11 +55,10 @@ pub struct Serve {
   pub herdr_session: Option<String>,
   pub herdr_socket: Option<PathBuf>,
   /// On a person's PC (docs/person-nodes.md): the loopback address the mirror is spoken on in place of standard
-  /// input and output, one session after another; the loopback address the herdr socket is reached at; and the
-  /// loopback port the stream back to the home bridge stands on, which the node's bridge socket is joined to.
+  /// input and output, one session after another, over which the road home is dialed too; and the loopback address
+  /// the herdr socket is reached at.
   pub listen: Option<String>,
   pub herdr_listen: Option<String>,
-  pub bridge_port: Option<u16>,
   /// On a node of this machine running as a user of its own (docs/account-isolation.md): the socket the herdr
   /// socket is reached at by the owner's user, in the folder the two share.
   pub herdr_unix: Option<PathBuf>,
@@ -154,9 +154,14 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     point_bridge(&options.root, bridge);
   }
 
-  // On a person's PC the bridge socket is the far end's own, each connection joined to the stream back.
-  let bridging = match options.bridge_port {
-    Some(port) => {
+  // On a person's PC the far end carries home what the programs reach there: the ports the near end names, at the
+  // loopback address the mirror is spoken on, and the node's bridge socket, which is its own.
+  let carrier = options
+    .listen
+    .as_deref()
+    .map(|address| Carrier::new(address.rsplit_once(':').map_or(address, |(host, _)| host)));
+  let bridging = match &carrier {
+    Some(carrier) => {
       let socket = options.root.join("data").join("run").join("bridge-jake.sock");
       if let Some(dir) = socket.parent() {
         fs::create_dir_all(dir)?;
@@ -164,7 +169,8 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
       let _ = fs::remove_file(&socket);
       let listener = tokio::net::UnixListener::bind(&socket)?;
       point_bridge(&options.root, &socket);
-      Some(tokio::spawn(join_unix_to_tcp(listener, format!("127.0.0.1:{port}"))))
+      let again = tokio::spawn(listen_again(carrier.clone()));
+      Some((tokio::spawn(take_bridge(listener, carrier.clone())), again))
     }
     None => None,
   };
@@ -187,7 +193,6 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     herdr_socket: options.herdr_socket.clone(),
     listen: None,
     herdr_listen: None,
-    bridge_port: None,
     herdr_unix: None,
   };
   let standing = tokio::spawn(async move {
@@ -197,22 +202,23 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     }
   });
 
-  match &options.listen {
-    // One near end at a time, each speaking the mirror over its own connection.
-    Some(address) => {
+  match (&options.listen, &carrier) {
+    // Each connection a mirror session, one near end at a time, or a stream dialing a held connection home.
+    (Some(address), Some(carrier)) => {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
+      let mirror = Arc::new(tokio::sync::Mutex::new(()));
       loop {
         let (socket, _) = listener.accept().await?;
-        let (reader, writer) = socket.into_split();
-        session(reader, writer).await;
+        tokio::spawn(connection(socket, carrier.clone(), mirror.clone()));
       }
     }
-    None => session(tokio::io::stdin(), tokio::io::stdout()).await,
+    _ => session(BufReader::new(tokio::io::stdin()), tokio::io::stdout(), Greeting::Owed, None).await,
   }
 
   standing.abort();
-  if let Some(bridging) = bridging {
+  if let Some((bridging, again)) = bridging {
     bridging.abort();
+    again.abort();
   }
   if let Some(herdr) = herdr {
     herdr.abort();
@@ -221,10 +227,62 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
   Ok(())
 }
 
-// One mirror session over a reader and a writer: the near end's frames done, and what is watched sent.
+// The far end's greeting: who it is, its home and its search path.
+fn hello() -> Frame {
+  Frame::Hello {
+    home: std::env::var("HOME").unwrap_or_default(),
+    pid: std::process::id(),
+    path: std::env::var("PATH").unwrap_or_default(),
+  }
+}
+
+// One connection on a person's PC, greeted, then told apart by the near end's first words: a stream dialing a held
+// connection home, joined to it, or a mirror session, which waits for the one before it to end.
+async fn connection(
+  socket: tokio::net::TcpStream,
+  carrier: Arc<Carrier>,
+  mirror: Arc<tokio::sync::Mutex<()>>,
+) {
+  let (reader, mut writer) = socket.into_split();
+
+  if writer.write_all(hello().line().as_bytes()).await.is_err() {
+    return;
+  }
+
+  let mut reader = BufReader::new(reader);
+  let mut first = String::new();
+
+  if !matches!(reader.read_line(&mut first).await, Ok(read) if read > 0) {
+    return;
+  }
+
+  match Frame::read(&first) {
+    Some(Frame::Back { id }) => {
+      if let Some(mut held) = carrier.take(id) {
+        let mut stream = tokio::io::join(reader, writer);
+        let _ = tokio::io::copy_bidirectional(&mut stream, &mut held).await;
+      }
+    }
+    first => {
+      let _turn = mirror.lock().await;
+      session(reader, writer, Greeting::Said(first), Some(carrier)).await;
+    }
+  }
+}
+
+// Whether a session still owes its greeting, or said it already and read the near end's first frame.
+enum Greeting {
+  Owed,
+  Said(Option<Frame>),
+}
+
+// One mirror session over a reader and a writer: the near end's frames done, and what is watched sent. On a person's
+// PC the session dials home what the carrier holds for as long as it stands.
 async fn session(
-  reader: impl tokio::io::AsyncRead + Unpin + Send + 'static,
+  reader: BufReader<impl tokio::io::AsyncRead + Unpin + Send + 'static>,
   writer: impl tokio::io::AsyncWrite + Unpin + Send + 'static,
+  greeting: Greeting,
+  carrier: Option<Arc<Carrier>>,
 ) {
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
   let pulls: Arc<Mutex<Vec<Pull>>> = Arc::new(Mutex::new(Vec::new()));
@@ -239,11 +297,17 @@ async fn session(
     }
   });
 
-  let _ = send.send(Frame::Hello {
-    home: std::env::var("HOME").unwrap_or_default(),
-    pid: std::process::id(),
-    path: std::env::var("PATH").unwrap_or_default(),
-  });
+  let first = match greeting {
+    Greeting::Owed => {
+      let _ = send.send(hello());
+      None
+    }
+    Greeting::Said(first) => first,
+  };
+
+  if let Some(carrier) = &carrier {
+    carrier.attach(send.clone());
+  }
 
   let watching = {
     let send = send.clone();
@@ -252,32 +316,40 @@ async fn session(
     tokio::spawn(async move { watch(pulls, send).await })
   };
 
-  let mut lines = BufReader::new(reader).lines();
+  let mut lines = reader.lines();
+  let mut first = first;
 
-  while let Ok(Some(line)) = lines.next_line().await {
-    let Some(frame) = Frame::read(&line) else { continue };
+  loop {
+    let frame = match first.take() {
+      Some(frame) => frame,
+      None => match lines.next_line().await {
+        Ok(Some(line)) => match Frame::read(&line) {
+          Some(frame) => frame,
+          None => continue,
+        },
+        _ => break,
+      },
+    };
+
+    if let Frame::Carry { ports } = frame {
+      if let Some(carrier) = &carrier {
+        carrier.carry(Some(&ports), true).await;
+      }
+      continue;
+    }
 
     if let Err(said) = take(frame, &pulls) {
       let _ = send.send(Frame::Trouble { said });
     }
   }
 
+  if let Some(carrier) = &carrier {
+    carrier.detach(&send);
+  }
+
   watching.abort();
   drop(send);
   let _ = writer.await;
-}
-
-// Each connection to a unix socket here joined to a fresh TCP connection to `target`.
-async fn join_unix_to_tcp(listener: tokio::net::UnixListener, target: String) {
-  while let Ok((client, _)) = listener.accept().await {
-    let target = target.clone();
-    tokio::spawn(async move {
-      if let Ok(mut far) = tokio::net::TcpStream::connect(target.as_str()).await {
-        let mut client = client;
-        let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
-      }
-    });
-  }
 }
 
 // Each connection to a unix socket here joined to a fresh connection to the unix socket `socket`.

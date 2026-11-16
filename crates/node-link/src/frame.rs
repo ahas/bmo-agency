@@ -66,6 +66,33 @@ pub enum Frame {
   },
   /// The far end's answer to anything it could not do, said once.
   Trouble { said: String },
+  /// The ports here a program on a person's PC reaches, which the far end listens on at its loopback and dials
+  /// home, replacing whatever it carried before (docs/person-nodes.md, 「The link over jake」).
+  Carry { ports: Vec<u16> },
+  /// The far end's answer to what it was asked to carry: each port it could not listen on, with why.
+  Carried { refused: Vec<Refused> },
+  /// A connection the far end took and holds, to be dialed home by the number it gave it.
+  Dial { id: u64, to: Home },
+  /// The first words of the near end on a stream it opened to dial a held connection home: the stream is that
+  /// connection's from here on.
+  Back { id: u64 },
+}
+
+/// What a connection the far end took reaches at home.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Home {
+  /// A port at this machine's loopback, one of those the near end asked the far end to carry.
+  Port(u16),
+  /// The home bridge's socket.
+  Bridge,
+}
+
+/// A port the far end could not listen on, and why.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Refused {
+  pub port: u16,
+  pub why: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

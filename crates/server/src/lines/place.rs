@@ -394,6 +394,7 @@ pub fn resident_of(
     args,
     cwd: PathBuf::from(cwd),
     env: env.clone(),
+    login_file: None,
   };
   let restart = command(restart);
 

@@ -6,7 +6,7 @@ use crate::integration::common;
 use std::sync::Mutex;
 
 use agency_server::peers::node::NoNodeService;
-use agency_server::verbs::work_node::{WorkNodeVerb, relay_port, work_node_on, work_refusal};
+use agency_server::verbs::work_node::{WorkNodeVerb, refused_listens, work_node_on, work_refusal};
 use agency_server::verbs::work_node_setup::{
   FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace,
   SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
@@ -358,7 +358,6 @@ async fn a_workplace_is_listed_its_runs_switched_and_let_go() {
 const PC_PORTS: FarEnd = FarEnd {
   mirror_port: 47201,
   herdr_port: 47202,
-  bridge_port: 47203,
 };
 
 const HERDR_LISTING: (&str, i32, &str, &str) = (
@@ -408,7 +407,7 @@ fn the_far_end_s_unit_runs_the_serve_program_on_the_pc_s_loopback_ports_and_stop
 
   assert_eq!(
     exec,
-    r#""/home/tester/w/deploy/bin/node-link" "serve" "--root" "/home/tester/w" "--herdr-session" "bmo" "--herdr-socket" "/run/herdr.sock" "--listen" "127.0.0.1:47201" "--herdr-listen" "127.0.0.1:47202" "--bridge-port" "47203""#
+    r#""/home/tester/w/deploy/bin/node-link" "serve" "--root" "/home/tester/w" "--herdr-session" "bmo" "--herdr-socket" "/run/herdr.sock" "--listen" "127.0.0.1:47201" "--herdr-listen" "127.0.0.1:47202""#
   );
   assert!(unit.lines().any(|line| line == "KillMode=process"));
   assert!(
@@ -444,25 +443,34 @@ async fn a_runtime_of_another_version_is_installed_into_the_workplace_leaving_th
   assert!(installed.contains("bun-v1.4.2"));
 }
 
-// "a PC keeps its bridge relay port and a new one takes the lowest no other node holds"
+// "a port the far end could not listen on is said by what it is for while the link is connected, and nothing is
+// said of a link that is down"
 #[test]
-fn a_pc_keeps_its_bridge_relay_port_and_a_new_one_takes_the_lowest_no_other_node_holds() {
+fn a_port_the_far_end_could_not_listen_on_is_said_while_the_link_is_connected() {
   let data = tempfile::tempdir().unwrap();
-  let record = |node: &str, port: u16| {
-    std::fs::create_dir_all(data.path().join("nodes").join(node)).unwrap();
+  let state = data.path().join("nodes/u4/link-state.json");
+  let ports = [(13123, "the tool host"), (18030, "the model gateway")];
+  let link = |state_word: &str| {
+    std::fs::create_dir_all(state.parent().unwrap()).unwrap();
     std::fs::write(
-      data.path().join("nodes").join(node).join("setup.json"),
-      format!(r#"{{"bridgeRelay": {port}}}"#),
+      &state,
+      format!(
+        r#"{{"state": "{state_word}", "refused": [{{"port": 13123, "why": "Address in use"}}, {{"port": 9, "why": "denied"}}]}}"#
+      ),
     )
     .unwrap();
   };
 
-  assert_eq!(relay_port(data.path(), "u1"), 47213);
-  record("u1", 47213);
-  record("u2", 47220);
-  assert_eq!(relay_port(data.path(), "u1"), 47213);
-  assert_eq!(relay_port(data.path(), "u2"), 47220);
-  assert_eq!(relay_port(data.path(), "u3"), 47214);
+  link("connected");
+  assert_eq!(
+    refused_listens(data.path(), "u4", &ports),
+    [
+      "far end: it could not listen on port 13123 for the tool host: Address in use",
+      "far end: it could not listen on port 9 for a program here: denied",
+    ]
+  );
+  link("down");
+  assert!(refused_listens(data.path(), "u4", &ports).is_empty());
 }
 
 // "every login on the node is marked past its first-run screens and trusts the workplace's data root"

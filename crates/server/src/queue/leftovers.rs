@@ -341,7 +341,8 @@ pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
 
     // A node service that cannot be asked reads the link as down, as a link not heard from lately is.
     if ground.peers.node.link_up(&node).await.unwrap_or(false) {
-      let herdr = Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"));
+      let herdr = Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
+        .within(crate::places::node_herdr_ceiling());
 
       sweep(ground, &herdr, &standing, &resting).await?;
     }

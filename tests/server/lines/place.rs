@@ -14,6 +14,7 @@ fn a_program_whose_settings_came_to_call_other_hooks_is_another_program() {
     args: vec!["claude".into(), "--settings".into(), settings.to_string_lossy().into_owned()],
     cwd: dir.path().to_path_buf(),
     env: BTreeMap::new(),
+    login_file: None,
   };
 
   std::fs::write(&settings, r#"{"statusLine":{"command":"old"}}"#).unwrap();
@@ -33,6 +34,7 @@ fn a_guard_the_place_s_verb_stands_is_the_program_s_and_another_hook_is_not() {
     args: vec!["claude".into(), "--settings".into(), settings.to_string_lossy().into_owned()],
     cwd: dir.path().to_path_buf(),
     env: BTreeMap::new(),
+    login_file: None,
   };
   let hook = |command: &str| {
     json!({ "statusLine": { "command": "s" }, "hooks": { "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "command": command }] }] } })
@@ -216,6 +218,7 @@ async fn a_program_written_into_its_place_carries_the_token_it_was_handed() {
     args: vec!["bmo-tui".into()],
     cwd: data.path().to_path_buf(),
     env,
+    login_file: None,
   };
   let program = Program {
     identity: command_digest(&command),

@@ -2125,6 +2125,9 @@ with no recorded trust, and the transcript did not even appear. On screen:
   that directory's entry:
   - in the configuration file the run's own environment names, just before its program comes up,
     whichever login it goes out on;
+  - in the configuration file a resident program's command names, by the agent host that starts the
+    program, on a node as here, with the login's first-run screens marked as passed in the same file
+    (`docs/work-nodes.md`, 「The logins on a node」);
   - in the configuration file of every registered Claude login and the machine's own, when a repository
     is added or settled, so every repository's checkout that exists is trusted under every login before
     any run needs it.

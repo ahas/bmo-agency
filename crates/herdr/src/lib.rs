@@ -31,6 +31,9 @@ pub const LINE_CAP_BYTES: usize = 1_048_576;
 /// pane left as it was.
 pub const AGENT_BLOCKED: &str = "agent_blocked";
 
+/// The code of a call another machine's herdr left unanswered past its ceiling.
+pub const SILENT: &str = "silent";
+
 // The pauses before a request that never reached herdr is sent again, about two seconds in all.
 const RESEND_PAUSES: [Duration; 3] =
   [Duration::from_millis(250), Duration::from_millis(600), Duration::from_millis(1_200)];
@@ -90,11 +93,13 @@ pub fn silences_path(named: Option<&str>) -> PathBuf {
     .map_or_else(|| std::env::temp_dir().join("bmo-herdr-silences.jsonl"), PathBuf::from)
 }
 
-/// One herdr: its socket, and, for this machine's own, where an unanswered call is written down.
+/// One herdr: its socket, and, for this machine's own, where an unanswered call is written down; for another
+/// machine's, how long a call is waited on before it is answered as herdr silent.
 #[derive(Clone, Debug)]
 pub struct Herdr {
   socket: PathBuf,
   silences: Option<PathBuf>,
+  ceiling: Option<Duration>,
 }
 
 impl Herdr {
@@ -103,6 +108,7 @@ impl Herdr {
     Self {
       socket,
       silences: Some(silences),
+      ceiling: None,
     }
   }
 
@@ -112,6 +118,16 @@ impl Herdr {
     Self {
       socket,
       silences: None,
+      ceiling: None,
+    }
+  }
+
+  /// The same herdr, a call to which unanswered for `ceiling` is answered `silent`: a node's herdr reached
+  /// through a link that can stand with nothing coming through it.
+  pub fn within(self, ceiling: Duration) -> Self {
+    Self {
+      ceiling: Some(ceiling),
+      ..self
     }
   }
 
@@ -119,8 +135,9 @@ impl Herdr {
     &self.socket
   }
 
-  /// One request, answered with its result or what herdr said instead, however long herdr takes: its
-  /// end is the answer, a refused connection or one that closes. A request that never reached herdr is
+  /// One request, answered with its result or what herdr said instead, however long this machine's herdr
+  /// takes, and within its ceiling for another machine's: its end is the answer, a refused connection, one
+  /// that closes, or for another machine's herdr `silent` once the ceiling passes. A request that never reached herdr is
   /// sent again a few times over about two seconds; one written whole is never sent again, since herdr
   /// may have acted on it, and nor is one to a socket that is not there at all. One longer than herdr
   /// reads is refused without being sent. A call unanswered for `silent_after` — five seconds where
@@ -195,7 +212,16 @@ impl Herdr {
       () = tokio::time::sleep(silent_after) => {
         self.note_silence(method);
 
-        exchange.await
+        match self.ceiling {
+          Some(ceiling) => tokio::time::timeout(ceiling.saturating_sub(silent_after), exchange)
+            .await
+            .unwrap_or_else(|_| {
+              let seconds = ceiling.as_secs();
+
+              Err(Fault::new(SILENT, format!("herdr did not answer {method} within {seconds} seconds")))
+            }),
+          None => exchange.await,
+        }
       }
     };
 

@@ -520,7 +520,8 @@ impl Ground {
     };
     let Some(node) = node.map(str::to_owned) else { return Ok(Some(home)) };
 
-    home.herdr = Herdr::there(self.roots.data.join("nodes").join(&node).join("herdr.sock"));
+    home.herdr = Herdr::there(self.roots.data.join("nodes").join(&node).join("herdr.sock"))
+      .within(node_herdr_ceiling());
 
     let workplace = one(
       &self.db,
@@ -571,4 +572,10 @@ impl Ground {
   pub fn checkout_of(&self, row: &AgentRow) -> String {
     row.cwd.clone().unwrap_or_else(|| self.source.to_string_lossy().into_owned())
   }
+}
+
+/// How long a call to a node's herdr is waited on before it is answered as herdr silent (docs/work-nodes.md,
+/// 「When a node drops」).
+pub fn node_herdr_ceiling() -> std::time::Duration {
+  std::time::Duration::from_millis(policy::resident_turn::RESIDENT_TURN.node_herdr_ceiling_ms)
 }

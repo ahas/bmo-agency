@@ -2142,7 +2142,6 @@ dependencies = [
  "hex",
  "hmac",
  "libc",
- "reqwest",
  "serde",
  "serde_json",
  "sha2",

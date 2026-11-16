@@ -26,7 +26,7 @@ use super::work_node_setup::{
 use super::{Answer, VerbError, deploy_link, home, service};
 use crate::control::claude_accounts::accounts;
 use crate::peers::node::{NodeKind, NodeService};
-use crate::watches::links::{Roots, bridge_relay, deployed_commit, link_heard, link_unit, node_path};
+use crate::watches::links::{Roots, deployed_commit, link_heard, link_refused, link_unit, node_path};
 
 /// The root a workplace takes where its setup names none, under the node's home.
 pub const DEFAULT_WORKPLACE_ROOT: &str = "~/.local/share/bmo-node";
@@ -669,12 +669,20 @@ async fn stand(
     outcome.missing.extend(door.wanting().await);
   }
 
-  // A PC's bridge relay port here, and what its hub and agent do not offer the workplace and its link, missing
-  // with the rest.
-  let relay = matches!(door, Door::Hub(_)).then(|| relay_port(data_root, node));
+  // What a PC's hub agent does not offer the workplace and its link, and each port its far end could not listen on
+  // as the link last said, missing with the rest; WSL's networking on a Windows PC said beside them.
+  let mut notes = Vec::new();
 
-  if let (Door::Hub(door), Some(far_end), Some(relay)) = (&door, &place.far_end, relay) {
-    outcome.missing.extend(door.wanting(far_end, &home_ports, relay));
+  if let (Door::Hub(door), Some(far_end)) = (&door, &place.far_end) {
+    outcome.missing.extend(door.wanting(far_end));
+    outcome.missing.extend(refused_listens(data_root, node, &home_ports));
+
+    let far_ports: Vec<(u16, &str)> = [(far_end.mirror_port, "the mirror"), (far_end.herdr_port, "herdr")]
+      .into_iter()
+      .chain(home_ports.iter().copied())
+      .collect();
+
+    notes = door.wsl_networking(&far_ports).await;
   }
 
   // A path written from the node's home reads as the node's own from now on, so every lock, record and
@@ -709,12 +717,7 @@ async fn stand(
     } else {
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
-    let mut record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
-
-    if let Some(relay) = relay {
-      record["bridgeRelay"] = json!(relay);
-    }
-
+    let record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
     let body = format!("{}\n", serde_json::to_string_pretty(&record).unwrap_or_default());
     let next = PathBuf::from(format!("{}.{}", path.display(), std::process::id()));
     let written = std::fs::OpenOptions::new()
@@ -755,36 +758,30 @@ async fn stand(
   }
 
   Ok(if outcome.missing.is_empty() {
-    Answer::from(vec![format!("{node}: ready ({})", outcome.root.unwrap_or_default())])
+    let mut lines = vec![format!("{node}: ready ({})", outcome.root.unwrap_or_default())];
+
+    lines.extend(notes.iter().map(|line| format!("  {line}")));
+    Answer::from(lines)
   } else {
     let mut lines = vec![format!("{node}: not ready")];
 
     lines.extend(outcome.missing.iter().map(|line| format!("  - {line}")));
+    lines.extend(notes.iter().map(|line| format!("  {line}")));
     Answer { lines, code: 1 }
   })
 }
 
-/// The bridge relay port here a PC keeps: the one its setup record holds, else the lowest from the policy's base
-/// that no other node's record holds (docs/person-nodes.md, 「The link over jake」).
-pub fn relay_port(data_root: &Path, node: &str) -> u16 {
-  let held =
-    |one: &str| read_json(&node_dir(data_root, one).join("setup.json")).as_ref().and_then(bridge_relay);
-
-  if let Some(own) = held(node) {
-    return own;
-  }
-
-  let taken: std::collections::BTreeSet<u16> = std::fs::read_dir(data_root.join("nodes"))
+/// Each port the far end on a person's PC could not listen on, as its link last said, by what it is for among the
+/// ports given (docs/person-nodes.md, 「The workplace on a PC」).
+pub fn refused_listens(data_root: &Path, node: &str, ports: &[(u16, &str)]) -> Vec<String> {
+  link_refused(data_root, node)
     .into_iter()
-    .flatten()
-    .flatten()
-    .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
-    .filter(|one| one != node)
-    .filter_map(|one| held(&one))
-    .collect();
-  let base = policy::person_nodes::PERSON_NODES.bridge_relay_base;
+    .map(|(port, why)| {
+      let what = ports.iter().find(|(one, _)| *one == port).map_or("a program here", |(_, what)| *what);
 
-  (base..=u16::MAX).find(|port| !taken.contains(port)).unwrap_or(base)
+      format!("far end: it could not listen on port {port} for {what}: {why}")
+    })
+    .collect()
 }
 
 // The ports the far end stands on at a person's PC, as agency's policy holds them.
@@ -794,7 +791,6 @@ fn person_far_end() -> FarEnd {
   FarEnd {
     mirror_port: ports.mirror_port,
     herdr_port: ports.herdr_port,
-    bridge_port: ports.bridge_port,
   }
 }
 

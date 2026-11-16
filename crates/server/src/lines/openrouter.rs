@@ -146,5 +146,6 @@ pub fn resident_command(
     args,
     cwd: PathBuf::from(run.cwd),
     env,
+    login_file: None,
   })
 }

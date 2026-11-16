@@ -695,6 +695,7 @@ pub async fn gateway_command(
     args,
     cwd: PathBuf::from(on.cwd),
     env,
+    login_file: Some(config_file(&home)),
   };
 
   Ok((command, held.name.clone()))

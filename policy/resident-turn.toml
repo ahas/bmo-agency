@@ -78,3 +78,16 @@ node_take_bound_ms = 300000
 # bound does. {node} is the node, {seconds} how long the program stood there without taking the turn.
 node_take_waiting = "The program on {node} has stood {seconds} seconds without taking the turn"
 node_take_cut = "The program on {node} stood {seconds} seconds without taking the turn, so it was ended and the turn ends unsubmitted"
+
+# How long a program on a person's PC is waited on while the link's far end there could not listen on a port the
+# program reaches home through, before the program is ended and the turn ends unsubmitted (docs/work-nodes.md,
+# 「When a node drops」); the waiting names it at once.
+node_listen_bound_ms = 30000
+
+# What the waiting says, and why the turn ends. {node} is the node, {port} the port, {why} what the far end said.
+node_listen_waiting = "The far end on {node} could not listen on port {port} ({why}), so the program there cannot reach home"
+node_listen_cut = "The far end on {node} could not listen on port {port} ({why}), so the program there cannot reach home; it was ended and the turn ends unsubmitted"
+
+# How long a call to a node's herdr is waited on before it is answered as herdr silent, so a turn's waits go on
+# reading their bounds (docs/work-nodes.md, 「When a node drops」).
+node_herdr_ceiling_ms = 30000
