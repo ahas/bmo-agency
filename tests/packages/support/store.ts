@@ -1,8 +1,8 @@
 // A store of a test's own (docs/store.md): a database on the suite's PostgreSQL server, copied from a
 // template this process makes once out of the same `store.sql` and the same migrations after it the store
 // crate runs, and the account seed a deployment's settling writes, and dropped when the file or the test
-// that asked for it is done. A template or copy a process that is gone left behind is dropped by the next
-// process to make a template.
+// that asked for it is done, and the run fails if one cannot be. Before a process makes its first database,
+// the templates and copies a process that is gone left behind are dropped.
 //
 // A store is asked for at a file's top level, inside a test or in a `beforeEach`, never in a
 // `beforeAll`: Bun runs an `afterAll` registered inside a `beforeAll` as soon as that hook ends, so the
@@ -20,7 +20,8 @@ import { postgresClient } from "@agency/archive/postgres-client";
 
 import type { PostgresClient } from "@agency/archive/postgres-client";
 
-// What a template's and a copy's names begin with, ahead of the process that made them.
+// What a template's and a copy's names begin with, followed by the process that made them, the run, and a
+// copy's count.
 const TEMPLATE = "agency_ts_tmpl_";
 const COPY = "agency_ts_copy_";
 
@@ -109,6 +110,7 @@ const LATER_MIGRATIONS: readonly string[] = [
   "registration_languages.sql",
 ];
 
+let swept: Promise<void> | null = null;
 let made: Promise<string> | null = null;
 let copies = 0;
 
@@ -137,8 +139,43 @@ async function onServer<T>(work: (sql: PostgresClient) => Promise<T>): Promise<T
   }
 }
 
-function alive(pid: string): boolean {
-  return pid !== "" && existsSync(join("/proc", pid));
+// The process id a template's or a copy's name carries, if the name is one of this harness's.
+function processOf(name: string): number | null {
+  const prefix = [TEMPLATE, COPY].find((one) => name.startsWith(one));
+  const pid = prefix === undefined ? "" : (name.slice(prefix.length).split("_")[0] ?? "");
+
+  return /^\d+$/.test(pid) ? Number(pid) : null;
+}
+
+// Whether a process runs on this machine, this one among them: a test file run beside another in this
+// process may sweep after the other has made its stores. Where the process table cannot be read every
+// process counts as alive, so nothing is dropped on a guess.
+function lives(pid: number): boolean {
+  return pid === process.pid || !existsSync("/proc/self") || existsSync(join("/proc", String(pid)));
+}
+
+// The databases a dead process of this harness left behind dropped, once per process and before it makes
+// any of its own. A database is left alone while its process runs on this machine or any session is on it,
+// so a run of another checkout against the same server keeps its own, and a name of another repository's
+// harness is never read. One the sweep cannot drop is named on the error stream and left for the next run.
+function sweep(): Promise<void> {
+  swept ??= onServer(async (sql) => {
+    const unattended = await sql.unsafe("SELECT datname::text AS name FROM pg_database d WHERE NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)") as { name: string }[];
+
+    for (const { name } of unattended) {
+      const pid = processOf(name);
+
+      if (pid === null || lives(pid)) continue;
+
+      try {
+        await dropped(sql, name);
+      } catch (error) {
+        console.error(`the scratch sweep leaves ${name}: ${String(error)}`);
+      }
+    }
+  }).catch((error: unknown) => console.error(`the scratch sweep reaches no test server: ${String(error)}`));
+
+  return swept;
 }
 
 // The template this process's copies are made from, migrated the first time a test asks.
@@ -146,20 +183,7 @@ function template(): Promise<string> {
   made ??= (async () => {
     const name = `${TEMPLATE}${process.pid}_${run}`;
 
-    await onServer(async (sql) => {
-      const left = await sql.unsafe("SELECT datname::text AS name FROM pg_database WHERE datname LIKE $1 OR datname LIKE $2", [
-        `${TEMPLATE.replaceAll("_", "\\_")}%`,
-        `${COPY.replaceAll("_", "\\_")}%`,
-      ]) as { name: string }[];
-
-      for (const { name: old } of left) {
-        const pid = old.replace(TEMPLATE, "").replace(COPY, "").split("_")[0] ?? "";
-
-        if (!alive(pid)) await dropped(sql, old);
-      }
-
-      await sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`);
-    });
+    await onServer((sql) => sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`));
 
     const db = postgresClient(addressOf(name), { connections: 1 });
 
@@ -229,6 +253,7 @@ async function dropped(sql: PostgresClient, name: string): Promise<void> {
 
 // A database of the test's own made from `from`, dropped when the file that asked is done; its address.
 async function copyOf(from: string): Promise<string> {
+  await sweep();
   copies += 1;
 
   const name = `${COPY}${process.pid}_${run}_${copies}`;
@@ -241,6 +266,8 @@ async function copyOf(from: string): Promise<string> {
 
 /** A new copy of the migrated, empty store; its address. It is dropped when the file that asked is done. */
 export async function scratchDatabase(): Promise<string> {
+  await sweep();
+
   return await copyOf(await template());
 }
 
