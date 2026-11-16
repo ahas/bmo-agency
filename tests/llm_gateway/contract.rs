@@ -26,8 +26,8 @@ use crate::support::scratch::Scratch;
 const GATEWAY_KEY: &str = "gateway-key-0123456789";
 
 // LiteLLM, standing in: started as the gateway starts it, it writes down its table, port, arguments
-// and environment; answers its liveliness path; answers a chat request naming a model its table holds
-// no entry for 400, as LiteLLM does; streams a chat request carrying `x-standin-stream` back as events,
+// and environment; answers its liveliness path; answers a request for chat or vectors naming a model its
+// table holds no entry for 400, as LiteLLM does; streams a chat request carrying `x-standin-stream` back as events,
 // `x-standin-count` of them `x-standin-gap` milliseconds apart, ending the stream where it names `whole` and
 // holding it open with nothing more where it names `stall`, and writes down its caller going; echoes every
 // other request; holds `/held` open until the test lets it go; ends at `/die`; and writes down its stop. A
@@ -71,7 +71,7 @@ Bun.serve({
       }));
     }
     const body = await request.text();
-    if (request.method === "POST" && ["/v1/chat/completions", "/chat/completions", "/v1/messages"].includes(url.pathname)) {
+    if (request.method === "POST" && ["/v1/chat/completions", "/chat/completions", "/v1/embeddings", "/embeddings", "/v1/messages"].includes(url.pathname)) {
       let named;
       try { named = JSON.parse(body).model; } catch {}
       if (typeof named === "string" && !models.includes(named)) {
@@ -1124,6 +1124,27 @@ async fn a_request_on_an_engine_standing_nowhere_waits_for_one_shared_card_and_g
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_request_for_vectors_on_an_engine_standing_nowhere_asks_its_card_as_a_chat_request_does() {
+  let (world, master) = carded_world(vec![]).await;
+  let first = world.serving(None).await;
+  let asked = world.ask("POST", "/v1/embeddings", &[], r#"{"model":"flash","input":["a text"]}"#);
+  let steer = async {
+    until("the door to ask its demand", || !master.lock().unwrap().asked.is_empty()).await;
+    master.lock().unwrap().granted = true;
+    master.lock().unwrap().standing = true;
+  };
+  let ((status, headers, body), ()) = tokio::join!(asked, steer);
+
+  assert_eq!(status, 200, "{body}\n{}", world.said());
+  assert_ne!(headers["x-standin"], first.as_str(), "sent before the instance's table took over");
+  let sent: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(sent["path"], "/v1/embeddings");
+  let asked = master.lock().unwrap().asked.clone();
+  assert_eq!(asked, [json!({ "serviceName": "lab-arena", "count": 1, "ref": "agency gateway door" })]);
+  until("the demand to be given back", || master.lock().unwrap().given_back == [1_001]).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_unknown_model_is_400_without_a_demand_and_a_refused_demand_is_503_with_the_masters_sentence() {
   let (world, master) = carded_world(vec![]).await;
   world.serving(None).await;
@@ -1132,6 +1153,8 @@ async fn an_unknown_model_is_400_without_a_demand_and_a_refused_demand_is_503_wi
   assert_eq!(status, 400, "{body}");
   assert!(body.contains("Invalid model name"), "{body}");
   let (status, _, body) = world.ask("POST", "/v1/messages", &[], r#"{"model":"pair-0-1@nowhere"}"#).await;
+  assert_eq!(status, 400, "{body}");
+  let (status, _, body) = world.ask("POST", "/v1/embeddings", &[], r#"{"model":"nowhere"}"#).await;
   assert_eq!(status, 400, "{body}");
   assert!(
     master.lock().unwrap().asked.is_empty(),

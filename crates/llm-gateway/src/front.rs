@@ -1,6 +1,6 @@
 //! The gateway's front: the one address every run and every gate asks, which checks each request's key
 //! and streams the request through to the LiteLLM child it serves from and each answer back as they
-//! stand, reading of them only the model a chat request names and whether an answer is streamed. A
+//! stand, reading of them only the model a request names and whether an answer is streamed. A
 //! streamed answer that sends no byte for the stall span is cut as broken (docs/own-llm.md, 「A streamed
 //! answer whose bytes stop is cut」). A new table is a new child: once it answers, new requests go to it,
 //! and the old child is stopped only when the requests in hand through it have ended, however long they
@@ -85,10 +85,17 @@ pub struct Front {
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
 }
 
-// The paths a chat request comes on, whose body names its model.
-const CHAT_PATHS: [&str; 3] = ["/v1/chat/completions", "/chat/completions", "/v1/messages"];
+// The paths a model request comes on, whose body names its model: chat completions, the embeddings route and
+// the Messages route.
+const MODEL_PATHS: [&str; 5] = [
+  "/v1/chat/completions",
+  "/chat/completions",
+  "/v1/embeddings",
+  "/embeddings",
+  "/v1/messages",
+];
 
-// What the front reads of a chat request: the model it names.
+// What the front reads of a model request: the model it names.
 #[derive(Deserialize)]
 struct Named {
   model: Option<String>,
@@ -313,7 +320,7 @@ impl Front {
     Some((name.to_owned(), service.clone(), Some(node.to_owned())))
   }
 
-  // A chat request whose model names a registration naming a card service under a name the table serving
+  // A model request whose model names a registration naming a card service under a name the table serving
   // now holds no entry for, its card asked at the door and waited for until the granted card's entry is
   // served. Answered with the body to send, the model renamed where a pinned node is not the one granted,
   // and the seat the request holds the card by; or with the status and line to answer where the master
@@ -358,10 +365,10 @@ impl Front {
       .get(SESSION_HEADER)
       .and_then(|named| named.to_str().ok())
       .map(str::to_owned);
-    let chat = parts.method == Method::POST && CHAT_PATHS.contains(&parts.uri.path());
-    // A chat request's body is read whole for the model it names, which a card is asked by and a cut
+    let naming = parts.method == Method::POST && MODEL_PATHS.contains(&parts.uri.path());
+    // A model request's body is read whole for the model it names, which a card is asked by and a cut
     // stream is told by.
-    let (body, model, seat) = if chat {
+    let (body, model, seat) = if naming {
       let bytes = match axum::body::to_bytes(body, usize::MAX).await {
         Ok(bytes) => bytes,
         Err(fault) => {

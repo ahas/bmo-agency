@@ -454,6 +454,8 @@ never the model's name.
   - A run with tools, on the Messages API: Claude Code speaks nothing else, and a registration is an
     OpenAI-compatible address.
   - A request with no tools, on the chat completions path and the model list.
+  - A request for vectors, on the embeddings route: a caller that searches by meaning embeds its texts on a
+    registration whose engine is an embedding model.
   - A caller off the machine, through a public door: a reverse proxy may stand in front of the gateway's
     loopback port — the deployment's nginx serves it under `/llm/` — and hands every request through as
     it stands. The proxy checks nothing; the gateway's own key, checked at the front, is the only door.
@@ -482,9 +484,9 @@ never the model's name.
   - Tables left by a launcher that ended without stopping its children are removed as it starts.
 - **The launcher is the front:** it listens on the gateway's loopback port itself and streams every
   request through to the child it serves from, and every answer back, as they stand. Of a request on the
-  chat completions path or the Messages route it reads the model the body names, and nothing else; of an
-  answer it reads only whether it is streamed, by its content type `text/event-stream`. It counts the
-  requests in hand through each child.
+  chat completions path, the embeddings route or the Messages route it reads the model the body names, and
+  nothing else; of an answer it reads only whether it is streamed, by its content type
+  `text/event-stream`. It counts the requests in hand through each child.
   - The hop-by-hop headers are not handed on either way, a request asks for its answer unencoded, and an
     answer's content-encoding is not handed back.
   - Before any table stands it answers `503`, and where the child cannot be reached `502`, each with a
@@ -494,10 +496,10 @@ never the model's name.
   - A caller that leaves closes the front's connection to the child and its place among the requests in
     hand; LiteLLM still holds the node until the node has answered.
 - **A request on an engine standing nowhere asks for its card,** as a translation's request does (「An
-  engine the arbiter stands」 above). A request on the chat completions path or the Messages route that
-  names a registration naming a card service, or `<name>@<node>` of one, under a name the table it would
-  be served from holds no entry for, is not handed to LiteLLM, which would answer it with an unknown
-  model:
+  engine the arbiter stands」 above). A request on the chat completions path, the embeddings route or the
+  Messages route that names a registration naming a card service, or `<name>@<node>` of one, under a name
+  the table it would be served from holds no entry for, is not handed to LiteLLM, which would answer it
+  with an unknown model:
   - The front asks the master for one card of the registration's card service, with the gateway's door as
     the demand's shown reference and nothing more; for a pinned `<name>@<node>` the master still chooses
     the node.
