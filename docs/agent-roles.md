@@ -70,6 +70,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The policy names the capabilities through which a session reaches a brain,** `brain`: `room.chat`,
   `gate.reference` and `brain.lessons`. A supervisor whose brain switch is off holds none of them on its own
   turns or on its double's (`docs/supervisors.md`, 「Its settings」).
+- **The policy names the capabilities through which a session reaches the gate's reading of a brain,**
+  `reference`: `gate.reference`. A supervisor whose reference switch is off holds none of them on its own turns
+  or on its double's, and keeps the rest of the brain's (`docs/supervisors.md`, 「Its settings」).
 - **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.

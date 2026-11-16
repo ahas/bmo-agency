@@ -113,6 +113,9 @@ pub struct Roles {
   /// The capabilities through which a session reaches a brain, which a supervisor whose brain is off holds
   /// none of.
   pub brain: Vec<String>,
+  /// The capabilities through which a session reaches the gate's reading of a brain, which a supervisor whose
+  /// reference switch is off holds none of.
+  pub reference: Vec<String>,
   /// The shape of a role's name.
   pub name_pattern: String,
   /// The most characters a role's name holds.

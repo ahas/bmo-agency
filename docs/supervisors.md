@@ -46,8 +46,18 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   persona its settings hold (「What a turn is given」 below) and asked with its generation settings; a turn of
   the `window` shape is composed from the chat documents and its brain's persona (`docs/agent-documents.md`,
   「A supervisor of the window shape」), and its settings change nothing of it.
-- **The reference switch** says whether its turns are given their reference — the sheets, memories and gate
-  picks in front of its words; the supervisors policy names the default where its settings never held it.
+- **The reference switch** says whether the gate's reading of the supervisor's brain reaches its turns — the
+  sheets, memories and rows the gate picks in front of its words, and the index it reads the brain through; the
+  supervisors policy names the default where its settings never held it. Off, every place the gate's reading
+  reaches a supervisor's turn is closed, and the brain's own tools stay, so the supervisor still recalls and
+  learns by its own calls and is handed nothing it did not ask for:
+  - its session record holds none of the capabilities the roles policy names as the reference's (`reference`:
+    `gate.reference`, the gate's reading of the index and its pieces), on its own turns and on its double's;
+  - the first prompt of its double's session carries no reference the gate picks (`docs/api.md`, 「sessions」);
+  - the receiver, which reads the switch on the settings page beside the brain switch, composes the room's block
+    and the turn's core as it does for a brain switched off: no brain index, hint or due line in the block, and no
+    core asked of the gate.
+  The brain switch off closes all of this whatever the reference switch says.
 - **The brain switch** says whether the supervisor's brain reaches its turns, on where its settings never held
   it. Off, every place the brain reaches a supervisor's turn is closed, and nothing else changes:
   - its session record holds none of the capabilities the roles policy names as the brain's (`brain`:
@@ -75,8 +85,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   none.
 - **A save is checked whole before anything is written** and overwrites what it changes, marking the
   settings it changed as saved. A field no save names is refused, as is a value outside its setting's bounds.
-  A save that changes the brain switch or the tool limit starts every room afresh, as one changing the
-  generation settings does, since both change what a session is handed at its start.
+  A save that changes the reference switch, the brain switch or the tool limit starts every room afresh, as one
+  changing the generation settings does, since each changes what a session is handed at its start.
 
 ### Its generation settings
 

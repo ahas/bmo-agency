@@ -762,7 +762,7 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
 
   // A supervisor whose tool limit leaves filing jobs out holds neither the job service's server nor agency's own,
   // and keeps every server the limit does not close.
-  let limits = Limits::new(true, Some(vec!["web.pages".to_owned()]));
+  let limits = Limits::new(true, true, Some(vec!["web.pages".to_owned()]));
   let limited = mcp_config(&ground, &Trees::of(&ground), "limited-agent", &limits).unwrap();
   let config: serde_json::Value =
     serde_json::from_str(&std::fs::read_to_string(&limited).unwrap()).unwrap();

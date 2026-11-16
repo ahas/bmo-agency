@@ -268,9 +268,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   since a supervisor always names a road,
   `thinking` and `by`, who saves, each judged before anything is written; a field it does not name is
   refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
-  changes its generation settings, its thinking, its brain switch or its tool limit asks a reset of every room
-  session it holds. The answer
-  is the settings read as it then stands; a program standing on a model its road no longer names is let go.
+  changes its generation settings, its thinking, its reference switch, its brain switch or its tool limit asks a
+  reset of every room session it holds. The answer is the settings read as it then stands; a program standing on a model its road no longer names is let go.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
   `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list
@@ -487,7 +486,8 @@ in on, on the role's line.
 Every role's session but a co-work branch's carries the reference its first prompt's instruction calls for,
 picked by the gate's reference selection over the supervisor's brain and attached to that first prompt, the same
 way a job's is (「assignments and jobs」); a later turn of the same session is asked over it and not over it
-again. A co-work branch's prompt is composed by its parent and carries none.
+again. A co-work branch's prompt is composed by its parent and carries none, and neither does a supervisor's
+double whose reference switch or brain switch is off (`docs/supervisors.md`, 「Its settings」).
 
 A role's session may be handed its instructions whole, for a consumer that composes its own — the research unit,
 which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one: the

@@ -2438,20 +2438,20 @@ impl HerdrSessions {
     // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
     // judgement of its own. A session whose pick fails keeps its own words and nothing else, and a later
     // turn of the same session is asked over the reference its first prompt already carries.
-    // A supervisor's double whose brain the supervisor's settings switch off is handed nothing picked from it
-    // (docs/supervisors.md, 「Its settings」).
-    let brain_reaches = match &scope {
+    // A supervisor's double whose brain or reference the supervisor's settings switch off is handed nothing
+    // the gate picks (docs/supervisors.md, 「Its settings」).
+    let reference_reaches = match &scope {
       Scope::Apart(apart) => match apart.supervisor.as_deref() {
         Some(supervisor) => crate::supervisor_limits::Limits::of(&self.ground().db, supervisor)
           .await
-          .map_or(true, |limits| limits.brain_on()),
+          .map_or(true, |limits| limits.reference_reaches()),
         None => true,
       },
       _ => true,
     };
 
     if let Scope::Apart(apart) = &scope
-      && brain_reaches
+      && reference_reaches
       && !(apart.todo.is_some() && apart.role.is_some())
       && turn.context.gate.is_none()
       && turn.context.job.is_none()

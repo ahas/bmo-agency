@@ -35,7 +35,7 @@ const FIELDS: [&str; 4] = ["referenceOn", "brainOn", "toolsAllowed", "persona"];
 
 /// The settings fields whose change alters what a session is handed at its start, so a save that changes one
 /// starts every room afresh.
-const STARTING_FIELDS: [&str; 2] = ["brainOn", "toolsAllowed"];
+const STARTING_FIELDS: [&str; 3] = ["referenceOn", "brainOn", "toolsAllowed"];
 
 /// Every field a save's body may name: the supervisor, who saves, its settings, its pin and its thinking.
 const BODY_FIELDS: [&str; 9] = [
@@ -54,6 +54,8 @@ const BODY_FIELDS: [&str; 9] = [
 #[derive(Clone, Debug)]
 pub struct Settings {
   agent: String,
+  /// Whether the gate's reading of the supervisor's brain reaches its turns (docs/supervisors.md, 「Its
+  /// settings」).
   pub reference_on: bool,
   /// Whether the supervisor's brain reaches its turns (docs/supervisors.md, 「Its settings」).
   pub brain_on: bool,

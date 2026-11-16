@@ -28,16 +28,39 @@ fn a_supervisor_whose_settings_close_nothing_is_handed_everything_as_before() {
 
 #[test]
 fn a_brain_switched_off_takes_every_capability_the_brain_is_reached_through_and_nothing_else() {
-  let kept = Limits::new(false, None).narrowed(capabilities());
+  let kept = Limits::new(false, true, None).narrowed(capabilities());
 
   assert!(ROLES.brain.iter().all(|capability| !kept.contains(capability)), "{kept:?}");
   assert_eq!(kept, ["room.tools", "gate.translate", "deploy"].map(str::to_owned).to_vec());
 }
 
 #[test]
+fn a_reference_switched_off_takes_the_gates_reading_of_the_brain_and_leaves_the_brains_own_tools() {
+  let limits = Limits::new(true, false, None);
+  let kept = limits.narrowed(capabilities());
+
+  assert!(ROLES.reference.iter().all(|capability| !kept.contains(capability)), "{kept:?}");
+  assert_eq!(
+    kept,
+    ["room.tools", "room.chat", "gate.translate", "brain.lessons", "deploy"]
+      .map(str::to_owned)
+      .to_vec()
+  );
+  assert!(limits.brain_on() && !limits.reference_reaches());
+  assert!(
+    !Limits::new(false, true, None).reference_reaches(),
+    "a brain switched off takes the reference with it"
+  );
+  assert!(Limits::open().reference_reaches());
+}
+
+#[test]
 fn a_tool_limit_keeps_only_what_it_names_and_closes_the_servers_and_program_tools_held_under_the_rest() {
-  let limits =
-    Limits::new(true, Some(["room.chat", "gate.reference", "web.pages"].map(str::to_owned).to_vec()));
+  let limits = Limits::new(
+    true,
+    true,
+    Some(["room.chat", "gate.reference", "web.pages"].map(str::to_owned).to_vec()),
+  );
 
   assert_eq!(
     limits.narrowed(capabilities()),
@@ -73,7 +96,7 @@ fn a_limit_may_name_what_the_chat_line_the_bundles_and_its_held_entries_offer() 
 }
 
 #[tokio::test]
-async fn a_save_keeps_the_brain_switch_and_the_tool_limit_and_refuses_a_capability_none_offers() {
+async fn a_save_keeps_the_switches_and_the_tool_limit_and_refuses_a_capability_none_offers() {
   let scratch = Scratch::new().await;
 
   supervisor(scratch.db(), "supervisor-a", &[]).await;
@@ -113,11 +136,22 @@ async fn a_save_keeps_the_brain_switch_and_the_tool_limit_and_refuses_a_capabili
 
   saved(
     scratch.db(),
-    &json!({ "agent": "supervisor-a", "brainOn": true, "toolsAllowed": null }),
+    &json!({ "agent": "supervisor-a", "brainOn": true, "referenceOn": false, "toolsAllowed": null }),
     "tester",
   )
   .await
   .unwrap();
+
+  let limits = Limits::of(scratch.db(), "supervisor-a").await.unwrap();
+
+  assert!(
+    limits.brain_on() && !limits.reference_reaches(),
+    "the saved reference switch is the one read"
+  );
+
+  saved(scratch.db(), &json!({ "agent": "supervisor-a", "referenceOn": true }), "tester")
+    .await
+    .unwrap();
 
   assert_eq!(Limits::of(scratch.db(), "supervisor-a").await.unwrap(), Limits::open());
 }

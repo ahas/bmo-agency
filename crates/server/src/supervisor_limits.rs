@@ -1,5 +1,6 @@
 //! What a supervisor's settings close of its sessions (docs/supervisors.md, 「Its settings」): its brain
-//! switch, which takes away every capability through which a session reaches a brain, and its tool limit,
+//! switch, which takes away every capability through which a session reaches a brain, its reference switch,
+//! which takes away those through which it reaches the gate's reading of the brain, and its tool limit,
 //! which keeps only the capabilities it names and leaves out the servers and the program's own tools the
 //! chat line holds under a capability it does not name. A supervisor whose settings hold neither is handed
 //! everything, as every supervisor is by default.
@@ -15,10 +16,11 @@ use crate::lines::fault;
 /// The line a supervisor's turns go out on, whose `held` names what a limit closes outside the tool host.
 const CHAT_LINE: &str = "chat";
 
-/// A supervisor's brain switch and tool limit, as its settings hold them.
+/// A supervisor's brain switch, reference switch and tool limit, as its settings hold them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Limits {
   brain_on: bool,
+  reference_on: bool,
   tools_allowed: Option<Vec<String>>,
 }
 
@@ -27,13 +29,15 @@ impl Limits {
   pub fn open() -> Self {
     Self {
       brain_on: true,
+      reference_on: true,
       tools_allowed: None,
     }
   }
 
-  pub fn new(brain_on: bool, tools_allowed: Option<Vec<String>>) -> Self {
+  pub fn new(brain_on: bool, reference_on: bool, tools_allowed: Option<Vec<String>>) -> Self {
     Self {
       brain_on,
+      reference_on,
       tools_allowed,
     }
   }
@@ -44,19 +48,27 @@ impl Limits {
       .await
       .map_err(|refused| fault(format!("{supervisor}'s settings could not be read: {}", refused.error)))?;
 
-    Ok(Self::new(settings.brain_on, settings.tools_allowed))
+    Ok(Self::new(settings.brain_on, settings.reference_on, settings.tools_allowed))
   }
 
   pub fn brain_on(&self) -> bool {
     self.brain_on
   }
 
+  /// Whether the gate's reading of the brain reaches the supervisor's turns: its brain and its reference both
+  /// switched on.
+  pub fn reference_reaches(&self) -> bool {
+    self.brain_on && self.reference_on
+  }
+
   /// The capabilities a record keeps of those it would hold: none the brain is reached through where the
-  /// brain is off, and only those the limit names where it names any. It never widens them.
+  /// brain is off, none the gate's reading of it is reached through where the reference is off, and only
+  /// those the limit names where it names any. It never widens them.
   pub fn narrowed(&self, capabilities: Vec<String>) -> Vec<String> {
     capabilities
       .into_iter()
       .filter(|capability| self.brain_on || !ROLES.brain.contains(capability))
+      .filter(|capability| self.reference_on || !ROLES.reference.contains(capability))
       .filter(|capability| self.allows(capability))
       .collect()
   }
