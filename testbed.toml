@@ -51,14 +51,9 @@ base_libraries = [
 [check.shared_versions]
 repository = "bmo-chat"
 
-[[check.step]]
-id = "clippy"
-command = "cargo clippy --workspace --all-targets -- -D warnings"
-lane = "wide"
-
-[[check.step]]
-id = "fmt"
-command = "cargo fmt --all --check"
+# No Cargo static step is declared. The testbed's own Cargo workspace check formats and lints every member,
+# every target compiled, through its Cargo verb in the shared build directory, wherever a change marks a crate,
+# and the change check compiles every crate a change marks; a change that marks none has no Rust to judge.
 
 [build]
 # The server and the verbs, the agent host and the programs it runs out of bin/, the model gateway, and
