@@ -216,8 +216,12 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   was read, established in the brain and still unknown, the tools open in every round, the message
   written in the last, `<<SEND>>` opening an answer making it the message and ending the process,
   `<<SKIP>>` sending nothing, and the first round's freedom to answer at once, to search quietly where a
-  fact may not hold, and never to hedge about a fact being out of date. The receiver owns the questions;
-  the manual only tells the agent what an answer to each is.
+  fact may not hold, and never to hedge about a fact being out of date. Before a message speaks to or names
+  a person, the agent takes what that person is called from the turn's reference, and where the reference
+  holds no form of address for them, reads their `name` memories with the brain's `brain_list` by their
+  person subject before writing; it calls each by that form, one linked to the room before one linked to
+  none, and never by a form they asked not to be called. The receiver owns the questions, the review round
+  among them; the manual only tells the agent what an answer to each is.
 - **The procedure documents:** how to do what is needed only at the moment it is done — filing and
   running the queue, a fast-track tool, asking for a secret, and a run past its clock — is in
   `prompts/agents/chat/procedures/`, one document each, which the session reads right before doing

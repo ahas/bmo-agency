@@ -311,6 +311,12 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
     "opens with <<SEND>> is the message",
     "<<SKIP>> anywhere in an answer ends it with nothing sent",
     "In the last round you write the message",
+    // Before speaking to or naming a person, the agent reads what they are called: the turn's reference first,
+    // then the brain's one exact read of their forms of address.
+    "take what they are called from the turn's Reference for this message block",
+    "`brain_list` with the subject `{\"type\": \"person\", \"key\": \"<their id>\"}`",
+    "and the type `name`, with no words",
+    "never by a form they asked not to be called",
   ] {
     assert!(drafting.contains(said), "{said}: {drafting}");
   }
