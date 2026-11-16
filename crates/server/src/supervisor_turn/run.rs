@@ -18,6 +18,7 @@ use store::all;
 
 use super::guard::{Guard, Spent};
 use super::sessions::mark_spent;
+use crate::Refusal;
 use crate::door::execution::{Identity, execution_root, own_unit};
 use crate::door::record::{ModelSpend, Reply as Recorded};
 use crate::door::surface::{Run, SurfaceEnding, SurfaceTurn, interrupt_of};
@@ -25,6 +26,7 @@ use crate::door::turn::{Ending, Seat, Timings, Turn, Watch, pasted_lead, put};
 use crate::lines::pieces::ComposedTurn;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::token;
+use crate::person_nodes::Placement;
 use crate::places::locks::{agent_lock_path, hold, try_hold};
 use crate::places::{AgentRow, Ground};
 use crate::queue::running::EXECUTION_CANCEL_PREFIX;
@@ -334,6 +336,26 @@ fn failed(ending: &Ending) -> String {
   )
 }
 
+/// The label an agent's place is shown by and the node it stands on, as the store and its place say now; none
+/// where no agent of the name stands. A gate place and a thrown-away session's place stand under no agent's row,
+/// by their own names (docs/agent-control.md, 「A gate's places」; docs/api.md, 「sessions」), and a thrown-away
+/// session's place of an account is placed by that account's present record.
+pub async fn placed(ground: &Ground, agent: &str) -> Result<Option<(String, Option<String>)>, Refusal> {
+  if let Some(row) = AgentRow::named(&ground.db, agent).await? {
+    return Ok(Some((row.shown().to_owned(), row.node)));
+  }
+
+  if crate::places::gate_places::recorded_place(&ground.roots.data, agent) {
+    return Ok(Some((agent.to_owned(), None)));
+  }
+
+  if crate::apart_places::is_apart_place(&ground.roots.data, agent) {
+    return Ok(Some((agent.to_owned(), crate::apart_places::placed_now(ground, agent).await?)));
+  }
+
+  Ok(None)
+}
+
 #[allow(clippy::too_many_arguments)]
 /// One run of a supervisor's turn in its resident program, under its guard where `guarded`, its tally written
 /// where `tally` names the room's session. A run the supervisor's reset overtook, its turn having begun at or
@@ -351,35 +373,39 @@ pub async fn run_turn(
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let failure = |why: String| NoAnswer::Failed(why);
-  // A gate place and a thrown-away session's place stand under no agent's row, by their own names
-  // (docs/agent-control.md, 「A gate's places」; docs/api.md, 「sessions」).
-  // A supervisor of an account with a node stands there, and so does a role run of such an account, whose place
-  // is marked with it; either waits while the node's link is not heard (docs/person-nodes.md).
-  let (label, node) = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
-    Some(row) => (row.shown().to_owned(), row.node),
-    None if crate::places::gate_places::recorded_place(&ground.roots.data, agent) => {
-      (agent.to_owned(), None)
-    }
-    None if crate::apart_places::is_apart_place(&ground.roots.data, agent) => {
-      (agent.to_owned(), crate::watches::links::place_node(&ground.roots.place(agent)))
-    }
-    None => return Err(failure(format!("no agent is named {agent}"))),
+  let run = log.run().to_owned();
+  let gone = || failure(format!("{agent} no longer stands, so its turn ends with it"));
+  let Some((label, node)) = placed(ground, agent).await.map_err(|why| failure(why.detail))? else {
+    return Err(failure(format!("no agent is named {agent}")));
   };
-
-  if let Some(node) = &node {
-    crate::person_nodes::wait_heard(&ground.roots.data, node, agent).await;
-  }
-
+  // A supervisor of an account with a node stands there, and so does a role run of such an account, whose place
+  // is marked with it; either waits while the node's link is not heard, placed again by the present record on
+  // every ask, and a supervisor removed meanwhile ends its turn (docs/person-nodes.md; docs/supervisors.md).
+  let present = || async {
+    Ok(match placed(ground, agent).await? {
+      Some((_, node)) => Placement::On(node),
+      None => Placement::Gone,
+    })
+  };
+  let node = match crate::person_nodes::wait_placed(&ground.roots.data, &run, node, present).await {
+    Placement::On(node) => node,
+    Placement::Gone => return Err(gone()),
+  };
   let home = ground
     .home_on(agent, &label, node.as_deref())
     .await
     .map_err(|why| failure(why.detail))?
     .ok_or_else(|| failure(format!("this machine names no herdr for {agent}'s place")))?;
-  // The agent's one program takes one turn at a time, whichever room it is for.
+  // The agent's one program takes one turn at a time, whichever room it is for; a turn queued behind another
+  // whose agent was removed meanwhile ends without standing it again.
   let _held = hold(agent_lock(ground, agent)).await.map_err(|why| failure(why.to_string()))?;
+
+  if placed(ground, agent).await.map_err(|why| failure(why.detail))?.is_none() {
+    return Err(gone());
+  }
+
   let limits = &SUPERVISOR_RUNNER.limits;
   let carried = tally.map_or(Spent::default(), |tally| tally.carried);
-  let run = log.run().to_owned();
   let title = fill_marks(&SUPERVISOR_RUNNER.log.title, &[("agent", agent)]);
   let own = own_unit(ground.env());
   let root = Some(execution_root(own.as_deref().unwrap_or_default()));

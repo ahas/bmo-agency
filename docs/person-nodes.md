@@ -34,6 +34,11 @@ desktop coding agent whose models and tools are served from elsewhere.
   node's link has been heard from, and starts once it has; a head or a room pane of a supervisor of the account is
   not stood until then. Nothing of it runs as this machine's user or on another account's node. A run of no
   account, or of the administrator's account, is placed as before.
+- **A waiting turn is placed by the record standing now:** before each ask it reads its placement again, so a
+  record taken away or set to another node while it waits places it on the node the account's present record
+  gives, the isolation node where none stands, and it waits on that node instead, or starts at once where that
+  node is heard. A role run's place is marked again with that node. A turn whose supervisor was removed while it
+  waits waits no more and ends with it (`docs/supervisors.md`, 「Adding and removing a supervisor」).
 
 ## Several accounts on one node
 

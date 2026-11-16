@@ -11,10 +11,12 @@ use std::path::Path;
 use agent_session::SessionId;
 use serde_json::{Value, json};
 
+use crate::Refusal;
 use crate::lines::place::{Place, places_dir, token_of};
 use crate::lines::token;
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
+use crate::watches::links;
 
 /// The record a thrown-away session's place keeps while the session stands, naming the session.
 pub const PLACE_RECORD: &str = "apart-place.json";
@@ -65,13 +67,53 @@ pub fn apart_places(data: &Path) -> Vec<String> {
     .collect()
 }
 
-/// A session's place made ready for its turns: its folder and the record that names it.
-pub fn mark(ground: &Ground, name: &str, session: &SessionId) -> Result<(), String> {
+/// A session's place made ready for its turns: its folder and the record that names it, with the account its run
+/// is of where it is one's, whose record of a node places it (docs/person-nodes.md, 「Which node is a person's」).
+pub fn mark(ground: &Ground, name: &str, session: &SessionId, account: Option<&str>) -> Result<(), String> {
   let path = Place::of(&ground.roots.data, name).path;
+  let record = json!({ "place": name, "session": session.0, "account": account });
 
   std::fs::create_dir_all(&path).map_err(|why| format!("{}: {why}", path.display()))?;
-  std::fs::write(path.join(PLACE_RECORD), json!({ "place": name, "session": session.0 }).to_string())
+  std::fs::write(path.join(PLACE_RECORD), record.to_string())
     .map_err(|why| format!("{}: {why}", path.display()))
+}
+
+/// The account a thrown-away session's place runs for, as its record names it; none for a run of no account.
+pub fn account_of(data: &Path, name: &str) -> Option<String> {
+  let record = agent_host::disk::read_json::<Value>(&Place::of(data, name).path.join(PLACE_RECORD))?;
+
+  record["account"].as_str().map(str::to_owned)
+}
+
+/// The node a thrown-away session's place stands on now: for a run of an account, the node the account's present
+/// record names, the place marked again and that node's link spec written where it names another than the
+/// place's mark; the mark as it stands otherwise (docs/person-nodes.md, 「Which node is a person's」).
+pub async fn placed_now(ground: &Ground, name: &str) -> Result<Option<String>, Refusal> {
+  let place = ground.roots.place(name);
+  let marked = links::place_node(&place);
+  let Some(account) = account_of(&ground.roots.data, name) else {
+    return Ok(marked);
+  };
+  let now = crate::person_nodes::node_of(&ground.db, &account).await?;
+
+  if now == marked {
+    return Ok(marked);
+  }
+
+  let Some(cwd) = links::place_cwd(&place) else {
+    return Err(Refusal::failed(format!("{name}: its mark names no folder, so it is not placed again")));
+  };
+
+  links::mark_place_on(&place, now.as_deref(), &cwd).map_err(Refusal::failed)?;
+
+  if let Some(node) = &now
+    && let Err(why) =
+      links::write_node_spec(&ground.db, ground.peers.node.as_ref(), &ground.roots, node).await
+  {
+    eprintln!("{name}: {node}'s link spec was not written again: {why}");
+  }
+
+  Ok(now)
 }
 
 /// A session's place ended: its program released, the session token it carried taken back, its workspace

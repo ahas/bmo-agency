@@ -1,8 +1,9 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): the record agency keeps of the node an
 //! account's runs stand on, set by the service that binds the account to its machine, else the account's isolation
 //! node on this machine (docs/account-isolation.md); the supervisors and role runs placed there by it; the wait of a
-//! run of it while the node's link is not heard; several accounts sharing one node, each under a root of its own
-//! (「Several accounts on one node」); and who reaches a node (「Who reaches a node」).
+//! run of it while the node's link is not heard, placed again by the present record on every ask; several accounts
+//! sharing one node, each under a root of its own (「Several accounts on one node」); and who reaches a node (「Who
+//! reaches a node」).
 
 use std::path::Path;
 use std::time::Duration;
@@ -240,19 +241,30 @@ pub async fn accounts_placed(db: &DatabaseConnection) -> Result<Vec<String>, Ref
   Ok(rows.iter().map(|row| row.try_get("", "account")).collect::<Result<_, _>>()?)
 }
 
-/// The node a role run stands on: its seat's account's, read off the seat its slot holds at the folder it works
-/// in; none for a run of no account or of an account with no node.
-pub async fn run_node<C: ConnectionTrait>(
+/// Where a role run stands and for whom: its seat's account, and that account's node.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RunPlaced {
+  pub account: Option<String>,
+  pub node: Option<String>,
+}
+
+/// The account a role run is of, read off the seat its slot holds at the folder it works in, and the node that
+/// account's record places it on; neither for a run of no account.
+pub async fn run_placed<C: ConnectionTrait>(
   db: &C,
   role: Option<&str>,
   cwd: &str,
-) -> Result<Option<String>, Refusal> {
+) -> Result<RunPlaced, Refusal> {
   let seat = crate::role_agents::seated_at(db, role, Some(cwd)).await?;
   let Some(account) = seat.and_then(|seat| seat.owner_account) else {
-    return Ok(None);
+    return Ok(RunPlaced::default());
   };
+  let node = node_of(db, &account).await?;
 
-  node_of(db, &account).await
+  Ok(RunPlaced {
+    account: Some(account),
+    node,
+  })
 }
 
 /// The accounts whose record names `node`, and the account an isolation node is named for, by account; none for a
@@ -393,23 +405,89 @@ pub async fn access<C: ConnectionTrait>(
   })
 }
 
-/// Waits, asking every `every`, until `heard` says the node's link has been heard from.
-pub async fn until_heard(heard: impl Fn() -> bool, every: Duration) {
-  while !heard() {
+/// Where a run stands as the store says now: on a node, or on this machine where the node is none; or nowhere,
+/// since the agent it was carried for no longer stands.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Placement {
+  On(Option<String>),
+  Gone,
+}
+
+/// Waits while the node a run stands on is not heard from, asking again every `every`, and reads the run's
+/// placement afresh with `present` before each ask (docs/person-nodes.md, 「Which node is a person's」): a node
+/// heard from goes on at once, a placement naming another node, or none, is followed, and an agent gone ends the
+/// wait. A placement that cannot be read leaves the node as it was. Answers where the run goes on, or that its
+/// agent is gone.
+pub async fn until_placed<Read, Reading>(
+  run: &str,
+  mut node: Option<String>,
+  heard: impl Fn(&str) -> bool,
+  mut present: Read,
+  every: Duration,
+) -> Placement
+where
+  Read: FnMut() -> Reading,
+  Reading: Future<Output = Result<Placement, Refusal>>,
+{
+  let mut waited_on: Option<String> = None;
+
+  loop {
+    let Some(unheard) = node.as_deref().filter(|node| !heard(node)) else {
+      if waited_on.is_some() {
+        println!("{run}: {} is heard, so it goes on", node.as_deref().unwrap_or("this machine"));
+      }
+
+      return Placement::On(node);
+    };
+
+    if waited_on.as_deref() != Some(unheard) {
+      println!("{run}: waits for {unheard}, whose link is not heard");
+      waited_on = Some(unheard.to_owned());
+    }
+
     tokio::time::sleep(every).await;
+
+    match present().await {
+      Ok(Placement::Gone) => {
+        println!("{run}: the agent it was carried for no longer stands, so it waits no more");
+
+        return Placement::Gone;
+      }
+      Ok(Placement::On(now)) => {
+        if now != node {
+          println!(
+            "{run}: placed again on {} by the present record",
+            now.as_deref().unwrap_or("this machine")
+          );
+        }
+
+        node = now;
+      }
+      Err(why) => eprintln!("{run}: where it stands could not be read again: {}", why.detail),
+    }
   }
 }
 
-/// Waits until a node's link has been heard from, as the link writes its state under the data root, saying once
-/// that it waits; a node heard from goes on at once.
-pub async fn wait_heard(data_root: &Path, node: &str, run: &str) {
-  let heard = || crate::watches::links::link_heard(data_root, node);
+/// Waits until the node a run stands on has been heard from, as the link writes its state under the data root,
+/// reading the run's placement afresh on every ask (`until_placed`).
+pub async fn wait_placed<Read, Reading>(
+  data_root: &Path,
+  run: &str,
+  node: Option<String>,
+  present: Read,
+) -> Placement
+where
+  Read: FnMut() -> Reading,
+  Reading: Future<Output = Result<Placement, Refusal>>,
+{
+  let heard = |node: &str| crate::watches::links::link_heard(data_root, node);
 
-  if heard() {
-    return;
-  }
-
-  println!("{run}: waits for {node}, whose link is not heard");
-  until_heard(heard, Duration::from_secs(policy::person_nodes::PERSON_NODES.wait_seconds)).await;
-  println!("{run}: {node} is heard, so it goes on");
+  until_placed(
+    run,
+    node,
+    heard,
+    present,
+    Duration::from_secs(policy::person_nodes::PERSON_NODES.wait_seconds),
+  )
+  .await
 }

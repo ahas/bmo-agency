@@ -628,4 +628,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     ends — the agent host's view and head records of it and its agent lock. What could not go is logged
     and refuses nothing, since the removal is written.
   - **Its brain is data and stays** unless the caller asks it let go.
+  - **Every turn carried for it ends with it.** A turn waiting for its node reads at every ask whether the
+    supervisor still stands (`docs/person-nodes.md`, 「Which node is a person's」), and a turn queued behind
+    another for its one program reads it again once it takes the program; one that finds it gone ends failed,
+    said to the receiver as the turn's end so its round closes, and stands nothing for it. A turn its program
+    carries ends as the program is killed. The deployment's quiet counts no turn of a supervisor that no longer
+    stands (`docs/sessions.md`, 「A restart hands the session over」).
   - Once begun it runs to its end apart from the request, as a reset does.

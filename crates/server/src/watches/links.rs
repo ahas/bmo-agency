@@ -760,6 +760,11 @@ pub fn place_node(place: &Path) -> Option<String> {
   text_of(&read_json(&place.join(PLACE_NODE_FILE))?, "node")
 }
 
+/// The folder of this machine's a place marked as standing on a node works in, as its mark names it.
+pub fn place_cwd(place: &Path) -> Option<String> {
+  text_of(&read_json(&place.join(PLACE_NODE_FILE))?, "cwd")
+}
+
 /// A place that is no worker's marked as standing on a node with the folder of this machine's its program works
 /// in, which the node reads through the spec's roots and whose records the link brings back; or unmarked where
 /// the node is none.

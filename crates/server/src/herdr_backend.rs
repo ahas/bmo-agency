@@ -2588,12 +2588,12 @@ impl HerdrSessions {
           // A run of an account with a node goes the place-based road whatever its provider, so the link carries
           // its place to the node (docs/person-nodes.md, 「Which node is a person's」). A node that cannot be
           // read ends the turn refused, as any other turn refused once it began.
-          let came = match crate::person_nodes::run_node(db, apart.role.as_deref(), &apart.cwd).await {
+          let came = match crate::person_nodes::run_placed(db, apart.role.as_deref(), &apart.cwd).await {
             Err(why) => Err(fault(FaultKind::Refused, why.detail)),
-            Ok(node) if apart.provider == worker_session::PROVIDER && node.is_none() => {
+            Ok(placed) if apart.provider == worker_session::PROVIDER && placed.node.is_none() => {
               self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
             }
-            Ok(node) => {
+            Ok(placed) => {
               let began = turn.context.began.unwrap_or(at);
 
               self
@@ -2605,7 +2605,7 @@ impl HerdrSessions {
                   &turn.prompt,
                   began,
                   turn.context.job,
-                  node,
+                  placed,
                   shown,
                 )
                 .await
@@ -2860,7 +2860,7 @@ impl HerdrSessions {
     prompt: &str,
     began: i64,
     job: Option<agent_session::JobMark>,
-    node: Option<String>,
+    placed: crate::person_nodes::RunPlaced,
     shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
@@ -2873,10 +2873,10 @@ impl HerdrSessions {
       .map_err(|why| refused(why.detail))?;
     let mut env = ground.env().clone();
 
-    crate::apart_places::mark(ground, &place, session).map_err(refused)?;
+    crate::apart_places::mark(ground, &place, session, placed.account.as_deref()).map_err(refused)?;
 
     // Placed on its account's node, the place is mirrored there from its first file on.
-    if let Some(node) = &node {
+    if let Some(node) = &placed.node {
       crate::watches::links::mark_place_on(&ground.roots.place(&place), Some(node), &composed.cwd)
         .map_err(refused)?;
 

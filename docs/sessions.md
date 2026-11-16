@@ -25,8 +25,9 @@ statements below about either are kept for a rollback to the road a deployment l
     for the handoff of the session it replaces, or for its program to stand and take it. The pickup's own
     reading of the turn's place decides it, so the count and the pickup never disagree.
   - **What is not:** a turn a program has taken, which the next server picks up and its caller re-attaches
-    to; a running job, below; and the receiver's own work, which an agency restart does not cut, since the
-    receiver re-attaches to its turns and its own quiet counts what it holds.
+    to; a running job, below; a turn of a supervisor that no longer stands, which ends with its removal
+    (`docs/supervisors.md`, 「Adding and removing a supervisor」); and the receiver's own work, which an agency
+    restart does not cut, since the receiver re-attaches to its turns and its own quiet counts what it holds.
   - **No server listening is quiet:** a server that is not running carries no turn, and the turns its
     process left are the next start's to pick up. Nor does a server whose build answers no quiet route
     hold a count to wait on. A server that answers with any other refusal could not tell.

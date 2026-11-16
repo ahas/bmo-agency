@@ -513,7 +513,7 @@ async fn a_start_passes_over_a_number_whose_place_still_stands() {
   let kept = SessionId("search@run:1".into());
 
   // The process before left this session's place standing, kept for a turn picked up across the restart.
-  agency_server::apart_places::mark(&ground, &agency_server::apart_places::place_name(&kept), &kept)
+  agency_server::apart_places::mark(&ground, &agency_server::apart_places::place_name(&kept), &kept, None)
     .unwrap();
 
   let sessions = HerdrSessions::new(Places::new(ground, Arc::default()));

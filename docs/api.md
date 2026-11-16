@@ -97,8 +97,8 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 | GET | `/quiet` | The work the server holds that the next server could not pick up. |
 
 **The quiet** answers `Quiet`: `quiet`, true where the server holds no such work, and `work`, one entry for
-each turn it carries that is no job's and that no program's record names yet, each with its `run`,
-`session`, `agent`, `turnId` and `since`, the moment the turn began, in epoch milliseconds
+each turn it carries that is no job's, whose agent still stands, and that no program's record names yet, each
+with its `run`, `session`, `agent`, `turnId` and `since`, the moment the turn began, in epoch milliseconds
 (`docs/sessions.md`, 「A restart hands the session over」). `bmo-agency quiet` reads it for the deployment.
 
 **The drain.** Asked to stop by `SIGTERM`, the server stops taking connections and answers any call that

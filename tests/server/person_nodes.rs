@@ -1,16 +1,28 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): its record, the supervisors and role runs
-//! of the account placed there, the hub node it must be, a run's wait while the node's link is not heard, and who
-//! reaches a node (「Who reaches a node」).
+//! of the account placed there, the hub node it must be, a run's wait while the node's link is not heard, placed
+//! again by the present records and ended where its supervisor was removed, and who reaches a node (「Who reaches
+//! a node」).
 
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::places::Ground;
+use agency_server::supervisor_turn::run::placed;
+use agent_session::SessionId;
+use harness_providers::Machine;
+
 use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeKind, NodeRead, NodeRow, NodeService};
-use agency_server::person_nodes::{self, ActingFor, Caller, run_node, supervisors_placed, until_heard};
+use agency_server::person_nodes::{
+  self, ActingFor, Caller, Placement, RunPlaced, run_placed, supervisors_placed, until_placed,
+};
 use agency_server::places::AgentRow;
 use agency_server::role_agents::composed_as;
-use agency_server::watches::links::link_heard;
+use agency_server::watches::links::{link_heard, mark_place_on, place_cwd, place_node};
 
 use crate::support::rows;
 use crate::support::scratch::Scratch;
@@ -202,14 +214,18 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
   }
   person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
 
-  let placed = |seat: &'static str| composed_as(seat.to_owned(), run_node(db, Some("coder"), "/work"));
+  let placed = |seat: &'static str| composed_as(seat.to_owned(), run_placed(db, Some("coder"), "/work"));
+  let on = |account: Option<&str>, node: Option<&str>| RunPlaced {
+    account: account.map(str::to_owned),
+    node: node.map(str::to_owned),
+  };
 
-  assert_eq!(placed("coder-07").await.unwrap().as_deref(), Some("pc-7"));
-  assert_eq!(placed("coder-08").await.unwrap().as_deref(), Some("account-8"));
-  assert_eq!(placed("coder-01").await.unwrap(), None);
+  assert_eq!(placed("coder-07").await.unwrap(), on(Some("7"), Some("pc-7")));
+  assert_eq!(placed("coder-08").await.unwrap(), on(Some("8"), Some("account-8")));
+  assert_eq!(placed("coder-01").await.unwrap(), on(None, None));
   assert_eq!(
-    run_node(db, Some("coder"), "/work").await.unwrap(),
-    None,
+    run_placed(db, Some("coder"), "/work").await.unwrap(),
+    on(None, None),
     "a run on no seat stands here"
   );
 }
@@ -234,24 +250,128 @@ fn a_node_s_link_is_heard_while_it_is_connected_and_spoke_within_twenty_seconds(
 }
 
 // "a run waits, asking again, until its node is heard, and goes on at once where it is"
-#[tokio::test]
+#[tokio::test(start_paused = true)]
 async fn a_run_waits_asking_again_until_its_node_is_heard_and_goes_on_at_once_where_it_is() {
+  let pc = || Some("pc-7".to_owned());
   let asked = AtomicU32::new(0);
+  let still = || async { Ok(Placement::On(Some("pc-7".to_owned()))) };
+  let came = until_placed(
+    "chat:1:1",
+    pc(),
+    |_| asked.fetch_add(1, Ordering::SeqCst) >= 3,
+    still,
+    Duration::from_secs(5),
+  );
 
-  until_heard(|| asked.fetch_add(1, Ordering::SeqCst) >= 3, Duration::from_millis(1)).await;
+  assert_eq!(came.await, Placement::On(pc()));
   assert_eq!(asked.load(Ordering::SeqCst), 4);
 
-  let asked = AtomicU32::new(0);
+  let read = AtomicU32::new(0);
+  let reading = || {
+    read.fetch_add(1, Ordering::SeqCst);
+    async { Ok(Placement::Gone) }
+  };
 
-  until_heard(
-    || {
-      asked.fetch_add(1, Ordering::SeqCst);
-      true
-    },
-    Duration::from_secs(3600),
-  )
-  .await;
-  assert_eq!(asked.load(Ordering::SeqCst), 1);
+  assert_eq!(
+    until_placed("chat:1:2", pc(), |_| true, reading, Duration::from_secs(3600)).await,
+    Placement::On(pc())
+  );
+  assert_eq!(
+    read.load(Ordering::SeqCst),
+    0,
+    "a run on a node heard from goes on without reading again"
+  );
+  assert_eq!(
+    until_placed("chat:1:3", None, |_| false, || async { Ok(Placement::Gone) }, Duration::from_secs(5))
+      .await,
+    Placement::On(None),
+    "a run on this machine waits on nothing"
+  );
+}
+
+// "a run waiting on a node its account's record no longer names is placed by the present record, and one whose
+// supervisor was removed waits no more"
+#[tokio::test(start_paused = true)]
+async fn a_run_waiting_on_a_node_no_record_names_is_placed_again_and_one_whose_supervisor_went_waits_no_more()
+ {
+  let every = Duration::from_secs(5);
+  let records = Mutex::new(vec![
+    Placement::On(Some("account-7".to_owned())),
+    Placement::On(Some("pc-7".to_owned())),
+  ]);
+  let present = || {
+    let next = records.lock().unwrap().pop().unwrap();
+
+    async move { Ok(next) }
+  };
+  let heard = |node: &str| node == "account-7";
+
+  assert_eq!(
+    until_placed("chat:1:1", Some("pc-7".to_owned()), heard, present, every).await,
+    Placement::On(Some("account-7".to_owned()))
+  );
+
+  let removed = || async { Ok(Placement::Gone) };
+
+  assert_eq!(
+    until_placed("chat:1:2", Some("pc-7".to_owned()), |_| false, removed, every).await,
+    Placement::Gone
+  );
+}
+
+// "a waiting run's placement is read from the present records: a supervisor whose account's record went stands on
+// its isolation node and a removed one nowhere, and a role run's place of the account is marked again"
+#[tokio::test]
+async fn a_waiting_run_s_placement_is_read_from_the_present_records_and_a_role_run_s_place_is_marked_again()
+{
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let variables: HashMap<String, String> = HashMap::new();
+  let service = Service::new(db.clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let machine = Machine::with_env(
+    [("HOME".to_owned(), home.path().to_string_lossy().into_owned())],
+    home.path().join("data"),
+  );
+  let ground = Ground::new(&service, &machine, None);
+  let node = |agent: &'static str| {
+    let ground = &ground;
+
+    async move { placed(ground, agent).await.unwrap().map(|(_, node)| node) }
+  };
+
+  rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
+
+  let session = SessionId("coder@apart:3".to_owned());
+  let name = agency_server::apart_places::place_name(&session);
+  let place = ground.roots.place(&name);
+
+  agency_server::apart_places::mark(&ground, &name, &session, Some("7")).unwrap();
+  mark_place_on(&place, Some("pc-7"), "/work").unwrap();
+
+  assert_eq!(node("u7").await, Some(Some("pc-7".to_owned())));
+  assert_eq!(
+    placed(&ground, &name).await.unwrap().map(|(_, node)| node),
+    Some(Some("pc-7".to_owned()))
+  );
+
+  person_nodes::clear(db, "7").await.unwrap();
+
+  assert_eq!(node("u7").await, Some(Some("account-7".to_owned())));
+  assert_eq!(
+    placed(&ground, &name).await.unwrap().map(|(_, node)| node),
+    Some(Some("account-7".to_owned()))
+  );
+  assert_eq!(
+    (place_node(&place).as_deref(), place_cwd(&place).as_deref()),
+    (Some("account-7"), Some("/work")),
+    "the role run's place is marked with the node it stands on now"
+  );
+
+  scratch.run(r#"DELETE FROM "supervisors" WHERE "name" = 'u7'"#, vec![]).await;
+
+  assert_eq!(node("u7").await, None, "a removed supervisor stands nowhere");
 }
 
 // "an account's caller reaches its own account's node alone, and a supervisor of no account reaches every node"

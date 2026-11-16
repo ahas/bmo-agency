@@ -781,13 +781,13 @@ async fn found(ground: &Ground, place: &Place, turn: &InFlight) -> (Standing, Op
 /// The turns this process carries that a restart would cut (docs/sessions.md, 「A restart hands the session
 /// over」, what the deployment's quiet counts): each no job's, and one no program's record names yet, so the
 /// pickup at the next start, reading as it does here, would find nothing to attach to. A job's turn is left
-/// out, since the lease pass takes its item again; and a turn this process does not carry, which the reap
-/// or the next start ends.
+/// out, since the lease pass takes its item again; a turn this process does not carry, which the reap or the
+/// next start ends; and a turn of a supervisor removed, which ends with it.
 pub async fn unresumable(ground: &Ground) -> Result<Vec<InFlight>, Refusal> {
   let mut cut = vec![];
 
   for turn in in_flight(&ground.db).await? {
-    if turn.job.is_some() || !carried_here(&turn.run) {
+    if turn.job.is_some() || !carried_here(&turn.run) || !agent_stands(ground, &turn).await {
       continue;
     }
 
@@ -799,6 +799,19 @@ pub async fn unresumable(ground: &Ground) -> Result<Vec<InFlight>, Refusal> {
   }
 
   Ok(cut)
+}
+
+// Whether the agent a kept turn is carried for still stands: a thrown-away session's turn stands with its
+// session, any other with its agent's row, so the turns of a supervisor removed are no work a restart would cut
+// (docs/supervisors.md, 「Adding and removing a supervisor」). A row that cannot be read counts the turn.
+async fn agent_stands(ground: &Ground, turn: &InFlight) -> bool {
+  if crate::herdr_backend::is_apart(&SessionId(turn.session.clone())) {
+    return true;
+  }
+
+  crate::places::AgentRow::named(&ground.db, &turn.agent)
+    .await
+    .map_or(true, |row| row.is_some())
 }
 
 // A turn the program goes on with, waited on with its place's program held, so no turn of this process

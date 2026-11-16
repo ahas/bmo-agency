@@ -554,7 +554,7 @@ fn apart_place(ground: &Ground, session: &str) -> (String, Place) {
   let id = agent_session::SessionId(session.to_owned());
   let name = agency_server::apart_places::place_name(&id);
 
-  agency_server::apart_places::mark(ground, &name, &id).unwrap();
+  agency_server::apart_places::mark(ground, &name, &id, None).unwrap();
 
   (name.clone(), Place::of(&ground.roots.data, &name))
 }
@@ -1112,7 +1112,7 @@ async fn a_job_s_turn_sent_is_kept_in_flight_while_it_goes_and_the_pickup_adopts
   let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
   let name = place_name_of(row);
 
-  agency_server::apart_places::mark(&ground, &name, &SessionId(row.session.clone())).unwrap();
+  agency_server::apart_places::mark(&ground, &name, &SessionId(row.session.clone()), None).unwrap();
 
   let place = Place::of(&ground.roots.data, &name);
   let (transcript, payload) = claude_code_turn(&place, "job-78", now_ms() - 60_000, program.id());

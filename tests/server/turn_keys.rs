@@ -2,7 +2,8 @@
 //! session over」): two sends under one key begin one turn and both are answered by it, a refusal keeps
 //! nothing, a keyed end is kept for a repeat and dropped past its span; a keyed turn picked up at the start
 //! answers the progress read under its own id, stands under its key and hands its end to a repeat of its
-//! send; and the quiet counts a turn the server carries that no program has taken, and nothing else.
+//! send; and the quiet counts a turn the server carries for a supervisor that stands that no program has
+//! taken, and nothing else.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,6 +22,7 @@ use agent_session::{Fault, FaultKind, SessionId, TurnEnd};
 use harness_providers::Machine;
 use serde_json::json;
 
+use crate::support::rows;
 use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
@@ -244,7 +246,7 @@ async fn a_keyed_turn_picked_up_at_start_answers_under_its_id_and_hands_its_end_
 }
 
 #[tokio::test]
-async fn the_quiet_counts_a_carried_turn_no_program_has_taken_and_nothing_else() {
+async fn the_quiet_counts_a_carried_turn_of_a_standing_supervisor_no_program_has_taken_and_nothing_else() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = ground(&scratch, home.path());
@@ -261,8 +263,11 @@ async fn the_quiet_counts_a_carried_turn_no_program_has_taken_and_nothing_else()
   keep(scratch.db(), &in_flight("agent-c", "job-3", 3, None, Some(3))).await;
   // Not carried here: the reap or the next start ends it.
   keep(scratch.db(), &in_flight("agent-d", "chat:5:4", 4, None, None)).await;
+  // Carried here, no record names it, but its supervisor was removed: it ends with the supervisor.
+  keep(scratch.db(), &in_flight("agent-e", "chat:5:5", 5, None, None)).await;
+  rows::supervisor(scratch.db(), "agent-a", &[]).await;
 
-  let _carried = ["chat:5:1", "chat:5:2", "job-3"].map(Carrying::of);
+  let _carried = ["chat:5:1", "chat:5:2", "job-3", "chat:5:5"].map(Carrying::of);
   let cut: Vec<String> = unresumable(&ground).await.unwrap().into_iter().map(|turn| turn.run).collect();
 
   assert_eq!(cut, ["chat:5:1"]);
