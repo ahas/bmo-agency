@@ -72,6 +72,21 @@ impl JobService {
     Some(Self { url, token })
   }
 
+  /// The job service under the supervisors' own token, the one it lets ask a person (the job service's
+  /// docs/api.md, 「The addressee」), else under the deployment's where it names none; none where it names no
+  /// service.
+  pub fn of_supervisor(vars: &BTreeMap<String, String>) -> Option<Self> {
+    let (Some(url), Some(token)) = (
+      address(vars, "BMO_JOB_URL"),
+      token(vars, "BMO_JOB_CHAT_TOKEN", "BMO_JOB_CHAT_TOKEN_FILE")
+        .or_else(|| token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE")),
+    ) else {
+      return None;
+    };
+
+    Some(Self { url, token })
+  }
+
   /// One item by its number; none where the service answers that it holds no such item.
   pub async fn item(&self, id: i64) -> Result<Option<Value>, String> {
     let answer = reqwest::Client::new()

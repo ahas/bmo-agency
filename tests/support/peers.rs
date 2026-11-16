@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Bytes;
 use axum::extract::State;
-use axum::http::{Method, StatusCode, Uri};
+use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -21,6 +21,8 @@ pub struct Heard {
   pub path: String,
   pub query: String,
   pub body: Value,
+  /// The bearer token the call carried, where it carried one.
+  pub bearer: Option<String>,
 }
 
 /// What the stand-in holds; a test sets it and reads the calls back.
@@ -141,6 +143,7 @@ async fn answer(
   State(peers): State<Peers>,
   method: Method,
   uri: Uri,
+  headers: HeaderMap,
   body: Bytes,
 ) -> axum::response::Response {
   let body: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
@@ -152,6 +155,11 @@ async fn answer(
     path: uri.path().to_owned(),
     query: uri.query().unwrap_or_default().to_owned(),
     body: body.clone(),
+    bearer: headers
+      .get("authorization")
+      .and_then(|value| value.to_str().ok())
+      .and_then(|value| value.strip_prefix("Bearer "))
+      .map(str::to_owned),
   });
 
   let path = uri.path().to_owned();
@@ -279,6 +287,7 @@ pub async fn stand() -> (Peers, BTreeMap<String, String>) {
   let vars = [
     ("BMO_JOB_URL".to_owned(), address.clone()),
     ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
+    ("BMO_JOB_CHAT_TOKEN".to_owned(), "supervisors-token".to_owned()),
     ("BMO_RECEIVER_URL".to_owned(), address),
     ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
   ]

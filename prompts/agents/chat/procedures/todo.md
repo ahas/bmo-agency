@@ -326,7 +326,7 @@ and the agency's own:
   and its replies with `job_replies`, and settle it yourself, talk it over with the job, or put it to the
   owner, as the manual's judgement of a job's question says. A question you ask the owner yourself is
   `job_question_ask` with `itemId`, `text`, `choices`, `waitMs` and `askerName` `harness`, put to a person
-  as every question that names no addressee is; wait for its answer with `job_replies`.
+  as every question of yours that names no addressee is; wait for its answer with `job_replies`.
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
   `itemId` and a `reason`, one short line that becomes the job's report. Only a turn whose every
   message is the owner's stops one: anyone else asking is refused `not-owner`, and you say so rather
@@ -423,12 +423,14 @@ and the agency's own:
 - **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
   `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
   the owner in your own words with `job_question_change`, `addressee` `person`. Do one of the three before the
-  turn ends: a turn that ends with no word on the question puts it to the owner by itself. Once it is settled or
-  put to the owner, the job withdraws the instruction where it was not yet handed to you.
+  turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
+  ("woken again: n of 6"), never the owner. Once it is settled or put to the owner, the job withdraws the
+  instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
-  him, or a job's question whose notice to you was let go untaken. Read it with `job_question` and its replies
-  with `job_replies`, put it to the owner in his own chat, and never answer it for him. Once a reply settles
-  it, the instruction is withdrawn; where the question is past its due time, the owner is told of it as well.
+  him. Read it with `job_question` and its replies with `job_replies`, put it to the owner in his own chat, and
+  never answer it for him. Once a reply settles it, the instruction is withdrawn; where the question is past its
+  due time, the owner is told of it as well, once. A job's question with him that he has not settled and that
+  is yours to settle after all you take back with `job_question_change`, `addressee` `supervisor`.
 - **`question-talk`:** the job's answer in a talk on its question. On a question you hold, judge it again in
   that turn, as for `question-for-supervisor`; on one put to the owner, relay it to him.
 - **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by

@@ -454,6 +454,19 @@ async fn an_escalation_made_again_asks_the_owner_once_and_waits_until_a_reply_se
   assert_eq!((status, &member["review"]["question"]), (200, &json!(1)), "{member}");
   assert_eq!(peers.lock().unwrap().questions.len(), 1, "one question, one row");
 
+  // The escalation is the supervisor's move: asked of a person under the supervisors' own token.
+  {
+    let held = peers.lock().unwrap();
+    let asked = held
+      .calls
+      .iter()
+      .find(|call| call.method.as_str() == "POST" && call.path == "/questions")
+      .expect("the question asked");
+
+    assert_eq!(asked.body["addressee"], "person");
+    assert_eq!(asked.bearer.as_deref(), Some("supervisors-token"));
+  }
+
   pass(db, &vars).await.unwrap();
   pass(db, &vars).await.unwrap();
 

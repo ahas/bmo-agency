@@ -53,15 +53,20 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
   - Where the talk changes the choice, the same call puts it again with `--option` for every option
     anew and `--recommend`, plus `--question` or `--why` where those changed.
   - Where the supervisor only says it is still at work — "deploying; I answer once it is live" — and asks
-    nothing, run the same ask again: it waits on the question as it stands, and the supervisor settles it once
-    its work ends.
+    nothing, it needs no answer: run the same ask again, or, where you would say something, acknowledge it with
+    `bmo job ask --talk <질문 번호> --say '<words>' --ack`. An acknowledgement is written on the question and
+    handed to nobody, so it wakes nobody; both wait on the question as it stands, and the supervisor settles it
+    once its work ends. Never answer such a word with a plain `--talk` — "thank you, I wait" — since a plain talk
+    asks the supervisor for a word again.
   - Only the supervisor or the owner ends it, by settling. Never take their words as an answer yourself, and
-    never carry on while the question is open: keep answering with `--talk` until an answer comes back.
+    never carry on while the question is open: answer what asks something with `--talk`, and acknowledge what
+    asks nothing with `--ack`, until an answer comes back.
   - Each word is printed under the voice that said it, the supervisor's or the owner's.
 - **A question waits for its answer, however long that takes.** No clock settles it and none cuts the talk
   short. While the supervisor holds it, nothing counts; a supervisor busy or restarting delays the answer and
   loses nothing. Where the supervisor does not take it up — its notice let go untaken, or the turn that took it
-  ended with no word on it — the command puts the question to the owner by itself and says so on stderr; you go
+  ended with no word on it — the command wakes the supervisor again, at longer rests, up to six times, and says
+  so on stderr; the question stays with the supervisor, and only the supervisor ever puts it to the owner. You go
   on waiting. Since your run waits holding its checkout's lock
   the whole while, ask only what you need.
 - **The Bash tool waits for the command however long it runs,** as long as the call names no

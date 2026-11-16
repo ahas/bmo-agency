@@ -1199,7 +1199,9 @@ async fn escalated(
   text: &str,
 ) -> Result<(), Refused> {
   let check = standing.check.clone().unwrap_or_default();
-  let Some(service) = service_of(ground.vars()) else {
+  // The escalation is the supervisor's own move, so it asks the owner under the supervisors' token, the one the job
+  // service lets ask a person.
+  let Some(service) = JobService::of_supervisor(ground.vars()) else {
     return Err(refused(
       StatusCode::BAD_GATEWAY,
       "upstream-failed",
@@ -1209,6 +1211,7 @@ async fn escalated(
   let question = json!({
     "askerName": JOB_REVIEW.actor,
     "itemId": standing.item,
+    "addressee": "person",
     "text": fill_marks(
       &JOB_REVIEW.question_text,
       &[
