@@ -120,13 +120,13 @@ every node shares are `docs/work-nodes.md`.
   its system manager. A machine that lacks any of these, as a placed machine the suite runs on may, makes no user
   and proves nothing there; the test says on a line what the machine lacks and passes. The isolation is proven on
   this machine, where agency stands isolation nodes:
-  - a program run in the sandbox the policy describes is refused a read of the owner's files, the owner's home, the
-    hub's settings file, the data root's tokens and the system's secrets, and a write into the owner's folder, the
-    system, beside the homes and into `/root`, as well as `sudo` and docker, a connection to a port of this
-    machine's loopback or of another of its addresses, and a sight of another user's process; it reads and writes
-    its own home, reaches the tool host's port, and its temporary folders are its scratch folder; while a program of
-    the owner's user still runs `sudo`, reaches the ports the account was refused and reads and writes what the
-    account was refused;
+  - a program run in the sandbox the policy describes is refused a read of the owner's files, the owner's home,
+    the hub's settings file, the data root's tokens and the system's secrets, and a write into the owner's folder,
+    the system, beside the homes and into `/root`, as well as `sudo` and docker, a connection to a port on any
+    address of this machine's loopback, and a sight of another user's process; it reads and writes its own home,
+    reaches the tool host's port, and its temporary folders are its scratch folder; while a program of the owner's
+    user still runs `sudo`, reaches the ports the account was refused and reads and writes what the account was
+    refused;
   - an isolation node's link starts its far end as the account's user with no new privileges, mirrors a place both
     ways through it, lets a program of the node reach the home bridge in the link's folder for the policy's verbs
     alone, run as the owner's user, and leaves nothing of the account's running once the link ends.

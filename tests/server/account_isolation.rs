@@ -1,7 +1,7 @@
 //! An account's isolation (docs/account-isolation.md, 「Where it is checked」): a user made by the setup's own first
 //! step, and a program run as it in the sandbox the policy describes, is refused a read and a write outside its
-//! home, the owner's files, the hub's settings file, sudo and docker, a port of this machine's loopback or of another
-//! of its addresses and a sight of another user's process, and is allowed its own home and the tool host's port; while
+//! home, the owner's files, the hub's settings file, sudo and docker, a port on any address of this machine's
+//! loopback and a sight of another user's process, and is allowed its own home and the tool host's port; while
 //! a program of the owner's user still reads and writes them. The user is real and is taken away again with its
 //! firewall table, so the test runs where this machine's user holds passwordless sudo, as the deployment's does. A
 //! copy into the node whose writing side ends early fails at once, which needs no user.
@@ -117,6 +117,8 @@ fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_be
     "meta skuid bmo-account-7 jump account",
     "ip daddr 127.0.0.1 tcp dport 4321 accept",
     "meta oif lo goto refuse",
+    "127.0.0.0/8",
+    "::1",
     "192.168.0.0/16",
   ] {
     assert!(firewall.contains(rule), "{rule} in {firewall}");
@@ -136,8 +138,7 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  // The tool host's port, another port of this machine's loopback, and a port on another address of this machine,
-  // which no private range names, so only the rule on this machine's own addresses refuses it.
+  // The tool host's port, another port of this machine's loopback, and a port on another address of the loopback.
   let tool_host = TcpListener::bind("127.0.0.1:0").expect("a tool host");
   let other = TcpListener::bind("127.0.0.1:0").expect("another port");
   let tool_port = tool_host.local_addr().expect("its port").port();
@@ -185,7 +186,7 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
       format!("exec 3<>/dev/tcp/127.0.0.1/{other_port}"),
     ),
     (
-      "a connection to another address of this machine",
+      "a connection to another address of this machine's loopback",
       format!("exec 3<>/dev/tcp/127.0.0.2/{elsewhere_port}"),
     ),
     ("a sight of another user's process", "ls /proc/1".to_owned()),
