@@ -78,6 +78,13 @@ fn placeholder_token(found: &str) -> bool {
   !found.chars().any(|one| one.is_ascii_uppercase())
 }
 
+/// Whether an address is one of the standard private blocks itself, written whole with its prefix length, as a
+/// firewall rule names it: such a block is everybody's and names no one's network.
+fn private_block(found: &str) -> bool {
+  ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7", "fe80::/10"]
+    .contains(&found.to_lowercase().as_str())
+}
+
 fn nothing(_: &str) -> bool {
   false
 }
@@ -128,10 +135,10 @@ fn shapes() -> &'static [Shape] {
         concat!(
           r"(?i)\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|",
           r"192\.168\.\d{1,3}\.\d{1,3}|",
-          r"172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b|",
-          r"\b(?:f[cd][0-9a-f]{2}|fe80):"
+          r"172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b(?:/\d{1,2}\b)?|",
+          r"\b(?:f[cd][0-9a-f]{2}|fe80):[0-9a-f:]*(?:/\d{1,3}\b)?"
         ),
-        nothing,
+        private_block,
       ),
     ]
   });
@@ -189,6 +196,7 @@ fn the_check_finds_each_form_and_admits_a_neutral_example() {
     format!("{local}{at}{domain}"),
     format!("{slash}home{slash}{folder}"),
     format!("sk-{placeholder}"),
+    format!("{network}.{unit}.{unit}.{unit}/8"),
   ];
 
   for text in admitted {

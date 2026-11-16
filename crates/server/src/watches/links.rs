@@ -624,7 +624,7 @@ pub async fn spec(
     path.extend(SYSTEM_PATH.map(str::to_owned));
 
     Local {
-      run_as: isolation.sandbox(&path.join(":")),
+      run_as: isolation.sandbox(&path.join(":"), roots.mcp_port),
       herdr: isolation.herdr_socket(),
     }
   });

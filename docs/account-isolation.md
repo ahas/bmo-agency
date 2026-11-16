@@ -54,14 +54,26 @@ every node shares are `docs/work-nodes.md`.
   - the whole file tree read-only, the home the one place written;
   - every other home, `/root` and every user's runtime directory hidden under empty read-only folders;
   - its scratch folder in place of `/tmp` and `/var/tmp`, and a shared-memory folder of its own;
-  - no new privileges, so no `sudo` or other set-user program gains any.
+  - no new privileges, so no `sudo` or other set-user program gains any;
+  - every other user's processes hidden: `/proc` shows the account's own processes alone, and none of the
+    kernel's other files there;
+  - a network that reaches the world and nothing of this machine's but the tool host: a connection the account's
+    user makes to any address of this machine, its loopback and its own address on every interface, or to a
+    private, shared, link-local or multicast address, is refused at once, but for the tool host's port on the
+    loopback and the system's stub resolver.
 
   The unit's words are the policy's. A program the sandbox started leaves it only by ending: the far end, the
   herdr session and the agent host it starts, and every program in a pane of that session run inside it.
+- **The network rule is a firewall table of the account's own,** named after its user and keyed on that user, so
+  it holds for every program the user runs, one left standing after the command that started it among them. The
+  sandbox stands the table afresh, as root, before its program starts, with the tool host's port this machine's
+  runs reach, and a sandbox whose table does not stand runs nothing. The node's own programs therefore speak to one
+  another through sockets in the filesystem alone: a server the account starts on the loopback is reached by none
+  of its programs either.
 - **What stands for the account on the owner's side** runs no command the account names beyond what a PC may ask:
   the link's near end, the home bridge, which runs the policy's verbs alone for a node an account owns
   (「Who reaches a node」 in `docs/person-nodes.md`), and the tool host, which the node reaches over this machine's
-  loopback with the run's own tool token.
+  loopback with the run's own tool token, the one port there its network rule leaves it.
 
 ## Standing it up
 
@@ -71,7 +83,8 @@ every node shares are `docs/work-nodes.md`.
   passed, for one whose last setup left something missing.
   - **The user first:** made where it is not, with its home, its scratch folder and the link's folder, its home's
     mode leaving it to the user, and only passage through it to the owner's user. The programs that make it are
-    run as root by the paths the policy names for them, never by a name a search path resolves; a machine where
+    run as root by the paths the policy names for them, never by a name a search path resolves, as is the
+    firewall's program the sandbox stands the network rule with; a machine where
     one of them does not stand at its path, or whose system manager is not systemd, which the sandbox needs, is
     refused before any step runs, the answer naming each program missing and the path it was looked for at.
   - **Then every step of a node's setup,** each command run in the sandbox as the account's user: the tools
@@ -108,9 +121,10 @@ every node shares are `docs/work-nodes.md`.
   this machine, where agency stands isolation nodes:
   - a program run in the sandbox the policy describes is refused a read of the owner's files, the owner's home, the
     hub's settings file, the data root's tokens and the system's secrets, and a write into the owner's folder, the
-    system, beside the homes and into `/root`, as well as `sudo` and docker; it reads and writes its own home, and its
-    temporary folders are its scratch folder; while a program of the owner's user still runs `sudo` and reads and
-    writes what the account was refused;
+    system, beside the homes and into `/root`, as well as `sudo` and docker, a connection to a port of this
+    machine's loopback and a sight of another user's process; it reads and writes its own home, reaches the tool
+    host's port, and its temporary folders are its scratch folder; while a program of the owner's user still runs
+    `sudo`, reaches the port the account was refused and reads and writes what the account was refused;
   - an isolation node's link starts its far end as the account's user with no new privileges, mirrors a place both
     ways through it, lets a program of the node reach the home bridge in the link's folder for the policy's verbs
     alone, run as the owner's user, and leaves nothing of the account's running once the link ends.
@@ -125,4 +139,4 @@ every node shares are `docs/work-nodes.md`.
 | the scope | the owner's and the deployment's runs as the owner's user; every other account's on its own node | — |
 | an isolation node | named by agency per account, placed for an account with no PC; its user, home and sandbox made by its setup; its link the local transport | — |
 | the check | the tests above, a real user each | — |
-| a check on this machine | a throwaway account's isolation node stood up by the setup verb whole, its tools installed and its binaries built in its home; its link connected, the far end, its herdr session and its agent host each running as the account's user with no new privileges and the homes read-only; and a program in a pane of that session refused the hub's settings file, the owner's home, a write there and `sudo`, while it wrote its own home | — |
+| a check on this machine | a throwaway account's isolation node stood up by the setup verb whole, its tools installed and its binaries built in its home; its link connected, the far end, its herdr session and its agent host each running as the account's user with no new privileges and the homes read-only; and a program in a pane of that session refused the hub's settings file, the owner's home, a write there and `sudo`, while it wrote its own home; a live isolation node's sandbox refused every port of this machine's loopback but the tool host's, this machine's own addresses and the private network, shown no other user's process, while it reached the world and its own programs ran | — |

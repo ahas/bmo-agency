@@ -24,7 +24,9 @@ the line and the kind, never the value it found.
 
 The check keeps the forms, not a list of names or values to look for: such a list would itself be the
 personal data the rule keeps out. It admits the reserved example domains, the neutral home folders above,
-and a token written in lowercase as a placeholder, since a generated secret is mixed case.
+a token written in lowercase as a placeholder, since a generated secret is mixed case, and a standard private
+address block written whole with its prefix length, as a firewall rule names one, since such a block is
+everybody's and names no one's network.
 
 `tests/literals.rs` holds the other half: it reads this machine's account name, host name and the address
 git commits under, and refuses them across the repository, the prompts among it.

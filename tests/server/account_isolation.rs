@@ -1,9 +1,11 @@
 //! An account's isolation (docs/account-isolation.md, 「Where it is checked」): a user made by the setup's own first
 //! step, and a program run as it in the sandbox the policy describes, is refused a read and a write outside its
-//! home, the owner's files, the hub's settings file, sudo and docker, and is allowed its own home; while a program
-//! of the owner's user still reads and writes them. The user is real and is taken away again, so the test runs
+//! home, the owner's files, the hub's settings file, sudo and docker, a port of this machine's loopback and a sight of
+//! another user's process, and is allowed its own home and the tool host's port; while a program of the owner's user
+//! still reads and writes them. The user is real and is taken away again with its firewall table, so the test runs
 //! where this machine's user holds passwordless sudo, as the deployment's does.
 
+use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -12,7 +14,7 @@ use agency_server::account_isolation::Isolation;
 use agency_server::verbs::work_node_isolated::IsolatedDoor;
 use agency_server::verbs::work_node_setup::SetupShell;
 
-/// The account's user, taken away with its home however the test ends.
+/// The account's user, taken away with its home and its firewall table however the test ends.
 struct MadeUser(String);
 
 impl Drop for MadeUser {
@@ -21,14 +23,21 @@ impl Drop for MadeUser {
   }
 }
 
+// The user and the firewall table its sandbox stood, which is named after it.
 fn remove_user(user: &str) {
-  let _ = Command::new("sudo")
-    .args(["-n", "userdel", "--remove", user])
-    .stdin(Stdio::null())
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .status();
+  for line in [&["userdel", "--remove", user][..], &["nft", "delete", "table", "inet", user]] {
+    let _ = Command::new("sudo")
+      .arg("-n")
+      .args(line)
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .status();
+  }
 }
+
+/// The tool port the link's test hands the sandbox, where no tool host is asked.
+const NO_TOOL_HOST: u16 = 1;
 
 fn owner_runs(line: &str) -> bool {
   Command::new("/bin/sh")
@@ -60,6 +69,35 @@ fn shown(path: &Path) -> String {
   path.display().to_string()
 }
 
+#[test]
+fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_before_its_program() {
+  let isolation = Isolation::of_account("7").expect("a login id");
+  let words = isolation.sandbox("/usr/bin", 4321);
+  let firewall = isolation.firewall(4321);
+  let before_program = &words[..words.iter().position(|word| word == "--").expect("the program's place")];
+  let stood = format!(
+    "--property=ExecStartPre=+{} \"{firewall}\"",
+    policy::account_isolation::ACCOUNT_ISOLATION.user_programs.nft
+  );
+
+  for property in ["--property=ProtectProc=invisible", "--property=ProcSubset=pid", stood.as_str()] {
+    assert!(before_program.iter().any(|word| word == property), "{property} in {words:?}");
+  }
+
+  // One word to the system manager, read by it as it stands.
+  assert!(!firewall.contains(['"', '\\', '$', '%']), "{firewall}");
+
+  for rule in [
+    "delete table inet bmo-account-7; table inet bmo-account-7 {",
+    "meta skuid bmo-account-7 jump account",
+    "ip daddr 127.0.0.1 tcp dport 4321 accept",
+    "fib daddr type local goto refuse",
+    "192.168.0.0/16",
+  ] {
+    assert!(firewall.contains(rule), "{rule} in {firewall}");
+  }
+}
+
 #[tokio::test]
 async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_owner_s_user_keeps_the_machine()
  {
@@ -73,9 +111,15 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  assert!(IsolatedDoor::open(&isolation, false).await.is_err(), "a check makes no user");
+  // The tool host's port, and another port of this machine's loopback.
+  let tool_host = TcpListener::bind("127.0.0.1:0").expect("a tool host");
+  let other = TcpListener::bind("127.0.0.1:0").expect("another port");
+  let tool_port = tool_host.local_addr().expect("its port").port();
+  let other_port = other.local_addr().expect("its port").port();
 
-  let door = IsolatedDoor::open(&isolation, true).await.expect("the user is made");
+  assert!(IsolatedDoor::open(&isolation, false, tool_port).await.is_err(), "a check makes no user");
+
+  let door = IsolatedDoor::open(&isolation, true, tool_port).await.expect("the user is made");
 
   assert_eq!(door.wanting().await, Vec::<String>::new(), "the user holds its own group alone");
 
@@ -108,6 +152,11 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
     ("a write into /root", "touch /root/isolation-check".to_owned()),
     ("sudo", "sudo -n true".to_owned()),
     ("docker", "test -w /var/run/docker.sock".to_owned()),
+    (
+      "a connection to a port of this machine's loopback",
+      format!("exec 3<>/dev/tcp/127.0.0.1/{other_port}"),
+    ),
+    ("a sight of another user's process", "ls /proc/1".to_owned()),
   ];
 
   for (what, line) in &refused {
@@ -124,6 +173,10 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
   let inside = door.run("echo inside >\"$HOME/inside\" && cat \"$HOME/inside\"").await;
 
   assert_eq!((inside.code, inside.stdout.trim()), (0, "inside"), "{}", inside.stderr);
+
+  let reached = door.run(&format!("exec 3<>/dev/tcp/127.0.0.1/{tool_port}")).await;
+
+  assert_eq!(reached.code, 0, "the tool host's port is the account's to reach: {}", reached.stderr);
 
   let scratch_mark = format!("isolation-check-{account}");
   let scratch = door
@@ -146,6 +199,10 @@ async fn an_isolated_account_reads_and_writes_inside_its_home_alone_while_the_ow
 
   // The owner's user keeps the machine: its sudo, its files and the tokens the account was refused.
   assert!(owner_runs("sudo -n true"));
+  assert!(
+    TcpStream::connect(("127.0.0.1", other_port)).is_ok(),
+    "the owner's user reaches the port"
+  );
   assert!(owner_runs(&format!("cat {} && touch {}", shown(&secret), shown(&written))));
 
   for kept in [&hub_settings, &data.join("env")] {
@@ -198,7 +255,7 @@ async fn an_isolation_node_s_link_runs_its_far_end_as_the_account_s_user_in_the_
   remove_user(&isolation.user);
 
   let _made = MadeUser(isolation.user.clone());
-  let door = IsolatedDoor::open(&isolation, true).await.expect("the user is made");
+  let door = IsolatedDoor::open(&isolation, true, NO_TOOL_HOST).await.expect("the user is made");
   let root = isolation.home.join("node");
   let binary = root.join("bin/node-link");
   let place_there = root.join("data/agent-places/w");
@@ -249,7 +306,7 @@ async fn an_isolation_node_s_link_runs_its_far_end_as_the_account_s_user_in_the_
       "follow": [],
       "withheld": [],
       "bridge_verbs": ["agent-status"],
-      "local": { "run_as": isolation.sandbox("/usr/local/bin:/usr/bin:/bin"), "herdr": isolation.herdr_socket() }
+      "local": { "run_as": isolation.sandbox("/usr/local/bin:/usr/bin:/bin", NO_TOOL_HOST), "herdr": isolation.herdr_socket() }
     })
     .to_string(),
   )

@@ -26,9 +26,12 @@ system_manager_mark = "/run/systemd/system"
 # The words every program of an isolation node is started under, ahead of its own command line: a transient unit of
 # the system manager's, started with sudo by the owner's user, running as the account's user with the whole file tree
 # read-only but the home, every other home, /root and every user's runtime folder hidden under empty read-only
-# folders, its scratch folder as its temporary folders, a shared-memory folder of its own and no new privileges. Standard input and output are the caller's, and a program it leaves
-# standing outlives the command that started it. {user} is the account's user, {home} its home, {scratch} its
-# scratch folder and {path} the search path its programs are handed.
+# folders, its scratch folder as its temporary folders, a shared-memory folder of its own, no new privileges, no
+# process but its own user's to see in /proc and none of the kernel's other files there, and the firewall below stood
+# as root before its program starts, so a sandbox whose firewall does not stand runs nothing. Standard input and
+# output are the caller's, and a program it leaves standing outlives the command that started it. {user} is the
+# account's user, {home} its home, {scratch} its scratch folder, {path} the search path its programs are handed,
+# {nft} the firewall's program and {firewall} the firewall below, filled in.
 sandbox = [
   "sudo", "-n", "systemd-run", "--quiet", "--pipe", "--wait", "--collect",
   "--uid={user}", "--gid={user}", "--working-directory={home}",
@@ -40,14 +43,28 @@ sandbox = [
   "--property=BindPaths={scratch}:/tmp {scratch}:/var/tmp",
   "--property=TemporaryFileSystem=/dev/shm:mode=1777",
   "--property=NoNewPrivileges=yes",
+  "--property=ProtectProc=invisible",
+  "--property=ProcSubset=pid",
+  "--property=ExecStartPre=+{nft} \"{firewall}\"",
   "--property=KillMode=process",
   "--",
 ]
 
-# The programs that make an isolation node's user, its home and its folders, run as root by these paths and never
-# by a name a search path resolves; the setup refuses a machine where one does not stand at its path.
+# The network rule of an isolation node's user, one script of the firewall's, which replaces the user's own table
+# whole in one step: every connection the user makes to an address of this machine, its loopback and its own address
+# on every interface, or to a private, shared, link-local or multicast address is refused at once, a stream with a
+# reset, but for the tool host's port on the loopback and the system's stub resolver. It is keyed on the user, so it
+# holds for every program the user runs, and handed to the firewall's program as one word, so it holds no double
+# quote, backslash, dollar sign or percent sign. {user} is the account's user, which names the table, and
+# {tool_port} the tool host's port.
+firewall = "add table inet {user}; delete table inet {user}; table inet {user} { chain refuse { meta l4proto tcp reject with tcp reset; reject; }; chain account { ip daddr 127.0.0.1 tcp dport {tool_port} accept; ip daddr { 127.0.0.53, 127.0.0.54 } meta l4proto { tcp, udp } th dport 53 accept; fib daddr type local goto refuse; ip daddr { 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4 } goto refuse; ip6 daddr { fc00::/7, fe80::/10, ff00::/8 } goto refuse; }; chain out { type filter hook output priority filter; policy accept; meta skuid {user} jump account; }; }"
+
+# The programs that make an isolation node's user, its home and its folders, and the firewall's program its sandbox
+# stands the network rule with, run as root by these paths and never by a name a search path resolves; the setup
+# refuses a machine where one does not stand at its path.
 [user_programs]
 useradd = "/usr/sbin/useradd"
 chmod = "/usr/bin/chmod"
 setfacl = "/usr/bin/setfacl"
 install = "/usr/bin/install"
+nft = "/usr/sbin/nft"
