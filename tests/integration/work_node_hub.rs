@@ -395,3 +395,14 @@ async fn a_hub_whose_settings_hold_no_control_key_is_not_reached() {
   assert!(refused.contains("holds no JAKE_CONTROL_KEY"), "{refused}");
   assert!(stood.presented.lock().unwrap().is_empty());
 }
+
+#[test]
+fn a_file_s_place_on_a_windows_agent_is_the_folder_s_windows_view_and_its_name() {
+  use agency_server::verbs::work_node_hub::windows_view;
+
+  assert_eq!(
+    windows_view("\\\\wsl.localhost\\distro\\home\\person\r\n", "tree.tar.gz"),
+    "\\\\wsl.localhost\\distro\\home\\person\\tree.tar.gz"
+  );
+  assert_eq!(windows_view("C:\\folder\\", "a"), "C:\\folder\\a");
+}

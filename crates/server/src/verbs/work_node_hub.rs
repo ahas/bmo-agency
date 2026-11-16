@@ -33,7 +33,14 @@ pub fn carried(command: &str) -> String {
 
 /// The shells the hub's agent may offer for Linux, the agent's own first: where the agent runs inside the
 /// Linux shell, and WSL's where it runs on Windows.
-const LINUX_SHELLS: [&str; 2] = ["linux", "wsl"];
+const WSL: &str = "wsl";
+const LINUX_SHELLS: [&str; 2] = ["linux", WSL];
+
+/// A file's place as an agent on Windows writes it: the folder as WSL's Windows view names it, and the file's
+/// name under it.
+pub fn windows_view(folder_view: &str, name: &str) -> String {
+  format!(r"{}\{name}", folder_view.trim().trim_end_matches('\\'))
+}
 
 /// How long one command through the hub waits on a step before it answers that the step still runs, in tenths
 /// of a second: well inside the hub's ceiling of time on one command.
@@ -310,9 +317,30 @@ impl HubDoor {
     ran
   }
 
+  /// The path the agent writes a Linux path's file at: the path itself where the agent runs inside the Linux
+  /// shell, and WSL's Windows view of it where the agent runs on Windows, whose own filesystem holds no Linux
+  /// path. The folder is made first, since the view is asked of a folder that stands.
+  async fn written_at(&self, path: &str) -> Result<String, String> {
+    if self.shell != Some(WSL) {
+      return Ok(path.to_owned());
+    }
+
+    let (folder, name) =
+      path.rsplit_once('/').ok_or_else(|| format!("{path} names no folder to upload into"))?;
+    let folder = shell_word(folder);
+    let asked = self.exec(&format!("mkdir -p {folder} && wslpath -w {folder}")).await?;
+
+    if asked.code != 0 || asked.stdout.trim().is_empty() {
+      return Err(format!("WSL gave no Windows view of {path}: {}", asked.stderr.trim()));
+    }
+
+    Ok(windows_view(&asked.stdout, name))
+  }
+
   /// A file of this machine written at a path of the PC through the hub's uploads, its length and checksum
   /// declared, so the agent moves it into place only whole.
   async fn upload(&self, file: &Path, path: &str) -> Result<(), String> {
+    let path = &self.written_at(path).await?;
     let shown = |why: std::io::Error| format!("{}: {why}", file.display());
     let total = std::fs::metadata(file).map_err(shown)?.len();
     let mut hash = Sha256::new();

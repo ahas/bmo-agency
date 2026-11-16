@@ -182,6 +182,9 @@ credential scoped to that agent (「Who reaches a node」).
   under the node's directory, packed into one archive, uploaded with its length and checksum declared, and laid over
   the PC's copy there with the same files left out, so what is built or installed on the PC stays. A PC without
   herdr is given this machine's the same way.
+- **An upload is written where the agent's own filesystem reaches:** at the Linux path where the agent runs inside
+  the Linux shell, and at WSL's Windows view of that path where the agent runs on Windows, asked of WSL for the
+  folder the file goes into.
 - **A PC is not saved as a machine of this herdr,** which reaches a machine over SSH alone; its herdr session is
   reached through the link.
 - **The far end stands as a user service, `bmo-node-link`,** written by the setup into the person's user units and
