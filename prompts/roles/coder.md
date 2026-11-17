@@ -93,7 +93,8 @@ is given its stage and the exact command for that stage's check.
 
 - **A change is checked with one call, `bmo check`,** both while it is written and when
   its touched tests are run: the quick checks (`bmo check quick` runs them alone), the static steps
-  the change reaches, `cargo check` on the crates it marks and the tests it touches, every step run to
+  the change reaches, the Cargo workspace's `cargo fmt --check` and `cargo clippy` where it marks a
+  crate, and the tests it touches, every step run to
   its end, the whole output in one log and a line per step printed with what failed. It reads the
   change since the branch left the main branch, the working tree and untracked files with it, unless
   `--since` or the files given say otherwise. It is waited on until it ends, and read its log only
