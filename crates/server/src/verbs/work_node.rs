@@ -797,8 +797,9 @@ fn person_far_end() -> FarEnd {
 /// One run of `bmo-agency work-node`.
 pub async fn work_node(data_root: &Path, verb: Option<WorkNodeVerb>) -> Result<Answer, VerbError> {
   let service = service(data_root).await?;
+  let nodes = super::node_service(data_root, &service);
 
-  work_node_on(&service.db, service.peers.node.as_ref(), data_root, verb).await
+  work_node_on(&service.db, nodes.as_ref(), data_root, verb).await
 }
 
 /// One run of `bmo-agency work-node` on a store already open.

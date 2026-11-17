@@ -231,6 +231,28 @@ pub async fn service(data_root: &Path) -> Result<Service, VerbError> {
   Ok(service)
 }
 
+/// The node service a node verb asks (docs/work-nodes.md, 「The workplace on a node」): the one this process's
+/// environment names, else the one the data root's `env/agency.env` names, the file the links' units run on, so a
+/// verb run from a shell reaches the node service those units reach. None is asked where neither names one.
+pub fn node_service(
+  data_root: &Path,
+  service: &Service,
+) -> std::sync::Arc<dyn crate::peers::node::NodeService> {
+  let address = &crate::peers::node::ADDRESS;
+
+  if std::env::var(address.url).is_ok_and(|url| !url.trim().is_empty()) {
+    return service.peers.node.clone();
+  }
+
+  match crate::peers::PeerAddress::read(address, |name| deployment_setting(data_root, name)) {
+    Ok(named) => crate::peers::node::client(named),
+    Err(why) => {
+      eprintln!("agency: the node service's address in env/agency.env did not read: {why}");
+      service.peers.node.clone()
+    }
+  }
+}
+
 /// Every event this verb's process published told to the running server, which publishes each on its own
 /// streams (docs/api.md, 「Events」): what a verb publishes lands on its own process's bus, which no consumer
 /// reads. The verb is never failed by it; an event that did not land is said once on the error stream.

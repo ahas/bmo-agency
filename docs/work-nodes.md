@@ -12,6 +12,9 @@ side of a remote agent, the rotation, and what a dropped node does.
   anything on the node, `sync <node>` copies and builds the code again, `runs <node> on|off` says
   whether heavy runs go to it, and `remove <node>` makes it no workplace. The root is a default under
   the node's home unless named.
+- **The node verbs ask the node service the deployment names:** the one their environment names, else the one
+  the data root's `env/agency.env` names, the file the links' units run on, so `node work` and `node person`
+  reach the same node service from a shell as from those units.
 - **Every command of a setup goes over one connection,** which the first makes and the rest share,
   held under the runtime directory: a node may refuse a run of logins made in quick succession, as a
   firewall limiting SSH does. Each command runs there until it ends, however long a cold build takes:

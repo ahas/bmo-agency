@@ -48,7 +48,9 @@ pub async fn person_node(
     (Some(account), Some(node), false) => {
       let unanswered = |fault: crate::peers::PeerFault| VerbError::Refused(fault.to_string());
 
-      if let Some(why) = person_nodes::refusal(service.peers.node.as_ref(), &node).await.map_err(unanswered)? {
+      let nodes = super::node_service(data_root, &service);
+
+      if let Some(why) = person_nodes::refusal(nodes.as_ref(), &node).await.map_err(unanswered)? {
         return Err(VerbError::Refused(why));
       }
 
