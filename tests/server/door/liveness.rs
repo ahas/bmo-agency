@@ -6,8 +6,9 @@
 //! the program writes moved. The turn's row is opened, written, closed with its ending, and a row a process
 //! left open is closed as `restarted` as the next server starts.
 
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 
 use agency_server::door::liveness::{
   Judge, Liveness, Lost, Peer, Phase, Program, RESTARTED, Signals, carries_session, close_left_open,
@@ -20,12 +21,23 @@ use serde_json::json;
 
 use crate::support::scratch::Scratch;
 
-// A process whose command line carries a session the way a program of a run's own does.
+// A process whose command line carries a session the way a program of a run's own does, handed back once
+// it has written its first line. A spawn returns while the kernel may still be laying out the new program,
+// so its command line can read empty until then; a line it writes is past that. It waits on its input
+// rather than on a command of its own, so ending it leaves nothing running.
 fn carrying(session: &str) -> Child {
-  Command::new("sh")
-    .args(["-c", "sleep 30; true", "claude", "--session-id", session])
+  let mut child = Command::new("sh")
+    .args(["-c", "echo; read line", "claude", "--session-id", session])
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
     .spawn()
-    .unwrap()
+    .unwrap();
+  let mut ready = String::new();
+
+  BufReader::new(child.stdout.as_mut().unwrap()).read_line(&mut ready).unwrap();
+  assert_eq!(ready, "\n", "the process carrying the session wrote its first line");
+
+  child
 }
 
 fn program_of(child: &Child) -> Program {
