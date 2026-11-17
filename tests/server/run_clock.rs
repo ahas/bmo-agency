@@ -7,9 +7,10 @@
 
 use std::time::Duration;
 
+use chrono::TimeZone as _;
 use serde_json::json;
 
-use agency_server::door::tool_clock::{CallVerdict, SilentCall};
+use agency_server::door::tool_clock::{CallVerdict, SilentCall, WaitedWork};
 use agency_server::door::turn::{Overrun, Overtime, Quiet, Watch};
 use agency_server::events::Bus;
 use agency_server::now_ms;
@@ -162,6 +163,8 @@ async fn a_silent_call_is_asked_about_with_its_facts_and_kept_or_cut_on_the_verd
     tool: "Bash until rg -q closed close.log; do sleep 15; done".to_owned(),
     started_at: now - 1_800_000,
     output_changed_at: now - 1_500_000,
+    quiet_since: now - 1_500_000,
+    work: None,
     last_line: Some("waiting for the other job to close".to_owned()),
     cpu_percent: 0.4,
     window_ms: 300_000,
@@ -177,7 +180,11 @@ async fn a_silent_call_is_asked_about_with_its_facts_and_kept_or_cut_on_the_verd
     "the ask names the job, its item, the command and its share: {}",
     ask.what
   );
-  assert!(ask.what.contains("5 minutes"), "and the window: {}", ask.what);
+  assert!(
+    ask.what.contains("silent and idle for 25 minutes,"),
+    "and how long it was silent: {}",
+    ask.what
+  );
   assert_eq!(ask.started_at, call.started_at, "how long it has run");
   assert_eq!(ask.bound_ms, 300_000);
   assert_eq!(ask.last_activity_at, Some(call.output_changed_at), "when its output last grew");
@@ -262,6 +269,8 @@ async fn a_silent_call_is_not_asked_about_while_the_job_s_question_waits_and_is_
     tool: "Bash bmo job ask --talk 3 --say 'Waiting.' --ack".to_owned(),
     started_at: now - 600_000,
     output_changed_at: now - 600_000,
+    quiet_since: now - 600_000,
+    work: None,
     last_line: None,
     cpu_percent: 0.1,
     window_ms: 300_000,
@@ -285,11 +294,54 @@ async fn a_silent_call_is_not_asked_about_while_the_job_s_question_waits_and_is_
   // nothing.
   let past = SilentCall {
     window_ms: 0,
+    quiet_since: seen,
     ..call.clone()
   };
 
   assert_eq!(asks.hear(db, &bus, &past).await, CallVerdict::Waiting);
-  assert_eq!(asked_events.ready().map(|ask| ask.run), Some("job-run-8/call/toolu_1".to_owned()));
+
+  // The ask counts its silence from the question, and says so.
+  let ask = asked_events.ready().expect("the ask was published");
+  let at = chrono::Local.timestamp_millis_opt(seen).unwrap().format("%H:%M:%S").to_string();
+  let since = format!("the job's own question #3 was last seen waiting at {at}");
+
+  assert_eq!(ask.run, "job-run-8/call/toolu_1");
+  assert!(
+    ask.what.contains(&format!("silent and idle for 1 minutes since {since},")),
+    "the ask says the silence it was opened by and what the call waited on: {}",
+    ask.what
+  );
+  assert_eq!(ask.last_activity_at, Some(seen));
+  assert_eq!(ask.last_activity.as_deref(), Some(since.as_str()));
+
+  // A call that polled the log of the job's own work in the background counts its silence from that work.
+  let moved_at = now - 400_000;
+  let polling = SilentCall {
+    id: "toolu_2".to_owned(),
+    tool: "Bash for i in {1..360}; do rg -q '^exit ' /tmp/check.log && break; sleep 10; done".to_owned(),
+    quiet_since: moved_at,
+    work: Some(WaitedWork {
+      path: "/tmp/check.log".to_owned(),
+      moved_at,
+    }),
+    ..call.clone()
+  };
+
+  assert_eq!(asks.hear(db, &bus, &polling).await, CallVerdict::Waiting);
+
+  let ask = asked_events.ready().expect("the ask on the poll was published");
+  let at = chrono::Local.timestamp_millis_opt(moved_at).unwrap().format("%H:%M:%S").to_string();
+  let since = format!("the job's own work writing /tmp/check.log was last seen moving at {at}");
+
+  assert!(
+    ask.what.contains(&format!("silent and idle for 6 minutes since {since},")),
+    "the ask says what the poll waited on and since when: {}",
+    ask.what
+  );
+  assert_eq!(
+    (ask.last_activity_at, ask.last_activity.as_deref()),
+    (Some(moved_at), Some(since.as_str()))
+  );
 }
 
 // A call due for its stall before it was ever handed over is found waiting on the item's question, so once the
@@ -330,6 +382,8 @@ async fn a_call_due_for_its_stall_is_found_waiting_on_the_job_s_question_and_hel
     tool: "Bash bmo job ask --talk 1 --ack".to_owned(),
     started_at: now - 600_000,
     output_changed_at: now - 600_000,
+    quiet_since: now - 600_000,
+    work: None,
     last_line: None,
     cpu_percent: 0.1,
     window_ms: 300_000,

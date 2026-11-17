@@ -216,6 +216,9 @@ struct Call {
   // The last moment the job's own work it waits on was seen moving; its silent window counts from here
   // where that is later than its output's last growth.
   awaited_at: i64,
+  // The file the job's own work in the background wrote while the call waited on it, and the last moment it
+  // was seen moving.
+  work: Option<WaitedWork>,
 }
 
 impl Call {
@@ -252,6 +255,14 @@ pub struct InProcessCut {
   pub words: String,
 }
 
+/// The job's own work in the background a call waited on: the file its process wrote, which the call's
+/// command names, and the last moment that process was seen alive.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaitedWork {
+  pub path: String,
+  pub moved_at: i64,
+}
+
 /// A call that owns processes and has gone silent and idle, handed to the caller's overtime policy: the
 /// facts an ask on it carries.
 #[derive(Clone, Debug, PartialEq)]
@@ -263,6 +274,11 @@ pub struct SilentCall {
   pub started_at: i64,
   /// When its output last changed, its start where it never did.
   pub output_changed_at: i64,
+  /// When its silence began as the clock counts it: its output's last change, or the last moment the job's
+  /// own work it waited on was seen moving, whichever is later.
+  pub quiet_since: i64,
+  /// The job's own work in the background it waited on, where it waited on any.
+  pub work: Option<WaitedWork>,
   /// The last line its output holds, none where it has written nothing.
   pub last_line: Option<String>,
   /// The share of one processor its processes burned across the window, in percent.
@@ -367,7 +383,7 @@ impl Watch {
         call.asked = true;
 
         if opened {
-          let silent_ms = (now - call.output_changed_at).max(0);
+          let silent_ms = (now - call.output_changed_at.max(call.awaited_at)).max(0);
 
           answered.lines.push(call.note(name, id, Some(elapsed), ClockEvent::Asked { silent_ms }));
         }
@@ -509,8 +525,14 @@ impl Watch {
           call.pids = owned.iter().map(|owned| owned.pid).collect();
           read_activity(call, &owned, now, self.clock.silent.window_ms);
 
-          if now - call.started_at >= self.clock.min_ms && awaits_own_work(procs, program, &owned, used) {
+          if now - call.started_at >= self.clock.min_ms
+            && let Some(path) = awaited_work(procs, program, &owned, used)
+          {
             call.awaited_at = now;
+            call.work = Some(WaitedWork {
+              path,
+              moved_at: now,
+            });
           }
         }
       }
@@ -644,6 +666,8 @@ impl Watch {
         tool: call.asked_as.clone(),
         started_at: call.started_at,
         output_changed_at: call.output_changed_at,
+        quiet_since: call.output_changed_at.max(call.awaited_at),
+        work: call.work.clone(),
         last_line: if open { None } else { last_line(call, clock.silent.ask_chars) },
         cpu_percent: idle.unwrap_or_default(),
         window_ms: clock.silent.window_ms,
@@ -843,19 +867,19 @@ fn read_activity(call: &mut Call, owned: &[Proc], now: i64, window_ms: i64) {
   }
 }
 
-// Whether a shell call waits on the job's own work that still moves: its command names, by its whole path, a
-// regular file that a living process of the program's tree, not one of the call's own, holds open for
-// writing — a check or a close an earlier call put in the background, writing the log the call polls.
-fn awaits_own_work(procs: &[Proc], program: i32, owned: &[Proc], used: &ToolUse) -> bool {
-  let Some(command) = used.input.get("command").and_then(Value::as_str) else {
-    return false;
-  };
+// The file of the job's own work that still moves a shell call waits on, where it waits on one: its command
+// names, by its whole path, a regular file that a living process of the program's tree, not one of the
+// call's own, holds open for writing — a check or a close an earlier call put in the background, writing
+// the log the call polls.
+fn awaited_work(procs: &[Proc], program: i32, owned: &[Proc], used: &ToolUse) -> Option<String> {
+  let command = used.input.get("command").and_then(Value::as_str)?;
   let own: HashSet<i32> = owned.iter().map(|proc| proc.pid).collect();
 
   descendants(procs, program)
     .iter()
     .filter(|proc| !own.contains(&proc.pid))
-    .any(|proc| written_files(proc.pid).iter().any(|path| command.contains(path.as_str())))
+    .flat_map(|proc| written_files(proc.pid))
+    .find(|path| command.contains(path.as_str()))
 }
 
 // The regular files a process holds open for writing, by the path the kernel names: a descriptor's link

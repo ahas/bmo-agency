@@ -61,8 +61,21 @@ idle_cpu_percent = 5
 ask_chars = 400
 
 # What the ask says the call is. `{job}` is the job, `{item}` its item, `{tool}` the call's tool and
-# command, `{cpu}` the share of one processor its processes burned and `{minutes}` the window.
-what = "job {job} (item #{item}): the tool call {tool} has gone silent and idle, with no new output and {cpu}% of one processor for {minutes} minutes"
+# command, `{cpu}` the share of one processor its processes burned across the window and `{minutes}` how long
+# it has stood silent and idle as the clock counted it when it opened the ask.
+what = "job {job} (item #{item}): the tool call {tool} has gone silent and idle for {minutes} minutes, with no new output and {cpu}% of one processor"
+
+# What the ask says the call is where its silence counts from the job's own work it waited on, not from its
+# own output: the marks of `what`, and `{awaited}`, what that work was and when it last moved.
+what_awaited = "job {job} (item #{item}): the tool call {tool} has gone silent and idle for {minutes} minutes since {awaited}, with no new output and {cpu}% of one processor"
+
+# What the job's own work in the background was, for an ask: `{path}` is the file its process wrote, which the
+# call's command names, and `{at}` the last moment that process was seen alive.
+awaited_work = "the job's own work writing {path} was last seen moving at {at}"
+
+# What the job's own question was, for an ask: `{question}` is its number and `{at}` the last moment it was
+# seen waiting for its answer.
+awaited_question = "the job's own question #{question} was last seen waiting at {at}"
 
 # The last activity the ask names for a call that has written nothing.
 nothing_written = "it has written nothing"

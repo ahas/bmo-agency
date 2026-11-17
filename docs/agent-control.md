@@ -1198,8 +1198,12 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   - the worker, the job and the item the job works;
   - the call's tool and its command, flattened and cut to the ask's length, which says what it waits on;
   - when the call began, so how long it has run;
-  - when its output last grew, the call's start where it never did, and the last line it wrote, or that
-    it has written nothing;
+  - how long it has stood silent and idle, counted from the same moment the clock opened the ask by: its
+    output's last growth, the call's start where it never did, or the last moment the job's own work it
+    waited on was seen moving, whichever is later;
+  - its last sign of work at that moment: where the job's own work it waited on is the later, what that
+    work was — the file the job's own process wrote, or the item's question by its number — and when it
+    was last seen moving or waiting; else the last line it wrote, or that it has written nothing;
   - the processor share its tree burned across the window.
 - **What a verdict does to the call.** A keep holds it until the keep runs out; it is asked about again
   then only if it is still silent and idle, its window counted from its output's last growth or from the
@@ -1236,7 +1240,7 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   - `call`, the call's id in the record, the same id its `tool` line carries as its `ref`; `tool`, the
     tool's name; `command`, the one-line summary; `pid`, the call's first process, null before it has one;
   - `elapsedMs`, how long the call had run when the line was written;
-  - by event: `silentMs`, how long an asked call had been silent and idle; `keptMs`, how much longer a
+  - by event: `silentMs`, how long an asked call had been silent and idle, counted as its ask was; `keptMs`, how much longer a
     kept call is kept; `why`, why an ask failed or why the supervisor cut; `cut`, what cut the call —
     `no-progress`, `no-process`, `supervisor` or `stop`; `outcome`, how an ended call ended — `completed`,
     `failed` or `ended-with-turn`.

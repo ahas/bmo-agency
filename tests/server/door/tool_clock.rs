@@ -17,7 +17,7 @@ use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
 use agency_server::door::stand::Interrupt;
 use agency_server::door::tool_clock::{
-  CallVerdict, ClockNote, NoQuestion, QuestionWait, SilentClock, ToolClock, Watch as ToolWatch,
+  CallVerdict, ClockNote, NoQuestion, QuestionWait, SilentClock, ToolClock, WaitedWork, Watch as ToolWatch,
 };
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
 use agency_server::places::Ground;
@@ -642,11 +642,11 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
   }
   assert!(gone(writer).await, "the work ended");
 
-  let mut handed_at = None;
+  let mut handed = None;
 
   while now < last_seen + 6_000 {
-    if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
-      handed_at = Some(now);
+    if let Some(silent) = looked_at(&mut watch, &records, program.pid, now, &mut said).await {
+      handed = Some((now, silent));
 
       break;
     }
@@ -654,12 +654,31 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
     now += 250;
   }
 
-  let handed_at = handed_at.unwrap_or_else(|| panic!("the stalled wait was asked about: {said:?}"));
+  let (handed_at, silent) = handed.unwrap_or_else(|| panic!("the stalled wait was asked about: {said:?}"));
 
   assert!(
     (last_seen + 2_000..=last_seen + 2_500).contains(&handed_at),
     "asked a window after the work was last seen moving, at {}ms",
     handed_at - last_seen
+  );
+
+  // The ask counts its silence from the work, as the clock did, and names the file that work wrote.
+  assert_eq!(silent.quiet_since, last_seen);
+  assert!(silent.output_changed_at < last_seen, "not from the call's own output");
+  assert_eq!(
+    silent.work,
+    Some(WaitedWork {
+      path: log.clone(),
+      moved_at: last_seen
+    })
+  );
+
+  let asked = sentences(watch.answer("job-41", "t1", CallVerdict::Waiting, handed_at).await.lines);
+  let silent_for = (handed_at - last_seen) / 1_000;
+
+  assert!(
+    asked.iter().any(|line| line.ends_with(&format!("silent and idle for {silent_for}s"))),
+    "the ask's line says the silence it was opened by: {asked:?}"
   );
 }
 

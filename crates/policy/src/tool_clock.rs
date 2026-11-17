@@ -50,8 +50,16 @@ pub struct SilentCallClock {
   pub idle_cpu_percent: u64,
   /// How many characters of the call's command and of its output's last line an ask carries.
   pub ask_chars: usize,
-  /// What an ask says the call is; `{job}`, `{item}`, `{tool}`, `{cpu}` and `{minutes}` are filled.
+  /// What an ask says the call is; `{job}`, `{item}`, `{tool}`, `{cpu}` and `{minutes}`, its silence as
+  /// counted, are filled.
   pub what: String,
+  /// What an ask says the call is where its silence counts from the job's own work it waited on; the marks
+  /// of `what` and `{awaited}` are filled.
+  pub what_awaited: String,
+  /// The job's own work in the background a call waited on; `{path}` and `{at}` are filled.
+  pub awaited_work: String,
+  /// The job's own question a call waited on; `{question}` and `{at}` are filled.
+  pub awaited_question: String,
   /// The last activity an ask names for a call that has written nothing.
   pub nothing_written: String,
   /// The words put into the working turn when the supervisor cuts such a call; `{tool}`, `{seconds}` and

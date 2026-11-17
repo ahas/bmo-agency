@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use chrono::TimeZone as _;
 use policy::fill_marks;
 use policy::run_clock::RUN_CLOCK;
 use policy::tool_clock::TOOL_CLOCK;
@@ -27,6 +28,14 @@ use crate::queue::orderer::JobService;
 use crate::{Refusal, now_ms};
 
 const MINUTE_MS: i64 = 60_000;
+
+// A moment as the time of day on this machine's clock, as the supervisor reads it beside the ask.
+fn clock_time(ms: i64) -> String {
+  chrono::Local
+    .timestamp_millis_opt(ms)
+    .single()
+    .map_or_else(|| ms.to_string(), |at| at.format("%H:%M:%S").to_string())
+}
 
 fn seconds_ms(seconds: u64) -> i64 {
   i64::try_from(seconds).unwrap_or(i64::MAX / 1_000).saturating_mul(1_000)
@@ -570,8 +579,8 @@ pub struct CallAsks {
   item: Option<Option<i64>>,
   // Every call asked about, by its id, with the ask that stands on it with no verdict.
   calls: BTreeMap<String, Option<i64>>,
-  // When each call handed over last found the item's question waiting.
-  waited: BTreeMap<String, i64>,
+  // The item's question each call was last found waiting on, and when.
+  waited: BTreeMap<String, (i64, i64)>,
 }
 
 impl CallAsks {
@@ -624,30 +633,31 @@ impl CallAsks {
 
     let now = now_ms();
 
-    if self.question_waits(item).await {
-      self.waited.insert(call.id.clone(), now);
+    if let Some(question) = self.waiting_question(item).await {
+      self.waited.insert(call.id.clone(), (question, now));
 
       return Ok(CallVerdict::Awaiting(now));
     }
 
     // A question settled a moment ago still holds the call until it has stood silent for the window since.
-    if let Some(waited) = self.waited.get(&call.id).copied()
+    if let Some((_, waited)) = self.waited.get(&call.id).copied()
       && now - waited < call.window_ms
     {
       return Ok(CallVerdict::Awaiting(waited));
     }
 
     let silent = &TOOL_CLOCK.call.silent;
-    let what = fill_marks(
-      &silent.what,
-      &[
-        ("job", &self.job.to_string()),
-        ("item", &item.map_or_else(|| "-".to_owned(), |item| item.to_string())),
-        ("tool", &call.tool),
-        ("cpu", &format!("{:.1}", call.cpu_percent)),
-        ("minutes", &(call.window_ms / MINUTE_MS).max(1).to_string()),
-      ],
-    );
+    let awaited = self.awaited(call);
+    let marks = [
+      ("job", self.job.to_string()),
+      ("item", item.map_or_else(|| "-".to_owned(), |item| item.to_string())),
+      ("tool", call.tool.clone()),
+      ("cpu", format!("{:.1}", call.cpu_percent)),
+      ("minutes", ((now - call.quiet_since) / MINUTE_MS).max(1).to_string()),
+      ("awaited", awaited.clone().unwrap_or_default()),
+    ];
+    let marks: Vec<(&str, &str)> = marks.iter().map(|(mark, value)| (*mark, value.as_str())).collect();
+    let what = fill_marks(if awaited.is_some() { &silent.what_awaited } else { &silent.what }, &marks);
     let clocked = Clocked {
       run: self.run_of(&call.id),
       parent: Some(self.turn.clone()),
@@ -659,8 +669,12 @@ impl CallAsks {
     let overdue = Overrun {
       started_at: call.started_at,
       bound_ms: call.window_ms,
-      last_activity_at: Some(call.output_changed_at),
-      last_activity: Some(call.last_line.clone().unwrap_or_else(|| silent.nothing_written.clone())),
+      last_activity_at: Some(call.quiet_since),
+      last_activity: Some(
+        awaited
+          .or_else(|| call.last_line.clone())
+          .unwrap_or_else(|| silent.nothing_written.clone()),
+      ),
     };
 
     open(db, &clocked).await?;
@@ -686,19 +700,19 @@ impl CallAsks {
       }
     };
 
-    if !self.question_waits(item).await {
+    let Some(question) = self.waiting_question(item).await else {
       return false;
-    }
+    };
 
-    self.waited.insert(call.to_owned(), now_ms());
+    self.waited.insert(call.to_owned(), (question, now_ms()));
 
     true
   }
 
-  // Whether the item holds a question still waiting for its answer. A read that fails holds nothing, so the
-  // call is asked about as it would be with no question.
-  async fn question_waits(&self, item: Option<i64>) -> bool {
-    let (Some(service), Some(item)) = (&self.questions, item) else { return false };
+  // The question of the item still waiting for its answer, where one is. A read that fails holds nothing, so
+  // the call is asked about as it would be with no question.
+  async fn waiting_question(&self, item: Option<i64>) -> Option<i64> {
+    let (Some(service), Some(item)) = (&self.questions, item) else { return None };
     let path = format!("/questions?itemId={item}&limit=500");
 
     match crate::job_review::call(service, reqwest::Method::GET, &path, None).await {
@@ -706,13 +720,41 @@ impl CallAsks {
         .as_array()
         .into_iter()
         .flatten()
-        .any(|question| matches!(question["state"].as_str(), Some("open" | "paused"))),
+        .find(|question| matches!(question["state"].as_str(), Some("open" | "paused")))
+        .and_then(|question| question["id"].as_i64()),
       Err(why) => {
         eprintln!("{}: the questions of item {item} were not read: {why}", self.turn);
 
-        false
+        None
       }
     }
+  }
+
+  // What the job's own work a call waited on was, and when it last moved, where the call's silence counts
+  // from it rather than from its own output: the later of its work in the background and its question.
+  fn awaited(&self, call: &SilentCall) -> Option<String> {
+    if call.quiet_since <= call.output_changed_at {
+      return None;
+    }
+
+    let silent = &TOOL_CLOCK.call.silent;
+    let work = call.work.as_ref().map(|work| {
+      (
+        work.moved_at,
+        fill_marks(&silent.awaited_work, &[("path", &work.path), ("at", &clock_time(work.moved_at))]),
+      )
+    });
+    let question = self.waited.get(&call.id).map(|(question, seen)| {
+      (
+        *seen,
+        fill_marks(
+          &silent.awaited_question,
+          &[("question", &question.to_string()), ("at", &clock_time(*seen))],
+        ),
+      )
+    });
+
+    work.into_iter().chain(question).max_by_key(|(at, _)| *at).map(|(_, words)| words)
   }
 
   async fn item(&mut self, db: &DatabaseConnection) -> Result<Option<i64>, Refusal> {
