@@ -38,6 +38,9 @@ pub const STORED: i64 = 50_000;
 const RESERVE: i64 = 100_000;
 const DROP_EVERY: u64 = 1_000;
 
+// How many events one write to the store takes at most.
+const WRITTEN_AT_ONCE: usize = 1_000;
+
 // The settings rows the numbering is kept in (docs/store.md, 「The settings table」).
 const RESERVED_KEY: &str = "event_numbers_reserved";
 const DROPPED_KEY: &str = "events_dropped_through";
@@ -447,10 +450,12 @@ fn fault(refusal: crate::Refusal) -> Fault {
   Fault::new(refusal.detail)
 }
 
-// The writer of a durable bus: each event kept in the order it was given its number, the next numbers
-// written down ahead once half of those written down are given, and the oldest past what is kept dropped
-// every so many events, the highest number dropped written down. A store that would not take a write is
-// said and the writer goes on.
+// The writer of a durable bus: the events waiting are kept together, up to `WRITTEN_AT_ONCE` of them in one
+// statement, so the store takes a burst at the pace of its statements rather than of its events, and a
+// flush waits on a few writes however many events are behind; the next numbers are written down ahead once
+// half of those written down are given, and the oldest past what is kept are dropped every so many events,
+// the highest number dropped written down. A store that would not take a write is said and the writer goes
+// on.
 async fn keep_events(
   db: DatabaseConnection,
   mut written: UnboundedReceiver<Write>,
@@ -460,41 +465,42 @@ async fn keep_events(
 ) {
   let mut since_drop = 0_u64;
 
-  while let Some(write) = written.recv().await {
-    let event = match write {
-      Write::Event(event) => event,
-      Write::Flushed(done) => {
-        let _ = done.send(());
-        continue;
-      }
-    };
+  while let Some(first) = written.recv().await {
+    let mut events: Vec<Named> = vec![];
+    let mut flushes: Vec<oneshot::Sender<()>> = vec![];
+    let mut next = Some(first);
 
-    if event.id >= ahead - RESERVE / 2 {
-      ahead = event.id + RESERVE;
+    // A flush waiting among them is answered once the events given before it are written with this batch.
+    while let Some(write) = next {
+      match write {
+        Write::Event(event) => events.push(event),
+        Write::Flushed(done) => flushes.push(done),
+      }
+
+      next = (events.len() < WRITTEN_AT_ONCE).then(|| written.try_recv().ok()).flatten();
+    }
+
+    if let Some(newest) = events.last().map(|event| event.id)
+      && newest >= ahead - RESERVE / 2
+    {
+      ahead = newest + RESERVE;
 
       if let Err(why) = settings::set(&db, RESERVED_KEY, &ahead.to_string()).await {
         eprintln!("events: the numbers written down ahead: {}", why.detail);
       }
     }
 
-    let kept = run(
-      &db,
-      r#"INSERT INTO "stream_events" ("id", "kind", "at", "data") VALUES ($1, $2, $3, $4)
-         ON CONFLICT ("id") DO NOTHING"#,
-      vec![
-        event.id.into(),
-        event.name.to_string().into(),
-        event.at.into(),
-        event.body.to_string().into(),
-      ],
-    )
-    .await;
+    if let Err(why) = keep(&db, &events).await {
+      let (first, last) = (events.first().map(|event| event.id), events.last().map(|event| event.id));
 
-    if let Err(why) = kept {
-      eprintln!("events: event {} ({}) was not kept: {why:?}", event.id, event.name);
+      eprintln!("events: events {first:?} to {last:?} were not kept: {why:?}");
     }
 
-    since_drop += 1;
+    for done in flushes {
+      let _ = done.send(());
+    }
+
+    since_drop += events.len() as u64;
 
     if since_drop >= DROP_EVERY {
       since_drop = 0;
@@ -504,6 +510,31 @@ async fn keep_events(
       }
     }
   }
+}
+
+// The events written to the store in one statement, handed as one JSON array of rows so the statement is
+// the same however many there are.
+async fn keep(db: &DatabaseConnection, events: &[Named]) -> Result<(), Fault> {
+  if events.is_empty() {
+    return Ok(());
+  }
+
+  let rows: Vec<serde_json::Value> = events
+    .iter()
+    .map(|event| serde_json::json!({ "id": event.id, "kind": event.name, "at": event.at, "data": event.body.to_string() }))
+    .collect();
+
+  run(
+    db,
+    r#"INSERT INTO "stream_events" ("id", "kind", "at", "data")
+       SELECT "id", "kind", "at", "data"
+       FROM jsonb_to_recordset($1::jsonb) AS "row"("id" bigint, "kind" text, "at" bigint, "data" text)
+       ON CONFLICT ("id") DO NOTHING"#,
+    vec![serde_json::Value::Array(rows).to_string().into()],
+  )
+  .await?;
+
+  Ok(())
 }
 
 /// The events past the newest `stored` taken out of the store, the highest number taken written down.
