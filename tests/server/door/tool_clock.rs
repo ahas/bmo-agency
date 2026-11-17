@@ -20,7 +20,9 @@ use agency_server::door::tool_clock::{
   CallVerdict, ClockNote, NoQuestion, QuestionWait, SilentClock, ToolClock, WaitedWork, Watch as ToolWatch,
 };
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
+use agency_server::job_run::claude::turn::work_clocks;
 use agency_server::places::Ground;
+use agent_session::JobMark;
 use harness_providers::Machine;
 use harness_providers::claude_code::ClaudeCode;
 use serde_json::{Value, json};
@@ -811,9 +813,9 @@ fn turn_end() -> Value {
   json!({ "type": "system", "subtype": "turn_duration" })
 }
 
-// The lines a test's watcher keeps, and the clock it hands the door.
+// The lines a test's watcher keeps, and the call clock and the turn's bound it hands the door.
 #[derive(Clone)]
-struct Notes(Arc<Mutex<Vec<String>>>, ToolClock);
+struct Notes(Arc<Mutex<Vec<String>>>, ToolClock, Option<Duration>);
 
 impl Watch for Notes {
   async fn note(&mut self, text: &str) {
@@ -823,6 +825,31 @@ impl Watch for Notes {
   fn tool_clock(&self) -> Option<ToolClock> {
     Some(self.1.clone())
   }
+
+  fn turn_clock(&self) -> Option<Duration> {
+    self.2
+  }
+}
+
+// The clocks the door is handed for a turn of the job named, or of a role session's turn where none is, as
+// their caller's watch hands them, the call clock's timings shortened so the test waits no real minutes.
+fn watched_as(notes: &Arc<Mutex<Vec<String>>>, job: Option<JobMark>) -> Notes {
+  let clocks = work_clocks(job);
+  let call = ToolClock {
+    min_ms: 400,
+    stall_ms: 500,
+    look_ms: 20,
+    in_process_ms: 400,
+    in_process_grace_ms: 2_000,
+    log_after_ms: 100,
+    still_every_ms: 100,
+    stop_stall_ms: 100,
+    stop_bound_ms: 5_000,
+    silent: unasked(),
+    ..clocks.call
+  };
+
+  Notes(notes.clone(), call, clocks.bound)
 }
 
 fn wrote(notes: &Arc<Mutex<Vec<String>>>, text: &str) -> bool {
@@ -830,9 +857,37 @@ fn wrote(notes: &Arc<Mutex<Vec<String>>>, text: &str) -> bool {
 }
 
 // A job's turn whose program blocks on a pipe: the door cuts the call by its clock, the model is handed the
-// failed result, and the turn ends with its answer rather than waiting for ever.
+// failed result, and the turn ends with its answer rather than waiting for ever. The job's watch still hands
+// the door its turn's hard bound beside the call clock.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
+  let notes = Arc::new(Mutex::new(Vec::new()));
+  let watch = watched_as(
+    &notes,
+    Some(JobMark {
+      job: 41,
+      item: Some(7),
+    }),
+  );
+
+  assert!(watch.2.is_some(), "a job's turn keeps its hard bound");
+  cut_and_answered("job-41", "worker", watch, &notes).await;
+}
+
+// A role's run whose program blocks on a pipe, as the call that held a role's slot for over an hour did: it is
+// held to the same call clock with no job and no bound, the call is cut, and the run goes on to its answer.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_door_cuts_a_role_run_s_blocked_call_and_the_run_goes_on() {
+  let notes = Arc::new(Mutex::new(Vec::new()));
+  let watch = watched_as(&notes, None);
+
+  assert!(watch.2.is_none(), "a role's run has no hard bound");
+  cut_and_answered("role-helper-1", "helper", watch, &notes).await;
+}
+
+// One turn put into a pane whose program makes a call that blocks on a pipe, watched with `watch`: the door
+// cuts the call, the program then answers, and the turn ends answered with the clock's lines kept.
+async fn cut_and_answered(name: &str, role: &str, watch: Notes, notes: &Arc<Mutex<Vec<String>>>) {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let config = home.path().join("config");
@@ -869,7 +924,7 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
   let program = Program::spawn_args(&["bash", "-c", &blocked, "--session-id", session]);
 
   let turn = Turn {
-    name: "job-41".into(),
+    name: name.into(),
     title: "the work".into(),
     seat: Seat::Own(herdr::Herdr::there(herdr_model.socket.clone())),
     cwd: at(&cwd),
@@ -884,7 +939,7 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
       agent: None,
       root: None,
       parent: None,
-      role: Some("worker".into()),
+      role: Some(role.into()),
       model: Some("claude-sonnet-5".into()),
       effort: None,
     },
@@ -901,24 +956,6 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
       gone: GoneConfirm::default(),
     },
   };
-  let notes = Arc::new(Mutex::new(Vec::new()));
-  let watch = Notes(
-    notes.clone(),
-    ToolClock {
-      min_ms: 400,
-      stall_ms: 500,
-      look_ms: 20,
-      in_process_ms: 400,
-      in_process_grace_ms: 2_000,
-      in_process_cut: "The tool call {tool} was cut after {seconds} seconds; go on without it.".to_owned(),
-      in_process_grace_cut: "cut at its bound after a tool call did not take its cut".to_owned(),
-      log_after_ms: 100,
-      still_every_ms: 100,
-      stop_stall_ms: 100,
-      stop_bound_ms: 5_000,
-      silent: unasked(),
-    },
-  );
 
   // The program the pane plays: the door's pane made working, the prompt seen, a call made, and once the
   // call is cut the result, answer and end written.
@@ -1004,9 +1041,9 @@ async fn the_door_cuts_a_job_turn_s_blocked_call_and_the_turn_ends() {
     matches!(ended, Ending::Answered { .. }),
     "the turn answered after the call was cut: {ended:?}"
   );
-  assert!(wrote(&notes, "tool Bash started pid="), "the start line: {:?}", notes.lock().unwrap());
-  assert!(wrote(&notes, "still running"), "the still-running line: {:?}", notes.lock().unwrap());
-  assert!(wrote(&notes, "cut after"), "the cut line: {:?}", notes.lock().unwrap());
+  assert!(wrote(notes, "tool Bash started pid="), "the start line: {:?}", notes.lock().unwrap());
+  assert!(wrote(notes, "still running"), "the still-running line: {:?}", notes.lock().unwrap());
+  assert!(wrote(notes, "cut after"), "the cut line: {:?}", notes.lock().unwrap());
 }
 
 // A job's turn whose program waits on a call with no process of its own: the door cuts the call at its
@@ -1091,6 +1128,7 @@ async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result(
       stop_bound_ms: 5_000,
       silent: unasked(),
     },
+    None,
   );
 
   let herdr_for_writer = herdr_model.clone();
