@@ -264,6 +264,10 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   is not named has no spec, and the pass says why.
 - **A connection the PC has not been heard on is dropped and dialed again** (`docs/work-nodes.md`, 「The link」),
   since the hub's connect program can stand open with nothing coming through it after the PC's agent was replaced.
+- **The far end speaks the mirror with the newest near end alone:** a connection that opens a mirror session ends
+  the one an earlier connection holds. A near end that went away — its unit stopped, the connection it held
+  dropped — may leave its stream standing on the PC with nothing to close it, and a session waiting behind it
+  would greet each new near end and then say nothing, so the link would never be heard again.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address,
   its supervisor's owner account, and for a program on a gateway road the gateway's key file its key helper reads,

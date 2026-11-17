@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::frame::{Frame, Identity, Pull, decode, encode};
 use crate::home::{Carrier, listen_again, take_bridge};
@@ -203,16 +203,28 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
   });
 
   match (&options.listen, &carrier) {
-    // Each connection a mirror session, one near end at a time, or a stream dialing a held connection home.
+    // Each connection a mirror session, the newest near end's alone, or a stream dialing a held connection home.
     (Some(address), Some(carrier)) => {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
-      let mirror = Arc::new(tokio::sync::Mutex::new(()));
+      let mirror = Arc::new(Mirror::default());
       loop {
         let (socket, _) = listener.accept().await?;
         tokio::spawn(connection(socket, carrier.clone(), mirror.clone()));
       }
     }
-    _ => session(BufReader::new(tokio::io::stdin()), tokio::io::stdout(), Greeting::Owed, None).await,
+    _ => {
+      // Over standard input and output one near end stands for the whole of the far end's life.
+      let (_standing, superseded) = oneshot::channel();
+
+      session(
+        BufReader::new(tokio::io::stdin()),
+        tokio::io::stdout(),
+        Greeting::Owed,
+        None,
+        superseded,
+      )
+      .await
+    }
   }
 
   standing.abort();
@@ -237,12 +249,8 @@ fn hello() -> Frame {
 }
 
 // One connection on a person's PC, greeted, then told apart by the near end's first words: a stream dialing a held
-// connection home, joined to it, or a mirror session, which waits for the one before it to end.
-async fn connection(
-  socket: tokio::net::TcpStream,
-  carrier: Arc<Carrier>,
-  mirror: Arc<tokio::sync::Mutex<()>>,
-) {
+// connection home, joined to it, or a mirror session, which ends the one before it and takes its turn once it has.
+async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror: Arc<Mirror>) {
   let (reader, mut writer) = socket.into_split();
 
   if writer.write_all(hello().line().as_bytes()).await.is_err() {
@@ -264,9 +272,36 @@ async fn connection(
       }
     }
     first => {
-      let _turn = mirror.lock().await;
-      session(reader, writer, Greeting::Said(first), Some(carrier)).await;
+      let superseded = mirror.newest();
+      let _turn = mirror.turn.lock().await;
+
+      session(reader, writer, Greeting::Said(first), Some(carrier), superseded).await;
     }
+  }
+}
+
+/// The mirror sessions of one far end (docs/person-nodes.md, 「The link over jake」): one at a time, the newest near
+/// end's. A near end that went away may leave its stream standing here with nothing to close it, so the session
+/// behind it is ended by the next connection rather than waited for.
+#[derive(Default)]
+pub struct Mirror {
+  /// Held by the session speaking now.
+  turn: tokio::sync::Mutex<()>,
+  /// What ends the newest session, once a newer one comes.
+  newest: Mutex<Option<oneshot::Sender<()>>>,
+}
+
+impl Mirror {
+  /// A new session made the newest: the one before it told to end, and what tells this one, in turn.
+  pub fn newest(&self) -> oneshot::Receiver<()> {
+    let (ends, superseded) = oneshot::channel();
+    let older = self.newest.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).replace(ends);
+
+    if let Some(older) = older {
+      let _ = older.send(());
+    }
+
+    superseded
   }
 }
 
@@ -283,6 +318,7 @@ async fn session(
   writer: impl tokio::io::AsyncWrite + Unpin + Send + 'static,
   greeting: Greeting,
   carrier: Option<Arc<Carrier>>,
+  mut superseded: oneshot::Receiver<()>,
 ) {
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
   let pulls: Arc<Mutex<Vec<Pull>>> = Arc::new(Mutex::new(Vec::new()));
@@ -318,16 +354,23 @@ async fn session(
 
   let mut lines = reader.lines();
   let mut first = first;
+  let mut overtaken = false;
 
   loop {
     let frame = match first.take() {
       Some(frame) => frame,
-      None => match lines.next_line().await {
-        Ok(Some(line)) => match Frame::read(&line) {
-          Some(frame) => frame,
-          None => continue,
+      None => tokio::select! {
+        line = lines.next_line() => match line {
+          Ok(Some(line)) => match Frame::read(&line) {
+            Some(frame) => frame,
+            None => continue,
+          },
+          _ => break,
         },
-        _ => break,
+        _ = &mut superseded => {
+          overtaken = true;
+          break;
+        }
       },
     };
 
@@ -349,6 +392,13 @@ async fn session(
 
   watching.abort();
   drop(send);
+
+  // A session a newer near end overtook may be writing into a stream nobody reads, so its writer is ended rather
+  // than waited on.
+  if overtaken {
+    writer.abort();
+  }
+
   let _ = writer.await;
 }
 
