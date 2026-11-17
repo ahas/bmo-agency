@@ -18,6 +18,7 @@ use crate::job_notices;
 use crate::outbox::{self, Keep, Notice, Receiver};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
+use crate::watches::closes::{self, Close};
 
 /// The settings row the number of the last event read stands in.
 pub const CURSOR_KEY: &str = "job_events_after";
@@ -141,8 +142,29 @@ async fn by_orderer(db: &DatabaseConnection, by: &str, orderer: &Orderer) -> boo
     || crate::supervisors::named(db, by).await.ok().flatten().is_some()
 }
 
-// A close's commit waiting to go live owed to the item's orderer once for that commit, kept rather than told again
-// while the item waits on it; and let go, its copy withdrawn, once the item no longer reads so.
+// What an owed notice of waiting commits is marked with: each commit, after its repository where its close names
+// one, so a commit going live or another one waiting owes the notice afresh.
+fn waiting_mark(waiting: &[Close]) -> String {
+  waiting
+    .iter()
+    .filter_map(|close| {
+      let commit = close.waiting()?;
+
+      Some(
+        close
+          .repository
+          .as_ref()
+          .map_or_else(|| commit.to_owned(), |repository| format!("{repository}={commit}")),
+      )
+    })
+    .collect::<Vec<_>>()
+    .join(",")
+}
+
+// The commits an item's closes merged that wait to go live owed to the item's orderer once for that set of commits,
+// kept rather than told again while the item waits on them; and let go, its copy withdrawn, once none waits. A
+// close that merged its commit leaves the item waiting for its repository's batch deployment, an older close
+// leaves it waiting to go live, and the orderer puts each repository live.
 async fn deploy_told(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -152,22 +174,25 @@ async fn deploy_told(
   let Some(id) = data["id"].as_i64() else { return Ok(()) };
   let key = format!("{DEPLOY_OWED}{id}");
   let owed = outbox::owed(db, &key).await?.remove("");
-  // A close that merged its commit leaves the item waiting for its repository's batch deployment; an older
-  // close leaves it waiting to go live. Either is owed to the orderer, who puts the repository live.
-  let phase = &data["labels"]["close-phase"];
-  let waiting = ((phase == "waiting-batch" || phase == "waiting-live") && data["state"] != "done")
-    .then(|| data["labels"]["close-commit"].as_str().filter(|commit| !commit.is_empty()))
-    .flatten();
+  let waiting: Vec<Close> = if data["state"] == "done" {
+    vec![]
+  } else {
+    closes::of(&data["labels"])
+      .into_iter()
+      .filter(|close| close.waiting().is_some())
+      .collect()
+  };
+  let mark = waiting_mark(&waiting);
 
-  match (waiting, owed) {
-    (Some(commit), owed) if owed.as_ref().is_none_or(|owed| owed.mark != commit) => {
+  match (waiting.is_empty(), owed) {
+    (false, owed) if owed.as_ref().is_none_or(|owed| owed.mark != mark) => {
       let orderer = service.orderer_of(data).await?;
-      let notice = Notice::instruction(job_notices::awaits_deploy(data, commit, &orderer), Keep::Kept);
+      let notice = Notice::instruction(job_notices::awaits_deploy(data, &waiting, &orderer), Keep::Kept);
 
-      outbox::owe(db, vars, notice.marked(commit)).await?;
-      println!("queue: item #{id}'s commit {commit} waits to go live, owed to its orderer");
+      outbox::owe(db, vars, notice.marked(&mark)).await?;
+      println!("queue: item #{id}'s commits {mark} wait to go live, owed to its orderer");
     }
-    (None, Some(owed)) => outbox::let_go_as_read(db, vars, &key, &owed).await?,
+    (true, Some(owed)) => outbox::let_go_as_read(db, vars, &key, &owed).await?,
     _ => {}
   }
 

@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 
 use crate::outbox::{self, Keep, Notice};
 use crate::queue::orderer::{JobService, Orderer};
+use crate::watches::closes::Close;
 
 /// An instruction for an orderer: an order under the sort `job` in its room, the owner's private room where it
 /// names none, of the row `event` about `number`, so a newer one of the same kind replaces one still pending.
@@ -187,26 +188,39 @@ pub fn wait_ended(item: i64, title: &str, label: &str, waited: &[Value], orderer
   instruction("item-wait-ended", item, orderer, format!("Item #{item} waits on nothing more"), order)
 }
 
-/// A job's commit handed over to go live while its job waits on the deployment's outcome
-/// (docs/agent-control.md, 「An item's change is told to its orderer」).
-pub fn awaits_deploy(item: &Value, commit: &str, orderer: &Orderer) -> Value {
+/// The commits an item's closes merged, each waiting for its repository's batch deployment, `waiting` the closes
+/// that wait (docs/agent-control.md, 「An item's change is told to its orderer」). A close that names no repository
+/// is of the item's own.
+pub fn awaits_deploy(item: &Value, waiting: &[Close], orderer: &Orderer) -> Value {
   let id = id_of(item);
   let number = id.to_string();
+  let commits: Vec<&str> = waiting.iter().filter_map(Close::waiting).collect();
+  let merged = waiting
+    .iter()
+    .filter_map(|close| {
+      let repository = close
+        .repository
+        .as_deref()
+        .or_else(|| item["assigneeName"].as_str())
+        .unwrap_or("the host");
+
+      Some(fill_marks(
+        &JOB_NOTICES.merged_commit,
+        &[("commit", close.waiting()?), ("repository", repository)],
+      ))
+    })
+    .collect::<Vec<_>>()
+    .join("; ");
   let order = fill_marks(
     &JOB_NOTICES.deploy_order,
-    &[
-      ("item", &number),
-      ("title", title_of(item)),
-      ("repository", item["assigneeName"].as_str().unwrap_or("the host")),
-      ("commit", commit),
-    ],
+    &[("item", &number), ("title", title_of(item)), ("merged", &merged)],
   );
 
   instruction(
     "item-awaits-deploy",
     id,
     orderer,
-    format!("Item #{id}'s commit {commit} waits to go live"),
+    format!("Item #{id} waits to go live: {}", commits.join(", ")),
     order,
   )
 }

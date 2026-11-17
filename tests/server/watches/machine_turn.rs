@@ -3,7 +3,9 @@
 //! first job goes on with its seat once its test ends.
 
 use agency_server::order_run::dispatch::{self, Asked, Wanted};
-use agency_server::watches::machine_turn::{Reading, mark, waits_live};
+use agency_server::watches::machine_turn::{
+  Reading, any_waiting_live, checkouts_by_name, mark, waits_live,
+};
 use agency_server::watches::queue_idle::{Open, awaiting_launch, held};
 
 use crate::support::grounds::{deepseek_balance, seeded};
@@ -253,4 +255,86 @@ async fn a_close_s_commit_is_read_against_the_deployment_its_checkout_declares()
   std::fs::write(checkout.join("testbed.toml"), "[test]\n").unwrap();
   deployed(&live);
   assert!(!waits().await, "a checkout that declares no deploy root");
+}
+
+#[tokio::test]
+async fn a_job_whose_work_spans_repositories_waits_until_every_waiting_pair_s_commit_is_live() {
+  let home = tempfile::tempdir().unwrap();
+  // A repository's checkout declaring its name and deploy root, holding a live commit and a handed-over one.
+  let repository = |name: &str| {
+    let checkout = home.path().join(name);
+    let git = |args: &[&str]| {
+      let done = std::process::Command::new("git")
+        .args(args)
+        .current_dir(&checkout)
+        .env("GIT_AUTHOR_NAME", "tester")
+        .env("GIT_AUTHOR_EMAIL", "tester@example.com")
+        .env("GIT_COMMITTER_NAME", "tester")
+        .env("GIT_COMMITTER_EMAIL", "tester@example.com")
+        .output()
+        .unwrap();
+
+      assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+      String::from_utf8(done.stdout).unwrap().trim().to_owned()
+    };
+
+    std::fs::create_dir_all(&checkout).unwrap();
+    std::fs::create_dir_all(home.path().join(format!("{name}-root"))).unwrap();
+    git(&["init", "-q"]);
+    std::fs::write(
+      checkout.join("testbed.toml"),
+      format!("name = \"{name}\"\n[deploy]\nroot = \"~/{name}-root\"\n"),
+    )
+    .unwrap();
+    git(&["commit", "-q", "--allow-empty", "-m", "live"]);
+
+    let live = git(&["rev-parse", "HEAD"]);
+
+    git(&["commit", "-q", "--allow-empty", "-m", "handed over"]);
+
+    let handed = git(&["rev-parse", "HEAD"]);
+
+    (checkout, live, handed)
+  };
+  let deployed = |name: &str, commit: &str| {
+    std::fs::write(
+      home.path().join(format!("{name}-root")).join("deployed.json"),
+      serde_json::json!({ "commit": commit }).to_string(),
+    )
+    .unwrap();
+  };
+  let (web, web_live, web_handed) = repository("web");
+  let (drive, drive_live, drive_handed) = repository("drive");
+  let closes = agency_server::watches::closes::of(&serde_json::json!({
+    "close-phase": "waiting-batch", "close-commit": web_handed,
+    "close-phase:web": "waiting-batch", "close-commit:web": web_handed,
+    "close-phase:drive": "waiting-batch", "close-commit:drive": drive_handed,
+  }));
+  // The drive row goes by another name; its declaration names the repository.
+  let checkouts = checkouts_by_name([("drive-row", drive.as_path()), ("web", web.as_path())]);
+  let nowhere = std::collections::BTreeMap::new();
+  let waits = async |checkouts| any_waiting_live(&closes, &web, checkouts, home.path()).await;
+
+  assert_eq!(checkouts.keys().collect::<Vec<_>>(), ["drive", "web"]);
+
+  deployed("web", &web_handed);
+  deployed("drive", &drive_live);
+  assert!(
+    waits(&checkouts).await,
+    "the job's own repository is live and the other one's commit waits"
+  );
+  assert!(!waits(&nowhere).await, "a repository with no checkout here");
+
+  deployed("drive", &drive_handed);
+  assert!(!waits(&checkouts).await, "every commit is live");
+
+  let older = agency_server::watches::closes::of(
+    &serde_json::json!({ "close-phase": "waiting-live", "close-commit": web_handed }),
+  );
+
+  deployed("web", &web_live);
+  assert!(
+    any_waiting_live(&older, &web, &nowhere, home.path()).await,
+    "the summing pair alone, read in the job's own checkout"
+  );
 }

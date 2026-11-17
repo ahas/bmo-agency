@@ -154,20 +154,29 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **Which jobs stand in the machine's turn is read, never guessed** from a job's tool lines or its command
   words. Agency reads it every few seconds (`policy/machine-turn.toml`): the testbed's lanes as
   `bmo-testbed status --json` prints them, each holder and waiter matched by its checkout to the job working in
-  that checkout or under it; the job service's items carrying the label `close-phase`, which the close writes
-  `testing` while it checks and `waiting-batch` once its commit is merged and waits for its repository's batch
-  deployment (`waiting-live` on an item an older close left); and, for a running job whose item's close is
-  testing, the close line the same status prints run in the job's checkout. A label alone marks no job, since
-  one outlives the close that wrote it: `testing` only sends agency to the close line, and `waiting-batch` or
-  `waiting-live` sends it to the deployment of the commit the label `close-commit` names.
+  that checkout or under it; the job service's items carrying the label `close-phase`, under a close in any
+  repository; and, for a running job whose item's close is testing, the close line the same status prints run
+  in the job's checkout.
+- **An item carries a pair of labels for each repository its work was closed in** (the job service's
+  `docs/cli.md`, 「`bmo-job job close`」): `close-phase:<repository>`, which the close writes `testing` while it
+  checks and `waiting-batch` once its commit is merged and waits for that repository's batch deployment, and
+  `close-commit:<repository>`, that commit. The repository is the name its testbed declaration gives. The pair
+  `close-phase` and `close-commit` with no repository sums them up, and is read alone only on an item that
+  carries no repository's pair, where `waiting-live` stands for a commit an older close left. A label alone
+  marks no job, since one outlives the close that wrote it: `testing` in any pair only sends agency to the
+  close line, and every pair reading `waiting-batch` or `waiting-live` sends it to the deployment of the commit
+  that pair names. The job stands in the machine's turn while any of them is not live.
 - **A handed-over commit waits while its repository's deployment says it is not live.** Agency reads the
-  repository's deploy root from the `[deploy]` table of the testbed declaration in the job's checkout, and
-  under it the deployment record, which names the commit that runs, and the progress record, which names the
-  run under way or the last one ended, with its outcome (the testbed's `docs/deploy.md`, 「The places」). The
-  commit no longer waits once the record's commit is that commit or one that holds it, as git answers in the
-  job's checkout, and no longer once a run of that very commit ended other than live, since the close then
-  sends the job back to work. A checkout with no deploy root, a record that does not read and a git that cannot
-  tell leave the job at work.
+  repository's deploy root from the `[deploy]` table of the testbed declaration in a checkout of that
+  repository, and under it the deployment record, which names the commit that runs, and the progress record,
+  which names the run under way or the last one ended, with its outcome (the testbed's `docs/deploy.md`, 「The
+  places」). The checkout is the job's own where its declaration gives that repository's name, else the base
+  checkout of the repository row on this machine that goes by that name: the name the declaration in its base
+  checkout gives, else the row's own (`docs/repositories.md`). The summing pair is read in the job's own
+  checkout. The commit no longer waits once the record's commit is that commit or one that holds it, as git
+  answers in that checkout, and no longer once a run of that very commit ended other than live, since the close
+  then sends the job back to work. A repository with no checkout here, a checkout with no deploy root, a record
+  that does not read and a git that cannot tell leave that commit waiting no longer.
 - **Each job's mark is kept on its row until the next reading.** A reading that fails marks nothing, so a job
   no reading names is at work.
 

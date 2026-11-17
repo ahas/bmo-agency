@@ -16,6 +16,7 @@ use store::{Fault, all, run};
 
 use crate::order_run::dispatch::JOB_OWNER;
 use crate::queue::orderer::JobService;
+use crate::watches::closes::{self, Close};
 
 /// The condition a slot request answers where it carries a run at work: no job standing in the machine's turn
 /// owns it, a job's request being owned by `JOB_OWNER` and the job's id. Laid into every reading of the requests
@@ -25,14 +26,6 @@ pub const AT_WORK: &str = r#"NOT EXISTS (SELECT 1 FROM "jobs" AS "in_turn"
 
 /// The command whose status prints the testbed's lanes and a repository's close line.
 const TESTBED: &str = "bmo-testbed";
-
-/// The phases of a close as its label on the item names them.
-const TESTING: &str = "testing";
-const WAITING_LIVE: &str = "waiting-live";
-const WAITING_BATCH: &str = "waiting-batch";
-
-/// The label the close writes the commit it handed over in, beside `waiting-batch` or `waiting-live`.
-const CLOSE_COMMIT: &str = "close-commit";
 
 /// The testbed declaration at a checkout's root, and the records a deployment keeps under its deploy root (the
 /// testbed's docs/deploy.md, 「The places」).
@@ -136,23 +129,92 @@ pub fn waits_live(
   deployed.is_some_and(|deployed| deployed != commit) && held == Some(false)
 }
 
+/// The testbed declaration at a checkout's root, as far as the machine's turn reads it: the repository's name and
+/// its deploy root.
+#[derive(Deserialize)]
+struct Declaration {
+  name: Option<String>,
+  deploy: Option<Deploy>,
+}
+
+#[derive(Deserialize)]
+struct Deploy {
+  root: Option<String>,
+}
+
+fn declaration(checkout: &Path) -> Option<Declaration> {
+  toml::from_str(&std::fs::read_to_string(checkout.join(DECLARATION)).ok()?).ok()
+}
+
+/// The name the testbed declaration in `checkout` gives its repository.
+pub(crate) fn declared_name(checkout: &Path) -> Option<String> {
+  declaration(checkout)?.name.filter(|name| !name.is_empty())
+}
+
 /// The deploy root the testbed declaration in `checkout` names, a leading `~/` read against `home`.
 pub(crate) fn deploy_root(checkout: &Path, home: &Path) -> Option<PathBuf> {
-  #[derive(Deserialize)]
-  struct Declaration {
-    deploy: Option<Deploy>,
-  }
-
-  #[derive(Deserialize)]
-  struct Deploy {
-    root: Option<String>,
-  }
-
-  let declared: Declaration =
-    toml::from_str(&std::fs::read_to_string(checkout.join(DECLARATION)).ok()?).ok()?;
-  let root = declared.deploy?.root?;
+  let root = declaration(checkout)?.deploy?.root?;
 
   Some(root.strip_prefix("~/").map_or_else(|| PathBuf::from(&root), |rest| home.join(rest)))
+}
+
+/// The checkouts a repository's commits are read in, by the name it goes by: each base checkout `bases` names
+/// with its repository row's name, by the name its testbed declaration gives, else by that row's name.
+pub fn checkouts_by_name<'a>(
+  bases: impl IntoIterator<Item = (&'a str, &'a Path)>,
+) -> BTreeMap<String, PathBuf> {
+  bases
+    .into_iter()
+    .map(|(row, base)| (declared_name(base).unwrap_or_else(|| row.to_owned()), base.to_path_buf()))
+    .collect()
+}
+
+/// The base checkouts of the repositories on this machine, by the name each goes by; none where the rows do not
+/// read.
+async fn local_checkouts(db: &DatabaseConnection) -> BTreeMap<String, PathBuf> {
+  match crate::repositories::every(db).await {
+    Ok(rows) => checkouts_by_name(
+      rows
+        .iter()
+        .filter(|row| row.node.is_none())
+        .map(|row| (row.name.as_str(), Path::new(&row.path))),
+    ),
+    Err(why) => {
+      eprintln!("machine turn: the repositories were not read: {}", why.detail);
+
+      BTreeMap::new()
+    }
+  }
+}
+
+/// Whether any commit an item's closes handed over still waits to go live, each read in a checkout of its own
+/// repository: the job's own checkout where its declaration gives that repository's name, else the one
+/// `checkouts` names for it, and the job's own for the summing pair. A repository with no checkout here leaves
+/// its commit waiting no longer.
+pub async fn any_waiting_live(
+  closes: &[Close],
+  own: &Path,
+  checkouts: &BTreeMap<String, PathBuf>,
+  home: &Path,
+) -> bool {
+  let own_name = declared_name(own);
+
+  for close in closes {
+    let Some(commit) = close.waiting() else { continue };
+    let checkout = match close.repository.as_deref() {
+      None => Some(own),
+      Some(repository) if own_name.as_deref() == Some(repository) => Some(own),
+      Some(repository) => checkouts.get(repository).map(PathBuf::as_path),
+    };
+
+    if let Some(checkout) = checkout
+      && waiting_live(checkout, commit, home).await
+    {
+      return true;
+    }
+  }
+
+  false
 }
 
 pub(crate) fn read_json(path: &Path) -> Option<Value> {
@@ -193,12 +255,6 @@ pub async fn waiting_live(checkout: &Path, commit: &str, home: &Path) -> bool {
   };
 
   waits_live(commit, deployed.as_deref(), progress.as_ref(), held)
-}
-
-/// Where an item's close stands: the phase its label names and the commit it handed over, where it names one.
-struct Close {
-  phase: String,
-  commit: Option<String>,
 }
 
 /// One job a reading may mark: running or under review, or marked still.
@@ -254,8 +310,8 @@ async fn testing(folder: &Path) -> Result<BTreeSet<String>, String> {
   Reading::testing_in(&String::from_utf8_lossy(&printed.stdout))
 }
 
-/// The items the job service holds under a close, each with where its close stands.
-async fn closing(service: &JobService) -> Result<BTreeMap<i64, Close>, String> {
+/// The items the job service holds under a close, each with where its closes stand.
+async fn closing(service: &JobService) -> Result<BTreeMap<i64, Vec<Close>>, String> {
   let answer = reqwest::Client::new()
     .get(format!("{}/items", service.url))
     .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
@@ -275,23 +331,16 @@ async fn closing(service: &JobService) -> Result<BTreeMap<i64, Close>, String> {
       .as_array()
       .into_iter()
       .flatten()
-      .filter_map(|item| {
-        let labels = &item["labels"];
-        let close = Close {
-          phase: labels[MACHINE_TURN.close_label.as_str()].as_str()?.to_owned(),
-          commit: labels[CLOSE_COMMIT].as_str().filter(|commit| !commit.is_empty()).map(str::to_owned),
-        };
-
-        Some((item["id"].as_i64()?, close))
-      })
+      .filter_map(|item| Some((item["id"].as_i64()?, closes::of(&item["labels"]))))
       .collect(),
   )
 }
 
 /// One pass: the machine's turn read and each standing job marked by it. The lanes are read once; a running
-/// job whose item's close names it testing has its repository's close line read in its checkout, and a job whose
-/// item's close waits for its commit to go live has that commit's deployment read. A test's ground reads
-/// nothing; a reading that fails marks nothing from it, so a job no reading names is at work.
+/// job whose item's close in any repository is testing has its repository's close line read in its checkout,
+/// and a job whose item's closes wait for their commits to go live has each commit's deployment read, the
+/// repositories' checkouts read once a pass where a close names one. A test's ground reads nothing; a reading
+/// that fails marks nothing from it, so a job no reading names is at work.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data_root: &Path, home: &Path) {
   if crate::job_end::test_ground(vars) {
     return;
@@ -316,20 +365,31 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, data
     Err(why) => eprintln!("machine turn: the testbed's lanes were not read: {why}"),
   }
 
+  let mut checkouts = None;
+
   for job in &jobs {
-    let (Some(path), Some(close)) = (job.path.as_deref(), closes.get(&job.item)) else {
+    let (Some(path), Some(closes)) = (job.path.as_deref(), closes.get(&job.item)) else {
       continue;
     };
 
-    match (close.phase.as_str(), close.commit.as_deref()) {
-      (TESTING, _) if job.state == "running" => match testing(Path::new(path)).await {
-        Ok(checkouts) => reading.checkouts.extend(checkouts),
+    if job.state == "running" && closes.iter().any(Close::testing) {
+      match testing(Path::new(path)).await {
+        Ok(named) => reading.checkouts.extend(named),
         Err(why) => eprintln!("machine turn: the close line at {path} was not read: {why}"),
-      },
-      (WAITING_BATCH | WAITING_LIVE, Some(commit)) if waiting_live(Path::new(path), commit, home).await => {
-        reading.awaiting_live.insert(job.item);
       }
-      _ => {}
+    }
+
+    if !closes.iter().any(|close| close.waiting().is_some()) {
+      continue;
+    }
+
+    if checkouts.is_none() && closes.iter().any(|close| close.repository.is_some()) {
+      checkouts = Some(local_checkouts(db).await);
+    }
+
+    if any_waiting_live(closes, Path::new(path), checkouts.as_ref().unwrap_or(&BTreeMap::new()), home).await
+    {
+      reading.awaiting_live.insert(job.item);
     }
   }
 

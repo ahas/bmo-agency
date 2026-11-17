@@ -29,8 +29,8 @@ pub struct JobNotices {
   pub wait_ended_order: String,
   /// One item a held item waited on, as `{waited}` lists it: `{item}`, `{title}` and `{state}`.
   pub waited_item: String,
-  /// A job's commit handed over to go live, its job waiting on the outcome: `{item}`, `{title}`, `{repository}`
-  /// and `{commit}`.
+  /// An item whose closes merged commits that wait for their repositories' batch deployments: `{item}`,
+  /// `{title}` and `{merged}`, each waiting commit as `merged_commit` gives it.
   pub deploy_order: String,
   /// A deployment that ended without going live: `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`,
   /// `{reason}`, `{items}` and `{journal}`.
@@ -49,6 +49,8 @@ pub struct JobNotices {
   pub deploy_read_seconds: u64,
   /// How many of the last lines of a failed run's unit journal the order carries.
   pub deploy_journal_lines: usize,
+  /// One waiting commit, as `{merged}` lists it: `{commit}` and `{repository}`.
+  pub merged_commit: String,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.

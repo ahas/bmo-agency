@@ -21,9 +21,11 @@ closed_order = "Item #{item} ({title}) was closed as done by {by}."
 wait_labels = ["follows", "waiting-on"]
 wait_ended_order = "Item #{item} ({title}) is held under {label}, and every item it waits on has ended: {waited}."
 waited_item = "#{item} ({title}), {state}"
-# A job's close handed its commit over and waits for the deployment that carries it: `{item}`, `{title}`,
-# `{repository}` and `{commit}`.
-deploy_order = "Item #{item} ({title}): its job's close merged commit {commit} into {repository}'s main, and the item waits for that repository's batch deployment: put it live once no related work is left, as the todo procedure says."
+# An item whose closes merged commits that wait for their repositories' batch deployments: `{item}`, `{title}`
+# and `{merged}`, each waiting commit as `merged_commit` gives it with `{commit}` and `{repository}`, joined by
+# a semicolon.
+deploy_order = "Item #{item} ({title}): its job's close merged {merged}, and the item waits for each repository's batch deployment: put each live once no related work is left, and close the item once every one is live, as the todo procedure says."
+merged_commit = "commit {commit} into {repository}'s main"
 # A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 # told」): `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`, `{reason}`, `{items}`, the waiting items
 # it carries in the room, each as `deploy_failed_item` gives it with `{item}` and `{title}`, else

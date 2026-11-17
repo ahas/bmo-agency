@@ -165,6 +165,27 @@ async fn a_failed_deployment_is_told_once_to_each_room_of_the_items_it_carries()
     held.items.insert(72, waiting(72, "-800", &head));
     // A commit of another repository, which this checkout does not hold.
     held.items.insert(73, waiting(73, "-700", "0123456789abcdef0123456789abcdef01234567"));
+    // Work closed in two repositories: its pair of this repository is read, whatever the summing pair names.
+    held.items.insert(
+      74,
+      item(
+        74,
+        "leased",
+        json!({ "scope": "-700", "labels": {
+          "close-phase": "waiting-batch", "close-commit": "0123456789abcdef0123456789abcdef01234567",
+          "close-phase:web": "waiting-batch", "close-commit:web": handed,
+          "close-phase:drive": "waiting-batch", "close-commit:drive": "0123456789abcdef0123456789abcdef01234567" } }),
+      ),
+    );
+    // Another repository's pair, whatever commit it names, is no commit of this repository's.
+    held.items.insert(
+      75,
+      item(
+        75,
+        "leased",
+        json!({ "scope": "-700", "labels": { "close-phase:drive": "waiting-batch", "close-commit:drive": handed } }),
+      ),
+    );
   }
 
   // The first pass tells nothing of a run that had already ended.
@@ -193,7 +214,7 @@ async fn a_failed_deployment_is_told_once_to_each_room_of_the_items_it_carries()
 
   assert_eq!(rooms, [json!(-800), json!(-700)], "one instruction a room, once: {told:#?}");
   assert_eq!(told[1]["kind"], "deploy-failed:bmo-deploy-2");
-  assert_eq!(told[1]["events"], json!(["deploy-failed:#71"]));
+  assert_eq!(told[1]["events"], json!(["deploy-failed:#71", "deploy-failed:#74"]));
 
   let said = order(&told[1]);
 
@@ -211,6 +232,7 @@ async fn a_failed_deployment_is_told_once_to_each_room_of_the_items_it_carries()
 
   assert!(said.contains("static check: cargo format FAILED"), "the journal's last lines: {said}");
   assert!(!said.contains("#73"), "an item of another repository: {said}");
+  assert!(!said.contains("#75"), "an item waiting on another repository alone: {said}");
 }
 
 #[tokio::test]

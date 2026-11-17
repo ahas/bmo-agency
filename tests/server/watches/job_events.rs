@@ -317,6 +317,55 @@ async fn a_merged_commit_waiting_for_its_batch_deployment_is_owed_like_one_waiti
   assert_eq!(peers.lock().unwrap().instructed().len(), 1);
 }
 
+#[tokio::test]
+async fn work_closed_in_two_repositories_is_owed_for_every_waiting_pair_until_none_waits() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let changed = |id: i64, labels: Value| {
+    event(
+      id,
+      "item.changed",
+      item(95, "leased", json!({ "previousState": "leased", "labels": labels })),
+    )
+  };
+
+  settings::set(db, CURSOR_KEY, "70").await.unwrap();
+  peers.lock().unwrap().events = vec![changed(
+    71,
+    json!({ "close-phase": "waiting-batch", "close-commit": "def",
+            "close-phase:web": "waiting-batch", "close-commit:web": "abc",
+            "close-phase:drive": "waiting-batch", "close-commit:drive": "def" }),
+  )];
+  pass(db, &vars).await.unwrap();
+
+  assert_eq!(owed(db, DEPLOY_OWED).await.unwrap()["95"].mark, "drive=def,web=abc");
+
+  let told = peers.lock().unwrap().instructed();
+  let said = told[0]["said"]["order"].as_str().unwrap();
+
+  for part in ["commit abc into web's main", "commit def into drive's main"] {
+    assert!(said.contains(part), "{part} in {said}");
+  }
+
+  // The web batch went live and its pair was taken off: the drive commit alone is owed afresh.
+  peers.lock().unwrap().events.push(changed(
+    72,
+    json!({ "close-phase": "waiting-batch", "close-commit": "def",
+            "close-phase:drive": "waiting-batch", "close-commit:drive": "def" }),
+  ));
+  pass(db, &vars).await.unwrap();
+
+  assert_eq!(owed(db, DEPLOY_OWED).await.unwrap()["95"].mark, "drive=def");
+  assert_eq!(peers.lock().unwrap().instructed().len(), 2);
+
+  // The drive batch went live too: nothing waits, so the notice is let go.
+  peers.lock().unwrap().events.push(changed(73, json!({})));
+  pass(db, &vars).await.unwrap();
+
+  assert!(owed(db, DEPLOY_OWED).await.unwrap().is_empty());
+}
+
 fn deploy_waiting(id: i64, item_id: i64, commit: &str) -> Value {
   event(
     id,

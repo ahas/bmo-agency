@@ -16,7 +16,8 @@ use crate::job_notices;
 use crate::outbox::{self, Keep, Notice};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
-use crate::watches::machine_turn::{deploy_root, held_by, read_json};
+use crate::watches::closes;
+use crate::watches::machine_turn::{declared_name, deploy_root, held_by, read_json};
 
 /// The settings row what the watch has read stands in.
 pub const STATE_KEY: &str = "deploy_watch";
@@ -27,13 +28,9 @@ const PROGRESS: &str = "deploy-progress.json";
 const LIVE: &str = "live";
 /// The testbed's event a run that did not go live sends, rolled back or not.
 pub const FAILED_EVENT: &str = "deploy-failed";
-/// The close phases an item waits in for its repository's batch deployment.
-const WAITING: [&str; 2] = ["waiting-batch", "waiting-live"];
-/// The label the close writes the commit it handed over in.
-const CLOSE_COMMIT: &str = "close-commit";
 
 /// One deploy root watched: where it stands, the checkout of its repository git is asked in, and the repository's
-/// name where its record names none.
+/// name where its record names none, as the testbed declaration in that checkout gives it, else as its row does.
 #[derive(Clone, Debug)]
 pub struct Root {
   pub path: PathBuf,
@@ -212,9 +209,14 @@ pub fn from_event(payload: &Value, unit: &str, repository: &str) -> Failure {
   }
 }
 
-/// The items under a close waiting for their repository's batch deployment whose handed-over commit `commit` is or
+/// The items under a close waiting for `repository`'s batch deployment whose commit waiting in it `commit` is or
 /// holds, as git answers in `checkout`.
-async fn carried(service: &JobService, checkout: &Path, commit: &str) -> Result<Vec<Value>, String> {
+async fn carried(
+  service: &JobService,
+  repository: &str,
+  checkout: &Path,
+  commit: &str,
+) -> Result<Vec<Value>, String> {
   let answer = reqwest::Client::new()
     .get(format!("{}/items", service.url))
     .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
@@ -231,15 +233,12 @@ async fn carried(service: &JobService, checkout: &Path, commit: &str) -> Result<
   let mut carried = vec![];
 
   for item in page["items"].as_array().into_iter().flatten() {
-    let labels = &item["labels"];
-    let waiting = labels[MACHINE_TURN.close_label.as_str()]
-      .as_str()
-      .is_some_and(|phase| WAITING.contains(&phase));
-    let Some(handed) = text(&labels[CLOSE_COMMIT]).filter(|_| waiting && item["state"] != "done") else {
+    let closes = closes::of(&item["labels"]);
+    let Some(handed) = closes::waiting_in(&closes, repository).filter(|_| item["state"] != "done") else {
       continue;
     };
 
-    if held_by(checkout, &handed, commit).await == Some(true) {
+    if held_by(checkout, handed, commit).await == Some(true) {
       carried.push(item.clone());
     }
   }
@@ -258,11 +257,13 @@ async fn tell(
 ) -> Result<(), String> {
   let service = JobService::of(vars);
   let items = match &service {
-    Some(service) => carried(service, &root.checkout, &failure.commit).await.unwrap_or_else(|why| {
-      eprintln!("deploy watch: the items {} carries were not read: {why}", failure.unit);
+    Some(service) => carried(service, &failure.repository, &root.checkout, &failure.commit)
+      .await
+      .unwrap_or_else(|why| {
+        eprintln!("deploy watch: the items {} carries were not read: {why}", failure.unit);
 
-      vec![]
-    }),
+        vec![]
+      }),
     None => vec![],
   };
   let mut rooms: BTreeMap<Option<i64>, Vec<Value>> = BTreeMap::new();
@@ -392,10 +393,12 @@ async fn roots(db: &DatabaseConnection, home: &Path) -> Result<Vec<Root>, String
     let checkout = PathBuf::from(&repository.path);
 
     if let Some(path) = deploy_root(&checkout, home) {
+      let name = declared_name(&checkout).unwrap_or(repository.name);
+
       roots.entry(path.clone()).or_insert(Root {
         path,
         checkout,
-        repository: repository.name,
+        repository: name,
       });
     }
   }

@@ -294,26 +294,36 @@ and the agency's own:
   the lease its end names with `job_lease_release`, so the item is open again. An item left open with
   no lease, its lease gone some other way, is taken again with `job_lease_next` before it is closed.
 - **A job ends at the merge, and its commit waits for its repository's batch deployment.** A job's close
-  pushes its commit onto main and ends: its item's `labels` hold `close-phase` `waiting-batch` and the commit
-  `close-commit` names, and the job's end reaches you as any run's end does. Its item stays open as it is,
-  never held and never closed while it waits: the queue offers no merged item for a launch, and the console
-  shows it as waiting to deploy. Commits that must go live together keep their order by their `series` and
-  by the order you deploy them in, never by a hold.
+  pushes its commit onto main and ends: its item's `labels` hold `close-phase:<repository>` `waiting-batch`
+  and the commit `close-commit:<repository>` names, the repository being the name its testbed declaration
+  gives, the one the deploy tool takes. Work closed in several repositories leaves a pair for each, and
+  `close-phase` and `close-commit` with no repository only sum them up; read them alone on an item that
+  carries no repository's pair, as an older close left it, its repository the item's own. The job's end
+  reaches you as any run's end does. Its item stays open as it is, never held and never closed while any of
+  its commits waits: the queue offers no merged item for a launch, and the console shows it as waiting to
+  deploy. Commits that must go live together keep their order by their `series` and by the order you deploy
+  them in, never by a hold.
 - **Put a repository live once no related work is left.** Each time a job ends, and each time you are woken,
-  read with `job_items` what waits in `waiting-batch` and, for each repository that holds such an item, what
-  related work is still open or leased: an item of the same repository, or of the same `series` in another
-  repository. While any is left, the waiting commits stay waiting. When none is left — or the oldest waiting
-  commit of the repository has waited three hours, or the owner says to put it live now — put that
+  read with `job_items` the items whose `close-phase:<repository>` reads `waiting-batch` (the label filter
+  `close-phase:<repository>=waiting-batch`), and the older ones whose `close-phase` alone does, and, for each
+  repository that holds such an item, what related work is still open or leased: an item of the same
+  repository, or of the same `series` in another repository. While any is left, the waiting commits stay
+  waiting. When none is left — or the oldest waiting commit of the repository has waited three hours, or the owner says to put it live now — put that
   repository's main live once, with the deploy tool, the repository's declared name, main's commit and an
   English reason naming the items it carries, without asking anybody: every item that runs was approved, and
   that approval covers putting its commit live. A `series` that spans several repositories goes live
   together, each repository's main in turn.
-- **A batch that goes live closes every item it carried at once.** Close each with `job_item_update` and
-  `state` `done`, and say it once in the room: the repository, the commit that went live and the items it
-  carried.
+- **A batch that goes live closes each item it carried whose every commit is live.** For each item that
+  waited on that repository, take its pair off: `job_item_update` with that repository's
+  `close-phase:<repository>` and `close-commit:<repository>` null in `labels`. An item that still carries
+  another repository's pair reading `waiting-batch` keeps waiting for that repository's batch, its
+  `close-commit` set to that pair's commit; every other item is closed with `job_item_update` and `state`
+  `done`. Say it once in the room: the repository, the commit that went live, the items it closed and the
+  items still waiting on another repository.
 - **A batch that fails is never left.** Read the deployment's outcome — the gate step that failed, its last
   lines and the commits the batch carried — and name the commit that broke it: the one whose files the failing
-  step reads, or else the newest. That item goes back to be mended: its labels' `close-phase` is taken off,
+  step reads, or else the newest. That item goes back to be mended: its labels' pair for that repository is
+  taken off, and `close-phase` and `close-commit` too where no other repository's pair waits,
   what failed goes onto it with `job_note_add`, and it is launched again; the other items keep waiting for the
   next batch, which goes out once the mend is merged.
 - **Where you may not deploy it** — the owner's own hold on that item, or a room whose grants carry no deploy
