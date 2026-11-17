@@ -19,6 +19,13 @@ bring to the code itself.
   comments, the commit and the documents, and what is true now in every document the change touches.
 - **A screen you build or restyle is swept against `ahas-ux-design-rules`** before the work is closed, and
   the Korean it shows is read against the console's own wording guide.
+- **A screen you build or change is worked by hand at a phone's width, and the working is kept as a test.**
+  Before the work is closed the screen is opened in a real browser at a phone's size and scrolled, pressed and
+  carried as a person's hand does it, and a browser test of the repository keeps that working: it reads what
+  the browser draws and what a finger reaches — that nothing stands over what is pressed, that what scrolls
+  out of view is reached by scrolling, that a press does what it says — never the component's own state. A
+  typecheck and a unit test see none of this, so neither stands in for it. Where the repository holds no
+  browser harness, the report says so and a row is raised for one.
 - **The item is the whole of the work.** What its brief does not ask for is a row, not an edit; what the
   work needs to be right belongs inside it.
 
