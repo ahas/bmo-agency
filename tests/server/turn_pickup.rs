@@ -1714,3 +1714,36 @@ async fn a_turn_its_pane_of_its_own_never_took_is_ended_at_start_and_a_job_s_is_
     "the job was not reaped: {report}"
   );
 }
+
+// The place a run in a pane of its own keeps for its hooks outlives a restart while that run is a turn kept in
+// flight, so its stops stay held for the rest of the turn, and is ended with that turn's end; one whose run
+// is no turn in flight is ended by the sweep (docs/agent-control.md, 「What a resident turn reads」).
+#[tokio::test]
+async fn a_hooks_place_of_a_turn_kept_in_flight_outlives_the_sweep_and_ends_with_its_turn() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let data = ground.roots.data.clone();
+  let (going, going_place) = apart_place(&ground, "worker-a@3c1e0b7a-0d5e-4a4f-9a54-6f2d8f1b2c01");
+  let (left, left_place) = apart_place(&ground, "worker-a@9b7d2e44-51f0-4c3a-8e1b-0a6c5d4e3f02");
+
+  for (place, run) in [(&going_place, "job-51"), (&left_place, "job-50")] {
+    agency_server::door::place_run::begin_run(&place.path, run, "a job", now_ms(), Default::default())
+      .unwrap();
+  }
+  keep(scratch.db(), &in_flight("job-51", "worker-a", 71, None, None, Some(51))).await;
+
+  assert_eq!(agency_server::apart_places::sweep(&ground).await, 1);
+  assert!(
+    agency_server::apart_places::is_apart_place(&data, &going),
+    "the running turn's place is kept"
+  );
+  assert!(
+    !agency_server::apart_places::is_apart_place(&data, &left),
+    "the ended run's place is ended"
+  );
+
+  agency_server::apart_places::end_run_places(&ground, "job-51", "worker-a").await;
+
+  assert!(!going_place.path.exists(), "the place ends with its turn");
+}

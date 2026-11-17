@@ -443,8 +443,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       the gateway — a registration's or a member road's — and a pane of the run's own alike, so a job is
       held the same on every road. A run in a pane of its own has no standing place, so where its line
       asks for holds its hooks are given a place of the run's own: its settings written there, the run
-      begun there before the prompt goes in, and the place taken down with the run, or by the sweep of
-      thrown-away places as a server starts where the process that made it ended first.
+      begun there before the prompt goes in, and the place taken down with the run. A server that starts
+      keeps such a place while its run is a turn it picks up, so the holds stand for the rest of that turn,
+      and takes it down once that turn's end is handed back; one whose run is no turn in flight is taken
+      down by the sweep of thrown-away places.
   - **Outage retries.** A request that fails is written as the program's own words in the answer's
     place (「The session record and usage」), and the `StopFailure` hook follows it. That ends a
     resident turn as failed and starts the fallback walk. The retries the program makes before it gives up are not read while they happen;

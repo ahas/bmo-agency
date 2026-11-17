@@ -138,19 +138,37 @@ pub async fn end(ground: &Ground, name: &str) {
   let _ = std::fs::remove_dir_all(&place.path);
 }
 
+/// The run a thrown-away place's hooks write for, as the place's run names it: a run in a pane of its own whose
+/// line holds its stops (docs/agent-control.md, 「What a resident turn reads」); none for a place naming none.
+pub fn run_of(data: &Path, name: &str) -> Option<String> {
+  crate::door::place_run::read_run(&Place::of(data, name).path).and_then(|run| run.name)
+}
+
+/// Every thrown-away place whose hooks write for the run named, but the one named `beside`, ended: the run's
+/// turn has ended, and its end has been handed back.
+pub async fn end_run_places(ground: &Ground, run: &str, beside: &str) {
+  for name in apart_places(&ground.roots.data) {
+    if name != beside && run_of(&ground.roots.data, &name).as_deref() == Some(run) {
+      end(ground, &name).await;
+    }
+  }
+}
+
 /// Every thrown-away session's place the process before this one left, ended as a server starts, after the
 /// turns it left in flight are picked up: how many. A place carrying a turn the pickup adopted stays, its
-/// session ending with that turn. What each place ended held is written to the log first — the program its
-/// record names, whether that process runs, and what its pane's head was last answered — since taking the
-/// place down takes that evidence with it.
+/// session ending with that turn, and so does a place whose hooks write for such a turn's run. What each place
+/// ended held is written to the log first — the program its record names, whether that process runs, and what
+/// its pane's head was last answered — since taking the place down takes that evidence with it.
 pub async fn sweep(ground: &Ground) -> usize {
-  let carrying = crate::turn_pickup::carrying_places(&ground.db).await;
+  let turns = crate::turn_pickup::in_flight(&ground.db).await.unwrap_or_default();
+  let carrying: Vec<String> = turns.iter().map(crate::turn_pickup::place_name_of).collect();
   let mut ended = 0;
 
   for name in apart_places(&ground.roots.data) {
     let found = crate::door::liveness::place_found(&Place::of(&ground.roots.data, &name));
+    let run = run_of(&ground.roots.data, &name);
 
-    if carrying.contains(&name) {
+    if carrying.contains(&name) || turns.iter().any(|turn| run.as_deref() == Some(turn.run.as_str())) {
       println!("agency: thrown-away place {name} carries a turn picked up, kept until it ends: {found}");
       continue;
     }

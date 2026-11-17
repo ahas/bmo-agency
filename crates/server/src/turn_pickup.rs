@@ -178,13 +178,6 @@ pub fn place_name_of(turn: &InFlight) -> String {
   }
 }
 
-/// The names of the places the turns kept in flight are carried in, which the sweep of thrown-away
-/// sessions' places at start keeps: the turns the pickup adopted, each place ended once its turn's end is
-/// handed back.
-pub async fn carrying_places(db: &sea_orm::DatabaseConnection) -> Vec<String> {
-  in_flight(db).await.unwrap_or_default().iter().map(place_name_of).collect()
-}
-
 /// Where a kept turn stands, read from the place its program carries it in, as that program writes its
 /// turns down: a dsh pane's in its record and its inbox, a Claude Code pane's in the place's run and the
 /// hooks' calls (docs/sessions.md, 「A restart hands the session over」).
@@ -833,6 +826,8 @@ async fn attach(ground: &Ground, name: &str, place: Place, pane: Option<OwnPane>
   if crate::apart_places::is_apart_place(&ground.roots.data, name) {
     crate::apart_places::end(ground, name).await;
   }
+
+  crate::apart_places::end_run_places(ground, &turn.run, name).await;
 }
 
 // A pane of the turn's own closed once its end is handed back.
