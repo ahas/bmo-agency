@@ -64,3 +64,9 @@ function declared(line: string): RunLineDeclaration | undefined {
 export function lineComposesTypedLines(line: string): boolean {
   return runLineDeclarations().some((one) => one.name === line && one.composesTypedLines === true);
 }
+
+// Whether a line's place holds a bot's turn's end on its background work, a tool call written as text or a
+// banned word. A line the deployment never declared holds none.
+export function lineHoldsStops(line: string): boolean {
+  return runLineDeclarations().some((one) => one.name === line && one.holdsStops === true);
+}

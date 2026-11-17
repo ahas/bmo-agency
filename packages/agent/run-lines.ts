@@ -17,6 +17,7 @@ interface DeclaredLine {
   needs: RunCapability[];
   keeps_session: boolean;
   composes_typed_lines?: boolean;
+  holds_stops?: boolean;
   capabilities?: string[];
   namespaces?: string[];
   shown?: string[];
@@ -32,6 +33,7 @@ function declarationOf(line: RunLine): RunLineDeclaration {
     needs: declared.needs,
     keepsSession: declared.keeps_session,
     ...(declared.composes_typed_lines === undefined ? {} : { composesTypedLines: declared.composes_typed_lines }),
+    ...(declared.holds_stops === undefined ? {} : { holdsStops: declared.holds_stops }),
     ...(declared.capabilities === undefined ? {} : { capabilities: declared.capabilities }),
     ...(declared.namespaces === undefined ? {} : { namespaces: declared.namespaces }),
     ...(declared.shown === undefined ? {} : { shown: declared.shown }),

@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use policy::keepalive::KEEPALIVE;
-use policy::run_lines::RUN_LINES;
 
 use self::held::{SessionRun, prepare, remember};
 use self::records::{
@@ -181,13 +180,7 @@ pub async fn compose_at(
     &place.path,
     read_settings(&line.settings),
     &status_root(ground),
-    Holds {
-      tasks: true,
-      text_tool_call: true,
-      wording: true,
-      compose_typed: RUN_LINES.composes_typed_lines(LINE),
-      shell_guard: false,
-    },
+    Holds::of_line(LINE),
   )?;
   let recorded =
     account.map_or_else(|| claude_accounts::SEED_ACCOUNT.to_owned(), |account| account.id.clone());

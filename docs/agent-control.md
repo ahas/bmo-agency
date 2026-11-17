@@ -425,8 +425,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       block naming each term beside what to write, and the program writes the answer again in the
       same turn. For a job that answer is its report.
     - **A line can hold a turn's end while its final answer is a tool call written as text.** Where the
-      place settings ask for it, a stop of a bot's run whose answer so far is a `<tool_call>` block, or a
-      `<function=…>` call with its parameters, is answered with a block saying the call was never made and
+      place settings ask for it, a stop of a bot's run whose answer so far is a `<tool_call>` block —
+      whatever it holds, a template's control token and no tool name included — or a `<function=…>` call
+      with its parameters, is answered with a block saying the call was never made and
       asking for a native tool call, then the report as ordinary text. A job whose turn still ends on such
       text ends failed rather than leaving it as its report (docs/api.md, 「A job ends by itself as its
       turn ends」).
@@ -435,8 +436,15 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       is let through as it stands, so a program that will not settle its work cannot be kept turning
       for ever; what it left running is then the runner's to judge, as below. A person's turn is
       never held.
-    - The worker line asks for all three holds; the chat line asks for none of them, its answer being
-      held to the same words by the round (`answer-checks.md`, 「The banned words」).
+    - **Which holds a line asks for is its own declaration's** (`policy/run-lines.toml`, the line's
+      `holds_stops`): the worker line asks for all three; the chat line asks for none of them, its answer
+      being held to the same words by the round (`answer-checks.md`, 「The banned words」).
+    - **A line's holds go wherever its run's Claude Code program goes:** a standing place, a place on
+      the gateway — a registration's or a member road's — and a pane of the run's own alike, so a job is
+      held the same on every road. A run in a pane of its own has no standing place, so where its line
+      asks for holds its hooks are given a place of the run's own: its settings written there, the run
+      begun there before the prompt goes in, and the place taken down with the run, or by the sweep of
+      thrown-away places as a server starts where the process that made it ended first.
   - **Outage retries.** A request that fails is written as the program's own words in the answer's
     place (「The session record and usage」), and the `StopFailure` hook follows it. That ends a
     resident turn as failed and starts the fallback walk. The retries the program makes before it gives up are not read while they happen;

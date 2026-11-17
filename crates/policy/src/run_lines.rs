@@ -17,6 +17,10 @@ pub struct RunLine {
   /// deployment's would carry.
   #[serde(default)]
   pub composes_typed_lines: bool,
+  /// Whether its place's stop hook holds a bot's turn's end while its background work runs, while its final
+  /// answer is a tool call written as text, or while that answer uses a banned word.
+  #[serde(default)]
+  pub holds_stops: bool,
   /// What its runs may reach of the tool host; none for a line handed no tools.
   #[serde(default)]
   pub capabilities: Vec<String>,
@@ -114,6 +118,12 @@ impl RunLines {
   /// Whether a person's typed line in the line's standing program is composed.
   pub fn composes_typed_lines(&self, name: &str) -> bool {
     self.line(name).is_some_and(|line| line.composes_typed_lines)
+  }
+
+  /// Whether the line's place holds a bot's turn's end on its background work, a tool call written as text
+  /// or a banned word.
+  pub fn holds_stops(&self, name: &str) -> bool {
+    self.line(name).is_some_and(|line| line.holds_stops)
   }
 
   /// Whether a run of the line writes the deployment's agent's brain rather than its runner's.

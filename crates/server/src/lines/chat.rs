@@ -1431,8 +1431,10 @@ pub async fn compose_stand_in(
         effort: &step.effort,
         cwd: &cwd,
         settings: worker.map(|worker| read_settings(&worker.settings)).unwrap_or_default(),
-        compose_typed: RUN_LINES.composes_typed_lines(sent_run.line),
-        shell_guard: worker.is_none(),
+        holds: Holds {
+          shell_guard: worker.is_none(),
+          ..Holds::of_line(sent_run.line)
+        },
         sampling: None,
         // The supervisor's and a gate's runs are asked as the role their work key names, where it names one.
         role: policy::work_keys::WORK_KEYS

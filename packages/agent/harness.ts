@@ -39,6 +39,10 @@ export interface RunLineDeclaration {
   // submit hook, the composition a turn the deployment puts in would carry. Left out, it is handed
   // nothing.
   composesTypedLines?: boolean;
+  // Whether the place's stop hook holds a bot's turn's end while its background work runs, while its
+  // final answer is a tool call written as text, or while that answer uses a word the glossary bans.
+  // Left out, it holds none.
+  holdsStops?: boolean;
   // What its runs may reach of the tool host, as capabilities. A run is issued a session record holding
   // these, narrowed where it holds less. Absent on a line that is handed no tools.
   capabilities?: readonly string[];

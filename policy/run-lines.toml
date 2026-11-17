@@ -10,6 +10,9 @@
 #   (docs/agents.md, 「Runs apart」).
 # composes_typed_lines: whether a line a person types into the line's standing program is handed, by
 #   the place's submit hook, the composition a turn the deployment puts in would carry.
+# holds_stops: whether the place's stop hook holds a bot's turn's end while its background work runs, while
+#   its final answer is a tool call written as text, or while that answer uses a word the glossary bans
+#   (docs/agent-control.md, 「What a resident turn reads」), on every road its Claude Code program goes.
 # capabilities: what every run of the line may reach of the tool host, whoever it runs for;
 #   absent on a line whose runs hold only what their
 #   agent's role gives (docs/agent-roles.md), or that is handed no tools.
@@ -101,6 +104,7 @@ keeps_session = false
 [worker]
 needs = []
 keeps_session = true
+holds_stops = true
 # `bmo` stands in the record alone, for the brain's lessons form `bmo use` reaches; no configuration names it.
 namespaces = ["web", "worker", "bmo"]
 lessons = true

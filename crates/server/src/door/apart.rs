@@ -14,16 +14,19 @@ use harness_providers::claude_code::ClaudeCode;
 use herdr::Herdr;
 use policy::door_words::DOOR_WORDS;
 use policy::resident_turn::RESIDENT_TURN;
+use policy::run_lines::RUN_LINES;
 
 use super::execution::{Identity, execution_root, own_unit};
 use super::guard::launch_refusal;
+use super::place_run::{begin_run, run_variables};
 use super::record::{Reply, Tail, compacted_since};
 use super::surface::interrupt_of;
 use super::turn::{Ending, Quiet, Seat, Timings, Turn, Watch, put};
 use crate::apart_sessions;
 use crate::job_run::claude::failure::{Failure, RunEnding, of_errored};
 use crate::lines::claude::{Command, line_environment};
-use crate::lines::place::resumed_command;
+use crate::lines::place::{Holds, Place, read_settings, resumed_command, write_place_settings};
+use crate::lines::standing::status_root;
 use crate::lines::token;
 use crate::now_ms;
 use crate::places::Ground;
@@ -399,6 +402,41 @@ impl Folding<'_> {
   }
 }
 
+/// The place of a run's own its hooks write into, where its line holds a turn's end (docs/agent-control.md,
+/// 「What a resident turn reads」): a pane of its own stands in no agent's place, so the stop hook would have no
+/// run to hold. Named after the run's agent and session and marked as a thrown-away place, so the sweep as a
+/// server starts takes down one its process left behind. The place's settings are the command's own with the
+/// status line and hooks over them; the command handed back names them in place of its own. None for a line
+/// that holds nothing.
+pub fn hooks_place(ground: &Ground, apart: &Apart<'_>) -> Result<Option<(String, Vec<String>)>, String> {
+  if !RUN_LINES.holds_stops(apart.line) {
+    return Ok(None);
+  }
+
+  let mut args = apart.command.args.clone();
+  let Some(at) = args
+    .iter()
+    .position(|arg| arg == "--settings")
+    .map(|at| at + 1)
+    .filter(|at| *at < args.len())
+  else {
+    return Err(format!("{}: the run's command names no settings to hold its stops by", apart.line));
+  };
+  let session = agent_session::SessionId(format!("{}@{}", apart.agent, apart.session));
+  let name = crate::apart_places::place_name(&session);
+
+  crate::apart_places::mark(ground, &name, &session, None)?;
+
+  let given = read_settings(&Path::new(&apart.command.cwd).join(&args[at]));
+  let place = Place::of(&ground.roots.data, &name);
+  let settings = write_place_settings(&place.path, given, &status_root(ground), Holds::of_line(apart.line))
+    .map_err(|why| why.detail)?;
+
+  args[at] = settings.to_string_lossy().into_owned();
+
+  Ok(Some((name, args)))
+}
+
 // The run on the session settled for it.
 async fn run_on<W: Watch>(
   ground: &Ground,
@@ -434,6 +472,17 @@ async fn run_on<W: Watch>(
     env.insert(token::TOKEN_VARIABLE.to_owned(), token.clone());
   }
 
+  let hooks = match hooks_place(ground, &apart) {
+    Ok(hooks) => hooks,
+    Err(why) => {
+      if let Some(token) = &token {
+        token::revoke(ground, token).await;
+      }
+
+      return Err(why);
+    }
+  };
+
   // A program brought up on a configuration directory nobody has opened before stops on its first-run
   // screens before it reads a word; the machine's own login keeps its configuration in the home.
   let configured = apart
@@ -454,7 +503,7 @@ async fn run_on<W: Watch>(
     title: apart.title,
     seat: Seat::Own(herdr),
     cwd: apart.command.cwd.clone(),
-    command: apart.command.args.clone(),
+    command: hooks.as_ref().map_or_else(|| apart.command.args.clone(), |(_, args)| args.clone()),
     env,
     prompt: apart.prompt,
     session: apart.session,
@@ -476,10 +525,28 @@ async fn run_on<W: Watch>(
     interrupt: interrupt_of(resident),
     timings: Timings::default(),
   };
+
+  // The run goes into its hooks' place before its words go in, so the prompt the program takes is the bot's.
+  if let Some((place, _)) = &hooks
+    && let Err(why) = begin_run(
+      &Place::of(&ground.roots.data, place).path,
+      &turn.name,
+      &turn.title,
+      now_ms(),
+      run_variables(&turn.env),
+    )
+  {
+    eprintln!("{}: the place its hooks write into: {why}", turn.name);
+  }
+
   let ended = put(ground, &turn, watch).await;
 
   if let Some(token) = &token {
     token::revoke(ground, token).await;
+  }
+
+  if let Some((place, _)) = &hooks {
+    crate::apart_places::end(ground, place).await;
   }
 
   ended

@@ -89,7 +89,7 @@ statements below about either are kept for a rollback to the road a deployment l
       closed, which they do once a stop or a failure ends the round, has ended, and its answer or its
       error is read from the session's own record, the transcript the hooks name, from the run's start;
       a run naming another turn, or one the program never took, does not name this one;
-    - on a Claude Code pane of the turn's own, which has no place — a role's turn on Claude Code's own
+    - on a Claude Code pane of the turn's own, in no agent's place — a role's turn on Claude Code's own
       provider, a job's among them (`docs/agents.md`, 「A run in a pane of its own」) — through the
       execution its run opened: the pane's turn goes in under the run's own name (`docs/launch-lines.md`),
       so the turn's liveness row names the run, and that row holds the pane, the program and the session's

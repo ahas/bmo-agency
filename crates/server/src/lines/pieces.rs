@@ -447,8 +447,7 @@ pub async fn compose(
     effort: &effort,
     cwd: &cwd,
     settings: serde_json::Map::new(),
-    compose_typed: false,
-    shell_guard: true,
+    holds: holds(),
     sampling: sampled,
     role: None,
     card_terms: harness_machine::card_master::CardTerms {

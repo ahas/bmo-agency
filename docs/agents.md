@@ -147,6 +147,10 @@ flowchart TD
   started — a dev server, a browser, the daemon driving it — is taken down once the program ends, whether
   the run finished, was stopped or was cut (`docs/run-groups.md`).
 - **Its tool token is its own,** issued as the run is composed and taken back once it ends.
+- **Its stops are held as its line asks:** a run of a line that holds a turn's end — the worker line's job
+  among them — has its hooks write into a place of the run's own, made as its pane is opened and taken
+  down with the run, so its stop is held as a standing program's is (`docs/agent-control.md`, 「What a
+  resident turn reads」).
 - **A run on a registration** is the same program on the gateway under the registration's name, its record
   under the registration's home (`docs/own-llm.md`, 「Claude Code in the pane」).
 - **A caller outside agency's server** runs its run through a verb of the `bmo-agency` binary, which asks

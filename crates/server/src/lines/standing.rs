@@ -10,7 +10,6 @@ use harness_providers::claude_code::ClaudeCode;
 use harness_providers::registered::Registered;
 use harness_providers::{Machine, Provider};
 use policy::providers::registered::REGISTERED;
-use policy::run_lines::RUN_LINES;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -218,13 +217,7 @@ pub async fn claude_program(
     &place.path,
     read_settings(&line.settings),
     &status_root(ground),
-    Holds {
-      tasks: true,
-      text_tool_call: true,
-      wording: true,
-      compose_typed: RUN_LINES.composes_typed_lines(LINE),
-      shell_guard: false,
-    },
+    Holds::of_line(LINE),
   )?;
   let session = match &held {
     Some((id, _, _)) => Session::Resume(id.clone()),
@@ -411,8 +404,7 @@ pub async fn member_command(
     effort: &run.effort,
     cwd: &run.cwd,
     settings: read_settings(&run.settings),
-    compose_typed: RUN_LINES.composes_typed_lines(LINE),
-    shell_guard: false,
+    holds: Holds::of_line(LINE),
     sampling,
     role: None,
     card_terms: Default::default(),
@@ -464,8 +456,7 @@ pub async fn registered_command(
     effort: &run.effort,
     cwd: &run.cwd,
     settings: read_settings(&run.settings),
-    compose_typed: RUN_LINES.composes_typed_lines(LINE),
-    shell_guard: false,
+    holds: Holds::of_line(LINE),
     sampling,
     role: None,
     card_terms: Default::default(),
@@ -570,8 +561,8 @@ pub struct OnGateway<'a> {
   pub effort: &'a str,
   pub cwd: &'a str,
   pub settings: serde_json::Map<String, Value>,
-  pub compose_typed: bool,
-  pub shell_guard: bool,
+  /// What the place's hooks are asked: the run's line's holds, and the shell guard where its program carries one.
+  pub holds: Holds,
   pub sampling: Option<String>,
   /// The role whose saved prefix the run's requests start from on an engine that keeps role files.
   pub role: Option<&'a str>,
@@ -626,16 +617,7 @@ pub async fn gateway_command(
     json!({ "options": [{ "model": shown, "label": held.label }] }),
   );
 
-  let settings = write_place_settings(
-    &place.path,
-    picked,
-    &status_root(ground),
-    Holds {
-      compose_typed: on.compose_typed,
-      shell_guard: on.shell_guard,
-      ..Holds::default()
-    },
-  )?;
+  let settings = write_place_settings(&place.path, picked, &status_root(ground), on.holds)?;
   let placement = match placing {
     Placing::Composed => match &held.registration {
       Some(registration) => place_registration(ground, registration).await?,

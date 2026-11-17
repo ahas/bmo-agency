@@ -11,6 +11,7 @@ use agent_host::layout::name_component;
 use agent_host::place::{ResidentCommand, RunningProgram};
 use harness_providers::Machine;
 use harness_providers::claude_code::ClaudeCode;
+use policy::run_lines::RUN_LINES;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -163,6 +164,22 @@ pub struct Holds {
   /// Whether a shell command is read before it runs, and one that starts Claude Code refused
   /// (docs/agents.md, 「No print mode」).
   pub shell_guard: bool,
+}
+
+impl Holds {
+  /// What a run of the line asks of its place's hooks, as its declaration names it: the stop holds and a
+  /// person's typed line composed; no shell guard, which a caller adds where its program carries one.
+  pub fn of_line(line: &str) -> Self {
+    let stops = RUN_LINES.holds_stops(line);
+
+    Self {
+      tasks: stops,
+      text_tool_call: stops,
+      wording: stops,
+      compose_typed: RUN_LINES.composes_typed_lines(line),
+      shell_guard: false,
+    }
+  }
 }
 
 // A word as one shell word, quoted.

@@ -19,7 +19,7 @@ import { levelReasoning, levelsIn } from "./reasoning";
 
 import type { AgentReply, SessionUsage, TurnAnswer, UsageWindowReading } from "./agent-reply";
 import { commandDigest } from "./resident";
-import { lineComposesTypedLines, lineKeepsSession } from "./line-declarations";
+import { lineComposesTypedLines, lineHoldsStops, lineKeepsSession } from "./line-declarations";
 import { readTurn } from "./worker-pane";
 
 import type { AgentAdapter, AgentLogins, AgentProviderName, RunCapability, HarnessCommand, HarnessOutput, HarnessRun, NativeChildReader, AgentProvider, ProviderModel, ResidentSurface, ResidentTurnInput, ResidentTurnReading, AgentAccount, RunExtensions } from "./harness";
@@ -1030,7 +1030,7 @@ export function settleEndpointHome(home: string, folder: string): void {
 
 // The place's settings for a run on the road standing in an agent's pane: the status line and the
 // hooks the place is read by, over the worker's own settings where the run is a worker's, with a
-// person's typed line composed where the run's line declares it.
+// person's typed line composed and a bot's turn's end held where the run's line declares each.
 export function endpointPlaceSettings(run: HarnessRun, place: string, model: EndpointModel): string {
   const base = run.line === "worker" && run.extensions !== undefined
     ? JSON.parse(readFileSync(run.extensions.settingsPath, "utf8")) as Record<string, unknown>
@@ -1040,7 +1040,14 @@ export function endpointPlaceSettings(run: HarnessRun, place: string, model: End
   // the pane」).
   const named = model.label === undefined ? {} : { modelPicker: { options: [{ model: model.name, label: model.label }] } };
 
-  return writePlaceSettings(place, { ...base, ...named }, undefined, { composeTyped: lineComposesTypedLines(run.line) });
+  const holds = lineHoldsStops(run.line);
+
+  return writePlaceSettings(place, { ...base, ...named }, undefined, {
+    holdForTasks: holds,
+    holdForTextToolCall: holds,
+    holdForWording: holds,
+    composeTyped: lineComposesTypedLines(run.line),
+  });
 }
 
 // The road's interactive program as the program an agent keeps standing in its pane: the line's own

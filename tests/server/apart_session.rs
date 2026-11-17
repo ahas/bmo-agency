@@ -5,7 +5,8 @@
 //! in a pane of its own; the folder a branch's place is taken in, as the take answers it; and a session
 //! handing a runner line its instructions whole, with the labels and the capabilities its record keeps, which
 //! goes out on that line in a pane of its own, on any road whose program carries the line; a start passes
-//! over a number whose place the process before left standing.
+//! over a number whose place the process before left standing; and a job's final answer that is a tool call
+//! written as text held by its stop hook on a registered model's road and in a pane of its own.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -850,9 +851,25 @@ fn on_deepseek(ground: &Ground) -> agency_server::lines::chat::Door {
   }
 }
 
-// A role session's turn on a gateway road, composed as the backend composes it and stood as the road stands
-// its program: the command's words, and the servers of the configuration it names.
+// A role session's turn on DeepSeek's gateway road, composed as the backend composes it and stood as the road
+// stands its program: the command's words, and the servers of the configuration it names.
 async fn stood_on_deepseek(ground: &Ground, apart: &Apart) -> (Vec<String>, Vec<String>) {
+  let args = composed_on(ground, apart, "deepseek", &on_deepseek(ground)).await;
+  let config = after(&args, "--mcp-config").unwrap();
+  let servers: Value = serde_json::from_str(&std::fs::read_to_string(config).unwrap()).unwrap();
+  let servers = servers["mcpServers"].as_object().unwrap().keys().cloned().collect();
+
+  (args, servers)
+}
+
+// A role session's turn on the provider and gateway door given, composed as the backend composes it: the
+// command's words.
+async fn composed_on(
+  ground: &Ground,
+  apart: &Apart,
+  provider: &str,
+  door: &agency_server::lines::chat::Door,
+) -> Vec<String> {
   let trees = Trees {
     code: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
     ..Trees::of(ground)
@@ -876,33 +893,18 @@ async fn stood_on_deepseek(ground: &Ground, apart: &Apart) -> (Vec<String>, Vec<
     cards: Default::default(),
   });
   let step = agency_server::stand_in::Step {
-    provider: "deepseek".into(),
+    provider: provider.into(),
     model: apart.model.clone(),
     effort: "high".into(),
     thinking: true,
     answer_tokens: None,
   };
-  let turn = agency_server::lines::chat::compose_stand_in(
-    ground,
-    &ground.machine(),
-    &run,
-    &step,
-    &on_deepseek(ground),
-    &[],
-    1,
-  )
-  .await
-  .unwrap();
-  let args = turn.command.args;
-  let config = args
-    .iter()
-    .position(|arg| arg == "--mcp-config")
-    .map(|at| args[at + 1].clone())
-    .unwrap();
-  let servers: Value = serde_json::from_str(&std::fs::read_to_string(config).unwrap()).unwrap();
-  let servers = servers["mcpServers"].as_object().unwrap().keys().cloned().collect();
 
-  (args, servers)
+  agency_server::lines::chat::compose_stand_in(ground, &ground.machine(), &run, &step, door, &[], 1)
+    .await
+    .unwrap()
+    .command
+    .args
 }
 
 // The words a flag stands before.
@@ -1022,4 +1024,164 @@ async fn a_voyager_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_an
   for namespace in ["eye", "research", "web"] {
     assert!(carries.namespaces.contains(&namespace.to_owned()), "{namespace}: {carries:?}");
   }
+}
+
+// The final answer a job's run on a registered model stopped on: a tool call written as text, a template's
+// control token where the call's name belongs and no tool named at all.
+const CALL_AS_TEXT: &str = "\n\n<tool_call>\n<|im_start|>function>\n</function>\n</tool_call>";
+
+// What the stop hook a settings file names answers a bot's run whose final answer is `answer`: the hook's
+// words read off the settings as the program reads them, the bot's run begun first in the place they name.
+async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
+  use agency_server::verbs::agent_status::{Asked, Ground as HookGround, agent_status};
+
+  let settings: Value = serde_json::from_str(&std::fs::read_to_string(settings).unwrap()).unwrap();
+  let stop = settings["hooks"]["Stop"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .flat_map(|entry| entry["hooks"].as_array().cloned().unwrap_or_default())
+    .filter_map(|hook| hook["command"].as_str().map(str::to_owned))
+    .find(|command| command.contains("'agent-status' 'stop'"))
+    .expect("the place's stop hook");
+  let words = shlex::split(&stop).unwrap();
+  let place = after(&words, "--place").unwrap().to_owned();
+  let flag = |name: &str| words.iter().any(|word| word == name);
+  let now = chrono::Utc::now().timestamp_millis();
+  let config = tempfile::tempdir().unwrap();
+
+  agency_server::door::place_run::begin_run(
+    std::path::Path::new(&place),
+    "worker-job-1",
+    "a job",
+    now - 1_000,
+    BTreeMap::new(),
+  )
+  .unwrap();
+
+  let asked = Asked {
+    kind: "stop".into(),
+    place,
+    hold_tasks: flag("--hold-tasks"),
+    hold_text_tool_call: flag("--hold-text-tool-call"),
+    hold_wording: flag("--hold-wording"),
+    compose_typed: flag("--compose-typed"),
+  };
+  let hook_ground = HookGround {
+    env: &BTreeMap::new(),
+    code_tree: config.path(),
+    machine_config_dir: config.path(),
+    now_ms: now,
+  };
+
+  agent_status(&asked, &json!({ "last_assistant_message": answer }).to_string(), &hook_ground).await
+}
+
+// The one answer a stop hook gave, read as the block it must be.
+fn block_of(answered: &[String]) -> Value {
+  assert_eq!(answered.len(), 1, "{answered:?}");
+
+  serde_json::from_str(&answered[0]).unwrap()
+}
+
+// A job's run on a registered model is held where its final answer is a tool call written as text, as a
+// worker's run on Claude Code's own road is: its place's stop hook asks for the hold, and that hook answers
+// the answer with a block asking for a native call (docs/agent-control.md, 「What a resident turn reads」).
+#[tokio::test]
+async fn a_job_on_a_registered_model_is_held_where_its_final_answer_is_a_tool_call_written_as_text() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let work = home.path().join("work");
+
+  std::fs::create_dir_all(&work).unwrap();
+
+  let registration = agency_server::control::registry::Registration {
+    name: "coder-flash".into(),
+    label: "Coder Flash".into(),
+    model: "coder-flash".into(),
+    context_tokens: 262_144,
+    answer_tokens: 16_384,
+    thinking: false,
+    walked: false,
+    keeps_research: false,
+    card_service: None,
+    role_files: false,
+    languages: vec![],
+    addresses: vec![],
+  };
+  let door = agency_server::lines::chat::Door::Gateway {
+    held: Box::new(agency_server::lines::standing::GatewayModel::registration(&machine, &registration)),
+    placement: None,
+  };
+  let job = Apart {
+    provider: "registered".into(),
+    model: "coder-flash".into(),
+    cwd: work.to_string_lossy().into_owned(),
+    role: Some("worker".into()),
+    ..Apart::default()
+  };
+  let args = composed_on(&ground, &job, "registered", &door).await;
+  let held = block_of(&stop_hook_answers(after(&args, "--settings").unwrap(), CALL_AS_TEXT).await);
+
+  assert_eq!(held["decision"], "block", "{held}");
+  assert!(held["reason"].as_str().unwrap().contains("native tool call"), "{held}");
+}
+
+// A job's run in a pane of its own stands in no agent's place, so its hooks are given a place of the run's own,
+// marked as a thrown-away one, whose stop hook holds a final answer that is a tool call written as text; a run
+// of a line that holds nothing is given none.
+#[tokio::test]
+async fn a_job_in_a_pane_of_its_own_is_given_a_place_whose_stop_hook_holds_a_tool_call_written_as_text() {
+  use agency_server::door::apart::{Apart as PaneRun, hooks_place};
+  use agency_server::lines::claude::Command;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+  let ground = ground(&scratch, &machine, None);
+  let line_settings = home.path().join("worker-settings.json");
+
+  std::fs::write(&line_settings, r#"{"env":{"A":"1"}}"#).unwrap();
+
+  let run = |line: &'static str| PaneRun {
+    agent: "worker",
+    role: "worker",
+    line,
+    provider: "claude-code",
+    title: "a job".into(),
+    command: Command {
+      args: vec!["claude".into(), "--settings".into(), line_settings.to_string_lossy().into_owned()],
+      cwd: home.path().to_string_lossy().into_owned(),
+      env: BTreeMap::new(),
+    },
+    session: "1f0c5a52-4c0e-4f4e-9d5a-2b7e6d0c9a11".into(),
+    prompt: "do the work".into(),
+    model: "claude-sonnet-5".into(),
+    effort: String::new(),
+    account: None,
+    parent: None,
+    root: None,
+    run: Some("worker-job-1".into()),
+    resume: None,
+    resume_else: None,
+  };
+  let (place, args) = hooks_place(&ground, &run("worker")).unwrap().expect("a place for the hooks");
+  let settings = after(&args, "--settings").unwrap();
+
+  assert!(agency_server::apart_places::is_apart_place(&ground.roots.data, &place), "{place}");
+  assert_eq!(
+    serde_json::from_str::<Value>(&std::fs::read_to_string(settings).unwrap()).unwrap()["env"]["A"],
+    "1",
+    "the line's own settings stand under the hooks"
+  );
+
+  let held = block_of(&stop_hook_answers(settings, CALL_AS_TEXT).await);
+
+  assert_eq!(held["decision"], "block", "{held}");
+  assert!(hooks_place(&ground, &run("search")).unwrap().is_none());
 }
