@@ -540,6 +540,21 @@ impl<W: Watch + Send> Watch for Asked<'_, W> {
   }
 }
 
+/// The question a picked-up job's call may wait on, read through the job's asks; a turn of no job asks none.
+pub struct PickedUpQuestion<'a> {
+  pub asks: Option<&'a mut CallAsks>,
+  pub db: &'a DatabaseConnection,
+}
+
+impl crate::door::tool_clock::QuestionWait for PickedUpQuestion<'_> {
+  async fn waits_on_question(&mut self, call: &str) -> bool {
+    match self.asks.as_deref_mut() {
+      Some(asks) => asks.waits_on_question(self.db, call).await,
+      None => false,
+    }
+  }
+}
+
 /// The asks a job's turn opens on its tool calls gone silent and idle: each call a clocked run of its own,
 /// named for the call under the turn's run, its clock the call clock's silent window. The call clock hands a
 /// call over when it goes silent and idle and on each read while its ask stands; a call that ends, and the
@@ -655,6 +670,29 @@ impl CallAsks {
     self.calls.insert(call.id.clone(), Some(ask));
 
     Ok(CallVerdict::Waiting)
+  }
+
+  /// Whether the call waits on the item's question, still waiting for its answer: asked before the call is
+  /// stopped for its stall. A call found so is held as one handed over is, so a question settled a moment ago
+  /// still holds it for the window. A read that fails holds nothing, and the call is stopped as it would be
+  /// with no question.
+  pub async fn waits_on_question(&mut self, db: &DatabaseConnection, call: &str) -> bool {
+    let item = match self.item(db).await {
+      Ok(item) => item,
+      Err(why) => {
+        eprintln!("{}: the job's item was not read: {}", self.turn, why.detail);
+
+        return false;
+      }
+    };
+
+    if !self.question_waits(item).await {
+      return false;
+    }
+
+    self.waited.insert(call.to_owned(), now_ms());
+
+    true
   }
 
   // Whether the item holds a question still waiting for its answer. A read that fails holds nothing, so the

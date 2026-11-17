@@ -39,6 +39,8 @@ pub enum ClockEvent {
   AskFailed {
     why: String,
   },
+  /// Due for its stall but not stopped: it waits on the job's own question, still waiting for its answer.
+  Awaiting,
   Cut(Cut),
   Ended(Outcome),
 }
@@ -113,7 +115,7 @@ impl ClockNote {
       ClockEvent::Cut(cut @ Cut::Supervisor(why)) => json!({ "cut": cut.code(), "why": why }),
       ClockEvent::Cut(cut) => json!({ "cut": cut.code() }),
       ClockEvent::Ended(outcome) => json!({ "outcome": outcome.code() }),
-      ClockEvent::Started | ClockEvent::Running => json!({}),
+      ClockEvent::Started | ClockEvent::Running | ClockEvent::Awaiting => json!({}),
     };
 
     if let (Some(clock), Value::Object(extra)) = (clock.as_object_mut(), extra) {
@@ -130,6 +132,7 @@ impl ClockNote {
       ClockEvent::Asked { .. } => "asked",
       ClockEvent::Kept { .. } => "kept",
       ClockEvent::AskFailed { .. } => "ask-failed",
+      ClockEvent::Awaiting => "awaiting",
       ClockEvent::Cut(_) => "cut",
       ClockEvent::Ended(_) => "ended",
     }
@@ -161,6 +164,9 @@ impl ClockNote {
         *for_ms as f64 / 1_000.0
       ),
       ClockEvent::AskFailed { why } => format!("{run}: tool {words} could not be asked about: {why}"),
+      ClockEvent::Awaiting => format!(
+        "{run}: tool {words} waits on the job's own question after {seconds:.0}s with no progress, so it runs on: pid={pid}"
+      ),
       ClockEvent::Cut(Cut::NoProcess) => {
         format!("{run}: tool {words} cut after {seconds:.0}s with no process of its own and no answer")
       }

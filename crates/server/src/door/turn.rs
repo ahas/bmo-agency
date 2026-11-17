@@ -265,6 +265,13 @@ pub trait Watch {
     async { super::tool_clock::CallVerdict::NotAsked }
   }
 
+  /// Whether a tool call waits on the job's own question, still waiting for its answer: asked before the call
+  /// is stopped for its stall, which would end the wait and withdraw the question. A caller whose run asks
+  /// no question says it does not.
+  fn waits_on_question(&mut self, _call: &str) -> impl Future<Output = bool> + Send {
+    async { false }
+  }
+
   /// A call asked about has ended, or with none the turn has: the asks on it close as ended.
   fn call_ended(&mut self, _call: Option<&str>) -> impl Future<Output = ()> + Send {
     async {}
@@ -284,6 +291,15 @@ pub trait Watch {
   /// a node that has stood past its notice without taking the turn (docs/work-nodes.md, 「When a node drops」).
   fn waiting(&mut self, _waiting: Option<agent_session::Waiting>) -> impl Future<Output = ()> + Send {
     async {}
+  }
+}
+
+// The caller asked whether a call due for its stall waits on the job's own question.
+struct CallerQuestion<'w, W>(&'w mut W);
+
+impl<W: Watch> super::tool_clock::QuestionWait for CallerQuestion<'_, W> {
+  fn waits_on_question(&mut self, call: &str) -> impl Future<Output = bool> + Send {
+    self.0.waits_on_question(call)
   }
 }
 
@@ -1802,7 +1818,8 @@ async fn watch_turn<W: Watch>(
 
     if let (Some(watching), Some(program)) = (tools.as_mut(), program) {
       let records = door.lines();
-      let said = watching.look(&turn.name, &records, from, program, now_ms()).await;
+      let mut question = CallerQuestion(&mut *door.watch);
+      let said = watching.look(&turn.name, &records, from, program, now_ms(), &mut question).await;
 
       for note in &said {
         let sentence = note.sentence();

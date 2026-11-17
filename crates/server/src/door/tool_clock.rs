@@ -15,6 +15,9 @@
 //! call's output is what its processes write to the regular files their standard output and standard error
 //! stand on. A call that waits on the job's own work — its command naming a file another living process of
 //! the program's tree writes — has its silent window counted from the last read that saw that work alive.
+//! Before its stall stops a call, the caller is asked whether the job's own question still waits: a wait on
+//! an answer burns nothing, and the stop's signal would withdraw the question, so such a call is found
+//! waiting on it instead.
 //!
 //! A call that holds no process of its own waits inside the program — on a socket, on a pipe — and leaves
 //! nothing in the tree to read. Past a bound of its own it is cut too, but not by a signal: words are put
@@ -293,6 +296,22 @@ pub struct Answered {
   pub words: Option<String>,
 }
 
+/// Whether the job's own question still waits for its answer, asked of the caller before a call that owns
+/// processes is stopped for its stall: a wait on an answer burns nothing, and the stop's signal would end it.
+pub trait QuestionWait {
+  /// Whether the call waits on the job's own question, still waiting for its answer.
+  fn waits_on_question(&mut self, call: &str) -> impl Future<Output = bool> + Send;
+}
+
+/// A caller whose run asks no question: every call due for its stall is stopped.
+pub struct NoQuestion;
+
+impl QuestionWait for NoQuestion {
+  async fn waits_on_question(&mut self, _call: &str) -> bool {
+    false
+  }
+}
+
 /// A turn's tool calls watched over a turn.
 #[derive(Debug)]
 pub struct Watch {
@@ -400,7 +419,8 @@ impl Watch {
   }
 
   /// Watch the record once: what began, what ended, what is still going, and what has stopped making
-  /// progress. `program` is the pid of the turn's program, whose tree the call's processes are part of.
+  /// progress. `program` is the pid of the turn's program, whose tree the call's processes are part of;
+  /// `question` is asked, of a call due for its stall alone, whether it waits on the job's own question.
   pub async fn look(
     &mut self,
     name: &str,
@@ -408,6 +428,7 @@ impl Watch {
     from: usize,
     program: i32,
     now: i64,
+    question: &mut impl QuestionWait,
   ) -> Vec<ClockNote> {
     let uses = tool_uses(records, from);
     let results = tool_results(records, from);
@@ -524,6 +545,19 @@ impl Watch {
         elapsed >= self.clock.min_ms
           && now - call.last_progress_at.max(call.awaited_at) >= self.clock.stall_ms
       };
+
+      // A call waiting on the job's own question is found waiting on it, as a silent call handed over would
+      // be, and its stall counts again from now: the cut would withdraw the question unanswered.
+      if !call.cut && due && !in_process && question.waits_on_question(&used.id).await {
+        call.awaited_at = now;
+
+        if call.asking == Asking::None {
+          call.asking = Asking::Awaiting;
+        }
+
+        lines.push(call.note(name, &used.id, Some(elapsed), ClockEvent::Awaiting));
+        continue;
+      }
 
       if !call.cut && due {
         call.cut = true;

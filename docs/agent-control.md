@@ -1179,6 +1179,15 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
     the call has stood silent for the window since the question was last seen waiting; the call is then
     asked about as any silent call. A question that cannot be read holds nothing: the call is asked about
     as it would be with none.
+  - **The question is read before any stall cut.** A wait on an answer burns nothing from its first
+    moment, so its stall can fall due before it has been silent for the window, and a call under a keep is
+    not handed over until the keep runs out. So before the first rule stops a call that owns processes,
+    the turn's caller is asked whether the job's item holds such a question; where it does, the call is
+    found waiting on it then, as a silent call handed over would be, and is not stopped. The cut would end
+    the job's `bmo job ask`, which reads any signal that ends it as the run told to stop and withdraws its
+    question unanswered. A question's wait therefore ends only by its answer or by a real stop of the job:
+    a stop, which cuts a blocked call as below, the supervisor's cut on an ask about the call, and the
+    turn's bound.
   - **What it leaves to the ask.** A wait whose command names its log only through a variable built in
     pieces, a relative path or a script file, and a wait on work outside the program's tree, are asked
     about as any silent call. A process that never ends holds a call that names its file until the turn's
@@ -1222,7 +1231,8 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   are the sentence the unit's log keeps, and whose metadata holds `toolClock`, the facts the sentence was
   made of, so a reader draws the call rather than reading the sentence (`docs/api.md`, 「log-lines」):
   - `event`: `started`, `running` (a still-running line), `asked` (an ask opened on a silent call),
-    `kept` (the supervisor kept it), `ask-failed` (the ask could not be put), `cut` or `ended`;
+    `kept` (the supervisor kept it), `ask-failed` (the ask could not be put), `awaiting` (due for its stall
+    but not stopped, since the job's own question still waits), `cut` or `ended`;
   - `call`, the call's id in the record, the same id its `tool` line carries as its `ref`; `tool`, the
     tool's name; `command`, the one-line summary; `pid`, the call's first process, null before it has one;
   - `elapsedMs`, how long the call had run when the line was written;

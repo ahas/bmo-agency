@@ -1417,6 +1417,13 @@ impl Watch for WorkWatch<'_> {
     }
   }
 
+  async fn waits_on_question(&mut self, call: &str) -> bool {
+    match self.asks.as_mut() {
+      Some(asks) => asks.waits_on_question(&self.ground.db, call).await,
+      None => false,
+    }
+  }
+
   async fn call_ended(&mut self, call: Option<&str>) {
     if let Some(asks) = self.asks.as_mut() {
       asks.ended(&self.ground.db, &self.ground.events, call).await;

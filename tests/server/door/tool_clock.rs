@@ -1,6 +1,7 @@
 //! A job turn's tool calls held to a clock (docs/agent-control.md, 「A job turn's tool calls are held to a
 //! clock」): a call blocked on a pipe nothing writes to is cut after it stops burning processor time, a call
-//! that keeps burning it is left alone, and a stop cuts a blocked call so its words can be read. The lines
+//! that keeps burning it is left alone, a blocked call waiting on the job's own question runs on, and a stop
+//! cuts a blocked call so its words can be read. The lines
 //! the watcher writes name the call, its pid, its duration and its outcome. A call gone silent and idle is
 //! handed over to be asked about, but not while it polls the log of the job's own work that still lives.
 
@@ -15,7 +16,9 @@ use std::time::Duration;
 use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
 use agency_server::door::stand::Interrupt;
-use agency_server::door::tool_clock::{CallVerdict, ClockNote, SilentClock, ToolClock, Watch as ToolWatch};
+use agency_server::door::tool_clock::{
+  CallVerdict, ClockNote, NoQuestion, QuestionWait, SilentClock, ToolClock, Watch as ToolWatch,
+};
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
 use agency_server::places::Ground;
 use harness_providers::Machine;
@@ -174,7 +177,7 @@ async fn a_call_blocked_on_a_pipe_is_cut_and_its_lines_carry_the_pid_and_duratio
   for step in 0..40 {
     let now = began + step * 100;
 
-    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now, &mut NoQuestion).await));
 
     if said.iter().any(|line| line.contains("cut after")) {
       cut = Some(now);
@@ -204,7 +207,9 @@ async fn a_call_blocked_on_a_pipe_is_cut_and_its_lines_carry_the_pid_and_duratio
 
   // The harness reports the killed call to the model, and its end is written with its duration and outcome.
   records.push(answered("t1", began + 2_000, true));
-  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, began + 2_000).await));
+  said.extend(sentences(
+    watch.look("job-41", &records, 0, program.pid, began + 2_000, &mut NoQuestion).await,
+  ));
 
   let end = said.iter().find(|line| line.contains("ended pid=")).expect("an end line");
 
@@ -221,7 +226,11 @@ async fn a_call_that_keeps_burning_processor_is_not_cut() {
   let mut said = vec![];
 
   for step in 0..15 {
-    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, began + step * 100).await));
+    said.extend(sentences(
+      watch
+        .look("job-41", &records, 0, program.pid, began + step * 100, &mut NoQuestion)
+        .await,
+    ));
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
 
@@ -251,7 +260,7 @@ async fn a_call_with_no_process_of_its_own_is_cut_at_its_in_process_bound() {
   for step in 0..40 {
     let now = began + step * 100;
 
-    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now, &mut NoQuestion).await));
 
     if let Some(found) = watch.take_in_process_cut() {
       cut = Some((now, found));
@@ -276,7 +285,9 @@ async fn a_call_with_no_process_of_its_own_is_cut_at_its_in_process_bound() {
 
   // The program takes the words and answers the call, so the clock lets it go.
   records.push(answered("t1", at + 100, true));
-  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, at + 100).await));
+  said.extend(sentences(
+    watch.look("job-41", &records, 0, program.pid, at + 100, &mut NoQuestion).await,
+  ));
 
   assert!(!watch.in_process_cut_still(), "the answered call is let go");
   assert!(
@@ -293,7 +304,7 @@ async fn a_stop_cuts_a_call_blocked_on_a_pipe_within_its_bound() {
   let records = vec![used("t1", "cat", began)];
 
   // A look first, so the call's process is known.
-  watch.look("job-41", &records, 0, program.pid, began).await;
+  watch.look("job-41", &records, 0, program.pid, began, &mut NoQuestion).await;
   tokio::time::sleep(Duration::from_millis(200)).await;
 
   let said = sentences(watch.cut_for_stop("job-41", &records, 0, program.pid, began + 300).await);
@@ -302,6 +313,57 @@ async fn a_stop_cuts_a_call_blocked_on_a_pipe_within_its_bound() {
   });
 
   assert!(pid_of(cut) > 1, "the cut carries its pid: {cut}");
+  assert!(gone(pid_of(cut)).await, "the call's process is gone");
+}
+
+// The job's own question still waiting, counting how often it is read.
+struct QuestionWaits {
+  read: usize,
+}
+
+impl QuestionWait for QuestionWaits {
+  async fn waits_on_question(&mut self, _call: &str) -> bool {
+    self.read += 1;
+
+    true
+  }
+}
+
+// A job's `bmo job ask` waits on its answer burning nothing, as a blocked read does, so its stall falls due
+// however the silent rule stands: while the job's question waits the call runs on through stall after stall,
+// the question read only when one falls due, and a stop still cuts it.
+#[tokio::test]
+async fn a_blocked_call_waiting_on_the_job_s_question_runs_on_until_a_stop() {
+  let program = Program::spawn(BLOCKED);
+  let mut watch = ToolWatch::new(clock(300, 400, 100));
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", "bmo job ask --talk 7 --ack", began)];
+  let mut question = QuestionWaits { read: 0 };
+  let mut said = vec![];
+
+  for step in 0..20 {
+    let now = began + step * 100;
+
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now, &mut question).await));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
+
+  let waiting: Vec<&String> =
+    said.iter().filter(|line| line.contains("waits on the job's own question")).collect();
+
+  assert!(
+    !said.iter().any(|line| line.contains("cut after")),
+    "the waiting call is not cut: {said:?}"
+  );
+  assert!(waiting.len() >= 2, "each stall falls due and is let go: {said:?}");
+  assert_eq!(question.read, waiting.len(), "the question is read only as a stall falls due: {said:?}");
+  assert!(waiting.iter().all(|line| pid_of(line) > 1), "the line carries its pid: {waiting:?}");
+
+  let stopped = sentences(watch.cut_for_stop("job-41", &records, 0, program.pid, began + 2_100).await);
+  let cut = stopped.iter().find(|line| line.contains("cut for the stop")).unwrap_or_else(|| {
+    panic!("a stop cut the waiting call: {stopped:?}");
+  });
+
   assert!(gone(pid_of(cut)).await, "the call's process is gone");
 }
 
@@ -335,7 +397,7 @@ async fn looked_until_silent(
   for step in 0..steps {
     let now = began + step * 100;
 
-    said.extend(sentences(watch.look("job-41", records, 0, program, now).await));
+    said.extend(sentences(watch.look("job-41", records, 0, program, now, &mut NoQuestion).await));
 
     if let Some(silent) = watch.take_silent() {
       return Some((now, silent));
@@ -390,7 +452,9 @@ async fn a_call_that_polls_with_no_new_output_is_asked_about_and_runs_on() {
   );
   assert!(answered.words.is_none());
   tokio::time::sleep(Duration::from_millis(100)).await;
-  said.extend(sentences(watch.look("job-41", &records, 0, program.pid, at + 100).await));
+  said.extend(sentences(
+    watch.look("job-41", &records, 0, program.pid, at + 100, &mut NoQuestion).await,
+  ));
 
   let polled = watch.take_silent().expect("an ask that stands is looked at again");
 
@@ -450,7 +514,7 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
     let now = at + step * 100;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
-    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now).await));
+    said.extend(sentences(watch.look("job-41", &records, 0, program.pid, now, &mut NoQuestion).await));
 
     if let Some(silent) = watch.take_silent() {
       again = Some((now, silent));
@@ -525,7 +589,7 @@ async fn looked_at(
   now: i64,
   said: &mut Vec<String>,
 ) -> Option<agency_server::door::tool_clock::SilentCall> {
-  said.extend(sentences(watch.look("job-41", records, 0, program, now).await));
+  said.extend(sentences(watch.look("job-41", records, 0, program, now, &mut NoQuestion).await));
   watch.take_silent()
 }
 

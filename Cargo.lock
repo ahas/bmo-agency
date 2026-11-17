@@ -458,6 +458,7 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -507,7 +508,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-testbed-client"
-version = "0.1.0-rev.43"
+version = "0.1.0-rev.45"
 dependencies = [
  "schemars",
  "serde",

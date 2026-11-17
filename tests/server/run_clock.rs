@@ -291,3 +291,53 @@ async fn a_silent_call_is_not_asked_about_while_the_job_s_question_waits_and_is_
   assert_eq!(asks.hear(db, &bus, &past).await, CallVerdict::Waiting);
   assert_eq!(asked_events.ready().map(|ask| ask.run), Some("job-run-8/call/toolu_1".to_owned()));
 }
+
+// A call due for its stall before it was ever handed over is found waiting on the item's question, so once the
+// question is settled it is still held for the window, as a call handed over is.
+#[tokio::test]
+async fn a_call_due_for_its_stall_is_found_waiting_on_the_job_s_question_and_held_once_it_is_settled() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let bus = Bus::default();
+  let mut asked_events = bus.subscribe::<ClockAsked>();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let now = now_ms();
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (8, 2808, 1, 'runner', 1, 'worker-one', 'running', 1000, 'the work'),
+                (9, 2809, 2, 'runner', 2, 'worker-two', 'running', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+  peers.lock().unwrap().questions.extend([
+    json!({ "id": 1, "itemId": 2808, "state": "open" }),
+    json!({ "id": 2, "itemId": 2809, "state": "withdrawn" }),
+  ]);
+
+  let mut asks = CallAsks::new("job-run-8", "worker-one", 8, JobService::of(&vars));
+  let mut other = CallAsks::new("job-run-9", "worker-two", 9, JobService::of(&vars));
+
+  assert!(asks.waits_on_question(db, "toolu_1").await, "its item's question waits");
+  assert!(!other.waits_on_question(db, "toolu_1").await, "a withdrawn question holds nothing");
+
+  peers.lock().unwrap().questions[0]["state"] = json!("answered");
+
+  let call = SilentCall {
+    id: "toolu_1".to_owned(),
+    tool: "Bash bmo job ask --talk 1 --ack".to_owned(),
+    started_at: now - 600_000,
+    output_changed_at: now - 600_000,
+    last_line: None,
+    cpu_percent: 0.1,
+    window_ms: 300_000,
+  };
+  let CallVerdict::Awaiting(seen) = asks.hear(db, &bus, &call).await else {
+    panic!("the settled question still holds the call");
+  };
+
+  assert!(seen >= now, "held from when the stall found it waiting");
+  assert!(asked_events.ready().is_none(), "nothing is asked");
+}

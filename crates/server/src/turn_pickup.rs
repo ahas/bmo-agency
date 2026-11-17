@@ -42,7 +42,7 @@ use crate::places::locks::{agent_lock_path, hold};
 use crate::queue::orderer::JobService;
 use crate::queue::settings;
 use crate::queue::stops::Stops;
-use crate::run_clock::CallAsks;
+use crate::run_clock::{CallAsks, PickedUpQuestion};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::worker_session::records::{note_answer, slot_account};
@@ -938,7 +938,8 @@ async fn followed(
     let program = tool_program(place, pane);
 
     if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
-      watch_tools(ground, turn, records, program, watch, &mut following.log, now).await;
+      watch_tools(ground, turn, records, program, watch, asks.as_deref_mut(), &mut following.log, now)
+        .await;
     }
 
     // A call with no process of its own is cut by words put into the working turn, as the door cuts one:
@@ -1107,18 +1108,25 @@ fn tool_program(place: &Place, pane: Option<&OwnPane>) -> Option<i32> {
 }
 
 /// A picked-up turn's calls watched once, its lines kept as a live turn's are: the unit's log and the run's
-/// log. `records` is the turn program's transcript as it stands.
+/// log. `records` is the turn program's transcript as it stands, and `asks` the job's, through which a call
+/// due for its stall is asked whether it waits on the job's own question.
+#[allow(clippy::too_many_arguments)]
 pub async fn watch_tools(
   ground: &Ground,
   turn: &InFlight,
   records: &[Value],
   program: Option<i32>,
   watch: &mut ToolWatch,
+  asks: Option<&mut CallAsks>,
   log: &mut RunLog,
   now: i64,
 ) -> Vec<String> {
   let Some(program) = program else { return vec![] };
-  let notes = watch.look(&turn.run, records, 0, program, now).await;
+  let mut question = PickedUpQuestion {
+    asks,
+    db: &ground.db,
+  };
+  let notes = watch.look(&turn.run, records, 0, program, now, &mut question).await;
 
   keep_notes(ground, &notes, log).await
 }

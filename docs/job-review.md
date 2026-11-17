@@ -166,6 +166,11 @@ jobs」), naming the job, one action and its words.
 - **Agency moves no question's state.** A question leaves `open` only by what the job service does with it: a
   settling reply answers it, and its asker withdraws it or closes it unsent. Its instruction is withdrawn only
   once a settling reply comes; a word that settles nothing withdraws nothing.
+- **A review never ends a job's wait on its own question.** A job's `bmo job ask` withdraws its question only
+  when its run is stopped. A review comes between the job's turns, so it never reaches a call still waiting,
+  and while the item's question waits the call clock neither asks about that call nor stops it for its stall.
+  Only a real stop of the job ends that wait (`docs/agent-control.md`, 「A job turn's tool calls are held to a
+  clock」).
 - **While it waits the job stays under review** and every action of the orderer's is refused `awaits-owner`.
 - **Past its due time with no answer, the job gives its checkout and its agent's seat up:** its assignment is
   released, so the repository's checkout takes the next launch, its agent is free for other work, and the

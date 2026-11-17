@@ -174,7 +174,9 @@ async fn a_resumed_turn_s_blocked_call_is_cut_and_its_lines_are_kept() {
   for step in 0..40 {
     let now = began + step * 100;
 
-    said.extend(watch_tools(&ground, &turn, &records, Some(program.pid), &mut watch, &mut log, now).await);
+    said.extend(
+      watch_tools(&ground, &turn, &records, Some(program.pid), &mut watch, None, &mut log, now).await,
+    );
 
     if said.iter().any(|line| line.contains("cut after")) {
       cut = Some(now);
@@ -204,7 +206,8 @@ async fn a_resumed_turn_s_blocked_call_is_cut_and_its_lines_are_kept() {
   // The program's tool answers the model with the failed result, and its end is read from the record.
   records.push(answered("t1", began + 2_000));
   said.extend(
-    watch_tools(&ground, &turn, &records, Some(program.pid), &mut watch, &mut log, began + 2_000).await,
+    watch_tools(&ground, &turn, &records, Some(program.pid), &mut watch, None, &mut log, began + 2_000)
+      .await,
   );
 
   let end = said.iter().find(|line| line.contains("ended pid=")).expect("an end line");
