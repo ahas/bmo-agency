@@ -48,7 +48,8 @@ is and which one a run takes is `docs/role-agents.md`.
 
 - **A role's cap is the most of its runs that are let in at work at once: the number of its agents that are
   switched on.** A run beyond it waits for a slot and none is refused, but for a double's own ask where
-  delegated runs hold the whole cap (「A delegated task」 below). A job standing in the machine's turn keeps its
+  delegated runs hold the whole cap (「A delegated task」 below). A short ask is let in one seat beyond it
+  while delegated tasks hold every slot (「A short ask」 below). A job standing in the machine's turn keeps its
   seat and counts against no cap (`docs/role-agents.md`, 「When an agent is busy」), so its agent's next job is
   let in beside it.
 - **The cap is the role's alone.** It is counted over every run of the role wherever it works, each run on
@@ -181,6 +182,25 @@ is and which one a run takes is `docs/role-agents.md`.
   role has a free slot; an already-active yielding request is not taken away. A waiting yielding request
   may be raised to a prior one, keeping its sequence.
 
+## A short ask
+
+- **An ask may be marked short:** its caller vouches that the run is one short turn someone is waiting on
+  now, as a room's round handed to a supervisor's double is. The line reads no reason and measures no length;
+  the mark is kept on the request as asked. A short ask is a prior request and stands in the line as any does.
+- **A short ask has a seat delegated tasks cannot take.** A delegated task is a run asked under the source
+  `delegate` and not short (「A delegated task」 below); one may hold its slot for hours, and an active lease
+  is never taken away. So where delegated tasks let in hold every slot of the role that the asker's account
+  counts, and fill its cap, a short ask is let in one seat beyond the cap: on the first agent of its own it
+  may take whose road answers now, a free one first, else one a delegated task carries, beside that run.
+- **The seat is one.** While a short run holds it, a slot of the role is held by a run that is no delegated
+  task, so the next short ask waits as the line says, and short asks waiting for the seat stand in the order
+  they were asked, the first whose owner is asking taking it. A short run counts against the cap while it
+  works like any run, so a slot a delegated task gives back goes to the next run once the role's runs at
+  work are below the cap again.
+- **Anywhere else a short ask is let in as any ask:** where the cap has room it takes a slot like any run,
+  and where a job, another short run or a reservation holds a slot it waits in the line. A closed role stays
+  closed to it.
+
 ## Reserving slots
 
 - **Whoever will soon launch runs of a role reserves slots of it:** "this owner will soon use so many slots
@@ -212,9 +232,9 @@ is and which one a run takes is `docs/role-agents.md`.
 - **A task naming a role** holds a slot of that role and goes out on the road of the agent it is let in on,
   like any run of it, or on the asking supervisor's road where that agent names none.
 - **A double's own ask never waits on doubles.** Every delegated run is a double, and a double may delegate in
-  turn; its ask says it comes from a double. Such an ask is refused, before it enters the line, where slots
-  asked under the source `delegate` and let in already number the role's cap or more, the cap being above
-  zero. Waiting there could have no end: each of those runs may be a double waiting on a slot of its own, and
+  turn; its ask says it comes from a double. Such an ask, short or not, is refused, before it enters the
+  line, where slots asked under the source `delegate` and let in already, a short run among them, number the
+  role's cap or more, the cap being above zero. Waiting there could have no end: each of those runs may be a double waiting on a slot of its own, and
   in any ring of such waits the last double to ask found every slot it waited for held by delegated runs, so
   refusing that ask leaves no ring to form. Any other ask, a supervisor's among them, waits as the line says.
 - **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, with the asking

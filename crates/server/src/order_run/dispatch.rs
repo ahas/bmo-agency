@@ -77,6 +77,9 @@ pub struct Request {
   pub outcome: Option<String>,
   pub reservation: Option<String>,
   pub yielding: bool,
+  /// Whether its caller vouched it one short turn someone waits on, which delegated tasks never hold back
+  /// (docs/role-slots.md, 「A short ask」).
+  pub short: bool,
   pub place_key: Option<String>,
   /// The session its run continues, where its caller named one.
   pub session: Option<String>,
@@ -217,6 +220,7 @@ pub fn request_of(row: &QueryResult) -> Result<Request, Fault> {
     outcome: row.try_get("", "outcome").map_err(get)?,
     reservation: row.try_get("", "reservation").map_err(get)?,
     yielding: row.try_get::<String>("", "class").map_err(get)? == "yielding",
+    short: row.try_get("", "short").map_err(get)?,
     place_key: row.try_get("", "place_key").map_err(get)?,
     session: row.try_get("", "session").map_err(get)?,
     title: row.try_get("", "title").map_err(get)?,
@@ -282,6 +286,8 @@ pub struct Asked<'a> {
   pub owner: String,
   pub wanted: Wanted<'a>,
   pub yielding: bool,
+  /// Whether its caller vouches it one short turn someone waits on (docs/role-slots.md, 「A short ask」).
+  pub short: bool,
   pub token: Option<&'a str>,
   pub place_key: Option<&'a str>,
   pub session: Option<&'a str>,
@@ -479,8 +485,8 @@ pub async fn enqueue(
     &written,
     r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
          "model", "effort", "capacity", "state", "enqueued_at", "class", "place_key", "session", "title",
-         "asked_by", "agent_wanted", "account")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16, $17, $18)
+         "asked_by", "agent_wanted", "account", "short")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'waiting', $11, $12, $13, $14, $15, $16, $17, $18, $19)
        ON CONFLICT ("request_key") DO NOTHING"#,
     vec![
       uuid::Uuid::new_v4().to_string().into(),
@@ -501,6 +507,7 @@ pub async fn enqueue(
       asked.asked_by.map(str::to_owned).into(),
       asked.wanted.agent.map(str::to_owned).into(),
       account.clone().into(),
+      asked.short.into(),
     ],
   )
   .await
@@ -824,6 +831,10 @@ async fn judge<C: ConnectionTrait>(
   seats: &[Seat],
   since: Option<i64>,
 ) -> Result<Judged, Fault> {
+  if let Some(beside) = beside_delegated(db, held, role, seats, since).await? {
+    return Ok(beside);
+  }
+
   // The first agent it may take that is free and whose road answers now is its seat.
   let busy = crate::role_agents::busy(db, &held.role).await.map_err(faulted)?;
   let free: Vec<&Seat> = seats.iter().filter(|seat| !busy.contains(&seat.agent)).collect();
@@ -901,6 +912,86 @@ async fn judge<C: ConnectionTrait>(
   })
 }
 
+// A short request let in one seat beyond its role's cap (docs/role-slots.md, 「A short ask」): where delegated
+// tasks, runs asked under the source `delegate` and not short, are let in on every slot its account counts and
+// fill the cap, no short request ahead of it stands in its way and its place is free, on the first agent it may
+// take whose road answers now, a free one before one a delegated task carries. None where any of that fails, and
+// the line then judges it as any request.
+async fn beside_delegated<C: ConnectionTrait>(
+  db: &C,
+  held: &Request,
+  role: &AgentRole,
+  seats: &[Seat],
+  since: Option<i64>,
+) -> Result<Option<Judged>, Fault> {
+  if !held.short {
+    return Ok(None);
+  }
+
+  let cap = role.cap_for(held.account.as_deref());
+  let slots = all(
+    db,
+    &format!(
+      r#"SELECT "source" = $3 AND "state" = 'active' AND NOT "short" AS "delegated"
+         FROM "role_slot_requests"
+         WHERE "role" = $1 AND "state" IN ('active', 'reserved') AND "account" IS NOT DISTINCT FROM $2
+           AND {}"#,
+      crate::watches::machine_turn::AT_WORK
+    ),
+    vec![held.role.clone().into(), held.account.clone().into(), DELEGATE.into()],
+  )
+  .await
+  .map_err(faulted)?;
+  let mut delegated = 0_i64;
+
+  for slot in &slots {
+    match slot.try_get::<bool>("", "delegated").map_err(faulted)? {
+      true => delegated += 1,
+      false => return Ok(None),
+    }
+  }
+
+  if cap <= 0 || delegated < cap || place_taken(db, held.place_key.as_deref()).await? {
+    return Ok(None);
+  }
+
+  // Short requests waiting for the seat stand in the order they were asked, the first whose owner is asking
+  // taking it.
+  let ahead = one(
+    db,
+    r#"SELECT 1 AS "ahead" FROM "role_slot_requests"
+       WHERE "role" = $1 AND "state" = 'waiting' AND "short" AND "held_for" IS NULL AND "sequence" < $2
+         AND "account" IS NOT DISTINCT FROM $3 AND ($4::bigint IS NULL OR "asked" > $4::bigint)
+       LIMIT 1"#,
+    vec![
+      held.role.clone().into(),
+      held.sequence.into(),
+      held.account.clone().into(),
+      since.into(),
+    ],
+  )
+  .await
+  .map_err(faulted)?;
+
+  if ahead.is_some() {
+    return Ok(None);
+  }
+
+  let busy = crate::role_agents::busy(db, &held.role).await.map_err(faulted)?;
+  let answering = |seat: &&Seat| seat.road.is_ok();
+  let free = seats.iter().filter(answering).find(|seat| !busy.contains(&seat.agent));
+  let picked = free.or_else(|| seats.iter().find(answering));
+
+  Ok(picked.and_then(|seat| {
+    seat.road.as_ref().ok().map(|entry| Judged::LetIn {
+      agent: seat.agent.clone(),
+      entry: entry.clone(),
+      reserved: None,
+      inherits: None,
+    })
+  }))
+}
+
 /// Whether a request asked so would wait at its first ask, as the line judges it now (docs/role-slots.md, 「The
 /// line」): by the rule an ask is admitted by, for a request standing behind every one in the line that has not
 /// asked before, with nothing written.
@@ -938,6 +1029,7 @@ fn unasked(asked: &Asked<'_>, source: &str, role: &AgentRole, account: Option<St
     outcome: None,
     reservation: None,
     yielding: asked.yielding,
+    short: asked.short,
     place_key: asked.place_key.map(str::to_owned),
     session: asked.session.map(str::to_owned),
     title: asked.title.map(str::to_owned),

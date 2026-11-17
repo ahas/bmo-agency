@@ -896,6 +896,13 @@ under the source `delegate` and let in already number the role's agents that are
 count is above zero (`docs/role-slots.md`, 「A
 delegated task」). An ask whose request key already names a request is answered with that request as any is.
 
+A slot request may carry `short`, true where its caller vouches that the run is one short turn someone is
+waiting on now, as a room's round handed to a supervisor's double is; a request answers `short`, false where
+none was named. A short request is let in one seat beyond its role's cap where delegated tasks, the requests
+asked under the source `delegate` that are not short, are let in on every slot its account counts and fill the
+cap: on a free agent of its own where one is, else beside a delegated task on that task's agent. Anywhere else
+it stands in the line as any request (`docs/role-slots.md`, 「A short ask」).
+
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
 `runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch
 milliseconds; `agent`, the agent of the role it was let in on (`docs/role-agents.md`), or null where none is

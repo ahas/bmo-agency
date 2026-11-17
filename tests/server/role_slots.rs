@@ -740,6 +740,85 @@ async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
   );
 }
 
+// A short ask has one seat beyond the cap that delegated tasks cannot take: let in beside the delegated task
+// holding the only slot, it holds that seat alone, counts among the delegated runs a double's ask is refused
+// on, and waits as any ask where a run of another kind holds the slot (docs/role-slots.md, 「A short ask」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_short_ask_is_let_in_beside_the_delegated_task_holding_the_only_slot_and_no_further() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'doppelganger'"#, vec![])
+    .await;
+  crate::support::rows::reseated(scratch.db()).await;
+
+  let road = agency_server::order::Entry {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    effort: None,
+    thinking: None,
+    answer_tokens: None,
+  };
+  let slot = async |key: &str, source: &str, short: bool| {
+    let asked = Asked {
+      request_key: format!("delegate:{key}"),
+      owner: format!("delegate:{key}"),
+      wanted: Wanted {
+        role: "doppelganger",
+        path: Some("/scratch/chat"),
+        fixed: Some(road.clone()),
+        agent: None,
+      },
+      short,
+      ..Asked::default()
+    };
+
+    enqueue(&ground.db, &ground.events, &asked, source, async |_, _| Ok(())).await.unwrap()
+  };
+
+  let task = slot("task", DELEGATE, false).await;
+
+  assert!(admitted(&ground, &task).await);
+
+  let round = slot("round", DELEGATE, true).await;
+
+  assert!(round.short, "the request keeps its mark");
+  assert!(admitted(&ground, &round).await, "a short ask is let in beside the delegated task");
+
+  let round_seat = crate::support::grounds::slot_now(&ground, &round.token).await.seat;
+  let task_seat = crate::support::grounds::slot_now(&ground, &task.token).await.seat;
+
+  assert!(round_seat.is_some());
+  assert_eq!(round_seat, task_seat, "on the one agent, beside the task's run");
+  assert_eq!(used(&ground.db, "doppelganger", None).await.unwrap(), 2);
+
+  let next_round = slot("next-round", DELEGATE, true).await;
+  let next_task = slot("next-task", DELEGATE, false).await;
+
+  assert!(!admitted(&ground, &next_round).await, "the seat beyond the cap is one");
+  assert!(!admitted(&ground, &next_task).await, "a delegated task never takes it");
+  assert!(
+    dispatch::double_would_wait(&ground.db, "doppelganger", "delegate:again")
+      .await
+      .unwrap()
+      .is_some(),
+    "a short run counts among the delegated runs a double's ask is refused on"
+  );
+
+  // A slot a run of another kind holds is waited on as the line says.
+  for held in [&task, &round, &next_round, &next_task] {
+    assert!(finish(&ground.db, &ground.events, &held.token, "done", false).await.unwrap());
+  }
+
+  let order = slot("order", "cowork", false).await;
+
+  assert!(admitted(&ground, &order).await);
+  assert!(!admitted(&ground, &slot("late-round", DELEGATE, true).await).await);
+}
+
 // What a run reads off the agent it is let in on (docs/role-agents.md, 「What a run reads off its agent」): its
 // seat is found by the slot it holds at the folder it works in, and what the agent lays over its role stands in
 // the role's place for that run alone.

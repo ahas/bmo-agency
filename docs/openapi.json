@@ -15717,6 +15717,11 @@
           "yielding": {
             "type": "boolean"
           },
+          "short": {
+            "type": "boolean",
+            "description": "true where its caller vouched it one short turn someone waits on",
+            "default": false
+          },
           "placeKey": {
             "type": [
               "string",
@@ -15783,6 +15788,7 @@
           "outcome",
           "reservation",
           "yielding",
+          "short",
           "placeKey",
           "session",
           "title",
@@ -15875,6 +15881,13 @@
               "null"
             ],
             "description": "true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse"
+          },
+          "short": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated\ntasks hold every slot"
           }
         },
         "required": [

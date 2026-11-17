@@ -3750,6 +3750,9 @@ pub struct SlotRequest {
   pub outcome: Option<String>,
   pub reservation: Option<String>,
   pub yielding: bool,
+  /// true where its caller vouched it one short turn someone waits on
+  #[serde(default)]
+  pub short: bool,
   pub place_key: Option<String>,
   pub session: Option<String>,
   pub title: Option<String>,
@@ -3852,6 +3855,10 @@ pub struct SlotRequestAsk {
   /// true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub from_double: Option<bool>,
+  /// true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated
+  /// tasks hold every slot
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub short: Option<bool>,
 }
 
 /// SlotRequestMove: a slot request asked for its admission, bound to its run, or given back.

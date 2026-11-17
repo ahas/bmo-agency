@@ -74,7 +74,8 @@ seeds. The other crates and the server reach the store only through it.
     「Several accounts on one node」);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the account it belongs to or
     none, the one agent it asks to be
-    let in on, `agent_wanted`, where its asker named one, the agent it was let in on, its `seat`, what it is
+    let in on, `agent_wanted`, where its asker named one, whether it was asked `short`, the agent it was let
+    in on, its `seat`, what it is
     bound to, the role session among it, whether the line has seen its bound run standing, and who gave it
     back —;
     `role_slot_reservations`;

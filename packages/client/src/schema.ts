@@ -4704,6 +4704,11 @@ export interface components {
             outcome: string | null;
             reservation: string | null;
             yielding: boolean;
+            /**
+             * @description true where its caller vouched it one short turn someone waits on
+             * @default false
+             */
+            short: boolean;
             placeKey: string | null;
             session: string | null;
             title: string | null;
@@ -4735,6 +4740,11 @@ export interface components {
             askedBy?: string | null;
             /** @description true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse */
             fromDouble?: boolean | null;
+            /**
+             * @description true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated
+             *     tasks hold every slot
+             */
+            short?: boolean | null;
         };
         /** @description OwnerRelease: what an owner's release gave back. */
         OwnerRelease: {

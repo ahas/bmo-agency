@@ -159,6 +159,7 @@ impl Route for SlotAsk {
         agent: None,
       },
       yielding: body.get("yielding").and_then(Value::as_bool).unwrap_or(false),
+      short: body.get("short").and_then(Value::as_bool).unwrap_or(false),
       token: optional(&body, "token"),
       place_key: optional(&body, "placeKey"),
       session: optional(&body, "session"),
