@@ -644,8 +644,9 @@ rule to.
   runs (`docs/sessions.md`, 「A restart hands the session over」).
 - **What does not: the program's own background work.** A shell command or a subagent the program puts
   in its own background lives inside the program. Its notice, where it lands after the round has ended,
-  opens a turn of the program's own that no round carries, so its answer reaches no room; and a program
-  taken down or stood afresh takes it with it. So that road is not the supervisor's for work it reports.
+  opens a turn of the program's own that no round carries, so its answer reaches no room, and nothing
+  outside the program keeps it across the program being taken down or stood afresh. So that road is not
+  the supervisor's for work it reports.
 - **A subagent is for work inside the turn.** The chat line leaves the program its subagent tool (「What
   each capability stands for」 above): a subagent reads and searches inside the turn and hands back only its
   conclusion, so what it read stays out of the supervisor's context.
