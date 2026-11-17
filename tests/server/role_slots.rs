@@ -618,6 +618,67 @@ async fn a_run_follows_its_supervisor_until_the_owner_sets_the_role_an_order() {
   );
 }
 
+// A session started on a following role's slot carries the supervisor the slot names as asked by, and the step
+// each of its turns takes on a provider's road other than Claude Code is read from that supervisor's entry
+// (docs/role-slots.md, 「A role that follows its supervisor」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_following_roles_session_goes_out_on_its_asking_supervisors_step_on_a_providers_road() {
+  use agency_server::chat_stand_in::road_step;
+  use agency_server::control::session_ops::on_slot;
+  use agency_server::lines::worker::Reasoning;
+  use agency_server::road::Road;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', 'deepseek', 'deepseek-flash', 'high', 0, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let fixed = dispatch::fixed_road(&ground.db, "coder", Some("chat")).await.unwrap();
+  let run = Asked {
+    request_key: "follows:session".to_owned(),
+    owner: "follows:session".to_owned(),
+    wanted: Wanted {
+      role: "coder",
+      path: Some("/scratch/chat"),
+      fixed,
+      agent: None,
+    },
+    asked_by: Some("chat"),
+    ..Asked::default()
+  };
+  let held = enqueue(&ground.db, &ground.events, &run, "job", async |_, _| Ok(())).await.unwrap();
+  let active = acquire(&ground, &held).await.unwrap().expect("let in on the supervisor's road");
+  let mut apart = agent_session::Apart::default();
+
+  on_slot(&ground.db, &serde_json::json!({ "slot": active.token }), &mut apart)
+    .await
+    .unwrap();
+  assert_eq!(apart.asked_by.as_deref(), Some("chat"), "the session carries its slot's asker");
+  assert_eq!(apart.provider, "deepseek");
+
+  let taken = Road {
+    provider: apart.provider.clone(),
+    model: apart.model.clone(),
+    account: None,
+  };
+  let machine = ground.machine();
+  let reasoning = Reasoning::default();
+  let step = road_step(&ground, &machine, "coder", &taken, &reasoning, apart.asked_by.as_deref())
+    .await
+    .expect("the supervisor's entry on its road");
+
+  assert_eq!((step.provider.as_str(), step.model.as_str()), ("deepseek", "deepseek-flash"));
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_run_reads_its_prompt_bundles_and_threshold_off_the_agent_it_is_let_in_on() {
   use agency_server::role_agents::{bundles_at, prompt_at, seated_at};

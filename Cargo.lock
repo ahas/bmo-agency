@@ -94,6 +94,7 @@ dependencies = [
  "percent-encoding",
  "policy",
  "procfs",
+ "pulldown-cmark",
  "regex",
  "reqwest",
  "rev_lines",

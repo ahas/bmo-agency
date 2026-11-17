@@ -206,6 +206,10 @@ is and which one a run takes is `docs/role-agents.md`.
   it asked naming no road carries the provider, model and effort of the supervisor its ask names as
   `askedBy`, as they stand when it is asked — the supervisor's one road — and waits, never moves, while that
   road cannot take it.
+- **Every turn of a run on such a slot goes out on that supervisor's entry,** on whatever provider's road the
+  run goes: a session started on the slot carries the supervisor its `askedBy` names, and the model, effort,
+  thinking and answer room each of its turns takes are that supervisor's for the road, on Claude Code and on a
+  provider's program standing in a place of its own alike.
 - **A slot of such a role that no supervisor asks is refused** 422 with why, and nothing starts, since it has
   no road to go out on.
 - **An agent the owner sets a road goes out on that road instead,** like any role's agent; in a role holding

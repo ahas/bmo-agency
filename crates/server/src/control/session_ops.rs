@@ -146,8 +146,8 @@ pub fn work_asked(body: &Value) -> Result<WorkAsk, Refused> {
 }
 
 /// The work parts a role's session's turn goes out with: the session's provider, model, effort and folder, the
-/// answer ceiling its role's order names for that provider, and what the turn names of its own, a run name
-/// and a title given where it names none.
+/// answer ceiling its role's entry for that provider names — the asking supervisor's where the role follows
+/// it — and what the turn names of its own, a run name and a title given where it names none.
 pub async fn work_of(
   db: &sea_orm::DatabaseConnection,
   agent: &str,
@@ -157,7 +157,7 @@ pub async fn work_of(
   let role = apart.role.clone().unwrap_or_else(|| crate::agent_roles::job_role().to_owned());
   let answer_tokens = match apart.provider.as_str() {
     "" => None,
-    provider => crate::order::role_entry(db, &role, provider)
+    provider => crate::order::row_entry(db, &role, provider, apart.asked_by.as_deref())
       .await
       .ok()
       .and_then(|entry| entry.answer_tokens),
@@ -752,6 +752,7 @@ pub async fn on_slot(
   }
 
   apart.role = Some(held.role.clone());
+  apart.asked_by.clone_from(&held.asked_by);
   apart.provider.clone_from(&held.provider);
   apart.model.clone_from(&held.model);
   apart.effort.clone_from(&held.effort);

@@ -73,6 +73,9 @@ pub struct Apart {
   pub card_rank: Option<u32>,
   /// The pool a demand its turns ask stands in, its key and its limit, where its caller names one.
   pub card_pool: Option<(String, u32)>,
+  /// The supervisor that asked its slot, whose entry for the road each turn goes out on where its role follows
+  /// the supervisor that asks it (docs/role-slots.md, 「A role that follows its supervisor」).
+  pub asked_by: Option<String>,
   /// The harness session its turns continue, named by its caller, where the caller names one: resumed while its
   /// record stands, whatever the role keeps, and a new one opened where it does not (docs/sessions.md, 「A
   /// role's session」).

@@ -2764,6 +2764,7 @@ impl HerdrSessions {
     run: &crate::lines::chat::ChatRun,
     role: &str,
     taken: &crate::road::Road,
+    supervisor: Option<&str>,
     session: &str,
     share: Option<f64>,
     log: &mut RunLog,
@@ -2784,9 +2785,10 @@ impl HerdrSessions {
       ..run.clone()
     };
     // The fold reached the session only where it answered on that same session.
-    let folded = crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None)
-      .await
-      .is_ok_and(|reply| reply.session_id == held);
+    let folded =
+      crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, supervisor, now_ms(), None)
+        .await
+        .is_ok_and(|reply| reply.session_id == held);
 
     ground.events.publish(crate::worker_session::told::SessionFolded {
       session: held.clone(),
@@ -2910,9 +2912,18 @@ impl HerdrSessions {
       account: None,
     };
     let opened_at = now_ms();
-    let came =
-      crate::chat_stand_in::job_turn_on(ground, &mut log, &chat_run, role, &taken, began, Some(shown))
-        .await;
+    let supervisor = apart.asked_by.as_deref();
+    let came = crate::chat_stand_in::job_turn_on(
+      ground,
+      &mut log,
+      &chat_run,
+      role,
+      &taken,
+      supervisor,
+      began,
+      Some(shown),
+    )
+    .await;
 
     if let Some(key) = &key {
       let kept = match &came {
@@ -2941,7 +2952,15 @@ impl HerdrSessions {
         && !reply.session_id.is_empty()
       {
         self
-          .fold_in_place(&chat_run, role, &taken, &reply.session_id, reply.context_ratio, &mut log)
+          .fold_in_place(
+            &chat_run,
+            role,
+            &taken,
+            supervisor,
+            &reply.session_id,
+            reply.context_ratio,
+            &mut log,
+          )
           .await;
       }
     }

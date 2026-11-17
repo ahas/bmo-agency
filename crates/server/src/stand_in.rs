@@ -26,18 +26,21 @@ pub struct Step {
 }
 
 /// A step's model and effort, as the key is mapped on the provider with its agent's own thinking and
-/// effort; on a registered model, the registration's own run settings with the answer room the key's work
-/// is given — never below the floor its own work declares, nor, where the run thinks, below its thinking
-/// floor as far as a quarter of the registration's window allows.
+/// effort — the mapping of the supervisor that asked the run where the key is a role that follows it
+/// (docs/role-slots.md, 「A role that follows its supervisor」); on a registered model, the registration's
+/// own run settings with the answer room the key's work is given — never below the floor its own work
+/// declares, nor, where the run thinks, below its thinking floor as far as a quarter of the registration's
+/// window allows.
 pub async fn step_of(
   ground: &Ground,
   machine: &Machine,
   key: &str,
   provider: &str,
   reasoning: &Reasoning,
+  supervisor: Option<&str>,
 ) -> Result<Step, String> {
   let db = &ground.db;
-  let mapping = crate::order::row_entry(db, key, provider, None).await?;
+  let mapping = crate::order::row_entry(db, key, provider, supervisor).await?;
   let effort =
     effort_of(ground, machine, provider, &mapping.model, mapping.effort.as_deref(), Some(reasoning))
       .await
