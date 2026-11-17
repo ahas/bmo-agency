@@ -196,10 +196,13 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   such rooms; its row holds `room.send`; and the room's road carries the verb.
 - **It is filed under the supervisor's own number and name** on a road that speaks for several speakers;
   which supervisor is the road's own voice, naming no speaker, is the receiver's setting.
-- **Only a supervisor's own round sends.** A send anything else asks — a job, a role's run, a person at a
-  shell, a script — goes out nowhere: the receiver hands its words to the room's supervisor as a quiet
-  instruction, and that supervisor says them in its own turn or lets them go (the receiver's
-  `docs/messages.md`, 「Words handed to the room's supervisor」).
+- **Only a supervisor's own round sends, and no send carries words.** Words reach a room only as a round's
+  message, which the draft process reviews: a line, a spoken line, a voice note or a caption the round asks
+  into its own room is refused, and one it asks into another room is handed to that room's supervisor, whose
+  round there writes and reviews it. A send anything else asks — a job, a role's run, a person at a shell, a
+  script — goes out nowhere: the receiver hands it to the room's supervisor as a quiet instruction, and that
+  supervisor says it as its round's message or lets it go (the receiver's `docs/messages.md`, 「Words handed
+  to the room's supervisor」).
 - **Another supervisor's room stays closed:** a supervisor never sends into a room it does not answer.
 
 ## One runner

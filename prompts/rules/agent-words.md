@@ -35,11 +35,12 @@ the way anybody's do, and nothing stops two agents answering each other but each
   the rest.
 - **Never settle it alone.** Do not reorder, merge, hold or work around the other agent's item on
   your own judgement, and never answer for that agent.
-- **Settle it with the other agent in a room it answers,** under your own name: say both item numbers
-  and what overlaps, calling it by the name that wakes it, and agree on one of three ways out: an
-  order, one merged into the other, or one held. Where no room stands with both of you in it, open one
-  with it and the owner and say it there. Its answer is a reply to your line, so it stands under the
-  request. Calling the owner in is your judgement, and his word wins once he joins; a move the absolute
+- **Settle it with the other agent in a room it answers:** ask with say naming that room (its chat),
+  which hands your words to that room's round to write and review there; give both item numbers and
+  what overlaps, call it by the name that wakes it, and agree on one of three ways out: an order, one
+  merged into the other, or one held. Where no room stands with both of you in it, open one with it and
+  the owner and ask it there the same way. Ask with reply, so its answer comes back to the room you
+  asked from. Calling the owner in is your judgement, and his word wins once he joins; a move the absolute
   rules keep for him waits for his word. End your part with <<SKIP>> once it is agreed or nothing new is
   asked of you.
 - **Record what was settled.** Add it to your own item: what was agreed, with whom, and the other

@@ -829,27 +829,26 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
 }
 
 #[test]
-fn the_manual_holds_a_line_for_the_voice_to_its_two_texts() {
+fn the_manual_sends_no_voice_note_and_leaves_the_spoken_words_to_the_voice_unit() {
   let system = composed();
   let voice = section(&system, "A LINE FOR THE VOICE");
 
   for said in [
-    "is two texts",
-    "They stay exactly as you would write the line",
-    "the same words as a Korean reader says them aloud",
-    "the platform's name, BMO, is read",
-    "no word added, dropped or moved",
-    "--spoken",
-    "the voice unit derives the spoken words",
-    "naming the first such run; correct that run and send again",
+    "You send no voice note",
+    "is refused, since its words go into your round's message",
+    "handed to that room's supervisor as words",
+    "derives the spoken words itself",
   ] {
     assert!(voice.contains(said), "{said}: {voice}");
+  }
+  for gone in ["--spoken", "bmo talk"] {
+    assert!(!voice.contains(gone), "{gone}: {voice}");
   }
   assert!(!voice.contains('"'), "a rule, with no sentence for the agent to repeat: {voice}");
 }
 
 #[test]
-fn words_handed_to_the_supervisor_are_said_in_its_own_voice_with_their_facts_and_intent_kept() {
+fn words_handed_to_the_supervisor_are_said_as_its_rounds_message_with_their_facts_and_intent_kept() {
   let system = composed();
   let handed = section(&system, "WORDS HANDED TO YOU");
 
@@ -857,15 +856,16 @@ fn words_handed_to_the_supervisor_are_said_in_its_own_voice_with_their_facts_and
     "Every message a room receives comes from that room's supervisor",
     "hands it to you as an instruction, and nothing of it has reached the room",
     "names who handed it and what was asked of the room",
-    "in your own words and your own voice",
+    "Say it as your round's message, in your own words and your own voice",
     "or answer <<SKIP>> where it is not worth saying",
     "Keep its facts exact: every number",
     "Keep the intent of whoever handed it",
-    "A voice note stays a voice note",
-    "unless the room's state makes it pointless",
+    "A voice note or a spoken line handed is said as words in your message",
+    "with no caption, and the caption's words go into your message",
   ] {
     assert!(handed.contains(said), "{said}: {handed}");
   }
+  assert!(!handed.contains("fixed line"), "no fixed line is handed: {handed}");
   assert!(!handed.contains('"'), "a rule, with no sentence for the agent to repeat: {handed}");
 }
 
