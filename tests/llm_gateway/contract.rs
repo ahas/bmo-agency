@@ -378,6 +378,35 @@ impl World {
     seen.unwrap()
   }
 
+  /// The table the gateway serves once it serves one holding an entry under `name`. A store migrated
+  /// while the gateway runs is read as an empty registry first, so the table holding the registrations
+  /// written after it follows that one.
+  async fn serving_holding(&self, name: &str) -> String {
+    let mut seen = None;
+    until_within(&format!("a table holding {name} to be served"), Duration::from_secs(30), || {
+      seen = self.status().and_then(|status| status["serving"].as_str().map(str::to_owned));
+      seen
+        .as_deref()
+        .is_some_and(|table| self.table_names(table).iter().any(|held| held == name))
+    })
+    .await;
+    seen.unwrap()
+  }
+
+  /// The model names `table` holds entries under, in its order; none where its file is not written.
+  fn table_names(&self, table: &str) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(self.folder().join(format!("config-{table}.yaml"))) else {
+      return Vec::new();
+    };
+    let config: Value = serde_json::from_str(&text).unwrap();
+    config["model_list"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|entry| entry["model_name"].as_str().unwrap().to_owned())
+      .collect()
+  }
+
   /// A request as a caller of the gateway sends it: with the gateway's key as its Bearer unless the
   /// headers name an authorization of their own.
   async fn open(
@@ -551,7 +580,7 @@ async fn before_any_table_it_answers_503_and_serves_the_registry_once_it_stands(
 
   Migrator::up(world.store.db(), None).await.unwrap();
   world.write(PAIR).await;
-  let table = world.serving(None).await;
+  let table = world.serving_holding("pair-0-1").await;
   assert_eq!(world.answered_by().await, table);
 }
 
@@ -607,14 +636,8 @@ async fn the_table_is_written_private_beside_its_hooks_and_the_keys_reach_the_ch
   assert!(!world.folder().join("config-0000000000000000.yaml").exists());
   let written = world.folder().join(format!("config-{table}.yaml"));
   assert_eq!(std::fs::metadata(&written).unwrap().permissions().mode() & 0o777, 0o600);
+  assert_eq!(world.table_names(&table), ["pair-0-1", "pair-0-1@alpha", "pair-0-1", "pair-0-1@bravo"]);
   let config: Value = serde_json::from_str(&std::fs::read_to_string(&written).unwrap()).unwrap();
-  let names: Vec<&str> = config["model_list"]
-    .as_array()
-    .unwrap()
-    .iter()
-    .map(|entry| entry["model_name"].as_str().unwrap())
-    .collect();
-  assert_eq!(names, ["pair-0-1", "pair-0-1@alpha", "pair-0-1", "pair-0-1@bravo"]);
   assert_eq!(
     config["model_list"][0]["litellm_params"]["api_key"],
     "os.environ/BMO_KEY_ALPHA_LLM_TOKEN"
@@ -727,7 +750,7 @@ async fn a_request_without_the_gateways_key_is_refused_401_at_the_front() {
 
   Migrator::up(world.store.db(), None).await.unwrap();
   world.write(PAIR).await;
-  let table = world.serving(None).await;
+  let table = world.serving_holding("pair-0-1").await;
 
   let wrong = format!("Bearer {GATEWAY_KEY}-wrong");
   let basic = format!("Basic {GATEWAY_KEY}");
