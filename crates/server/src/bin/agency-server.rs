@@ -351,6 +351,24 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  let deployments = ground.clone();
+
+  // Every deployment that ended without going live, told to the orderers of the items it carries.
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::job_notices::JOB_NOTICES.deploy_read_seconds);
+
+    every("deploy watch", Duration::ZERO, period, move || {
+      let ground = deployments.clone();
+
+      async move {
+        agency_server::watches::deploy_failures::pass(&ground.db, ground.vars(), &ground.roots.home).await;
+
+        Ok(())
+      }
+    })
+    .await
+  });
+
   let owed = ground.clone();
 
   // The outbox's sender: the standing notices whose condition ended let go first, then every row due sent.

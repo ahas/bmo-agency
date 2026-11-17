@@ -137,7 +137,7 @@ pub fn waits_live(
 }
 
 /// The deploy root the testbed declaration in `checkout` names, a leading `~/` read against `home`.
-fn deploy_root(checkout: &Path, home: &Path) -> Option<PathBuf> {
+pub(crate) fn deploy_root(checkout: &Path, home: &Path) -> Option<PathBuf> {
   #[derive(Deserialize)]
   struct Declaration {
     deploy: Option<Deploy>,
@@ -155,13 +155,13 @@ fn deploy_root(checkout: &Path, home: &Path) -> Option<PathBuf> {
   Some(root.strip_prefix("~/").map_or_else(|| PathBuf::from(&root), |rest| home.join(rest)))
 }
 
-fn read_json(path: &Path) -> Option<Value> {
+pub(crate) fn read_json(path: &Path) -> Option<Value> {
   serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
 }
 
 /// Whether `commit` is `deployed` or an ancestor of it, as git answers in `checkout`; none where git cannot
 /// tell, a commit the checkout does not hold among them.
-async fn held_by(checkout: &Path, commit: &str, deployed: &str) -> Option<bool> {
+pub(crate) async fn held_by(checkout: &Path, commit: &str, deployed: &str) -> Option<bool> {
   let status = tokio::process::Command::new("git")
     .args(["merge-base", "--is-ancestor", commit, deployed])
     .current_dir(checkout)

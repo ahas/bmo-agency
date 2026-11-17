@@ -204,8 +204,11 @@ seeds. The other crates and the server reach the store only through it.
     marks of a notice owed once, by the item or the job it tells of, `queue_paused_told:*`,
     `queue_unlaunchable_told:*`, `queue_agent_told:*` (the item's refused `agent` label),
     `queue_no_candidate_told:*` (the role and model told as having no candidate), `queue_draft_told:*`,
-    `queue_wait_told:*`, `job_moved_told:*` and `job_close_mark:*`; and the job service's event cursor,
-    `job_events_after`, past which no event's notice is left unwritten;
+    `queue_wait_told:*`, `job_moved_told:*` and `job_close_mark:*`; the job service's event cursor,
+    `job_events_after`, past which no event's notice is left unwritten; and the deployment watch's
+    `deploy_watch`, as JSON, the unit last judged for each deploy root under `judged` and the units seen
+    running and not yet judged, each with its deploy root, under `running` (`docs/agent-control.md`, 「A
+    deployment that did not go live is told」);
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);

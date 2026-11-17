@@ -24,6 +24,20 @@ waited_item = "#{item} ({title}), {state}"
 # A job's close handed its commit over and waits for the deployment that carries it: `{item}`, `{title}`,
 # `{repository}` and `{commit}`.
 deploy_order = "Item #{item} ({title}): its job's close merged commit {commit} into {repository}'s main, and the item waits for that repository's batch deployment: put it live once no related work is left, as the todo procedure says."
+# A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
+# told」): `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`, `{reason}`, `{items}`, the waiting items
+# it carries in the room, each as `deploy_failed_item` gives it with `{item}` and `{title}`, else
+# `deploy_failed_no_items`, and `{journal}`, the last lines of its unit's journal. The words stand in for a run cut
+# off with no outcome, one that named no stage, and one that gave no reason. How often the progress records are
+# read, and how many lines of a unit's journal the order carries.
+deploy_failed_order = "The deployment of {repository} at commit {commit} (unit {unit}) ended {outcome} without going live, in the stage {stage}: {reason}\nThe waiting items it carries: {items}\nThe last lines of its journal:\n{journal}"
+deploy_failed_item = "#{item} ({title})"
+deploy_failed_no_items = "none of the items waiting for this repository's batch deployment"
+deploy_cut_off = "cut off"
+deploy_no_stage = "none named"
+deploy_no_reason = "its run gave no reason"
+deploy_read_seconds = 5
+deploy_journal_lines = 20
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."

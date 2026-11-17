@@ -32,6 +32,23 @@ pub struct JobNotices {
   /// A job's commit handed over to go live, its job waiting on the outcome: `{item}`, `{title}`, `{repository}`
   /// and `{commit}`.
   pub deploy_order: String,
+  /// A deployment that ended without going live: `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`,
+  /// `{reason}`, `{items}` and `{journal}`.
+  pub deploy_failed_order: String,
+  /// One waiting item a failed deployment carries, as `{items}` lists it: `{item}` and `{title}`.
+  pub deploy_failed_item: String,
+  /// What `{items}` reads where the deployment carries no waiting item of the room.
+  pub deploy_failed_no_items: String,
+  /// The outcome a run cut off with none written is told as.
+  pub deploy_cut_off: String,
+  /// What `{stage}` reads where the run entered no stage.
+  pub deploy_no_stage: String,
+  /// What `{reason}` reads where the run gave none.
+  pub deploy_no_reason: String,
+  /// How often the deploy roots' progress records are read, in seconds.
+  pub deploy_read_seconds: u64,
+  /// How many of the last lines of a failed run's unit journal the order carries.
+  pub deploy_journal_lines: usize,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.

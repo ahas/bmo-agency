@@ -211,6 +211,60 @@ pub fn awaits_deploy(item: &Value, commit: &str, orderer: &Orderer) -> Value {
   )
 }
 
+/// A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
+/// told」), for the orderer of the waiting `items` it carries, with the last lines of its unit's `journal`: an order
+/// under the sort `job` of its own kind for the run's unit, an event for each item it carries, or one naming none.
+pub fn deploy_failed(
+  failure: &crate::watches::deploy_failures::Failure,
+  items: &[Value],
+  journal: &[String],
+  orderer: &Orderer,
+) -> Value {
+  let event = crate::watches::deploy_failures::FAILED_EVENT;
+  let listed = match items.is_empty() {
+    true => JOB_NOTICES.deploy_failed_no_items.clone(),
+    false => items
+      .iter()
+      .map(|item| {
+        fill_marks(
+          &JOB_NOTICES.deploy_failed_item,
+          &[("item", &id_of(item).to_string()), ("title", title_of(item))],
+        )
+      })
+      .collect::<Vec<_>>()
+      .join("; "),
+  };
+  let commit = failure.commit.get(..12).unwrap_or(&failure.commit);
+  let order = fill_marks(
+    &JOB_NOTICES.deploy_failed_order,
+    &[
+      ("repository", &failure.repository),
+      ("commit", commit),
+      ("unit", &failure.unit),
+      ("outcome", &failure.outcome),
+      ("stage", failure.stage.as_deref().unwrap_or(&JOB_NOTICES.deploy_no_stage)),
+      ("reason", failure.reason.as_deref().unwrap_or(&JOB_NOTICES.deploy_no_reason)),
+      ("items", &listed),
+      ("journal", &journal.join("\n")),
+    ],
+  );
+  let events: Vec<String> = match items.is_empty() {
+    true => vec![event.to_owned()],
+    false => items.iter().map(|item| format!("{event}:#{}", id_of(item))).collect(),
+  };
+
+  json!({
+    "room": orderer.room,
+    "said": { "order": order },
+    "agentName": Value::Null,
+    "sort": "job",
+    "kind": format!("{event}:{}", failure.unit),
+    "summary": format!("The deployment of {} at {commit} did not go live", failure.repository),
+    "events": events,
+    "run": Value::Null,
+  })
+}
+
 /// A run's question, for the orderer to put to the owner.
 pub fn question(question: &Value, orderer: &Orderer) -> Value {
   let id = id_of(question);

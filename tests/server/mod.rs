@@ -221,6 +221,7 @@ mod verbs {
 }
 
 mod watches {
+  mod deploy_failures;
   mod job_events;
   mod links;
   mod machine;

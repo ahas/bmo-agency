@@ -446,6 +446,13 @@ and the agency's own:
   one whose commit waits is told as `item-awaits-deploy` alone, and its lease is kept until the deployment
   closes it. Close the item as 「The run, its report and its close」 says, or give back the lease the
   instruction names so the item is open again. It is told once for each lease.
+- **`deploy-failed`:** a deployment of a repository ended without going live, whoever started it: its
+  repository, commit, unit, outcome, the stage it stopped in, why, the last lines of its unit's journal and the
+  waiting items it carries in this room. Handle it as 「A batch that fails is never left」 says: name the
+  commit that broke it and send that item back to be mended, the rest keep waiting. Where the answer of your own
+  deploy call already told you this deployment's outcome and you acted on it, nothing more is owed. One that
+  carries no item of yours, told in the owner's private room, is said to him in one line with the
+  repository, the commit and why.
 
 ## Never launch the same item twice
 

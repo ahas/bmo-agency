@@ -3113,8 +3113,8 @@ with the session.
 - **A row told is let go, kept, or kept standing.** How each kind is kept once the receiver took it:
   - **let go**, the notice told at least once and done: a job's end and failure, a job's wait, a checkout
     given up, an item moved under its job, closed by another, waiting on a paused queue, unlaunchable, without
-    a candidate, a draft awaiting approval, a wait ended, a question past its due time, an idle queue, and a
-    chat session's absent server;
+    a candidate, a draft awaiting approval, a wait ended, a question past its due time, an idle queue, a
+    deployment that did not go live, and a chat session's absent server;
   - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
     `DELETE /instructions/{id}`, and never told again while it is kept: a job's question, withdrawn once a
     settling reply comes; a job's commit waiting for its repository's batch deployment, withdrawn once the
@@ -3163,6 +3163,7 @@ with the session.
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
 | A job's close that merged its commit, its item labelled `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit`, waiting for its repository's batch deployment — owed for each commit | the orderer | instruction, from the events, told once for each commit and kept until the item leaves that phase, then withdrawn, whether or not a job of agency's still runs on it; another item's change, a restart or a later event of the item naming the same commit tells it no more | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
+| A deployment of any repository, whoever started it, that ended without going live — failed, rolled back, stopped by its own judgement other than a refusal, or cut off — (「A deployment that did not go live is told」) | the orderer of each item whose waiting commit it carries, one instruction to each room; the owner's private room where it carries none | instruction, from the deployment watch, told once for each deployment | `deploy-failed:<unit>`, `deploy-failed:#<item>` for each item it carries, `deploy-failed` where it carries none |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does: it hands every question to the supervisor as `question-for-supervisor`, and wakes the supervisor again on one it did not take up, never the owner; the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the owner | owner notice, from the events | code `job-question-due` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
@@ -3277,6 +3278,39 @@ with the session.
   told before is let go. Any other item is owed to its orderer once, the notice marked with the lease, to close
   the item or give the lease back, and kept, never told again for the same lease. The mark and the notice are
   let go once the lease ends.
+- **A deployment that did not go live is told.** A deployment is told whoever started it: the supervisor's
+  own deploy tool, a script, the console or a shell. A supervisor's own call answers it as well, but that
+  answer is lost where the call ends first, as a call whose session ended does, while the deployment goes on.
+  The testbed tells a deployment's outcome to an event hook only where the deployment's caller names one, so
+  agency does not wait on the hook and reads what every deployment writes.
+  - **What is read.** Every `deploy_read_seconds` (`policy/job-notices.toml`) agency reads the progress record,
+    `deploy-progress.json`, under the deploy root of every repository it holds on this machine, as the testbed
+    declaration in the repository's checkout names it (the testbed's `docs/deploy.md`, 「Progress record」).
+    The record names the run's unit, its repository, its commit, the stages it entered and, once it ended, its
+    outcome and why. A run whose outcome is `live`, and a refusal, tell nothing. A run that ended `failed`,
+    `rolled-back` or `stopped` is told; so is a run whose unit ended with no outcome written, which is told
+    as cut off.
+  - **A record written over is read from the journal.** Two deployments of one repository may run side by
+    side, writing the same record, and the later one can write over the earlier one's outcome before a read
+    takes it. So every run agency sees in a record while it runs is remembered by its unit until its outcome is
+    read. A remembered unit that has ended while its record names another run is read from the journal of its
+    unit: the line the testbed writes there for an event no hook takes, `event: <name> <payload>`, a
+    `deploy-failed` one telling the run as failed or rolled back by its `stage`, `reason` and `rolled_back`. A
+    unit whose journal holds no such line, which is so where a hook took the event, tells nothing.
+  - **What it says.** The instruction names the repository, the commit, the unit, the outcome, the stage the
+    run stopped in (the last it entered), the reason, the last `deploy_journal_lines` lines the unit's own
+    processes wrote to the journal, its event lines left out, and the items it carries, each with its title.
+  - **The items it carries.** The job service's items under a close, `close-phase` `waiting-batch` or an older
+    close's `waiting-live`, whose `close-commit` the failed commit is or holds, as git answers in the
+    repository's checkout. The instruction goes to each such item's orderer, one instruction a room naming the
+    items of that room; one that carries none, or one read while the job service does not answer, goes to the
+    owner's private room. The supervisor's manual says to send the breaking item back as the todo procedure's
+    failed batch says.
+  - **Once each.** What has been read is kept as the settings row `deploy_watch` (`docs/store.md`): the unit
+    last judged for each deploy root and the units seen running and not yet judged. A run is judged once, by
+    its record or by its journal, so neither a restart nor the next pass tells it twice. The first pass, with
+    no row kept, tells nothing of what has already ended and starts remembering what runs. A notice the store
+    would not take leaves the run unjudged, so the next pass tells it.
 
 ### Pressure told as a fact
 

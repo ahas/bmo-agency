@@ -110,6 +110,7 @@ pub mod verbs;
 /// The machine's watches agency keeps: the links to the work nodes (docs/work-nodes.md, 「The link」), and
 /// this machine's room and the pressure on it (docs/agent-control.md, 「Room on the machine」).
 pub mod watches {
+  pub mod deploy_failures;
   pub mod job_events;
   pub mod links;
   pub mod machine;
