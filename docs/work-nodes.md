@@ -94,7 +94,8 @@ side of a remote agent, the rotation, and what a dropped node does.
   keep the link down. An account's isolation node is stood up again instead (`docs/account-isolation.md`,
   「Standing it up」).
 - **The node's copy follows the deployment.** The setup writes down the deployed commit it copied, as
-  the deployment's record beside the deploy tree's link names it. Where the deployed commit has moved
+  the deployment's record beside the deploy tree's link names it, and only where its copy was laid over the
+  node's: a copy that failed leaves the commit the node held written, so the next sync copies again. Where the deployed commit has moved
   past it, the process keeping the links (「The link」 below) starts a sync of its own as a unit, on the
   server's own environment file, `env/agency.env`, as every unit of a link is; a sync
   stops the node's link, which that process stands again on the new code once the workplace reads ready,

@@ -710,9 +710,9 @@ async fn stand(
 
   if let Some(socket) = &outcome.herdr_socket {
     let path = node_dir(data_root, node).join("setup.json");
-    // The commit the code on the node now stands at, where this run copied it, so agency knows when a
-    // deployment has moved past it.
-    let commit = if copy_code {
+    // The commit the code on the node now stands at, where this run laid its copy there, so agency knows when a
+    // deployment has moved past it; a copy that failed leaves the commit the node held.
+    let commit = if copy_code && outcome.copied {
       deployed_commit(&deploy_link()).map(Value::String)
     } else {
       read_json(&path).and_then(|setup| setup.get("commit").cloned())

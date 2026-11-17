@@ -63,6 +63,8 @@ impl SetupShell for StandIn {
 struct Hands {
   install: bool,
   copy_code: bool,
+  /// Whether a copy lands on the node.
+  lands: bool,
   said: Mutex<Vec<String>>,
 }
 
@@ -76,7 +78,9 @@ impl SetupHands for Hands {
   }
 
   fn copy<'a>(&'a self, _from: &'a str, _to: &'a str) -> BoxFuture<'a, (bool, String)> {
-    Box::pin(async { (true, String::new()) })
+    let lands = self.lands;
+
+    Box::pin(async move { (lands, if lands { String::new() } else { "the node timed out".to_owned() }) })
   }
 
   fn add_machine(&self) -> BoxFuture<'_, (bool, String)> {
@@ -92,6 +96,7 @@ fn hands(copy_code: bool) -> Hands {
   Hands {
     install: false,
     copy_code,
+    lands: true,
     said: Mutex::new(Vec::new()),
   }
 }
@@ -150,6 +155,7 @@ async fn names_everything_still_missing_one_thing_per_line_and_reads_the_herdr_s
 
   assert_eq!(outcome.home.as_deref(), Some("/home/tester"));
   assert_eq!(outcome.root.as_deref(), Some("/home/tester/.local/share/bmo-node"));
+  assert!(outcome.copied, "the copy landed, so the node holds the deployed commit");
   assert_eq!(
     outcome.herdr_socket.as_deref(),
     Some("/home/tester/.config/herdr/sessions/bmo/herdr.sock")
@@ -201,6 +207,30 @@ async fn a_check_copies_nothing_clones_nothing_and_says_what_the_setup_would_hav
   );
 }
 
+// "a copy that did not land says so and leaves the node's commit as it was"
+#[tokio::test]
+async fn a_copy_that_did_not_land_says_so_and_leaves_the_node_s_commit_as_it_was() {
+  let shell = StandIn::new(&[HOME]);
+  let mut stalled = hands(true);
+
+  stalled.lands = false;
+
+  let outcome = set_up_workplace(&shell, &place(true), &stalled).await;
+
+  assert!(!outcome.copied);
+  assert!(
+    outcome
+      .missing
+      .contains(&"code: the deploy tree could not be copied: the node timed out".to_owned()),
+    "{:?}",
+    outcome.missing
+  );
+  assert!(
+    !set_up_workplace(&shell, &place(true), &hands(false)).await.copied,
+    "a check copies nothing"
+  );
+}
+
 // "a node whose login fails names that alone"
 #[tokio::test]
 async fn a_node_whose_login_fails_names_that_alone() {
@@ -214,6 +244,7 @@ async fn a_node_whose_login_fails_names_that_alone() {
       root: None,
       missing: vec!["login: ssh: connect to host n1.example port 22: No route to host".into()],
       herdr_socket: None,
+      copied: false,
     }
   );
 }

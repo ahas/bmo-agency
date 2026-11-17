@@ -125,6 +125,8 @@ pub struct SetupOutcome {
   pub root: Option<String>,
   pub missing: Vec<String>,
   pub herdr_socket: Option<String>,
+  /// Whether this run laid the deploy tree's copy over the node's, so the node now holds the deployed commit.
+  pub copied: bool,
 }
 
 /// The crates a node builds its own binaries from, each by its folder in the repository, which it keeps in
@@ -344,6 +346,7 @@ pub async fn set_up_workplace(
   hands: &dyn SetupHands,
 ) -> SetupOutcome {
   let mut missing = Vec::new();
+  let mut copied = false;
   let home_run = shell.run(r#"printf '%s\n' "$HOME""#).await;
   let home = home_run.stdout.trim().to_owned();
 
@@ -355,6 +358,7 @@ pub async fn set_up_workplace(
       root: None,
       missing: vec![format!("login: {}", said.unwrap_or("the node did not answer"))],
       herdr_socket: None,
+      copied: false,
     };
   }
 
@@ -498,9 +502,11 @@ pub async fn set_up_workplace(
   } else {
     hands.say(&format!("{node}: copying the code"));
 
-    let (copied, said) = hands.copy(&format!("{}/", place.deploy), &format!("{deploy}/")).await;
+    let (laid, said) = hands.copy(&format!("{}/", place.deploy), &format!("{deploy}/")).await;
 
-    if !copied {
+    copied = laid;
+
+    if !laid {
       missing.push(format!("code: the deploy tree could not be copied: {said}"));
     } else {
       let install = shell
@@ -805,5 +811,6 @@ pub async fn set_up_workplace(
     root: Some(root),
     missing,
     herdr_socket,
+    copied,
   }
 }
