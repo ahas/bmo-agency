@@ -191,7 +191,12 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   data root's `env/` that a unit or a setting reads by its name, and the console's secret store writes it
   (bmo-web's `docs/web.md`, its section on the secret store and an agent's request). The manual states
   the rules as rules:
-  - Where work needs a secret, the agent never asks for its value in a room. It sends a link to the
+  - Where work needs a secret, the agent first looks for one already saved, by the names in the space a
+    request would save into, and uses a saved one by its name. Nobody is asked to type, paste or sign in by
+    hand for what a saved secret covers: a job that asks for one is answered with its name, and a command on
+    a node is handed it through the node tool's own argument for saved secrets. Only a sign-in step the owner
+    must take in person is put to him.
+  - Where none is saved, the agent never asks for its value in a room. It sends a link to the
     console's secret request, naming the file name the consuming unit or setting reads, either a
     registered kind or the exact field keys that reader expects, and what the secret is for.
   - It goes on with that work only once the room carries the console's saved line for that name.

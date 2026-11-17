@@ -397,6 +397,49 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
 }
 
 #[test]
+fn a_saved_secret_is_used_by_its_name_before_anybody_is_asked() {
+  let read = |path: &str| std::fs::read_to_string(tree().join(path)).unwrap();
+  let rules = read("prompts/agents/worker/standing-rules.md");
+  let trailer = read("prompts/agents/worker/trailer.md");
+  let manual = read("prompts/agents/chat/manual.md");
+  let procedure = read("prompts/agents/chat/procedures/secrets.md");
+
+  // A job looks among the owner's saved secrets first, hands one to its consumer by its path, never shows it,
+  // and asks its supervisor only where none fits.
+  for said in [
+    "is first looked for among the secrets the owner has\n  saved",
+    "`ls \"$BMO_DATA_DIR\"/env`",
+    "`cut -s -d= -f1`",
+    "Hand the consumer the file's path",
+    "never write it into the repository, a commit, a note, a report",
+    "`bmo/node_exec`'s own argument for saved secrets",
+    "**Nobody types or signs in by hand for what a saved secret covers.**",
+    "**Only where no saved secret fits** does the job ask its supervisor with `bmo job ask`",
+  ] {
+    assert!(rules.contains(said), "{said}");
+  }
+  assert!(
+    trailer.contains("a password or an account of his that no saved secret holds"),
+    "{trailer}"
+  );
+
+  // The supervisor looks for a saved one before it sends a request link, and never puts a sign-in a saved
+  // secret covers on the owner.
+  assert!(manual.contains("look for it first among the ones already saved"), "{manual}");
+  assert!(
+    manual.contains("never wait on him to sign in by hand, for what a saved secret covers"),
+    "{manual}"
+  );
+  assert!(manual.contains("Where none is saved, never ask for its value in a room."), "{manual}");
+  let first = procedure
+    .find("## First, look for it among the saved ones")
+    .expect("the procedure's first step");
+  let request = procedure.find("## What the request names").expect("the request's section");
+
+  assert!(first < request, "the saved ones are looked at before a request is written");
+}
+
+#[test]
 fn a_research_ask_continuing_a_report_names_the_report_it_follows_from() {
   let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
   let line = manual
@@ -436,7 +479,9 @@ fn the_agent_approves_every_sound_draft_itself_and_names_each_item_s_repository(
     "is first given the repository its brief's work is in",
     "with its number and why",
     "Leave to the owner, as a draft waiting on his approval, only work that needs his own authority",
-    "a credential, an account or a login, money, his own files, people's data, or a judgement of taste",
+    "a credential, an account or a login he has not already given (a secret he saved is that authority \
+     given, and work that uses it by its name waits on nobody), money, his own files, people's data, or a \
+     judgement of taste",
     "never a member's ask",
     "An item you approved yourself is yours to launch",
     // An item names its repository; work across several is one item per repository in a series.

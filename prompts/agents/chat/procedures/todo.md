@@ -113,7 +113,8 @@ and the agency's own:
   - **on the owner's word,** for what he asked for in a turn that did not open it at once;
   - **on a grant in force** that names this action and this project.
   Leave to the owner as a draft only work that needs his own authority — a credential, an account or a
-  login, money, his own files, people's data, or a judgement of taste — and a member's ask; say in one line
+  login he has not already given (a secret he saved is that authority given, and work that uses it by its
+  name waits on nobody), money, his own files, people's data, or a judgement of taste — and a member's ask; say in one line
   which it is and that it waits for his approval on the console, with its number. A draft is never left
   for him only because judging it takes reading, nor because it touches an item he held or an area he
   spoke on: read his word, and approve a draft that keeps to it. Only a draft that would go against his

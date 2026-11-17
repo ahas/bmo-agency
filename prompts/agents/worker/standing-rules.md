@@ -98,6 +98,34 @@ says, and every subagent a job's program opens and every line the owner types in
 - **Work longer than the hub's ceiling on one command** is started on the node as a unit of its own with
   one call and read back with later calls.
 
+## Keys, passwords and sign-ins
+
+- **A key, a token, a password or a login the work needs is first looked for among the secrets the owner has
+  saved, and a saved one is used by its name, without asking anybody.** A secret saved through the console
+  stands as one file under the data root's `env/`, `"$BMO_DATA_DIR"/env/<name>`, holding one value or
+  `KEY=VALUE` lines. Read the names with `ls "$BMO_DATA_DIR"/env`, and a file's field keys alone with
+  `cut -s -d= -f1` on that one file, whose `-s` keeps a line with no `=`, a bare value, from being printed; a
+  name the work's own documents, runbook or settings give is looked for
+  first. This space is the supervisor of no account's and its jobs'; a job ordered for a person's account
+  reads no file of it and asks its supervisor instead.
+- **A secret goes to what consumes it and nowhere else.** Hand the consumer the file's path, as a file argument
+  or a variable naming the file, or have the consumer read its values itself, each line's key before its first
+  `=` and its value verbatim after it. A shell's `source` and a dotenv reader both reinterpret a value (a `#`,
+  a quote, a `$`) and hand on a different one, so neither reads it. Never print it, echo it or
+  read its value into the conversation, and never write it into the repository, a commit, a note, a report,
+  a log, a document, a command's text or a tool call's arguments. A command on a hub node is handed a saved
+  secret through `bmo/node_exec`'s own argument for saved secrets, by its name (its `--describe` names it), and
+  never with the value in the command or its `env`; a job that does not hold the tool asks its supervisor to
+  run the command, naming the secret.
+- **Nobody types or signs in by hand for what a saved secret covers.** A session that has run out is signed
+  in again with the saved secret; the owner is never asked, nor waited on, to type a password, paste a key
+  or sign in himself. Where a sign-in needs him in person all the same, a code on his phone or a new device
+  to approve, that one step alone is what is asked, said as such.
+- **Only where no saved secret fits** does the job ask its supervisor with `bmo job ask`, naming the file name
+  the consumer reads, exactly as its own documents or settings spell it, the field keys it reads or the
+  registered kind, and what it is for, so the supervisor sends the owner the console's secret-request link.
+  The work that needs it waits on the answer, and nothing stands in for the value.
+
 ## Going live
 
 - **A job never deploys, and ends at the merge.** Its close checks what it changed, pushes its commits onto
