@@ -21,6 +21,10 @@ pub struct RunLine {
   /// answer is a tool call written as text, or while that answer uses a banned word.
   #[serde(default)]
   pub holds_stops: bool,
+  /// Whether a bot's turn of it ends at its stop while its program's own background work still runs, that
+  /// work's finished notice carried to the room it was launched in rather than taken into a turn.
+  #[serde(default)]
+  pub background_apart: bool,
   /// What its runs may reach of the tool host; none for a line handed no tools.
   #[serde(default)]
   pub capabilities: Vec<String>,
@@ -124,6 +128,13 @@ impl RunLines {
   /// or a banned word.
   pub fn holds_stops(&self, name: &str) -> bool {
     self.line(name).is_some_and(|line| line.holds_stops)
+  }
+
+  /// Whether a bot's turn of the line ends at its stop while its program's background work runs, that work
+  /// carried apart to the room it was launched in (docs/agent-control.md, 「Background work on a line that
+  /// carries it apart」).
+  pub fn background_apart(&self, name: &str) -> bool {
+    self.line(name).is_some_and(|line| line.background_apart)
   }
 
   /// Whether a run of the line writes the deployment's agent's brain rather than its runner's.

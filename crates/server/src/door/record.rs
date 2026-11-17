@@ -747,6 +747,66 @@ fn status_tag() -> &'static Regex {
   &PATTERN
 }
 
+fn tag(name: &str) -> Regex {
+  Regex::new(&format!(r"(?s)<{name}>(.*?)</{name}>")).expect("a fixed pattern")
+}
+
+/// What a background task's notice says, as Claude Code writes the notice it hands the program: the task,
+/// the call that launched it, the status it ended on, its one-line summary, what it handed back and the file
+/// its whole output stands in. A notice saying a task was resumed names no status.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct TaskNotice {
+  pub task: String,
+  pub call: Option<String>,
+  pub status: Option<String>,
+  pub summary: Option<String>,
+  pub result: Option<String>,
+  pub output: Option<String>,
+}
+
+impl TaskNotice {
+  /// Whether the notice ends its task: it names the status the task ended on. A notice that the task was
+  /// resumed names none.
+  pub fn ended(&self) -> bool {
+    self.status.is_some()
+  }
+}
+
+/// Whether a prompt is a background task's notice the program hands itself.
+pub fn is_notice(prompt: &str) -> bool {
+  prompt.trim_start().starts_with(NOTICE_MARK)
+}
+
+/// The notice a prompt carries, or none where it is no notice or names no task. The notice is the program's
+/// own wording, read here as this repository's reading of that program.
+pub fn task_notice(prompt: &str) -> Option<TaskNotice> {
+  static TAGS: LazyLock<[Regex; 6]> =
+    LazyLock::new(|| ["task-id", "tool-use-id", "status", "summary", "result", "output-file"].map(tag));
+
+  if !is_notice(prompt) {
+    return None;
+  }
+
+  let body = notification()
+    .captures(prompt)
+    .and_then(|found| found.get(1))
+    .map_or(prompt, |body| body.as_str());
+  let read = |at: usize| {
+    tagged(body, &TAGS[at])
+      .map(|text| text.trim().to_owned())
+      .filter(|text| !text.is_empty())
+  };
+
+  Some(TaskNotice {
+    task: read(0)?,
+    call: read(1),
+    status: read(2),
+    summary: read(3),
+    result: read(4),
+    output: read(5),
+  })
+}
+
 // The work a turn walked away from. Background work is launched by a call answered at once, with a
 // line saying it now runs in the background, and ends later in a task notification naming the call
 // and the status it ended with; so what was still going is a launch this turn made with no ending
@@ -820,6 +880,72 @@ fn left_going(records: &[Value], from: usize) -> (Vec<LiveTask>, Vec<RunWorkflow
   (live, workflows)
 }
 
+/// A shell a record put in its program's background that no notice has ended yet: the task the program named
+/// it, its command and when it was called.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShellLeft {
+  pub task: String,
+  pub command: String,
+  pub at: i64,
+}
+
+/// The shells a record put in the background and no notice in it ended, read as a subagent's own record holds
+/// them: a shell call answered at once with the task it now runs as, and a notice naming that task with the
+/// status it ended on.
+pub fn shells_left(records: &[Value]) -> Vec<ShellLeft> {
+  static LAUNCHED: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)running in background with ID:?\s*([A-Za-z0-9_-]+)").expect("a fixed pattern")
+  });
+  static TASK: LazyLock<Regex> = LazyLock::new(|| tag("task-id"));
+  let mut called: HashMap<String, (String, i64)> = HashMap::new();
+  let mut launched: IndexMap<String, ShellLeft> = IndexMap::new();
+  let mut ended: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+  for record in records {
+    let at = text_of(record, "timestamp")
+      .and_then(|stamp| chrono::DateTime::parse_from_rfc3339(stamp).ok())
+      .map_or(0, |stamp| stamp.timestamp_millis());
+
+    for block in blocks_of(record) {
+      if text_of(block, "type") == Some("tool_use")
+        && text_of(block, "name") == Some("Bash")
+        && let (Some(id), Some(command)) =
+          (text_of(block, "id"), block.get("input").and_then(|input| text_of(input, "command")))
+      {
+        called.insert(id.to_owned(), (command.to_owned(), at));
+      }
+
+      if text_of(block, "type") == Some("tool_result")
+        && let Some((command, at)) = text_of(block, "tool_use_id").and_then(|id| called.get(id))
+        && let Some(task) = LAUNCHED.captures(&result_text(block)).and_then(|found| found.get(1))
+      {
+        let task = task.as_str().to_owned();
+
+        launched.insert(
+          task.clone(),
+          ShellLeft {
+            task,
+            command: command.clone(),
+            at: *at,
+          },
+        );
+      }
+    }
+
+    let whole = serde_json::to_string(record).unwrap_or_default();
+
+    for found in notification().captures_iter(&whole) {
+      let body = found.get(1).map_or("", |body| body.as_str()).replace("\\n", "\n");
+
+      if let (Some(task), Some(_)) = (tagged(&body, &TASK), tagged(&body, status_tag())) {
+        ended.insert(task.trim().to_owned());
+      }
+    }
+  }
+
+  launched.into_values().filter(|shell| !ended.contains(&shell.task)).collect()
+}
+
 fn result_text(block: &Value) -> String {
   match block.get("content") {
     Some(Value::String(text)) => text.clone(),
@@ -887,6 +1013,29 @@ fn handed_words(record: &Value) -> bool {
   !text.is_empty() && !text.starts_with(NOTICE_MARK) && !text.starts_with(INTERRUPTED_MARK)
 }
 
+/// How a round reads the turns its program opens on its own, on a background task's finished notice
+/// (docs/agent-control.md, 「The round's answer」, 「Background work on a line that carries it apart」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Notices {
+  /// The round that launched the work waits for its notice's turn and adds that turn's answer to its own: a
+  /// job's turn, and a turn of every line that does not carry its background apart.
+  Joined,
+  /// A notice's turn is no round's: the round owes it nothing, waits for none and takes nothing from it, and
+  /// a notice still queued is not words the round handed over.
+  Apart,
+}
+
+impl Notices {
+  /// How a turn of the line reads notices, as the line declares it.
+  pub fn of_line(line: &str) -> Self {
+    if policy::run_lines::RUN_LINES.background_apart(line) {
+      Self::Apart
+    } else {
+      Self::Joined
+    }
+  }
+}
+
 /// What a round of the program still has coming, out of the record it wrote since the round went in
 /// (docs/agent-control.md, 「Words that arrive while a turn is working」): the words it was handed and
 /// has not yet taken, and the turns the round owes — the one it opened with, and one more for every
@@ -894,15 +1043,18 @@ fn handed_words(record: &Value) -> bool {
 /// are taken off together and answered in one turn. A word taken inside a turn is removed rather than
 /// taken off, and opens nothing; words pulled back into the input leave nothing queued. A word pushed
 /// after the turn had ended is never queued: the program takes it straight as a prompt, so words handed
-/// over that open a stretch nothing was taken off the queue for owe a turn of their own.
+/// over that open a stretch nothing was taken off the queue for owe a turn of their own. Read with notices
+/// apart, a queued notice is no word handed over and one taken off the queue owes the round nothing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Owed {
   pub queued: u64,
   pub owed: u64,
 }
 
-pub fn turns_owed(records: &[Value]) -> Owed {
-  let mut queued: u64 = 0;
+pub fn turns_owed(records: &[Value], notices: Notices) -> Owed {
+  // What stands queued, in order, each marked by whether it is a notice: the queue is taken off from its
+  // front.
+  let mut queue: std::collections::VecDeque<bool> = std::collections::VecDeque::new();
   let mut owed: u64 = 1;
   let mut taken_since_end = false;
   // Right after an end line, until the next words handed over: whether the turn that follows was
@@ -931,12 +1083,22 @@ pub fn turns_owed(records: &[Value]) -> Owed {
       continue;
     }
 
+    let notice = queued_notice(record);
+
     match text_of(record, "operation") {
-      Some("enqueue") => queued += 1,
-      Some("remove") => queued = queued.saturating_sub(1),
-      Some("popAll") => queued = 0,
+      Some("enqueue") => queue.push_back(notice),
+      Some("remove") => {
+        let at = queue.iter().position(|queued| *queued == notice).unwrap_or(0);
+
+        queue.remove(at);
+      }
+      Some("popAll") => queue.clear(),
       Some("dequeue") => {
-        queued = queued.saturating_sub(1);
+        let taken_notice = queue.pop_front().unwrap_or(false);
+
+        if notices == Notices::Apart && taken_notice {
+          continue;
+        }
 
         if !taken_since_end {
           owed += 1;
@@ -948,7 +1110,34 @@ pub fn turns_owed(records: &[Value]) -> Owed {
     }
   }
 
-  Owed { queued, owed }
+  let queued = match notices {
+    Notices::Joined => queue.len(),
+    Notices::Apart => queue.iter().filter(|notice| !**notice).count(),
+  };
+
+  Owed {
+    queued: queued as u64,
+    owed,
+  }
+}
+
+// Whether a queued entry is a background task's notice rather than words handed over: the program writes the
+// notice it queues whole.
+fn queued_notice(record: &Value) -> bool {
+  text_of(record, "content").is_some_and(|content| content.trim_start().starts_with(NOTICE_MARK))
+}
+
+/// Whether the program's foreground is at rest, read off the record alone where a background task of its
+/// own keeps its screen reading as working: the last line of the conversation, notices queued or taken up
+/// inside a turn passed over, is a turn's end, and no word handed over still waits in its queue.
+pub fn rests_apart(records: &[Value]) -> bool {
+  let last = records.iter().rev().find(|record| {
+    is_turn_end(record)
+      || matches!(kind(record), Some("user" | "assistant"))
+      || (kind(record) == Some("queue-operation") && !queued_notice(record))
+  });
+
+  last.is_some_and(is_turn_end) && turns_owed(records, Notices::Apart).queued == 0
 }
 
 /// Where a round of the program stands.
@@ -961,9 +1150,9 @@ pub enum RoundState {
 
 /// A round of the program read out of what its record gained since it went in: where it stands, and
 /// the answer built turn by turn — a turn opened by words handed over writes the reply again whole and
-/// replaces it, and a turn the program opened on a background task's notice adds to it — with each
-/// turn's answer it was built from, in order. A round with an error in the answer's place answers
-/// nothing.
+/// replaces it, and a turn the program opened on a background task's notice adds to it, or, read with
+/// notices apart, is passed over — with each turn's answer it was built from, in order. A round with an
+/// error in the answer's place answers nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Round {
   pub state: RoundState,
@@ -971,9 +1160,9 @@ pub struct Round {
   pub answers: Vec<TurnAnswer>,
 }
 
-pub fn read_round(records: &[Value]) -> Round {
+pub fn read_round(records: &[Value], notices: Notices) -> Round {
   let whole = read_turn(records, 0);
-  let Owed { queued, owed } = turns_owed(records);
+  let Owed { queued, owed } = turns_owed(records, notices);
   let mut ends: u64 = 0;
   let mut last_end: Option<usize> = None;
   let mut last_interrupt: Option<usize> = None;
@@ -989,9 +1178,10 @@ pub fn read_round(records: &[Value]) -> Round {
       let turn = &records[from..=at];
       let text = read_turn(turn, 0).text;
 
-      if !text.is_empty() {
-        let opened = if turn.iter().any(handed_words) { Opened::Handed } else { Opened::Program };
+      let opened = if turn.iter().any(handed_words) { Opened::Handed } else { Opened::Program };
 
+      // Read with notices apart, a turn the program opened on its own is no round's.
+      if !text.is_empty() && !(notices == Notices::Apart && opened == Opened::Program) {
         answer = if answer.is_empty() || opened == Opened::Handed {
           text.clone()
         } else {
@@ -1011,7 +1201,17 @@ pub fn read_round(records: &[Value]) -> Round {
     (Some(_), None) => true,
     _ => false,
   };
-  let ended = !interrupted && queued == 0 && ends >= owed;
+  // Read with notices apart, the round is over once the last words it handed over are answered: every word
+  // taken, and the turn the last of them went into ended. Turns the program opened on its own are not counted.
+  let ended = !interrupted
+    && queued == 0
+    && match notices {
+      Notices::Joined => ends >= owed,
+      Notices::Apart => records
+        .iter()
+        .rposition(handed_words)
+        .is_some_and(|at| records[at..].iter().any(is_turn_end)),
+    };
 
   Round {
     state: if interrupted {

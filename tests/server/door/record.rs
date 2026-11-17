@@ -275,9 +275,13 @@ fn words(text: &str) -> Value {
 
 #[test]
 fn a_round_is_going_until_its_end_line_and_a_word_taken_inside_it_leaves_nothing_queued() {
-  assert_eq!(read_round(&[json!({ "type": "user" }), step("a")]).state, RoundState::Working);
+  assert_eq!(
+    read_round(&[json!({ "type": "user" }), step("a")], Notices::Joined).state,
+    RoundState::Working
+  );
 
-  let done = read_round(&[json!({ "type": "user" }), step("a"), response("b", "answer"), end()]);
+  let done =
+    read_round(&[json!({ "type": "user" }), step("a"), response("b", "answer"), end()], Notices::Joined);
 
   assert_eq!((done.state, done.text.as_str()), (RoundState::Ended, "answer"));
   assert_eq!(
@@ -295,21 +299,21 @@ fn a_round_is_going_until_its_end_line_and_a_word_taken_inside_it_leaves_nothing
     end(),
   ];
 
-  assert_eq!(turns_owed(&lines).queued, 0);
-  assert_eq!(read_round(&lines).state, RoundState::Ended);
+  assert_eq!(turns_owed(&lines, Notices::Joined).queued, 0);
+  assert_eq!(read_round(&lines, Notices::Joined).state, RoundState::Ended);
 }
 
 #[test]
 fn a_word_pushed_after_the_last_tool_call_opens_a_turn_of_its_own_and_the_round_answers_with_the_last() {
   let lines = vec![step("a"), queue("enqueue"), response("b", "first answer"), end()];
 
-  assert_eq!(turns_owed(&lines).queued, 1);
-  assert_eq!(read_round(&lines).state, RoundState::Working);
+  assert_eq!(turns_owed(&lines, Notices::Joined).queued, 1);
+  assert_eq!(read_round(&lines, Notices::Joined).state, RoundState::Working);
 
   let after = [lines, vec![queue("dequeue"), words("WORD-X"), response("c", "PINEAPPLE"), end()]].concat();
-  let round = read_round(&after);
+  let round = read_round(&after, Notices::Joined);
 
-  assert_eq!(turns_owed(&after).queued, 0);
+  assert_eq!(turns_owed(&after, Notices::Joined).queued, 0);
   assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, "PINEAPPLE"));
 }
 
@@ -331,7 +335,7 @@ fn a_round_hands_on_each_turns_answer_with_what_opened_the_turn() {
     response("d", "the task finished"),
     end(),
   ];
-  let round = read_round(&lines);
+  let round = read_round(&lines, Notices::Joined);
 
   assert_eq!(round.text, "<<SKIP: nothing new>>\n\nthe task finished");
   assert_eq!(
@@ -371,8 +375,8 @@ fn words_that_waited_together_open_one_turn_and_an_answer_written_again_goes_out
     end(),
   ];
 
-  assert_eq!(turns_owed(&lines).queued, 0);
-  assert_eq!(read_round(&lines).state, RoundState::Working);
+  assert_eq!(turns_owed(&lines, Notices::Joined).queued, 0);
+  assert_eq!(read_round(&lines, Notices::Joined).state, RoundState::Working);
 
   let after = [
     lines,
@@ -386,7 +390,7 @@ fn words_that_waited_together_open_one_turn_and_an_answer_written_again_goes_out
     ],
   ]
   .concat();
-  let round = read_round(&after);
+  let round = read_round(&after, Notices::Joined);
 
   assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, "both words"));
 
@@ -407,7 +411,7 @@ fn words_that_waited_together_open_one_turn_and_an_answer_written_again_goes_out
     stop_summary,
     end(),
   ];
-  let round = read_round(&lines);
+  let round = read_round(&lines, Notices::Joined);
 
   assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, rewritten.as_str()));
 }
@@ -428,10 +432,10 @@ fn turns_owed_count_stretches_words_taken_straight_and_words_pulled_back() {
     words("WORD-Y"),
   ];
 
-  assert_eq!(turns_owed(&lines), Owed { queued: 0, owed: 3 });
-  assert_eq!(read_round(&lines).state, RoundState::Working);
+  assert_eq!(turns_owed(&lines, Notices::Joined), Owed { queued: 0, owed: 3 });
+  assert_eq!(read_round(&lines, Notices::Joined).state, RoundState::Working);
   assert_eq!(
-    read_round(&[lines, vec![response("d", "three"), end()]].concat()).state,
+    read_round(&[lines, vec![response("d", "three"), end()]].concat(), Notices::Joined).state,
     RoundState::Ended
   );
 
@@ -443,10 +447,10 @@ fn turns_owed_count_stretches_words_taken_straight_and_words_pulled_back() {
     words("More for the answer you are making now: 2 new message(s)"),
   ];
 
-  assert_eq!(turns_owed(&lines), Owed { queued: 0, owed: 2 });
-  assert_eq!(read_round(&lines).state, RoundState::Working);
+  assert_eq!(turns_owed(&lines, Notices::Joined), Owed { queued: 0, owed: 2 });
+  assert_eq!(read_round(&lines, Notices::Joined).state, RoundState::Working);
 
-  let ended = read_round(&[lines, vec![response("b", "rewritten"), end()]].concat());
+  let ended = read_round(&[lines, vec![response("b", "rewritten"), end()]].concat(), Notices::Joined);
 
   assert_eq!((ended.state, ended.text.as_str()), (RoundState::Ended, "rewritten"));
 
@@ -459,8 +463,8 @@ fn turns_owed_count_stretches_words_taken_straight_and_words_pulled_back() {
     end(),
   ];
 
-  assert_eq!(turns_owed(&pulled), Owed { queued: 0, owed: 1 });
-  assert_eq!(read_round(&pulled).state, RoundState::Ended);
+  assert_eq!(turns_owed(&pulled, Notices::Joined), Owed { queued: 0, owed: 1 });
+  assert_eq!(read_round(&pulled, Notices::Joined).state, RoundState::Ended);
 }
 
 #[test]
@@ -470,7 +474,7 @@ fn an_escape_is_an_interrupted_round_and_the_program_s_error_answers_nothing() {
     json!({ "type": "user", "message": { "content": [{ "type": "text", "text": "[Request interrupted by user for tool use]" }] } }),
   ];
 
-  assert_eq!(read_round(&escaped).state, RoundState::Interrupted);
+  assert_eq!(read_round(&escaped, Notices::Joined).state, RoundState::Interrupted);
 
   let failed = json!({ "type": "assistant", "isApiErrorMessage": true, "message": { "id": "e", "model": "<synthetic>", "content": [{ "type": "text", "text": "API Error: 529 Overloaded" }] } });
 
@@ -480,7 +484,7 @@ fn an_escape_is_an_interrupted_round_and_the_program_s_error_answers_nothing() {
   );
   // An error line that names no kind has none.
   assert_eq!(read_turn(&[failed.clone(), end()], 0).error_kind, None);
-  assert_eq!(read_round(&[failed, end()]).text, "");
+  assert_eq!(read_round(&[failed, end()], Notices::Joined).text, "");
 }
 
 // The 429 a full window answers with, as Claude Code writes it into the record before standing at its own
@@ -754,4 +758,121 @@ fn a_command_s_closing_and_the_compacted_marker_are_read_after_the_point_named()
   assert!(!command_closing_since(&[caveat, word.clone()], 1));
   assert!(compacted_since(&[word.clone(), boundary.clone()], 0));
   assert!(!compacted_since(&[boundary, word], 1));
+}
+
+const NOTICE: &str = "<task-notification>\n<task-id>a60</task-id>\n<tool-use-id>toolu_1</tool-use-id>\n<output-file>/tmp/s/tasks/a60.output</output-file>\n<status>completed</status>\n<summary>Agent \"Split\" finished</summary>\n<result>Six sets made.\nAll owned.</result>\n</task-notification>";
+
+fn queued(operation: &str, content: &str) -> Value {
+  json!({ "type": "queue-operation", "operation": operation, "content": content })
+}
+
+/// read with notices apart, a round ends at its own turn's end, a notice queued after it is no word it handed
+/// over, and the turn the program opens on that notice is no round's: it owes it nothing and takes nothing from
+/// it; read joined, the same notice holds the round and adds its answer, as a job's turn reads it
+#[test]
+fn a_round_read_with_notices_apart_ends_at_its_own_turn_and_takes_nothing_from_a_notice_s_turn() {
+  let answered = vec![words("[chat:1] the round"), response("a", "the answer"), end()];
+  let queued_after = [answered.clone(), vec![queued("enqueue", NOTICE)]].concat();
+
+  assert_eq!(read_round(&queued_after, Notices::Apart).state, RoundState::Ended);
+  assert_eq!(turns_owed(&queued_after, Notices::Apart).queued, 0);
+  assert_eq!(read_round(&queued_after, Notices::Joined).state, RoundState::Working);
+
+  let notice_turn = [
+    queued_after.clone(),
+    vec![queued("dequeue", ""), words(NOTICE), response("b", "noted"), end()],
+  ]
+  .concat();
+  let apart = read_round(&notice_turn, Notices::Apart);
+  let joined = read_round(&notice_turn, Notices::Joined);
+
+  assert_eq!(
+    (apart.state, apart.text.as_str(), apart.answers.len()),
+    (RoundState::Ended, "the answer", 1)
+  );
+  assert_eq!((joined.state, joined.text.as_str()), (RoundState::Ended, "the answer\n\nnoted"));
+}
+
+/// read with notices apart, a round whose words went in while a notice's turn worked waits for the turn its
+/// words were taken into, and answers with that turn alone
+#[test]
+fn a_round_whose_words_wait_behind_a_notice_s_turn_ends_with_the_turn_they_went_into() {
+  let behind = vec![queued("enqueue", "[chat:2] the round"), words(NOTICE), response("a", "noted"), end()];
+
+  assert_eq!(turns_owed(&behind, Notices::Apart).queued, 1);
+  assert_eq!(read_round(&behind, Notices::Apart).state, RoundState::Working);
+
+  let taken = [
+    behind,
+    vec![queued("dequeue", ""), words("[chat:2] the round"), response("b", "the answer"), end()],
+  ]
+  .concat();
+  let round = read_round(&taken, Notices::Apart);
+
+  assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, "the answer"));
+}
+
+/// the foreground rests, read off the record, where its last line of the conversation is a turn's end, a notice
+/// queued or taken up inside a turn passed over, and no word handed over waits in the queue
+#[test]
+fn the_foreground_rests_on_a_turn_s_end_whatever_notices_come_after_it() {
+  let ended = vec![words("the round"), response("a", "the answer"), end()];
+
+  assert!(rests_apart(&ended));
+  assert!(rests_apart(
+    &[ended.clone(), vec![queued("enqueue", NOTICE), queued("remove", NOTICE)]].concat()
+  ));
+  assert!(!rests_apart(&[ended.clone(), vec![queued("enqueue", "more words")]].concat()));
+  assert!(!rests_apart(&[ended, vec![words(NOTICE), step("b")]].concat()));
+}
+
+/// reads what a background task's notice says, and nothing from a prompt that is no notice
+#[test]
+fn a_task_notice_is_read_for_its_task_status_result_and_output() {
+  let notice = task_notice(NOTICE).unwrap();
+
+  assert_eq!(notice.task, "a60");
+  assert_eq!(notice.call.as_deref(), Some("toolu_1"));
+  assert_eq!(notice.status.as_deref(), Some("completed"));
+  assert_eq!(notice.result.as_deref(), Some("Six sets made.\nAll owned."));
+  assert_eq!(notice.output.as_deref(), Some("/tmp/s/tasks/a60.output"));
+  assert!(notice.ended());
+
+  let resumed = task_notice(
+    "<task-notification>\n<task-id>a60</task-id>\n<summary>resumed</summary>\n</task-notification>",
+  );
+
+  assert!(!resumed.unwrap().ended());
+  assert!(!is_notice("the round") && task_notice("the round").is_none());
+}
+
+/// reads the shells a subagent's own record put in the background that no notice in it has ended
+#[test]
+fn a_subagent_s_background_shells_are_those_no_notice_ended() {
+  let call = |id: &str, command: &str| {
+    json!({ "type": "assistant", "isSidechain": true, "timestamp": "2026-11-17T13:30:00Z", "message": { "content": [
+      { "type": "tool_use", "id": id, "name": "Bash", "input": { "command": command, "run_in_background": true } }
+    ] } })
+  };
+  let launched = |id: &str, task: &str| {
+    json!({ "type": "user", "isSidechain": true, "message": { "content": [
+      { "type": "tool_result", "tool_use_id": id, "content": format!("Command running in background with ID: {task}") }
+    ] } })
+  };
+  let left = shells_left(&[
+    call("t1", "find / -name x"),
+    launched("t1", "bfind"),
+    call("t2", "while pgrep -f find; do sleep 5; done"),
+    launched("t2", "bwait"),
+    queued(
+      "enqueue",
+      "<task-notification>\n<task-id>bfind</task-id>\n<status>completed</status>\n</task-notification>",
+    ),
+  ]);
+
+  assert_eq!(left.len(), 1);
+  assert_eq!(
+    (left[0].task.as_str(), left[0].command.as_str()),
+    ("bwait", "while pgrep -f find; do sleep 5; done")
+  );
 }

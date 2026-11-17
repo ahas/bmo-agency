@@ -369,6 +369,36 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  let background = ground.clone();
+  let background_watch =
+    Arc::new(tokio::sync::Mutex::new(agency_server::watches::background_work::Watch::default()));
+
+  // Every supervisor's background work after the turn that launched it: told to its room as it ends or is lost,
+  // and held to the call clock while it runs.
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::background_work::BACKGROUND_WORK.look_seconds);
+
+    every("background work", Duration::ZERO, period, move || {
+      let ground = background.clone();
+      let watch = background_watch.clone();
+
+      async move {
+        let mut watch = watch.lock().await;
+
+        agency_server::watches::background_work::pass(
+          &ground.db,
+          ground.vars(),
+          &ground.roots.data,
+          &mut watch,
+        )
+        .await;
+
+        Ok(())
+      }
+    })
+    .await
+  });
+
   let owed = ground.clone();
 
   // The outbox's sender: the standing notices whose condition ended let go first, then every row due sent.

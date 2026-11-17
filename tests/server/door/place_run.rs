@@ -315,3 +315,53 @@ fn the_run_s_variables_go_into_the_place_and_the_program_s_environment_keeps_non
     BTreeMap::from([("PATH".to_owned(), "/bin".to_owned()), (PLACE_VARIABLE.to_owned(), "/p".to_owned())])
   );
 }
+
+fn ended_record() -> Vec<Value> {
+  vec![
+    serde_json::json!({ "type": "user", "message": { "content": "the round" } }),
+    serde_json::json!({ "type": "assistant", "message": { "content": [{ "type": "text", "text": "the answer" }] } }),
+    serde_json::json!({ "type": "system", "subtype": "turn_duration" }),
+  ]
+}
+
+/// the foreground rests, whatever the screen reads, once the place's last call bounding a turn is a stop stamped
+/// since the moment asked and the record ends on a turn's end; a submit after it, or a stop before that moment,
+/// is not rest
+#[test]
+fn the_foreground_rests_on_a_stop_since_the_prompt_and_a_record_ended() {
+  let dir = place();
+  let running =
+    serde_json::json!({ "background_tasks": [{ "id": "a60", "type": "subagent", "status": "running" }] });
+
+  record_call(dir.path(), "submit", &Value::Null, 10, false, None).unwrap();
+  assert!(!foreground_rests(dir.path(), &ended_record(), 0), "a turn going");
+
+  record_call(dir.path(), "stop", &running, 20, false, None).unwrap();
+  assert!(foreground_rests(dir.path(), &ended_record(), 15));
+  assert!(!foreground_rests(dir.path(), &ended_record(), 25), "a stop before the prompt");
+  assert!(!foreground_rests(dir.path(), &ended_record()[..2], 15), "a record still writing");
+
+  record_call(dir.path(), "submit", &Value::Null, 30, false, None).unwrap();
+  assert!(!foreground_rests(dir.path(), &ended_record(), 15), "a turn going again");
+}
+
+/// the tasks a stop ends are those the last stop named running that nothing in the background record ended since,
+/// and once written stopped they are no longer among them
+#[test]
+fn a_stop_ends_what_the_last_stop_named_running_and_nothing_since_ended() {
+  let dir = place();
+  let stop = serde_json::json!({ "background_tasks": [
+    { "id": "a60", "type": "subagent", "status": "running", "description": "split" },
+    { "id": "b1", "type": "shell", "status": "running", "description": "find" },
+    { "id": "b2", "type": "shell", "status": "completed", "description": "done" },
+  ] });
+
+  record_call(dir.path(), "stop", &stop, 10, false, None).unwrap();
+
+  let ids = |tasks: Vec<RunningTask>| tasks.into_iter().map(|task| task.id).collect::<Vec<_>>();
+
+  assert_eq!(ids(last_stop_tasks(dir.path())), ["a60", "b1"]);
+
+  write_stopped(dir.path(), &["b1".to_owned()], 11).unwrap();
+  assert_eq!(ids(last_stop_tasks(dir.path())), ["a60"]);
+}

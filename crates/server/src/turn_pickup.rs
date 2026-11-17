@@ -30,8 +30,8 @@ use crate::door::inbox::{
 };
 use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
 use crate::door::record::{
-  CLAUDE_CODE, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round, read_turn,
-  turn_closed_since, turn_error,
+  CLAUDE_CODE, Notices, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round,
+  read_turn, turn_closed_since, turn_error,
 };
 use crate::door::tool_clock::{CallVerdict, ClockNote, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
@@ -260,12 +260,23 @@ fn standing_on_hooks(place: &Place, turn: &InFlight) -> Standing {
     .unwrap_or_default();
   let failure = latest_failure(&place.path, run.started_at).map(|failure| failure.failure());
 
-  Standing::Ended(came_of(&lines, &named("session_id").unwrap_or_default(), failure))
+  let notices = if crate::lines::place::carries_background(&place.path) {
+    Notices::Apart
+  } else {
+    Notices::Joined
+  };
+
+  Standing::Ended(came_of(&lines, &named("session_id").unwrap_or_default(), failure, notices))
 }
 
 // How a Claude Code turn came out, read from its transcript's lines since it went in: its error, the
 // failure its place recorded, no answer, or its round's answer.
-fn came_of(lines: &[Value], session: &str, failure: Option<(String, Option<String>)>) -> Came {
+fn came_of(
+  lines: &[Value],
+  session: &str,
+  failure: Option<(String, Option<String>)>,
+  notices: Notices,
+) -> Came {
   let read = read_turn(lines, 0);
   let answered = answered_since(lines, 0);
 
@@ -278,7 +289,7 @@ fn came_of(lines: &[Value], session: &str, failure: Option<(String, Option<Strin
   }
 
   let mut reply = read.reply(session, read.spend.clone());
-  let round = read_round(lines);
+  let round = read_round(lines, notices);
 
   if !round.text.is_empty() {
     reply.text = round.text;
@@ -415,12 +426,13 @@ pub fn standing_in_pane(pane: &OwnPane) -> Standing {
     return Standing::Lost;
   }
 
-  let round = read_round(&lines);
+  // A pane of its own carries a role's turn, whose line never carries its background apart.
+  let round = read_round(&lines, Notices::Joined);
 
   match round.state {
     RoundState::Interrupted => Standing::Ended(Came::Failed("the turn was interrupted".to_owned())),
     RoundState::Ended if turn_closed_since(&lines, 0) => {
-      Standing::Ended(came_of(&lines, &pane.session, None))
+      Standing::Ended(came_of(&lines, &pane.session, None, Notices::Joined))
     }
     _ if pane.program.as_ref().is_some_and(crate::door::liveness::alive_here) => Standing::Going,
     _ => Standing::Ended(Came::Failed(GONE.to_owned())),

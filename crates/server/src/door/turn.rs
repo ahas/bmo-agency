@@ -41,13 +41,15 @@ use super::looks::{
 };
 use super::node_take::{NodeTake, Take};
 use super::place_run::{
-  HookRecord, ProgramLogin, begin_run, end_run, hand_run, hooks_file, latest_failure, program_drawn,
-  read_hooks, read_run, run_variables, status_after_turn, status_file,
+  HookRecord, ProgramLogin, begin_run, end_run, foreground_rests, hand_run, hooks_file, last_stop_tasks,
+  latest_failure, program_drawn, read_hooks, read_run, run_variables, status_after_turn, status_file,
+  write_stopped,
 };
 use super::record::{
-  ChildReader, ModelSpend, Reply, ReplyWindow, RoundState, Tail, answered_since, command_closing_since,
-  command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity, prompted_since,
-  read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed, word_written_down,
+  ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
+  command_closing_since, command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity,
+  prompted_since, read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed,
+  word_written_down,
 };
 use super::stand::{Interrupt, interrupt_program, person_turn_done, stand_resident, stood_again};
 use crate::control::claude_accounts;
@@ -540,6 +542,8 @@ struct Door<'a, W: Watch> {
   judge: Judge,
   // The bound a standing program on a node is held to until it takes the turn; none here and once it has.
   node_take: Option<NodeTake>,
+  // How the turn's rounds read the turns its program opens on its own, as its line declares.
+  notices: Notices,
 }
 
 // What the wait for a program to be told something came to: ready, as a look read it with the screen it kept, or
@@ -960,6 +964,138 @@ impl<W: Watch> Door<'_, W> {
     true
   }
 
+  // A look at the pane as the turn reads it. On a line that carries its program's background apart, a
+  // working reading while the program's foreground has rested since `since` is its background work's, and
+  // is read as at rest (docs/agent-control.md, 「Background work on a line that carries it apart」).
+  async fn look(&mut self, pane: &str, confirm: GoneConfirm, since: i64) -> Look {
+    let now = status_of(self.herdr, pane, confirm).await;
+    let Some(place) = self.standing.as_ref().map(|(place, _)| place.path.clone()) else {
+      return now;
+    };
+
+    if self.notices == Notices::Apart && now.is("working") && foreground_rests(&place, &self.lines(), since)
+    {
+      return Look::Status("idle".to_owned());
+    }
+
+    now
+  }
+
+  // Before anything is typed into a program that carries its background apart, its input taken back to the
+  // main conversation where its screen addresses one of its background agents: the list opened, its cursor
+  // moved up to the main row and that row taken, the screen read after each key. Answers whether the input
+  // addresses the main conversation now.
+  async fn input_on_main(&mut self, pane: &str) -> bool {
+    let words = &DOOR_WORDS.agent_view;
+
+    if self.notices != Notices::Apart || self.standing.is_none() {
+      return true;
+    }
+
+    let mut moved = false;
+
+    for _ in 0..words.steps {
+      let screen = self.screen(pane).await;
+
+      if !screen.contains(&words.addressed) {
+        if moved {
+          self.watch.note(&words.returned).await;
+        }
+
+        return true;
+      }
+
+      let on_main = screen.lines().any(|line| {
+        line.trim_start().strip_prefix(words.cursor.as_str()).is_some_and(|row| {
+          row.trim_start_matches(|one: char| one.is_whitespace() || "◯●".contains(one)).trim()
+            == words.main_row
+        })
+      });
+      let key = if on_main {
+        &words.take
+      } else if screen.contains(&words.list_focused) {
+        &words.up
+      } else {
+        &words.open_list
+      };
+
+      moved = true;
+      let _ = send_keys(self.herdr, pane, &[key.as_str()]).await;
+      tokio::time::sleep(self.turn.timings.poll).await;
+    }
+
+    let screen = self.screen(pane).await;
+
+    if screen.contains(&words.addressed) {
+      return false;
+    }
+
+    self.watch.note(&words.returned).await;
+    true
+  }
+
+  // On a stop of a turn on a line that carries its background apart, the background work the place's last stop
+  // named running ended within the policy's bound: written down as stopped first, then, where a subagent is
+  // among it, the program itself ended, which takes its subagents and shells with it, and otherwise the shells'
+  // own processes; every process of the work still standing is then ended, a polite end and a kill past the
+  // grace. The note names what was ended and what could not be. A place on a node is reached through the
+  // program's end alone.
+  async fn end_background(&mut self, pane: &str) {
+    use policy::background_work::BACKGROUND_WORK;
+
+    let Some((place, home)) = self.standing.as_ref() else { return };
+    let tasks = last_stop_tasks(&place.path);
+
+    if tasks.is_empty() {
+      return;
+    }
+
+    let ids: Vec<String> = tasks.iter().map(|task| task.id.clone()).collect();
+    let named = tasks
+      .iter()
+      .map(|task| format!("{} ({} {})", task.id, task.kind, task.description))
+      .collect::<Vec<_>>()
+      .join("; ");
+    let bound = Duration::from_secs(BACKGROUND_WORK.stop_bound_seconds);
+    let grace = Duration::from_millis(BACKGROUND_WORK.stop_grace_ms);
+    let subagent = tasks.iter().any(|task| task.kind != "shell");
+    let local = place.node().is_none();
+    let program = place.program_alive().map(|running| running.pid);
+
+    if let Err(why) = write_stopped(&place.path, &ids, now_ms()) {
+      eprintln!("{}: the background record: {why}", self.turn.name);
+    }
+
+    let words = &DOOR_WORDS.background_stop;
+    let (pids, said) = if subagent {
+      let pids = program.filter(|_| local).map(super::tool_clock::tree_processes).unwrap_or_default();
+      let _ =
+        tokio::time::timeout(bound, interrupt_program(place, home, pane, &Interrupt::EndProgram)).await;
+
+      (pids, fill_marks(&words.ended_program, &[("tasks", &named)]))
+    } else {
+      let pids = program
+        .filter(|_| local)
+        .map(|program| super::tool_clock::task_processes(program, &ids));
+
+      (pids.unwrap_or_default(), fill_marks(&words.ended_shells, &[("tasks", &named)]))
+    };
+    let left = tokio::time::timeout(bound, super::tool_clock::end_processes(&pids, grace))
+      .await
+      .unwrap_or(pids);
+
+    println!("{}: {said}", self.turn.name);
+    self.watch.note(&said).await;
+
+    if !left.is_empty() {
+      let pids = left.iter().map(i32::to_string).collect::<Vec<_>>().join(", ");
+      let said = fill_marks(&words.left, &[("pids", &pids)]);
+
+      println!("{}: {said}", self.turn.name);
+      self.watch.note(&said).await;
+    }
+  }
+
   // Waiting for the program to be ready to be told something, keeping what its screen said meanwhile —
   // the most worth reading is said by a program about to be gone. The wait lasts until the program is at
   // rest, stands at a question, or its pane is gone, and a herdr that does not answer is waited out. A
@@ -977,7 +1113,7 @@ impl<W: Watch> Door<'_, W> {
         return Ok(Rest::Overdue(why));
       }
 
-      let now = status_of(self.herdr, pane, timings.gone).await;
+      let now = self.look(pane, timings.gone, i64::MIN).await;
 
       if now == Look::Gone {
         return Ok(Rest::Ready(now, screen));
@@ -1034,7 +1170,7 @@ impl<W: Watch> Door<'_, W> {
         return Submit::Seen;
       }
 
-      let now = status_of(self.herdr, pane, GoneConfirm::default()).await;
+      let now = self.look(pane, GoneConfirm::default(), i64::MIN).await;
 
       if now.is("working") {
         return Submit::Working;
@@ -1064,12 +1200,17 @@ impl<W: Watch> Door<'_, W> {
     let run = self.standing.as_ref().and_then(|(place, _)| read_run(&place.path));
     let records = self.lines();
     let over = run.is_some_and(|run| run.person || run.ended_at.is_some())
-      || read_round(records.get(from..).unwrap_or_default()).state != RoundState::Working;
+      || read_round(records.get(from..).unwrap_or_default(), self.notices).state != RoundState::Working;
     let at = records.len();
     let said = if over {
       Err(Fault {
         code: "turn_ended".to_owned(),
         message: "the turn ended before the words could go in".to_owned(),
+      })
+    } else if !self.input_on_main(pane).await {
+      Err(Fault {
+        code: "agent_view".to_owned(),
+        message: DOOR_WORDS.agent_view.stuck.clone(),
       })
     } else {
       prompt_with_lead(self.herdr, pane, &self.turn.lead, text).await
@@ -1103,7 +1244,7 @@ impl<W: Watch> Door<'_, W> {
   fn round_state(&mut self, from: usize) -> RoundState {
     let records = self.lines();
 
-    read_round(records.get(from..).unwrap_or_default()).state
+    read_round(records.get(from..).unwrap_or_default(), self.notices).state
   }
 }
 
@@ -1253,6 +1394,7 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     program: None,
     judge: Judge::default(),
     node_take: None,
+    notices: Notices::of_line(&turn.line),
   };
 
   door.node_take = door
@@ -1699,6 +1841,16 @@ async fn watch_turn<W: Watch>(
     door.liveness.phase(Phase::Prompting);
     door.liveness.write(&door.ground.db).await;
 
+    // Nothing is typed where the program's input addresses one of its background agents.
+    if !door.input_on_main(pane).await {
+      *ending = End::Cancelled;
+
+      let shown = door.screen(pane).await;
+      let screen = door.kept_screen(&DOOR_WORDS.agent_view.stuck, shown).await;
+
+      return Ok(Ending::Blocked { screen });
+    }
+
     let sent = if turn.prompt.starts_with('/') {
       prompt(door.herdr, pane, &turn.prompt).await
     } else if door.standing.is_some() {
@@ -1954,7 +2106,7 @@ async fn watch_turn<W: Watch>(
       }
 
       if stop_asked {
-        let standing = status_of(door.herdr, pane, GoneConfirm::default()).await;
+        let standing = door.look(pane, GoneConfirm::default(), prompted_at).await;
 
         // A job told to stop ends its turn itself; a herdr that does not answer has not said it has.
         if asks_first && (standing.is("working") || matches!(standing, Look::Silent(_))) {
@@ -1968,7 +2120,7 @@ async fn watch_turn<W: Watch>(
           // The row closes as a stop on the interrupted marker the program writes, looked for until it
           // is written or the program reads at rest or gone.
           while door.round_state(from) == RoundState::Working
-            && status_of(door.herdr, pane, GoneConfirm::default()).await.is("working")
+            && door.look(pane, GoneConfirm::default(), prompted_at).await.is("working")
           {
             tokio::time::sleep(every).await;
           }
@@ -1983,6 +2135,12 @@ async fn watch_turn<W: Watch>(
 
       let shown = door.screen(pane).await;
       let screen = door.kept_screen(&DOOR_WORDS.screens.stopped, shown).await;
+
+      // What the program left running in its own background ends with the stop on a line that carries it
+      // apart.
+      if door.notices == Notices::Apart {
+        door.end_background(pane).await;
+      }
 
       return Ok(Ending::Stopped { screen });
     }
@@ -2072,7 +2230,7 @@ async fn watch_turn<W: Watch>(
       return Ok(door.lost(pane, Lost::Program, "").await);
     }
 
-    let now = status_of(door.herdr, pane, timings.gone).await;
+    let now = door.look(pane, timings.gone, prompted_at).await;
 
     door.looked(&now).await;
 
@@ -2285,7 +2443,7 @@ async fn watch_turn<W: Watch>(
         break;
       }
 
-      let now = status_of(door.herdr, pane, GoneConfirm::default()).await;
+      let now = door.look(pane, GoneConfirm::default(), prompted_at).await;
 
       door.looked(&now).await;
 
@@ -2326,11 +2484,11 @@ async fn watch_turn<W: Watch>(
       let records = door.lines();
       let round = records.get(from..).unwrap_or_default();
 
-      if read_round(round).state != RoundState::Working {
+      if read_round(round, door.notices).state != RoundState::Working {
         break;
       }
 
-      let now = status_of(door.herdr, pane, GoneConfirm::default()).await;
+      let now = door.look(pane, GoneConfirm::default(), prompted_at).await;
 
       // A program gone owes nothing more.
       if now == Look::Gone || !door.program_stands(pane).await {
@@ -2339,7 +2497,7 @@ async fn watch_turn<W: Watch>(
 
       if now.at_rest() && ends_on_turn_end(round) {
         if rested_at == Some(records.len()) {
-          let owed = turns_owed(round);
+          let owed = turns_owed(round, door.notices);
           let ended = round
             .iter()
             .filter(|record| {
@@ -2456,7 +2614,7 @@ async fn watch_turn<W: Watch>(
       .collect(),
     _ => read.spend.clone(),
   };
-  let round = read_round(records.get(from..).unwrap_or_default());
+  let round = read_round(records.get(from..).unwrap_or_default(), door.notices);
   let answered_by = wrote.clone().or_else(|| account_of_login(&accounts, &login, data));
 
   door.close("exited").await;

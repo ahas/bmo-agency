@@ -182,10 +182,8 @@ This is agency's own hook, not the job guard's: it stands whether or not the dep
   redirect, a heredoc and a here-string still feed the command they stand on.
 - **Where it stands.** It is among the hooks of every place's settings: a supervisor's place, a standing
   worker's, a worker session's, and the thrown-away place a run in a pane of its own is given for its hooks
-  where its line holds its stops, as the worker line does. On a supervisor's program it also reads the
-  program's subagent calls, and refuses a command that starts Claude Code (`docs/agents.md`, 「No print
-  mode」) and a shell call or a subagent asked to run in the program's own background, naming the road a
-  supervisor's long work takes instead (`docs/supervisors.md`, 「A supervisor's long work」). A run in a
+  where its line holds its stops, as the worker line does. On a supervisor's program it also refuses a
+  command that starts Claude Code (`docs/agents.md`, 「No print mode」). A run in a
   pane of its own on a line that holds no stops, and a runner line's program, which is handed no settings,
   hold no such hook.
 - **The tool's wait does not end such a command.** The worker's settings set the tool's wait, the

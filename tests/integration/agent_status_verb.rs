@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use agency_server::door::place_run::{
-  begin_run, end_run, hand_run, person_submits, read_hooks, read_run, read_status,
+  BackgroundLine, begin_run, end_run, hand_run, person_submits, read_background, read_hooks, read_run,
+  read_status,
 };
 use agency_server::verbs::agent_status::{
   Asked, CLOSED_INPUT, Ground, Refuses, agent_status, shell_guard, typed_hook_output, typed_submission,
@@ -63,9 +64,9 @@ impl Hook {
       hold_text_tool_call: flags.contains(&"--hold-text-tool-call"),
       hold_wording: flags.contains(&"--hold-wording"),
       compose_typed: flags.contains(&"--compose-typed"),
+      carry_background: flags.contains(&"--carry-background"),
       refuses: Refuses {
         claude: flags.contains(&"--refuse-claude"),
-        background: flags.contains(&"--refuse-background"),
       },
     };
     let ground = Ground {
@@ -434,16 +435,7 @@ fn a_typed_line_is_handed_over_with_its_session_and_an_empty_line_a_slash_comman
 }
 
 // What a supervisor's program has its shell hook refuse.
-const SUPERVISOR_S: Refuses = Refuses {
-  claude: true,
-  background: true,
-};
-
-// What every other program has it refuse: nothing.
-const OTHER_S: Refuses = Refuses {
-  claude: false,
-  background: false,
-};
+const SUPERVISOR_S: Refuses = Refuses { claude: true };
 
 // The shell hook's answer to a Bash call on a supervisor's program, which refuses a Claude launch: the
 // reason it denies one, or none for a call let through.
@@ -466,7 +458,6 @@ fn bash_call(command: &str) -> String {
 fn rewritten(command: &str, refuse_claude: bool) -> Value {
   let refuses = Refuses {
     claude: refuse_claude,
-    background: false,
   };
   let answer: Value = serde_json::from_str(&shell_guard(&bash_call(command), refuses).unwrap()).unwrap();
 
@@ -571,45 +562,23 @@ fn call_of(tool: &str, background: bool) -> String {
   json!({ "tool_name": tool, "tool_input": input }).to_string()
 }
 
-/// refuses, on a supervisor's program, a shell call or a subagent asked to run in the program's own
-/// background, naming the road its long work takes instead, and lets the same calls through in the foreground
+/// lets a supervisor's program put a shell call or a subagent in its own background: the shell's command is
+/// handed back with its input closed as any other, and a subagent goes ahead untouched
 #[test]
-fn a_supervisor_s_background_shell_or_subagent_is_refused_and_its_foreground_one_goes_ahead() {
-  for tool in ["Bash", "Agent", "Task"] {
-    let answer: Value =
-      serde_json::from_str(&shell_guard(&call_of(tool, true), SUPERVISOR_S).unwrap()).unwrap();
-    let reason = answer["hookSpecificOutput"]["permissionDecisionReason"].as_str().unwrap();
-
-    assert_eq!(answer["hookSpecificOutput"]["permissionDecision"], "deny", "{tool}: {answer}");
-    assert!(reason.starts_with(&format!("refused: a {tool} call put in the background")), "{reason}");
-    assert!(reason.contains("bmo/wait with --async"), "{reason}");
-  }
-
+fn a_supervisor_s_background_shell_or_subagent_goes_ahead() {
   let shell: Value =
-    serde_json::from_str(&shell_guard(&call_of("Bash", false), SUPERVISOR_S).unwrap()).unwrap();
+    serde_json::from_str(&shell_guard(&call_of("Bash", true), SUPERVISOR_S).unwrap()).unwrap();
 
+  assert!(shell["hookSpecificOutput"].get("permissionDecision").is_none(), "{shell}");
+  assert_eq!(shell["hookSpecificOutput"]["updatedInput"]["run_in_background"], true);
   assert_eq!(
     shell["hookSpecificOutput"]["updatedInput"]["command"],
     format!("{CLOSED_INPUT}\nsleep 900")
   );
-  assert_eq!(
-    shell_guard(&call_of("Agent", false), SUPERVISOR_S),
-    None,
-    "a subagent in the turn goes ahead"
-  );
-}
 
-/// lets every other program, a job's among them, put its shell call in the background, its input closed as
-/// any other shell call's
-#[test]
-fn another_program_s_background_shell_goes_ahead_with_its_input_closed() {
-  let answer: Value = serde_json::from_str(&shell_guard(&call_of("Bash", true), OTHER_S).unwrap()).unwrap();
-  let call = &answer["hookSpecificOutput"]["updatedInput"];
-
-  assert!(answer["hookSpecificOutput"].get("permissionDecision").is_none(), "{answer}");
-  assert_eq!(call["command"], format!("{CLOSED_INPUT}\nsleep 900"));
-  assert_eq!(call["run_in_background"], true);
-  assert_eq!(shell_guard(&call_of("Agent", true), OTHER_S), None);
+  for tool in ["Agent", "Task"] {
+    assert_eq!(shell_guard(&call_of(tool, true), SUPERVISOR_S), None, "{tool}");
+  }
 }
 
 // A service that refuses every line.
@@ -703,4 +672,85 @@ fn a_dsh_shell_refuses_before_it_runs_and_runs_every_other_command() {
 
   assert_eq!(String::from_utf8_lossy(&allowed.stdout), "fine\n");
   assert_eq!(allowed.status.code(), Some(0));
+}
+
+const NOTICE: &str = "<task-notification>\n<task-id>a60</task-id>\n<status>completed</status>\n<result>Six sets.</result>\n</task-notification>";
+
+/// on a line that carries its background apart, a stop writes each task it names running under the room of the
+/// run standing in the place, once; the notice's submit is written beside it and is the program's own turn,
+/// opening no person's turn and composing nothing; and the run closes at the stop with the work still running
+#[tokio::test]
+async fn a_supervisor_s_stop_writes_its_background_under_the_room_and_the_notice_opens_no_person_s_turn() {
+  let hook = Hook::new();
+  let carry = ["--carry-background", "--compose-typed"];
+  let env = BTreeMap::from([
+    ("BMO_TURN_CHAT".to_owned(), "-500".to_owned()),
+    ("BMO_TURN_AGENT".to_owned(), "bmo".to_owned()),
+  ]);
+
+  begin_run(hook.path(), "chat:-500:1", "a turn in a room", now(), env).unwrap();
+
+  let stop = json!({
+    "session_id": "s", "transcript_path": "/records/s.jsonl",
+    "background_tasks": [
+      { "id": "a60", "type": "subagent", "status": "running", "description": "Split the stickers" },
+      { "id": "b1", "type": "shell", "status": "completed", "description": "done before", "command": "ls" },
+    ],
+  });
+
+  assert!(
+    hook.call("stop", &carry, &stop).await.is_empty(),
+    "a stop with work running is not held"
+  );
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some(), "the run closes at its stop");
+  hook.call("stop", &carry, &stop).await;
+
+  let notice = json!({ "session_id": "s", "prompt": NOTICE });
+
+  assert!(hook.call("submit", &carry, &notice).await.is_empty(), "a notice is composed nothing");
+
+  let run = read_run(hook.path()).unwrap();
+
+  assert!(
+    !run.person && run.name.as_deref() == Some("chat:-500:1"),
+    "the notice opened no person's turn: {run:?}"
+  );
+
+  let lines = read_background(hook.path());
+
+  assert_eq!(lines.len(), 2, "{lines:?}");
+
+  let BackgroundLine::Launched(launch) = &lines[0] else { panic!("{lines:?}") };
+
+  assert_eq!(
+    (
+      launch.task.as_str(),
+      launch.kind.as_str(),
+      launch.room.as_deref(),
+      launch.agent.as_deref()
+    ),
+    ("a60", "subagent", Some("-500"), Some("bmo"))
+  );
+  assert_eq!(launch.transcript.as_deref(), Some("/records/s.jsonl"));
+  assert!(
+    matches!(&lines[1], BackgroundLine::Notice { notice, .. } if notice.task == "a60" && notice.ended())
+  );
+}
+
+/// a job's line carries nothing apart: neither its stop nor a notice's submit writes a background record
+#[tokio::test]
+async fn a_job_s_stop_writes_no_background_record() {
+  let hook = Hook::new();
+
+  begin_run(hook.path(), "worker-job-9", "a job", now(), BTreeMap::new()).unwrap();
+  hook
+    .call(
+      "stop",
+      &[],
+      &json!({ "background_tasks": [{ "id": "a60", "type": "subagent", "status": "running" }] }),
+    )
+    .await;
+  hook.call("submit", &[], &json!({ "session_id": "s", "prompt": NOTICE })).await;
+
+  assert!(read_background(hook.path()).is_empty());
 }

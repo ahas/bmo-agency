@@ -126,7 +126,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **The program's own web search and fetch, its subagents and its schedulers stand under no capability.** The
   chat line denies the web tools and the schedulers to every supervisor (`WebSearch`, `WebFetch`, `Monitor`,
   the cron and wake-up tools) and leaves it its subagents (`Agent`, `Task`), for reading and searching
-  inside its turn (「A supervisor's long work」 below). A limited supervisor's program is started with none
+  inside its turn and for work in its own background that ends within the session (「A supervisor's long
+  work」 below). A limited supervisor's program is started with none
   of them, nor with `Workflow`, `SendMessage`, `Skill` or any built-in tool the table does not name.
 - **A limited supervisor's program keeps one tool no capability gives:** `ToolSearch`, which loads the
   definitions of the MCP tools it holds and reaches nothing else (the chat line's `limited_keeps`).
@@ -635,27 +636,45 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 A supervisor answers every round in its own session, and its one program holds one turn at a time, so a
 turn that runs long holds every room it answers. Work longer than moments therefore never holds a reply:
 the supervisor answers the room first, in a few words saying what it will do, and puts the work behind the
-reply. The chat manual tells it so (`prompts/agents/chat/manual.md`); what follows is what agency holds that
+reply, where the result comes back to the same room when it is done. The chat manual tells it so (`prompts/agents/chat/manual.md`); what follows is what agency holds that
 rule to.
 
-- **What outlives the turn: a call made apart.** A hosted tool called with `bmo use … --async`, and a
-  command launched apart with its output in a log and `bmo/wait` called with `--async` and a `check` on
-  that log, run under the tool host's record of the session token the program carried. Their wake is
-  queued for the supervisor and the room it was asked in, never for a session, so it reaches the
-  supervisor in that room after the turn has ended, after the program folded its conversation and after
-  its session was stood afresh: the token is taken back only once no such call under its record still
-  runs (`docs/sessions.md`, 「A restart hands the session over」).
-- **What does not: the program's own background work, which is refused.** A shell command or a subagent
-  the program puts in its own background lives inside the program, and while it runs the pane reads as
-  working, so the door holds the round, and the reply the program has already written, until that work
-  ends. Its notice that lands after a round reaches no room, and nothing outside the program keeps the
-  work across the program being taken down or stood afresh. So agency's shell hook on a supervisor's
-  program refuses a shell call or a subagent asked to run in the background, before it starts, and its
-  refusal names the road above (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
-  standard input」). The round then ends as soon as its turn has, and its reply goes out.
-- **A subagent is for work inside the turn.** The chat line leaves the program its subagent tool (「What
-  each capability stands for」 above): a subagent reads and searches inside the turn and hands back only its
-  conclusion, so what it read stays out of the supervisor's context.
+- **Two roads behind the reply, chosen by how long the work must live.**
+  - **A call made apart, for work that must outlive the session.** A hosted tool called with
+    `bmo use … --async`, and a command launched apart with its output in a log and `bmo/wait` called with
+    `--async` and a `check` on that log, run under the tool host's record of the session token the program
+    carried. Their wake is queued for the supervisor and the room it was asked in, never for a session, so it
+    reaches the supervisor in that room after the turn has ended, after the program folded its conversation and
+    after its session was stood afresh: the token is taken back only once no such call under its record still
+    runs (`docs/sessions.md`, 「A restart hands the session over」).
+  - **The program's own background, for work that ends within the session.** A shell command or a subagent the
+    program puts in its own background goes on behind the reply. The turn that launched it ends at its stop
+    with the work still running, so the round takes its answer as its draft at once and runs its draft process
+    on it, and the program takes the process's later turns and other rooms' rounds meanwhile. The work's
+    finished notice comes back to the room the turn was in as a wake of that room's own: agency hands the
+    receiver an order for the supervisor in that room carrying what the notice said, and the round it opens
+    answers there. The turn the program itself opens on the notice is no round's, and nothing of it reaches a
+    room (`docs/agent-control.md`, 「Background work on a line that carries it apart」).
+- **What lives only inside the program is lost with it.** The program's background work has no record outside
+  the program that could carry it on: a session stood afresh, a program ended or stood again on another
+  command, and a stop of the supervisor's turn end it. Where work a room waits on is lost that way, the room is
+  told once, by the same kind of wake, rather than left waiting. So work that must outlive the session is a
+  call made apart, and the program's background is for work that ends within it; the chat manual says so.
+- **Background work is held to the call clock.** A background shell, or a shell call or background shell of a
+  background subagent, whose processes burn no processor time past the clock's stall, or that writes no output
+  and stands idle across the silent window — a wait that only polls — is cut as a call in the turn is, with no
+  ask opened, and the wake carried to its room says it was cut and why. A shell that waits on a process by a
+  `pgrep -f` pattern its own command line also holds counts itself and never ends; the chat manual tells the
+  supervisor to wait on its own command's output file or process id instead.
+- **A stop of the supervisor's turn ends its program's background work,** within the bound
+  `policy/background-work.toml` sets: the subagents by ending the program, which the next turn stands again on
+  the same session, and the shells by their processes. The stop names what it ended, and every room whose work
+  it ended is told once.
+- **The session is free for the next round** as soon as a round's answer is handed over, whatever its
+  program's background still runs.
+- **A subagent inside the turn** stays the road for reading and searching whose conclusion the reply needs:
+  the chat line leaves the program its subagent tool (「What each capability stands for」 above), and a subagent
+  hands back only its conclusion, so what it read stays out of the supervisor's context.
 - **Work whose result is code or a document is a job item,** filed and launched as the todo procedure
   says, its report coming back to the supervisor as every job's does.
 - **How a turn that runs long is noticed.** A prompt line does not keep a model from holding its one

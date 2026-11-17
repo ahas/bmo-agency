@@ -123,12 +123,12 @@ enum Verb {
     hold_wording: bool,
     #[arg(long)]
     compose_typed: bool,
+    /// The stop and submit hooks write the program's background work into the place's background record.
+    #[arg(long)]
+    carry_background: bool,
     /// The shell hook refuses a command that starts Claude Code.
     #[arg(long)]
     refuse_claude: bool,
-    /// The shell hook refuses a shell call or a subagent put in the program's own background.
-    #[arg(long)]
-    refuse_background: bool,
   },
   /// The live Claude runs a job opens, each with what it measures and why; with --list, what it opened.
   LiveClaude {
@@ -557,8 +557,8 @@ async fn run(verb: Verb) -> ExitCode {
       hold_text_tool_call,
       hold_wording,
       compose_typed,
+      carry_background,
       refuse_claude,
-      refuse_background,
     } => {
       let asked = agent_status::Asked {
         kind: kind.unwrap_or_default(),
@@ -567,9 +567,9 @@ async fn run(verb: Verb) -> ExitCode {
         hold_text_tool_call,
         hold_wording,
         compose_typed,
+        carry_background,
         refuses: agent_status::Refuses {
           claude: refuse_claude,
-          background: refuse_background,
         },
       };
       // A standing input that cannot be read is an empty one: the hook never stands in the program's way.

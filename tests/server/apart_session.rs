@@ -919,9 +919,9 @@ async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
     hold_text_tool_call: flag("--hold-text-tool-call"),
     hold_wording: flag("--hold-wording"),
     compose_typed: flag("--compose-typed"),
+    carry_background: flag("--carry-background"),
     refuses: Refuses {
       claude: flag("--refuse-claude"),
-      background: flag("--refuse-background"),
     },
   };
   let hook_ground = HookGround {

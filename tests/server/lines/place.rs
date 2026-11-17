@@ -105,6 +105,7 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
       wording: false,
       compose_typed: false,
       shell_guard: false,
+      carry_background: false,
     },
   )
   .unwrap();
@@ -135,7 +136,7 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
 }
 
 #[test]
-fn a_place_whose_line_guards_its_shell_reads_every_bash_and_subagent_call_first() {
+fn a_supervisor_s_place_guards_its_shell_and_carries_its_background_on_its_stop_and_submit() {
   let dir = tempfile::tempdir().unwrap();
   let place = dir.path().join("place");
   let path = write_place_settings(
@@ -144,21 +145,31 @@ fn a_place_whose_line_guards_its_shell_reads_every_bash_and_subagent_call_first(
     Path::new("/deploy"),
     Holds {
       shell_guard: true,
-      ..Holds::default()
+      ..Holds::of_line("chat")
     },
   )
   .unwrap();
   let settings: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
   let guard = &settings["hooks"]["PreToolUse"][0];
-
-  assert_eq!(guard["matcher"], "Bash|Agent|Task");
-  assert_eq!(
-    guard["hooks"][0]["command"],
+  let hook = |kind: &str, flags: &str| {
     format!(
-      "'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}' '--refuse-claude' '--refuse-background'",
+      "'/deploy/bin/bmo-agency' 'agent-status' '{kind}' '--place' '{}'{flags}",
       place.display()
     )
+  };
+
+  assert_eq!(guard["matcher"], "Bash");
+  assert_eq!(guard["hooks"][0]["command"], hook("shell", " '--refuse-claude'"));
+  assert_eq!(
+    settings["hooks"]["Stop"][0]["hooks"][0]["command"],
+    hook("stop", " '--carry-background'")
   );
+  assert_eq!(
+    settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"],
+    hook("submit", " '--carry-background' '--compose-typed'")
+  );
+  assert!(carries_background(&place));
+  assert!(!carries_background(dir.path()), "a place with no settings carries nothing");
 }
 
 #[test]

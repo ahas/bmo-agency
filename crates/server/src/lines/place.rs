@@ -40,14 +40,14 @@ const HOLD_TASKS: &str = "--hold-tasks";
 const HOLD_TEXT_TOOL_CALL: &str = "--hold-text-tool-call";
 const HOLD_WORDING: &str = "--hold-wording";
 const COMPOSE_TYPED: &str = "--compose-typed";
-// The words the shell hook is started with where its line guards its shell: it refuses a command that
-// starts Claude Code, and a shell call or a subagent put in the program's own background.
+/// The word the stop and submit hooks are started with where the line carries its program's background work
+/// apart (docs/agent-control.md, 「Background work on a line that carries it apart」).
+pub const CARRY_BACKGROUND: &str = "--carry-background";
+// The word the shell hook is started with where its line guards its shell: it refuses a command that
+// starts Claude Code.
 const REFUSE_CLAUDE: &str = "--refuse-claude";
-const REFUSE_BACKGROUND: &str = "--refuse-background";
-// The calls the shell hook reads: the shell alone, and on a guarded program its subagents too, whose own
-// background it refuses.
+// The calls the shell hook reads.
 const SHELL_CALLS: &str = "Bash";
-const GUARDED_CALLS: &str = "Bash|Agent|Task";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
 // takes, a day, and the composing it waits on is never cut short by the program.
 const TYPED_HOOK_SECONDS: u64 = 86_400;
@@ -170,10 +170,11 @@ pub struct Holds {
   pub wording: bool,
   pub compose_typed: bool,
   /// Whether a shell command that starts Claude Code is refused before it runs (docs/agents.md, 「No print
-  /// mode」), and a shell call or a subagent the program would put in its own background
-  /// (docs/supervisors.md, 「A supervisor's long work」). Every shell command is read before it runs either
-  /// way, to close its standard input.
+  /// mode」). Every shell command is read before it runs either way, to close its standard input.
   pub shell_guard: bool,
+  /// Whether the stop and submit hooks write the program's background work into the place's background
+  /// record, the line carrying that work apart.
+  pub carry_background: bool,
 }
 
 impl Holds {
@@ -188,6 +189,7 @@ impl Holds {
       wording: stops,
       compose_typed: RUN_LINES.composes_typed_lines(line),
       shell_guard: false,
+      carry_background: RUN_LINES.background_apart(line),
     }
   }
 }
@@ -250,10 +252,18 @@ pub fn write_place_settings(
     stop_flags.push(HOLD_WORDING);
   }
 
+  let mut submit_flags = vec![];
+
+  if holds.carry_background {
+    stop_flags.push(CARRY_BACKGROUND);
+    submit_flags.push(CARRY_BACKGROUND);
+  }
+
   let submit = if holds.compose_typed {
-    json!({ "type": "command", "command": call("submit", &[COMPOSE_TYPED]), "timeout": TYPED_HOOK_SECONDS })
+    submit_flags.push(COMPOSE_TYPED);
+    json!({ "type": "command", "command": call("submit", &submit_flags), "timeout": TYPED_HOOK_SECONDS })
   } else {
-    json!({ "type": "command", "command": call("submit", &[]) })
+    json!({ "type": "command", "command": call("submit", &submit_flags) })
   };
   let mut own = vec![
     (
@@ -274,7 +284,7 @@ pub fn write_place_settings(
   ];
 
   own.push(match holds.shell_guard {
-    true => shell_hook(GUARDED_CALLS, call(SHELL_KIND, &[REFUSE_CLAUDE, REFUSE_BACKGROUND])),
+    true => shell_hook(SHELL_CALLS, call(SHELL_KIND, &[REFUSE_CLAUDE])),
     false => shell_hook(SHELL_CALLS, call(SHELL_KIND, &[])),
   });
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
@@ -312,6 +322,24 @@ fn merge_hooks(settings: &mut Map<String, Value>, own: Vec<(&'static str, Value)
   }
 
   settings.insert("hooks".to_owned(), Value::Object(hooks));
+}
+
+/// Whether the program standing in a place carries its background work apart: the stop hook its settings name
+/// is started with the word that says so. A place whose settings cannot be read does not.
+pub fn carries_background(place: &Path) -> bool {
+  let Some(settings) = agent_host::disk::read_json::<Value>(&place.join("settings.json")) else {
+    return false;
+  };
+
+  settings
+    .pointer("/hooks/Stop")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter_map(|entry| entry.get("hooks").and_then(Value::as_array))
+    .flatten()
+    .filter_map(|hook| hook.get("command").and_then(Value::as_str))
+    .any(|command| command.contains(CARRY_BACKGROUND))
 }
 
 /// Whether a variable belongs to one run rather than to the program.

@@ -79,14 +79,7 @@ fn every_subcommand_a_caller_runs_is_read_by_the_binary() {
 fn the_status_lines_shell_hook_refuses_a_launch_of_claude_code_and_closes_another_command_s_input() {
   let place = tempfile::tempdir().unwrap();
   let at = place.path().to_string_lossy().into_owned();
-  let guarded = [
-    "agent-status",
-    "shell",
-    "--place",
-    at.as_str(),
-    "--refuse-claude",
-    "--refuse-background",
-  ];
+  let guarded = ["agent-status", "shell", "--place", at.as_str(), "--refuse-claude"];
   let refused = run(&guarded, r#"{"tool_name":"Bash","tool_input":{"command":"claude -p hello"}}"#);
   // The shell hook reads only the call, so it answers with no place named.
   let let_through = run(

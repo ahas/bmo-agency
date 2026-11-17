@@ -3,6 +3,7 @@
 
 mod agent_renames;
 mod answer_ceilings;
+mod background_work;
 mod base_prompts;
 mod browser;
 mod chat_health;

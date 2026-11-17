@@ -815,8 +815,7 @@ pub async fn compose_prepared(
   let place = Place::of(&trees.data, &run.agent);
   let holds = Holds {
     shell_guard: true,
-    compose_typed: true,
-    ..Holds::default()
+    ..Holds::of_line(LINE)
   };
   let settings = write_place_settings(&place.path, serde_json::Map::new(), &status_root(ground), holds)?;
   let mut env =

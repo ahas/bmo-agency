@@ -7,6 +7,7 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
   assert!(worker.keeps_session);
   assert!(!RUN_LINES.composes_typed_lines("worker"));
   assert!(RUN_LINES.composes_typed_lines("chat"));
+  assert!(RUN_LINES.background_apart("chat") && !RUN_LINES.background_apart("worker"));
   assert!(RUN_LINES.capabilities("worker").is_empty());
   assert_eq!(
     RUN_LINES.capabilities("chat"),

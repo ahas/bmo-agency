@@ -74,6 +74,40 @@ pub struct StatusLine {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentView {
+  /// The words the input box opens on while it addresses a background agent.
+  pub addressed: String,
+  /// The mark of the list's chosen row.
+  pub cursor: String,
+  /// The list's row of the main conversation.
+  pub main_row: String,
+  /// The words the screen's foot shows while the list is focused.
+  pub list_focused: String,
+  /// The key that focuses the list, the one that moves up it and the one that takes a row.
+  pub open_list: String,
+  pub up: String,
+  pub take: String,
+  /// How many keys the door gives itself before it ends the turn blocked.
+  pub steps: usize,
+  /// The note once the input was taken back to the main conversation.
+  pub returned: String,
+  /// Why nothing was typed where the input still addressed an agent.
+  pub stuck: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BackgroundStop {
+  /// The program was ended with its background work; `{tasks}` is filled.
+  pub ended_program: String,
+  /// The background shells were ended; `{tasks}` is filled.
+  pub ended_shells: String,
+  /// Processes still standing past the bound; `{pids}` is filled.
+  pub left: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DoorWords {
   pub provider_off: String,
   pub fold_title: String,
@@ -82,6 +116,8 @@ pub struct DoorWords {
   pub notes: Notes,
   pub screens: Screens,
   pub confirm: Confirm,
+  pub agent_view: AgentView,
+  pub background_stop: BackgroundStop,
   pub status_line: StatusLine,
 }
 

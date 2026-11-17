@@ -68,6 +68,31 @@ closed_early = "The confirmation closed before it took an answer"
 stopped_at = "Stopped at a confirmation: {question}"
 unasked = "The confirmation could not be asked, so it is left to a person: {why}"
 
+# Claude Code's screen while a background agent of its own is opened (docs/agent-control.md, 「Background work
+# on a line that carries it apart」): the words its input box opens on when it addresses that agent rather
+# than the main conversation, the cursor that marks the list's chosen row, the list's main row and the words
+# its foot shows while the list is focused; the keys that move along the list and take a row, and how many
+# keys the door gives itself before it ends the turn blocked. A note names what it did, and the screen kept
+# where it could not names why.
+[agent_view]
+addressed = "Message @"
+cursor = "❯"
+main_row = "main"
+list_focused = "to select"
+open_list = "down"
+up = "up"
+take = "enter"
+steps = 6
+returned = "The program's input addressed one of its background agents, so it was taken back to the main conversation before anything was typed"
+stuck = "The program's input still addresses one of its background agents, so nothing was typed into it"
+
+# What a stop of a turn on a line that carries its background apart ended of its program's background work:
+# {tasks} the tasks it named running, and how.
+[background_stop]
+ended_program = "The stop ended the program, and with it its background work: {tasks}"
+ended_shells = "The stop ended the background shells: {tasks}"
+left = "The stop could not end every process of the background work within its bound: {pids}"
+
 # The one line at the foot of a resident program's screen (docs/agent-control.md, 「What a resident turn
 # reads」): what is going and since when, or since when the agent has been resting and which run it last
 # did. A run is named by its {name} and {title}, and each moment is an {at} on the deployment's clock.

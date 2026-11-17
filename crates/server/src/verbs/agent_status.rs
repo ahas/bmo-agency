@@ -6,12 +6,13 @@
 //! turn's end is answered with a block while the turn's background work runs; started with the text-call
 //! flag, while the turn's final answer is a tool call written as text; started with the wording flag,
 //! while the turn's final answer uses a word `WORDING.md` bans. Started with the typed flag, a
-//! person's submitted line is answered with the composition the service hands it. Started as the shell
-//! hook, with no place needed, it hands a shell call back with its command behind the line that closes the
-//! shell's standard input (docs/live-claude-guard.md, 「Agency's shell hook closes every command's standard
-//! input」); with its refusal flags it refuses one that starts Claude Code (docs/agents.md, 「No print
-//! mode」), and a shell call or a subagent put in the program's own background (docs/supervisors.md, 「A
-//! supervisor's long work」).
+//! person's submitted line is answered with the composition the service hands it. Started with the carry
+//! flag, a stop writes the background tasks it names running into the place's background record and a
+//! notice's submit is kept as the program's own turn (docs/agent-control.md, 「Background work on a line that
+//! carries it apart」). Started as the shell hook, with no place needed, it hands a shell call back with its
+//! command behind the line that closes the shell's standard input (docs/live-claude-guard.md, 「Agency's shell
+//! hook closes every command's standard input」); with its refusal flag it refuses one that starts Claude
+//! Code (docs/agents.md, 「No print mode」).
 //!
 //! It never fails the program: a place it cannot write to costs the record one line, and the status line
 //! still says what it can. A hook that ended otherwise would stand in the program's way.
@@ -25,10 +26,10 @@ use super::{CONTROL_PORT, CONTROL_TOKEN, control_port, control_token};
 use crate::command_reading::records::claude_launch;
 use crate::command_reading::{hook_input, hook_refusal};
 use crate::door::place_run::{
-  OpenHold, STOP_HOLDS, ends_turn, open_hold, person_submits, read_hooks, read_run, record_call,
-  status_line, stop_hold,
+  OpenHold, STOP_HOLDS, ends_turn, notice_submitted, open_hold, person_submits, read_hooks, read_run,
+  record_call, record_notice, status_line, stop_hold, write_launches,
 };
-use crate::door::record::{read_turn, turns_owed};
+use crate::door::record::{Notices, read_turn, turns_owed};
 use crate::door::turn::program_login;
 use crate::door::written_call::text_tool_call;
 use crate::lines::place::{FAILURE_KIND, SHELL_KIND};
@@ -45,6 +46,10 @@ pub struct Asked {
   pub hold_text_tool_call: bool,
   pub hold_wording: bool,
   pub compose_typed: bool,
+  /// Whether the program's background work is carried apart: a stop writes the tasks it names running into
+  /// the place's background record, a notice's submit is kept as the program's own turn, and a round reads
+  /// its notices apart.
+  pub carry_background: bool,
   /// What the shell hook refuses beside closing a shell command's standard input.
   pub refuses: Refuses,
 }
@@ -61,7 +66,7 @@ pub struct Ground<'a> {
 /// The usage line, said on the error stream where the hook was started without a kind it knows or a place.
 pub const USAGE: &str = concat!(
   "usage: bmo-agency agent-status <status|stop|failure|submit|start> --place <dir>, ",
-  "or shell [--refuse-claude] [--refuse-background]"
+  "or shell [--refuse-claude]"
 );
 
 // The session record's lines written since a moment, or none where it cannot be read.
@@ -73,14 +78,20 @@ fn lines_since(payload: &Value, started_at: i64) -> Option<Vec<Value>> {
 
 // A turn's end, a stop or a failure, closes agency's run unless the round still owes a turn: a word still
 // queued, or one taken off the queue that opens a turn after this one. The ends are counted by the hooks,
-// since the program writes its own end line after this hook may already have run.
-fn round_owes_more(place: &Path, kind: &str, payload: &Value) -> bool {
+// since the program writes its own end line after this hook may already have run. Read with notices apart,
+// a notice owes the round nothing, so only a word handed over and still queued keeps the run open.
+fn round_owes_more(place: &Path, kind: &str, payload: &Value, notices: Notices) -> bool {
   let Some(run) = read_run(place).filter(|run| ends_turn(kind) && !run.person && run.ended_at.is_none())
   else {
     return false;
   };
   let Some(lines) = lines_since(payload, run.started_at) else { return false };
-  let owed = turns_owed(&lines);
+  let owed = turns_owed(&lines, notices);
+
+  if notices == Notices::Apart {
+    return owed.queued > 0;
+  }
+
   let ends = read_hooks(place, run.started_at).iter().filter(|hook| hook.ends_turn()).count() as u64 + 1;
 
   owed.queued > 0 || ends < owed.owed
@@ -217,30 +228,19 @@ pub async fn typed_hook_output(text: &str, session: &str, port: u16, token: Opti
 pub const CLOSED_INPUT: &str = "exec </dev/null";
 
 /// What the shell hook refuses beside closing every shell command's standard input: a supervisor's program
-/// asks both (docs/supervisors.md, 「A supervisor's long work」), every other program neither.
+/// asks it, every other program does not.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Refuses {
   /// A shell command that starts Claude Code (docs/agents.md, 「No print mode」).
   pub claude: bool,
-  /// A shell call or a subagent the program would put in its own background.
-  pub background: bool,
 }
 
-/// The tools whose call the program can put in its own background.
-const BACKGROUND_TOOLS: [&str; 3] = ["Bash", "Agent", "Task"];
-
-/// The shell hook's answer to a PreToolUse call: where `refuses` asks it, a refusal of a call put in the
-/// program's own background or of a command that starts Claude Code in any form the job guard reads one;
-/// otherwise a shell call as it came, its command behind the line that closes the shell's standard input,
-/// and nothing for any other call. Input it cannot read lets the call through as it is: one hook failing
-/// must not stop every call the agent makes.
+/// The shell hook's answer to a PreToolUse call: where `refuses` asks it, a refusal of a command that starts
+/// Claude Code in any form the job guard reads one; otherwise a shell call as it came, its command behind the
+/// line that closes the shell's standard input, and nothing for any other call. Input it cannot read lets the
+/// call through as it is: one hook failing must not stop every call the agent makes.
 pub fn shell_guard(input: &str, refuses: Refuses) -> Option<String> {
   let input = hook_input(input).ok()?;
-
-  if refuses.background && input.call.background && BACKGROUND_TOOLS.contains(&input.tool.as_str()) {
-    return Some(hook_refusal(&background_refusal(&input.tool)));
-  }
-
   let command = input.command.filter(|_| input.tool == "Bash")?;
 
   if refuses.claude
@@ -250,15 +250,6 @@ pub fn shell_guard(input: &str, refuses: Refuses) -> Option<String> {
   }
 
   Some(closed_input(input.given, &command))
-}
-
-/// Why a supervisor's program may not put a call in its own background: the door reads its round as working
-/// while that work runs, so the reply it has written waits for the work, and a result that lands after the
-/// round reaches no room (docs/supervisors.md, 「A supervisor's long work」).
-pub fn background_refusal(tool: &str) -> String {
-  format!(
-    "refused: a {tool} call put in the background. Your reply would wait until it ends, and its result reaches no room. Run a subagent inside your turn; launch longer work apart with its output in a log and call bmo/wait with --async and a check on that log, whose wake brings the result back to this room (docs/supervisors.md, 「A supervisor's long work」)."
-  )
 }
 
 // The call's whole input again, its command behind the line that closes the shell's standard input, as the
@@ -304,6 +295,24 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
   let payload = serde_json::from_str::<Value>(input).unwrap_or_else(|_| Value::String(input.to_owned()));
   // A person's line, on a line that composes typed lines: asked before the submit is recorded, since
   // recording it opens the person's turn.
+  let notices = if asked.carry_background { Notices::Apart } else { Notices::Joined };
+  // A background task's notice the program hands itself, on a line that carries its background apart: the
+  // program's own turn, written down as such and nothing more.
+  if kind == "submit" && asked.carry_background && notice_submitted(&payload) {
+    if let Err(why) = record_notice(place, &payload, ground.now_ms) {
+      eprintln!("agent-status: {why}");
+    }
+
+    return vec![];
+  }
+
+  if kind == "stop"
+    && asked.carry_background
+    && let Err(why) = write_launches(place, &payload, ground.now_ms)
+  {
+    eprintln!("agent-status: {why}");
+  }
+
   let typed = (kind == "submit" && asked.compose_typed && person_submits(place))
     .then(|| typed_submission(&payload))
     .flatten();
@@ -339,7 +348,7 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
         kind,
         &payload,
         ground.now_ms,
-        round_owes_more(place, kind, &payload),
+        round_owes_more(place, kind, &payload, notices),
         login.as_ref(),
       )
     }

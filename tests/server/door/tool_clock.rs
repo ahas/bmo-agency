@@ -17,7 +17,8 @@ use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
 use agency_server::door::stand::Interrupt;
 use agency_server::door::tool_clock::{
-  CallVerdict, ClockNote, NoQuestion, QuestionWait, SilentClock, ToolClock, WaitedWork, Watch as ToolWatch,
+  BackgroundCall, BackgroundClock, CallVerdict, ClockNote, NoQuestion, Owns, QuestionWait, SilentClock,
+  ToolClock, WaitedWork, Watch as ToolWatch, end_processes, task_processes,
 };
 use agency_server::door::turn::{Ending, Seat, Timings, Turn, Watch};
 use agency_server::job_run::claude::turn::work_clocks;
@@ -1236,5 +1237,123 @@ async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result(
     wrote(&notes, "no process of its own"),
     "the cut names the missing process: {:?}",
     notes.lock().unwrap()
+  );
+}
+
+// A program of the test's own whose background shells each write to the output file of the task named, under a
+// `tasks` folder as the program writes its tasks' output, beside a child of its own that is no task's.
+fn with_tasks(dir: &Path, tasks: &[(&str, &str)]) -> Program {
+  std::fs::create_dir_all(dir.join("tasks")).unwrap();
+
+  let shells: String = tasks
+    .iter()
+    .map(|(task, script)| format!("( {script} ) >{}/tasks/{task}.output 2>&1 & ", dir.display()))
+    .collect();
+
+  Program::spawn(&format!("{shells} sleep 1000 & wait"))
+}
+
+fn background(task: &str, at: i64) -> BackgroundCall {
+  BackgroundCall {
+    id: task.to_owned(),
+    command: format!("the work of {task}"),
+    owns: Owns::Output(task.to_owned()),
+    started_at: at,
+  }
+}
+
+// The clock looked at the calls until it cuts one, or its bound passes: what it cut.
+async fn cut_within(clock: &mut BackgroundClock, program: i32, calls: &[BackgroundCall]) -> Vec<String> {
+  for _ in 0..100 {
+    let cuts = clock.look(program, calls, agency_server::now_ms()).await;
+
+    if !cuts.is_empty() {
+      return cuts.into_iter().map(|cut| format!("{} {}", cut.id, cut.stalled)).collect();
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  vec![]
+}
+
+/// a background shell of the program that only waits and polls, writing nothing, is cut once it has stood idle
+/// across the silent window, and one burning processor beside it is left alone
+#[tokio::test]
+async fn a_background_wait_that_only_polls_is_cut_and_a_working_one_is_not() {
+  let dir = tempfile::tempdir().unwrap();
+  let program = with_tasks(
+    dir.path(),
+    &[("bwait", "while :; do sleep 0.2; done"), ("bwork", "while :; do :; done")],
+  );
+  let now = agency_server::now_ms();
+  let mut clock = BackgroundClock::new(ToolClock {
+    min_ms: 0,
+    stall_ms: i64::MAX / 4,
+    silent: SilentClock {
+      window_ms: 400,
+      ..unasked()
+    },
+    ..clock(0, 0, 0)
+  });
+  let calls = [background("bwait", now), background("bwork", now)];
+
+  assert_eq!(cut_within(&mut clock, program.pid, &calls).await, ["bwait false"]);
+  assert!(
+    task_processes(program.pid, &["bwait".to_owned()]).is_empty(),
+    "the wait's processes are gone"
+  );
+  assert!(
+    !task_processes(program.pid, &["bwork".to_owned()]).is_empty(),
+    "the working shell runs on"
+  );
+}
+
+/// a background shell whose processes burn no processor time is cut once it has stood past the stall
+#[tokio::test]
+async fn a_background_shell_that_burns_nothing_is_cut_at_its_stall() {
+  let dir = tempfile::tempdir().unwrap();
+  let program = with_tasks(dir.path(), &[("bstall", "sleep 1000")]);
+  let mut clock = BackgroundClock::new(clock(0, 150, 0));
+
+  assert_eq!(
+    cut_within(&mut clock, program.pid, &[background("bstall", agency_server::now_ms())]).await,
+    ["bstall true"]
+  );
+}
+
+/// a stop's ending reaches the processes of the tasks it names and every process they began, within its grace,
+/// and leaves the program's other children standing
+#[tokio::test]
+async fn a_stop_ends_the_named_background_shells_and_nothing_else() {
+  let dir = tempfile::tempdir().unwrap();
+  let program = with_tasks(dir.path(), &[("bend", "sleep 1000 & sleep 1000; wait")]);
+  let mut named = vec![];
+
+  for _ in 0..100 {
+    named = task_processes(program.pid, &["bend".to_owned()]);
+
+    if named.len() >= 3 {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+
+  assert!(named.len() >= 3, "the shell and the two sleeps it began: {named:?}");
+
+  let left = end_processes(&named, Duration::from_millis(500)).await;
+
+  assert!(left.is_empty(), "{left:?}");
+  assert!(task_processes(program.pid, &["bend".to_owned()]).is_empty());
+  let children =
+    std::fs::read_to_string(format!("/proc/{0}/task/{0}/children", program.pid)).unwrap_or_default();
+
+  assert!(
+    children
+      .split_whitespace()
+      .any(|child| std::fs::read(format!("/proc/{child}/cmdline"))
+        .is_ok_and(|line| line.starts_with(b"sleep"))),
+    "the program's own child stands: {children}"
   );
 }

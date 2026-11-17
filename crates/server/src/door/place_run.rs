@@ -426,6 +426,214 @@ pub fn record_call(
   Ok(())
 }
 
+/// Whether a submit is the program handing itself a background task's notice.
+pub fn notice_submitted(payload: &Value) -> bool {
+  payload
+    .get("prompt")
+    .and_then(Value::as_str)
+    .is_some_and(crate::door::record::is_notice)
+}
+
+/// The place's last call that bounds a turn — a stop, a failure or a submit — read back from the record's
+/// end no further than it.
+pub fn last_bound(place: &Path) -> Option<HookRecord> {
+  records_back::<HookRecord>(&hooks_file(place)).find(|hook| hook.ends_turn() || hook.kind == "submit")
+}
+
+/// Whether the program's foreground is at rest on a line that carries its background apart, whatever its
+/// screen reads (docs/agent-control.md, 「Background work on a line that carries it apart」): the place's last
+/// call bounding a turn is a turn's end stamped at or after `since`, and the session record's own end says
+/// the same, no word handed over still queued.
+pub fn foreground_rests(place: &Path, records: &[Value], since: i64) -> bool {
+  last_bound(place).is_some_and(|hook| hook.ends_turn() && hook.at >= since)
+    && crate::door::record::rests_apart(records)
+}
+
+/// The place's background record: the background work a line that carries it apart launched, and the notices
+/// that ended it, one line each.
+pub fn background_file(place: &Path) -> PathBuf {
+  place.join("background.jsonl")
+}
+
+/// One line of the background record.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "event", rename_all = "camelCase")]
+pub enum BackgroundLine {
+  /// A task a stop named running that the record did not hold yet.
+  Launched(Launch),
+  /// A notice the program handed itself about a task.
+  Notice {
+    at: i64,
+    #[serde(flatten)]
+    notice: crate::door::record::TaskNotice,
+  },
+  /// A task a stop of the supervisor's turn ended, written before the stop ends it.
+  Stopped { at: i64, task: String },
+}
+
+/// A background task as a stop the program made named it: its id, its kind and its description.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RunningTask {
+  pub id: String,
+  pub kind: String,
+  pub description: String,
+}
+
+/// The background tasks the place's last stop named running that no notice or stop in its background record has
+/// ended since.
+pub fn last_stop_tasks(place: &Path) -> Vec<RunningTask> {
+  let Some(stop) =
+    records_back::<HookRecord>(&hooks_file(place)).find(|hook| hook.kind == "stop" || hook.kind == "held")
+  else {
+    return vec![];
+  };
+  let ended: std::collections::HashSet<String> = read_background(place)
+    .into_iter()
+    .filter_map(|line| match line {
+      BackgroundLine::Notice { notice, .. } if notice.ended() => Some(notice.task),
+      BackgroundLine::Stopped { task, .. } => Some(task),
+      _ => None,
+    })
+    .collect();
+  let text = |task: &Value, key: &str| task.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+
+  stop
+    .payload
+    .get("background_tasks")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter(|task| task.get("status").and_then(Value::as_str) == Some("running"))
+    .map(|task| RunningTask {
+      id: text(task, "id"),
+      kind: text(task, "type"),
+      description: text(task, "description"),
+    })
+    .filter(|task| !task.id.is_empty() && !ended.contains(&task.id))
+    .collect()
+}
+
+/// The tasks a stop is about to end, written into the background record so their rooms are told of the stop
+/// rather than of whatever notice the ending draws from the program.
+pub fn write_stopped(place: &Path, tasks: &[String], at: i64) -> std::io::Result<()> {
+  for task in tasks {
+    let line = BackgroundLine::Stopped {
+      at,
+      task: task.clone(),
+    };
+
+    append(&background_file(place), &serde_json::to_value(line).map_err(std::io::Error::other)?)?;
+  }
+
+  Ok(())
+}
+
+/// A background task as the stop that first named it running found it, under the run standing in the place.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Launch {
+  pub at: i64,
+  pub task: String,
+  /// `shell`, `subagent`, or whatever else the program names it.
+  pub kind: String,
+  pub description: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub command: Option<String>,
+  /// The room the run that launched it was in, and its agent; none for a person's turn or a run naming no
+  /// room.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub room: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub agent: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub run: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub transcript: Option<String>,
+}
+
+/// Every line of the background record, oldest first; a line that does not read is passed over.
+pub fn read_background(place: &Path) -> Vec<BackgroundLine> {
+  let Ok(text) = std::fs::read_to_string(background_file(place)) else { return vec![] };
+
+  text.lines().filter_map(|line| serde_json::from_str(line).ok()).collect()
+}
+
+/// The tasks a stop names running that the background record does not hold yet, written into it under the run
+/// standing in the place: its room and agent where it is a bot's run that names them.
+pub fn write_launches(place: &Path, payload: &Value, at: i64) -> std::io::Result<()> {
+  let text = |task: &Value, key: &str| task.get(key).and_then(Value::as_str).map(str::to_owned);
+  let running: Vec<&Value> = payload
+    .get("background_tasks")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter(|task| task.get("status").and_then(Value::as_str) == Some("running"))
+    .collect();
+
+  if running.is_empty() {
+    return Ok(());
+  }
+
+  let known: std::collections::HashSet<String> = read_background(place)
+    .into_iter()
+    .filter_map(|line| match line {
+      BackgroundLine::Launched(launch) => Some(launch.task),
+      _ => None,
+    })
+    .collect();
+  let run = read_run(place).filter(|run| !run.person);
+  let variable = |name: &str| run.as_ref().and_then(|run| run.env.as_ref()?.get(name).cloned());
+  let room = variable("BMO_TURN_CHAT").filter(|room| !room.is_empty());
+
+  for task in running {
+    let Some(id) = text(task, "id").filter(|id| !known.contains(id)) else { continue };
+    let launch = Launch {
+      at,
+      task: id,
+      kind: text(task, "type").unwrap_or_default(),
+      description: text(task, "description").unwrap_or_default(),
+      command: text(task, "command"),
+      agent: room.as_ref().and(variable("BMO_TURN_AGENT")),
+      room: room.clone(),
+      run: room.as_ref().and(run.as_ref().and_then(|run| run.name.clone())),
+      session: text(payload, "session_id"),
+      transcript: text(payload, "transcript_path"),
+    };
+
+    append(
+      &background_file(place),
+      &serde_json::to_value(BackgroundLine::Launched(launch)).map_err(std::io::Error::other)?,
+    )?;
+  }
+
+  Ok(())
+}
+
+/// A submit of a background task's notice on a line that carries its background apart, kept as the program's
+/// own turn: the call written into the hooks record as any submit is, and the notice into the background
+/// record, while the place's run is left as it stands — the notice opens no person's turn, reopens no run of
+/// the bot's and leaves the bot's mark for a word still to arrive.
+pub fn record_notice(place: &Path, payload: &Value, at: i64) -> std::io::Result<()> {
+  std::fs::create_dir_all(place)?;
+  append(
+    &hooks_file(place),
+    &serde_json::json!({ "at": at, "kind": "submit", "payload": payload }),
+  )?;
+
+  let Some(notice) =
+    payload.get("prompt").and_then(Value::as_str).and_then(crate::door::record::task_notice)
+  else {
+    return Ok(());
+  };
+
+  append(
+    &background_file(place),
+    &serde_json::to_value(BackgroundLine::Notice { at, notice }).map_err(std::io::Error::other)?,
+  )
+}
+
 /// How many stops in a row are held before the next one is let through as it stands.
 pub const STOP_HOLDS: usize = 3;
 

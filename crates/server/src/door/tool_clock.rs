@@ -973,12 +973,22 @@ fn signal(pid: i32, signal: i32) {
 
 /// The tool calls the record holds after `from` that no result answers yet, in order.
 pub fn tool_uses(records: &[Value], from: usize) -> Vec<ToolUse> {
+  uses_in(records, from, false)
+}
+
+/// The tool calls a subagent's own record holds that no result answers yet, in order: every line of that
+/// record is the subagent's, written as a side chain of its program's conversation.
+pub fn subagent_uses(records: &[Value]) -> Vec<ToolUse> {
+  uses_in(records, 0, true)
+}
+
+fn uses_in(records: &[Value], from: usize, side_chain: bool) -> Vec<ToolUse> {
   let answered: HashSet<String> = tool_results(records, from).into_keys().collect();
   let mut uses = vec![];
 
   for record in records.get(from..).unwrap_or_default() {
     if record.get("type").and_then(Value::as_str) != Some("assistant")
-      || record.get("isSidechain").and_then(Value::as_bool) == Some(true)
+      || (!side_chain && record.get("isSidechain").and_then(Value::as_bool) == Some(true))
     {
       continue;
     }
@@ -1031,4 +1041,202 @@ fn tool_results(records: &[Value], from: usize) -> HashMap<String, bool> {
 
 fn blocks(record: &Value) -> &[Value] {
   record.pointer("/message/content").and_then(Value::as_array).map_or(&[], Vec::as_slice)
+}
+
+/// How a call of a program's background work is found in the program's process tree.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Owns {
+  /// A background shell, by the file the program writes the task's output to, named after the task: every
+  /// process of the tree standing on that file, and every process each of them began.
+  Output(String),
+  /// A call still in flight, by its command and when it began, as a turn's call is found.
+  Command { command: String, started_at: i64 },
+}
+
+/// One call of a program's background work handed to the background clock: an id of the caller's own, the
+/// command it runs, how its processes are found, and when it began.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackgroundCall {
+  pub id: String,
+  pub command: String,
+  pub owns: Owns,
+  pub started_at: i64,
+}
+
+/// A call of a program's background work the clock cut: its id, its command, how long it had run, and
+/// whether it was cut for burning no processor time rather than for writing nothing while it stood idle.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackgroundCut {
+  pub id: String,
+  pub command: String,
+  pub minutes: i64,
+  pub stalled: bool,
+}
+
+/// The call clock over a program's background work (docs/agent-control.md, 「Background work on a line that
+/// carries it apart」): each call read as a turn's call is, and cut, its processes signalled, where it is past
+/// the clock's minimum and its processes burned no processor time for the stall, or where it wrote no output
+/// and stood idle across the silent window. Nobody is asked first. A call with no process of its own leaves
+/// nothing to read or cut.
+#[derive(Debug)]
+pub struct BackgroundClock {
+  clock: ToolClock,
+  calls: BTreeMap<String, Call>,
+  last_look: i64,
+}
+
+impl BackgroundClock {
+  pub fn new(clock: ToolClock) -> Self {
+    Self {
+      clock,
+      calls: BTreeMap::new(),
+      last_look: i64::MIN,
+    }
+  }
+
+  /// The calls handed over read against the program's tree, at most once a look; answers those it cut. A call
+  /// no longer handed over is forgotten.
+  pub async fn look(&mut self, program: i32, calls: &[BackgroundCall], now: i64) -> Vec<BackgroundCut> {
+    self.calls.retain(|id, _| calls.iter().any(|call| call.id == *id));
+
+    for call in calls {
+      self.calls.entry(call.id.clone()).or_insert_with(|| Call {
+        name: "Bash".to_owned(),
+        summary: call.command.clone(),
+        started_at: call.started_at,
+        output_changed_at: call.started_at,
+        last_progress_at: now,
+        ..Call::default()
+      });
+    }
+
+    if now.saturating_sub(self.last_look) < self.clock.look_ms {
+      return vec![];
+    }
+
+    self.last_look = now;
+
+    let procs = scan();
+    let mut cuts = vec![];
+
+    for handed in calls {
+      let Some(call) = self.calls.get_mut(&handed.id) else { continue };
+
+      if call.cut {
+        continue;
+      }
+
+      let owned = match &handed.owns {
+        Owns::Output(task) => on_output(&procs, program, task),
+        Owns::Command {
+          command,
+          started_at,
+        } => owned_by(&procs, program, *started_at, "Bash", &serde_json::json!({ "command": command })),
+      };
+
+      if owned.is_empty() {
+        continue;
+      }
+
+      for proc in &owned {
+        if call.cpu.get(&proc.pid).is_none_or(|cpu| proc.cpu > *cpu) {
+          call.last_progress_at = now;
+        }
+
+        call.cpu.insert(proc.pid, proc.cpu);
+      }
+
+      call.pids = owned.iter().map(|proc| proc.pid).collect();
+      read_activity(call, &owned, now, self.clock.silent.window_ms);
+
+      let elapsed = now - call.started_at;
+      let stalled = elapsed >= self.clock.min_ms && now - call.last_progress_at >= self.clock.stall_ms;
+      let idle = idle_percent(call, now, &self.clock).is_some();
+
+      if stalled || idle {
+        call.cut = true;
+        stop(&call.pids).await;
+        cuts.push(BackgroundCut {
+          id: handed.id.clone(),
+          command: handed.command.clone(),
+          minutes: elapsed.max(0) / 60_000,
+          stalled,
+        });
+      }
+    }
+
+    cuts
+  }
+}
+
+// The processes of the program's tree standing on a background task's output file, and every process they
+// began.
+fn on_output(procs: &[Proc], program: i32, task: &str) -> Vec<Proc> {
+  let file = format!("/tasks/{task}.output");
+  let roots: HashSet<i32> = descendants(procs, program)
+    .iter()
+    .filter(|proc| {
+      [1, 2].iter().any(|fd| {
+        std::fs::read_link(format!("/proc/{}/fd/{fd}", proc.pid))
+          .is_ok_and(|path| path.to_string_lossy().ends_with(&file))
+      })
+    })
+    .map(|proc| proc.pid)
+    .collect();
+
+  if roots.is_empty() {
+    return vec![];
+  }
+
+  let under = descendants_of(procs, &roots);
+
+  procs.iter().filter(|proc| under.contains(&proc.pid)).cloned().collect()
+}
+
+/// The processes of a program's tree that the named background shells stand on, and every process they began.
+pub fn task_processes(program: i32, tasks: &[String]) -> Vec<i32> {
+  let procs = scan();
+  let mut pids: Vec<i32> = tasks
+    .iter()
+    .flat_map(|task| on_output(&procs, program, task))
+    .map(|proc| proc.pid)
+    .collect();
+
+  pids.sort_unstable();
+  pids.dedup();
+  pids
+}
+
+/// Every process of a program's tree.
+pub fn tree_processes(program: i32) -> Vec<i32> {
+  descendants(&scan(), program).iter().map(|proc| proc.pid).collect()
+}
+
+/// Processes ended: a polite end first, then, past the grace, a kill of what still stands. Answers those still
+/// standing after the kill.
+pub async fn end_processes(pids: &[i32], grace: Duration) -> Vec<i32> {
+  let standing = |pids: &[i32]| -> Vec<i32> {
+    pids
+      .iter()
+      .copied()
+      .filter(|pid| process_stat(*pid).is_some_and(|stat| !stat.state.starts_with('Z')))
+      .collect()
+  };
+
+  for pid in pids {
+    signal(*pid, libc::SIGTERM);
+  }
+
+  let by = tokio::time::Instant::now() + grace;
+
+  while tokio::time::Instant::now() < by && !standing(pids).is_empty() {
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  for pid in standing(pids) {
+    signal(pid, libc::SIGKILL);
+  }
+
+  tokio::time::sleep(Duration::from_millis(50)).await;
+  standing(pids)
 }

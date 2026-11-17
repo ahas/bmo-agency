@@ -285,8 +285,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   `UserPromptSubmit` and `SessionStart` hooks, and a `PreToolUse` hook on the shell that closes every
   command's standard input (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
   standard input」) and, on a supervisor's program, refuses a command starting Claude Code
-  (`docs/agents.md`, 「No print mode」) and a shell call or a subagent put in the program's own background
-  (`docs/supervisors.md`, 「A supervisor's long work」).
+  (`docs/agents.md`, 「No print mode」); on a line that carries its background apart, its stop and submit hooks
+  also write the place's background record (「Background work on a line that carries it apart」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
@@ -411,8 +411,11 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     reads it there.
   - **Background work** is read as 「The session record and usage」 reads it: what a turn put in the
     background is followed to its finished notice. A `<task-notification>` that arrives after the
-    turn ended starts a turn of its own (measured), and that turn belongs to the round or job turn
-    that launched the work, which waits for it before it ends.
+    turn ended starts a turn of its own, and the submit hook is handed the notice as that turn's prompt
+    (measured). On a line that does not carry its background apart, that turn belongs to the round or job
+    turn that launched the work, which waits for it before it ends. A line that carries it apart, the chat
+    line, ends its turn at its stop with the work still running and carries the notice to the room the work
+    was launched in (「Background work on a line that carries it apart」).
     - **A line can hold a turn's end while its own background work runs.** The `Stop` hook is handed
       `background_tasks`, every task of the session with its id, type, status and description, a
       shell command left going reading `running` (measured on the worker's own records). A line whose
@@ -908,7 +911,9 @@ The owner's words:
     answer beside it would send it twice. The paragraph tells the model that what it writes after
     it replaces the answer before it.
   - A turn the program opened on its own — a background task's notice — adds to it, joined after a
-    blank line. Such a turn answers the notice, and the answer it came after stands.
+    blank line. Such a turn answers the notice, and the answer it came after stands. A round read with
+    notices apart, as a line that carries its background apart reads every round (「Background work on a
+    line that carries it apart」), takes nothing from such a turn: it is no round's.
   - A turn that wrote no answer leaves it as it was.
   - Each turn's answer is handed on beside the one built from them, in order and with what opened the turn
     (`docs/api.md`, a turn's end, `answers`). Agency reads no words of an answer, so whether a later answer
@@ -930,6 +935,9 @@ The owner's words:
   - A background task's notice queued twice under one task id is kept once: the later notice
     replaces the earlier, and the record has two entries enqueued, one taken off and no removal
     (measured). The count then says one word is still queued when none is.
+  - Read with notices apart, a queued notice is no word handed over and one taken off the queue owes the
+    round nothing, so the round is over once every word it handed over is taken and the turn the last of
+    them went into has written its end; the turns the program opens on notices are not counted.
   - So the wait for the owed end lines has a floor under it: where the program reads at rest on two
     looks in a row, its record unchanged between them and its last line of the conversation the end
     line of a turn, the round is read as over, and the run log says what the count still expected. A
@@ -954,6 +962,92 @@ The owner's words:
   run holding the words as said, and a `note` line under it saying whether the turn took them, whether it
   waited on a person, or why they did not go in. A job's report ends with the same, read off its log, so a
   person reading what the job came to also reads what it was told while it ran.
+
+### Background work on a line that carries it apart
+
+A line declares in `policy/run-lines.toml` whether its program's own background work is carried apart
+(`background_apart`). The chat line does, so a supervisor's background work is read as this section says
+(`docs/supervisors.md`, 「A supervisor's long work」); every other line's turns read it as 「What a resident
+turn reads」 says, the job's turn among them, unchanged.
+
+- **The turn ends at its stop, the work still running.** A turn's foreground is over once the place's last
+  hook that bounds a turn — a stop, a failure or a submit — is a stop or a failure stamped after the turn's
+  prompt went in, and the record's last line of the conversation is a turn's end, a notice queued or taken up
+  inside a turn passed over, with no word handed over still queued. While Claude Code runs a shell command or
+  a subagent in its own background, herdr can read its pane as working with nothing in the foreground; where
+  the foreground is over, that reading is the background's, and the door reads the pane as at rest. So the
+  round takes the turn's answer as its draft at once, and the receiver's draft process runs on it as on any
+  draft (the receiver's `docs/drafting.md`).
+- **What is read as the answer written** is that stop. The `Stop` hook is handed `background_tasks`, every task
+  of the session with its id, type, status and description (measured), and a stop naming tasks still running
+  ends the turn as any stop does: no line that carries its background apart holds a stop on it.
+- **The draft process's later turns go into the same session while the work runs.** Before a turn goes in,
+  the door waits for the foreground to rest as above rather than for the pane's working to clear: a turn the
+  program opened on a notice is waited out, since its stop comes in moments, and a background task is never
+  waited on. With the main conversation selected, Claude Code takes a prompt typed while its background
+  subagent works and answers it in the main conversation (measured).
+- **The screen addresses the main conversation before anything is typed.** Claude Code lists its background
+  agents under its input, and an agent opened from that list takes the input: the box reads
+  `Message @<agent>…`, and a prompt typed there goes to the agent as the user's message resuming it, never to
+  the conversation (measured, and seen live). An Escape there stops the agent rather than leaving it
+  (measured). So before a turn's prompt and before words pushed into a turn, the door reads the screen; where
+  the input addresses an agent it opens the list and takes its main row, reading the screen after each key —
+  `Down` from an agent's view lands the list's cursor on the main row (measured), `Up` moves it there from
+  lower, and `Enter` takes it. Where the screen still addresses an agent after its steps, the turn ends
+  blocked with the screen kept, and nothing is typed. The screen's words and the keys are Claude Code's, kept
+  in `policy/door-words.toml`.
+- **A turn of the process and a notice landing in it are kept apart.** A background task's finished notice
+  opens a turn of the program's own once the turn going has ended (measured), or is taken up inside a turn
+  still working. Every round of such a line is read with notices apart (「Words that arrive while a turn is
+  working」): a turn the program opened on a notice is no round's — the round owes it nothing, waits for none
+  and takes no answer from it — and a notice still queued is no word the round handed over. A notice taken up
+  inside a round's turn is read by the model there; the chat manual tells the supervisor to answer in a round
+  only what that round asks, since the notice reaches its own room as below.
+- **A notice's submit is no person's line.** A submit whose prompt opens on `<task-notification>` opens no
+  person's turn in the place, and on a line that composes typed lines it is handed no composition.
+- **The launch is written down with its room.** On a line that carries its background apart, the stop hook
+  appends to the place's background record, `background.jsonl`, each task its stop names running that the
+  record does not hold yet, under the run standing in the place: the task's id, kind and description, its
+  command where it is a shell, the room and agent of the run (`BMO_TURN_CHAT`, `BMO_TURN_AGENT`), the run, the
+  session and its record, and when. A task first named at the stop of a person's turn, or of a run that names
+  no room, is written with no room. The submit hook appends each notice it is handed beside them: the task,
+  the status, the summary, the result and the output file.
+- **The notice is carried to its room as a wake.** Agency's server reads every supervisor's background record
+  every `look_seconds` (`policy/background-work.toml`). A task launched under a room whose notice ended it —
+  `completed`, `failed`, `killed` or `stopped` — is told once to that room: the receiver's `POST /instructions`
+  is handed, through agency's outbox, an order for the supervisor in the room under the sort `background` and
+  the kind `background-ended:<task>`, with cause `reply`, carrying the work's kind, description and launch
+  time, the status, the result cut to `result_chars` and the output file. The receiver opens the supervisor's
+  turn in that room on it (the receiver's `docs/api.md`, 「Instructions」), and what the supervisor answers goes
+  out there through the draft process. A notice that ends nothing, such as one saying a task was resumed,
+  tells nothing, and a task told is told once whatever later notice comes for it. A task with no room keeps
+  the rule every notice had: it opens a turn no round carries.
+- **Work lost with its program is told once.** The work lives only inside the program. A task with a room
+  whose notice never came while its program is gone — the place names no program alive, or one started after
+  the task was launched, which is a program ended, stood afresh or stood again on another command — is told
+  to its room once as lost, under the kind `background-lost:<task>`, and never told again.
+- **A stop ends it.** A stop of a turn on such a line (「Stopping, falling back and standing up again」) ends
+  the turn as a chat round's stop does, and then, within `stop_bound_seconds`, the background work its
+  program still runs, as the last stop the place recorded names it. Where a subagent is among it, the program
+  itself is ended, which ends its subagents and its shells with it (measured for shells), and the next turn
+  stands it again on the same session; where it is shells alone, their processes are ended and the program
+  stays. Either way every process of the program's tree that began with a task and still stands is signalled,
+  SIGTERM and then SIGKILL past `stop_grace_ms`. The stop's note names each task it ended, and each with a
+  room is told to its room once as lost, a stop's reason given. On a place standing on a node, the program's
+  end through the node's link is what reaches the work.
+- **Its calls are held to the call clock.** A background shell of the program, and a shell call or a
+  background shell of a background subagent, read off the subagent's own record beside the session's, is a
+  call as 「A run's tool calls are held to a clock」 reads one: its processes are those of the program's tree
+  that began with it and that its command names. Agency's server reads them every look and, as a supervisor's
+  call opens no ask, cuts one by signalling its processes where it is past the clock's minimum and its
+  processes have burned no processor time for the stall, or where it has written no output and stood idle
+  across the silent window, under the idle share: a wait that only polls. The task's notice then ends it, and
+  the wake carried to its room names each cut and why. A call that keeps burning processor time, a long
+  search among them, is never cut. On a place standing on a node no process is read here, and the clock
+  reaches nothing there.
+- **The session is free for the next round.** A round ends at its own turn's stop and a notice's turn is no
+  round's, so a supervisor takes its next round as soon as its answer is handed over, whatever its program's
+  background still runs.
 
 ### Words for a running job
 

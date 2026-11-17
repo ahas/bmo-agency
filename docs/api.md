@@ -687,7 +687,10 @@ order, each `text`, that turn's last response, and `opened`, what opened that tu
 over, the round's own prompt or words pushed into it, and `program` for a turn the program opened on its own, a
 background task's notice. `answer` is the round's answer built from them (`docs/agent-control.md`, 「The round's
 answer」); agency judges none of them, and a consumer that weighs what a later turn answered against an earlier
-one reads them here. A turn whose road reads no such turns carries `answers` empty, and `answer` alone stands.
+one reads them here. A turn whose road reads no such turns carries `answers` empty, and `answer` alone stands. A
+turn on a line that carries its background apart, the chat line, spans no turn the program opened on its own, so
+its `answers` hold no `program` entry (`docs/agent-control.md`, 「Background work on a line that carries it
+apart」).
 
 Every route that takes a body names the request type it reads, holding only the fields that route reads;
 `docs/openapi.json` names that type, and no route's request is a response type reused.
@@ -1822,7 +1825,7 @@ input, so `bmo` finds it from any directory.
 | Noun | Takes | Calls |
 |---|---|---|
 | `agent` (`agents`) | the agent flags `--help` prints: the providers' switches and the account order, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, the supervisors, roles and repositories with their orders, and a supervisor's gates | the store at the data root, and the service for what it must be told |
-| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording`, `--compose-typed`, `--refuse-claude` or `--refuse-background`; `shell` alone needs no place and answers a shell call rewritten to close its standard input, refused where `--refuse-claude` is given and the command starts Claude Code, and a shell or subagent call refused where `--refuse-background` is given and it asks to run in the background | the agent's place, and the service for a typed line |
+| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording`, `--compose-typed`, `--carry-background` or `--refuse-claude`; `shell` alone needs no place and answers a shell call rewritten to close its standard input, refused where `--refuse-claude` is given and the command starts Claude Code; with `--carry-background` a stop writes the background tasks it names running into the place's background record, and a submit the notice it is handed (`docs/agent-control.md`, 「Background work on a line that carries it apart」) | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
 | `session fold` | `--role <role>`, `--path <path>`, `--model <model>`, `--all` or `--dry-run` | the roles' kept sessions, and the store |
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
@@ -1900,7 +1903,10 @@ its work to the owner, the job service's `GET /questions` by `itemId` is read fo
 still waits, and `POST /questions` asks it only where none does (`docs/job-review.md`, 「The owner's word」); as a job's tool
 call gone silent and idle is handed over, the same read by `itemId` says whether a question of the job's item still waits,
 which holds the ask (`docs/agent-control.md`, 「A run's tool calls are held to a clock」); as a job ends, the
-receiver's `POST /instructions` is handed the report for the room's supervisor; after a
+receiver's `POST /instructions` is handed the report for the room's supervisor; as a supervisor's background work
+ends or is lost, that same route is handed, through the outbox, an order for the supervisor in the room the work
+was launched in, under the sort `background` (`docs/agent-control.md`, 「Background work on a line that carries it
+apart」); after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
@@ -2011,7 +2017,8 @@ stays outside the boundary.
 It calls no downstream but the job service's lease, item and event routes and the receiver's instruction
 and owner-notice routes: the lease renewed or, for a stopped job, returned; the items, queues and events
 read; the report handed over as a job ends, an orderer told of each change of its items and jobs and the
-owner of what only he can act on, and a chat session told of a server it lacks. The gate and the receiver
+owner of what only he can act on, a chat session told of a server it lacks, and a room's supervisor told of
+background work it launched there that ended or was lost. The gate and the receiver
 reach it through the hook point above for everything else.
 
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with
