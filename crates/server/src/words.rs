@@ -163,7 +163,7 @@ pub async fn to_session(
 
   let by = sender(&ask);
 
-  if !may_say(&ground, id, &by, apart.supervisor.as_deref()).await? {
+  if !may_say(&ground, id, &by).await? {
     return Err(
       Refused::new(
         StatusCode::FORBIDDEN,
@@ -642,13 +642,8 @@ async fn ended(db: &impl sea_orm::ConnectionTrait, session: &str) -> Result<bool
 }
 
 /// Whether the sender may say to this run: the owner, or the supervisor that asked for it.
-async fn may_say(
-  ground: &Ground,
-  session: &str,
-  by: &str,
-  supervisor: Option<&str>,
-) -> Result<bool, Refused> {
-  if by == OWNER || supervisor.is_some_and(|supervisor| supervisor == by) {
+async fn may_say(ground: &Ground, session: &str, by: &str) -> Result<bool, Refused> {
+  if by == OWNER {
     return Ok(true);
   }
 

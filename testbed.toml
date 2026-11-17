@@ -69,7 +69,6 @@ binaries = [
   "llm-gateway",
   "procedures-tool",
   "worker-ask-tool",
-  "delegate-tool",
   "relay-tool",
   "deepseek-top-up-tool",
 ]
@@ -213,15 +212,17 @@ cp bin/worker-ask-tool tools/worker_ask/tool.toml tools/worker_ask/worker_ask.js
 bmo-pocket put tools/worker_ask/.placed --placed --service agency --allow room.tools
 '''
 
+# The tool host's registry holds no tool of agency's named `delegate`, since no folder under tools/ declares one:
+# a deployment that finds one registered for agency takes it out, once the new server stands (docs/tools.md, 「A
+# tool's folder」).
 [[deploy.step]]
-id = "place-delegate"
-phase = "before-flip"
+id = "take-delegate"
+phase = "after-health"
 command = '''
 set -eu
-rm -rf tools/delegate/.placed
-mkdir -p tools/delegate/.placed
-cp bin/delegate-tool tools/delegate/tool.toml tools/delegate/delegate.json tools/delegate/delegations.json tools/delegate/.placed/
-bmo-pocket put tools/delegate/.placed --placed --service agency --allow room.tools
+if bmo-pocket list | grep -q '^delegate .* for the service agency:'; then
+  bmo-pocket take delegate --service agency
+fi
 '''
 
 [[deploy.step]]

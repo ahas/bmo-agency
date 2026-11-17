@@ -53,7 +53,7 @@ desktop coding agent whose models and tools are served from elsewhere.
   - each supervisor's own folder, `<account root>/supervisor-homes/<supervisor>`, in place of the one under the
     node's data root; the link spec reads the supervisor's folder here as that folder, so its program, the
     records the link brings back and the folder the far end makes all follow (`docs/work-nodes.md`, 「The link」);
-  - a role run's folder is its caller's — a job's checkout, a delegation's task folder — and reads on the node
+  - a role run's folder is its caller's — a job's checkout, a worker ask's folder — and reads on the node
     through the roots as every other path, since agency names none of it.
 - **An account whose record is not shared keeps its folders where they stand,** under the node's data root, so
   no path moves for a PC with one owner.
@@ -85,13 +85,12 @@ desktop coding agent whose models and tools are served from elsewhere.
   tool judges each call; agency supplies what it judges by, from its records:
   - **the node's owners,** the accounts whose record names the node, and for an isolation node the account it is
     named for; a node neither names is no person's and is reached by the administrator's supervisors alone;
-  - **the account the caller acts for,** read off its agent: the supervisor it is, or the one a double stands for,
-    whose record is held under that supervisor's name, and its `ownerAccount`; else the role agent of that name and
+  - **the account the caller acts for,** read off its agent: the supervisor it is and its `ownerAccount`; else the role agent of that name and
     its `ownerAccount`; else the seat its run holds at its role and folder (`docs/role-agents.md`, 「What a run
     reads off its agent」) and that seat's `ownerAccount`. A caller none of these names an account of is the
     deployment's own: the owner's supervisors, his jobs, his runs;
-  - **the administrator's grant,** which a supervisor of no account or of the administrator's account holds, as it
-    is and as a double stands for it, and no other caller does: not an account's caller, and not a role agent, a seat's run or a job of the
+  - **the administrator's grant,** which a supervisor of no account or of the administrator's account holds, and
+    no other caller does: not an account's caller, and not a role agent, a seat's run or a job of the
     deployment's own, which owns no node and so reaches none through the tool. Agency writes it into the record of
     every session it issues for such a supervisor: the grants `policy/person-nodes.toml` names, `node.admin`, the
     resource the node tool reads as reaching every node, and `platform.payment`, the platform's own card, which

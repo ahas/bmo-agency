@@ -202,20 +202,6 @@ pub async fn role_command(
   line.model.clone_from(&apart.model);
   line.tier.clone_from(&work.mapping.tier);
 
-  // A supervisor's double is handed the supervisor's servers beside its line's (docs/worker-mcp.md, 「A
-  // supervisor's double」); the worker line's own permissions reach every tool they serve.
-  if let Some(supervisor) = apart.supervisor.as_deref() {
-    line.mcp_config = crate::lines::chat::double_of(
-      ground,
-      &trees,
-      supervisor,
-      crate::lines::worker::LINE,
-      &line.mcp_config,
-    )
-    .await?
-    .mcp_config;
-  }
-
   let mut env = command_env(ground.env(), account, &Runs::here(ground), line.thinking)?;
 
   for (name, value) in
@@ -224,11 +210,7 @@ pub async fn role_command(
     env.insert(name, Some(value));
   }
 
-  // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it.
-  env.insert(
-    TURN_AGENT.to_owned(),
-    Some(apart.supervisor.clone().unwrap_or_else(|| agent.to_owned())),
-  );
+  env.insert(TURN_AGENT.to_owned(), Some(agent.to_owned()));
 
   if job {
     env.insert(TASK_LOCKED.to_owned(), Some("1".to_owned()));

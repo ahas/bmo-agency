@@ -1,5 +1,5 @@
 //! A run in a pane of its own (docs/agents.md, 「A run in a pane of its own」): one run of a role — a job's
-//! turn, a delegated task, a search, a translation, a probe, a login's renewal — as the interactive program in
+//! turn, a worker ask, a search, a translation, a probe, a login's renewal — as the interactive program in
 //! a pane of its own, opened for the run and closed with it, on the session its role's setting gives it: a
 //! new one, or the valid one the role's last run at the same path on the same provider and model left
 //! (docs/sessions.md, 「A role's session」). The run's command is its line's; what it

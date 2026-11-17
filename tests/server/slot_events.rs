@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use agency_server::order_run::dispatch::{self, Asked, DELEGATE, Seats, SlotRequestChanged, Wanted};
+use agency_server::order_run::dispatch::{self, Asked, COWORK, Seats, SlotRequestChanged, Wanted};
 use serde_json::{Value, json};
 
 use crate::support::grounds::{deepseek_balance, seeded};
@@ -38,8 +38,8 @@ async fn a_slot_ask_publishes_its_waiting_request_as_an_object_on_the_stream() {
   let held = dispatch::enqueue(
     &ground.db,
     &ground.events,
-    &asked("delegate-one", "owner:delegate-one", Some("read the log"), Some("chat-agent")),
-    DELEGATE,
+    &asked("cowork-one", "owner:cowork-one", Some("read the log"), Some("chat-agent")),
+    COWORK,
     async |_, _| Ok(()),
   )
   .await
@@ -48,10 +48,10 @@ async fn a_slot_ask_publishes_its_waiting_request_as_an_object_on_the_stream() {
   let event = typed.next().await.expect("the ask was published");
 
   assert_eq!(event.token, held.token);
-  assert_eq!(event.source, DELEGATE);
+  assert_eq!(event.source, COWORK);
   assert_eq!(event.state, "waiting");
   assert_eq!(event.role, "worker");
-  assert_eq!(event.owner, "owner:delegate-one");
+  assert_eq!(event.owner, "owner:cowork-one");
   assert_eq!(event.asked_by.as_deref(), Some("chat-agent"));
   assert_eq!(event.title.as_deref(), Some("read the log"));
   assert_eq!(event.provider, None, "a waiting request names no road yet");

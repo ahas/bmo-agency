@@ -603,8 +603,7 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
   );
 }
 
-// A run of the worker line that is no supervisor's double works for the brain of the supervisor agency's research
-// setting names, which its record names apart from the turn's agent, so its other tools act as the run itself
+// A run of the worker line works for the brain of the supervisor agency's research setting names, which its record names apart from the turn's agent, so its other tools act as the run itself
 // (docs/agent-roles.md, 「The bundles」).
 #[tokio::test]
 async fn a_worker_line_run_works_for_the_research_supervisor_s_brain_and_stays_its_own() {
@@ -711,120 +710,6 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
   }
 }
 
-// A delegation's run is its supervisor's double: its record is held under the supervisor's name with the chat
-// line's capabilities, namespaces and the supervisor bundles beside its line's and its role's, and names the
-// supervisor as the turn's agent, and holds the administrator's grant only where the supervisor is of no account,
-// which a run no supervisor delegated never holds;
-// the start answers the same as `carries` (docs/tools.md, 「The delegate」).
-#[tokio::test]
-async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let socket = home.path().join("mcp-host.sock");
-  let issued = issuing_host(&socket);
-  let machine = hosted(home.path(), &socket);
-
-  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
-  crate::support::rows::supervisor(scratch.db(), "bmo", &[]).await;
-
-  let ground = ground(&scratch, &machine, None);
-  let double = Apart {
-    provider: "deepseek".into(),
-    model: "deepseek-flash".into(),
-    cwd: "/tmp".into(),
-    role: Some("doppelganger".into()),
-    supervisor: Some("bmo".into()),
-    ..Apart::default()
-  };
-  let mut env: BTreeMap<String, String> =
-    agency_server::lines::token::record_variables(&double).into_iter().collect();
-
-  env.insert("BMO_TURN_CHAT".into(), "-7".into());
-
-  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
-    .await
-    .unwrap()
-    .expect("a token");
-
-  let record = issued.lock().unwrap().pop().expect("a record was issued");
-  let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
-  let namespaces: Vec<String> = serde_json::from_value(record["namespaces"].clone()).unwrap();
-
-  assert_eq!(record["holderName"], json!("bmo"), "held under the supervisor's name: {record}");
-  assert_eq!(record["variables"]["BMO_TURN_AGENT"], json!("bmo"), "{record}");
-  assert_eq!(
-    record["variables"]["BMO_BRAIN_AGENT"],
-    json!("bmo"),
-    "the brain of the supervisor it doubles: {record}"
-  );
-  assert_eq!(record["variables"]["BMO_TURN_CHAT"], json!("-7"), "the asking turn's room: {record}");
-  assert_eq!(record["labels"]["role"], json!("doppelganger"), "{record}");
-
-  for capability in ["room.tools", "room.chat", "room.send", "web.read", "graph.read", "queue.read"] {
-    assert!(capabilities.contains(&capability.to_owned()), "{capability}: {capabilities:?}");
-  }
-
-  for namespace in ["bmo", "voice", "research", "worker", "web"] {
-    assert!(namespaces.contains(&namespace.to_owned()), "{namespace}: {namespaces:?}");
-  }
-
-  let carries = agency_server::lines::token::carried_by(&ground, &double).await.unwrap();
-
-  assert_eq!(
-    (carries.capabilities.iter().collect::<std::collections::BTreeSet<_>>()),
-    capabilities.iter().collect::<std::collections::BTreeSet<_>>(),
-    "the start answers what the record holds"
-  );
-  assert_eq!(carries.namespaces, namespaces);
-
-  let alone = agency_server::lines::token::carried_by(
-    &ground,
-    &Apart {
-      supervisor: None,
-      ..double
-    },
-  )
-  .await
-  .unwrap();
-
-  assert!(
-    !alone.capabilities.contains(&"room.send".to_owned()),
-    "a role's run alone holds its role's"
-  );
-  assert!(!alone.namespaces.contains(&"voice".to_owned()));
-  // The supervisor belongs to no account, so its double holds the administrator's grant; an account's
-  // supervisor's double holds none (docs/person-nodes.md, 「Who reaches a node」).
-  assert_eq!(
-    record["grants"],
-    json!([{ "resource": "node.admin" }, { "resource": "platform.payment" }]),
-    "{record}"
-  );
-
-  crate::support::rows::supervisor(scratch.db(), "u7", &[("owner_account", 7i64.into())]).await;
-  env.insert(agency_server::lines::token::RECORD_SUPERVISOR.into(), "u7".into());
-  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
-    .await
-    .unwrap()
-    .expect("a token");
-
-  let record = issued.lock().unwrap().pop().expect("a record was issued");
-
-  assert_eq!(record["holderName"], json!("u7"), "{record}");
-  assert_eq!(record["grants"], json!([]), "{record}");
-
-  // A run no supervisor delegated is the deployment's own yet no supervisor, so it holds none either.
-  env.remove(agency_server::lines::token::RECORD_SUPERVISOR);
-  agency_server::lines::token::issue_for_run(&ground, "worker", "doppelganger", "/tmp", &env, u64::MAX)
-    .await
-    .unwrap()
-    .expect("a token");
-
-  let record = issued.lock().unwrap().pop().expect("a record was issued");
-
-  assert_eq!(record["holderName"], json!("doppelganger"), "{record}");
-  assert_eq!(record["grants"], json!([]), "{record}");
-}
-
 // A road whose program is Claude Code on agency's gateway: DeepSeek's member, its key where the settings' key
 // helper reads it.
 fn on_deepseek(ground: &Ground) -> agency_server::lines::chat::Door {
@@ -914,8 +799,8 @@ fn after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
 
 // A worker's run on DeepSeek holds the worker line's tools as one on Claude Code's own road does: the line's own
 // permission mode over every built-in but those it denies, its plugin, co-workers and settings, and its
-// configuration with the web and worker namespaces; a supervisor's double on the same road holds the
-// supervisor's servers beside them (docs/launch-lines.md, 「What a line's program is allowed, by road」).
+// configuration with the web and worker namespaces (docs/launch-lines.md, 「What a line's program is allowed, by
+// road」).
 #[tokio::test]
 async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_and_servers() {
   let scratch = Scratch::new().await;
@@ -958,34 +843,10 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
   for server in ["web", "worker"] {
     assert!(servers.contains(&server.to_owned()), "{server}: {servers:?}");
   }
-
-  scratch
-    .run(
-      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "created_at",
-           "updated_at")
-         VALUES ('bmo', 'agent', 'window', 'deepseek', 'deepseek-flash', 0, 0)"#,
-      vec![],
-    )
-    .await;
-
-  let double = Apart {
-    role: Some("doppelganger".into()),
-    supervisor: Some("bmo".into()),
-    ..worker
-  };
-  let (args, servers) = stood_on_deepseek(&ground, &double).await;
-
-  assert_eq!(after(&args, "--permission-mode"), Some("bypassPermissions"), "{args:?}");
-  assert!(!args.iter().any(|arg| arg == "--tools"), "the double keeps every built-in: {args:?}");
-
-  for server in ["bmo", "web", "worker"] {
-    assert!(servers.contains(&server.to_owned()), "the double's {server}: {servers:?}");
-  }
 }
 
 // A voyager's run on DeepSeek holds the search line's servers and nothing of its program's own, as on
-// Claude Code's own road, and its record the whole of the web namespace's bundles with the eye and research
-// namespaces (docs/agent-roles.md, 「The voyager and the seeker roles」).
+// Claude Code's own road (docs/agent-roles.md, 「The voyager and the seeker roles」).
 #[tokio::test]
 async fn a_voyager_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_and_research() {
   let scratch = Scratch::new().await;
@@ -1013,16 +874,6 @@ async fn a_voyager_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_an
   for server in ["bmo", "web", "eye", "research"] {
     assert!(servers.contains(&server.to_owned()), "{server}: {servers:?}");
     assert!(allowed.contains(&format!("mcp__{server}").as_str()), "{server}: {allowed:?}");
-  }
-
-  let carries = agency_server::lines::token::carried_by(&ground, &voyager).await.unwrap();
-
-  for bundle in ["web.read", "web.sites", "web.branches", "web.rulebooks"] {
-    assert!(carries.capabilities.contains(&bundle.to_owned()), "{bundle}: {carries:?}");
-  }
-
-  for namespace in ["eye", "research", "web"] {
-    assert!(carries.namespaces.contains(&namespace.to_owned()), "{namespace}: {carries:?}");
   }
 }
 

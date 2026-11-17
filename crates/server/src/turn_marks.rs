@@ -2,7 +2,7 @@
 //! and whether every new message in it is the owner's, as the receiver marked the turn. An item the agent files
 //! while it carries the turn is filed under that room, and as the owner's ask where the turn is privileged.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 /// What an agent's turn is about as agency reads it, never as the model writes it.
@@ -36,22 +36,4 @@ pub fn ended(agent: &str, run: &str) {
 /// The room turn an agent is carrying now, where it carries one.
 pub fn of(agent: &str) -> Option<Mark> {
   carried().get(agent).map(|(_, mark)| *mark)
-}
-
-/// The room turn a supervisor's double carries for it: the supervisor, and the room and privilege the double's
-/// turn names in its variables. None for a run that doubles no supervisor or names no room.
-pub fn doubled(supervisor: Option<&str>, variables: &BTreeMap<String, String>) -> Option<(String, Mark)> {
-  let supervisor = supervisor?;
-  let chat_id = variables.get(tool_call::CHAT_VARIABLE)?.trim().parse().ok()?;
-  let privileged = variables
-    .get(tool_call::room_gate::PRIVILEGED_VARIABLE)
-    .is_some_and(|value| value == "1");
-
-  Some((
-    supervisor.to_owned(),
-    Mark {
-      chat_id,
-      privileged,
-    },
-  ))
 }

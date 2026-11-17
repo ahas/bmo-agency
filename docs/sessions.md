@@ -73,13 +73,13 @@ statements below about either are kept for a rollback to the road a deployment l
     caller's key where the send named one, the agent, the room, the turn's run in the ledger where agency
     opened one, and the job. Every turn agency carries is sent
     through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
-    gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a delegation's,
-    a supervisor's double's and a research run's among them. A turn stops being kept only once its end
+    gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a worker ask's
+    and a research run's among them. A turn stops being kept only once its end
     has reached its caller, or the pickup or the pass below has handed its end back or found nothing that
     names it; each removal is written to the log with the run and why;
   - a server that starts reads each turn the process before it left there, before it reads anything else
     that process left, in the place of the pane program that carries it — the agent's place, or, for a
-    turn of a role's thrown-away session (a job's or a supervisor's double's among them), the place of
+    turn of a role's thrown-away session (a job's among them), the place of
     that session's own, which stands while the turn goes on and is ended once its end is handed back
     (`docs/api.md`, 「sessions」) — and as that program writes its turns down:
     - on a dsh pane, against the program's record, `loop.jsonl`, by the run's name, and its inbox;
@@ -193,7 +193,7 @@ statements below about either are kept for a rollback to the road a deployment l
   left to ask. So does a room's session cleared by the owner's reset, whose program is taken down with
   it (`docs/session-resets.md`, 「Who holds a session」).
 - **A supervisor's asynchronous calls go on into its next session.** A call a session started with
-  `bmo use --async` — a deployment, a wait, a delegation — runs under the tool host's record of the session
+  `bmo use --async` — a deployment, a wait, a worker ask — runs under the tool host's record of the session
   token its program carried, and the tool host cancels it the moment that record is taken back. Its wake is
   queued for an agent and a room, never for a session, so the session that follows is the one it wakes. So where a
   supervisor's program is replaced or taken down — stood afresh on a new session, or taken down with a session
@@ -401,7 +401,7 @@ statements below about either are kept for a rollback to the road a deployment l
   never share a session, whatever role and road they hold in common; a run whose agent cannot be told keeps
   no session (`docs/agent-roles.md`, 「A role's sessions」).
 - **The path is the folder the run works in:** a repository's checkout for a job, a support worktree for a
-  job there, the task's folder for a delegation or a worker ask, a place for a co-work branch, the line's own
+  job there, the task's folder for a worker ask, a place for a co-work branch, the line's own
   directory for a search. A session is kept per folder by the program itself, so a folder that moved is a
   new key.
 - **The provider and the model are the ones the run went out on,** with the effort and the login, and every

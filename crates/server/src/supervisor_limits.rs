@@ -55,12 +55,6 @@ impl Limits {
     self.brain_on
   }
 
-  /// Whether the gate's reading of the brain reaches the supervisor's turns: its brain and its reference both
-  /// switched on.
-  pub fn reference_reaches(&self) -> bool {
-    self.brain_on && self.reference_on
-  }
-
   /// The capabilities a record keeps of those it would hold: none the brain is reached through where the
   /// brain is off, none the gate's reading of it is reached through where the reference is off, and only
   /// those the limit names where it names any. It never widens them.
@@ -132,7 +126,7 @@ impl Limits {
 }
 
 /// Every capability a supervisor's tool limit may name: what the chat line gives, every bundle the policy
-/// declares (a supervisor's own and its double's role's), and what the chat line holds outside the tool
+/// declares, and what the chat line holds outside the tool
 /// host.
 pub fn offered() -> Vec<String> {
   let mut offered: Vec<String> = vec![];

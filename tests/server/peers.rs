@@ -574,29 +574,3 @@ async fn a_job_s_reference_is_read_for_the_supervisor_holding_it() {
   referenced(&gate, &json!({ "holderName": "", "instruction": instruction }), "the prompt").await;
   assert!(gate.asked().is_empty(), "no holder, no supervisor to read for");
 }
-
-// A double's first prompt is read for the supervisor whose double it is; a role's run no supervisor
-// delegated asks nothing and keeps its words.
-#[tokio::test]
-async fn a_double_s_reference_is_read_for_its_own_supervisor() {
-  use agency_server::herdr_backend::first_prompt_referenced;
-  use agent_session::Apart;
-
-  let gate = Recording::default();
-  let double = Apart {
-    role: Some("doppelganger".into()),
-    supervisor: Some("u7".into()),
-    ..Apart::default()
-  };
-
-  assert_eq!(first_prompt_referenced(&gate, &double, "the words").await.unwrap(), "the words");
-  assert_eq!(gate.asked(), ["u7"]);
-
-  let alone = Apart {
-    supervisor: None,
-    ..double
-  };
-
-  assert_eq!(first_prompt_referenced(&gate, &alone, "the words").await.unwrap(), "the words");
-  assert!(gate.asked().is_empty(), "a run that is no double asks nothing");
-}

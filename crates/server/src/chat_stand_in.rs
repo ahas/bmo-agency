@@ -125,7 +125,7 @@ pub async fn road_turn(
 
   run.note_persona(ground, log).await;
 
-  let step = road_step(ground, &machine, key, taken, &run.reasoning, None).await.map_err(failed)?;
+  let step = road_step(ground, &machine, key, taken, &run.reasoning).await.map_err(failed)?;
   let outcome = match taken.provider.as_str() {
     name if inbox_declared(name) => {
       inbox_road(ground, &machine, run, &step, log, answers, began, shown).await?
@@ -154,9 +154,8 @@ pub async fn road_step(
   key: &str,
   taken: &road::Road,
   reasoning: &crate::lines::worker::Reasoning,
-  supervisor: Option<&str>,
 ) -> Result<Step, String> {
-  let mut step = step_of(ground, machine, key, &taken.provider, reasoning, supervisor).await?;
+  let mut step = step_of(ground, machine, key, &taken.provider, reasoning).await?;
 
   if step.model != taken.model {
     if taken.provider == registry::PROVIDER {
@@ -180,12 +179,9 @@ pub async fn job_turn_on(
   taken: &road::Road,
   began: i64,
   shown: Option<OutputWatch<'_>>,
-  supervisor: Option<&str>,
 ) -> Result<Reply, NoAnswer> {
   let machine = ground.machine();
-  let step = road_step(ground, &machine, key, taken, &run.reasoning, supervisor)
-    .await
-    .map_err(failed)?;
+  let step = road_step(ground, &machine, key, taken, &run.reasoning).await.map_err(failed)?;
 
   run.note_persona(ground, log).await;
 

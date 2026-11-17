@@ -18,7 +18,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   supervisor's own provider, model and effort as they stand when it is asked; it takes no run that names no
   road and that no supervisor asked. It also takes a run whose ask names a road no agent of its role stands
   on — an item's model, a repository's pin — on that road. A role all of whose agents name no road refuses
-  a run that names no road and that no supervisor asks, with why. The doppelganger's agents are seeded so.
+  a run that names no road and that no supervisor asks, with why. The coder's agents are seeded so
+  (`docs/role-slots.md`, 「A role that follows its supervisor」).
 - **A role holds no order, no cap and no forced provider, and its agents stand in no order of priority.** How
   many of a role's runs go at once is the number of its agents that are switched on, and which road a run takes
   is its agent's. Which agent does a job's work is named by the supervisor that orders it, or, where its item
@@ -56,7 +57,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 ## What a run reads off its agent
 
 - **A run finds its agent by the slot it holds:** the seat of the slot request of its role that stands
-  active at the folder the run works in — a job's checkout, a delegation's task folder, a place — the newest
+  active at the folder the run works in — a job's checkout, a worker ask's folder, a place — the newest
   where more than one stands there. A run that names no folder, a translation among them, takes the seat of
   its role's only active request. A run whose seat neither tells stands on its role's preset alone.
 - **Its prompt:** the agent's `prompt` stands in the place the role's prompt takes in the run's system

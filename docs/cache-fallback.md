@@ -619,7 +619,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
 - **Runs on another's road** — a repository's pinned model, a run of an agent that names no road on the road of
-  the supervisor that asks it (the `doppelganger` role as seeded), a session whose caller names its provider and
+  the supervisor that asks it (the `coder` role as seeded), a session whose caller names its provider and
   model — are `docs/provider-order.md`'s, 「Runs on another's road」; the account walk inside the Claude Code road
   is the same for each of them.
 - **Every line asks it, and none keeps a judgement of its own:** a supervisor's turn, a job's launch and its

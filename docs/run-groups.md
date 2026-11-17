@@ -8,7 +8,7 @@ server again starts it again.
 ## Which runs
 
 - **A run in a pane of its own** (`docs/agents.md`, 「A run in a pane of its own」) on this machine's herdr:
-  a job's stage, a delegated task, a search, a browse and every other run opened in a workspace of its own.
+  a job's stage, a worker ask, a search, a browse and every other run opened in a workspace of its own.
   Its program is started inside a run group of its own, and the group and the run's record are what end
   its processes.
 - **A run put into a co-work branch checkout's standing program:** the program outlives the run, so the

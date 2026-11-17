@@ -321,18 +321,6 @@ pub struct Session {
   /// The role the session runs for, or none.
   #[serde(default)]
   pub role: Option<String>,
-  /// What the record of every run of a role's session holds, its supervisor's among them where it is a
-  /// supervisor's double; none for any other scope and wherever a session is read rather than started.
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub carries: Option<SessionCarries>,
-}
-
-/// SessionCarries: the capabilities and the namespaces a role's session's record holds.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionCarries {
-  pub capabilities: Vec<String>,
-  pub namespaces: Vec<String>,
 }
 
 /// Turn:
@@ -613,54 +601,6 @@ pub struct SeatRequest {
   pub asked_by: Option<String>,
   /// The agent the seat's child runs on, where its binding named one.
   pub agent_name: Option<String>,
-}
-
-/// DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`
-/// once it is let in, `ended` once it is finished or cancelled.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum DelegationStage {
-  Waiting,
-  Running,
-  Ended,
-}
-
-/// Delegation: a task a supervisor delegated, as its seat stands.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Delegation {
-  pub token: String,
-  pub title: Option<String>,
-  pub asked_by: Option<String>,
-  pub stage: DelegationStage,
-  pub role: String,
-  /// The provider it runs on; null until its road is fixed.
-  pub provider: Option<String>,
-  /// The model it runs on; null until its road is fixed.
-  pub model: Option<String>,
-  /// Epoch milliseconds.
-  pub asked_at: i64,
-  /// Epoch milliseconds; null until it is let in.
-  pub running_since: Option<i64>,
-  /// Epoch milliseconds; null until it ends.
-  pub ended_at: Option<i64>,
-  /// The session its run's turn goes into, which its asking supervisor says more to while it runs.
-  pub session: Option<String>,
-  /// The run its turn goes out as, the name its log lines are written under; null until it is bound, kept
-  /// once it ends.
-  pub run_name: Option<String>,
-  /// That run's id in the ledger; null until its turn opens it, kept once it ends.
-  pub run_id: Option<i64>,
-  /// What it came to, once ended.
-  pub outcome: Option<String>,
-}
-
-/// DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,
-/// newest first.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DelegationPage {
-  pub items: Vec<Delegation>,
 }
 
 /// Reservation:
@@ -1331,7 +1271,7 @@ pub struct UsageGroup {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-  /// The supervisor a run of the search or browse line no supervisor delegated writes for, or null.
+  /// The supervisor whose brain a role's run reads and writes, or null.
   pub research_supervisor: Option<String>,
   pub downgrade_return: Value,
   /// The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none.
@@ -2251,10 +2191,6 @@ pub struct SessionStart {
   /// The capabilities the session's record keeps, of those its line and its agent's role give.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tools_allowed: Option<Vec<String>>,
-  /// On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools
-  /// beside its role's.
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub supervisor: Option<String>,
   /// A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
   /// on a registration naming a card service stands on, with no other asked.
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3765,9 +3701,6 @@ pub struct SlotRequest {
   pub outcome: Option<String>,
   pub reservation: Option<String>,
   pub yielding: bool,
-  /// true where its caller vouched it one short turn someone waits on
-  #[serde(default)]
-  pub short: bool,
   pub place_key: Option<String>,
   pub session: Option<String>,
   pub title: Option<String>,
@@ -3844,7 +3777,7 @@ pub struct OwnerReleaseQuery {
 pub struct SlotRequestAsk {
   pub request_key: String,
   pub owner: String,
-  /// the doppelganger where a delegation names none
+  /// The role the slot is asked of; an ask naming none is refused.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3867,13 +3800,6 @@ pub struct SlotRequestAsk {
   pub title: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub asked_by: Option<String>,
-  /// true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub from_double: Option<bool>,
-  /// true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated
-  /// tasks hold every slot
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub short: Option<bool>,
 }
 
 /// SlotRequestMove: a slot request asked for its admission, bound to its run, or given back.

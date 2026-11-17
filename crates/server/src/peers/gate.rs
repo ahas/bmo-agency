@@ -1,6 +1,5 @@
 //! The gate (docs/api.md, 「Calls agency makes」) through the client it publishes: the reference a job's
-//! or a supervisor's double's first prompt is handed, picked over its instruction by the gate's reference
-//! road. The reference is the knowledge, rules and documents of the brain of the supervisor the call names,
+//! first prompt is handed, picked over its instruction by the gate's reference road. The reference is the knowledge, rules and documents of the brain of the supervisor the call names,
 //! chosen by the gate; a worker and a voyager read the brain only through what the gate hands them here.
 
 use std::sync::Arc;
@@ -53,7 +52,7 @@ impl GateAddress {
 
 /// What agency asks the gate.
 pub trait Gate: Send + Sync {
-  /// The reference the gate picks for a job's or a supervisor's double's instruction: the knowledge, rules
+  /// The reference the gate picks for a job's instruction: the knowledge, rules
   /// and documents of `supervisor`'s brain its lines call for, each with its path, text and source. Empty
   /// where the gate is undeployed or does not answer.
   fn reference<'a>(&'a self, supervisor: &'a str, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
@@ -112,7 +111,7 @@ impl PublishedGate {
     supervisor: &str,
     lines: Vec<String>,
   ) -> Result<Vec<Entry>, PeerFault> {
-    // A job and a double carry no room, no speakers and no situation: the envelope names the supervisor the
+    // A job carries no room, no speakers and no situation: the envelope names the supervisor the
     // turn belongs to, whose brain the road reads, and a turn with no line asks none of it.
     let ask = ReferenceAsk {
       room_id: 0,

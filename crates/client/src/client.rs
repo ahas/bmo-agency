@@ -239,15 +239,6 @@ pub struct ListOvertimeRequestsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ListDelegationsQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub asked_by: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub ended: Option<i64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ListReservationsQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub owner: Option<String>,
@@ -590,11 +581,6 @@ impl AgencyClient {
   /// `DELETE /stop-marks/{jobId}`: Clear a job's stop mark.
   pub async fn delete_stop_mark(&self, job_id: i64) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["stop-marks", &job_id.to_string()])).await
-  }
-
-  /// `GET /delegations`: The tasks an agent delegated, each with its title, stage, role, start and run.
-  pub async fn list_delegations(&self, query: &ListDelegationsQuery) -> Answer<DelegationPage> {
-    Self::answered(self.request(Method::GET, &["delegations"]).query(query)).await
   }
 
   /// `GET /reservations`: Held seat reservations.

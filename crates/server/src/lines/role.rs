@@ -2,14 +2,12 @@
 //! program is stood (docs/api.md, 「sessions」; docs/launch-lines.md, 「What a line's program is allowed, by
 //! road」): the runner line it names with the instructions its caller handed in, or else the worker line whole —
 //! its prompt, rules, settings, plugin, co-workers and MCP configuration — which a program that is Claude Code
-//! stands on in its own words on every road, a supervisor's double with the supervisor's servers beside the
-//! line's.
+//! stands on in its own words on every road.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use agent_session::{Apart, Mapping};
-use policy::chat_line::CHAT_LINE;
 use sha2::{Digest, Sha256};
 
 use super::Trees;
@@ -38,9 +36,7 @@ pub struct RoleLine {
 
 /// The line a role's session's turn goes out on (docs/api.md, 「sessions」): the runner line the session names
 /// with the instructions its caller handed in, or else the worker line opening on the platform's harness and the
-/// role's prompt, with the repository's own where its folder is a repository's checkout. A supervisor's double
-/// is handed the supervisor's servers beside its line's (docs/worker-mcp.md, 「A supervisor's double」), and a
-/// program told what it is shown and allowed the chat line's tools beside them.
+/// role's prompt, with the repository's own where its folder is a repository's checkout.
 pub async fn compose(
   ground: &Ground,
   trees: &Trees,
@@ -86,17 +82,6 @@ pub async fn compose(
     &apart.provider,
   )
   .await?;
-  let double = match apart.supervisor.as_deref() {
-    Some(supervisor) => {
-      Some(super::chat::double_of(ground, trees, supervisor, super::worker::LINE, &line.mcp_config).await?)
-    }
-    None => None,
-  };
-
-  if let Some(double) = &double {
-    line.mcp_config.clone_from(&double.mcp_config);
-  }
-
   line.effort = mapping.effort.clone().unwrap_or(line.effort);
   line.tier.clone_from(&mapping.tier);
 
@@ -108,11 +93,10 @@ pub async fn compose(
     thinking: line.thinking,
     // The role's whole system prompt: the harness opening and the role's prompt before the rules.
     system_path: line.system_prompt.clone().unwrap_or_else(|| line.harnessed.clone()),
-    // A double is told its supervisor's own: the chat line's shown tools, every one of them allowed.
-    tools_shown: double.as_ref().map(|_| CHAT_LINE.tools.shown.clone()).unwrap_or_default(),
+    tools_shown: String::new(),
     // A program told its tools takes every working row of its road; the list only has to be non-empty for the
     // road to hand it them rather than none.
-    tools_allowed: double.as_ref().map_or_else(|| "Bash".to_owned(), |_| CHAT_LINE.tools.shown.clone()),
+    tools_allowed: "Bash".to_owned(),
     mcp_config: line.mcp_config.clone(),
     cwd: apart.cwd.clone(),
     worker: Some(Box::new(line)),

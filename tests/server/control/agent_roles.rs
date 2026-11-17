@@ -38,24 +38,11 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   let server = standing::stand_server(home.path(), &data, &scratch.address(), TOKEN);
   let port = server.port;
 
-  // The seeded roles stand in the store, the doppelganger among them with its cap, the coder beside the
-  // worker on the worker line, and the translator's prompt its file's text.
+  // The seeded roles stand in the store, the coder beside the worker on the worker line, and the translator's
+  // prompt its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 11, "{listing}");
-  assert_eq!(role(&listing, "doppelganger").unwrap()["maxConcurrent"], 2);
-  // The double's agents are seeded on no road: its road follows the supervisor that asks it, which a screen
-  // shows.
-  let doubles = role(&listing, "doppelganger").unwrap()["agents"].as_array().unwrap().clone();
-
-  assert_eq!(doubles.len(), 2, "{doubles:?}");
-  assert!(
-    doubles.iter().all(|agent| agent["provider"].is_null() && agent["enabled"] == true),
-    "{doubles:?}"
-  );
-  assert_eq!(role(&listing, "doppelganger").unwrap()["followsSupervisor"], true);
-  assert_eq!(role(&listing, "doppelganger").unwrap()["provider"], Value::Null);
-  assert_eq!(role(&listing, "doppelganger").unwrap()["waitingFor"], Value::Null);
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 10, "{listing}");
   assert_eq!(role(&listing, "worker").unwrap()["followsSupervisor"], false);
   assert_eq!(role(&listing, "worker").unwrap()["maxConcurrent"], 3);
   // A seeded role's agents are as many as its declared count, each on the road it declares, in their order.
@@ -134,6 +121,16 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     "{coder}"
   );
   assert_eq!(coder["followsSupervisor"], true, "{coder}");
+  assert_eq!((&coder["provider"], &coder["waitingFor"]), (&Value::Null, &Value::Null), "{coder}");
+
+  // Its agents name no road, which a screen shows.
+  let coders = coder["agents"].as_array().unwrap();
+
+  assert_eq!(coders.len(), 3, "{coders:?}");
+  assert!(
+    coders.iter().all(|agent| agent["provider"].is_null() && agent["enabled"] == true),
+    "{coders:?}"
+  );
 
   let coder_prompt =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/coder.md")).unwrap();
@@ -164,7 +161,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 11);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 10);
 
   // A role added, its bundles once each: it holds no agent yet, so it carries no run.
   let (status, added) = ask(
@@ -397,7 +394,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(status, 404);
 
   // A role a default names stays; an unknown one is not found.
-  let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/doppelganger", None).await;
+  let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/upkeep", None).await;
   assert_eq!(status, 409);
 
   let (status, _) = ask(reqwest::Method::DELETE, port, "/roles/nobody", None).await;

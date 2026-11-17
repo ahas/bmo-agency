@@ -46,7 +46,7 @@ Beside its one road, its cache warming per provider and its compaction threshold
   prefix across accounts, and no account's words are answered faster for having been read for another. A
   supervisor of no account carries no mark.
 - **A supervisor of an account's program holds that account in `BMO_OWNER_ACCOUNT`,** the user's id as a
-  decimal number, on every turn shape and road and on a double of it alike, and on the person's node, so what
+  decimal number, on every turn shape and road alike, and on the person's node, so what
   it writes for its person names them: a secret request is that person's (`docs/agent-documents.md`). The mark
   stays the prompt's only sign of the account, since the prompt is what a provider reads; the variable is
   the program's environment alone. A supervisor of no account's program holds none.

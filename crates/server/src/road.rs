@@ -4,8 +4,8 @@
 //! machine, its balance and its logins — and whether it has quota above the row's share, each out of its own
 //! member, and the first that can carries the run on the model, effort and thinking its entry names, on the
 //! first login with quota where the provider holds logins. A row the owner forced a provider on walks that
-//! provider alone. A run whose caller fixes its road — an item's model, a repository's pin, a delegation as
-//! its supervisor's double, a native co-worker on its caller's provider, a session's named road — walks that
+//! provider alone. A run whose caller fixes its road — an item's model, a repository's pin, a run of a role
+//! that follows the supervisor asking it, a native co-worker on its caller's provider, a session's named road — walks that
 //! road alone. A road walked alone is waited for while it cannot answer, never left. The resolution knows no
 //! provider by name. A move off the top of the order, a return to it and an order that cannot answer at all
 //! are each published once, as the facts of `road.changed` (docs/api.md, 「Events」).

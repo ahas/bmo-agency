@@ -32,7 +32,7 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   folders.sort();
 
-  assert_eq!(folders, ["deepseek_top_up", "delegate", "procedures", "relay", "worker_ask"]);
+  assert_eq!(folders, ["deepseek_top_up", "procedures", "relay", "worker_ask"]);
 
   for folder in &folders {
     let manifest = read(&tools().join(folder).join("tool.toml"));
@@ -86,47 +86,6 @@ fn the_worker_ask_entry_is_declared_as_its_tool_answers_it() {
 
   assert_eq!(schema["required"], serde_json::json!(["words"]));
   assert!(schema["properties"].get("timeBoundSeconds").is_none(), "the ask takes no time bound");
-}
-
-#[test]
-fn the_delegate_entry_is_declared_as_its_tool_answers_it() {
-  let folder = tools().join("delegate");
-  let manifest = read(&folder.join("tool.toml"));
-  let entry = &manifest["entry"].as_array().unwrap()[0];
-
-  assert_eq!(text(entry, &["namespace"]), delegate_tool::NAMESPACE);
-  assert_eq!(text(entry, &["name"]), delegate_tool::NAME);
-  assert_eq!(text(entry, &["title"]), delegate_tool::TITLE);
-  assert_eq!(text(entry, &["description"]), delegate_tool::DESCRIPTION);
-  assert_eq!(words(&entry["capabilities"]), delegate_tool::CAPABILITIES);
-
-  let schema: serde_json::Value =
-    serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
-
-  assert_eq!(schema["required"], serde_json::json!(["title", "instruction"]));
-  assert_eq!(
-    schema["properties"].as_object().unwrap().keys().collect::<Vec<_>>(),
-    ["title", "instruction", "role", "folder"]
-  );
-}
-
-#[test]
-fn the_delegations_entry_is_declared_as_its_tool_answers_it() {
-  let folder = tools().join("delegate");
-  let manifest = read(&folder.join("tool.toml"));
-  let entry = &manifest["entry"].as_array().unwrap()[1];
-
-  assert_eq!(text(entry, &["namespace"]), delegate_tool::NAMESPACE);
-  assert_eq!(text(entry, &["name"]), delegate_tool::LIST_NAME);
-  assert_eq!(text(entry, &["title"]), delegate_tool::LIST_TITLE);
-  assert_eq!(text(entry, &["description"]), delegate_tool::LIST_DESCRIPTION);
-  assert_eq!(words(&entry["capabilities"]), delegate_tool::CAPABILITIES);
-
-  let schema: serde_json::Value =
-    serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
-
-  assert!(schema.get("required").is_none());
-  assert_eq!(schema["properties"].as_object().unwrap().keys().collect::<Vec<_>>(), ["ended"]);
 }
 
 #[test]

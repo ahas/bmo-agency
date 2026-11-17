@@ -54,7 +54,7 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **What the repository hands is part of the prefix,** so a changed prefix document, rule or preamble moves
   the prefix of every session kept at that path, and the next run there opens a new session
   (`docs/sessions.md`, 「A role's session」).
-- **A run whose path is no repository's** — a delegated task in a supervisor's scratch folder, a search, a
+- **A run whose path is no repository's** — a worker ask in a supervisor's scratch folder, a search, a
   translation — is handed nothing of a repository.
 
 ## A job

@@ -330,8 +330,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `line`; `agents`, its agents in the
   order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
   them are switched on; `followsSupervisor`, true while none of its agents names a road,
-  so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A delegated task」)
-  and a screen shows its road as the supervisor's; `providerPrompts`, each text its runs are given beside its
+  so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A role that follows
+  its supervisor」) and a screen shows its road as the supervisor's; `providerPrompts`, each text its runs are given beside its
   prompt by the provider their program stands on (`docs/agent-roles.md`, 「A role's provider prompts」); and
   what stands of it now: `running` and `waiting`, how
   many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
@@ -478,21 +478,14 @@ in on, on the role's line.
 - **`cwd`** is the path the run works at: the one the start names, else the slot's `path`, else the line's own
   deployed directory.
 - **A start naming no `slot`** is refused 400: a role's session runs on a slot and on nothing else.
-- **A role's session answers `carries`** beside the session: `capabilities` and `namespaces`, what the record
-  of each of its runs holds, its supervisor's among them where the start names one; every other scope answers
-  it null.
 - **A slot carries several sessions in turn.** A start naming a slot binds its lease to the session it opens,
   whether or not the lease was bound to another before, and that other session's end no longer gives the
   lease back; ending the session the lease is bound to does (`docs/role-slots.md`, 「The line」). A caller
   running sessions one after another on one slot starts the next before it ends the one before.
 
-A supervisor's double, a role's session naming its `supervisor`, carries the reference its first prompt's
-instruction calls for, picked by the gate's reference selection over that supervisor's brain, the call naming
-the supervisor, and attached to that first prompt, the same way a job's is (「assignments and jobs」); a later turn
-of the same session is asked over it and not over it again. A role's session naming no supervisor asks the gate
-nothing and carries none, since the gate reads a brain only for the supervisor a call names; a co-work branch's
-prompt is composed by its parent and carries none, and neither does a double whose supervisor's reference switch
-or brain switch is off (`docs/supervisors.md`, 「Its settings」).
+A role's session's first prompt carries no reference the gate picks: the gate reads a brain only for the
+supervisor a call names, and a role's session names none. A job's instruction carries one (「assignments and
+jobs」), and a co-work branch's prompt is composed by its parent.
 
 A role's session may be handed its instructions whole, for a consumer that composes its own — the research unit,
 which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one: the
@@ -514,22 +507,11 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   demand stands on that demand.
 - **`cardRank` and `cardPool`:** the rank a demand its turns ask stands at, a whole number of zero or more, and
   its pool, `key` and `cards`, a text that is not empty and a whole number of one or more; each refused 400
-  otherwise (the arbiter's `docs/placement.md`, 「A demand's rank」, 「A pool」). Named by neither, the rank is the
-  supervisor's the run is for, as `docs/own-llm.md` says, and there is no pool.
+  otherwise (the arbiter's `docs/placement.md`, 「A demand's rank」, 「A pool」). Named by neither, the rank is that of
+  the supervisor that asked the session's slot, its `askedBy`, as `docs/own-llm.md` says, and there is no pool.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
-  `archive`, `role`, `place` and `doubleOf` — is refused 400.
-- **`supervisor`:** on a role's session, the supervisor whose double the run is, one the store holds, else
-  422 `unknown-supervisor`. Every turn of the session then runs with that supervisor's tools beside its role's
-  (`docs/tools.md`, 「The delegate」): its record is held under the supervisor's name with the chat line's
-  capabilities, namespaces, shown entries and variables and the supervisor bundles beside its line's and its
-  role's, and its `labels` name the supervisor as `doubleOf`; the supervisor is the turn's agent; and its
-  program is handed the supervisor's chat servers beside its line's, on its line's own words on every road
-  (`docs/launch-lines.md`, 「What a line's program is allowed, by road」). The turn's room, road, privilege and messages are the turn's own `variables`
-  (`BMO_TURN_CHAT`, `BMO_TURN_VIA`, `BMO_TURN_PRIVILEGED`, `BMO_TURN_MESSAGES`). While a turn naming its room
-  runs, the supervisor carries that room's turn, privileged as `BMO_TURN_PRIVILEGED` says, so an item filed, a
-  job stopped and a job's review acted on through the double are the supervisor's in that turn, as they would be
-  in its own.
+  `archive`, `role` and `place` — is refused 400.
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 
@@ -642,7 +624,7 @@ and `reason`, why it did not go in, where it did not.
   (「assignments and jobs」, 「Words and notes for a running job」): never refused as ended while the job runs,
   and answered 410 `run-ended` only once the job has ended.
 - **Who may say:** the owner, `by` naming `owner` or nothing, and the supervisor that asked for the run, the
-  `askedBy` of the slot it runs on or the supervisor whose double it is; for a job, its holder and the
+  `askedBy` of the slot it runs on; for a job, its holder and the
   `askedBy` of its seat. Any other name is refused 403 `not-the-sender`; the control port's own bearer is what
   stands behind a name.
 - **A run's session is a role's, never a supervisor's or a room's:** any other scope's session is refused 422
@@ -717,7 +699,7 @@ Every route that takes a body names the request type it reads, holding only the 
 
 A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a unit the job unit opens and
 closes, a job's turn, which agency's job runner opens and closes, and a chat turn's run and a role session's
-turn's run, a delegated task's among them, which agency opens as the turn starts and closes as it ends. Each
+turn's run, which agency opens as the turn starts and closes as it ends. Each
 answers `title`, what the run was asked to do: a role session's turn's title, or the title the body opening
 it named, else null; `roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
 `messageId`, the message its answer went out as once the receiver attaches it, the latest message the
@@ -827,7 +809,6 @@ a clock note filed before its fields were kept is answered with them read back o
 | DELETE | `/slot-requests` | An owner's release: every request, reservation and bound role session the owner holds given back. |
 | GET | `/slot-requests/{token}` | One slot request. |
 | PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
-| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role, start, session and run. |
 | GET | `/reservations` | Held slot reservations. |
 | POST | `/reservations` | Reserve slots of a role for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
@@ -837,8 +818,8 @@ a clock note filed before its fields were kept is answered with them read back o
 | PATCH | `/places/{placeId}` | Prepare, remember or retire a place, or record its last write. |
 
 A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
-caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
-(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, the road the run
+caller names and the path its run will work at, and is refused 422 `unknown-role` under any other and 400
+where it names none, whatever its source (`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model` together, the road the run
 goes out on: it is let in on an agent of the role that stands on that road alone, and is refused 422 with
 the roads the role's agents hold where none does (`docs/role-agents.md`, 「Which agent a run takes」); or
 `model` alone, whose
@@ -891,20 +872,6 @@ that asked for it, each kept as given; a `PATCH` binding it may name the run its
 none was named. A request answers `account`, the account it belongs to: its asking supervisor's owner account,
 or null for the deployment's own (`docs/role-slots.md`, 「Accounts」).
 
-A slot request may carry `fromDouble`, true where the ask is made by a supervisor's double, a delegated run
-asking again (`docs/tools.md`, 「The delegate」). Such an ask is refused 409 `double-waits-on-doubles`, before
-it enters the line and with the role and the count of its agents in the sentence, where the requests asked
-under the source `delegate` and let in already number the role's agents that are switched on or more and that
-count is above zero (`docs/role-slots.md`, 「A
-delegated task」). An ask whose request key already names a request is answered with that request as any is.
-
-A slot request may carry `short`, true where its caller vouches that the run is one short turn someone is
-waiting on now, as a room's round handed to a supervisor's double is; a request answers `short`, false where
-none was named. A short request is let in one seat beyond its role's cap where delegated tasks, the requests
-asked under the source `delegate` that are not short, are let in on every slot its account counts and fill the
-cap: on a free agent of its own where one is, else beside a delegated task on that task's agent. Anywhere else
-it stands in the line as any request (`docs/role-slots.md`, 「A short ask」).
-
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
 `runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch
 milliseconds; `agent`, the agent of the role it was let in on (`docs/role-agents.md`), or null where none is
@@ -923,19 +890,6 @@ requests and reservations are given back, 200 with `cancelled`, `released` and `
 back, and `sessionsEnded`, the ids of the bound sessions it ends; their ending is carried on by agency after
 the answer, whether or not the caller waits, since a turn's end is an event of its program and may be long in coming,
 and the caller is never held on it. 400 where no owner is named. An owner holding nothing answers zero counts.
-
-`GET /delegations` answers `items`, the slot requests asked under the source `delegate` (`docs/tools.md`, 「The
-delegate」), narrowed to one asking supervisor by `askedBy`: the ones still waiting or running in the order
-they were asked, then the latest ended, newest first, `ended` of them (10 where it names none). Each is
-`token`; `title`; `askedBy`; `role`; `stage`, `waiting` while its slot waits, `running` once it is let in, and
-`ended` once it is finished or cancelled; `provider` and `model` it runs on; `askedAt`, `runningSince` and
-`endedAt` in epoch milliseconds, each null until it comes; `session`, the run's session while it runs, to
-which the asking supervisor says more with `POST /sessions/{sessionId}/words`, null until it starts and once
-it ends; `runName`, the run its turn goes out as, the name its slot's binding named and its log lines are
-written under, null until it is bound; `runId`, that run's id in the ledger (`docs/run-records.md`, 「The run
-ledger」), null until its turn opens it; and `outcome`, what it came to once ended. `runName` and `runId` stay
-once it ends, so an ended delegation's log is read by its run as a running one's is. A count that is no whole
-number from 0 is refused 400.
 
 A reservation is asked under a role, an owner, a key and a count, and answers its token and the requests that
 stand for its slots; reserving again with the same key changes only the count (`docs/role-slots.md`,
@@ -1203,9 +1157,8 @@ of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday
 | PATCH | `/settings` | Change agency's switches. |
 
 - **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
-  where no supervisor delegated the run (`docs/agent-roles.md`, 「The voyager and the seeker roles」), and the
-  one whose brain a run of the worker line reads and writes its lessons into where it is no supervisor's
-  double (「The bundles」 there), or null for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
+  (`docs/agent-roles.md`, 「The voyager and the seeker roles」), and the one whose brain a run of the worker
+  line reads and writes its lessons into (「The bundles」 there), or null for none. `PATCH /settings` takes a supervisor the store holds, or null; another name is refused 400 with
   `field`. `downgradeReturn` is always null.
 - **`deepseekCardSecret`** names the console secret, of the kind `card`, the DeepSeek top-up reads its card
   from at each call (`docs/tools.md`, 「The DeepSeek top-up」), or null for none, in which case the tool refuses
@@ -1344,7 +1297,7 @@ where the shell stands in an agent's program, else the owner.
   `owners`, the accounts whose record names the node or whose isolation node it is, none for a node neither names; `agent`; `account`, the
   account the caller acts for, null for the deployment's own, read off the seat at its role and folder as well;
   `administrator`, whether it holds the administrator's grant, which a supervisor of no account or of the
-  administrator's account holds, as it is and as a double stands for it, and no other caller does; and `reaches`, true where it holds that grant or its
+  administrator's account holds, and no other caller does; and `reaches`, true where it holds that grant or its
   account is among the owners; and `root`, the node path of the workplace root of the caller's account where that
   account's record names the node shared and the node's workplace is set up, null otherwise, which the node
   service's tool runs that caller's command inside. The node is not asked of the node service: a node it does not
@@ -1967,7 +1920,7 @@ with the issuer token, a session token for each program and run that holds a cap
 back, the asynchronous calls still running (`GET /uses`, `state=running`) before it takes back a token a
 supervisor's replaced program carried, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a supervisor's double's instruction
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's instruction
 calls for, picked over the brain of the supervisor the call names in its `agent`, and attaches the picked entries
 to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here. Of the
@@ -1993,7 +1946,7 @@ role `administrator`, each else from the mail unit's settings file `env/mail.tom
   /demands` and gives back every demand under the door's reference (`docs/own-llm.md`, 「The gateway」).
   The launcher reads the master's address and token as 「The gateway」 says.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
-  its token stands in. With no address, no reference is asked and a job or a double carries only its own
+  its token stands in. With no address, no reference is asked and a job carries only its own
   words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way

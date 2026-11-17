@@ -318,7 +318,7 @@ impl ActingFor {
   }
 }
 
-/// What a caller acts as. Its account is the supervisor's it is or a double stands for, else the role agent's
+/// What a caller acts as. Its account is the supervisor's it is, else the role agent's
 /// of its name, else the seat's its run holds at its role and folder, each by its `ownerAccount`. It holds the
 /// administrator's grant where it is a supervisor of no account or of the administrator's account. A thrown-away session's place is read as its
 /// session's agent.

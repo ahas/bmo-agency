@@ -1016,32 +1016,6 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "GET",
-    path: "/delegations",
-    id: "listDelegations",
-    tag: "seat-requests",
-    summary: "The tasks an agent delegated, each with its title, stage, role, start and run.",
-    params: &[
-      Param {
-        name: "askedBy",
-        place: "query",
-        required: false,
-        kind: "string",
-        description: "The asking agent whose delegations are listed.",
-      },
-      Param {
-        name: "ended",
-        place: "query",
-        required: false,
-        kind: "integer",
-        description: "How many of the latest ended delegations are listed; 10 where none is named.",
-      },
-    ],
-    body: None,
-    answers: &[(200, Some("DelegationPage"), false)],
-    codes: &[],
-  },
-  Operation {
-    method: "GET",
     path: "/reservations",
     id: "listReservations",
     tag: "reservations",
@@ -2863,7 +2837,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("SlotRequestAsk"),
     answers: &[(201, Some("SlotRequest"), false)],
-    codes: &["bad-request", "unknown-role", "unprocessable-entity", "double-waits-on-doubles"],
+    codes: &["bad-request", "unknown-role", "unprocessable-entity"],
   },
   Operation {
     method: "DELETE",
@@ -3054,7 +3028,6 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "ExecutionPage" => g.subschema_for::<ExecutionPage>(),
     "OvertimeRequestPage" => g.subschema_for::<OvertimeRequestPage>(),
     "SeatRequestPage" => g.subschema_for::<SeatRequestPage>(),
-    "DelegationPage" => g.subschema_for::<DelegationPage>(),
     "ReservationPage" => g.subschema_for::<ReservationPage>(),
     "PlacePage" => g.subschema_for::<PlacePage>(),
     "ProviderPage" => g.subschema_for::<ProviderPage>(),
@@ -3222,16 +3195,8 @@ fn status_of(code: &str) -> u16 {
       404
     }
     "not-the-sender" => 403,
-    "conflict"
-    | "name-taken"
-    | "node-taken"
-    | "seeded"
-    | "running"
-    | "no-turn"
-    | "not-owner"
-    | "worker-on-node"
-    | "agent-busy"
-    | "double-waits-on-doubles" => 409,
+    "conflict" | "name-taken" | "node-taken" | "seeded" | "running" | "no-turn" | "not-owner"
+    | "worker-on-node" | "agent-busy" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" => 500,

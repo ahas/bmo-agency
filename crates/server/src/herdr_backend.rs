@@ -323,9 +323,6 @@ pub struct HerdrSessions {
   // What each session's turns wrote of their answers, shared with the pickup of the turns a process before
   // this one left in flight.
   outputs: Arc<Outputs>,
-  // The thrown-away sessions whose first prompt has been handed the gate's reference, so their later turns
-  // are asked over it and not over it again.
-  referenced: Mutex<HashSet<SessionId>>,
   // The context each room's and agent's session was left with by its last turn that read one.
   left: Mutex<HashMap<SessionId, Context>>,
   // The runs cut because the slot their session was bound to was given back, each with the reason its end
@@ -427,23 +424,6 @@ impl Shows for Showing<'_> {
 /// and every other turn hears them.
 pub fn hears_words(work: Option<&WorkParts>) -> bool {
   work.is_none_or(|work| work.hears_words)
-}
-
-/// A thrown-away session's first prompt with the reference the gate picks over its words attached, read
-/// from the brain of the supervisor whose double the run is. A run that is no supervisor's double asks
-/// nothing and keeps its own words, since the gate reads a brain only for the supervisor a call names.
-pub async fn first_prompt_referenced(
-  gate: &dyn crate::peers::gate::Gate,
-  apart: &Apart,
-  prompt: &str,
-) -> Result<String, crate::peers::PeerFault> {
-  let Some(supervisor) = apart.supervisor.as_deref() else {
-    return Ok(prompt.to_owned());
-  };
-  let lines: Vec<String> = prompt.lines().map(str::to_owned).collect();
-  let entries = gate.reference(supervisor, lines).await?;
-
-  Ok(crate::peers::gate::attach(prompt, &entries))
 }
 
 /// The id a thrown-away session is started under: its agent and the number the backend gave it.
@@ -727,7 +707,6 @@ impl HerdrSessions {
       questions: Questions::default(),
       deaf: Mutex::default(),
       outputs,
-      referenced: Mutex::default(),
       left: Mutex::default(),
       cut: Mutex::default(),
       replacing: Mutex::default(),
@@ -1027,10 +1006,6 @@ impl HerdrSessions {
 
   fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
     self.deaf.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-  }
-
-  fn referenced(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
-    self.referenced.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
@@ -2415,7 +2390,7 @@ impl HerdrSessions {
 
   // A turn's end published as `turn-ended`, before its send is answered with it.
   // One turn sent into a session and carried to its end.
-  async fn sent(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
+  async fn sent(&self, turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = self.scope_held(&turn.session)?;
 
     // There is no worker scope: a run in a repository is a role's session on its slot (docs/api.md,
@@ -2452,35 +2427,6 @@ impl HerdrSessions {
         FaultKind::Refused,
         format!("{}: a conversation's turn carries no work parts", turn.session),
       ));
-    }
-
-    // A double's first prompt carries the reference the gate picks over its instruction from its
-    // supervisor's brain; a co-work branch's prompt is composed by its parent and carries none, and a gate's
-    // turn is a judgement of its own. A session whose pick fails keeps its own words and nothing else, and a
-    // later turn of the same session is asked over the reference its first prompt already carries.
-    // A supervisor's double whose brain or reference the supervisor's settings switch off is handed nothing
-    // the gate picks (docs/supervisors.md, 「Its settings」).
-    let reference_reaches = match &scope {
-      Scope::Apart(apart) => match apart.supervisor.as_deref() {
-        Some(supervisor) => crate::supervisor_limits::Limits::of(&self.ground().db, supervisor)
-          .await
-          .map_or(true, |limits| limits.reference_reaches()),
-        None => true,
-      },
-      _ => true,
-    };
-
-    if let Scope::Apart(apart) = &scope
-      && reference_reaches
-      && !(apart.todo.is_some() && apart.role.is_some())
-      && turn.context.gate.is_none()
-      && turn.context.job.is_none()
-      && self.referenced().insert(turn.session.clone())
-    {
-      match first_prompt_referenced(self.ground().peers.gate.as_ref(), apart, &turn.prompt).await {
-        Ok(prompt) => turn.prompt = prompt,
-        Err(why) => eprintln!("{}: the gate's reference was not picked: {why}", turn.session),
-      }
     }
 
     let run = match (&room, work) {
@@ -2578,19 +2524,6 @@ impl HerdrSessions {
       );
     }
 
-    // A supervisor's double acts as the supervisor, so the room turn its own names is the supervisor's while
-    // it runs (docs/api.md, 「sessions」).
-    let doubled = match (&scope, work) {
-      (Scope::Apart(apart), Some(work)) => {
-        crate::turn_marks::doubled(apart.supervisor.as_deref(), &work.variables)
-      }
-      _ => None,
-    };
-
-    if let Some((supervisor, mark)) = &doubled {
-      crate::turn_marks::carrying(supervisor, &run, *mark);
-    }
-
     self.ground().events.publish(TurnStarted {
       session: turn.session.0.clone(),
       run: run.clone(),
@@ -2669,9 +2602,6 @@ impl HerdrSessions {
     self.ended(&turn.session, &run);
     crate::turn_marks::ended(&agent, &run);
 
-    if let Some((supervisor, _)) = &doubled {
-      crate::turn_marks::ended(supervisor, &run);
-    }
     // A replacement this turn found owed is made now that the turn has ended, apart from the answer going
     // back (docs/sessions.md, 「Session replacement」).
     match (&scope, self.shared()) {
@@ -2835,7 +2765,6 @@ impl HerdrSessions {
     session: &str,
     share: Option<f64>,
     log: &mut RunLog,
-    supervisor: Option<&str>,
   ) {
     let ground = self.ground();
     let held = match crate::apart_sessions::take_for_fold(&ground.db, role, session, share).await {
@@ -2853,10 +2782,9 @@ impl HerdrSessions {
       ..run.clone()
     };
     // The fold reached the session only where it answered on that same session.
-    let folded =
-      crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None, supervisor)
-        .await
-        .is_ok_and(|reply| reply.session_id == held);
+    let folded = crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None)
+      .await
+      .is_ok_and(|reply| reply.session_id == held);
 
     ground.events.publish(crate::worker_session::told::SessionFolded {
       session: held.clone(),
@@ -2919,13 +2847,7 @@ impl HerdrSessions {
     }
     env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
     env.extend(crate::lines::token::record_variables(apart));
-    // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it, and
-    // what it writes for the supervisor's person names them as the supervisor's own program does.
-    env.insert(TURN_AGENT.to_owned(), apart.supervisor.clone().unwrap_or_else(|| agent.to_owned()));
-
-    if let Some(supervisor) = &apart.supervisor {
-      env.extend(crate::supervisors::own_variables(&ground.db, supervisor).await);
-    }
+    env.insert(TURN_AGENT.to_owned(), agent.to_owned());
 
     if job.is_some() {
       env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
@@ -2986,17 +2908,9 @@ impl HerdrSessions {
       account: None,
     };
     let opened_at = now_ms();
-    let came = crate::chat_stand_in::job_turn_on(
-      ground,
-      &mut log,
-      &chat_run,
-      role,
-      &taken,
-      began,
-      Some(shown),
-      apart.supervisor.as_deref(),
-    )
-    .await;
+    let came =
+      crate::chat_stand_in::job_turn_on(ground, &mut log, &chat_run, role, &taken, began, Some(shown))
+        .await;
 
     if let Some(key) = &key {
       let kept = match &came {
@@ -3025,15 +2939,7 @@ impl HerdrSessions {
         && !reply.session_id.is_empty()
       {
         self
-          .fold_in_place(
-            &chat_run,
-            role,
-            &taken,
-            &reply.session_id,
-            reply.context_ratio,
-            &mut log,
-            apart.supervisor.as_deref(),
-          )
+          .fold_in_place(&chat_run, role, &taken, &reply.session_id, reply.context_ratio, &mut log)
           .await;
       }
     }
@@ -3643,7 +3549,6 @@ impl Sessions for HerdrSessions {
       }
       Scope::Apart(apart) => {
         self.apart().remove(session);
-        self.referenced().remove(session);
 
         // A session in a place of its own ends it.
         if in_places(apart) {

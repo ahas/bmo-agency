@@ -352,7 +352,7 @@ async fn a_job_s_lease_bound_to_a_turn_s_run_is_unbound_and_every_other_binding_
             'job-1', 1, NULL),
            ('session', 'session', 'job-2', 'job', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground',
             'coder-02', 's-2', 1, 's-2'),
-           ('unit', 'unit', 'owner:x', 'delegate', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground',
+           ('unit', 'unit', 'owner:x', 'cowork', 'coder', '/c', 'p', 'm', '', 1, 'active', 0, 'foreground',
             'coder-03', 'unit-3', 1, NULL)"#,
       vec![],
     )
@@ -479,4 +479,135 @@ async fn a_standing_launch_or_close_notice_is_kept_due_no_more_once_told_and_mar
     1,
     "a close notice told before is marked with the lease its ended job keeps"
   );
+}
+
+#[tokio::test]
+async fn the_double_s_role_and_its_open_slots_go_and_no_slot_is_kept_as_asked_short() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that takes the supervisor's double away.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261231_000001_double_gone")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+
+  for role in ["doppelganger", "helper"] {
+    scratch
+      .run(
+        r#"INSERT INTO "roles" ("name", "label", "max_concurrent", "prompt", "position", "created_at", "updated_at")
+           VALUES ($1, $1, 2, NULL, 0, 0, 0)"#,
+        vec![role.into()],
+      )
+      .await;
+    scratch
+      .run(r#"INSERT INTO "role_seeded" ("name") VALUES ($1)"#, vec![role.into()])
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "role_agents" ("name", "role") VALUES ($1 || '-01', $1)"#,
+        vec![role.into()],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "role_sessions" ("role", "path", "provider", "model", "command_key", "session", "opened_at")
+           VALUES ($1, '/scratch', 'deepseek', 'deepseek-flash', 'k', $1, 0)"#,
+        vec![role.into()],
+      )
+      .await;
+  }
+
+  scratch
+    .run(
+      r#"INSERT INTO "role_provider_prompts" ("role", "provider", "prompt", "updated_at")
+         VALUES ('doppelganger', 'claude-code', 'Work as the supervisor.', 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_reservations" ("token", "reservation_key", "owner", "source", "role", "provider",
+           "model", "effort", "wanted", "state", "created_at")
+         VALUES ('r1', 'r1', 'r1', 'cowork', 'doppelganger', 'deepseek', 'deepseek-flash', 'low', 1, 'held', 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "provider", "model",
+           "effort", "capacity", "state", "enqueued_at", "outcome", "short")
+         VALUES
+           ('asked', 'asked', 'o', 'delegate', 'helper', '', '', '', 2, 'waiting', 0, NULL, false),
+           ('running', 'running', 'o', 'delegate', 'helper', 'p', 'm', '', 2, 'active', 0, NULL, true),
+           ('answered', 'answered', 'o', 'delegate', 'helper', 'p', 'm', '', 2, 'released', 0, 'answered', false),
+           ('of-the-double', 'of-the-double', 'o', 'cowork', 'doppelganger', '', '', '', 2, 'waiting', 0, NULL,
+            false),
+           ('a-job', 'a-job', 'job-1', 'job', 'worker', 'p', 'm', '', 2, 'active', 0, NULL, false)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
+
+  for table in ["role_agents", "role_sessions", "role_slot_reservations", "role_provider_prompts"] {
+    let left = scratch
+      .count(&format!(r#"SELECT count(*) FROM "{table}" WHERE "role" = 'doppelganger'"#), vec![])
+      .await;
+
+    assert_eq!(left, 0, "the double's {table} go");
+  }
+
+  for table in ["roles", "role_seeded"] {
+    let left = scratch
+      .count(&format!(r#"SELECT count(*) FROM "{table}" WHERE "name" = 'doppelganger'"#), vec![])
+      .await;
+
+    assert_eq!(left, 0, "the double's role goes from {table}");
+  }
+
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "role_agents" WHERE "role" = 'helper'"#, vec![])
+      .await,
+    1,
+    "another role keeps its agents"
+  );
+
+  let given_back = |token: &'static str, state: &'static str| {
+    scratch.count(
+      r#"SELECT count(*) FROM "role_slot_requests"
+          WHERE "token" = $1 AND "state" = $2 AND "ended_at" IS NOT NULL AND "ended_by" = 'owner'
+            AND "outcome" LIKE '%double was removed%'"#,
+      vec![token.into(), state.into()],
+    )
+  };
+
+  assert_eq!(given_back("asked", "cancelled").await, 1, "a waiting delegated slot is cancelled");
+  assert_eq!(given_back("running", "released").await, 1, "a delegated slot let in is released");
+  assert_eq!(
+    given_back("of-the-double", "cancelled").await,
+    1,
+    "a waiting slot of the double's role is cancelled"
+  );
+
+  let stands = |token: &'static str, state: &'static str| {
+    scratch.count(
+      r#"SELECT count(*) FROM "role_slot_requests" WHERE "token" = $1 AND "state" = $2 AND "ended_by" IS NULL"#,
+      vec![token.into(), state.into()],
+    )
+  };
+
+  assert_eq!(stands("answered", "released").await, 1, "an ended delegated slot stays as it ended");
+  assert_eq!(stands("a-job", "active").await, 1, "another source's slot stands");
+
+  let short = scratch
+    .count(
+      r#"SELECT count(*) FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'role_slot_requests' AND column_name = 'short'"#,
+      vec![],
+    )
+    .await;
+
+  assert_eq!(short, 0, "no slot is kept as asked short");
 }

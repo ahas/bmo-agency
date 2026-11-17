@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the eleven seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the ten seeded roles with their
 //! lines, caps, sessions, descriptions, provider prompts and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -16,7 +16,6 @@ fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
     [
       "worker",
       "coder",
-      "doppelganger",
       "helper",
       "producer",
       "voyager",
@@ -34,15 +33,9 @@ fn each_role_starts_at_the_cap_the_owner_decided() {
   let caps: Vec<(&str, i64)> =
     ROLES.roles.iter().map(|role| (role.name.as_str(), role.max_concurrent)).collect();
 
-  for (name, cap) in [
-    ("worker", 3),
-    ("coder", 3),
-    ("doppelganger", 2),
-    ("helper", 2),
-    ("producer", 2),
-    ("upkeep", 1),
-    ("actor", 1),
-  ] {
+  for (name, cap) in
+    [("worker", 3), ("coder", 3), ("helper", 2), ("producer", 2), ("upkeep", 1), ("actor", 1)]
+  {
     assert!(caps.contains(&(name, cap)), "{name} starts at {cap}: {caps:?}");
   }
 }
@@ -66,11 +59,7 @@ fn every_order_names_a_provider_once_and_every_role_names_its_line() {
     .map(|role| role.name.as_str())
     .collect();
 
-  assert_eq!(
-    follows,
-    ["coder", "doppelganger"],
-    "the roles whose road follows the supervisor that asks them"
-  );
+  assert_eq!(follows, ["coder"], "the roles whose road follows the supervisor that asks them");
 
   for role in &ROLES.roles {
     let providers: BTreeSet<&str> = role.order.iter().map(|entry| entry.provider.as_str()).collect();
@@ -107,11 +96,11 @@ fn only_the_coder_carries_a_provider_prompt_and_only_on_claude_code() {
 
 #[test]
 fn the_defaults_nothing_names_are_seeded_roles_and_each_bundle_a_role_gives_is_declared() {
-  for role in [&ROLES.job, &ROLES.delegate, &ROLES.renewal, &ROLES.translate] {
+  for role in [&ROLES.job, &ROLES.renewal, &ROLES.translate] {
     assert!(ROLES.holds(role), "{role} is seeded");
   }
 
-  assert!(ROLES.default_role("doppelganger"));
+  assert!(ROLES.default_role("upkeep"));
   assert!(!ROLES.default_role("producer"), "the producer is a role one names, and may go");
   assert_eq!(ROLES.supervisor, ["room.chat", "room.send", "web.read"]);
   assert!(ROLES.supervisor.contains(&ROLES.send));
@@ -158,17 +147,13 @@ fn every_role_declares_its_description() {
 }
 
 #[test]
-fn the_helper_goes_out_on_the_strongest_road_first_and_the_double_on_none() {
+fn the_helper_goes_out_on_the_strongest_road_first() {
   let helper = ROLES.role("helper").unwrap();
 
   assert_eq!(
     (helper.order[0].provider.as_str(), helper.order[0].model.as_str()),
     ("claude-code", "claude-fable-5-2"),
     "a problem a supervisor could not settle goes to a stronger model than its own"
-  );
-  assert!(
-    ROLES.role("doppelganger").unwrap().order.is_empty(),
-    "the double follows the asking supervisor"
   );
   assert!(!ROLES.default_role("helper"), "the helper is a role one names");
 }

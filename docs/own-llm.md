@@ -298,7 +298,7 @@ never the model's name.
 - **A demand's rank and pool are the caller's settings, handed on as they are** (the arbiter's
   `docs/placement.md`, 「A demand's rank」, 「A pool」). A caller names them on its slot or session ask
   (`docs/api.md`, 「sessions」); where it names no rank, the demand is asked at the rank of the supervisor the
-  run is for: the supervisor whose turn it is, the one whose double it is or that delegated it, or the one that
+  run is for: the supervisor whose turn it is, the one that asked the run's slot (its `askedBy`), or the one that
   ordered the job. Work asked within a run takes the run's rank and pool from the master.
 - **The supervisor that ordered a job** is found from the job's item by the one resolver of its orderer
   (`docs/agent-control.md`, 「An item's change is told to its orderer」), which answers a room: the run ledger then

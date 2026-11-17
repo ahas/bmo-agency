@@ -6,7 +6,7 @@
 //! turn on a thrown-away session is read from that session's place, which the sweep at start keeps while the
 //! turn goes on and which is ended with the turn, while a job's turn no record names is reaped as before; a
 //! turn on a Claude Code pane, which keeps no record of agency's, is read from the place's run, the hooks'
-//! calls and the session's transcript, a job's and a supervisor's double's alike; and a job's turn sent on
+//! calls and the session's transcript, a job's and a role session's alike; and a job's turn sent on
 //! a thrown-away session is kept in flight while it goes, whatever run the worker's own place holds, so the
 //! start after its process went away adopts the job from the row its launch wrote; a job's turn in a pane
 //! of its own, which no place stands for, keeps its row through every periodic pass while its round goes
@@ -900,21 +900,21 @@ async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_supervisor_s_double_s_turn_on_a_claude_code_pane_is_adopted_and_its_end_reaches_its_session() {
+async fn a_role_session_s_turn_on_a_claude_code_pane_is_adopted_and_its_end_reaches_its_session() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = Arc::new(seeded(scratch.db(), home.path()).await);
   let data = ground.roots.data.clone();
   let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
   let mut ended = ground.events.subscribe::<TurnEnded>();
-  let (name, place) = apart_place(&ground, "double-a@run:1");
-  let (transcript, payload) = claude_code_turn(&place, "delegate:9", now_ms() - 60_000, program.id());
+  let (name, place) = apart_place(&ground, "role-a@run:1");
+  let (transcript, payload) = claude_code_turn(&place, "role:9", now_ms() - 60_000, program.id());
 
   keep(
     scratch.db(),
     &InFlight {
-      session: "double-a@run:1".into(),
-      ..in_flight("delegate:9", "double-a", 71, None, None, None)
+      session: "role-a@run:1".into(),
+      ..in_flight("role:9", "role-a", 71, None, None, None)
     },
   )
   .await;
@@ -923,15 +923,15 @@ async fn a_supervisor_s_double_s_turn_on_a_claude_code_pane_is_adopted_and_its_e
   assert_eq!(agency_server::apart_places::sweep(&ground).await, 0);
   assert!(ended.ready().is_none(), "nothing ends while the turn goes on");
 
-  claude_code_answers(&place, &transcript, &payload, "Delegated and done.");
+  claude_code_answers(&place, &transcript, &payload, "Done.");
 
   let end = tokio::time::timeout(std::time::Duration::from_secs(10), ended.next())
     .await
     .unwrap()
     .unwrap();
 
-  assert_eq!((end.session.as_str(), end.end.turn), ("double-a@run:1", 71));
-  assert_eq!(end.end.answer.as_deref(), Some("Delegated and done."));
+  assert_eq!((end.session.as_str(), end.end.turn), ("role-a@run:1", 71));
+  assert_eq!(end.end.answer.as_deref(), Some("Done."));
 
   for _ in 0..80 {
     if !agency_server::apart_places::is_apart_place(&data, &name) {

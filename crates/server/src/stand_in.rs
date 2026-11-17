@@ -35,10 +35,9 @@ pub async fn step_of(
   key: &str,
   provider: &str,
   reasoning: &Reasoning,
-  supervisor: Option<&str>,
 ) -> Result<Step, String> {
   let db = &ground.db;
-  let mapping = crate::order::row_entry(db, key, provider, supervisor).await?;
+  let mapping = crate::order::row_entry(db, key, provider, None).await?;
   let effort =
     effort_of(ground, machine, provider, &mapping.model, mapping.effort.as_deref(), Some(reasoning))
       .await

@@ -404,7 +404,6 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
-          supervisor: field("supervisor").map(str::to_owned),
           ..runner
         }))
       }
@@ -443,8 +442,7 @@ fn retired(id: &str) -> Fault {
 const CONVERSATION_PROVIDER: &str = "claude-code";
 
 /// The labels keys agency writes into a record itself, which a start's labels may not name.
-const OWN_LABELS: [&str; 6] =
-  ["line", "checkout", "archive", "role", "place", crate::lines::token::DOUBLE_OF];
+const OWN_LABELS: [&str; 5] = ["line", "checkout", "archive", "role", "place"];
 
 // What a thrown-away session's start names of a runner line whose instructions its caller hands in whole:
 // the line, the instructions, the labels its record carries and the capabilities that record keeps.
@@ -648,27 +646,6 @@ impl Route for SessionStart {
       );
     }
 
-    // A session naming the supervisor whose double it is names one the store holds (docs/api.md, 「sessions」).
-    if let Scope::Apart(Apart {
-      supervisor: Some(supervisor),
-      ..
-    }) = &scope
-      && crate::supervisors::named(call.store(), supervisor).await?.is_none()
-    {
-      return Err(
-        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("No supervisor named {supervisor} is held"))
-          .with_code("unknown-supervisor"),
-      );
-    }
-
-    let carries = match &scope {
-      Scope::Apart(apart) => Some(
-        crate::lines::token::carried_by(call.ground(), apart)
-          .await
-          .map_err(|refused| Refused::new(StatusCode::INTERNAL_SERVER_ERROR, refused.detail))?,
-      ),
-      _ => None,
-    };
     let mut start = Start { agent, scope };
 
     if let Scope::Conversation(conversation) = &mut start.scope
@@ -696,9 +673,7 @@ impl Route for SessionStart {
         }
 
         let state = backend.read_state(&session.id, None).await.ok();
-        let mut answered = folded(call.store(), member(&session, state.as_ref(), &body)).await?;
-
-        answered["carries"] = json!(carries);
+        let answered = folded(call.store(), member(&session, state.as_ref(), &body)).await?;
 
         Ok(answer(StatusCode::CREATED, answered))
       }
@@ -768,9 +743,9 @@ pub async fn on_slot(
     apart.demand = Some(demand);
   }
 
-  // Named by no caller, its rank is the supervisor's it runs for: the one whose double it is, or that asked it.
+  // Named by no caller, its rank is that of the supervisor that asked its slot.
   if apart.card_rank.is_none()
-    && let Some(supervisor) = apart.supervisor.as_deref().or(held.asked_by.as_deref())
+    && let Some(supervisor) = held.asked_by.as_deref()
   {
     apart.card_rank = crate::cards::supervisor_rank(db, supervisor).await;
   }

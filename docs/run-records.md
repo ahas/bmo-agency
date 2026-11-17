@@ -125,8 +125,7 @@ about a message is not agency's: the judgement records belong to the units that 
   under, and its room the job's. It is closed as the turn ends, with how it ended, the tokens its context
   carried and what it spent, as a chat turn's is, and the job keeps the run and the same four figures.
 - **A role session's turn is a run opened by agency** as the turn goes out, wherever the turn is no job's
-  and no gate's: a task a supervisor delegates (`docs/agent-control.md`, 「Delegating a task」), a round the
-  receiver hands to a supervisor's double, and any other turn a caller sends into a role's session. Its role
+  and no gate's: a worker ask and any other turn a caller sends into a role's session. Its role
   is the session's agent; its unit the name its log lines are written under, the turn's unit where it names
   one and its run name otherwise; its title the turn's title; its room the room the turn names, none where it
   names none; and its round the round the turn's context names. It is closed as the turn ends, with how it

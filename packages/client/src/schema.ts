@@ -596,23 +596,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/delegations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The tasks an agent delegated, each with its title, stage, role, start and run. */
-        get: operations["listDelegations"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/reservations": {
         parameters: {
             query?: never;
@@ -2081,22 +2064,12 @@ export interface components {
              * @default null
              */
             role: string | null;
-            /**
-             * @description What the record of every run of a role's session holds, its supervisor's among them where it is a
-             *     supervisor's double; none for any other scope and wherever a session is read rather than started.
-             */
-            carries?: components["schemas"]["SessionCarries"] | null;
         };
         /**
          * @description One of the values the API accepts.
          * @enum {string}
          */
         SessionScope: "room" | "agent" | "role" | "conversation";
-        /** @description SessionCarries: the capabilities and the namespaces a role's session's record holds. */
-        SessionCarries: {
-            capabilities: string[];
-            namespaces: string[];
-        };
         /**
          * @description The body that starts a session: the agent, the scope, the room and the options, with the older
          *     top-level names read where the options name none.
@@ -2122,11 +2095,6 @@ export interface components {
             } | null;
             /** @description The capabilities the session's record keeps, of those its line and its agent's role give. */
             toolsAllowed?: string[] | null;
-            /**
-             * @description On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools
-             *     beside its role's.
-             */
-            supervisor?: string | null;
             /**
              * Format: int64
              * @description A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
@@ -2694,60 +2662,6 @@ export interface components {
         StopMarkAsk: {
             reason: string;
         };
-        /**
-         * @description DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,
-         *     newest first.
-         */
-        DelegationPage: {
-            items: components["schemas"]["Delegation"][];
-        };
-        /** @description Delegation: a task a supervisor delegated, as its seat stands. */
-        Delegation: {
-            token: string;
-            title: string | null;
-            askedBy: string | null;
-            stage: components["schemas"]["DelegationStage"];
-            role: string;
-            /** @description The provider it runs on; null until its road is fixed. */
-            provider: string | null;
-            /** @description The model it runs on; null until its road is fixed. */
-            model: string | null;
-            /**
-             * Format: int64
-             * @description Epoch milliseconds.
-             */
-            askedAt: number;
-            /**
-             * Format: int64
-             * @description Epoch milliseconds; null until it is let in.
-             */
-            runningSince: number | null;
-            /**
-             * Format: int64
-             * @description Epoch milliseconds; null until it ends.
-             */
-            endedAt: number | null;
-            /** @description The session its run's turn goes into, which its asking supervisor says more to while it runs. */
-            session: string | null;
-            /**
-             * @description The run its turn goes out as, the name its log lines are written under; null until it is bound, kept
-             *     once it ends.
-             */
-            runName: string | null;
-            /**
-             * Format: int64
-             * @description That run's id in the ledger; null until its turn opens it, kept once it ends.
-             */
-            runId: number | null;
-            /** @description What it came to, once ended. */
-            outcome: string | null;
-        };
-        /**
-         * @description DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`
-         *     once it is let in, `ended` once it is finished or cancelled.
-         * @enum {string}
-         */
-        DelegationStage: "waiting" | "running" | "ended";
         /** @description ReservationPage: */
         ReservationPage: {
             items: components["schemas"]["Reservation"][];
@@ -3661,7 +3575,7 @@ export interface components {
         };
         /** @description Settings: */
         Settings: {
-            /** @description The supervisor a run of the search or browse line no supervisor delegated writes for, or null. */
+            /** @description The supervisor whose brain a role's run reads and writes, or null. */
             researchSupervisor: string | null;
             downgradeReturn: unknown;
             /** @description The console secret, of the kind `card`, the DeepSeek top-up reads its card from, or null for none. */
@@ -4725,11 +4639,6 @@ export interface components {
             outcome: string | null;
             reservation: string | null;
             yielding: boolean;
-            /**
-             * @description true where its caller vouched it one short turn someone waits on
-             * @default false
-             */
-            short: boolean;
             placeKey: string | null;
             session: string | null;
             title: string | null;
@@ -4747,7 +4656,7 @@ export interface components {
         SlotRequestAsk: {
             requestKey: string;
             owner: string;
-            /** @description the doppelganger where a delegation names none */
+            /** @description The role the slot is asked of; an ask naming none is refused. */
             role?: string | null;
             source?: string | null;
             path?: string | null;
@@ -4759,13 +4668,6 @@ export interface components {
             session?: string | null;
             title?: string | null;
             askedBy?: string | null;
-            /** @description true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse */
-            fromDouble?: boolean | null;
-            /**
-             * @description true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated
-             *     tasks hold every slot
-             */
-            short?: boolean | null;
         };
         /** @description OwnerRelease: what an owner's release gave back. */
         OwnerRelease: {
@@ -5017,15 +4919,6 @@ export interface components {
         };
         /** @description directory-taken */
         DirectoryTaken: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description double-waits-on-doubles */
-        DoubleWaitsOnDoubles: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6633,30 +6526,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-        };
-    };
-    listDelegations: {
-        parameters: {
-            query?: {
-                askedBy?: string;
-                ended?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DelegationPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
         };
     };
     listReservations: {
@@ -9305,7 +9174,6 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            409: components["responses"]["DoubleWaitsOnDoubles"];
             422: components["responses"]["UnknownRole"];
         };
     };

@@ -1,7 +1,7 @@
 //! The role slots' routes (docs/api.md, 「slots, reservations and places」; docs/role-slots.md): a slot of a
 //! role asked, let in at the head of its role's line, bound to the run it launched and given back with what
-//! it came to; the slots an owner reserves and gives back; every role's slots; a supervisor's delegations;
-//! and the standing checkouts a branch's place is taken, laid, recorded and taken down in. The labels and keys
+//! it came to; the slots an owner reserves and gives back; every role's slots; and the
+//! standing checkouts a branch's place is taken, laid, recorded and taken down in. The labels and keys
 //! of a consumer's work arrive with each request, and agency reads none of its orders.
 
 use std::path::Path;
@@ -9,15 +9,13 @@ use std::path::Path;
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bmo_chat::{ErrorCode, WireError};
-use policy::roles::ROLES;
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer, whole};
 use crate::agent_roles;
 use crate::now_ms;
 use crate::order_run::dispatch::{
-  self, Asked, COWORK, DELEGATE, Seats, Wanted, acquire, bind, finish, held_reservations,
-  release_reservation,
+  self, Asked, COWORK, Seats, Wanted, acquire, bind, finish, held_reservations, release_reservation,
 };
 use crate::order_run::places::{self, Held};
 use crate::places::dev;
@@ -62,10 +60,6 @@ fn held(body: &Value) -> Vec<Held> {
 fn shown(value: impl serde::Serialize) -> Result<Value, Refused> {
   serde_json::to_value(value).map_err(Refused::failed)
 }
-
-/// The code a double's ask that could wait on doubles is refused under (docs/api.md, 「slots, reservations and
-/// places」).
-pub const DOUBLE_WAITS: &str = "double-waits-on-doubles";
 
 /// The reason a role session's turn cut because its slot was given back ends with (docs/api.md, 「sessions」).
 pub const RELEASED: &str = "released";
@@ -117,7 +111,6 @@ impl Route for SlotAsk {
     let asked_by = optional(&body, "askedBy");
     let role = match optional(&body, "role") {
       Some(role) => role,
-      None if source == DELEGATE => ROLES.delegate.as_str(),
       None => return Err(bad("role (string) is required")),
     };
 
@@ -126,15 +119,6 @@ impl Route for SlotAsk {
         Refused::new(StatusCode::UNPROCESSABLE_ENTITY, agent_roles::unknown(role))
           .with_code("unknown-role"),
       );
-    }
-
-    // A double's own ask never waits on doubles (docs/role-slots.md, 「A delegated task」).
-    if body.get("fromDouble").and_then(Value::as_bool).unwrap_or(false)
-      && let Some(why) = dispatch::double_would_wait(call.store(), role, text(&body, "requestKey")?)
-        .await
-        .map_err(refused)?
-    {
-      return Err(Refused::new(StatusCode::CONFLICT, why).with_code(DOUBLE_WAITS));
     }
 
     let fixed = match (optional(&body, "provider"), optional(&body, "model")) {
@@ -159,7 +143,6 @@ impl Route for SlotAsk {
         agent: None,
       },
       yielding: body.get("yielding").and_then(Value::as_bool).unwrap_or(false),
-      short: body.get("short").and_then(Value::as_bool).unwrap_or(false),
       token: optional(&body, "token"),
       place_key: optional(&body, "placeKey"),
       session: optional(&body, "session"),
@@ -494,104 +477,6 @@ impl Route for Slots {
 }
 
 crate::moved!(Slots);
-
-// The most ended delegations a listing names where it asks for no count.
-const ENDED_LISTED: i64 = 10;
-
-/// A delegation's stage as its slot stands: waiting in the line, running once let in, ended once given back.
-fn stage(state: &str) -> &'static str {
-  match state {
-    "waiting" | "reserved" => "waiting",
-    "active" => "running",
-    _ => "ended",
-  }
-}
-
-/// `GET /delegations`: the slots asked under the source `delegate`, one asking supervisor's where `askedBy`
-/// names one — the ones still waiting or running in the order they were asked, then the latest ended,
-/// newest first.
-pub struct Delegations;
-
-impl Route for Delegations {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/delegations";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let asked_by = call.query("askedBy").filter(|asker| !asker.is_empty());
-    let ended = match call.query("ended") {
-      None => ENDED_LISTED,
-      Some(count) => count
-        .parse::<i64>()
-        .ok()
-        .filter(|count| *count >= 0)
-        .ok_or_else(|| bad("ended is a whole number from 0"))?,
-    };
-    let narrowed = if asked_by.is_some() { r#" AND "asked_by" = $2"# } else { "" };
-    let mut values: Vec<sea_orm::Value> = vec![DELEGATE.into()];
-
-    if let Some(asker) = &asked_by {
-      values.push(asker.clone().into());
-    }
-
-    let open = store::all(
-      call.store(),
-      &format!(
-        r#"SELECT * FROM "role_slot_requests" WHERE "source" = $1 AND "state" IN ('waiting', 'reserved', 'active'){narrowed}
-           ORDER BY "sequence""#
-      ),
-      values.clone(),
-    )
-    .await?;
-    let mut closed_values = values;
-
-    closed_values.push(ended.into());
-
-    let limit = if asked_by.is_some() { "$3" } else { "$2" };
-    let closed = store::all(
-      call.store(),
-      &format!(
-        r#"SELECT * FROM "role_slot_requests" WHERE "source" = $1 AND "state" NOT IN ('waiting', 'reserved', 'active'){narrowed}
-           ORDER BY "sequence" DESC LIMIT {limit}"#
-      ),
-      closed_values,
-    )
-    .await?;
-    let mut items = vec![];
-
-    for row in open.iter().chain(closed.iter()) {
-      let seat = dispatch::request_of(row).map_err(Refused::failed)?;
-      let on = |value: &str| (!value.is_empty()).then(|| value.to_owned());
-      // The run its turn goes out as is the one its binding named, kept on its slot once it ends; the ledger
-      // holds it under that name and the role from the turn's start.
-      let run = match &seat.agent_name {
-        Some(name) => crate::run_ledger::of_unit(call.store(), &seat.role, name).await?,
-        None => None,
-      };
-
-      items.push(json!({
-        "token": seat.token,
-        "title": seat.title,
-        "askedBy": seat.asked_by,
-        "stage": stage(&seat.state),
-        "role": seat.role,
-        "provider": on(&seat.provider),
-        "model": on(&seat.model),
-        "askedAt": seat.enqueued_at,
-        "runningSince": seat.leased_at,
-        "endedAt": seat.ended_at,
-        "outcome": seat.outcome,
-        // The session the run's turn goes into, which its asking supervisor says words to while it runs.
-        "session": seat.session,
-        "runName": seat.agent_name,
-        "runId": run.map(|run| run.id),
-      }));
-    }
-
-    Ok(answer(StatusCode::OK, json!({ "items": items })))
-  }
-}
-
-crate::moved!(Delegations);
 
 /// A branch's place in its order's pool of standing checkouts, taken.
 pub struct PlaceTake;

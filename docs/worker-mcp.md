@@ -70,35 +70,6 @@
   the fixed prompt of every run that is shown it, so a tool shown to a line that will never call it
   is a cost that line pays on every turn for nothing.
 
-## A supervisor's double
-
-- **A run a supervisor asks holds the supervisor's tools and its role's together** (`docs/tools.md`, 「The
-  delegate」). Its role's session is started naming the supervisor, and the run's record, turn and servers are
-  composed from the supervisor's own beside the role's:
-  - **its record** is issued by agency from the tool host as the supervisor's own is, held under the
-    supervisor's name: the chat line's capabilities, namespaces, shown entries and variables with the
-    supervisor bundles, and the role line's and the role's bundles beside them, so this namespace stands in it
-    where the role gives `graph.read` and `queue.read`;
-  - **its MCP configuration** is the supervisor's chat configuration — the tool host's namespaces the chat line
-    names and the programs it starts beside them — with the role line's servers added where the chat's holds
-    none of that name, written under the agents tree as `double.<supervisor>.<line>.mcp.json` by the run that
-    composes it;
-  - **its program's own tools** are the role line's own, on every road whose program is Claude Code — its own
-    road and every gateway road alike (`docs/launch-lines.md`, 「What a line's program is allowed, by road」):
-    on the worker line, every built-in tool but those the line denies, in bypass-permissions mode — the
-    permission mode its supervisor's own program runs in — so the chat line's shell and file tools are
-    among them and every server of its configuration is reached. On a program that is a harness of its own
-    and is told what it is shown and allowed — dsh and Codex, which no provider of this build names — the
-    supervisor's own: the chat line's shown tools, every one of them allowed, and no allow list of its
-    own.
-- **A double may delegate in turn and is never let wait on doubles** (`docs/tools.md`, 「The delegate」): it holds
-  the delegate as its supervisor does, and an ask it makes is refused, saying why, where delegated runs already
-  hold the whole cap of the role it asks.
-- **Nothing of the receiver's is asked for it.** The receiver's tools are placed tools of the tool host, which
-  serves them to any record holding their capabilities; a record agency issues under the supervisor's name
-  holds them as the supervisor's does, and the receiver reads the turn's agent and room off the record as it
-  does for the supervisor's own calls.
-
 ## On every road
 
 - **A worker on any road calls these tools by name.** A run of the worker line goes out on whatever provider

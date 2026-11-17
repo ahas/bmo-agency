@@ -16,7 +16,7 @@ program is spoken to is `docs/agent-control.md`.
   (`docs/supervisors.md`).
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
   tool bundles its runs are given, its agents each on one road, its session
-  policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the doppelganger, the
+  policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the coder, the
   helper, the producer, the voyager, the seeker, the translator, the transliterator, the actor and any the
   owner adds are roles.
 - **Nothing else is an agent.** No row stands for a worker, a runner or a gate: a job's worker is a run of
@@ -30,7 +30,7 @@ program is spoken to is `docs/agent-control.md`.
 ## A run
 
 - **A run is one piece of work of one role at one path,** on the road of the agent it is let in on
-  (`docs/provider-order.md`): a job's turn, a delegated task, a search, a
+  (`docs/provider-order.md`): a job's turn, a worker ask, a search, a
   translation, a co-work branch.
 - **A run occupies one slot of its role while it goes** (`docs/role-slots.md`). The role's cap is the only
   bound on how many of its runs go at once; nothing bounds them per provider, and runs do not take turns at
@@ -100,7 +100,7 @@ flowchart TD
 ## A run in a pane of its own
 
 Every run of a role is one run of its line that Claude Code carries in a pane of the run's own: a job's
-turn, a delegated task, a co-work branch, a search, a browse, a translation, the morning news page's
+turn, a worker ask, a co-work branch, a search, a browse, a translation, the morning news page's
 writer, a tool probe, and the turn the usage reader asks on a login found expired so the CLI renews it
 (`docs/usage-windows.md`, 「The Claude account reader」).
 
@@ -121,8 +121,8 @@ flowchart TD
 - **Its command is its line's,** without print mode: the model and effort its road names, the tools
   it is shown, denied or allowed, the MCP configuration, the permission mode and the system prompt, and the
   session its role's setting gives it.
-- **Its role is the one the work names:** a job item's role, `worker` where the item names none; the role
-  a delegation names; the role a session's caller names. A run that stands for no
+- **Its role is the one the work names:** a job item's role, `worker` where the item names none; `worker`
+  for a worker ask; the role a session's caller names. A run that stands for no
   piece of anyone's work holds the role the roles policy names for it — the usage reader's renewal turn
   `upkeep` (`policy/roles.toml`).
 - **What goes in** is a typed lead saying the paste after it is the run's task, then the run's words

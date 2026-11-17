@@ -9,7 +9,7 @@ is and which one a run takes is `docs/role-agents.md`.
 ## Who takes a slot
 
 - **Every run of a role takes a slot of that role before its program launches:** a job's run, a worker
-  ask, a delegated task, a co-work order's builder stage, a co-work branch, a search's or a browse's run and
+  ask, a co-work order's builder stage, a co-work branch, a search's or a browse's run and
   its branches, a translation, and an upkeep run. Nothing runs a role's program outside a slot. A subagent a
   run's own program opens is part of that run and takes none (`docs/agent-roles.md`, 「Subagents」).
 - **A supervisor's turn takes none.** A supervisor is no role; its turns are bounded by its one program
@@ -20,8 +20,9 @@ is and which one a run takes is `docs/role-agents.md`.
 - **A slot is asked under a role the store holds,** and is refused 422 under any other: an unknown role is
   an error, never a run on some default.
 - **A slot's source and owner are the caller's.** A slot is asked under the source label its caller sends —
-  `job`, `ask`, `delegate`, `cowork`, a runner line's name for one the research unit asks — and under the
-  owner and request key its caller names; the label is kept as sent.
+  `job`, `ask`, `cowork`, a runner line's name for one the research unit asks, or any other — and under the
+  owner and request key its caller names; the label is kept as sent, and no rule of the line reads it. A slot
+  asked naming no role is refused 400, whatever its source.
 - **A slot is let in on one agent of its role, and goes out on that agent's road** (`docs/role-agents.md`,
   「Which agent a run takes」): the first agent, by its place among the role's, that is switched on, is free
   (`docs/role-agents.md`, 「When an agent is busy」) and whose road can answer now. An ask may name a provider and a model together, or a model alone,
@@ -30,7 +31,7 @@ is and which one a run takes is `docs/role-agents.md`.
   names no road, and is refused where the role holds none. The agent gives
   the effort and the thinking.
 - **A slot of a role whose agents name no road goes out on the road of the supervisor that asks it,** the one
-  its ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
+  its ask names as `askedBy` (「A role that follows its supervisor」 below). Asked under no supervisor the store holds, it is
   refused 422 with why, and nothing starts. In a role that holds agents of both kinds, a slot naming no road
   is let in on any free agent, on that agent's own road or, for an agent that names none,
   on its asking supervisor's (`docs/role-agents.md`, 「Which agent a run takes」).
@@ -47,9 +48,8 @@ is and which one a run takes is `docs/role-agents.md`.
 ## The cap
 
 - **A role's cap is the most of its runs that are let in at work at once: the number of its agents that are
-  switched on.** A run beyond it waits for a slot and none is refused, but for a double's own ask where
-  delegated runs hold the whole cap (「A delegated task」 below). A short ask is let in one seat beyond it
-  while delegated tasks hold every slot (「A short ask」 below). A job standing in the machine's turn keeps its
+  switched on.** A run beyond it waits for a slot and none is refused, and none is let in beyond it. A job
+  standing in the machine's turn keeps its
   seat and counts against no cap (`docs/role-agents.md`, 「When an agent is busy」), so its agent's next job is
   let in beside it.
 - **The cap is the role's alone.** It is counted over every run of the role wherever it works, each run on
@@ -182,25 +182,6 @@ is and which one a run takes is `docs/role-agents.md`.
   role has a free slot; an already-active yielding request is not taken away. A waiting yielding request
   may be raised to a prior one, keeping its sequence.
 
-## A short ask
-
-- **An ask may be marked short:** its caller vouches that the run is one short turn someone is waiting on
-  now, as a room's round handed to a supervisor's double is. The line reads no reason and measures no length;
-  the mark is kept on the request as asked. A short ask is a prior request and stands in the line as any does.
-- **A short ask has a seat delegated tasks cannot take.** A delegated task is a run asked under the source
-  `delegate` and not short (「A delegated task」 below); one may hold its slot for hours, and an active lease
-  is never taken away. So where delegated tasks let in hold every slot of the role that the asker's account
-  counts, and fill its cap, a short ask is let in one seat beyond the cap: on the first agent of its own it
-  may take whose road answers now, a free one first, else one a delegated task carries, beside that run.
-- **The seat is one.** While a short run holds it, a slot of the role is held by a run that is no delegated
-  task, so the next short ask waits as the line says, and short asks waiting for the seat stand in the order
-  they were asked, the first whose owner is asking taking it. A short run counts against the cap while it
-  works like any run, so a slot a delegated task gives back goes to the next run once the role's runs at
-  work are below the cap again.
-- **Anywhere else a short ask is let in as any ask:** where the cap has room it takes a slot like any run,
-  and where a job, another short run or a reservation holds a slot it waits in the line. A closed role stays
-  closed to it.
-
 ## Reserving slots
 
 - **Whoever will soon launch runs of a role reserves slots of it:** "this owner will soon use so many slots
@@ -219,31 +200,16 @@ is and which one a run takes is `docs/role-agents.md`.
 - **The line's own pass** runs when a slot frees, when a cap changes, and every five seconds, raising to
   reserved every reserved slot no request stands in the way of while there is room.
 
-## A delegated task
+## A role that follows its supervisor
 
-- **A task a supervisor hands off through `bmo/delegate`** (`docs/tools.md`, 「The delegate」) asks a slot of
-  the role its ask names — `doppelganger` where it names none — as the source `delegate`, keyed by a request
-  of its own, and waits in that role's line however long it takes.
-- **A task naming no role is the supervisor's double:** it holds a slot of the `doppelganger` role. The
-  doppelganger's agents are seeded on no road, so its lease carries the asking supervisor's provider, model
-  and effort as they stand when it is asked — the supervisor's one road — and it waits, never moves, while
-  that road cannot take it. An agent the owner sets a
-  road goes out on that road instead. The doppelganger's agents count every supervisor's double together.
-- **A task naming a role** holds a slot of that role and goes out on the road of the agent it is let in on,
-  like any run of it, or on the asking supervisor's road where that agent names none.
-- **A double's own ask never waits on doubles.** Every delegated run is a double, and a double may delegate in
-  turn; its ask says it comes from a double. Such an ask, short or not, is refused, before it enters the
-  line, where slots asked under the source `delegate` and let in already, a short run among them, number the
-  role's cap or more, the cap being above zero. Waiting there could have no end: each of those runs may be a double waiting on a slot of its own, and
-  in any ring of such waits the last double to ask found every slot it waited for held by delegated runs, so
-  refusing that ask leaves no ring to form. Any other ask, a supervisor's among them, waits as the line says.
-- **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, with the asking
-  supervisor's tools beside them (`docs/tools.md`, 「The delegate」), resuming the
-  session kept for that role at that folder on that provider and model where it is valid
-  (`docs/sessions.md`, 「A role's session」).
-- **Its stage stands on its slot:** waiting while its slot waits, running once let in and bound to its run,
-  and ended once the slot is finished, with what it came to. `GET /delegations` lists them per asking
-  supervisor (`docs/api.md`, 「slots, reservations and places」).
+- **A role whose agents name no road follows the supervisor that asks it** — the `coder`, as seeded. A slot of
+  it asked naming no road carries the provider, model and effort of the supervisor its ask names as
+  `askedBy`, as they stand when it is asked — the supervisor's one road — and waits, never moves, while that
+  road cannot take it.
+- **A slot of such a role that no supervisor asks is refused** 422 with why, and nothing starts, since it has
+  no road to go out on.
+- **An agent the owner sets a road goes out on that road instead,** like any role's agent; in a role holding
+  agents of both kinds, only a slot let in on an agent that names none follows its asking supervisor.
 
 ## A co-work branch
 

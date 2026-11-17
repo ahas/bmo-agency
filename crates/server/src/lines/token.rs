@@ -7,7 +7,7 @@
 //! The records, the reads of a namespace and the paragraph on finding and using tools go through the tool
 //! host's published client (`bmo-pocket-client`), with the issuer token the host keeps under the data root.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -198,10 +198,10 @@ async fn capabilities(
   Ok((role, held))
 }
 
-// A record for a run of `lines`, held by `holder`, with the namespaces and shown entries those lines
-// declare, the grants its caller holds, the data root every call reads, and the labels agency's tools read.
+// A record for a run of `line`, held by `holder`, with the namespaces and shown entries that line declares,
+// the grants its caller holds, the data root every call reads, and the labels agency's tools read.
 fn record(
-  lines: &[&str],
+  line: &str,
   holder: &str,
   capabilities: Vec<String>,
   grants: Vec<String>,
@@ -209,14 +209,12 @@ fn record(
   labels: Map<String, Value>,
   ttl_ms: Option<u64>,
 ) -> SessionRequest {
-  let shown = lines.iter().flat_map(|line| RUN_LINES.shown(line)).cloned().collect();
-
   SessionRequest {
     holder_name: holder.to_owned(),
-    namespaces: namespaces_of(lines),
+    namespaces: RUN_LINES.namespaces(line).iter().cloned().collect(),
     capabilities: capabilities.into_iter().collect(),
     grants: grants.into_iter().map(|resource| Granted { resource }).collect(),
-    shown,
+    shown: RUN_LINES.shown(line).iter().cloned().collect(),
     variables,
     variables_file: None,
     labels,
@@ -246,8 +244,8 @@ pub async fn issue(
   variables.extend(line_variables(ground, line));
 
   // A thrown-away session's place stands no agent row, so its calls name the supervisor its line's brain
-  // tools write for, the one agency's research setting names, as a run of the line no supervisor delegated
-  // does (docs/agent-roles.md, 「The voyager and the seeker roles」).
+  // tools write for, the one agency's research setting names, as every run of the line does
+  // (docs/agent-roles.md, 「The voyager and the seeker roles」).
   if crate::apart_places::session_agent(&ground.roots.data, agent).is_some()
     && RUN_LINES.writes_agent_brain(line)
     && let Some(supervisor) = research_supervisor(ground).await?
@@ -255,7 +253,7 @@ pub async fn issue(
     variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
-  if let Some(supervisor) = brain_supervisor(ground, line, None).await? {
+  if let Some(supervisor) = brain_supervisor(ground, line).await? {
     variables.insert(BRAIN_AGENT.to_owned(), supervisor);
   }
 
@@ -281,7 +279,7 @@ pub async fn issue(
     labels.insert("role".to_owned(), json!(role));
   }
 
-  let request = record(&[line], agent, capabilities, grants, variables, labels, None);
+  let request = record(line, agent, capabilities, grants, variables, labels, None);
 
   issue_record(ground, &request).await.map(Some)
 }
@@ -319,84 +317,6 @@ pub const RECORD_LABELS: &str = "BMO_RECORD_LABELS";
 /// JSON list's text.
 pub const RECORD_TOOLS: &str = "BMO_RECORD_TOOLS";
 
-/// The label a supervisor's double's record names the supervisor it stands for under.
-pub const DOUBLE_OF: &str = "doubleOf";
-
-/// The variable a role's run carries the supervisor whose double it is in, whose own record its record holds
-/// beside its role's (docs/tools.md, 「The delegate」).
-pub const RECORD_SUPERVISOR: &str = "BMO_RECORD_SUPERVISOR";
-
-/// The line a supervisor's own session runs on, whose capabilities, namespaces, shown entries and variables a
-/// supervisor's double holds beside its role line's.
-const SUPERVISOR_LINE: &str = "chat";
-
-// The namespaces the lines name, each once.
-fn namespaces_of(lines: &[&str]) -> BTreeSet<String> {
-  lines.iter().flat_map(|line| RUN_LINES.namespaces(line)).cloned().collect()
-}
-
-// Each capability once, in the order first named.
-fn each_once<'a>(capabilities: impl IntoIterator<Item = &'a String>) -> Vec<String> {
-  let mut held: Vec<String> = Vec::new();
-
-  for capability in capabilities {
-    if !held.contains(capability) {
-      held.push(capability.clone());
-    }
-  }
-
-  held
-}
-
-/// What a supervisor's own record holds that its double's holds beside its role's: the chat line's
-/// capabilities and the supervisor bundles.
-pub fn supervisor_capabilities() -> Vec<String> {
-  each_once(RUN_LINES.capabilities(SUPERVISOR_LINE).iter().chain(&ROLES.supervisor))
-}
-
-/// What the record of every run of a role's session holds: the capabilities and the namespaces, as the start
-/// answers them under `carries` (docs/api.md, 「sessions」).
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
-pub struct Carries {
-  pub capabilities: Vec<String>,
-  pub namespaces: Vec<String>,
-}
-
-/// What every run of a role's session will carry in its record: its line's capabilities and its role's bundles,
-/// with the supervisor's own beside them where it is a supervisor's double, narrowed to those its caller lets
-/// it keep; and the namespaces of its line, with the chat line's beside them for a double.
-pub async fn carried_by(ground: &Ground, apart: &agent_session::Apart) -> Result<Carries, Refusal> {
-  let line = apart.line.as_deref().unwrap_or(super::worker::LINE);
-  let bundles = match apart.role.as_deref() {
-    Some(role) => crate::role_agents::bundles_at(&ground.db, role, Some(&apart.cwd)).await?,
-    None => vec![],
-  };
-  let doubled = apart.supervisor.as_ref().map(|_| supervisor_capabilities()).unwrap_or_default();
-  let mut capabilities = each_once(RUN_LINES.capabilities(line).iter().chain(&bundles).chain(&doubled));
-
-  if let Some(allowed) = &apart.tools_allowed {
-    capabilities.retain(|capability| allowed.contains(capability));
-  }
-
-  // A double holds no more than the supervisor whose double it is: its brain switch and tool limit narrow the
-  // whole record.
-  if let Some(supervisor) = &apart.supervisor {
-    capabilities = crate::supervisor_limits::Limits::of(&ground.db, supervisor)
-      .await?
-      .narrowed(capabilities);
-  }
-
-  let lines: Vec<&str> = match apart.supervisor {
-    Some(_) => vec![line, SUPERVISOR_LINE],
-    None => vec![line],
-  };
-
-  Ok(Carries {
-    capabilities,
-    namespaces: namespaces_of(&lines).into_iter().collect(),
-  })
-}
-
 /// The variable a role's run carries the role it holds in, whose bundles its record is given whatever the
 /// name the run is carried under (docs/agent-roles.md, 「Where the role is read」). It is a turn's variable, so
 /// every road hands it to the program its run stands.
@@ -419,21 +339,12 @@ pub fn record_variables(apart: &agent_session::Apart) -> Vec<(String, String)> {
     variables.push((RECORD_TOOLS.to_owned(), json!(allowed).to_string()));
   }
 
-  if let Some(supervisor) = apart.supervisor.as_deref().filter(|supervisor| !supervisor.is_empty()) {
-    variables.push((RECORD_SUPERVISOR.to_owned(), supervisor.to_owned()));
-  }
-
   variables
 }
 
-/// The variables a run names the record its caller asked for in, beside its role: its labels, the capabilities
-/// it keeps and the supervisor whose double it is. Every road hands them to the program its run stands.
-pub const RECORD_VARIABLES: [&str; 3] = [RECORD_LABELS, RECORD_TOOLS, RECORD_SUPERVISOR];
-
-/// The supervisor whose double a run is, as its variables name it.
-pub fn doubled_supervisor(env: &BTreeMap<String, String>) -> Option<&str> {
-  env.get(RECORD_SUPERVISOR).map(|name| name.trim()).filter(|name| !name.is_empty())
-}
+/// The variables a run names the record its caller asked for in, beside its role: its labels and the
+/// capabilities it keeps. Every road hands them to the program its run stands.
+pub const RECORD_VARIABLES: [&str; 2] = [RECORD_LABELS, RECORD_TOOLS];
 
 /// Whether a run's variables name a record of its own: its role, or labels or the capabilities its caller lets
 /// it keep.
@@ -475,20 +386,9 @@ pub async fn issue_for_run(
   deadline: u64,
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
-  let doubled = doubled_supervisor(env).map(str::to_owned);
-  // A supervisor's double holds its record under the supervisor's name, as the turn of that supervisor it
-  // stands for.
-  let agent = match &doubled {
-    Some(supervisor) => supervisor.clone(),
-    None => given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned()),
-  };
+  let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
   let run_role = given(RUN_ROLE);
   let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
-
-  // A supervisor's double holds the supervisor's own capabilities beside its line's and its role's.
-  if doubled.is_some() {
-    capabilities = each_once(capabilities.iter().chain(&supervisor_capabilities()));
-  }
 
   if let Some(allowed) = named_tools(env) {
     capabilities.retain(|capability| allowed.contains(capability));
@@ -508,22 +408,16 @@ pub async fn issue_for_run(
   variables.insert("BMO_DATA_DIR".to_owned(), data_root);
   variables.extend(line_variables(ground, line));
 
-  if let Some(supervisor) = &doubled {
-    variables.extend(line_variables(ground, SUPERVISOR_LINE));
-    variables.insert("BMO_TURN_AGENT".to_owned(), supervisor.clone());
-  }
-
-  // A runner line's brain tools write a supervisor's brain: the one that delegated the run, else the one
-  // agency's research setting names. The record names that supervisor as the turn its tools run for, while
-  // the run itself stays the runner's (docs/agent-roles.md, 「The voyager and the seeker roles」).
+  // A runner line's brain tools write the brain of the supervisor agency's research setting names. The record
+  // names that supervisor as the turn its tools run for, while the run itself stays the runner's
+  // (docs/agent-roles.md, 「The voyager and the seeker roles」).
   if RUN_LINES.writes_agent_brain(line)
-    && doubled.is_none()
     && let Some(supervisor) = research_supervisor(ground).await?
   {
     variables.insert("BMO_TURN_AGENT".to_owned(), supervisor);
   }
 
-  if let Some(supervisor) = brain_supervisor(ground, line, doubled.as_deref()).await? {
+  if let Some(supervisor) = brain_supervisor(ground, line).await? {
     variables.insert(BRAIN_AGENT.to_owned(), supervisor);
   }
 
@@ -549,23 +443,13 @@ pub async fn issue_for_run(
     labels.insert("place".to_owned(), json!(place));
   }
 
-  // A double's record names the supervisor it stands for, which its delegate reads to say its ask comes from a
-  // double (docs/tools.md, 「The delegate」).
-  if let Some(supervisor) = &doubled {
-    labels.insert(DOUBLE_OF.to_owned(), json!(supervisor));
-  }
-
   for (key, value) in named_labels(env) {
     labels.entry(key).or_insert(value);
   }
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
-  let lines: Vec<&str> = match &doubled {
-    Some(_) => vec![line, SUPERVISOR_LINE],
-    None => vec![line],
-  };
   let request = record(
-    &lines,
+    line,
     &agent,
     capabilities,
     grants,
@@ -653,7 +537,7 @@ pub async fn revoke(ground: &Ground, token: &str) {
 /// The token a replaced or taken-down resident program carried, given up (docs/sessions.md, 「A restart hands the
 /// session over」): taken back at once where no asynchronous call asked under its record still runs, else left
 /// standing and looked at again every `look` until none does, then taken back. Such a call wakes its agent by name
-/// and room, whichever session stands then, so a deployment, a wait or a delegation the session going away started
+/// and room, whichever session stands then, so a deployment or a wait the session going away started
 /// runs on and wakes the next one. The waiting goes on beside the caller, which never waits for it.
 pub async fn let_go(ground: &Ground, token: &str, look: Duration) {
   let Some(issuer) = issuer_token(ground) else {
@@ -707,27 +591,18 @@ pub fn record_checkout(ground: &Ground, place: &Path, cwd: &str) -> PathBuf {
   }
 }
 
-/// The supervisor a run of a line writing a supervisor's brain writes for where no supervisor delegated it:
-/// the one agency's `research_supervisor` setting names, none where it names none (docs/api.md, 「settings」).
-/// The variable a run's record names the supervisor by whose brain its brain tools read and write.
+/// The variable a run's record names the supervisor by whose brain its brain tools read and write: the one
+/// agency's `research_supervisor` setting names, none where it names none (docs/api.md, 「settings」).
 pub const BRAIN_AGENT: &str = "BMO_BRAIN_AGENT";
 
-/// The supervisor whose brain a run of `line` works for (docs/agent-roles.md, 「The bundles」): the one whose
-/// double the run is, else the one agency's research setting names; none for a line that works for no
-/// supervisor's brain.
-pub async fn brain_supervisor(
-  ground: &Ground,
-  line: &str,
-  doubled: Option<&str>,
-) -> Result<Option<String>, Refusal> {
+/// The supervisor whose brain a run of `line` works for (docs/agent-roles.md, 「The bundles」): the one
+/// agency's research setting names; none for a line that works for no supervisor's brain.
+pub async fn brain_supervisor(ground: &Ground, line: &str) -> Result<Option<String>, Refusal> {
   if !RUN_LINES.works_for_brain(line) {
     return Ok(None);
   }
 
-  match doubled {
-    Some(supervisor) => Ok(Some(supervisor.to_owned())),
-    None => research_supervisor(ground).await,
-  }
+  research_supervisor(ground).await
 }
 
 pub async fn research_supervisor(ground: &Ground) -> Result<Option<String>, Refusal> {

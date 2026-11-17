@@ -2,8 +2,6 @@
 # which the owner adds and changes on the control port; this file seeds them once and keeps the rest.
 #
 # job: the role a job runs as where its item names none (docs/repositories.md, 「A job」).
-# delegate: the role a delegated task runs as where its ask names none: the supervisor's double
-#   (docs/tools.md, 「The delegate」).
 # renewal: the role agency's own runs hold that stand for no one's work, the usage reader's renewal turn and a
 #   judging batch among them (docs/agents.md, 「A run in a pane of its own」).
 # translate: the role a translation agency is asked for runs as (docs/agent-roles.md, 「The translator and the
@@ -32,7 +30,6 @@
 #   default.
 
 job = "worker"
-delegate = "doppelganger"
 renewal = "upkeep"
 translate = "translator"
 send = "room.send"
@@ -115,22 +112,8 @@ max_concurrent = 3
 bundles = ["graph.read", "queue.read", "web.read", "brain.lessons"]
 order = []
 
-# The supervisor's double: a delegation naming no role runs as it. Its order is empty, so its runs go out on
-# the asking supervisor's own provider, model and effort until the owner sets an order on it
-# (docs/role-slots.md, 「A delegated task」).
-[[roles]]
-name = "doppelganger"
-label = "Doppelganger"
-description = "The supervisor's double: takes a task the supervisor hands off, holding its tools and going out on its provider, and answers the cause or the decision in plain sentences."
-line = "worker"
-prompt = "doppelganger.md"
-max_concurrent = 2
-bundles = ["graph.read", "queue.read", "web.read", "brain.lessons"]
-order = []
-
-# The helper: the role a supervisor names for a problem it could not settle in its own turn. Its order is the
-# strongest road the deployment names, which is what tells it from the double (docs/agent-roles.md, 「The helper
-# role」).
+# The helper: the role a hard problem a supervisor could not settle in its own turn runs as. Its order is the
+# strongest road the deployment names (docs/agent-roles.md, 「The helper role」).
 [[roles]]
 name = "helper"
 label = "Helper"

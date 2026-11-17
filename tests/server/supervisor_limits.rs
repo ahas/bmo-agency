@@ -47,12 +47,7 @@ fn a_reference_switched_off_takes_the_gates_reading_of_the_brain_and_leaves_the_
       .map(str::to_owned)
       .to_vec()
   );
-  assert!(limits.brain_on() && !limits.reference_reaches());
-  assert!(
-    !Limits::new(false, true, None).reference_reaches(),
-    "a brain switched off takes the reference with it"
-  );
-  assert!(Limits::open().reference_reaches());
+  assert!(limits.brain_on());
 }
 
 #[test]
@@ -145,10 +140,7 @@ async fn a_save_keeps_the_switches_and_the_tool_limit_and_refuses_a_capability_n
 
   let limits = Limits::of(scratch.db(), "supervisor-a").await.unwrap();
 
-  assert!(
-    limits.brain_on() && !limits.reference_reaches(),
-    "the saved reference switch is the one read"
-  );
+  assert_eq!(limits, Limits::new(true, false, None), "the saved reference switch is the one read");
 
   saved(scratch.db(), &json!({ "agent": "supervisor-a", "referenceOn": true }), "tester")
     .await

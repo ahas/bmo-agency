@@ -124,9 +124,9 @@ one provider at once. How the Claude Code provider walks its own accounts inside
 - **A repository's pinned model** carries a run in the repository that names no agent — its worker's session
   or standby — instead of the role's agents' roads, and that run waits while the pin cannot take it
   (`docs/repositories.md`, 「A pinned model」).
-- **A run of an agent that names no road** — the supervisor's double, the `doppelganger` role, as seeded — goes
-  out on the asking supervisor's road as it stands when it is asked, and waits while that road cannot take it
-  (`docs/role-slots.md`, 「A delegated task」). An agent the owner sets a road goes out on that road instead.
+- **A run of an agent that names no road** — the `coder` role's, as seeded — goes out on the asking
+  supervisor's road as it stands when it is asked, and waits while that road cannot take it
+  (`docs/role-slots.md`, 「A role that follows its supervisor」). An agent the owner sets a road goes out on that road instead.
 - **A subagent a run's program opens** stands inside that program and goes out on its road; it takes no road
   of its own (`docs/agent-roles.md`, 「Subagents」).
 - **A session a caller starts naming a provider and a model** goes out on exactly that, as a named road: the

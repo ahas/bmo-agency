@@ -3,8 +3,7 @@
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
-to a run of the worker role, let a supervisor delegate a task to a run of any role and read what it has
-delegated, let one BMO hand a line to another person's BMO and open a chat into that person's room, and let
+to a run of the worker role, let one BMO hand a line to another person's BMO and open a chat into that person's room, and let
 the platform's supervisor ask for a DeepSeek top-up. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
@@ -19,6 +18,9 @@ belongs to no one service is a repository of its own, not a folder here.
   A tool with entries is then registered with `bmo-pocket put`, whose `--allow`s name exactly the
   capabilities and grants its manifest asks for, since the tool host refuses a tool asking for one no
   `--allow` names; the manifests' tests hold each step to its manifest.
+- **The registry holds no tool of agency's that no folder here declares:** a deployment takes the name
+  `delegate`, where the tool host holds it registered for agency, out with `bmo-pocket take`, once the new
+  server stands.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
   commands, its run command, and either its entries or the resources it serves, each with the
   capabilities a session must hold. It names no timeout, for the tool or an entry: a call is waited on
@@ -41,12 +43,11 @@ belongs to no one service is a repository of its own, not a folder here.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's,
-  `node.admin` and `platform.payment`, on the record of a supervisor of no account or of the administrator's account, a double's held
-  under its name among them, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or a job's
-  (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's `labels`:
-  the line, the store's address and the agent's place where it is a resident program, and on a supervisor's
-  double's record `doubleOf`, the supervisor it stands for (「The delegate」 below); an apart session's caller
-  adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do not read. The turn's own variables stand in `variables`, beside the
+  `node.admin` and `platform.payment`, on the record of a supervisor of no account or of the administrator's
+  account, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or
+  a job's (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's
+  `labels`: the line, the store's address and the agent's place where it is a resident program; an apart
+  session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do not read. The turn's own variables stand in `variables`, beside the
   deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
   them, each where the deployment sets it in agency's environment — the chat line's `BMO_GATE_URL` and
   `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the gate's translate
@@ -107,97 +108,13 @@ belongs to no one service is a repository of its own, not a folder here.
   and model where one is valid (`docs/sessions.md`, 「A role's session」).
 - **It waits for the run to end,** however long the run takes: no bound of its own and no timeout on its
   wait for agency's answer. Its run hears words while its turn works, as every run's does, though the call
-  that started it is held; a supervisor that wants to say more while it runs delegates the task instead.
+  that started it is held, so a supervisor says more to it from another turn or a shell, with `bmo-agency run
+  say session:<id> --words …`.
 - **Its answer** is the run's answer text and the paths of the files the run created or changed in the
   folder, read from the run's recorded edit diffs. The run is logged like any other, so the console shows it.
 - **It refuses only what cannot be asked at all:** a folder on no machine the worker role can run on and a
   checkout named outside the owner's turn, besides the owner's gate. A task worth keeping and reviewing is a
   queue item, filed with `file_item`, not asked this way.
-
-## The delegate
-
-- **`tools/delegate`** declares `bmo/delegate` to a session holding `room.tools`: a supervisor hands a task —
-  an investigation, a lookup on another machine, reading code, a problem it cannot settle in its turn,
-  anything longer than moments that needs no queue item — to a run of a role, with no item, lease or report.
-  The supervisor calls it with `bmo use bmo/delegate --async`, so its turn goes on and the answer comes back
-  to it as a wake.
-- **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」), as the worker ask
-  does, before it asks anything of a slot: a refused turn starts nothing.
-- **Its arguments** are the title, one line naming the task, which the delegation is listed by; the
-  instruction, carrying every piece of context the task needs, since the run sees nothing of the
-  conversation; an optional role; and an optional folder.
-  - The role is any role the store holds; where none is named it is the one agency's roles policy names for
-    delegated work, `doppelganger`, the supervisor's double. A problem the supervisor could not settle itself
-    names `helper`, the role whose order is the strongest road the deployment names (`docs/agent-roles.md`,
-    「The helper role」). A role the store does not hold is an error: the call is refused with the name and
-    starts nothing.
-  - The folder is where the task works: the asking supervisor's scratch workspace under the data root where
-    none is named, made on first use, the same one the worker ask defaults to.
-- **Every delegated run is the asking supervisor's double:** it runs with the supervisor's tools beside its
-  role's (`docs/worker-mcp.md`, 「A supervisor's double」), as a turn of that supervisor. A task naming no role
-  is a run of the `doppelganger` role, on the asking supervisor's own provider, model and effort as they stand
-  when it is asked, rather than the role's order (`docs/role-slots.md`, 「A delegated task」), under the
-  doppelganger role's prompt and bundles. A task naming a role runs on that role's own order, under its prompt
-  and bundles.
-- **It takes a slot of the role and waits in its line however long the line takes.** It asks for its
-  admission again at a steady pace until it is let in, is never refused for the role being full — but for a
-  double's own ask, below — and never gives up for having waited; a slot given back before it was let in ends
-  the call with that said.
-- **A double cannot wait on itself.** A double holds the delegate as its supervisor does, and may hand a task
-  of its own to any role. Where the asking session is itself a double — its record names `doubleOf` — the ask
-  tells agency so, and agency refuses it, typed and with the reason, where delegated runs already hold as many
-  slots of the role asked as the role's cap, a cap above zero (`docs/role-slots.md`, 「A delegated task」).
-  Each of those runs may itself be waiting on a delegation, so a double let into that line could wait with no
-  end: two doubles each asking again under a cap of two wait for each other. Refused, the double does the
-  task inside its own run, and the delegate's failure says why. A supervisor's own ask is never refused this
-  way, since a supervisor holds no slot that a wait could come back to.
-- **The work is a run of the role at the task's folder** (`docs/sessions.md`, 「A role's session」): one turn
-  carrying the instruction and the asking turn's room, on the session kept for that role at that folder on
-  that provider and model where one is valid. So a delegation that follows another at the same folder on the
-  same model within the provider's cache lifetime goes on in the same session and reads what came before, and
-  one past the cache lifetime or the model's context opens a new one. The run works with its role's program
-  and tools on whichever road it goes out on (`docs/launch-lines.md`, 「What a line's program is allowed, by
-  road」) — a shell among them, so it reaches other machines as a job does.
-  - The call waits for the run's end with no timeout, and nothing bounds the run by a clock. Its tool
-    calls are held to the call clock as a job's are: a call whose processes burn no processor time and
-    begin none past the call's minimum is stopped, the program hands the model a failed result and the
-    run goes on, so one stalled call never holds the slot and the line behind it (`docs/agent-control.md`,
-    「A run's tool calls are held to a clock」).
-  - **It waits by its run, not by one held call.** The turn is sent with the run's name as its key
-    (`docs/api.md`, 「sessions」), and a wait cut short — a connection refused or broken, or the server's
-    drain answering `503` `stopping` — is no outcome: the delegate sends again with the same key at its
-    steady pace until agency answers, which attaches it to the run standing under the key or answers the
-    run's end, across a restart of agency's server. Every other call it makes is asked again the same way
-    where agency was not reached or answered `stopping`.
-- **Once the run ends** the slot is finished with what the run came to, which ends the run's session. A call
-  whose caller goes away while its slot still waits cancels the slot, so nothing is left standing in the line;
-  one that goes away once its run was sent finishes the slot as it goes, which cuts the run and ends its
-  session (`docs/role-slots.md`, 「The line」), so nothing goes on running on a slot no call holds.
-- **Its answer** is the run's answer text and the paths of the files created or changed in the folder while
-  the task ran, found by comparing the folder before and after, its `.git` directories passed over.
-- **What the double could not hold is a defect, said in the answer.** The session's start answers `carries`,
-  the capabilities and namespaces its record holds; the delegate compares them with its own record, the asking
-  supervisor's session as the tool host handed it, and every capability or namespace the supervisor holds that
-  the double's record does not is named. The run still goes, and the answer is then a failure (`isError`) that
-  names what the double lacked before the run's words, so it stands in the turn's log as a failed call, never
-  as the double's polite refusal.
-- **Its stage stands on its slot** (`docs/api.md`, 「slots, reservations and places」): the slot is asked with
-  the title and the asking supervisor. A delegation is waiting while its slot waits in the line, running once
-  its slot is let in and bound to its run, and ended once the slot is finished, with what it came to.
-- **A delegated run hears words while its turn works.** It is started with `hearsWords` true, so the
-  supervisor that asked for it may say more into the turn it is working, as the owner may say to any run;
-  the run's record and, where it is a job's, its report keep what was said (`docs/agent-control.md`, 「Words
-  that arrive while a turn is working」). The supervisor's own call is held by the run, so it speaks from
-  another turn or a shell, with `bmo-agency run say session:<id> --words …` on the session its delegations
-  list gives.
-- **`bmo/delegations` lists the asking supervisor's delegations,** declared by the same tool to a session
-  holding `room.tools`: each one's title, stage, role, the provider and model it runs on, its session while
-  it runs, when it was asked and, once ended, what it came to, the ones still waiting or running first and
-  then the latest ended, newest first. It reads agency's `GET /delegations` for the supervisor the asking
-  turn is, so a supervisor sees its own delegations and no other's, and it takes no argument but an optional
-  count of ended ones to list.
-- **A task worth keeping and reviewing is still a queue item,** filed with `file_item`; the delegate files
-  nothing of the task.
 
 ## The relay
 

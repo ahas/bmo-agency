@@ -335,59 +335,6 @@ pub fn mcp_config(
   Ok(path)
 }
 
-/// What a supervisor's double is handed of the supervisor's servers (docs/worker-mcp.md, 「A supervisor's
-/// double」): its MCP configuration. A program that is told its tools tells a double the supervisor's own.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Double {
-  pub mcp_config: PathBuf,
-}
-
-/// The servers of `supervisor`'s double on a role line whose own configuration is `line_config`: the
-/// supervisor's chat configuration, with each
-/// server of the line's configuration the chat's holds none of beside it, written as
-/// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there.
-pub async fn double_of(
-  ground: &Ground,
-  trees: &Trees,
-  supervisor: &str,
-  line: &str,
-  line_config: &std::path::Path,
-) -> Result<Double, Refusal> {
-  crate::supervisors::named(&ground.db, supervisor)
-    .await
-    .map_err(|why| fault(format!("the supervisor {supervisor} could not be read: {why}")))?
-    .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?;
-  let limits = Limits::of(&ground.db, supervisor).await?;
-  let mut servers: indexmap::IndexMap<String, Ordered> =
-    harness_servers(ground, supervisor, &limits).entries().cloned().unwrap_or_default();
-  let read: Ordered = serde_json::from_str(
-    &std::fs::read_to_string(line_config)
-      .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
-  )
-  .map_err(|why| fault(format!("{}: {why}", line_config.display())))?;
-  for (name, server) in read
-    .entries()
-    .and_then(|top| top.get("mcpServers"))
-    .and_then(Ordered::entries)
-    .into_iter()
-    .flatten()
-  {
-    servers.entry(name.clone()).or_insert_with(|| server.clone());
-  }
-
-  let path = trees.agents.join(format!("double.{supervisor}.{line}.mcp.json"));
-  let text = format!("{}\n", Ordered::map([("mcpServers", Ordered::Map(servers))]).pretty());
-
-  if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
-    agent_host::disk::private_dir(&trees.agents)
-      .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
-    agent_host::disk::publish_bytes(&path, text.as_bytes())
-      .map_err(|why| fault(format!("{}: {why}", path.display())))?;
-  }
-
-  Ok(Double { mcp_config: path })
-}
-
 // The shell in front of a stdio plugin that takes its job token from its environment alone: the token read from
 // the file `BMO_JOB_TOKEN_FILE` names, and the plugin, its first word, started on its own words with it.
 const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || exit 1; export BMO_JOB_TOKEN; unset BMO_JOB_TOKEN_FILE; exec "$0" "$@""#;

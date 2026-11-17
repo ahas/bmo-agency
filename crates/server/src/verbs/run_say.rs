@@ -1,6 +1,5 @@
 //! `bmo-agency run say`: words said to a run or to a repository's worker (docs/agent-control.md, 「Words
-//! said to a worker」). A run is named by its session, `session:<id>`, which its asking supervisor reads in
-//! its delegations; a job by its id, `job:<id>`; a worker by its repository, `repository:<name>`, or by its
+//! said to a worker」). A run is named by its session, `session:<id>`; a job by its id, `job:<id>`; a worker by its repository, `repository:<name>`, or by its
 //! checkout, `worker:<name>`. The words are offered to the turn going now, kept for a job's next turn, or
 //! carried in a turn of the worker's own, and what became of them is printed.
 

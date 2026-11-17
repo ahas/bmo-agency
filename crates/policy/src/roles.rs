@@ -1,6 +1,6 @@
 //! The roles and what is no role's own (docs/agent-roles.md): the roles themselves are the store's rows, which
-//! these declarations seed once; the bundles, the supervisor bundles, the role a job, a delegation and an
-//! upkeep run hold where nothing names one, the sending bundle, the default quota share, the marks and the
+//! these declarations seed once; the bundles, the supervisor bundles, the role a job and an upkeep run hold
+//! where nothing names one, the sending bundle, the default quota share, the marks and the
 //! shape of a role's name are the policy's.
 
 use std::collections::BTreeMap;
@@ -100,8 +100,6 @@ pub struct Role {
 pub struct Roles {
   /// The role a job runs as where its item names none.
   pub job: String,
-  /// The role a delegated task runs as where its ask names none: the supervisor's double.
-  pub delegate: String,
   /// The role agency's own runs hold that stand for no one's work.
   pub renewal: String,
   /// The role a translation agency is asked for runs as.
@@ -153,7 +151,7 @@ impl Roles {
 
   /// Whether a role of this name is one the policy names as a default, which is never removed.
   pub fn default_role(&self, name: &str) -> bool {
-    [&self.job, &self.delegate, &self.renewal].iter().any(|role| *role == name)
+    [&self.job, &self.renewal].iter().any(|role| *role == name)
   }
 
   /// The short name a screen writes a bundle by, or the bundle's own name where none is declared.

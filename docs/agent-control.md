@@ -15,8 +15,8 @@ The owner's words for the scope are:
 ### Ownership and scope
 
 - **Every model invocation runs through herdr, for every provider.** That is every supervisor's turns,
-  its compaction and its keepalive, and every run of a role — a job's turn, a worker ask, a delegated
-  task, a repository-managed co-work branch, a search and a browse — with their fallback attempts and
+  its compaction and its keepalive, and every run of a role — a job's turn, a worker ask, a
+  repository-managed co-work branch, a search and a browse — with their fallback attempts and
   their compaction.
 - **There is one launch path, and nothing branches on the line.** No line, provider or caller
   keeps a process of its own beside it, and none calls a model over HTTP from the bot.
@@ -213,8 +213,8 @@ The owner's words:
   - A supervisor of the `room` scope keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
-- **Every run of a role stands apart:** a job's turn, a worker ask, a delegated task, a co-work branch,
-  a search, a browse, a translation and the news page's writer each stand the interactive program in a
+- **Every run of a role stands apart:** a job's turn, a worker ask, a co-work branch, a search, a browse,
+  a translation and the news page's writer each stand the interactive program in a
   pane of their own, opened for the run and closed with it, so two runs of one role at once are two
   panes; the session each opens on, a new one or the one its role keeps at that path, is its role's
   setting (`docs/agents.md`, 「A run in a pane of its own」; `docs/sessions.md`, 「A role's session」).
@@ -794,37 +794,6 @@ surface in the pane its run opens. The surface answers, in the provider's own te
 - **The exchange is a run of the worker role,** written to its run log like any other, so the console
   shows it. No item, lease or report is written. A task worth keeping and reviewing is filed as an item.
 
-### Delegating a task
-
-- **A supervisor may hand a task to a run of any role, with no item.** `delegate` names a one-line title,
-  the instruction, with all the context it needs, an optional role and an optional folder
-  (`docs/tools.md`, 「The delegate」). The role is `doppelganger` where none is named; a role the store does not
-  hold is refused with its name, and nothing starts.
-- **A task naming no role is the supervisor's double:** a run of the `doppelganger` role, which holds a slot
-  of the doppelganger role and, its order being empty as seeded, goes out on the asking supervisor's own
-  provider, model and effort as they stand when it is asked; an order the owner sets on the role stands over
-  that. A task naming a role goes out on that role's own order, or on the supervisor's road where that order
-  is empty, and holds a slot of it (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line
-  however long that takes, and is never refused because every slot is taken, but for a double's own ask where
-  delegated runs hold the role's whole cap. Either runs with the supervisor's tools beside its role's
-  (`docs/tools.md`, 「The delegate」).
-- **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
-  on that provider and model where one is valid; a later delegation there within the cache lifetime goes on
-  in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, its
-  tool calls are held to the call clock (「A run's tool calls are held to a clock」), and its slot is
-  finished once the run has answered.
-- **Its run stands in the run ledger while it goes,** opened as its turn goes out under the run's name, its
-  title the task's, its room the asking supervisor's where its turn names one, and closed with how the turn
-  ended (`docs/run-records.md`, 「The run ledger」). The lines of its transcript are written under that name,
-  so the run is listed and its log read as any job's is.
-- **The supervisor calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
-  the work: the room is told the task was handed off, and the answer — the run's text and the files
-  created or changed in the folder — comes back as a wake.
-- **A supervisor reads what it has delegated,** each delegation by its title, its stage — waiting for a
-  slot, running, ended — its role, the provider and model it runs on and when it was asked
-  (`docs/tools.md`, 「The delegate」), so it answers how its delegated work stands and hands off no task
-  already running.
-
 ### Words that arrive while a turn is working
 
 The owner's words:
@@ -954,12 +923,11 @@ The owner's words:
     end beside a program at rest has nothing still to come.
 - **A surface that takes no words mid-turn** keeps the buffer: the batch waits there and the next
   round carries it.
-- **A run's turn takes them by the same door.** A delegated double, a job's run, a co-work branch and every
-  other role's run stand as a session, and words said to one go through the session push the room's do
+- **A run's turn takes them by the same door.** A job's run, a co-work branch and every other role's run
+  stand as a session, and words said to one go through the session push the room's do
   (`POST /sessions/{sessionId}/words`, `docs/api.md`, 「sessions」). The owner, and the supervisor that asked
-  for the run, may say them; nobody else. A role's turn hears them unless its caller said otherwise, so a
-  delegated run hears them as a job's does. A subagent a job's own program opens stands inside that
-  program and is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
+  for the run, may say them; nobody else. A role's turn hears them unless its caller said otherwise. A
+  subagent a job's own program opens stands inside that program and is no session of agency's, so no word reaches it: the job's turn it stands in takes one.
 - **A job's run is the one run whose words are kept** (「Words for a running job」 below): every other rule here
   is for a run that is no job's.
 - **A run that has ended takes none.** Its session goes with its run, so a word said to it is answered

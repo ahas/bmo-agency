@@ -274,7 +274,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   // store does not hold, is refused the same way (docs/repositories.md, 「An agent an item names」).
   for (labels, code, quoted) in [
     (json!({ "agent": "nobody-07" }), "unknown-agent", "agent=nobody-07"),
-    (json!({ "agent": "doppelganger-01" }), "agent-names-no-road", "agent=doppelganger-01"),
+    (json!({ "agent": "coder-01" }), "agent-names-no-road", "agent=coder-01"),
     (json!({ "role": "nothing" }), "unknown-role", "role=nothing"),
   ] {
     let (status, refused) = post(
@@ -1083,8 +1083,8 @@ async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_
     .run(
       r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
            "model", "effort", "capacity", "state", "enqueued_at", "class", "seat", "title")
-         VALUES ('busy', 'busy', 'owner:x', 'delegate', 'worker', '/elsewhere/', 'p', 'm', '', 1, 'active', 0,
-           'foreground', $1, 'a delegated task')"#,
+         VALUES ('busy', 'busy', 'owner:x', 'cowork', 'worker', '/elsewhere/', 'p', 'm', '', 1, 'active', 0,
+           'foreground', $1, 'a co-work branch')"#,
       vec![AGENT.into()],
     )
     .await;
@@ -1093,7 +1093,7 @@ async fn a_launch_onto_an_agent_that_carries_a_run_is_refused_and_nothing_waits_
 
   assert_eq!((status, refused["code"].as_str()), (409, Some("agent-busy")), "{refused}");
   assert!(
-    refused["error"].as_str().unwrap().contains("a delegate run, a delegated task"),
+    refused["error"].as_str().unwrap().contains("a cowork run, a co-work branch"),
     "{refused}"
   );
   scratch.run(r#"DELETE FROM "role_slot_requests""#, vec![]).await;

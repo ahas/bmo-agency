@@ -68,8 +68,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   reaches a supervisor's turn is closed, and the brain's own tools stay, so the supervisor still recalls and
   learns by its own calls and is handed nothing it did not ask for:
   - its session record holds none of the capabilities the roles policy names as the reference's (`reference`:
-    `gate.reference`, the gate's reading of the index and its pieces), on its own turns and on its double's;
-  - the first prompt of its double's session carries no reference the gate picks (`docs/api.md`, 「sessions」);
+    `gate.reference`, the gate's reading of the index and its pieces), on its own turns;
   - the receiver, which reads the switch on the settings page beside the brain switch, composes the room's block
     and the turn's core as it does for a brain switched off: no brain index, hint or due line in the block, and no
     core asked of the gate.
@@ -78,9 +77,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   it. Off, every place the brain reaches a supervisor's turn is closed, and nothing else changes:
   - its session record holds none of the capabilities the roles policy names as the brain's (`brain`:
     `room.chat`, which every entry of the brain's tool asks; `gate.reference`, the gate's reading of the index
-    and its pieces; and `brain.lessons`, the lessons form a run working for it holds), on its own turns and on
-    its double's (「What a supervisor hands to a role」 below);
-  - the first prompt of its double's session carries no reference the gate picks (`docs/api.md`, 「sessions」);
+    and its pieces; and `brain.lessons`, the lessons form a run working for it holds), on its own turns;
   - the receiver, which reads the switch on the settings page, carries no brain index, hint or due line in the
     room's block and asks the gate for no core for its turns (the receiver's `docs/drafting.md`, 「A supervisor
     whose brain is off」).
@@ -89,8 +86,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   its entries away; the tool limit below does, where it leaves `room.tools` out.
 - **The tool limit** narrows what the supervisor's sessions hold, in the shape a role's session's
   `toolsAllowed` has (`docs/api.md`, 「sessions」): a list of capabilities, or none for everything, as every
-  supervisor holds by default. A list is the whole of what its sessions keep, on its own turns and on its
-  double's, and it never widens them (「What each capability stands for」 below):
+  supervisor holds by default. A list is the whole of what its sessions keep, on its own turns, and it
+  never widens them (「What each capability stands for」 below):
   - of the tool host's entries, only those asking a capability it names, since the session record keeps only
     those of the chat line's and the supervisor bundles' capabilities it names;
   - of the servers the chat configuration starts outside the tool host, only those standing under a capability
@@ -98,8 +95,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     configuration does not name rides on the program either;
   - of the supervisor's own program's built-in tools, only those standing under a capability it names and the
     one the chat line keeps for every limited supervisor; no other built-in tool of the program is there, a tool
-    the map below names and one a later version of the program adds alike. Its double's program holds its
-    role's own, as any run it hands off does (「What each capability stands for」 below).
+    the map below names and one a later version of the program adds alike. A run it hands off holds its
+    role's own (「What each capability stands for」 below).
   A save names only capabilities the supervisor could hold; any other is refused.
 - **The persona** is a text of at most the supervisors policy's length, or none, and a persona left empty is
   none.
@@ -125,7 +122,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Every other capability stands for the tool host's entries that ask it,** reached through the tool host's
   namespaces in the chat configuration, and its grant lock refuses an entry whose capability the session record
   does not hold. `room.chat` is the brain's tools and the supervisor's records; `room.tools` carries, among
-  others, `bmo/delegate` and `bmo/worker_ask`; `web.read` is the tool host's web search and page fetch.
+  others, `bmo/worker_ask`; `web.read` is the tool host's web search and page fetch.
 - **The program's own web search and fetch, its subagents and its schedulers stand under no capability.** The
   chat line denies the web tools and the schedulers to every supervisor (`WebSearch`, `WebFetch`, `Monitor`,
   the cron and wake-up tools) and leaves it its subagents (`Agent`, `Task`), for reading and searching
@@ -140,8 +137,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   supervisor's warm prefix stands on.
 - **A limited supervisor's turn goes out on Claude Code alone,** on its own road or on a gateway road. A rollback
   harness, which takes its own tools whole or not at all rather than by name, refuses the turn.
-- **A run a supervisor hands off holds its role's tools.** `bmo/delegate` and `bmo/worker_ask`, both under
-  `room.tools`, start a run of a role on the worker line, and that run holds the worker line's own program tools,
+- **A run a supervisor hands off holds its role's tools.** `bmo/worker_ask`, under `room.tools`, starts a run
+  of the worker role on the worker line, and that run holds the worker line's own program tools,
   the shell and the file tools among them (`docs/launch-lines.md`). A limit meant to keep a supervisor away from
   files and the shell leaves `room.tools` out with `program.files` and `program.shell`.
 
@@ -665,13 +662,6 @@ rule to.
 
 ## What a supervisor hands to a role
 
-- **A delegation:** the supervisor hands a task off through `bmo/delegate` (`docs/tools.md`, 「The delegate」).
-  Where it names no role, the run is the `doppelganger` role's, the supervisor's double, and holds a slot of
-  the `doppelganger` role; where it names a role, the run is that role's and holds a slot of it. Either goes
-  out on the road of the agent it is let in on, and on the supervisor's own road as it stands at that moment
-  where that agent names none, as the doppelganger's are seeded (`docs/role-slots.md`, 「A delegated task」).
-  Either runs with the supervisor's tools beside its role's: its record, its turn and its program's servers
-  are the supervisor's.
 - **A worker ask:** a small coding task as a run of the worker role in a repository's checkout or the
   supervisor's scratch folder (`docs/tools.md`, 「The worker ask」).
 - **A TODO item:** filed to the supervisor's repository, naming the role its job runs as, `worker` where it

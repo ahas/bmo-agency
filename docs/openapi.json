@@ -119,9 +119,6 @@
       "name": "stop-marks"
     },
     {
-      "name": "seat-requests"
-    },
-    {
       "name": "reservations"
     },
     {
@@ -2561,53 +2558,6 @@
             "schema": {
               "type": "integer",
               "description": ""
-            }
-          }
-        ]
-      }
-    },
-    "/delegations": {
-      "get": {
-        "operationId": "listDelegations",
-        "tags": [
-          "seat-requests"
-        ],
-        "summary": "The tasks an agent delegated, each with its title, stage, role, start and run.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DelegationPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "parameters": [
-          {
-            "name": "askedBy",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "The asking agent whose delegations are listed."
-            }
-          },
-          {
-            "name": "ended",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": "How many of the latest ended delegations are listed; 10 where none is named."
             }
           }
         ]
@@ -7227,17 +7177,13 @@
           },
           "422": {
             "$ref": "#/components/responses/UnknownRole"
-          },
-          "409": {
-            "$ref": "#/components/responses/DoubleWaitsOnDoubles"
           }
         },
         "x-codes": [
           "unauthorized",
           "bad-request",
           "unknown-role",
-          "unprocessable-entity",
-          "double-waits-on-doubles"
+          "unprocessable-entity"
         ],
         "requestBody": {
           "required": true,
@@ -8078,17 +8024,6 @@
             ],
             "description": "The role the session runs for, or none.",
             "default": null
-          },
-          "carries": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SessionCarries"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What the record of every run of a role's session holds, its supervisor's among them where it is a\nsupervisor's double; none for any other scope and wherever a session is read rather than started."
           }
         },
         "required": [
@@ -8119,28 +8054,6 @@
           "conversation"
         ],
         "description": "One of the values the API accepts."
-      },
-      "SessionCarries": {
-        "type": "object",
-        "properties": {
-          "capabilities": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "namespaces": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "capabilities",
-          "namespaces"
-        ],
-        "description": "SessionCarries: the capabilities and the namespaces a role's session's record holds."
       },
       "SessionStart": {
         "type": "object",
@@ -8203,13 +8116,6 @@
               "type": "string"
             },
             "description": "The capabilities the session's record keeps, of those its line and its agent's role give."
-          },
-          "supervisor": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools\nbeside its role's."
           },
           "demandId": {
             "type": [
@@ -9800,137 +9706,6 @@
           "reason"
         ],
         "description": "The body that marks a job to stop."
-      },
-      "DelegationPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Delegation"
-            }
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "description": "DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,\nnewest first."
-      },
-      "Delegation": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string"
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "askedBy": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stage": {
-            "$ref": "#/components/schemas/DelegationStage"
-          },
-          "role": {
-            "type": "string"
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The provider it runs on; null until its road is fixed."
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The model it runs on; null until its road is fixed."
-          },
-          "askedAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Epoch milliseconds."
-          },
-          "runningSince": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Epoch milliseconds; null until it is let in."
-          },
-          "endedAt": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Epoch milliseconds; null until it ends."
-          },
-          "session": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The session its run's turn goes into, which its asking supervisor says more to while it runs."
-          },
-          "runName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The run its turn goes out as, the name its log lines are written under; null until it is bound, kept\nonce it ends."
-          },
-          "runId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "That run's id in the ledger; null until its turn opens it, kept once it ends."
-          },
-          "outcome": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "What it came to, once ended."
-          }
-        },
-        "required": [
-          "token",
-          "title",
-          "askedBy",
-          "stage",
-          "role",
-          "provider",
-          "model",
-          "askedAt",
-          "runningSince",
-          "endedAt",
-          "session",
-          "runName",
-          "runId",
-          "outcome"
-        ],
-        "description": "Delegation: a task a supervisor delegated, as its seat stands."
-      },
-      "DelegationStage": {
-        "type": "string",
-        "enum": [
-          "waiting",
-          "running",
-          "ended"
-        ],
-        "description": "DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`\nonce it is let in, `ended` once it is finished or cancelled."
       },
       "ReservationPage": {
         "type": "object",
@@ -12551,7 +12326,7 @@
               "string",
               "null"
             ],
-            "description": "The supervisor a run of the search or browse line no supervisor delegated writes for, or null."
+            "description": "The supervisor whose brain a role's run reads and writes, or null."
           },
           "downgradeReturn": true,
           "deepseekCardSecret": {
@@ -15766,11 +15541,6 @@
           "yielding": {
             "type": "boolean"
           },
-          "short": {
-            "type": "boolean",
-            "description": "true where its caller vouched it one short turn someone waits on",
-            "default": false
-          },
           "placeKey": {
             "type": [
               "string",
@@ -15837,7 +15607,6 @@
           "outcome",
           "reservation",
           "yielding",
-          "short",
           "placeKey",
           "session",
           "title",
@@ -15862,7 +15631,7 @@
               "string",
               "null"
             ],
-            "description": "the doppelganger where a delegation names none"
+            "description": "The role the slot is asked of; an ask naming none is refused."
           },
           "source": {
             "type": [
@@ -15923,20 +15692,6 @@
               "string",
               "null"
             ]
-          },
-          "fromDouble": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse"
-          },
-          "short": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "true where the run is one short turn someone waits on, let in one seat beyond the cap while delegated\ntasks hold every slot"
           }
         },
         "required": [
@@ -16450,16 +16205,6 @@
       },
       "DirectoryTaken": {
         "description": "directory-taken",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            }
-          }
-        }
-      },
-      "DoubleWaitsOnDoubles": {
-        "description": "double-waits-on-doubles",
         "content": {
           "application/json": {
             "schema": {

@@ -56,8 +56,8 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
                 (5, 'worker-a', NULL, 'job-42', 0, $1, NULL, NULL, false),
                 (6, 'search', -5, 'search-6', 0, $1, NULL, NULL, false),
                 (7, 'chat-agent', -5, 'chat:-5:7', 0, $1, $1, 'answered', true),
-                (8, 'doppelganger', -5, 'delegate-8', 0, $1, NULL, NULL, true),
-                (9, 'doppelganger', -5, 'a-unit-of-its-own', 0, $1, NULL, NULL, true)"#,
+                (8, 'helper', -5, 'helper-8', 0, $1, NULL, NULL, true),
+                (9, 'helper', -5, 'a-unit-of-its-own', 0, $1, NULL, NULL, true)"#,
       vec![old.into(), fresh.into()],
     )
     .await;
@@ -93,11 +93,11 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
   turn_pickup::keep(
     scratch.db(),
     &turn_pickup::InFlight {
-      session: "doppelganger@run:1".into(),
+      session: "helper@run:1".into(),
       turn: 3,
-      run: "delegate-9".into(),
+      run: "helper-9".into(),
       key: None,
-      agent: "doppelganger".into(),
+      agent: "helper".into(),
       chat_id: None,
       ledger: Some(9),
       job: None,

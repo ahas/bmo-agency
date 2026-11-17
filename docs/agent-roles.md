@@ -16,7 +16,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the coder, the doppelganger, the helper, the producer, the voyager, the seeker, the translator,
+- **The workers, the coder, the helper, the producer, the voyager, the seeker, the translator,
   the transliterator and the actor are roles alike.** Nothing tells one role from another but what its row
   says.
 
@@ -44,7 +44,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   with no agent runs nothing.
 - **A role whose agents name no road follows the supervisor that asks it.** A run of such a role a
   supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is
-  asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A delegated task」). The role's
+  asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A role that follows its
+  supervisor」). The role's
   row answers `followsSupervisor` true while none of its agents names a road (`docs/api.md`, 「roles」).
 - **An agent may lay its own prompt, bundles and skills over its role's,** each standing in place of the
   role's for that agent's runs alone (`docs/role-agents.md`, 「What an agent row holds」).
@@ -56,23 +57,21 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The policy keeps what is not a role's own,** `policy/roles.toml`, read by the bun side and the Rust side
   alike: the bundles a role may give, `[[bundles]]`, each with its label; the supervisor bundles every
   supervisor holds (`docs/supervisors.md`, 「The bundles a supervisor holds」); the role a job runs as where
-  its item names none, `worker`; the role delegated work goes to where its ask names none, `doppelganger`; the
-  role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
+  its item names none, `worker`; the role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
   sending; and the shape of a role's name.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
 - **`brain.lessons` reads the brain of the supervisor a run works for and writes the run's lessons there:**
   the brain's `brain_list`, `brain_similar` and `brain_learn` in the narrower form that bundle holds (the
   brain's `docs/boundary-api.md`, 「Its tool」), reached with `bmo use`. The run's record names that
-  supervisor as `BMO_BRAIN_AGENT` — the supervisor whose double the run is, and otherwise the one agency's
-  `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none — while the
+  supervisor as `BMO_BRAIN_AGENT` — the one agency's `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none — while the
   turn's agent stays the run's own, so every other tool it calls acts as the run. Every role on the worker
   line holds it but `upkeep`, which stands for no one's work, and `actor`, which reaches nothing itself.
 - **The policy names the capabilities through which a session reaches a brain,** `brain`: `room.chat`,
   `gate.reference` and `brain.lessons`. A supervisor whose brain switch is off holds none of them on its own
-  turns or on its double's (`docs/supervisors.md`, 「Its settings」).
+  turns (`docs/supervisors.md`, 「Its settings」).
 - **The policy names the capabilities through which a session reaches the gate's reading of a brain,**
   `reference`: `gate.reference`. A supervisor whose reference switch is off holds none of them on its own turns
-  or on its double's, and keeps the rest of the brain's (`docs/supervisors.md`, 「Its settings」).
+  and keeps the rest of the brain's (`docs/supervisors.md`, 「Its settings」).
 - **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
   other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
   lists what its sessions are shown.
@@ -86,7 +85,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   for it, and an add or a change refuses an empty one. It is the English word a log keeps of the role, and
   agency's API answers it with the row.
 - **A screen shows a role by its name alone,** the kebab-case key agency holds it under — `worker`,
-  `coder`, `doppelganger`, `voyager`, `seeker`, `producer` and every other — on every screen that names
+  `coder`, `helper`, `voyager`, `seeker`, `producer` and every other — on every screen that names
   one: never the row's label and never a word translated from the name. A role the owner adds is shown by
   its name from its first listing.
 
@@ -107,7 +106,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   |---|---|---|---|---|---|---|---|---|
   | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | none | none | policy | keep |
   | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | `claude-code`: `coder-claude-code.md` | policy | keep |
-  | `doppelganger` | Doppelganger | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `doppelganger.md` | none | policy | keep |
   | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | none | policy | keep |
   | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send`, `brain.lessons` | 2 | `producer.md` | none | policy | keep |
   | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | none | policy | fresh |
@@ -123,8 +121,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Each seeded role's agents are the policy's,** given with the row: as many agents
   as its declaration's count, each on the road it declares and with the sessions setting, the compaction
   threshold the declaration states (`docs/role-agents.md`, 「The roles the policy
-  seeds」), changed by the owner afterwards like any agent. The `doppelganger` and the `coder` declare no road,
-  so their agents follow the supervisor that asks them until the owner sets an agent a road.
+  seeds」), changed by the owner afterwards like any agent. The `coder` declares no road,
+  so its agents follow the supervisor that asks them until the owner sets an agent a road.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
   asked** (`docs/agent-documents.md`): a job's report and the documents it files, in the language the item's
   brief names for its requester, else its room; a voyager's result, in its question's language. What
@@ -176,41 +174,18 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 ## The helper role
 
-- **The role a supervisor names when it hands off a problem it could not settle in its own turn** — a design
-  question, a stubborn bug, a plan that has to hold, an analysis that needs care (`docs/tools.md`, 「The
-  delegate」; the chat agent's manual, `prompts/agents/chat/manual.md`). Its prompt, seeded from
-  `prompts/roles/helper.md`, stands first in every run.
+- **The role for a hard problem that wants a stronger model** — a design question, a stubborn bug, a plan that
+  has to hold, an analysis that needs care. Its prompt, seeded from `prompts/roles/helper.md`, stands first in
+  every run.
+- **A run of it is asked as any role's is:** a job whose item names `helper` (`docs/repositories.md`, 「A job」),
+  or a slot or a session a caller asks naming it (`docs/api.md`, 「sessions」). No tool of agency's hands it a
+  task of its own accord.
 - **Its runs go out on the helper role's own order, the strongest road the deployment names,** and hold a slot
-  of the helper role, like any role named in a delegation; a run a supervisor asks holds that supervisor's tools
-  beside its bundles (`docs/tools.md`, 「The delegate」). This is what sets it apart from the double, which goes
-  out on the asking supervisor's own road: the helper is asked where the problem wants a better model than the
-  supervisor's, the double where it wants the supervisor's own hands elsewhere.
-- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
-  root where none is named, so a delegation that follows another at the same folder on the same provider and
-  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
+  of the helper role, like any role's runs.
+- **Its runs work in the folder their caller names,** so a run that follows another at the same folder on the
+  same provider and model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's
+  session」).
 - **Its bundles** are the worker's: `graph.read`, `queue.read`, `web.read` and `brain.lessons`.
-
-## The doppelganger role
-
-- **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
-  delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/doppelganger.md`, stands first
-  in every run.
-- **A turn of it is a task or a round handed over whole.** A task names the folder to work in and what to
-  find or do, and its answer is a report the supervisor carries back. A round a supervisor's own draft turn
-  handed over (the receiver's `docs/drafting.md`, 「A round handed to the double」) carries the room's block
-  and the round's turn as the supervisor read them: the double then answers as the supervisor itself, by that
-  block's rules, and its answer is the message the room hears. The role's prompt tells the two apart.
-- **Its agents are seeded on no road, so a run of it goes out on the asking supervisor's own provider, model
-  and effort** as they stand when it is asked, and waits while that provider has no quota
-  (`docs/role-slots.md`, 「A delegated task」). An agent the owner sets a road goes out on that road instead,
-  like any role's agent.
-- **Its agents bound every supervisor's delegations together,** two as seeded, a number the owner changes by
-  adding, removing or switching its agents.
-- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
-  root where none is named, so a delegation that follows another at the same folder on the same provider and
-  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read`, `web.read` and `brain.lessons`; a run a supervisor asks holds
-  that supervisor's tools beside them (`docs/tools.md`, 「The delegate」).
 
 ## The producer role
 
@@ -241,8 +216,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   is named.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
   runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on a supervisor's brain: the brain of the
-  supervisor that delegated the run, and for a run no supervisor delegated, the brain of the supervisor
-  agency's `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none. The
+  supervisor agency's `researchSupervisor` setting names (`docs/api.md`, 「settings」), none where it names none. The
   line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
   establishes into the same brain the supervisor reads, while the run itself stays the role's.
 
@@ -334,8 +308,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 - **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」);
   an item whose work changes a repository's code names `coder` (「The coder role」).
-- **A delegated task:** the role the ask names, `doppelganger` where it names none (`docs/tools.md`, 「The
-  delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
   names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`, the
@@ -349,8 +321,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   bundles its role gives, read from the store as the record is issued (`mcp-host.md`, 「The session
   record」). A run names its role among its turn's variables, which a standing program's own environment
   does not hold, so the record of a program standing in a place for a run is issued from the program's
-  environment with the run's variables laid over it. A run a supervisor asks holds that supervisor's record
-  beside its role's (`docs/tools.md`, 「The delegate」).
+  environment with the run's variables laid over it.
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where
   it holds `room.tools`, and otherwise the catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.
@@ -373,6 +344,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   nothing until one is added (`docs/role-agents.md`, 「Changing the agents」).
 - **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
 - **`DELETE /roles/{roleName}`** removes a role with its agents, and is refused while a run of it goes or
-  waits, and for a role the policy names as a default — `worker`, `doppelganger` and `upkeep`.
+  waits, and for a role the policy names as a default — `worker` and `upkeep`.
 - **A role added or changed is read at its next use;** nothing running is stopped for it, and a run already
   let in finishes under the row it began under.

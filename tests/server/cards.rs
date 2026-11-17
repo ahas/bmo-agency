@@ -223,7 +223,6 @@ fn seat(token: &str) -> Request {
     leased_at: Some(1),
     child_id: None,
     yielding: false,
-    short: false,
     place_key: None,
     session: Some("session-7".into()),
     title: None,

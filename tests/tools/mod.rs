@@ -1,5 +1,5 @@
 //! Agency's tools (docs/tools.md): their side of the tool host's call protocol, the procedures, the
-//! worker's ask, the delegate, the relay and the DeepSeek top-up, each held to its manifest, and each executable answering a
+//! worker's ask, the relay and the DeepSeek top-up, each held to its manifest, and each executable answering a
 //! request as the tool host hands it one.
 
 use std::sync::{Arc, Mutex};
@@ -10,7 +10,6 @@ use axum::http::{HeaderMap, StatusCode, header};
 mod call;
 mod deepseek_top_up;
 mod deepseek_top_up_payment;
-mod delegate;
 mod manifests;
 mod procedures;
 mod relay;

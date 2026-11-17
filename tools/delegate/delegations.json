@@ -1,7 +1,0 @@
-{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "ended": { "type": ["integer", "null"], "minimum": 0, "description": "How many of the latest ended delegations to list beside the waiting and running ones; 10 where none is named." }
-  }
-}

@@ -74,8 +74,8 @@ seeds. The other crates and the server reach the store only through it.
     「Several accounts on one node」);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the account it belongs to or
     none, the one agent it asks to be
-    let in on, `agent_wanted`, where its asker named one, whether it was asked `short`, the agent it was let
-    in on, its `seat`, what it is
+    let in on, `agent_wanted`, where its asker named one, its title and the supervisor that asked it where its
+    asker named them, the agent it was let in on, its `seat`, what it is
     bound to, the role session among it, whether the line has seen its bound run standing, and who gave it
     back —;
     `role_slot_reservations`;
@@ -191,8 +191,7 @@ seeds. The other crates and the server reach the store only through it.
   - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
     stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
     highest number the store has dropped (`docs/api.md`, 「events」);
-  - the supervisor a run of the search or browse line writes for where no supervisor delegated it,
-    `research_supervisor` (`docs/api.md`, 「settings」);
+  - the supervisor a run of the search or browse line writes for, `research_supervisor` (`docs/api.md`, 「settings」);
   - the console secrets the DeepSeek top-up reads its card from and signs in with, `deepseek_card_secret` and
     `deepseek_login_secret` (`docs/api.md`, 「settings」);
   - a supervisor's reset point, `reset_point:*` (`docs/supervisors.md`, 「What the reset cuts off」);

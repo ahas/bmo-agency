@@ -136,7 +136,7 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// written is handed its session token first, and a tool host that does not answer refuses the turn before
 /// anything is written. The token's record is issued from the program's own environment with the run's
 /// variables of `run_env` laid over it: a program's environment holds no turn's variables, and the role a run
-/// holds, the record its caller named and the supervisor whose double it is stand among them, so a record
+/// holds and the record its caller named stand among them, so a record
 /// issued from the program's environment alone would hold none of its role's bundles.
 #[allow(clippy::too_many_arguments)]
 pub async fn stand_resident<F, Fut>(

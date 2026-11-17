@@ -93,7 +93,8 @@ async fn the_roles_and_everything_keyed_on_them_take_their_new_names_and_the_ret
     )
     .await;
 
-  Migrator::up(scratch.db(), None).await.unwrap();
+  // The renaming alone: a later migration takes the double's role away again.
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
 
   assert_eq!(
     names(&scratch, r#"SELECT "name" FROM "roles" ORDER BY "name""#).await,

@@ -8,7 +8,7 @@ every node shares are `docs/work-nodes.md`.
 ## The scope
 
 - **Only the owner's and the deployment's own runs have the whole machine:** a supervisor of no account or of the
-  administrator's account, its doubles, and every job, run and turn of no account or of the administrator's
+  administrator's account, and every job, run and turn of no account or of the administrator's
   account. They run as the owner's user, with what that user holds — its sudo, its docker, its home, the data root,
   the hub's settings file — and their supervisors hold the administrator's grant (「Who reaches a node」 in
   `docs/person-nodes.md`).

@@ -215,7 +215,7 @@
   「A restart hands the session over」). A turn that finds no pane to stand the program in, herdr down, fails
   as a transport failure and is run in no other shape.
 - **Worker line**: the line the `worker` role names and every role that names it — the coder, the
-  doppelganger, the helper, the producer and upkeep (`docs/agent-roles.md`, 「The roles
+  helper, the producer and upkeep (`docs/agent-roles.md`, 「The roles
   the policy seeds」). A run on it goes out on the model, effort and thinking its role's order names for the
   provider the run goes out on (`docs/provider-order.md`), or a job's on its repository's pinned model
   (`docs/repositories.md`, 「A pinned model」), in
@@ -241,7 +241,7 @@
   settings also set `skipDangerousModePermissionPrompt` to `true`: a run on the line in a pane of its own,
   which reads those settings as they stand rather than a place's, would otherwise stop at the CLI's
   warning dialog until a person answered it. A run works in the path its work names: a job in its
-  repository's checkout, a worker ask or a delegated task in the folder it names (`docs/agents.md`, 「A
+  repository's checkout, a worker ask in the folder it names (`docs/agents.md`, 「A
   run」). No persona: its whole system prompt, given with `--system-prompt-file` in the CLI's own place,
   is the platform's harness opening, `prompts/harness.md`, then the role's prompt where the role carries
   one, then the line's rules, as one file named by what it holds. The rules are one file the line
@@ -351,7 +351,7 @@
 - **A run of the worker line on a DeepSeek, OpenRouter or Codex model**: Claude Code on the gateway under
   the member the role's order entry or the repository's pin names, exactly as a run on a registration
   stands (`docs/own-llm.md`) — a worker's standing program and a role session's turn in a place of its own
-  alike, a supervisor's double among them: the worker line whole — the platform's harness opening with the role's
+  alike: the worker line whole — the platform's harness opening with the role's
   prompt and its rules after it, its plugin, the worker MCP server, its settings and
   hooks — with the member's home, window, answer ceiling and request wait, and the gateway's key read
   from its file by the settings' key helper. The member's effort word goes out in the effort header; no
@@ -505,7 +505,7 @@
   | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
   |---|---|---|---|---|---|
   | chat | a supervisor's resident program — every supervisor's turns | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency`, `artifact` and `explorer` | the supervisor's chat configuration, strict |
-  | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them; strict |
+  | worker | every role naming the line — a job, a worker ask, a co-work stage or branch, upkeep | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`, strict |
   | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
   | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
@@ -517,12 +517,12 @@
 - **A supervisor is allowed the same on every road.** Its resident program is started on the chat line's one
   set of words on Claude Code's own road and on DeepSeek's, Codex's, OpenRouter's and the registry's gateway
   roads alike: bypass-permissions, the chat line's denied list as its only restriction, and its chat
-  configuration whole. These are the words a role's run and a supervisor's double are started with on the
+  configuration whole. These are the words a role's run is started with on the
   worker line, the line's own denied list in place of the chat line's.
 - **A supervisor's tool limit narrows its program, where its settings hold one** (`docs/supervisors.md`, 「Its
   settings」). The chat line's `held` declares a capability for each server of the chat configuration that
   stands outside the tool host and for each group of the program's own tools; a server whose capability the
-  limit leaves out is not written into that supervisor's configuration, its double's included, and a program
+  limit leaves out is not written into that supervisor's configuration, and a program
   tool whose capability it leaves out joins the denied list its program is started with. Its program is also
   started with the program's own list of the built-in tools it may have, the chat line's `limited_keeps` and
   the tools under each capability the limit names, and no other, so a built-in tool no capability declares,
@@ -540,9 +540,8 @@
 - **A program that is a harness of its own is told its tools another way.** dsh and Codex, carried for a
   rollback and named by no provider of this build, take a shown and an allowed list rather than a permission
   mode over every built-in: a run of the worker line on one of them is handed its line's MCP configuration and
-  allowed its servers; a supervisor, and a supervisor's double with it, is shown the chat line's shown tools
-  (`policy/chat-line.toml`, `shown`) and allowed every one it is shown, with no allow list of its own
-  (`docs/worker-mcp.md`, 「A supervisor's double」).
+  allowed its servers; a supervisor is shown the chat line's shown tools (`policy/chat-line.toml`, `shown`) and
+  allowed every one it is shown, with no allow list of its own.
 
 ## The owner's gate
 
@@ -550,8 +549,7 @@ A supervisor holds Bash and reads every word said in its rooms, so what a room's
 left to its prompt. In front of each action that touches the machine or spends money, the code that carries
 the action out asks who sent the words the turn answers.
 
-- **The actions gated:** asking a worker through `bmo/worker_ask`, which runs a `worker` run on the words;
-  handing a task off through `bmo/delegate`, which takes a slot of the role it names and runs the task; and
+- **The actions gated:** asking a worker through `bmo/worker_ask`, which runs a `worker` run on the words; and
   `run_job`, the supervisor's own `agency` server launching an item's job. Each asks the room relation
   `launch`.
 - **The turn asked about** is the one the agent's place carries now: the room it answers (`BMO_TURN_CHAT`), the
