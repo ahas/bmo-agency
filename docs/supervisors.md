@@ -127,9 +127,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   does not hold. `room.chat` is the brain's tools and the supervisor's records; `room.tools` carries, among
   others, `bmo/delegate` and `bmo/worker_ask`; `web.read` is the tool host's web search and page fetch.
 - **The program's own web search and fetch, its subagents and its schedulers stand under no capability.** The
-  chat line denies them to every supervisor (`WebSearch`, `WebFetch`, `Agent`, `Task`, `Monitor`, the cron and
-  wake-up tools), and a limited supervisor's program is not started with them, nor with `Workflow`,
-  `SendMessage`, `Skill` or any built-in tool the table does not name.
+  chat line denies the web tools and the schedulers to every supervisor (`WebSearch`, `WebFetch`, `Monitor`,
+  the cron and wake-up tools) and leaves it its subagents (`Agent`, `Task`), for reading and searching
+  inside its turn (「A supervisor's long work」 below). A limited supervisor's program is started with none
+  of them, nor with `Workflow`, `SendMessage`, `Skill` or any built-in tool the table does not name.
 - **A limited supervisor's program keeps one tool no capability gives:** `ToolSearch`, which loads the
   definitions of the MCP tools it holds and reaches nothing else (the chat line's `limited_keeps`).
 - **How the program is narrowed:** a limited supervisor's program is started with the program's own list of the
@@ -599,7 +600,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     eight calls before it, with an input at least 90% alike by its pairs of characters, and each
     failing or answering what that alike call answered;
   - **the last net:** 80 tool calls in the turn. No clock cuts a turn: however long its run goes, it is
-    cut only by what it does.
+    cut only by what it does. Each of its tool calls is held to the call clock, as a job's are (「A
+    supervisor's long work」 below).
 - **The net bounds the words, not one run of them.** Words a run did not answer stay untaken, and the
   next turn in the room asks them again: after a restart cut the run in flight, or after a run that
   failed. Each of those runs is the same turn spending again, so what they spend adds up:
@@ -627,6 +629,39 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the consumer hands a quiet instruction naming the supervisor, its agent name, the room and chat, the
     reason and the turn's log to the supervisor its own setting names; the chat manual asks nothing for
     one cut and says where a repeated one is filed.
+
+## A supervisor's long work
+
+A supervisor answers every round in its own session, and its one program holds one turn at a time, so a
+turn that runs long holds every room it answers. Work longer than moments therefore never holds a reply:
+the supervisor answers the room first, in a few words saying what it will do, and puts the work behind the
+reply. The chat manual tells it so (`prompts/agents/chat/manual.md`); what follows is what agency holds that
+rule to.
+
+- **What outlives the turn: a call made apart.** A hosted tool called with `bmo use … --async`, and a
+  command launched apart with its output in a log and `bmo/wait` called with `--async` and a `check` on
+  that log, run under the tool host's record of the session token the program carried. Their wake is
+  queued for the supervisor and the room it was asked in, never for a session, so it reaches the
+  supervisor in that room after the turn has ended, after the program folded its conversation and after
+  its session was stood afresh: the token is taken back only once no such call under its record still
+  runs (`docs/sessions.md`, 「A restart hands the session over」).
+- **What does not: the program's own background work.** A shell command or a subagent the program puts
+  in its own background lives inside the program. Its notice, where it lands after the round has ended,
+  opens a turn of the program's own that no round carries, so its answer reaches no room; and a program
+  taken down or stood afresh takes it with it. So that road is not the supervisor's for work it reports.
+- **A subagent is for work inside the turn.** The chat line leaves the program its subagent tool (「What
+  each capability stands for」 above): a subagent reads and searches inside the turn and hands back only its
+  conclusion, so what it read stays out of the supervisor's context.
+- **Work whose result is code or a document is a job item,** filed and launched as the todo procedure
+  says, its report coming back to the supervisor as every job's does.
+- **How a turn that runs long is noticed.** A prompt line does not keep a model from holding its one
+  session on long work, so each tool call of a supervisor's turn is held to the call clock's first rule,
+  as a job's and a role's run's are (`docs/agent-control.md`, 「A run's tool calls are held to a clock」):
+  a call whose processes burn no processor time and begin none past the call's minimum is stopped, a call
+  with no process of its own is cut past the clock's bound, and the program hands the model a failed
+  result and the turn goes on. No ask is opened on a supervisor's call, and its turn has no hard bound:
+  a turn that keeps working is bounded by the turn guard (「A turn that goes nowhere」 above), and its room
+  reads it as thinking while it goes.
 
 ## What a supervisor hands to a role
 

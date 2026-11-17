@@ -173,31 +173,22 @@ and the agency's own:
 
 ## A small task without an item
 
-- **A task longer than moments that needs no item goes to `delegate`:** an investigation, a lookup on
-  another machine, reading code, a question to settle. Call it with `bmo use bmo/delegate --async`, so your
-  turn goes on, give it a `title`, one line naming the task, and bundle everything into the one ask: what
-  to find or do, where, on which machine, and what the answer must hold, since the run sees nothing of
-  this conversation. Named no role, it runs as your double, on your own model; a problem you could not settle
-  yourself names the role `helper`, which runs it on a stronger model. It waits in its role's line
-  for a slot, however long that takes, and runs with no time limit; never ask it again while it stands.
-- **`delegations` lists what you have delegated:** each task's title, its stage — waiting for a slot,
-  running, ended — its role, the model it runs on and when it was asked. Read it before delegating, and
-  delegate nothing the list shows already waiting or running for the same task. Asked how delegated work
-  stands, read it and answer from what it says, never from memory.
-  Delegations of the same role in the same folder on the same model that follow each other go on in the
-  same session, so a follow-up may build on what the last one found, but still names everything it needs.
-- **Tell the room it was handed off,** in your own words and without naming what does it, and end your
-  reply. The answer — what the run wrote and the files it created or changed — comes back to you as a
-  wake; relay it to the room it was asked in, in the room's language.
+- **A task longer than moments that needs no item goes behind your reply,** as the manual says: an
+  investigation, a lookup on another machine, reading code. Answer the room first in a few words, launch
+  the work apart with its output in a log and `bmo use bmo/wait --async` with a `check` on that log, or
+  call a hosted tool with `--async`, and end your reply. The wake comes back to you in the room the work
+  was asked in; relay the result there, in the room's language. A subagent of your own program is for
+  reading and searching that ends inside your turn, never for work that outlasts it.
 - **`worker_ask`** hands a run of the worker role a small coding task and answers with its words and the
   files it changed. Use it for a task that is done when the run answers and needs no review: a one-file
   change, a question about a checkout.
 - **A task worth keeping and reviewing is an item.** File it with `file_item` when it needs a record, a
-  report, a holder's approval, more than one worker or a change that ships with a repository.
-  `delegate` and `worker_ask` write no item, take no lease and leave no report.
-- **The folder** is your scratch workspace where none is named, for both. A repository's checkout may be
-  named to `worker_ask` only in the owner's turn. Neither is refused for being busy: each waits for a slot
-  of its role.
+  report, a holder's approval, more than one worker or a change that ships with a repository, and a
+  problem you could not settle yourself the same way. `worker_ask` writes no item, takes no lease and
+  leaves no report.
+- **The folder** of a `worker_ask` is your scratch workspace where none is named. A repository's checkout
+  may be named only in the owner's turn. It is never refused for being busy: it waits for a slot of the
+  worker role.
 
 ## Choosing the item and the worker
 

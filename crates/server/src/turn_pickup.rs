@@ -844,19 +844,21 @@ async fn close_pane(ground: &Ground, pane: Option<&OwnPane>) {
   }
 }
 
-/// Whether a picked-up turn's tool calls are held to the call clock, as its live turn's were: a job's turn
-/// and a role session's turn are, a supervisor's turn is not (docs/agent-control.md, 「A run's tool calls
-/// are held to a clock」).
+/// Whether a picked-up turn's tool calls are held to the call clock, as its live turn's were: a job's turn,
+/// a role session's and a supervisor's are, and a conversation a caller opened is not
+/// (docs/agent-control.md, 「A run's tool calls are held to a clock」).
 pub fn holds_call_clock(turn: &InFlight) -> bool {
-  turn.job.is_some() || crate::herdr_backend::is_apart(&agent_session::SessionId(turn.session.clone()))
+  let session = agent_session::SessionId(turn.session.clone());
+
+  turn.job.is_some() || !crate::herdr_backend::is_conversation(&session)
 }
 
 // An adopted turn waited on until its end is handed back: in its place, or in its pane of its own. Its
 // record is read into the run log on every look, so the log follows the turn as a live one's would. A
-// job's turn and a role session's turn are held to the same tool clock as a door's: a blocked call is cut
-// so the turn can go on, and a stop cuts it so the stop's words can be read. A job's turn past its bound is
-// cut and its item released, and a call of a job's gone silent and idle is asked about. The asks opened on
-// its calls close with it.
+// job's turn, a role session's and a supervisor's are held to the same tool clock as a door's: a blocked
+// call is cut so the turn can go on, and a stop cuts it so the stop's words can be read. A job's turn past
+// its bound is cut and its item released, and a call of a job's gone silent and idle is asked about. The
+// asks opened on its calls close with it.
 pub async fn waited(
   ground: &Ground,
   place: &Place,

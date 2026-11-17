@@ -1109,10 +1109,10 @@ async fn a_limit_without_documents_file_starts_the_program_with_no_artifact_serv
   a_limit_leaving_out("documents.file").await;
 }
 
-// A supervisor limited to `room.chat` is started on every road with the tool search alone of the program's own
-// tools, every file, shell, web and subagent tool denied, no server the chat line holds outside the tool host,
-// and its turn refused on a program that is a harness of its own (docs/supervisors.md, 「What each capability
-// stands for」).
+// A supervisor limited to `room.chat` is started on every road with the tool search alone of the program's
+// own tools, so no subagent tool, every file, shell and web tool denied, no server the chat line holds
+// outside the tool host, and its turn refused on a program that is a harness of its own
+// (docs/supervisors.md, 「What each capability stands for」).
 #[tokio::test]
 async fn a_supervisor_limited_to_room_chat_is_started_with_no_file_shell_or_web_tool() {
   let scratch = Scratch::new().await;
@@ -1145,8 +1145,6 @@ async fn a_supervisor_limited_to_room_chat_is_started_with_no_file_shell_or_web_
       "KillShell",
       "WebFetch",
       "WebSearch",
-      "Agent",
-      "Task",
     ] {
       assert!(denied.contains(&tool), "{road}: {tool}: {args:?}");
     }

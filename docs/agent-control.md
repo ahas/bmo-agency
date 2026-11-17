@@ -1110,9 +1110,9 @@ flowchart TD
 - **Which runs carry a clock.** A role's run, a chat round, a keepalive ping and a fold carry none. A
   voice run carries ten minutes for the speaking of its line, on this machine's card or a node; past it
   the clock asks. A job's tool call that has gone silent and idle is asked about the same way, its clock
-  the call clock's silent window (「A run's tool calls are held to a clock」, below). A role's run carries
-  no clock of its own, but its tool calls are held to the call clock as a job's are, so a call that makes
-  no progress is cut and the run goes on.
+  the call clock's silent window (「A run's tool calls are held to a clock」, below). A role's run and a
+  chat round carry no clock of their own, but their tool calls are held to the call clock as a job's are, so
+  a call that makes no progress is cut and the run goes on.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the clock passes with
   the facts the run can say of itself — when it started, the clock, and its last sign of work: when
@@ -1150,21 +1150,22 @@ flowchart TD
 
 ### A run's tool calls are held to a clock
 
-A job's turn, and a turn of every role's run the door carries on Claude Code's record — a delegated task, a
-supervisor's double carrying a round, a worker ask, a co-work branch and every other role session's turn —
-runs a program whose tool calls the turn's collector reads off the record. A tool that blocks on a read or a
-write nothing will answer would otherwise hold the turn for ever, and the slot and the line behind it with
-it, and no stop reaches a turn held inside a call, so the call is held to a clock of its own
-(`policy/tool-clock.toml`). It is one clock for both: what follows holds for a job's turn and a role's run
-alike, except where it names a job.
+A job's turn, a turn of every role's run the door carries on Claude Code's record — a worker ask, a co-work
+branch and every other role session's turn — and a supervisor's turn run a program whose tool calls the
+turn's collector reads off the record. A tool that blocks on a read or a write nothing will answer would
+otherwise hold the turn for ever, and with it the slot and the line behind a role's run, or every room a
+supervisor answers, and no stop reaches a turn held inside a call, so the call is held to a clock of its own
+(`policy/tool-clock.toml`). It is one clock for all three: what follows holds for each alike, except where
+it names a job.
 
-- **What a role's run is held to.** The first rule below, the cut of a call with no process of its own and
-  the stop's cut hold for a role's run as they do for a job's turn, and its program is given the same MCP
-  idle window. The second rule's ask is a job's alone: its facts are the worker, the job and the item, and
-  the supervisor judges it as a job's call. A role's run holds no job, so no ask is opened on its calls and
-  nobody judges one: a call of its that goes silent and idle while it still begins processes runs on until
-  it ends, or until whoever asked for the run, or the owner, stops it. The hard bound below is a job's
-  alone too.
+- **What a role's run and a supervisor's turn are held to.** The first rule below, the cut of a call with
+  no process of its own and the stop's cut hold for them as they do for a job's turn, and a role's run's
+  program is given the same MCP idle window. The second rule's ask is a job's alone: its facts are the
+  worker, the job and the item, and the supervisor judges it as a job's call. A role's run and a
+  supervisor's turn hold no job, so no ask is opened on their calls and nobody judges one: a call that
+  goes silent and idle while it still begins processes runs on until it ends, or until whoever asked for
+  the run, or the owner, stops it. The hard bound below is a job's alone too (`docs/supervisors.md`, 「A
+  supervisor's long work」).
 - **Which roads it reads.** The clock reads the record of a Claude Code program the door carries. A run that
   goes out on another provider's road, in a place of its own, carries no call clock.
 
@@ -1291,8 +1292,9 @@ alike, except where it names a job.
   bound. A blocked call is cut there as it is in the door, a silent and idle call is asked about and
   its verdict carried out the same way, a call with no process of its own is cut by the same words put
   into the turn, and a turn past its bound is marked stopped and cut, so its item and
-  assignment are released and the queue behind it moves. A role session's turn picked up is held to the
-  call clock and the stop the same way, with no ask and no bound, as its live turn is.
+  assignment are released and the queue behind it moves. A role session's turn and a supervisor's turn
+  picked up are held to the call clock and the stop the same way, with no ask and no bound, as their live
+  turns are.
 
 ### What standing costs
 

@@ -143,6 +143,13 @@ impl<'a> Watched<'a> {
 }
 
 impl Watch for Watched<'_> {
+  // A supervisor's turn holds every room it answers while it works, so each of its tool calls is held to
+  // the call clock as a job's are; it asks nothing about a silent call and has no hard bound
+  // (docs/supervisors.md, 「A supervisor's long work」).
+  fn tool_clock(&self) -> Option<crate::door::tool_clock::ToolClock> {
+    Some(crate::door::tool_clock::ToolClock::from(&policy::tool_clock::TOOL_CLOCK.call))
+  }
+
   // Kept as the turn's waiting for its read and published as `turn.changed`, as a card's wait is.
   async fn waiting(&mut self, waiting: Option<agent_session::Waiting>) {
     let Some(shown) = &self.shown else { return };
