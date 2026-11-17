@@ -1699,9 +1699,10 @@ service.
   whose turn every Claude account refused, with no other provider to take it, ends `failed` on that login
   failure, naming each account a person must sign in to, rather than waiting.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
-  the report. An answer that is a tool call written as text instead of a call made — a `<tool_call>`
-  block, or a `<function=…>` call with its parameters — is no report: the call never ran, so the job ends
-  `ended`, outcome `failed`, with a report saying the turn stopped on a tool call written as text. A turn
+  the report. An answer that is a tool call written as text instead of a call made — tool-call markup or a
+  model's control token outside the answer's quoted code, or a lone JSON object shaped like a call, as
+  docs/agent-control.md 「What a resident turn reads」 judges it — is no report: the call never ran, so the
+  job ends `ended`, outcome `failed`, with a report saying the turn stopped on a tool call written as text. A turn
   that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
   or `reprepared`) and the reason the turn gave as the report. A turn cut at the job's own bound — the
   backstop for a turn its tool clock cannot see — ends it `stopped`, outcome `stopped`, with the bound's

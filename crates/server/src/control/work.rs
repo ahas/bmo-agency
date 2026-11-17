@@ -1666,7 +1666,7 @@ fn ended_by(
   reason: Option<String>,
 ) -> (Option<String>, Option<String>) {
   if matches!(outcome, agent_session::Outcome::Answered)
-    && answer.as_deref().is_some_and(crate::door::record::text_tool_call)
+    && answer.as_deref().is_some_and(crate::door::written_call::text_tool_call)
   {
     return (Some("failed".to_owned()), Some(TEXT_TOOL_CALL_REPORT.to_owned()));
   }

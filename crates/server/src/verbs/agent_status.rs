@@ -28,8 +28,9 @@ use crate::door::place_run::{
   OpenHold, STOP_HOLDS, ends_turn, open_hold, person_submits, read_hooks, read_run, record_call,
   status_line, stop_hold,
 };
-use crate::door::record::{read_turn, text_tool_call, turns_owed};
+use crate::door::record::{read_turn, turns_owed};
 use crate::door::turn::program_login;
+use crate::door::written_call::text_tool_call;
 use crate::lines::place::{FAILURE_KIND, SHELL_KIND};
 use crate::wording::{banned_terms_in, banned_terms_line, read_glossary};
 

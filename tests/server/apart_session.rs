@@ -877,9 +877,11 @@ async fn a_voyager_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_an
   }
 }
 
-// The final answer a job's run on a registered model stopped on: a tool call written as text, a template's
-// control token where the call's name belongs and no tool named at all.
+// The final answers jobs' runs on a registered model stopped on, each a tool call written as text: a
+// `<tool_call>` block with a template's control token where the call's name belongs, and a bare `<invoke>`
+// naming no real tool.
 const CALL_AS_TEXT: &str = "\n\n<tool_call>\n<|im_start|>function>\n</function>\n</tool_call>";
+const INVOKE_AS_TEXT: &str = "<invoke name=\"function\">\n</function>";
 
 // What the stop hook a settings file names answers a bot's run whose final answer is `answer`: the hook's
 // words read off the settings as the program reads them, the bot's run begun first in the place they name.
@@ -981,10 +983,13 @@ async fn a_job_on_a_registered_model_is_held_where_its_final_answer_is_a_tool_ca
     ..Apart::default()
   };
   let args = composed_on(&ground, &job, "registered", &door).await;
-  let held = block_of(&stop_hook_answers(after(&args, "--settings").unwrap(), CALL_AS_TEXT).await);
 
-  assert_eq!(held["decision"], "block", "{held}");
-  assert!(held["reason"].as_str().unwrap().contains("native tool call"), "{held}");
+  for answer in [CALL_AS_TEXT, INVOKE_AS_TEXT] {
+    let held = block_of(&stop_hook_answers(after(&args, "--settings").unwrap(), answer).await);
+
+    assert_eq!(held["decision"], "block", "{answer}: {held}");
+    assert!(held["reason"].as_str().unwrap().contains("native tool call"), "{held}");
+  }
 }
 
 // A job's run in a pane of its own stands in no agent's place, so its hooks are given a place of the run's own,

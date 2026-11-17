@@ -59,6 +59,7 @@ libc = "0.2.177"
 matchit = "0.8.4"
 percent-encoding = "2.3.2"
 procfs = { version = "0.18.0", default-features = false }
+pulldown-cmark = { version = "0.13.4", default-features = false }
 regex = "1.11.1"
 reqwest = { version = "0.13.5", features = ["json", "query", "stream"] }
 rmcp = { version = "3.5.0", default-features = false, features = ["server", "transport-io"] }

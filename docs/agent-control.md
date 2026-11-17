@@ -428,12 +428,25 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       block naming each term beside what to write, and the program writes the answer again in the
       same turn. For a job that answer is its report.
     - **A line can hold a turn's end while its final answer is a tool call written as text.** Where the
-      place settings ask for it, a stop of a bot's run whose answer so far is a `<tool_call>` block —
-      whatever it holds, a template's control token and no tool name included — or a `<function=…>` call
-      with its parameters, is answered with a block saying the call was never made and
-      asking for a native tool call, then the report as ordinary text. A job whose turn still ends on such
-      text ends failed rather than leaving it as its report (docs/api.md, 「A job ends by itself as its
-      turn ends」).
+      place settings ask for it, a stop of a bot's run whose answer so far is a tool call written as text
+      is answered with a block saying the call was never made and asking for a native tool call, then the
+      report as ordinary text. The judgement is broad rather than one shape at a time, since each model
+      and template breaks a call its own way:
+      - The answer counts as a call written as text where, anywhere in it, it carries an opening or closing
+        tag of tool-call markup (`tool_call`, `tool_calls`, `function_calls`, `invoke`, `function` or
+        `parameter`, the tag's name ending at `>`, `/`, `=`, a space or the line's end, so a longer word such
+        as `<functional>` is not one), or a model's control token written out, `<|…|>` with plain or
+        full-width bars, whatever stands around it: a call with no tool named, or a control token where
+        the name belongs, counts as much as a whole one.
+      - It counts too where the whole answer is one JSON object shaped like a call: a `name` beside its
+        `arguments` or `parameters`, or such an object under `function`.
+      - What the answer quotes as code is passed over: its fenced code blocks and its inline code spans, as
+        a markdown reader reads them, so a report that shows such markup in backticks or in a fence is a
+        report. An indented block is not read as a quotation, since a call written as text can come
+        indented.
+
+      A job whose turn still ends on such text ends failed rather than leaving it as its report
+      (docs/api.md, 「A job ends by itself as its turn ends」).
     - The hold is bounded: three holds in a row with no turn's end between them, whatever each was
       held for, and the next stop
       is let through as it stands, so a program that will not settle its work cannot be kept turning

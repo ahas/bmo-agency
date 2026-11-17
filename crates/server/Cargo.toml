@@ -44,6 +44,7 @@ percent-encoding.workspace = true
 policy = { path = "../policy" }
 tool-call = { path = "../tool-call" }
 procfs.workspace = true
+pulldown-cmark.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 rev_lines.workspace = true
