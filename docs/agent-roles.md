@@ -247,8 +247,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   empty list once it is done — and `did`, what the person has done so far as facts a read can check. Its
   caller makes those calls through the person's own sign-in, never through a service token, and judges the
   goal by its own reads, never by the actor's words. It holds no bundle, and its prompt tells it to use no
-  tool, to leave unread the reference a role session's first prompt carries (`docs/api.md`, 「sessions」),
-  and that none of a job's rules reach it.
+  tool and that none of a job's rules reach it.
 - **It is the person, never the person's supervisor.** What a supervisor is for — a meeting's minutes draft,
   handing tasks out, tidying a gathering, filing archive documents, raising work items — the actor asks the
   person's own supervisor for, in the person's voice, through the roads a person has to it (the private chat, a
