@@ -266,6 +266,8 @@ async fn recorded(
       search_id: None,
       round: None,
       message_id: None,
+      title: None,
+      carried: false,
     },
   )
   .await

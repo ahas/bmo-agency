@@ -2520,13 +2520,25 @@ impl HerdrSessions {
 
     self.outputs.begun(&turn.session, turn_id, &run);
 
-    // A chat turn's run stands in the ledger from its start: a turn into a room that is no job's and no
-    // gate's.
-    let ledger = match (&room, work, &turn.context.gate) {
-      (Some(room), None, None) => {
-        open_chat_run(&self.ground().db, &agent, room, &run, &turn.context, at).await
-      }
+    // A turn agency carries stands in the ledger from its start, wherever it is no job's and no gate's: a chat
+    // turn into a room, and a role session's turn under its title, in the room it names, under the name its log
+    // lines are written under (docs/run-records.md, 「The run ledger」).
+    let carried = match (&room, work, &turn.context.gate, &turn.context.job) {
+      (Some(room), None, None, _) => Some(CarriedRun {
+        unit: run.clone(),
+        room: room.parse().ok(),
+        title: None,
+      }),
+      (None, Some(work), None, None) => Some(CarriedRun {
+        unit: work.unit.clone().unwrap_or_else(|| work.name.clone()),
+        room: (work.chat != 0).then_some(work.chat),
+        title: Some(work.title.clone()),
+      }),
       _ => None,
+    };
+    let ledger = match carried {
+      Some(carried) => carried.open(&self.ground().db, &agent, &turn.context, at).await,
+      None => None,
     };
 
     if !hears_words(work) {
@@ -2715,7 +2727,7 @@ impl HerdrSessions {
           end.reason = cut;
         }
 
-        close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
+        close_turn_run(&self.ground().db, ledger, &end, spent, context).await;
 
         let end = self.published(&turn.session, turn.context.key.as_deref(), end);
 
@@ -2726,7 +2738,7 @@ impl HerdrSessions {
         let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
 
         end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end, None, None).await;
+        close_turn_run(&self.ground().db, ledger, &end, None, None).await;
 
         let end = self.published(&turn.session, turn.context.key.as_deref(), end);
 
@@ -3799,35 +3811,45 @@ fn worker_session_id(worker: &str) -> Result<SessionId, Fault> {
     .ok_or_else(|| fault(FaultKind::Unknown, format!("{worker} names no worker's session")))
 }
 
-// A chat turn's run opened in the ledger (docs/run-records.md, 「The run ledger」): the room it runs for,
-// the round its context names and the latest message it answers. A run the ledger would not take is said
-// and never fails the turn.
-async fn open_chat_run(
-  db: &sea_orm::DatabaseConnection,
-  agent: &str,
-  room: &str,
-  run: &str,
-  context: &TurnContext,
-  at: i64,
-) -> Option<i64> {
-  let opening = run_ledger::Opening {
-    agent: agent.to_owned(),
-    chat_id: room.parse().ok(),
-    unit: run.to_owned(),
-    depth: 0,
-    cap_ms: None,
-    started_at: at,
-    started_by: None,
-    search_id: None,
-    round: context.round.clone(),
-    message_id: context.answers.iter().max().copied(),
-  };
+// The run of a turn agency carries, as the ledger opens it: the name its log lines are written under, and the
+// room it runs for and its title, each where the turn names one.
+struct CarriedRun {
+  unit: String,
+  room: Option<i64>,
+  title: Option<String>,
+}
 
-  match run_ledger::open(db, &opening).await {
-    Ok(id) => Some(id),
-    Err(why) => {
-      eprintln!("{run}: the chat run could not be written to the ledger: {}", why.detail);
-      None
+impl CarriedRun {
+  // Opened in the ledger (docs/run-records.md, 「The run ledger」) with the round its context names and the
+  // latest message it answers. A run the ledger would not take is said and never fails the turn.
+  async fn open(
+    self,
+    db: &sea_orm::DatabaseConnection,
+    agent: &str,
+    context: &TurnContext,
+    at: i64,
+  ) -> Option<i64> {
+    let opening = run_ledger::Opening {
+      agent: agent.to_owned(),
+      chat_id: self.room,
+      unit: self.unit.clone(),
+      depth: 0,
+      cap_ms: None,
+      started_at: at,
+      started_by: None,
+      search_id: None,
+      round: context.round.clone(),
+      message_id: context.answers.iter().max().copied(),
+      title: self.title,
+      carried: true,
+    };
+
+    match run_ledger::open(db, &opening).await {
+      Ok(id) => Some(id),
+      Err(why) => {
+        eprintln!("{}: the turn's run could not be written to the ledger: {}", self.unit, why.detail);
+        None
+      }
     }
   }
 }
@@ -3846,9 +3868,9 @@ pub fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
   })
 }
 
-/// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried — its answer's,
-/// else the context the turn left — and what it spent.
-pub async fn close_chat_run(
+/// The run of a turn agency carries closed as its turn ended: how it ended, the tokens its context carried —
+/// its answer's, else the context the turn left — and what it spent.
+pub async fn close_turn_run(
   db: &sea_orm::DatabaseConnection,
   ledger: Option<i64>,
   end: &TurnEnd,
@@ -3873,6 +3895,6 @@ pub async fn close_chat_run(
   };
 
   if let Err(run_ledger::NotClosed::Store(why)) = run_ledger::close(db, id, &closing).await {
-    eprintln!("{}: the chat run could not be closed in the ledger: {}", end.run, why.detail);
+    eprintln!("{}: the turn's run could not be closed in the ledger: {}", end.run, why.detail);
   }
 }

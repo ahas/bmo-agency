@@ -9061,6 +9061,14 @@
           "unitName": {
             "type": "string"
           },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the run was asked to do: a role session's turn's title, or the title the body opening it named.",
+            "default": null
+          },
           "workerName": {
             "type": [
               "string",
@@ -9172,6 +9180,7 @@
           "name",
           "agentName",
           "unitName",
+          "title",
           "workerName",
           "jobId",
           "state",
@@ -9266,7 +9275,14 @@
               "null"
             ]
           },
-          "searchId": true
+          "searchId": true,
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the run was asked to do."
+          }
         },
         "required": [
           "agent",

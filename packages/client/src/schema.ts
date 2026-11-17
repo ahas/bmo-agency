@@ -2417,6 +2417,11 @@ export interface components {
             name: string;
             agentName: string;
             unitName: string;
+            /**
+             * @description What the run was asked to do: a role session's turn's title, or the title the body opening it named.
+             * @default null
+             */
+            title: string | null;
             workerName: string | null;
             /** Format: int64 */
             jobId: number | null;
@@ -2504,6 +2509,8 @@ export interface components {
             startedAt: number;
             startedBy?: string | null;
             searchId?: unknown;
+            /** @description What the run was asked to do. */
+            title?: string | null;
         };
         /** @description The body that closes a run. */
         RunClose: {

@@ -14,6 +14,7 @@ mod chat_runs;
 mod chat_stand_in;
 mod clock;
 mod conversation_session;
+mod role_runs;
 mod role_sessions;
 mod command_reading {
   mod reading;

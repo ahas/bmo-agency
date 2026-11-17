@@ -115,10 +115,10 @@ seeds. The other crates and the server reach the store only through it.
     for a job that runs — said to it or a note added to its item — with who said it, the note it came from, when
     it was kept and when a turn of the job took it (`docs/agent-control.md`, 「Words for a running job」); and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
-  - the run ledger: `runs`, one row a run — its supervisor or its role and path, its room, its unit, how deep
+  - the run ledger: `runs`, one row a run — its supervisor or its role and path, its title, its room, its unit, how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
     tokens its context held, what it spent (its input, output, cache-read and cache-write tokens), the
-    search it carried, the round it belongs to and the message its answer went out as — opened and closed by the job unit, and a job turn's and a chat turn's by agency (`docs/api.md`,
+    search it carried, the round it belongs to, the message its answer went out as and whether agency carries its turn — opened and closed by the job unit, and a job turn's, a chat turn's and a role session's turn's by agency (`docs/api.md`,
     「runs」, `docs/run-records.md`, 「The run ledger」); a room forgotten takes its runs with it, and a
     supervisor's reset of its conversation takes the supervisor's and those of the rooms it answers alone
     (`docs/supervisors.md`, 「Starting it afresh」);
@@ -182,7 +182,7 @@ seeds. The other crates and the server reach the store only through it.
     handover a room's own session owes and what its handoff turn goes out on (`docs/sessions.md`, 「Session
     replacement」);
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the caller's
-    key, the agent, the room, the chat turn's run in the ledger, the job and when it began, kept while the
+    key, the agent, the room, the turn's run in the ledger, the job and when it began, kept while the
     turn goes and read by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
   - a keyed turn's end, `turn_end:*` by the session and the caller's key, as JSON: the turn's id, how it
     ended, its answer and when it ended, kept for the span `policy/turn-keys.toml` names so a send repeated

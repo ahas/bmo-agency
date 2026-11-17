@@ -35,7 +35,7 @@ use crate::door::record::{
 };
 use crate::door::tool_clock::{CallVerdict, ClockNote, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
-use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
+use crate::herdr_backend::{RoadWalked, TurnEnded, close_turn_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
@@ -63,7 +63,7 @@ pub struct InFlight {
   pub agent: String,
   #[serde(default)]
   pub chat_id: Option<i64>,
-  /// The chat turn's run in the ledger; a job's run is the job's own.
+  /// The turn's run in the ledger, a chat turn's or a role session's; a job's run is the job's own.
   #[serde(default)]
   pub ledger: Option<i64>,
   #[serde(default)]
@@ -1303,7 +1303,7 @@ async fn filed(ground: &Ground, turn: &InFlight) -> usize {
 
 /// A kept turn's end handed back through the path a live turn's end takes: what of its record its run log
 /// lacks filed there with the end, its execution row and its place's run closed, its road and spend
-/// published for a chat turn and its run in the ledger closed, its end published as `turn.ended` under its
+/// published for a chat turn, its run in the ledger closed where it is no job's, its end published as `turn.ended` under its
 /// turn's id, a job ended with it, and the turn no longer kept.
 pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Came, noted: bool) {
   let db = &ground.db;
@@ -1390,7 +1390,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
       spend_told(ground, turn, reply).await;
     }
 
-    close_chat_run(db, turn.ledger, &end, spent, None).await;
+    close_turn_run(db, turn.ledger, &end, spent, None).await;
   }
 
   if end.ending.is_none() {

@@ -70,8 +70,8 @@ statements below about either are kept for a rollback to the road a deployment l
   is picked up again, not lost:
   - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
-    caller's key where the send named one, the agent, the room, the chat turn's run in the ledger and the
-    job. Every turn agency carries is sent
+    caller's key where the send named one, the agent, the room, the turn's run in the ledger where agency
+    opened one, and the job. Every turn agency carries is sent
     through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
     gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a delegation's,
     a supervisor's double's and a research run's among them. A turn stops being kept only once its end

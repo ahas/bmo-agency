@@ -472,6 +472,9 @@ pub struct Run {
   pub name: String,
   pub agent_name: String,
   pub unit_name: String,
+  /// What the run was asked to do: a role session's turn's title, or the title the body opening it named.
+  #[serde(default)]
+  pub title: Option<String>,
   pub worker_name: Option<String>,
   pub job_id: Option<i64>,
   pub state: RunState,
@@ -2476,6 +2479,9 @@ pub struct RunOpen {
   pub started_by: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub search_id: Option<Value>,
+  /// What the run was asked to do.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
 }
 
 /// The body that closes a run.

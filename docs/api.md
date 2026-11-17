@@ -711,16 +711,18 @@ Every route that takes a body names the request type it reads, holding only the 
 | Method | Path | Does |
 |---|---|---|
 | GET | `/runs` | Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. |
-| POST | `/runs` | Open a run in the ledger. |
+| POST | `/runs` | Open a run in the ledger, under the title a body names. |
 | GET | `/runs/{runId}` | One run, its clock among its fields. |
 | PATCH | `/runs/{runId}` | Close a run, or stop it, or attach the message its answer went out as. |
 
 A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a unit the job unit opens and
-closes, a job's turn, which agency's job runner opens and closes, and a chat turn's run, which agency
-opens as the turn starts and closes as it ends. Each answers
-`roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
+closes, a job's turn, which agency's job runner opens and closes, and a chat turn's run and a role session's
+turn's run, a delegated task's among them, which agency opens as the turn starts and closes as it ends. Each
+answers `title`, what the run was asked to do: a role session's turn's title, or the title the body opening
+it named, else null; `roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
 `messageId`, the message its answer went out as once the receiver attaches it, the latest message the
-turn answers until then, or null where the turn named neither. A chat turn's run and a job turn's answer
+turn answers until then, or null where the turn named neither. A chat turn's, a role session's turn's and a
+job turn's run answer
 what the turn spent once it is closed: `usage`, its `inputTokens`, `outputTokens`, `cacheReadTokens` and
 `cacheWriteTokens` summed over the models that answered, and `spentTokens`, the four together; both are
 null on a run whose road reported no figures, and on an open run. Every turn of a round, each question,

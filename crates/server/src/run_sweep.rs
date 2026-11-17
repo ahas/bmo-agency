@@ -1,6 +1,8 @@
 //! The ledger's runs whose turn ended without closing them (docs/run-records.md, 「The run ledger」): a job's run
-//! whose job has ended with no turn of it going, and a chat turn's run with no turn kept in flight under its unit,
-//! each closed as cut with a line in its log saying why.
+//! whose job has ended with no turn of it going, and the run of a turn agency carries, a chat turn's or a role
+//! session's, that no turn kept in flight carries, each closed as cut with a line in its log saying why.
+
+use std::collections::HashSet;
 
 use store::all;
 
@@ -10,9 +12,9 @@ use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::{Refusal, now_ms};
 
-/// How long a chat turn's run stands before a pass may read it as left behind: past the moment between its
-/// opening and its turn being kept in flight.
-pub const CHAT_GRACE_MS: i64 = 2 * 60 * 1000;
+/// How long the run of a turn agency carries stands before a pass may read it as left behind: past the moment
+/// between its opening and its turn being kept in flight.
+pub const TURN_GRACE_MS: i64 = 2 * 60 * 1000;
 
 /// The outcome a run left behind is closed with.
 pub const CUT: &str = "cut";
@@ -21,8 +23,8 @@ pub const CUT: &str = "cut";
 pub const JOB_ENDED: &str =
   "Closed as cut: its job had ended and no turn of it was going, so nothing else would close this run.";
 
-/// Why a chat turn's run is closed by the pass.
-pub const CHAT_LOST: &str =
+/// Why the run of a turn agency carries is closed by the pass.
+pub const TURN_LOST: &str =
   "Closed as cut: no turn was going under this run any more, so nothing else would close it.";
 
 /// One pass over the open runs: each left behind closed as cut, its log told why. Answers how many it closed.
@@ -30,12 +32,18 @@ pub async fn pass(ground: &Ground) -> Result<usize, Refusal> {
   let now = now_ms();
   let open = all(
     &ground.db,
-    r#"SELECT "id", "agent", "unit", "chat_id", "started_at" FROM "runs"
-       WHERE "finished_at" IS NULL AND ("unit" LIKE 'job-%' OR "unit" LIKE 'chat:%')
+    r#"SELECT "id", "agent", "unit", "chat_id", "started_at", "carried" FROM "runs"
+       WHERE "finished_at" IS NULL AND ("unit" LIKE 'job-%' OR "carried")
        ORDER BY "id""#,
     vec![],
   )
   .await?;
+  // The runs the turns kept in flight carry, read once for the pass; where they cannot be read, no carried run is
+  // read as left behind.
+  let kept: Option<HashSet<i64>> = crate::turn_pickup::in_flight(&ground.db)
+    .await
+    .ok()
+    .map(|turns| turns.iter().filter_map(|turn| turn.ledger).collect());
   let mut closed = 0;
 
   for row in open {
@@ -48,15 +56,16 @@ pub async fn pass(ground: &Ground) -> Result<usize, Refusal> {
     };
     let chat_id = row.try_get::<Option<i64>>("", "chat_id").ok().flatten();
     let started_at = row.try_get::<i64>("", "started_at").unwrap_or(now);
+    let carried = row.try_get::<bool>("", "carried").unwrap_or_default();
     let job = unit.strip_prefix("job-").and_then(|id| id.parse::<i64>().ok());
     let why = match job {
       Some(job) if job_left(ground, job, &unit).await? => JOB_ENDED,
       None
-        if unit.starts_with("chat:")
-          && now - started_at > CHAT_GRACE_MS
-          && !crate::turn_pickup::kept(&ground.db, &unit).await =>
+        if carried
+          && now - started_at > TURN_GRACE_MS
+          && kept.as_ref().is_some_and(|kept| !kept.contains(&id)) =>
       {
-        CHAT_LOST
+        TURN_LOST
       }
       _ => continue,
     };

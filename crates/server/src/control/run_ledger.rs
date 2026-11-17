@@ -33,6 +33,7 @@ fn member(run: &run_ledger::Run) -> Value {
     "name": format!("{}:{}", run.agent, run.unit),
     "agentName": run.agent.clone(),
     "unitName": run.unit.clone(),
+    "title": run.title.clone(),
     "workerName": Value::Null,
     "jobId": Value::Null,
     "state": if run.finished_at.is_some() { "closed" } else { "open" },

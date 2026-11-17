@@ -87,6 +87,7 @@ mod m20261226_000001_asking_skill_name;
 mod m20261227_000001_queue_notices_kept;
 mod m20261228_000001_call_names;
 mod m20261229_000001_short_slots;
+mod m20261230_000001_run_turns;
 
 use sea_orm_migration::prelude::*;
 
@@ -262,6 +263,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261227_000001_queue_notices_kept::Migration),
       Box::new(m20261228_000001_call_names::Migration),
       Box::new(m20261229_000001_short_slots::Migration),
+      Box::new(m20261230_000001_run_turns::Migration),
     ]
   }
 

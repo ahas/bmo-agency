@@ -143,6 +143,8 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
       search_id: None,
       round: Some("round:-5:1000:1".into()),
       message_id: Some(9),
+      title: None,
+      carried: false,
     },
   )
   .await
@@ -161,6 +163,8 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
       search_id: None,
       round: Some("round:-6:1000:2".into()),
       message_id: None,
+      title: None,
+      carried: false,
     },
   )
   .await
@@ -252,6 +256,8 @@ async fn spent_turn(
       search_id: None,
       round: Some(round.into()),
       message_id: None,
+      title: None,
+      carried: false,
     },
   )
   .await

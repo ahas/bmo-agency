@@ -1,7 +1,7 @@
 //! The runs a turn left open as it ended (docs/run-records.md, 「The run ledger」): a job's run whose job has
-//! ended and a chat turn's run no turn is kept in flight under are closed as cut with a line in their logs saying
-//! why; a run whose turn still goes, a chat run younger than the grace and a run that is neither are left as they
-//! stand.
+//! ended and the run of a turn agency carries, a chat turn's or a role session's, that no turn kept in flight
+//! carries are closed as cut with a line in their logs saying why; a run whose turn still goes, whatever name the
+//! turn is kept under, a carried run younger than the grace and a run that is neither are left as they stand.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -47,14 +47,17 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
 
   scratch
     .run(
-      r#"INSERT INTO "runs" ("id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome")
-         VALUES (1, 'chat-agent', -5, 'chat:-5:1', 0, $1, NULL, NULL),
-                (2, 'chat-agent', -5, 'chat:-5:2', 0, $1, NULL, NULL),
-                (3, 'chat-agent', -5, 'chat:-5:3', 0, $2, NULL, NULL),
-                (4, 'worker-a', NULL, 'job-41', 0, $1, NULL, NULL),
-                (5, 'worker-a', NULL, 'job-42', 0, $1, NULL, NULL),
-                (6, 'search', -5, 'search-6', 0, $1, NULL, NULL),
-                (7, 'chat-agent', -5, 'chat:-5:7', 0, $1, $1, 'answered')"#,
+      r#"INSERT INTO "runs"
+           ("id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome", "carried")
+         VALUES (1, 'chat-agent', -5, 'chat:-5:1', 0, $1, NULL, NULL, true),
+                (2, 'chat-agent', -5, 'chat:-5:2', 0, $1, NULL, NULL, true),
+                (3, 'chat-agent', -5, 'chat:-5:3', 0, $2, NULL, NULL, true),
+                (4, 'worker-a', NULL, 'job-41', 0, $1, NULL, NULL, false),
+                (5, 'worker-a', NULL, 'job-42', 0, $1, NULL, NULL, false),
+                (6, 'search', -5, 'search-6', 0, $1, NULL, NULL, false),
+                (7, 'chat-agent', -5, 'chat:-5:7', 0, $1, $1, 'answered', true),
+                (8, 'doppelganger', -5, 'delegate-8', 0, $1, NULL, NULL, true),
+                (9, 'doppelganger', -5, 'a-unit-of-its-own', 0, $1, NULL, NULL, true)"#,
       vec![old.into(), fresh.into()],
     )
     .await;
@@ -85,16 +88,36 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
   )
   .await;
 
-  assert_eq!(pass(&ground).await.unwrap(), 2);
+  // The second role run's turn is kept in flight under its run's name, which is not the unit its lines stand
+  // under.
+  turn_pickup::keep(
+    scratch.db(),
+    &turn_pickup::InFlight {
+      session: "doppelganger@run:1".into(),
+      turn: 3,
+      run: "delegate-9".into(),
+      key: None,
+      agent: "doppelganger".into(),
+      chat_id: None,
+      ledger: Some(9),
+      job: None,
+      started_at: old,
+    },
+  )
+  .await;
+
+  assert_eq!(pass(&ground).await.unwrap(), 3);
   assert_eq!(outcome(&scratch, 1).await.as_deref(), Some(CUT), "no turn goes under it");
   assert_eq!(outcome(&scratch, 2).await, None, "its turn is kept in flight");
   assert_eq!(outcome(&scratch, 3).await, None, "younger than the grace");
   assert_eq!(outcome(&scratch, 4).await.as_deref(), Some(CUT), "its job has ended");
   assert_eq!(outcome(&scratch, 5).await, None, "its job still runs");
+  assert_eq!(outcome(&scratch, 8).await.as_deref(), Some(CUT), "no turn of the role's goes under it");
+  assert_eq!(outcome(&scratch, 9).await, None, "the turn kept in flight carries it");
   assert_eq!(
     outcome(&scratch, 6).await,
     None,
-    "a run that is no job's and no chat turn's is not this sweep's"
+    "a run that is no job's and no turn agency carries is not this sweep's"
   );
   assert_eq!(
     outcome(&scratch, 7).await.as_deref(),

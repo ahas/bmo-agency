@@ -26,6 +26,8 @@ async fn seeded(scratch: &Scratch) -> Vec<i64> {
         search_id: None,
         round: Some(format!("round:{}", at % 2)),
         message_id: None,
+        title: None,
+        carried: false,
       },
     )
     .await

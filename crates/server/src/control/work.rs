@@ -2745,6 +2745,8 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
         search_id: None,
         round: None,
         message_id: None,
+        title: None,
+        carried: false,
       },
     )
     .await

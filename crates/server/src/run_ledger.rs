@@ -1,6 +1,6 @@
 //! The run ledger (docs/api.md, 「runs」, docs/run-records.md, 「The run ledger」): one row of `runs` a run
-//! of an agent's unit, opened as the job unit starts the unit and closed as it ends, or as a chat turn starts
-//! and ends, its times in epoch seconds. A run keeps the first closing it was given; the message its answer
+//! of an agent's unit, opened as the job unit starts the unit and closed as it ends, or as a chat turn or a role
+//! session's turn starts and ends, its times in epoch milliseconds. A run keeps the first closing it was given; the message its answer
 //! went out as is attached apart from the closing. A run's runner is left in its agent's host under the
 //! run's unit, and a runner the host did not start closes its run as an error.
 
@@ -57,6 +57,13 @@ pub struct Opening {
   /// The message the run is about until its answer's is attached.
   #[serde(default, alias = "message_id")]
   pub message_id: Option<i64>,
+  /// What the run was asked to do, where its opener names it.
+  #[serde(default)]
+  pub title: Option<String>,
+  /// Whether the run is the run of a turn agency carries, which the pass over the runs left behind reads; a
+  /// run opened across the boundary is never one.
+  #[serde(skip)]
+  pub carried: bool,
 }
 
 /// What a run is closed with: when, how it ended, the tokens its context carried and what its turn spent.
@@ -93,6 +100,7 @@ pub struct Run {
   pub agent: String,
   pub chat_id: Option<i64>,
   pub unit: String,
+  pub title: Option<String>,
   pub depth: i64,
   pub started_at: i64,
   pub finished_at: Option<i64>,
@@ -112,6 +120,7 @@ impl Run {
       agent: row.try_get("", "agent")?,
       chat_id: row.try_get("", "chat_id")?,
       unit: row.try_get("", "unit")?,
+      title: row.try_get("", "title")?,
       depth: row.try_get("", "depth")?,
       started_at: row.try_get("", "started_at")?,
       finished_at: row.try_get("", "finished_at")?,
@@ -166,8 +175,9 @@ pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, 
   let row = one(
     db,
     r#"INSERT INTO "runs"
-         ("agent", "chat_id", "unit", "depth", "cap_ms", "started_at", "started_by", "search_id", "round", "message_id")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "id""#,
+         ("agent", "chat_id", "unit", "depth", "cap_ms", "started_at", "started_by", "search_id", "round", "message_id",
+          "title", "carried")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING "id""#,
     vec![
       opening.agent.clone().into(),
       opening.chat_id.into(),
@@ -179,6 +189,8 @@ pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, 
       opening.search_id.as_ref().map(SearchId::text).into(),
       opening.round.clone().into(),
       opening.message_id.into(),
+      opening.title.clone().into(),
+      opening.carried.into(),
     ],
   )
   .await?
@@ -221,7 +233,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
 }
 
 // What a run is read with.
-const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome",
+const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "title", "depth", "started_at", "finished_at", "outcome",
   "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "round",
   "message_id", "tool_count""#;
 

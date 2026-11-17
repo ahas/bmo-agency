@@ -100,10 +100,11 @@ about a message is not agency's: the judgement records belong to the units that 
 
 ## The run ledger
 
-- **A run of the ledger is one row of `runs`:** its supervisor or role, its unit, its room, its depth, when
-  it started and finished in epoch milliseconds, its outcome, the tokens its context carried as it ended,
-  and how many tool calls its log lines held under its unit as it closed, every `tool` line under that name,
-  a branch's among them. A run keeps the first closing it was given (`docs/api.md`, 「runs」).
+- **A run of the ledger is one row of `runs`:** its supervisor or role, its unit, its title where its opener
+  names one, its room, its depth, when it started and finished in epoch milliseconds, its outcome, the tokens
+  its context carried as it ended, how many tool calls its log lines held under its unit as it closed, every
+  `tool` line under that name, a branch's among them, and whether it is the run of a turn agency carries. A
+  run keeps the first closing it was given (`docs/api.md`, 「runs」).
 - **The job unit's runs** are opened and closed by the job unit across the boundary.
 - **A translation through the gateway is a run of the translator role,** opened by agency as the request goes
   out and closed as it is answered or fails: its unit is the name its log lines are written under, it names
@@ -123,16 +124,24 @@ about a message is not agency's: the judgement records belong to the units that 
   turn goes out: its role the job's role, its unit the job's run name, the one its log lines are written
   under, and its room the job's. It is closed as the turn ends, with how it ended, the tokens its context
   carried and what it spent, as a chat turn's is, and the job keeps the run and the same four figures.
+- **A role session's turn is a run opened by agency** as the turn goes out, wherever the turn is no job's
+  and no gate's: a task a supervisor delegates (`docs/agent-control.md`, 「Delegating a task」), a round the
+  receiver hands to a supervisor's double, and any other turn a caller sends into a role's session. Its role
+  is the session's agent; its unit the name its log lines are written under, the turn's unit where it names
+  one and its run name otherwise; its title the turn's title; its room the room the turn names, none where it
+  names none; and its round the round the turn's context names. It is closed as the turn ends, with how it
+  ended, the tokens its context carried and what it spent, as a chat turn's is, and by the server that picks
+  the turn up where agency restarted while it went.
 - **A job's report ends with the words said into its turn while it ran,** read off its run's log lines named
   `word`, each with what became of it (`docs/agent-control.md`, 「Words that arrive while a turn is
   working」), so what a job was told mid-run stands beside what it came to.
 - **A run whose turn has ended without closing it is closed as `cut`.** A turn can end with nothing left to
   close its run: a job ended or stopped from outside while its turn went, its turn then lost to agency's
-  restart, or a chat turn whose process went away before a server picked turns up again. A pass at agency's
-  start and on the executions' clock closes every such run, writing in its log the line that says why: a
-  job's run whose job has ended, no turn of it carried by this process nor kept in flight; and a chat turn's
-  run begun more than two minutes ago with no turn kept in flight under its unit, which every turn going
-  is. A run that is neither a job's nor a chat turn's is left as it stands.
+  restart, or a turn agency carries whose process went away before a server picked turns up again. A pass at
+  agency's start and on the executions' clock closes every such run, writing in its log the line that says
+  why: a job's run whose job has ended, no turn of it carried by this process nor kept in flight; and the run
+  of a turn agency carries, a chat turn's or a role session's, begun more than two minutes ago and carried by
+  no turn kept in flight, which every turn going is. Any other run is left as it stands.
 - **Every turn of a round is a run of its own:** the round's own turn and each question, item and
   check of the receiver's draft process go out as turns naming the same round, so each opens its run
   under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides

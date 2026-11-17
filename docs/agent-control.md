@@ -800,6 +800,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   on that provider and model where one is valid; a later delegation there within the cache lifetime goes on
   in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, and
   its slot is finished once the run has answered.
+- **Its run stands in the run ledger while it goes,** opened as its turn goes out under the run's name, its
+  title the task's, its room the asking supervisor's where its turn names one, and closed with how the turn
+  ended (`docs/run-records.md`, 「The run ledger」). The lines of its transcript are written under that name,
+  so the run is listed and its log read as any job's is.
 - **The supervisor calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
   the work: the room is told the task was handed off, and the answer — the run's text and the files
   created or changed in the folder — comes back as a wake.
