@@ -142,7 +142,7 @@ says, and every subagent a job's program opens and every line the owner types in
 
 - **Never sit idle on a long command.** Whatever the role, a check, a test, a build, a research run or a
   deployment's outcome is started in the background, and the work that does not hang on its result is done
-  meanwhile: the graph, the documents, the lessons, the report's draft, the next step's reading. Its result is
+  meanwhile: the documents, the lessons, the report's draft, the next step's reading. Its result is
   then only read: a failure is fixed and the command started again, a pass goes on.
 - **Wait on your own command by its own output file or its own process id,** never by a pattern another
   job's command would also match, such as a search for every running close.

@@ -77,7 +77,7 @@ impl Route for SweepServers {
 
 crate::moved!(SweepServers);
 
-/// What a worker's agent definition gives a job: the graph text, the trailer with its paths filled in as the
+/// What a worker's agent definition gives a job: the trailer with its paths filled in as the
 /// deployment shows them, and the worker's own handoff instruction where its folder holds one.
 pub struct JobDocuments;
 
@@ -90,7 +90,6 @@ impl Route for JobDocuments {
     let ground = call.ground();
     let trees = Trees::of(ground);
     let documents = trees.agent_dir("worker");
-    let graph = read_required(&documents.join("graph.md"))?;
     // The trailer names the paths by the deployment's link, the documents being read out of the job's tree.
     let shown = Trees {
       code: ground.shown_code_root(),
@@ -102,10 +101,7 @@ impl Route for JobDocuments {
       .and_then(|folder| std::fs::read_to_string(trees.agent_dir(&folder).join("handoff.md")).ok())
       .map(|text| text.trim().to_owned());
 
-    Ok(answer(
-      StatusCode::OK,
-      json!({ "graph": graph, "trailer": trailer, "handoff": handoff }),
-    ))
+    Ok(answer(StatusCode::OK, json!({ "trailer": trailer, "handoff": handoff })))
   }
 }
 

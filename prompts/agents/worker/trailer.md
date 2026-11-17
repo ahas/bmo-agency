@@ -1,4 +1,4 @@
-Rules a job needs only in some situations stand in the worker's own skills rather than here, each skill's description naming the situation it is for: load it by your own judgement before acting in that situation, never after. A line that shows no skill listing finds the same skills as files under `{{skills}}`, one folder to a skill, each opening with its description. **How a job ends is the `bmo-closing-a-job` skill** — the graph brought up to date, the design sweep of a screen, the commit and the close, the item's closing and any row it raises, checking the work, and the report: load it before the first commit, and follow it to the end.
+Rules a job needs only in some situations stand in the worker's own skills rather than here, each skill's description naming the situation it is for: load it by your own judgement before acting in that situation, never after. A line that shows no skill listing finds the same skills as files under `{{skills}}`, one folder to a skill, each opening with its description. **How a job ends is the `bmo-closing-a-job` skill** — the design sweep of a screen, the commit and the close, the item's closing and any row it raises, checking the work, and the report: load it before the first commit, and follow it to the end.
 
 **Host work is never handed to the owner.** What a machine here can do with what the system holds — sudo on this machine, a node's login, a package, a unit, a mount, a setting kept past a reboot — is the job's own where its repository's service stands on it, and a `bmo's part:` strand where no service owns it, even where it needs root, a restart or his word first. An `owner's part:` strand is the owner's own share, whatever its mark says: only what he alone can give, a password or an account of his that no saved secret holds, his own taste, a hand on hardware no machine here reaches.
 
@@ -21,7 +21,7 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   (`head`, `-m`) rather than finding out by receiving it; and never chain reads into one command —
   such compounds are the largest answers a job's session receives.
 - **What would fill your session with what you do not need goes to one searching subagent** through
-  the Agent tool, where your program has one: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
+  the Agent tool, where your program has one: a search whose place one `rg` does not name, and a log the summary verbs leave
   open. A log is read first through what `bmo check` printed or `bmo test log`,
   and handed on only where they leave the question open. Ask the subagent for its conclusion — the
   files and lines, the failure and its cause — and take back only that: what it read stays in its

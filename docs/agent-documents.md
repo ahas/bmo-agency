@@ -41,10 +41,9 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   Not the translator, whose prompt is handed whole by its role and its caller, and not dsh, whose own
   prompt is its harness.
 - **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's.
-- **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
+- **A job's documents:** `worker/trailer.md`,
   the trailer every job is held to, with the path of the worker plugin's skills and the path of
-  `plain-writing.md` filled in as the deployment shows them, the graph text standing before it in the
-  composition, which stands in the worker line's prefix — the rules its line hands after the harness
+  `plain-writing.md` filled in as the deployment shows them, which stands in the worker line's prefix — the rules its line hands after the harness
   opening in its whole system prompt
   (`docs/launch-lines.md`) — so a session pays for it once rather than on every turn;
   `worker/result-languages.md`, the result-language piece, filled with the languages a registration names

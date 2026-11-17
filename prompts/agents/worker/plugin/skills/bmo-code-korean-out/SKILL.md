@@ -82,7 +82,7 @@ test expectations and the document that quotes it.
 2. `bmo check korean --settle` lowers the ledger; commit it with the change.
 3. The tests the change touched, one file to a process: `bun test <file>`; the suite runs each file
    alone, and so do you.
-4. Update the graph nodes of every file whose words moved, and close as `bmo-closing-a-job` says.
+4. Close as `bmo-closing-a-job` says.
 
 ## Example commits
 

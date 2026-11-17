@@ -101,24 +101,18 @@ pub struct StandingRules {
   pub file: PathBuf,
 }
 
-/// The report trailer every job is held to, its graph text, the worker plugin's skills and the plain-writing
-/// rulebook filled in as the deployment shows them (docs/launch-lines.md): `shown` is the code root by the
-/// deployment's link, the documents being read out of `trees`. The graph description stands at the trailer's
-/// head because the composition carries it, so a trailer piece that names no `{{graph}}` mark still hands a
-/// job the graph its definition promises.
+/// The report trailer every job is held to, the worker plugin's skills and the plain-writing rulebook filled in
+/// as the deployment shows them (docs/launch-lines.md): `shown` is the code root by the deployment's link, the
+/// documents being read out of `trees`.
 pub fn job_trailer(trees: &Trees, shown: &Trees) -> Result<String, Refusal> {
   let documents = trees.agent_dir(LINE);
-  let graph = read_required(&documents.join("graph.md"))?;
   let skills = shown.agent_dir(LINE).join("plugin").join("skills").to_string_lossy().into_owned();
   let plain = shown.rulebook_path("plain-writing").to_string_lossy().into_owned();
-  let trailer = super::render(
-    &read_required(&documents.join("trailer.md"))?,
-    &[("graph", graph.trim()), ("skills", &skills), ("plainWriting", &plain)],
-  );
 
-  // The graph description stands at the trailer's head whatever the trailer piece names: a piece that
-  // carries no `{{graph}}` mark still hands a job the graph its definition promises.
-  Ok(if trailer.contains(graph.trim()) { trailer } else { format!("{graph}\n\n{trailer}") })
+  Ok(super::render(
+    &read_required(&documents.join("trailer.md"))?,
+    &[("skills", &skills), ("plainWriting", &plain)],
+  ))
 }
 
 /// Every worker's rules, the result-language piece after them where the run's model names its languages,

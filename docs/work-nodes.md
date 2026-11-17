@@ -159,9 +159,7 @@ side of a remote agent, the rotation, and what a dropped node does.
     alone, after a separator a command line or a list of paths puts before one, or between single quotes as
     a key helper's command quotes it;
   - from the node to here: the place's running record and start failure; the program's transcripts,
-    under the same configuration directory here as the account's own, sent as what they grew by; each
-    checkout's graph, into a shadow under the node's directory here that the tool host's session
-    record names as the checkout; and the node's load, memory, processor count and pressure, into the
+    under the same configuration directory here as the account's own, sent as what they grew by; and the node's load, memory, processor count and pressure, into the
     node's directory here, every few seconds;
   - which processes of a remote place's running record are alive, written beside it, and a signal
     asked for a process on the node through the link's control socket.
@@ -286,9 +284,7 @@ side of a remote agent, the rotation, and what a dropped node does.
   pane head, which asks the node's agent host, on the node's own environment.
 - **The job runner reaches the checkout through the node:** every git question of the job's lifecycle
   — the branch prepared, what is open, what the job committed, parking — runs there over one shared
-  connection, main is the remote's, brought up before the job's branch is made from it, and the graph
-  is read through its shadow here. The job unit asks agency where that shadow stands for its checkout,
-  and reads the nodes and how SSH reaches one through agency, which hands on the node service's reads
+  connection, main is the remote's, brought up before the job's branch is made from it. The job unit reads the nodes and how SSH reaches one through agency, which hands on the node service's reads
   (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
 - **The records read here as they always did,** off the mirrored files: the turn's answer and
   activity, the session collection, the run log, the token usage, a job's quiet and stalled watch.

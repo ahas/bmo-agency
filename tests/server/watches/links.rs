@@ -288,7 +288,10 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   assert_eq!(spec.root, "/home/tester/node-root");
   assert_eq!(spec.herdr.session.as_deref(), Some("node-session"));
   assert_eq!(spec.push.len(), 1);
-  assert!(spec.pull.iter().any(|landing| landing.pull.remote == "/home/tester/work/graph"));
+  assert!(
+    !spec.pull.iter().any(|landing| landing.pull.remote == "/home/tester/work/graph"),
+    "no checkout's graph is pulled"
+  );
   assert_eq!(spec.deploy, roots.cli_deploy, "the home bridge runs the CLI's tree, not agency's");
 
   let agency_bin = roots.deploy.join("bin").display().to_string();

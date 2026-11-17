@@ -112,7 +112,7 @@ describe("a structured run on a line standing on the hosts", () => {
     expect(told.issued.at(-1)).toMatchObject({
       holderName: "worker",
       namespaces: ["web", "worker", "bmo"],
-      capabilities: ["graph.read", "queue.read", "web.read", "brain.lessons"],
+      capabilities: ["queue.read", "web.read", "brain.lessons"],
       variables: { BMO_DATA_DIR: data, BMO_TURN_CHAT: "-100" },
       labels: { line: "worker", checkout: cwd },
     });

@@ -199,7 +199,7 @@ Each repository holds three things beside the work of its jobs:
   - **Not a checkout:** ordinary jobs only.
     - A launch that asks for co-work (the item's flag, `--cowork`, or the sentinel in the text) runs as an
       ordinary job, and the launcher says so; agency refuses a co-work place in such a directory.
-    - The job's steps that read git — the work-tree baseline, the commits a job made, the graph check —
+    - The job's steps that read git — the work-tree baseline, the commits a job made —
       find nothing and count as nothing, not as a failure.
     - The preamble header tells the job to skip committing, pushing and deploying.
   - The repository tab marks such a repository as not a checkout.

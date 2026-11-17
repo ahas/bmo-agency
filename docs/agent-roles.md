@@ -104,9 +104,9 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
   | Role | Label | Line | Bundles | Cap | Prompt | Provider prompts | Description | Sessions |
   |---|---|---|---|---|---|---|---|---|
-  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | none | none | policy | keep |
-  | `coder` | Coder | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | `claude-code`: `coder-claude-code.md` | policy | keep |
-  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | none | policy | keep |
+  | `worker` | Worker | worker | `queue.read`, `web.read`, `brain.lessons` | 3 | none | none | policy | keep |
+  | `coder` | Coder | worker | `queue.read`, `web.read`, `brain.lessons` | 3 | `coder.md` | `claude-code`: `coder-claude-code.md` | policy | keep |
+  | `helper` | Helper | worker | `queue.read`, `web.read`, `brain.lessons` | 2 | `helper.md` | none | policy | keep |
   | `producer` | Producer | worker | `queue.read`, `web.read`, `room.send`, `brain.lessons` | 2 | `producer.md` | none | policy | keep |
   | `voyager` | Voyager | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | none | policy | fresh |
   | `seeker` | Seeker | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | none | policy | fresh |
@@ -138,8 +138,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   (「The coder role」 below).
 - **It carries no prompt:** a job's run opens on the harness opening and the worker line's rules, with
   what its repository hands it after them.
-- **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
-  and the queue's two (`docs/worker-mcp.md`); `web.read`, web search and page fetch; and `brain.lessons`, the
+- **Its bundles:** `queue.read`, the worker's own namespace, the queue's two reading verbs
+  (`docs/worker-mcp.md`); `web.read`, web search and page fetch; and `brain.lessons`, the
   brain it reads before the work and writes its lessons into once the work is done. The site tools are the
   voyager's and the seeker's alone.
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
@@ -163,7 +163,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its plugin holds the worker bundle's skills as well,** the ones every job needs whatever its work —
   closing a job, asking the owner, reaching beyond the checkout — placed beside its own, so a coder's job
   ends the way any job does. The producer's plugin holds them the same way.
-- **Its bundles are the worker's:** `graph.read`, `queue.read`, `web.read` and `brain.lessons`.
+- **Its bundles are the worker's:** `queue.read`, `web.read` and `brain.lessons`.
 - **Its agents are seeded on no road,** so a run of it a supervisor asks goes out on that supervisor's own
   provider, model and effort until the owner sets an agent a road of its own.
 - **It is seeded with three agents, as the worker is,** so a repository's coding jobs run as many at once as
@@ -185,7 +185,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its runs work in the folder their caller names,** so a run that follows another at the same folder on the
   same provider and model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's
   session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read`, `web.read` and `brain.lessons`.
+- **Its bundles** are the worker's: `queue.read`, `web.read` and `brain.lessons`.
 
 ## The producer role
 
@@ -198,7 +198,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its bundles:** `queue.read` for its items, `web.read` for the pages and assets an item names, and
   `room.send` for the finished file, which goes into the item's room through the receiver's file send tool
   as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」); and `brain.lessons`, as every
-  role of the worker line. It holds no graph.
+  role of the worker line.
 
 ## The voyager and the seeker roles
 

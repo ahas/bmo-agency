@@ -94,8 +94,8 @@ export function nodeHeadEnv(roots: NodeRoots, runName: string): Record<string, s
   };
 }
 
-/** Where a checkout on a node is read here for its graph: what the tool host's session record names. */
-export function graphShadow(node: string, cwd: string, root: string = dataRoot()): string {
+/** Where a checkout on a node is read here: what the tool host's session record names. */
+export function checkoutShadow(node: string, cwd: string, root: string = dataRoot()): string {
   return join(nodeDir(node, root), "shadow", cwd.replace(/[^A-Za-z0-9]/g, "-"));
 }
 

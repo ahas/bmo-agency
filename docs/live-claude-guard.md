@@ -100,7 +100,7 @@
   command too.
 - **A backquote is a command substitution only where the shell opens one.** Inside single or double
   quotes it is a character of the word, so nothing in a quoted report, commit message or judgement
-  is read as a program: ``--report 'added the node (`bot/claude`)'`` names a graph node and starts
+  is read as a program: ``--report 'added the node (`bot/claude`)'`` names a path in a report and starts
   nothing, while ``(`echo claude`)`` outside quotes still does. A `$(` is read the same way.
 - **Never caught as a live Claude session:** `bun run test`, `bun test`, the deploy unit's commit,
   and git commands. Some of them still have to ask for a wait that covers

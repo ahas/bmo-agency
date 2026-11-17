@@ -163,10 +163,6 @@ mkdir -p tools/procedures/.placed
 cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 '''
 
-# The graph reads are the graph service's own MCP server, registered as an external server under the
-# worker namespace (docs/worker-mcp.md): the host lists its tools for a worker's dsh session, so the
-# namespace is never empty. The queue tool is the job service's own, registered by that service's
-# deployment (bmo-job's docs/tools.md), not by this one.
 # The gateway's members: the seed of the deployment's own file, the provider APIs it serves beside the
 # registry, each with the key file under the data root's env/ that holds its credential. The deployment
 # places the seed only where the file is absent; a file it already holds is the deployment's and is not
@@ -182,12 +178,14 @@ if [ ! -e "$HOME/.local/share/bmo/data/llm-gateway/members.json" ]; then
 fi
 '''
 
+# The graph service is retired: the external server an earlier deployment registered for its reads is taken out
+# of the tool host's registry, where it still stands.
 [[deploy.step]]
-id = "place-worker-graph"
+id = "take-worker-graph"
 phase = "after-health"
 command = '''
 set -eu
-bmo-pocket put --mcp deploy/worker-graph.server.toml --allow graph.read --service agency
+if bmo-pocket list | grep -q worker-graph; then bmo-pocket take worker-graph --service agency; fi
 '''
 
 # Every agent's place rewritten to hand agency's tokens as the files they stand in, once the new server stands

@@ -102,10 +102,7 @@
   environment, whose `BMO_SOURCE_DIR` names the base checkout, so every verb that reads or writes
   the checkout's own files asks for the working checkout instead: the worktree the
   command was started inside, where git registered it under the base checkout's repository, and the
-  source root everywhere else. The deploy tree is such a worktree too and never counts. The graph
-  tool and the worker's own graph tools (`docs/worker-mcp.md`) read and write the worktree's graph through it, which is
-  what keeps a job from leaving an uncommitted graph edit in the base checkout that would refuse
-  every later landing.
+  source root everywhere else. The deploy tree is such a worktree too and never counts.
 
 ## A job in the base checkout
 

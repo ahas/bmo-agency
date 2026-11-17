@@ -1614,7 +1614,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/repositories/{repositoryName}/definition",
     id: "getWorkersDefinition",
     tag: "repositories",
-    summary: "The worker's agent definition: graph, trailer, handoff.",
+    summary: "The worker's agent definition: trailer, handoff.",
     params: &[Param {
       name: "repositoryName",
       place: "path",
@@ -3165,8 +3165,7 @@ pub const EVENTS: [&str; 36] = [
 ];
 
 /// The upstreams this service reaches, through what each repository publishes.
-const CALLS: [&str; 9] =
-  ["brain", "graph", "node", "arbiter", "pocket", "testbed", "gate", "chat", "cache-warmer"];
+const CALLS: [&str; 8] = ["brain", "node", "arbiter", "pocket", "testbed", "gate", "chat", "cache-warmer"];
 
 const DESCRIPTION: &str = "The agency's agents, their sessions, turns and runs, the executions on the agent host, \
   the co-worker pool and places, providers, models, tiers and roads, accounts and rest, supervisors and workers, \

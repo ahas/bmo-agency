@@ -1193,7 +1193,7 @@ of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday
 | GET | `/repositories/{repositoryName}` | One repository: checkouts, node, prefix documents, preamble, rules, pin, jobs. |
 | PATCH | `/repositories/{repositoryName}` | Change a repository: fields, checkouts, node placement, pin, sampling, ready its bench. |
 | DELETE | `/repositories/{repositoryName}` | Remove a repository no job holds a checkout of. |
-| GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer and handoff. |
+| GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: trailer and handoff. |
 | GET | `/repositories/{repositoryName}/workbench` | The repository's workbench and scratch folders. |
 | DELETE | `/repositories/{repositoryName}/servers` | Take down what the ended runs in the checkout left running (`docs/run-groups.md`). |
 | POST | `/repositories/{repositoryName}/words` | Say words to a repository's worker, into its job's turn or a turn of its own. |
@@ -1892,7 +1892,7 @@ route. A caller uses one of them and writes no client of its own.
 
 ## Calls agency makes
 
-Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
+Agency reaches upstreams through what their repositories publish: brain, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`. These routes below it are called: as a job is written, and with each renewal
 while it runs, the job service's lease is set to hold fixed what its launch read; as a job is stopped, the

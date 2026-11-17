@@ -1373,7 +1373,6 @@ pub struct Worker {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerDefinition {
-  pub graph: String,
   pub trailer: String,
   pub handoff: Option<String>,
 }

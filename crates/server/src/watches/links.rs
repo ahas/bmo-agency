@@ -575,8 +575,8 @@ pub fn hyphened(cwd: &str) -> String {
   cwd.chars().map(|one| if one.is_ascii_alphanumeric() { one } else { '-' }).collect()
 }
 
-/// Where a node's link keeps its shadow of a checkout on that node, under the data root here: the copy the
-/// checkout's graph is read through on this machine (docs/work-nodes.md, 「The link」).
+/// Where a node's link keeps its shadow of a checkout on that node, under the data root here: the place
+/// the tool host's session record names for it on this machine (docs/work-nodes.md, 「The link」).
 pub fn checkout_shadow(data_root: &Path, node: &str, cwd: &str) -> PathBuf {
   data_root.join("nodes").join(node).join("shadow").join(hyphened(cwd))
 }
@@ -689,21 +689,6 @@ pub async fn spec(
         local: project_dir(&placed.cwd, &join(records, "projects")).into(),
       });
     }
-
-    if !placed.checkout {
-      continue;
-    }
-
-    pull.push(Landing {
-      pull: Pull {
-        remote: join(&placed.cwd, "graph"),
-        files: vec![],
-        tree: false,
-        append: false,
-        alive: false,
-      },
-      local: checkout_shadow(&roots.data, node, &placed.cwd).join("graph"),
-    });
   }
 
   let bridge = join(&join(&node_root, "data"), "bridge.sock");

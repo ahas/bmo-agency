@@ -1,7 +1,7 @@
 //! A resident program's session token: issued by the tool
 //! host for a record naming the line, the role of the agent it is issued for, the capabilities the line
 //! declares with the bundles that role gives, the namespaces it may use and the entries it shows by name,
-//! the checkout whose graph is read, the data root and archive, and the place each call reads its run
+//! the checkout, the data root and archive, and the place each call reads its run
 //! from; carried in the program's own environment and taken back once no written program carries it.
 //!
 //! The records, the reads of a namespace and the paragraph on finding and using tools go through the tool
@@ -584,8 +584,8 @@ async fn calls_running(socket: &Path, issuer: &str, token: &str) -> usize {
   calls.map_or(0, |calls| calls.iter().filter(|call| call["session"] == record.as_str()).count())
 }
 
-/// The checkout a program's tool session reads its graph from: its own, or for a program on a work
-/// node the shadow its link keeps of that checkout's graph here (docs/work-nodes.md, 「The link」).
+/// The checkout a program's tool session record names: its own, or for a program on a work node the shadow
+/// its link keeps of that checkout here (docs/work-nodes.md, 「The link」).
 pub fn record_checkout(ground: &Ground, place: &Path, cwd: &str) -> PathBuf {
   match crate::watches::links::place_node(place) {
     None => PathBuf::from(cwd),

@@ -759,7 +759,7 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["settings"]).json(body)).await
   }
 
-  /// `GET /repositories/{repositoryName}/definition`: The worker's agent definition: graph, trailer, handoff.
+  /// `GET /repositories/{repositoryName}/definition`: The worker's agent definition: trailer, handoff.
   pub async fn get_workers_definition(&self, worker_name: &str) -> Answer<WorkerDefinition> {
     Self::answered(self.request(Method::GET, &["repositories", worker_name, "definition"])).await
   }

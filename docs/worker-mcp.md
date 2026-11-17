@@ -2,8 +2,7 @@
 
 ## What they are for
 
-- A job asks the graph and the queue more than anything else it does: over two weeks of this
-  repository's own traffic, `scripts/graph.ts` was the worker's most-called script.
+- A job asks the queue again and again, for its own item and the ones beside it.
 - Every one of those calls is a shell command a session had to compose. Composing it costs the
   round trips that come with composing anything: a verb spelled wrong, an argument in the wrong
   place, a `--help` read to find out what the arguments were.
@@ -12,8 +11,8 @@
 - **They answer in English.** A worker reads English (`docs/worker-language.md`), so the two queue
   tools give their labels in English and every text a person or the bot wrote as its translation out
   of the table, never asking the translator themselves.
-- **They answer as the scripts do.** The tools are Rust, the queue's placed by the job service and the graph's
-  served by the graph service's MCP server, each by the tool host (`mcp-host.md`, 「Placed tools」); the scripts
+- **They answer as the scripts do.** The tools are Rust, placed by the job service and served by the tool host
+  (`mcp-host.md`, 「Placed tools」); the scripts
   are TypeScript until their own port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
   same answer, so a tool and the script cannot answer the same question differently. The script
   run by a job answers in the same English; run by a person or by the supervisor, in the reader's language.
@@ -22,18 +21,14 @@
 
 | Tool | What it answers |
 |---|---|
-| `graph_search` | Nodes matching a word, as id and title |
-| `graph_get` | One node: its files, symbols, aliases, and the names either side of it |
-| `graph_list` | The areas and their counts, or one area's nodes |
-| `graph_impact` | What else a change to one node would reach, with the files to open; every job asks it on the node it changes before its first edit |
 | `todo_list` | The queue, or what is pending, held or merged |
 | `todo_show` | One item as a worker reads it: its state, what jobs wrote onto it, and the bot's brief with the changes handed, never the conversation or the words people added (`docs/worker-language.md`, 「The queue tools, as a worker reads them」) |
 
-- **Six tools, and every one of them read-only.** They are marked read-only in the protocol's own
+- **Two tools, both read-only.** They are marked read-only in the protocol's own
   words, which is what lets Claude Code send several of them at once; a tool that stopped saying so
   would put a turn's questions back in single file.
 - **No verb that writes.** Nothing here creates, updates, deletes, aliases or closes anything. A
-  change to the graph or the queue is typed as a command, where it is read before it runs.
+  change to the queue is typed as a command, where it is read before it runs.
 - **Starting a job and committing a deployment are not among them and are not to be put there.** They
   are the owner's to run. A tool standing in a session's list is a thing that can be called by name
   alone, and those two are not to be callable that way.
@@ -47,25 +42,21 @@
 
 ## How the host serves them
 
-- **Two registrations stand under the `worker` namespace.** The queue's `todo_list` and `todo_show` are
-  the job service's own placed `todo` tool, registered by bmo-job's deployment. The graph's
-  `graph_search`, `graph_get`, `graph_list` and `graph_impact` are the graph service's own MCP server,
-  registered as an external server under `worker` with `graph.read`. Agency's deployment registers the
-  graph's, so a dsh worker's `worker` server opens with entries.
+- **One registration stands under the `worker` namespace.** The queue's `todo_list` and `todo_show` are
+  the job service's own placed `todo` tool, registered by bmo-job's deployment.
 - **The dsh worker overlay names a namespace only where the host serves it.** The worker line's
   `web` and `worker` namespaces are the host's; a namespace with no entry would answer not-found and
   dsh would log an `mcp-worker` failure rather than start.
 
 ## Why they are the worker's alone
 
-- **They are shown under the `worker` namespace to a session holding `graph.read` and `queue.read`,**
-  and the worker role is the only role giving those two bundles (`docs/agent-roles.md`), and no line
-  declares them (`mcp-host.md`, 「Namespaces and capabilities」). So a tool added with those
-  capabilities reaches job workers and the subagents they open and nothing else: by its own name where it is
+- **They are shown under the `worker` namespace to a session holding `queue.read`,**
+  and the worker line's roles are the only ones giving that bundle (`docs/agent-roles.md`), and no line
+  declares them (`mcp-host.md`, 「Namespaces and capabilities」). So a tool added with that
+  capability reaches job workers and the subagents they open and nothing else: by its own name where it is
   resident, with `bmo use` otherwise.
 - **They are a namespace of their own rather than more web tools.** The web tools are shared with
-  the search and browse runners, whose business is the open web; the graph of this repository and
-  the owner's queue are no part of that, and a search or a browse has no reason to be shown them.
+  the search and browse runners, whose business is the open web; the owner's queue is no part of that, and a search or a browse has no reason to be shown them.
 - The distinction is not politeness. Every tool's name, description and argument schema stands in
   the fixed prompt of every run that is shown it, so a tool shown to a line that will never call it
   is a cost that line pays on every turn for nothing.
@@ -77,7 +68,7 @@
   road, pointed at agency's gateway on DeepSeek's, Codex's, OpenRouter's and the registry's — standing on the
   worker line's own words: the same permission mode, the same tools shown and denied, and the same
   configuration with this namespace in it (`docs/launch-lines.md`, 「What a line's program is allowed, by
-  road」). So a worker on DeepSeek holds `graph_search` and `todo_show` exactly as a worker on Claude Code
+  road」). So a worker on DeepSeek holds `todo_show` exactly as a worker on Claude Code
   does, and no road is a case of its own.
 
 ## What they cost, and why the descriptions are short
@@ -85,8 +76,8 @@
 - The tools' schemas join the worker's fixed prompt, which already carries tens of thousands of
   characters of documents before a job is told anything.
 - So each description says what the tool answers and stops. What a verb means, when to reach for
-  it and the order to ask in are in `graph.md` and the worker's own documents, which are read
-  once rather than restated in six schemas.
+  it and the order to ask in are in the worker's own documents, which are read
+  once rather than restated in each schema.
 
 ## When the tool host is not there
 
@@ -123,11 +114,6 @@
 
 - The tools are served by the tool host, under the `worker` namespace of the worker line's one
   configuration, `worker.mcp.json`, beside the `web` namespace.
-- The graph a call answers out of is the one in the checkout the job works in, which the launcher
-  records in the session record's `labels` when it issues the token: a support checkout's worktree is
-  read as itself rather than as the base checkout the environment names
-  (`docs/worker-slots.md` 「A job on a support checkout」). It is read on every call, so a job's own
-  edits to it are in the next answer.
 - The queue a call answers out of is the job service the session's record reaches, read on every call.
 - The answers stand under the standing ceiling on what a verb of ours returns
   (`job-tools.md` 「What a verb answers with」), cut by the same units the scripts cut by.

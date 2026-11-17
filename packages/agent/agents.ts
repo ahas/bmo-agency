@@ -205,16 +205,8 @@ export function recordTranslatorSystem(): string {
 // system prompt in place of the CLI's own; what one run is about is its prompt (docs/launch-lines.md).
 // Nothing of them is composed here.
 
-// How to ask the code dependency graph, in the one wording every agent that reads this code is
-// given: the job's trailer opens with it, every work-order step closes with it, and a pooled native
-// `Agent` call has it appended to its prompt.
-export function workerGraph(): string {
-  return agentFile("worker", "graph.md").trim();
-}
-
 export function workerTrailer(): string {
   return render(agentFile("worker", "trailer.md"), {
-    graph: workerGraph(),
     skills: join(workerPluginDir(), "skills"),
     plainWriting: join(rulesDir, "plain-writing.md"),
   });

@@ -20,7 +20,6 @@
   "x-stage": 5,
   "x-calls": [
     "brain",
-    "graph",
     "node",
     "arbiter",
     "pocket",
@@ -4135,7 +4134,7 @@
         "tags": [
           "repositories"
         ],
-        "summary": "The worker's agent definition: graph, trailer, handoff.",
+        "summary": "The worker's agent definition: trailer, handoff.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -12385,9 +12384,6 @@
       "WorkerDefinition": {
         "type": "object",
         "properties": {
-          "graph": {
-            "type": "string"
-          },
           "trailer": {
             "type": "string"
           },
@@ -12399,7 +12395,6 @@
           }
         },
         "required": [
-          "graph",
           "trailer",
           "handoff"
         ],

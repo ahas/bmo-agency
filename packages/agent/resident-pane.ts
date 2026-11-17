@@ -5,7 +5,7 @@ import { identityAlive, type ProcessIdentity } from "./agent-host";
 import { MCP_TOKEN_VARIABLE, ToolHostDown, revokeToolToken, toolTokenFor } from "./tool-host";
 import { readStatus } from "./agent-place";
 import { closePane, standingWorkspace, type AgentHome } from "./herdr-run";
-import { aliveOnNode, graphShadow, placeNode, signalOnNode } from "./work-node";
+import { aliveOnNode, checkoutShadow, placeNode, signalOnNode } from "./work-node";
 
 import { herdrCall } from "./herdr";
 import declaredTurn from "@agency/policy/resident-turn.toml";
@@ -95,13 +95,13 @@ export function carryToken(program: ResidentProgram, token: string | null): Resi
 }
 
 /**
- * The checkout a program's tool session reads its graph from: its own, or for a program on a work node
- * the shadow its link keeps of that checkout's graph here (docs/work-nodes.md, 「The link」).
+ * The checkout a program's tool session record names: its own, or for a program on a work node the
+ * shadow its link keeps of that checkout here (docs/work-nodes.md, 「The link」).
  */
 export function recordCwd(place: string, cwd: string): string {
   const node = placeNode(place);
 
-  return node === null ? cwd : graphShadow(node, cwd);
+  return node === null ? cwd : checkoutShadow(node, cwd);
 }
 
 /** The session token a written program carries, or null. */

@@ -38,7 +38,7 @@ fn the_worker_line_keeps_out_the_cli_s_own_question_tool() {
 
 #[test]
 fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name() {
-  assert!(RUN_LINES.shows("worker", "worker/graph_impact"));
+  assert!(!RUN_LINES.shows("worker", "worker/graph_impact"), "the graph service is retired");
   assert!(RUN_LINES.shows("worker", "web/web_fetch"));
   assert!(!RUN_LINES.shows("worker", "web/research"));
   assert!(RUN_LINES.shows("search", "web/research"));
@@ -47,7 +47,6 @@ fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name(
   assert!(RUN_LINES.shows("browse", "eye/see"));
   assert!(RUN_LINES.shows("search", "eye/see"));
   assert!(RUN_LINES.shows("worker", "worker/todo_show"));
-  assert!(!RUN_LINES.shows("worker", "worker/graph_list"));
   assert!(!RUN_LINES.shows("editor", "fragments/fragment_write"), "no editor line stands");
   assert!(!RUN_LINES.shows("chat", "bmo/todo_show"), "the registry holds no such entry");
   assert!(!RUN_LINES.shows("chat", "bmo/todo_list"));
@@ -62,14 +61,13 @@ fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name(
   assert!(!RUN_LINES.shows("chat", "bmo/digest_now"));
   assert!(!RUN_LINES.shows("chat", "bmo/sticker"));
   assert!(!RUN_LINES.shows("chat", "bmo/note_add"));
-  assert!(!RUN_LINES.shows("chat", "worker/graph_impact"));
   assert!(!RUN_LINES.shows("chat", "web/web_search"));
   assert!(!RUN_LINES.shows("chat", "web/web_fetch"));
   assert!(!RUN_LINES.shows("chat", "web/web_search"));
   assert!(RUN_LINES.shows("chat", "gate/translate"));
   assert_eq!(RUN_LINES.variables("chat"), ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]);
   assert!(RUN_LINES.variables("worker").is_empty());
-  assert!(!RUN_LINES.shows("supervisor", "worker/graph_impact"));
+  assert!(!RUN_LINES.shows("supervisor", "worker/todo_show"));
 }
 
 #[test]
