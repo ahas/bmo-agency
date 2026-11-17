@@ -827,7 +827,7 @@ a clock note filed before its fields were kept is answered with them read back o
 | DELETE | `/slot-requests` | An owner's release: every request, reservation and bound role session the owner holds given back. |
 | GET | `/slot-requests/{token}` | One slot request. |
 | PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
-| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role, start and session. |
+| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role, start, session and run. |
 | GET | `/reservations` | Held slot reservations. |
 | POST | `/reservations` | Reserve slots of a role for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
@@ -931,7 +931,11 @@ they were asked, then the latest ended, newest first, `ended` of them (10 where 
 `ended` once it is finished or cancelled; `provider` and `model` it runs on; `askedAt`, `runningSince` and
 `endedAt` in epoch milliseconds, each null until it comes; `session`, the run's session while it runs, to
 which the asking supervisor says more with `POST /sessions/{sessionId}/words`, null until it starts and once
-it ends; and `outcome`, what it came to once ended. A count that is no whole number from 0 is refused 400.
+it ends; `runName`, the run its turn goes out as, the name its slot's binding named and its log lines are
+written under, null until it is bound; `runId`, that run's id in the ledger (`docs/run-records.md`, 「The run
+ledger」), null until its turn opens it; and `outcome`, what it came to once ended. `runName` and `runId` stay
+once it ends, so an ended delegation's log is read by its run as a running one's is. A count that is no whole
+number from 0 is refused 400.
 
 A reservation is asked under a role, an owner, a key and a count, and answers its token and the requests that
 stand for its slots; reserving again with the same key changes only the count (`docs/role-slots.md`,

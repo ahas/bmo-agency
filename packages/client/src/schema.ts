@@ -603,7 +603,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The tasks an agent delegated, each with its title, stage, role and start. */
+        /** The tasks an agent delegated, each with its title, stage, role, start and run. */
         get: operations["listDelegations"];
         put?: never;
         post?: never;
@@ -2707,9 +2707,11 @@ export interface components {
             title: string | null;
             askedBy: string | null;
             stage: components["schemas"]["DelegationStage"];
-            /** @description The agent its turn runs on; null before it is bound. */
-            agentName: string | null;
             role: string;
+            /** @description The provider it runs on; null until its road is fixed. */
+            provider: string | null;
+            /** @description The model it runs on; null until its road is fixed. */
+            model: string | null;
             /**
              * Format: int64
              * @description Epoch milliseconds.
@@ -2725,6 +2727,18 @@ export interface components {
              * @description Epoch milliseconds; null until it ends.
              */
             endedAt: number | null;
+            /** @description The session its run's turn goes into, which its asking supervisor says more to while it runs. */
+            session: string | null;
+            /**
+             * @description The run its turn goes out as, the name its log lines are written under; null until it is bound, kept
+             *     once it ends.
+             */
+            runName: string | null;
+            /**
+             * Format: int64
+             * @description That run's id in the ledger; null until its turn opens it, kept once it ends.
+             */
+            runId: number | null;
             /** @description What it came to, once ended. */
             outcome: string | null;
         };

@@ -592,7 +592,7 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["stop-marks", &job_id.to_string()])).await
   }
 
-  /// `GET /delegations`: The tasks an agent delegated, each with its title, stage, role and start.
+  /// `GET /delegations`: The tasks an agent delegated, each with its title, stage, role, start and run.
   pub async fn list_delegations(&self, query: &ListDelegationsQuery) -> Answer<DelegationPage> {
     Self::answered(self.request(Method::GET, &["delegations"]).query(query)).await
   }

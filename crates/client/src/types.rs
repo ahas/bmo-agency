@@ -633,15 +633,24 @@ pub struct Delegation {
   pub title: Option<String>,
   pub asked_by: Option<String>,
   pub stage: DelegationStage,
-  /// The agent its turn runs on; null before it is bound.
-  pub agent_name: Option<String>,
   pub role: String,
+  /// The provider it runs on; null until its road is fixed.
+  pub provider: Option<String>,
+  /// The model it runs on; null until its road is fixed.
+  pub model: Option<String>,
   /// Epoch milliseconds.
   pub asked_at: i64,
   /// Epoch milliseconds; null until it is let in.
   pub running_since: Option<i64>,
   /// Epoch milliseconds; null until it ends.
   pub ended_at: Option<i64>,
+  /// The session its run's turn goes into, which its asking supervisor says more to while it runs.
+  pub session: Option<String>,
+  /// The run its turn goes out as, the name its log lines are written under; null until it is bound, kept
+  /// once it ends.
+  pub run_name: Option<String>,
+  /// That run's id in the ledger; null until its turn opens it, kept once it ends.
+  pub run_id: Option<i64>,
   /// What it came to, once ended.
   pub outcome: Option<String>,
 }

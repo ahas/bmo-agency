@@ -2572,7 +2572,7 @@
         "tags": [
           "seat-requests"
         ],
-        "summary": "The tasks an agent delegated, each with its title, stage, role and start.",
+        "summary": "The tasks an agent delegated, each with its title, stage, role, start and run.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -9837,15 +9837,22 @@
           "stage": {
             "$ref": "#/components/schemas/DelegationStage"
           },
-          "agentName": {
+          "role": {
+            "type": "string"
+          },
+          "provider": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The agent its turn runs on; null before it is bound."
+            "description": "The provider it runs on; null until its road is fixed."
           },
-          "role": {
-            "type": "string"
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model it runs on; null until its road is fixed."
           },
           "askedAt": {
             "type": "integer",
@@ -9868,6 +9875,28 @@
             "format": "int64",
             "description": "Epoch milliseconds; null until it ends."
           },
+          "session": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The session its run's turn goes into, which its asking supervisor says more to while it runs."
+          },
+          "runName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run its turn goes out as, the name its log lines are written under; null until it is bound, kept\nonce it ends."
+          },
+          "runId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "That run's id in the ledger; null until its turn opens it, kept once it ends."
+          },
           "outcome": {
             "type": [
               "string",
@@ -9881,11 +9910,15 @@
           "title",
           "askedBy",
           "stage",
-          "agentName",
           "role",
+          "provider",
+          "model",
           "askedAt",
           "runningSince",
           "endedAt",
+          "session",
+          "runName",
+          "runId",
           "outcome"
         ],
         "description": "Delegation: a task a supervisor delegated, as its seat stands."

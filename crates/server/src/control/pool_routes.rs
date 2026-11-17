@@ -561,6 +561,12 @@ impl Route for Delegations {
     for row in open.iter().chain(closed.iter()) {
       let seat = dispatch::request_of(row).map_err(Refused::failed)?;
       let on = |value: &str| (!value.is_empty()).then(|| value.to_owned());
+      // The run its turn goes out as is the one its binding named, kept on its slot once it ends; the ledger
+      // holds it under that name and the role from the turn's start.
+      let run = match &seat.agent_name {
+        Some(name) => crate::run_ledger::of_unit(call.store(), &seat.role, name).await?,
+        None => None,
+      };
 
       items.push(json!({
         "token": seat.token,
@@ -576,6 +582,8 @@ impl Route for Delegations {
         "outcome": seat.outcome,
         // The session the run's turn goes into, which its asking supervisor says words to while it runs.
         "session": seat.session,
+        "runName": seat.agent_name,
+        "runId": run.map(|run| run.id),
       }));
     }
 

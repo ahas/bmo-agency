@@ -1,12 +1,14 @@
 //! A role session's turn is a run of the ledger (docs/run-records.md, 「The run ledger」; docs/agent-control.md,
 //! 「Delegating a task」): opened as the turn goes out, under the name its log lines are written under, with
-//! its title and its room; listed while it goes and its log read by its id; and closed as its turn ends.
+//! its title and its room; listed while it goes and its log read by its id; closed as its turn ends; and
+//! named by its name and id on the delegation it ran for, once that delegation has ended.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use agency_server::control::{Front, router};
 use agency_server::herdr_backend::HerdrSessions;
+use agency_server::order_run::dispatch::{self, Asked, DELEGATE, Wanted, acquire, enqueue, finish};
 use agency_server::places::Places;
 use agency_server::run_ledger;
 use agency_server::run_log::lines::Line;
@@ -19,7 +21,7 @@ use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::support::grounds::seeded;
+use crate::support::grounds::{deepseek_balance, seeded};
 use crate::support::scratch::Scratch;
 
 const TOKEN: &str = "secret";
@@ -221,4 +223,94 @@ async fn a_running_delegation_is_listed_among_the_runs_and_its_log_read_by_its_i
 
   assert_eq!(closed["state"], "closed", "{closed}");
   assert!(closed["outcome"].is_string(), "{closed}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_ended_delegation_is_listed_with_the_run_its_turn_went_out_as() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  // The slot as the delegate asks it, let in, laid on its role session and bound under the run's name.
+  let asked = Asked {
+    request_key: "delegate:tester:1".into(),
+    owner: "delegate:tester:1".into(),
+    title: Some("draw the figures"),
+    asked_by: Some("tester"),
+    wanted: Wanted {
+      role: ROLE,
+      path: Some("/scratch/tester"),
+      fixed: Some(agency_server::order::Entry {
+        provider: "deepseek".into(),
+        model: "deepseek-flash".into(),
+        effort: None,
+        thinking: None,
+        answer_tokens: None,
+      }),
+      agent: None,
+    },
+    ..Asked::default()
+  };
+  let held = enqueue(&ground.db, &ground.events, &asked, DELEGATE, async |_, _| Ok(()))
+    .await
+    .unwrap();
+
+  assert!(acquire(&ground, &held).await.unwrap().is_some(), "the delegation is let in");
+
+  let run = "delegate-tester-1";
+
+  dispatch::bind_session(&ground.db, &ground.events, &held.token, "role-session-1")
+    .await
+    .unwrap();
+  dispatch::bind(
+    &ground.db,
+    &ground.events,
+    &dispatch::request(&ground.db, &held.token).await.unwrap().unwrap(),
+    run,
+    None,
+  )
+  .await
+  .unwrap();
+
+  // Its turn opens the run in the ledger, and the delegation ends.
+  let id = run_ledger::open(
+    scratch.db(),
+    &run_ledger::Opening {
+      agent: ROLE.into(),
+      chat_id: None,
+      unit: run.into(),
+      depth: 0,
+      cap_ms: None,
+      started_at: 1,
+      started_by: None,
+      search_id: None,
+      round: None,
+      message_id: None,
+      title: Some("delegated by tester: draw the figures".into()),
+      carried: true,
+    },
+  )
+  .await
+  .unwrap();
+
+  assert!(finish(&ground.db, &ground.events, &held.token, "answered", false).await.unwrap());
+
+  let front = Front::new(TOKEN.to_owned(), Arc::new(ground)).unwrap();
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let app = router(front);
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  let (status, page) = call(port, reqwest::Method::GET, "/delegations?askedBy=tester", None).await;
+
+  assert_eq!(status, 200, "{page}");
+
+  let listed = &page["items"][0];
+
+  assert_eq!(listed["stage"], "ended", "{page}");
+  assert_eq!(listed["runName"], run, "the run its log is read by stays once it ends: {page}");
+  assert_eq!(listed["runId"], id, "{page}");
 }
