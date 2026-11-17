@@ -171,6 +171,9 @@ enum Asking {
   },
   // An ask stands with no verdict, looked for on each read.
   Open,
+  // Waits on the job's own work the caller last saw moving: handed over on each read, to learn whether it
+  // still moves, until the silent window from that moment has passed.
+  Awaiting,
   // Kept, or an ask that could not be put, until then; handed over again then if still silent and idle.
   Held(i64),
   // The caller asks nothing about its calls.
@@ -269,9 +272,9 @@ pub struct SilentCall {
 pub enum CallVerdict {
   /// The caller asks nothing: the call runs on and is not handed over again.
   NotAsked,
-  /// The call waits on the job's own work, which still moves: no ask is opened, and its silent window
-  /// counts again from now.
-  Awaiting,
+  /// The call waits on the job's own work, last seen moving at this moment: no ask is opened, its silent
+  /// window and its stall count from then, and it is handed over on each read until that window has passed.
+  Awaiting(i64),
   /// An ask stands with no verdict: the call runs on, and is handed over again at the next read.
   Waiting,
   /// Kept until this moment; handed over again then only if it is still silent and idle.
@@ -336,9 +339,9 @@ impl Watch {
 
     match verdict {
       CallVerdict::NotAsked => call.asking = Asking::Never,
-      CallVerdict::Awaiting => {
-        call.asking = Asking::None;
-        call.awaited_at = now;
+      CallVerdict::Awaiting(moved_at) => {
+        call.asking = Asking::Awaiting;
+        call.awaited_at = call.awaited_at.max(moved_at);
       }
       CallVerdict::Waiting => {
         call.asking = Asking::Open;
@@ -518,7 +521,8 @@ impl Watch {
       let due = if in_process {
         elapsed >= self.clock.in_process_ms.max(self.clock.min_ms)
       } else {
-        elapsed >= self.clock.min_ms && now - call.last_progress_at >= self.clock.stall_ms
+        elapsed >= self.clock.min_ms
+          && now - call.last_progress_at.max(call.awaited_at) >= self.clock.stall_ms
       };
 
       if !call.cut && due {
@@ -563,8 +567,8 @@ impl Watch {
     lines
   }
 
-  // Each call that owns processes and has gone silent and idle, and each whose ask stands, queued for the
-  // caller's policy. A call already cut is not.
+  // Each call that owns processes and has gone silent and idle, each whose ask stands, and each the caller
+  // last found waiting on the job's own work, queued for the caller's policy. A call already cut is not.
   fn hand_over_silent(&mut self, uses: &[ToolUse], now: i64) {
     let clock = &self.clock;
 
@@ -579,6 +583,16 @@ impl Watch {
       let open = match call.asking {
         Asking::None if idle.is_some() => false,
         Asking::Open => true,
+        Asking::Awaiting if now - call.awaited_at < clock.silent.window_ms => false,
+        Asking::Awaiting => {
+          call.asking = Asking::None;
+
+          if idle.is_none() {
+            continue;
+          }
+
+          false
+        }
         Asking::Held(until) if now >= until => {
           if idle.is_none() {
             call.asking = Asking::None;

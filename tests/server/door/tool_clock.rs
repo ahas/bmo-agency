@@ -599,49 +599,99 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
   );
 }
 
+// Waits, a bounded while, for a child of `parent` whose command line is `line`.
+async fn child_named(parent: i32, line: &str) -> i32 {
+  for _ in 0..100 {
+    let children =
+      std::fs::read_to_string(format!("/proc/{parent}/task/{parent}/children")).unwrap_or_default();
+
+    if let Some(pid) = children.split_whitespace().filter_map(|pid| pid.parse::<i32>().ok()).find(|pid| {
+      std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|read| read == format!("{line}\0").as_bytes())
+    }) {
+      return pid;
+    }
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+
+  panic!("no child of {parent} came up as {line}");
+}
+
 #[tokio::test]
-async fn a_call_that_waits_on_the_job_s_question_is_handed_over_again_only_a_window_later() {
-  let scratch = tempfile::tempdir().unwrap();
-  let program = Program::spawn_writing(POLLING, &scratch.path().join("call.output"));
+async fn a_call_waiting_on_the_job_s_question_is_neither_asked_about_nor_stopped_until_a_window_after_it() {
+  // A wait that burns nothing and begins no process, as the job's ask does while its question waits.
+  let program = Program::spawn(BLOCKED);
   let mut watch = ToolWatch::new(ToolClock {
+    stall_ms: 1_000,
     in_process_ms: 60_000,
-    ..asking(1_000, 2_000)
+    ..asking(200, 400)
   });
   let began = agency_server::now_ms();
-  let records = vec![used("t1", POLLING, began)];
+  let records = vec![used("t1", "cat", began)];
   let mut said = vec![];
+  let mut handed = 0;
   let mut now = began;
 
-  started(&format!("bash -c {POLLING}")).await;
+  child_named(program.pid, "cat").await;
 
-  let first = loop {
-    assert!(now < began + 6_000, "the polling call was handed over: {said:?}");
-
+  // While the question waits, the policy answers so on every hand-over: no ask, and no stall cut, though
+  // the stall passes several times over.
+  while now < began + 4_000 {
     if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
-      break now;
+      handed += 1;
+
+      let answered = watch.answer("job-41", "t1", CallVerdict::Awaiting(now), now).await;
+
+      assert!(answered.lines.is_empty() && answered.words.is_none(), "nothing is asked: {answered:?}");
     }
 
-    now += 250;
-  };
+    now += 100;
+  }
 
-  // The policy answers that it waits on the job's question: no ask is written, and its window starts again.
-  let answered = watch.answer("job-41", "t1", CallVerdict::Awaiting, first).await;
+  assert!(handed >= 30, "it is looked at again on every read while it waits: {handed}");
+  assert!(
+    !said.iter().any(|line| line.contains("cut after")),
+    "a wait on the question is not cut: {said:?}"
+  );
 
-  assert!(answered.lines.is_empty() && answered.words.is_none(), "nothing is asked: {answered:?}");
+  // Settled, the question holds the call a window from when it was last seen waiting; then the call is
+  // asked about, and the stall from that moment stops it.
+  let last_seen = now - 100;
+  let mut asked_at = None;
+  let mut cut_at = None;
 
-  let again = loop {
-    now += 250;
-    assert!(now < first + 6_000, "it was handed over again: {said:?}");
-
+  while now < last_seen + 3_000 && cut_at.is_none() {
     if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
-      break now;
+      let verdict = if now - last_seen < 400 {
+        CallVerdict::Awaiting(last_seen)
+      } else {
+        asked_at.get_or_insert(now);
+        CallVerdict::Waiting
+      };
+
+      watch.answer("job-41", "t1", verdict, now).await;
     }
-  };
+
+    if said.iter().any(|line| line.contains("cut after")) {
+      cut_at = Some(now);
+    }
+
+    now += 100;
+  }
+
+  let asked_at =
+    asked_at.unwrap_or_else(|| panic!("the call was asked about once the question was settled: {said:?}"));
+  let cut_at = cut_at.unwrap_or_else(|| panic!("the stalled call was stopped: {said:?}"));
 
   assert!(
-    (first + 2_000..=first + 2_250).contains(&again),
-    "handed over again a window later, at {}ms",
-    again - first
+    (last_seen + 400..=last_seen + 500).contains(&asked_at),
+    "asked a window after, at {}ms",
+    asked_at - last_seen
+  );
+  assert!(
+    (last_seen + 1_000..=last_seen + 1_100).contains(&cut_at),
+    "stopped a stall after, at {}ms",
+    cut_at - last_seen
   );
 }
 

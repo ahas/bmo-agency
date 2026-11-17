@@ -555,6 +555,8 @@ pub struct CallAsks {
   item: Option<Option<i64>>,
   // Every call asked about, by its id, with the ask that stands on it with no verdict.
   calls: BTreeMap<String, Option<i64>>,
+  // When each call handed over last found the item's question waiting.
+  waited: BTreeMap<String, i64>,
 }
 
 impl CallAsks {
@@ -566,6 +568,7 @@ impl CallAsks {
       questions,
       item: None,
       calls: BTreeMap::new(),
+      waited: BTreeMap::new(),
     }
   }
 
@@ -604,8 +607,19 @@ impl CallAsks {
 
     let item = self.item(db).await?;
 
+    let now = now_ms();
+
     if self.question_waits(item).await {
-      return Ok(CallVerdict::Awaiting);
+      self.waited.insert(call.id.clone(), now);
+
+      return Ok(CallVerdict::Awaiting(now));
+    }
+
+    // A question settled a moment ago still holds the call until it has stood silent for the window since.
+    if let Some(waited) = self.waited.get(&call.id).copied()
+      && now - waited < call.window_ms
+    {
+      return Ok(CallVerdict::Awaiting(waited));
     }
 
     let silent = &TOOL_CLOCK.call.silent;
@@ -682,6 +696,13 @@ impl CallAsks {
   /// A call asked about has ended, or with none every call of the turn: its clock closes, and an ask still
   /// standing on it closes as ended and is withdrawn.
   pub async fn ended(&mut self, db: &DatabaseConnection, events: &Bus, call: Option<&str>) {
+    match call {
+      Some(call) => {
+        self.waited.remove(call);
+      }
+      None => self.waited.clear(),
+    }
+
     let ended: Vec<String> = match call {
       Some(call) => self.calls.contains_key(call).then(|| call.to_owned()).into_iter().collect(),
       None => self.calls.keys().cloned().collect(),

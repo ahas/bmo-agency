@@ -1150,7 +1150,9 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
      processor time and begins no process for its stall is signalled: its processes get a polite end and
      then the kill. The program's tool then answers the model with a failed result, and the turn goes on —
      the call is cut, not the turn. A call that keeps burning processor time, a build or a test among
-     them, is never touched by this rule however long it runs.
+     them, is never touched by this rule however long it runs, and neither is a call while the job's own
+     work it waits on still moves (below): a wait on the job's own question sits in a read its answer ends,
+     burning nothing until it comes.
   2. **A call that has gone silent and idle is asked about, not cut.** A wait that polls — a loop that
      sleeps and then runs a search or a process listing — begins a process on every pass, so the first
      rule reads it as work. Past the call's minimum, a call whose output has not grown for the silent
@@ -1159,11 +1161,12 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
      never cuts」, above). The call runs on under the ask, and nothing cuts it but the supervisor's verdict.
      A call whose output keeps growing, or that keeps burning processor time, is never asked about, and
      neither is a call that waits on the job's own work while that work still moves (below).
-- **A call that waits on the job's own work is not asked about while that work moves.** The work a job
-  started stands outside the call that waits on it: a check or a close put in the background by an earlier
-  call, polled by a loop that reads its log, or the job's own question to its supervisor. The silent window
-  is then counted from the last moment the awaited work was seen moving, never from earlier, so the ask
-  comes as it does for any silent call once that work has itself stood still for the window:
+- **A call that waits on the job's own work is neither asked about nor stopped while that work moves.** The
+  work a job started stands outside the call that waits on it: a check or a close put in the background by
+  an earlier call, polled by a loop that reads its log, or the job's own question to its supervisor. The
+  silent window and the stall are then counted from the last moment the awaited work was seen moving, never
+  from earlier, so the ask comes as it does for any silent call once that work has itself stood still for
+  the window:
   - **Its own work in the background.** On every read of the tree, a call waits on such work where its
     command names, by its whole path, a regular file that a living process of the turn program's tree, not
     one of the call's own, holds open for writing. Such work moves while that process lives, however
@@ -1172,9 +1175,10 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   - **Its own question.** A call that has gone silent and idle is not asked about while the job's item holds
     a question still waiting for its answer, `open` or `paused` in the job service: the job's ask wakes the
     supervisor on that question itself, and the supervisor is never asked whether to wait on its own
-    answer. The question is read each time the call is handed over, so once it is settled and the call
-    has stood silent for the window since the question was last seen waiting, the call is asked about. A
-    question that cannot be read holds nothing: the call is asked about as it would be with none.
+    answer. Once a call is found waiting on it, the question is read again on every read of the tree until
+    the call has stood silent for the window since the question was last seen waiting; the call is then
+    asked about as any silent call. A question that cannot be read holds nothing: the call is asked about
+    as it would be with none.
   - **What it leaves to the ask.** A wait whose command names its log only through a variable built in
     pieces, a relative path or a script file, and a wait on work outside the program's tree, are asked
     about as any silent call. A process that never ends holds a call that names its file until the turn's

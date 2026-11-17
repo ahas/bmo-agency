@@ -267,13 +267,27 @@ async fn a_silent_call_is_not_asked_about_while_the_job_s_question_waits_and_is_
     window_ms: 300_000,
   };
 
-  // The item's own question still waits: the call waits on it, and nothing is asked.
-  assert_eq!(asks.hear(db, &bus, &call).await, CallVerdict::Awaiting);
+  // The item's own question still waits: the call waits on it, seen now, and nothing is asked.
+  let CallVerdict::Awaiting(seen) = asks.hear(db, &bus, &call).await else {
+    panic!("the call waits on the question");
+  };
+
+  assert!(seen >= now, "it was seen waiting as it was read");
   assert!(asked_events.ready().is_none());
   assert!(open_asks(db).await.unwrap().is_empty());
 
-  // Settled, the call is asked about as any silent call; another item's open question holds nothing.
+  // Settled, the question still holds the call for the window from when it was last seen waiting.
   peers.lock().unwrap().questions[2]["state"] = json!("answered");
-  assert_eq!(asks.hear(db, &bus, &call).await, CallVerdict::Waiting);
+  assert_eq!(asks.hear(db, &bus, &call).await, CallVerdict::Awaiting(seen));
+  assert!(asked_events.ready().is_none());
+
+  // Past that window the call is asked about as any silent call; another item's open question holds
+  // nothing.
+  let past = SilentCall {
+    window_ms: 0,
+    ..call.clone()
+  };
+
+  assert_eq!(asks.hear(db, &bus, &past).await, CallVerdict::Waiting);
   assert_eq!(asked_events.ready().map(|ask| ask.run), Some("job-run-8/call/toolu_1".to_owned()));
 }
