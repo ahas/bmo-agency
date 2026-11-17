@@ -3,14 +3,17 @@
 //! clock, a keep holding it until its moment, the supervisor's cut cutting it, an ask with no verdict standing
 //! for as long as the run goes, a verdict on a closed ask refused, and the run's end closing what stood open —
 //! on a store of the test's own. A job's tool call gone silent and idle is asked about the same way, with the
-//! facts the supervisor judges it by.
+//! facts the supervisor judges it by, and not while the job's item holds a question still waiting.
 
 use std::time::Duration;
+
+use serde_json::json;
 
 use agency_server::door::tool_clock::{CallVerdict, SilentCall};
 use agency_server::door::turn::{Overrun, Overtime, Quiet, Watch};
 use agency_server::events::Bus;
 use agency_server::now_ms;
+use agency_server::queue::orderer::JobService;
 use agency_server::run_clock::{
   Asked, CallAsks, ClockAskClosed, ClockAsked, Clocked, NotSettled, Verdict, clock_of, close, open,
   open_asks, settle,
@@ -153,7 +156,7 @@ async fn a_silent_call_is_asked_about_with_its_facts_and_kept_or_cut_on_the_verd
     )
     .await;
 
-  let mut asks = CallAsks::new("job-run-7", "worker-one", 7);
+  let mut asks = CallAsks::new("job-run-7", "worker-one", 7, None);
   let call = SilentCall {
     id: "toolu_1".to_owned(),
     tool: "Bash until rg -q closed close.log; do sleep 15; done".to_owned(),
@@ -228,4 +231,49 @@ async fn a_silent_call_is_asked_about_with_its_facts_and_kept_or_cut_on_the_verd
   assert_eq!(closed_events.ready().map(|closed| closed.ask), Some(nothing.ask));
   assert!(open_asks(db).await.unwrap().is_empty());
   assert_eq!(clock_of(db, "job-run-7").await.unwrap().cap_ends, None);
+}
+
+#[tokio::test]
+async fn a_silent_call_is_not_asked_about_while_the_job_s_question_waits_and_is_once_it_is_settled() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let bus = Bus::default();
+  let mut asked_events = bus.subscribe::<ClockAsked>();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let now = now_ms();
+
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (8, 2808, 1, 'runner', 1, 'worker-one', 'running', 1000, 'the work')"#,
+      vec![],
+    )
+    .await;
+  peers.lock().unwrap().questions.extend([
+    json!({ "id": 1, "itemId": 2807, "state": "open" }),
+    json!({ "id": 2, "itemId": 2808, "state": "answered" }),
+    json!({ "id": 3, "itemId": 2808, "state": "paused" }),
+  ]);
+
+  let mut asks = CallAsks::new("job-run-8", "worker-one", 8, JobService::of(&vars));
+  let call = SilentCall {
+    id: "toolu_1".to_owned(),
+    tool: "Bash bmo job ask --talk 3 --say 'Waiting.' --ack".to_owned(),
+    started_at: now - 600_000,
+    output_changed_at: now - 600_000,
+    last_line: None,
+    cpu_percent: 0.1,
+    window_ms: 300_000,
+  };
+
+  // The item's own question still waits: the call waits on it, and nothing is asked.
+  assert_eq!(asks.hear(db, &bus, &call).await, CallVerdict::Awaiting);
+  assert!(asked_events.ready().is_none());
+  assert!(open_asks(db).await.unwrap().is_empty());
+
+  // Settled, the call is asked about as any silent call; another item's open question holds nothing.
+  peers.lock().unwrap().questions[2]["state"] = json!("answered");
+  assert_eq!(asks.hear(db, &bus, &call).await, CallVerdict::Waiting);
+  assert_eq!(asked_events.ready().map(|ask| ask.run), Some("job-run-8/call/toolu_1".to_owned()));
 }

@@ -13,7 +13,8 @@
 //! process on every pass and so never stalls — is not cut by the clock: it is handed to the caller as a
 //! silent call, whose overtime policy asks the supervisor and answers keep, cut or wait for a verdict. The
 //! call's output is what its processes write to the regular files their standard output and standard error
-//! stand on.
+//! stand on. A call that waits on the job's own work — its command naming a file another living process of
+//! the program's tree writes — has its silent window counted from the last read that saw that work alive.
 //!
 //! A call that holds no process of its own waits inside the program — on a socket, on a pipe — and leaves
 //! nothing in the tree to read. Past a bound of its own it is cut too, but not by a signal: words are put
@@ -26,6 +27,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::{Read as _, Seek as _, SeekFrom};
+use std::os::unix::fs::PermissionsExt as _;
 use std::time::Duration;
 
 use agent_host::identity::{ProcessStat, boot_ms, clock_ticks, process_stat};
@@ -205,6 +207,9 @@ struct Call {
   asking: Asking,
   // Whether an ask was ever opened on it, so its end closes it.
   asked: bool,
+  // The last moment the job's own work it waits on was seen moving; its silent window counts from here
+  // where that is later than its output's last growth.
+  awaited_at: i64,
 }
 
 impl Call {
@@ -264,6 +269,9 @@ pub struct SilentCall {
 pub enum CallVerdict {
   /// The caller asks nothing: the call runs on and is not handed over again.
   NotAsked,
+  /// The call waits on the job's own work, which still moves: no ask is opened, and its silent window
+  /// counts again from now.
+  Awaiting,
   /// An ask stands with no verdict: the call runs on, and is handed over again at the next read.
   Waiting,
   /// Kept until this moment; handed over again then only if it is still silent and idle.
@@ -328,6 +336,10 @@ impl Watch {
 
     match verdict {
       CallVerdict::NotAsked => call.asking = Asking::Never,
+      CallVerdict::Awaiting => {
+        call.asking = Asking::None;
+        call.awaited_at = now;
+      }
       CallVerdict::Waiting => {
         call.asking = Asking::Open;
         call.asked = true;
@@ -472,6 +484,10 @@ impl Watch {
         if !owned.is_empty() {
           call.pids = owned.iter().map(|owned| owned.pid).collect();
           read_activity(call, &owned, now, self.clock.silent.window_ms);
+
+          if now - call.started_at >= self.clock.min_ms && awaits_own_work(procs, program, &owned, used) {
+            call.awaited_at = now;
+          }
         }
       }
     }
@@ -779,13 +795,45 @@ fn read_activity(call: &mut Call, owned: &[Proc], now: i64, window_ms: i64) {
   }
 }
 
+// Whether a shell call waits on the job's own work that still moves: its command names, by its whole path, a
+// regular file that a living process of the program's tree, not one of the call's own, holds open for
+// writing — a check or a close an earlier call put in the background, writing the log the call polls.
+fn awaits_own_work(procs: &[Proc], program: i32, owned: &[Proc], used: &ToolUse) -> bool {
+  let Some(command) = used.input.get("command").and_then(Value::as_str) else {
+    return false;
+  };
+  let own: HashSet<i32> = owned.iter().map(|proc| proc.pid).collect();
+
+  descendants(procs, program)
+    .iter()
+    .filter(|proc| !own.contains(&proc.pid))
+    .any(|proc| written_files(proc.pid).iter().any(|path| command.contains(path.as_str())))
+}
+
+// The regular files a process holds open for writing, by the path the kernel names: a descriptor's link
+// carries the mode it was opened with.
+fn written_files(pid: i32) -> Vec<String> {
+  let Ok(entries) = std::fs::read_dir(format!("/proc/{pid}/fd")) else { return vec![] };
+
+  entries
+    .flatten()
+    .filter(|entry| {
+      std::fs::symlink_metadata(entry.path()).is_ok_and(|link| link.permissions().mode() & 0o200 != 0)
+        && std::fs::metadata(entry.path()).is_ok_and(|meta| meta.is_file())
+    })
+    .filter_map(|entry| std::fs::read_link(entry.path()).ok())
+    .map(|path| path.to_string_lossy().into_owned())
+    .collect()
+}
+
 // The share of one processor a call's processes burned across the silent window, in percent, where the
-// call is past its minimum, has written nothing for the window and burned under the idle share; none
-// otherwise, and none until the reads cover the whole window.
+// call is past its minimum, has written nothing and waited on no moving work of the job's own for the
+// window, and burned under the idle share; none otherwise, and none until the reads cover the whole
+// window.
 fn idle_percent(call: &Call, now: i64, clock: &ToolClock) -> Option<f64> {
   let window = clock.silent.window_ms;
 
-  if now - call.started_at < clock.min_ms || now - call.output_changed_at < window {
+  if now - call.started_at < clock.min_ms || now - call.output_changed_at.max(call.awaited_at) < window {
     return None;
   }
 

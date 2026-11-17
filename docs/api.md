@@ -1918,7 +1918,9 @@ job service's lease is given back, and while an ended job's lease stands for its
 job is written, its item's `GET /items/{itemId}/notes` is read for its handoff, and as a job's work moves to
 another session, `POST /items/{itemId}/notes` is handed the handoff the old session left; as a job's review puts
 its work to the owner, the job service's `GET /questions` by `itemId` is read for a question asking the same that
-still waits, and `POST /questions` asks it only where none does (`docs/job-review.md`, 「The owner's word」); as a job ends, the
+still waits, and `POST /questions` asks it only where none does (`docs/job-review.md`, 「The owner's word」); as a job's tool
+call gone silent and idle is handed over, the same read by `itemId` says whether a question of the job's item still waits,
+which holds the ask (`docs/agent-control.md`, 「A job turn's tool calls are held to a clock」); as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh

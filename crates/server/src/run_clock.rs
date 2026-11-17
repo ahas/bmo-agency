@@ -23,6 +23,7 @@ use crate::door::confirm::{Asking, Confirmation};
 use crate::door::tool_clock::{CallVerdict, SilentCall};
 use crate::door::turn::{AsideOutcome, Overrun, Overtime, Watch};
 use crate::events::{Bus, Event};
+use crate::queue::orderer::JobService;
 use crate::{Refusal, now_ms};
 
 const MINUTE_MS: i64 = 60_000;
@@ -542,11 +543,14 @@ impl<W: Watch + Send> Watch for Asked<'_, W> {
 /// The asks a job's turn opens on its tool calls gone silent and idle: each call a clocked run of its own,
 /// named for the call under the turn's run, its clock the call clock's silent window. The call clock hands a
 /// call over when it goes silent and idle and on each read while its ask stands; a call that ends, and the
-/// turn's end, close the asks on it as ended.
+/// turn's end, close the asks on it as ended. While the job's item holds a question still waiting for its
+/// answer, a call handed over is not asked about: it waits on that question.
 pub struct CallAsks {
   turn: String,
   agent: String,
   job: i64,
+  // The job service the item's questions are read from; none where the deployment names none.
+  questions: Option<JobService>,
   // The job's item, read once; none where the store names none.
   item: Option<Option<i64>>,
   // Every call asked about, by its id, with the ask that stands on it with no verdict.
@@ -554,11 +558,12 @@ pub struct CallAsks {
 }
 
 impl CallAsks {
-  pub fn new(turn: &str, agent: &str, job: i64) -> Self {
+  pub fn new(turn: &str, agent: &str, job: i64, questions: Option<JobService>) -> Self {
     Self {
       turn: turn.to_owned(),
       agent: agent.to_owned(),
       job,
+      questions,
       item: None,
       calls: BTreeMap::new(),
     }
@@ -598,6 +603,11 @@ impl CallAsks {
     }
 
     let item = self.item(db).await?;
+
+    if self.question_waits(item).await {
+      return Ok(CallVerdict::Awaiting);
+    }
+
     let silent = &TOOL_CLOCK.call.silent;
     let what = fill_marks(
       &silent.what,
@@ -631,6 +641,26 @@ impl CallAsks {
     self.calls.insert(call.id.clone(), Some(ask));
 
     Ok(CallVerdict::Waiting)
+  }
+
+  // Whether the item holds a question still waiting for its answer. A read that fails holds nothing, so the
+  // call is asked about as it would be with no question.
+  async fn question_waits(&self, item: Option<i64>) -> bool {
+    let (Some(service), Some(item)) = (&self.questions, item) else { return false };
+    let path = format!("/questions?itemId={item}&limit=500");
+
+    match crate::job_review::call(service, reqwest::Method::GET, &path, None).await {
+      Ok(page) => page["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|question| matches!(question["state"].as_str(), Some("open" | "paused"))),
+      Err(why) => {
+        eprintln!("{}: the questions of item {item} were not read: {why}", self.turn);
+
+        false
+      }
+    }
   }
 
   async fn item(&mut self, db: &DatabaseConnection) -> Result<Option<i64>, Refusal> {

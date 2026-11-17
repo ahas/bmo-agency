@@ -39,6 +39,7 @@ use crate::herdr_backend::{RoadWalked, TurnEnded, close_turn_run, spent_of};
 use crate::lines::place::Place;
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
+use crate::queue::orderer::JobService;
 use crate::queue::settings;
 use crate::queue::stops::Stops;
 use crate::run_clock::CallAsks;
@@ -860,7 +861,9 @@ pub async fn waited(
   turn: &InFlight,
   clock: ToolClock,
 ) {
-  let mut asks = turn.job.map(|job| CallAsks::new(&turn.run, &turn.agent, job));
+  let mut asks = turn
+    .job
+    .map(|job| CallAsks::new(&turn.run, &turn.agent, job, JobService::of(ground.vars())));
 
   followed(ground, place, pane, turn, clock, asks.as_mut()).await;
 

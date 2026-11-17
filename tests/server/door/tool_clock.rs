@@ -1,7 +1,8 @@
 //! A job turn's tool calls held to a clock (docs/agent-control.md, 「A job turn's tool calls are held to a
 //! clock」): a call blocked on a pipe nothing writes to is cut after it stops burning processor time, a call
 //! that keeps burning it is left alone, and a stop cuts a blocked call so its words can be read. The lines
-//! the watcher writes name the call, its pid, its duration and its outcome.
+//! the watcher writes name the call, its pid, its duration and its outcome. A call gone silent and idle is
+//! handed over to be asked about, but not while it polls the log of the job's own work that still lives.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -481,6 +482,167 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
 
   assert!(words.contains("it waits on another job's close") && words.contains("Bash"), "{words}");
   assert!(gone(pid_of(line)).await, "the cut call's process is gone: {line}");
+}
+
+// The processes of the machine whose command line is `line`.
+fn running(line: &str) -> Vec<i32> {
+  std::fs::read_dir("/proc")
+    .unwrap()
+    .flatten()
+    .filter_map(|entry| entry.file_name().to_str()?.parse::<i32>().ok())
+    .filter(|pid| {
+      std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|read| {
+        let args: Vec<String> = read
+          .split(|byte| *byte == 0)
+          .filter(|arg| !arg.is_empty())
+          .map(|arg| String::from_utf8_lossy(arg).into_owned())
+          .collect();
+
+        args.join(" ") == line
+      })
+    })
+    .collect()
+}
+
+// Waits, a bounded while, for the process whose command line is `line`.
+async fn started(line: &str) -> i32 {
+  for _ in 0..100 {
+    if let Some(pid) = running(line).first() {
+      return *pid;
+    }
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+
+  panic!("no process came up as {line}");
+}
+
+// The clock looked at once at `now` on a moment of the test's own, every process read as it stands.
+async fn looked_at(
+  watch: &mut ToolWatch,
+  records: &[Value],
+  program: i32,
+  now: i64,
+  said: &mut Vec<String>,
+) -> Option<agency_server::door::tool_clock::SilentCall> {
+  said.extend(sentences(watch.look("job-41", records, 0, program, now).await));
+  watch.take_silent()
+}
+
+#[tokio::test]
+async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_that_work_has_ended() {
+  let scratch = tempfile::tempdir().unwrap();
+  let log = scratch.path().join("check.log").to_string_lossy().into_owned();
+  // The job's own work, put in the background before the call: a process of the program's tree, not the
+  // call's, holding the log open as a check's output; and the call polling that log, writing nothing.
+  let poll = format!("while :; do sleep 0.05; done; cat {log}");
+  let program = Program::spawn_args(&[
+    "bash",
+    "-c",
+    "( exec -a held-log sleep 1000 ) > \"$0\" & bash -c \"$1\" & wait",
+    &log,
+    &poll,
+  ]);
+  let writer = started("held-log 1000").await;
+  started(&format!("bash -c {poll}")).await;
+  let mut watch = ToolWatch::new(ToolClock {
+    in_process_ms: 60_000,
+    ..asking(1_000, 2_000)
+  });
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", &poll, began)];
+  let mut said = vec![];
+  let mut now = began;
+
+  // While the work lives, the call is never asked about, though it writes nothing for many windows.
+  while now < began + 10_000 {
+    let handed = looked_at(&mut watch, &records, program.pid, now, &mut said).await;
+
+    assert!(handed.is_none(), "a wait on the job's own living work is not asked about: {said:?}");
+    now += 250;
+  }
+
+  let first_line = said.first().cloned().unwrap_or_default();
+
+  assert!(
+    pid_of(&first_line) > 0 && pid_of(&first_line) != writer,
+    "the call was watched with processes of its own, the work not among them: {said:?}"
+  );
+
+  // Once the work ends, the log stands still: the call is asked about a window after the work was last seen.
+  let last_seen = now - 250;
+
+  // SAFETY: a signal sent to the process this test started.
+  unsafe {
+    libc::kill(writer, libc::SIGKILL);
+  }
+  assert!(gone(writer).await, "the work ended");
+
+  let mut handed_at = None;
+
+  while now < last_seen + 6_000 {
+    if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
+      handed_at = Some(now);
+
+      break;
+    }
+
+    now += 250;
+  }
+
+  let handed_at = handed_at.unwrap_or_else(|| panic!("the stalled wait was asked about: {said:?}"));
+
+  assert!(
+    (last_seen + 2_000..=last_seen + 2_500).contains(&handed_at),
+    "asked a window after the work was last seen moving, at {}ms",
+    handed_at - last_seen
+  );
+}
+
+#[tokio::test]
+async fn a_call_that_waits_on_the_job_s_question_is_handed_over_again_only_a_window_later() {
+  let scratch = tempfile::tempdir().unwrap();
+  let program = Program::spawn_writing(POLLING, &scratch.path().join("call.output"));
+  let mut watch = ToolWatch::new(ToolClock {
+    in_process_ms: 60_000,
+    ..asking(1_000, 2_000)
+  });
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", POLLING, began)];
+  let mut said = vec![];
+  let mut now = began;
+
+  started(&format!("bash -c {POLLING}")).await;
+
+  let first = loop {
+    assert!(now < began + 6_000, "the polling call was handed over: {said:?}");
+
+    if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
+      break now;
+    }
+
+    now += 250;
+  };
+
+  // The policy answers that it waits on the job's question: no ask is written, and its window starts again.
+  let answered = watch.answer("job-41", "t1", CallVerdict::Awaiting, first).await;
+
+  assert!(answered.lines.is_empty() && answered.words.is_none(), "nothing is asked: {answered:?}");
+
+  let again = loop {
+    now += 250;
+    assert!(now < first + 6_000, "it was handed over again: {said:?}");
+
+    if looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_some() {
+      break now;
+    }
+  };
+
+  assert!(
+    (first + 2_000..=first + 2_250).contains(&again),
+    "handed over again a window later, at {}ms",
+    again - first
+  );
 }
 
 // The sentences a watcher's notes read as.

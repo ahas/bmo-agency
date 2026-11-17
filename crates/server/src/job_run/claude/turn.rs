@@ -51,6 +51,7 @@ use crate::lines::worker::{LINE, WorkerRun, effort_of, role_run, worker_run};
 use crate::places::branch::{self, BranchRun};
 use crate::places::home::Home;
 use crate::places::{AgentRow, Ground, locks};
+use crate::queue::orderer::JobService;
 use crate::queue::stops::job_stop_reason;
 use crate::road::Road;
 use crate::run_clock::CallAsks;
@@ -946,7 +947,10 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
-      asks: self.asked.job.map(|job| CallAsks::new(&work.name, worker, job.job)),
+      asks: self
+        .asked
+        .job
+        .map(|job| CallAsks::new(&work.name, worker, job.job, JobService::of(ground.vars()))),
     };
     let ending = apart::run(
       ground,
@@ -1035,7 +1039,10 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
-      asks: self.asked.job.map(|job| CallAsks::new(&work.name, agent, job.job)),
+      asks: self
+        .asked
+        .job
+        .map(|job| CallAsks::new(&work.name, agent, job.job, JobService::of(ground.vars()))),
     };
     let ending = apart::run(
       ground,
@@ -1241,7 +1248,10 @@ impl Attempting<'_, '_> {
       questions: self.asked.questions,
       shown: self.shown,
       job: self.asked.job,
-      asks: self.asked.job.map(|job| CallAsks::new(&work.name, worker, job.job)),
+      asks: self
+        .asked
+        .job
+        .map(|job| CallAsks::new(&work.name, worker, job.job, JobService::of(ground.vars()))),
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {

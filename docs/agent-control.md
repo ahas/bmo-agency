@@ -1157,7 +1157,28 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
      window, and whose tree burned under the idle share of one processor across that window, the time of
      the processes it has already reaped counted, has an overtime ask opened on it (「A clock asks, it
      never cuts」, above). The call runs on under the ask, and nothing cuts it but the supervisor's verdict.
-     A call whose output keeps growing, or that keeps burning processor time, is never asked about.
+     A call whose output keeps growing, or that keeps burning processor time, is never asked about, and
+     neither is a call that waits on the job's own work while that work still moves (below).
+- **A call that waits on the job's own work is not asked about while that work moves.** The work a job
+  started stands outside the call that waits on it: a check or a close put in the background by an earlier
+  call, polled by a loop that reads its log, or the job's own question to its supervisor. The silent window
+  is then counted from the last moment the awaited work was seen moving, never from earlier, so the ask
+  comes as it does for any silent call once that work has itself stood still for the window:
+  - **Its own work in the background.** On every read of the tree, a call waits on such work where its
+    command names, by its whole path, a regular file that a living process of the turn program's tree, not
+    one of the call's own, holds open for writing. Such work moves while that process lives, however
+    quiet it is: a check whose steps run on another machine writes its log only as each step ends, and
+    burns next to no processor time here meanwhile.
+  - **Its own question.** A call that has gone silent and idle is not asked about while the job's item holds
+    a question still waiting for its answer, `open` or `paused` in the job service: the job's ask wakes the
+    supervisor on that question itself, and the supervisor is never asked whether to wait on its own
+    answer. The question is read each time the call is handed over, so once it is settled and the call
+    has stood silent for the window since the question was last seen waiting, the call is asked about. A
+    question that cannot be read holds nothing: the call is asked about as it would be with none.
+  - **What it leaves to the ask.** A wait whose command names its log only through a variable built in
+    pieces, a relative path or a script file, and a wait on work outside the program's tree, are asked
+    about as any silent call. A process that never ends holds a call that names its file until the turn's
+    hard bound (below).
 - **The ask on a silent call.** It is a clocked run of its own, named for the call and standing under the
   turn's run, so the turn's run reads the clock and the keep on it; its clock is the silent window. The
   facts it carries are those the supervisor judges it by:
@@ -1168,7 +1189,8 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
     it has written nothing;
   - the processor share its tree burned across the window.
 - **What a verdict does to the call.** A keep holds it until the keep runs out; it is asked about again
-  then only if it is still silent and idle, its window counted from its output's last growth. A cut
+  then only if it is still silent and idle, its window counted from its output's last growth or from the
+  last moment the work it waits on was seen moving, whichever is later. A cut
   stops its processes as a stalled call's are, the program hands the model a failed result, and words
   are put into the working turn saying the supervisor cut the call and why, so the model does not start
   the same wait again. An ask with no verdict stands while the call goes. A call that ends, and a turn
