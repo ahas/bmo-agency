@@ -1041,7 +1041,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The worker's agent definition: graph, trailer, handoff. */
+        /** The worker's agent definition: trailer, handoff. */
         get: operations["getWorkersDefinition"];
         put?: never;
         post?: never;
@@ -3595,7 +3595,6 @@ export interface components {
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {
-            graph: string;
             trailer: string;
             handoff: string | null;
         };
