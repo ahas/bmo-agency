@@ -1,6 +1,6 @@
 //! The call clock's notes: each written as the sentence the unit's log has always read and its facts as the
 //! run log's `toolClock` fields, and a sentence filed before the fields were kept read back into the same
-//! facts (docs/agent-control.md, 「A job turn's tool calls are held to a clock」).
+//! facts (docs/agent-control.md, 「A run's tool calls are held to a clock」).
 
 use agency_server::door::tool_clock::{ClockEvent, ClockNote, Cut, Outcome};
 use serde_json::json;

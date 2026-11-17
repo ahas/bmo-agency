@@ -244,8 +244,8 @@ pub trait Watch {
     false
   }
 
-  /// The clock the turn's tool calls are held to, where its caller keeps one: a job's turn does, and no
-  /// other turn does.
+  /// The clock the turn's tool calls are held to, where its caller keeps one: a job's turn and a role
+  /// session's turn do, and no other turn does.
   fn tool_clock(&self) -> Option<super::tool_clock::ToolClock> {
     None
   }
@@ -1811,9 +1811,9 @@ async fn watch_turn<W: Watch>(
   let mut offers = OwnAnswers::new(timings.redraw);
 
   loop {
-    // A job's tool calls, read off the record as it goes: each start with its pid and summary, a
-    // still-running line past its threshold, each end with its duration and outcome, and a call that has
-    // stopped burning processor time cut so it cannot hold the turn for ever.
+    // A job's or a role session's tool calls, read off the record as it goes: each start with its pid and
+    // summary, a still-running line past its threshold, each end with its duration and outcome, and a call
+    // that has stopped burning processor time cut so it cannot hold the turn for ever.
     let program = door.program.as_ref().map(|program| program.pid);
 
     if let (Some(watching), Some(program)) = (tools.as_mut(), program) {

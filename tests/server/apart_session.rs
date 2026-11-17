@@ -1066,6 +1066,7 @@ async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
     hold_text_tool_call: flag("--hold-text-tool-call"),
     hold_wording: flag("--hold-wording"),
     compose_typed: flag("--compose-typed"),
+    refuse_claude: flag("--refuse-claude"),
   };
   let hook_ground = HookGround {
     env: &BTreeMap::new(),

@@ -282,8 +282,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
 - **How the resident program is started:** the line's command with the print-mode flags taken out, on the
   session the supervisor or the run resumes, with what lets agency read the program while it stays up — for
   Claude Code, a settings file naming agency's status-line command and its `Stop`, `StopFailure`,
-  `UserPromptSubmit` and `SessionStart` hooks, and on a supervisor's program the shell guard, a `PreToolUse`
-  hook on the shell that refuses a command starting Claude Code (`docs/agents.md`, 「No print mode」).
+  `UserPromptSubmit` and `SessionStart` hooks, and a `PreToolUse` hook on the shell that closes every
+  command's standard input (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
+  standard input」) and, on a supervisor's program, refuses a command starting Claude Code
+  (`docs/agents.md`, 「No print mode」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
@@ -808,8 +810,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   (`docs/tools.md`, 「The delegate」).
 - **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
   on that provider and model where one is valid; a later delegation there within the cache lifetime goes on
-  in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, and
-  its slot is finished once the run has answered.
+  in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, its
+  tool calls are held to the call clock (「A run's tool calls are held to a clock」), and its slot is
+  finished once the run has answered.
 - **Its run stands in the run ledger while it goes,** opened as its turn goes out under the run's name, its
   title the task's, its room the asking supervisor's where its turn names one, and closed with how the turn
   ended (`docs/run-records.md`, 「The run ledger」). The lines of its transcript are written under that name,
@@ -1107,7 +1110,9 @@ flowchart TD
 - **Which runs carry a clock.** A role's run, a chat round, a keepalive ping and a fold carry none. A
   voice run carries ten minutes for the speaking of its line, on this machine's card or a node; past it
   the clock asks. A job's tool call that has gone silent and idle is asked about the same way, its clock
-  the call clock's silent window (「A job turn's tool calls are held to a clock」, below).
+  the call clock's silent window (「A run's tool calls are held to a clock」, below). A role's run carries
+  no clock of its own, but its tool calls are held to the call clock as a job's are, so a call that makes
+  no progress is cut and the run goes on.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the clock passes with
   the facts the run can say of itself — when it started, the clock, and its last sign of work: when
@@ -1143,11 +1148,25 @@ flowchart TD
 - **What waits behind a clocked run waits for its end.** A run is never cut for its clock, so whatever
   waits behind one — a voice node's asker — waits until the run ends, however long that is.
 
-### A job turn's tool calls are held to a clock
+### A run's tool calls are held to a clock
 
-A job's turn runs a program whose tool calls the turn's collector reads off the record. A tool that blocks
-on a read or a write nothing will answer would otherwise hold the turn for ever, and no stop reaches a
-turn held inside a call, so the call is held to a clock of its own (`policy/tool-clock.toml`).
+A job's turn, and a turn of every role's run the door carries on Claude Code's record — a delegated task, a
+supervisor's double carrying a round, a worker ask, a co-work branch and every other role session's turn —
+runs a program whose tool calls the turn's collector reads off the record. A tool that blocks on a read or a
+write nothing will answer would otherwise hold the turn for ever, and the slot and the line behind it with
+it, and no stop reaches a turn held inside a call, so the call is held to a clock of its own
+(`policy/tool-clock.toml`). It is one clock for both: what follows holds for a job's turn and a role's run
+alike, except where it names a job.
+
+- **What a role's run is held to.** The first rule below, the cut of a call with no process of its own and
+  the stop's cut hold for a role's run as they do for a job's turn, and its program is given the same MCP
+  idle window. The second rule's ask is a job's alone: its facts are the worker, the job and the item, and
+  the supervisor judges it as a job's call. A role's run holds no job, so no ask is opened on its calls and
+  nobody judges one: a call of its that goes silent and idle while it still begins processes runs on until
+  it ends, or until whoever asked for the run, or the owner, stops it. The hard bound below is a job's
+  alone too.
+- **Which roads it reads.** The clock reads the record of a Claude Code program the door carries. A run that
+  goes out on another provider's road, in a place of its own, carries no call clock.
 
 - **What a call owns.** A call's own processes are the part of the turn program's process tree that began
   with the call, less the processes that stood before it: a shell the program started for the call and
@@ -1229,14 +1248,15 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   is cut: what it waits on does not come while the call holds the turn.
 - **A call with no process of its own is cut too.** A call that waits inside the program — an HTTP call
   to an MCP server, a read or a write on a pipe — leaves nothing in the program's tree to read, so
-  nothing says whether it works. A job's turn gives the program the call clock's own bound as its MCP
-  idle window (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`, named by the provider's policy): a call that sends
-  no response and no progress notification for it is aborted inside the program, which hands the model a
-  failed result and goes on. A call the program's own idle window does not cover is cut by the door past
-  the same bound: words are put into the working turn saying the call did not complete and to go on
-  without its result, and the program ends the waiting call and hands the model a failed result. A
-  program that does not take the words within the cut's grace is ended at a bound of its own, and a job
-  is marked stopped there as it is at its turn's bound, so its item is released for a rerun.
+  nothing says whether it works. A job's turn and a role's run give the program the call clock's own bound
+  as its MCP idle window (`CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT`, named by the provider's policy): a call
+  that sends no response and no progress notification for it is aborted inside the program, which hands
+  the model a failed result and goes on. A call the program's own idle window does not cover is cut by
+  the door past the same bound: words are put into the working turn saying the call did not complete and
+  to go on without its result, and the program ends the waiting call and hands the model a failed result.
+  A program that does not take the words within the cut's grace is ended at a bound of its own: a job is
+  marked stopped there as it is at its turn's bound, so its item is released for a rerun, and a role's run
+  ends stopped.
 - **The lines are kept.** Each call's start is written with its pid and a one-line summary, a
   still-running line past its threshold and every interval after it, and its end with its duration and
   outcome. A cut is written as it happens, and so are an ask on a silent call and its verdict. The lines
@@ -1271,7 +1291,8 @@ turn held inside a call, so the call is held to a clock of its own (`policy/tool
   bound. A blocked call is cut there as it is in the door, a silent and idle call is asked about and
   its verdict carried out the same way, a call with no process of its own is cut by the same words put
   into the turn, and a turn past its bound is marked stopped and cut, so its item and
-  assignment are released and the queue behind it moves.
+  assignment are released and the queue behind it moves. A role session's turn picked up is held to the
+  call clock and the stop the same way, with no ask and no bound, as its live turn is.
 
 ### What standing costs
 

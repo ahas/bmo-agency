@@ -1,9 +1,9 @@
-//! A job turn's tool calls held to a clock (docs/agent-control.md, 「A job turn's tool calls are held to a
-//! clock」): a call blocked on a pipe nothing writes to is cut after it stops burning processor time, a call
-//! that keeps burning it is left alone, a blocked call waiting on the job's own question runs on, and a stop
-//! cuts a blocked call so its words can be read. The lines
-//! the watcher writes name the call, its pid, its duration and its outcome. A call gone silent and idle is
-//! handed over to be asked about, but not while it polls the log of the job's own work that still lives.
+//! A run's tool calls held to a clock (docs/agent-control.md, 「A run's tool calls are held to a clock」): a
+//! call blocked on a pipe nothing writes to is cut after it stops burning processor time, a call that keeps
+//! burning it is left alone, a blocked call waiting on the job's own question runs on, and a stop cuts a
+//! blocked call so its words can be read. The lines the watcher writes name the call, its pid, its duration
+//! and its outcome. A call gone silent and idle is handed over to be asked about, but not while it polls
+//! the log of the job's own work that still lives.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;

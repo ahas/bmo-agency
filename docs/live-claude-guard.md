@@ -161,24 +161,37 @@
 - **Nothing opens it.** The refusal says how to write the removal instead: guard the
   variable, quote the path, or name the path outright, and leave files under `~/.claude` alone.
 
-## The same hook closes every command's standard input
+## Agency's shell hook closes every command's standard input
 
-- **Why:** the Bash tool opens a command's standard input on `/dev/null` only while the command's
-  text holds no input redirection. One `<`, `<<` or `<<<` anywhere in it, and the tool hands the
-  whole shell a socket instead, which stays open for the whole run and is never written to. A
-  `</dev/null` given to one part of a compound then leaves every other part on that socket, and a
-  reader given nothing to read — `rg` with no path, a path held in a variable that came back empty —
-  waits on it with no end.
-- **What it does:** every Bash call it lets through, the job's own and a subagent's alike, goes to
-  the tool rewritten with `exec </dev/null` on a line of its own ahead of the command. The shell's
-  own standard input is then `/dev/null` for everything the command runs, a part sent to the
-  background included, and a reader given nothing ends at once: `cat` or `grep` reads an empty
-  input, and `rg` given no path searches the working directory, as it does from a terminal. A pipe,
-  a redirect, a heredoc and a here-string still feed the command they stand on.
+This is agency's own hook, not the job guard's: it stands whether or not the deployment names a guard.
+
+- **Why:** the Bash tool opens a command's standard input on `/dev/null` only while it reads no input
+  redirection in the command's text. Where it reads one — a `<`, `<<` or `<<<`, a `<` inside a quoted
+  word among them (measured: `'"<tool_call>"|<function='` does it) — the tool hands the whole shell a
+  socket instead, which stays open for the whole run and is never written to. A `</dev/null` given to
+  one part of a compound then leaves every other part on that socket, and a reader given nothing to read
+  — `rg` with no path, a path held in a variable that came back empty — waits on it with no end. The
+  program offers no setting that changes this.
+- **What it does:** agency's verb `agent-status shell` is a `PreToolUse` hook on the shell of every
+  Claude Code program agency starts on the worker or the chat line: a job's, a role's run, a co-work
+  branch's and a supervisor's, and the subagents each opens. Every Bash call goes to the tool rewritten
+  with `exec </dev/null` on a line of its own ahead of the command, the rest of the call as it was. The
+  shell's own standard input is then `/dev/null` for everything the command runs, a part sent to the
+  background included, and a reader given nothing ends at once: `cat` or `grep` reads an empty input,
+  and `rg` given no path searches the working directory, as it does from a terminal. A pipe, a
+  redirect, a heredoc and a here-string still feed the command they stand on.
+- **Where it stands.** It is among the hooks of every place's settings: a supervisor's place, a standing
+  worker's, a worker session's, and the thrown-away place a run in a pane of its own is given for its hooks
+  where its line holds its stops, as the worker line does. On a supervisor's program the same call also
+  refuses a command that starts Claude Code (`docs/agents.md`, 「No print mode」). A run in a pane of its
+  own on a line that holds no stops, and a runner line's program, which is handed no settings, hold no
+  such hook.
 - **The tool's wait does not end such a command.** The worker's settings set the tool's wait, the
   default and the most a call may ask, to the largest the program takes, so a call that names no
   `timeout` waits for its command to end. A call that names a shorter one has the tool move the command
-  to a background task past it, where it runs on. So closing the input is what ends a reader's wait.
+  to a background task past it, where it runs on. So closing the input is what ends a reader's wait,
+  and where a reader still waits, the call clock stops it (`docs/agent-control.md`, 「A run's tool calls
+  are held to a clock」).
 - **When the hook cannot run,** the command goes to the tool as written.
 
 ## The same hook refuses the shell habits that stall a job

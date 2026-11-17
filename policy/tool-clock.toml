@@ -1,9 +1,9 @@
-# The clock a job turn's tool calls are held to (docs/agent-control.md, 「A job turn's tool calls are held
-# to a clock」), read by the door that carries the turn. A call that has burned no processor for its stall
-# is stopped, so a blocked read or write on a pipe or a socket cannot hold the turn for ever. A call that is
-# working is never stopped however long it runs: a build or a test that keeps burning processor time is
-# left to finish. A call that writes nothing and stands nearly idle, as a wait that polls does, is asked
-# about instead: the supervisor keeps it or cuts it.
+# The clock a run's tool calls are held to (docs/agent-control.md, 「A run's tool calls are held to a
+# clock」), read by the door that carries the turn. A call that has burned no processor for its stall is
+# stopped, so a blocked read or write on a pipe or a socket cannot hold the turn for ever. A call that is
+# working is never stopped however long it runs: a build or a test that keeps burning processor time is left
+# to finish. A call that writes nothing and stands nearly idle, as a wait that polls does, is asked about
+# instead: the supervisor keeps it or cuts it.
 
 [call]
 # How long a call goes before the clock watches it at all. A call shorter than this is a short one.

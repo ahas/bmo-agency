@@ -158,7 +158,11 @@ belongs to no one service is a repository of its own, not a folder here.
   one past the cache lifetime or the model's context opens a new one. The run works with its role's program
   and tools on whichever road it goes out on (`docs/launch-lines.md`, 「What a line's program is allowed, by
   road」) — a shell among them, so it reaches other machines as a job does.
-  - The call waits for the run's end with no timeout, and nothing bounds the run by a clock.
+  - The call waits for the run's end with no timeout, and nothing bounds the run by a clock. Its tool
+    calls are held to the call clock as a job's are: a call whose processes burn no processor time and
+    begin none past the call's minimum is stopped, the program hands the model a failed result and the
+    run goes on, so one stalled call never holds the slot and the line behind it (`docs/agent-control.md`,
+    「A run's tool calls are held to a clock」).
   - **It waits by its run, not by one held call.** The turn is sent with the run's name as its key
     (`docs/api.md`, 「sessions」), and a wait cut short — a connection refused or broken, or the server's
     drain answering `503` `stopping` — is no outcome: the delegate sends again with the same key at its

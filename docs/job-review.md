@@ -169,7 +169,7 @@ jobs」), naming the job, one action and its words.
 - **A review never ends a job's wait on its own question.** A job's `bmo job ask` withdraws its question only
   when its run is stopped. A review comes between the job's turns, so it never reaches a call still waiting,
   and while the item's question waits the call clock neither asks about that call nor stops it for its stall.
-  Only a real stop of the job ends that wait (`docs/agent-control.md`, 「A job turn's tool calls are held to a
+  Only a real stop of the job ends that wait (`docs/agent-control.md`, 「A run's tool calls are held to a
   clock」).
 - **While it waits the job stays under review** and every action of the orderer's is refused `awaits-owner`.
 - **Past its due time with no answer, the job gives its checkout and its agent's seat up:** its assignment is

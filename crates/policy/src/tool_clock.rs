@@ -1,5 +1,5 @@
-//! The clock a job turn's tool calls are held to (docs/agent-control.md, 「A job turn's tool calls are
-//! held to a clock」).
+//! The clock a run's tool calls are held to (docs/agent-control.md, 「A run's tool calls are held to a
+//! clock」).
 
 use serde::Deserialize;
 

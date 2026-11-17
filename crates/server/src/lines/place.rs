@@ -40,6 +40,8 @@ const HOLD_TASKS: &str = "--hold-tasks";
 const HOLD_TEXT_TOOL_CALL: &str = "--hold-text-tool-call";
 const HOLD_WORDING: &str = "--hold-wording";
 const COMPOSE_TYPED: &str = "--compose-typed";
+// The word the shell hook is started with where its line refuses a command that starts Claude Code.
+const REFUSE_CLAUDE: &str = "--refuse-claude";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
 // takes, a day, and the composing it waits on is never cut short by the program.
 const TYPED_HOOK_SECONDS: u64 = 86_400;
@@ -161,8 +163,8 @@ pub struct Holds {
   pub text_tool_call: bool,
   pub wording: bool,
   pub compose_typed: bool,
-  /// Whether a shell command is read before it runs, and one that starts Claude Code refused
-  /// (docs/agents.md, 「No print mode」).
+  /// Whether a shell command that starts Claude Code is refused before it runs (docs/agents.md, 「No print
+  /// mode」). Every shell command is read before it runs either way, to close its standard input.
   pub shell_guard: bool,
 }
 
@@ -206,10 +208,11 @@ const NODE_LINK: &str = "node-link";
 const NODE_LINK_HOME: &str = "home";
 const BRIDGE_VERBS: &str = "bin/bmo";
 
-/// The settings a resident program is started with: the status-line command and the four hooks, each
-/// the tree's `bmo agent status` told which place to write into, and the shell guard where the line asks
-/// for it, merged into the settings the line already hands its program so a hook the line had keeps
-/// standing beside these. Written into the place and named back.
+/// The settings a resident program is started with: the status-line command and the four hooks, each the
+/// tree's `bmo agent status` told which place to write into, and the shell hook, which closes every shell
+/// command's standard input and refuses one that starts Claude Code where the line asks for it, merged into
+/// the settings the line already hands its program so a hook the line had keeps standing beside these.
+/// Written into the place and named back.
 pub fn write_place_settings(
   place: &Path,
   mut settings: Map<String, Value>,
@@ -262,23 +265,11 @@ pub fn write_place_settings(
     ),
   ];
 
-  if holds.shell_guard {
-    own.push((
-      "PreToolUse",
-      json!({ "matcher": "Bash", "hooks": [{ "type": "command", "command": call(SHELL_KIND, &[]) }] }),
-    ));
-  }
-  let mut hooks = settings.get("hooks").and_then(Value::as_object).cloned().unwrap_or_default();
+  let shell_flags: &[&str] = if holds.shell_guard { &[REFUSE_CLAUDE] } else { &[] };
 
-  for (event, entry) in own {
-    let mut entries = hooks.get(event).and_then(Value::as_array).cloned().unwrap_or_default();
-
-    entries.push(entry);
-    hooks.insert(event.to_owned(), Value::Array(entries));
-  }
-
+  own.push(shell_hook(call(SHELL_KIND, shell_flags)));
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
-  settings.insert("hooks".to_owned(), Value::Object(hooks));
+  merge_hooks(&mut settings, own);
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its
   // start until a person answered it; the setting tells it the answer.
   settings.insert("skipDangerousModePermissionPrompt".to_owned(), Value::Bool(true));
@@ -290,6 +281,28 @@ pub fn write_place_settings(
   std::fs::write(&path, format!("{text}\n")).map_err(|why| fault(format!("{}: {why}", path.display())))?;
 
   Ok(path)
+}
+
+// The shell hook's entry, read before every shell call the program makes.
+fn shell_hook(command: String) -> (&'static str, Value) {
+  (
+    "PreToolUse",
+    json!({ "matcher": "Bash", "hooks": [{ "type": "command", "command": command }] }),
+  )
+}
+
+// The hooks named laid after the ones the settings already hold for the same events.
+fn merge_hooks(settings: &mut Map<String, Value>, own: Vec<(&'static str, Value)>) {
+  let mut hooks = settings.get("hooks").and_then(Value::as_object).cloned().unwrap_or_default();
+
+  for (event, entry) in own {
+    let mut entries = hooks.get(event).and_then(Value::as_array).cloned().unwrap_or_default();
+
+    entries.push(entry);
+    hooks.insert(event.to_owned(), Value::Array(entries));
+  }
+
+  settings.insert("hooks".to_owned(), Value::Object(hooks));
 }
 
 /// Whether a variable belongs to one run rather than to the program.

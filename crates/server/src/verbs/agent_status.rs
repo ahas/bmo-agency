@@ -7,8 +7,10 @@
 //! flag, while the turn's final answer is a tool call written as text; started with the wording flag,
 //! while the turn's final answer uses a word `WORDING.md` bans. Started with the typed flag, a
 //! person's submitted line is answered with the composition the service hands it. Started as the shell
-//! guard, it reads a shell command before it runs and refuses one that starts Claude Code (docs/agents.md,
-//! 「No print mode」).
+//! hook, with no place needed, it hands a shell call back with its command behind the line that closes the
+//! shell's standard input (docs/live-claude-guard.md, 「Agency's shell hook closes every command's standard
+//! input」), and with the refusal flag refuses one that starts Claude Code (docs/agents.md, 「No print
+//! mode」).
 //!
 //! It never fails the program: a place it cannot write to costs the record one line, and the status line
 //! still says what it can. A hook that ended otherwise would stand in the program's way.
@@ -41,6 +43,8 @@ pub struct Asked {
   pub hold_text_tool_call: bool,
   pub hold_wording: bool,
   pub compose_typed: bool,
+  /// Whether the shell hook refuses a command that starts Claude Code (docs/agents.md, 「No print mode」).
+  pub refuse_claude: bool,
 }
 
 /// What the hook stands on beside the place: its own environment, the code tree whose `WORDING.md` it holds
@@ -53,8 +57,10 @@ pub struct Ground<'a> {
 }
 
 /// The usage line, said on the error stream where the hook was started without a kind it knows or a place.
-pub const USAGE: &str =
-  "usage: bmo-agency agent-status <status|stop|failure|submit|start|shell> --place <dir>";
+pub const USAGE: &str = concat!(
+  "usage: bmo-agency agent-status <status|stop|failure|submit|start> --place <dir>, ",
+  "or shell [--refuse-claude]"
+);
 
 // The session record's lines written since a moment, or none where it cannot be read.
 fn lines_since(payload: &Value, started_at: i64) -> Option<Vec<Value>> {
@@ -204,14 +210,34 @@ pub async fn typed_hook_output(text: &str, session: &str, port: u16, token: Opti
     .to_string()
 }
 
-/// The shell guard's answer to a PreToolUse call: a refusal where the command starts Claude Code in any
-/// form the job guard reads one, and nothing otherwise. Input it cannot read lets the call through, as the
-/// job guard does where it cannot run: one hook failing must not stop every shell command the agent makes.
-pub fn shell_guard(input: &str) -> Option<String> {
+/// The line put ahead of every shell command, so the shell's own standard input is empty for everything the
+/// command runs (docs/live-claude-guard.md, 「Agency's shell hook closes every command's standard input」).
+pub const CLOSED_INPUT: &str = "exec </dev/null";
+
+/// The shell hook's answer to a PreToolUse call: where `refuse_claude` is asked, a refusal of a command
+/// that starts Claude Code in any form the job guard reads one; otherwise the call as it came, its command
+/// behind the line that closes the shell's standard input. Input it cannot read lets the call through as it
+/// is: one hook failing must not stop every shell command the agent makes.
+pub fn shell_guard(input: &str, refuse_claude: bool) -> Option<String> {
   let input = hook_input(input).ok()?;
   let command = input.command.filter(|_| input.tool == "Bash")?;
 
-  shell_refusal(&command).map(|refused| hook_refusal(&refused))
+  if refuse_claude && let Some(refused) = shell_refusal(&command) {
+    return Some(hook_refusal(&refused));
+  }
+
+  Some(closed_input(input.given, &command))
+}
+
+// The call's whole input again, its command behind the line that closes the shell's standard input, as the
+// program takes a rewritten call: the whole input replaces the one it had. A command that already opens on
+// the line is left as it is.
+fn closed_input(mut given: serde_json::Map<String, Value>, command: &str) -> String {
+  if command.lines().next().map(str::trim) != Some(CLOSED_INPUT) {
+    given.insert("command".to_owned(), Value::String(format!("{CLOSED_INPUT}\n{command}")));
+  }
+
+  json!({ "hookSpecificOutput": { "hookEventName": "PreToolUse", "updatedInput": given } }).to_string()
 }
 
 /// Why a conversational agent's shell may not run this command, or nothing: it starts Claude Code
@@ -230,13 +256,14 @@ pub fn shell_refusal(command: &str) -> Option<String> {
 /// or a typed line's composition. What goes wrong is said on the error stream and never ends the call with
 /// a fault.
 pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Vec<String> {
+  // The shell hook reads only the call it is handed, so it needs no place.
+  if asked.kind == SHELL_KIND {
+    return shell_guard(input, asked.refuse_claude).into_iter().collect();
+  }
+
   if !KINDS.contains(&asked.kind.as_str()) || asked.place.is_empty() {
     eprintln!("{USAGE}");
     return vec![];
-  }
-
-  if asked.kind == SHELL_KIND {
-    return shell_guard(input).into_iter().collect();
   }
 
   let place = Path::new(&asked.place);

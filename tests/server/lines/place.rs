@@ -127,7 +127,11 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
     settings["hooks"]["StopFailure"][0]["hooks"][0]["command"],
     format!("'/deploy/bin/bmo-agency' 'agent-status' 'failure' '--place' '{}'", place.display())
   );
-  assert!(settings["hooks"].get("PreToolUse").is_none());
+  assert_eq!(
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"],
+    format!("'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}'", place.display()),
+    "every place reads a shell call first to close its standard input, refusing nothing"
+  );
 }
 
 #[test]
@@ -150,7 +154,10 @@ fn a_place_whose_line_guards_its_shell_reads_every_bash_call_first() {
   assert_eq!(guard["matcher"], "Bash");
   assert_eq!(
     guard["hooks"][0]["command"],
-    format!("'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}'", place.display())
+    format!(
+      "'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}' '--refuse-claude'",
+      place.display()
+    )
   );
 }
 

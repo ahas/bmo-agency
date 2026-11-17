@@ -39,7 +39,7 @@ variables = { CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS = "1", CLAUDE_CODE_ENABLE_PRO
 login_variables = ["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN"]
 # The variable the program reads its MCP tool idle window from, in milliseconds: a call that sends no
 # response and no progress notification for it is aborted inside the program, and the model is handed a
-# failed result and the turn goes on (docs/agent-control.md, 「A job turn's tool calls are held to a clock」).
+# failed result and the turn goes on (docs/agent-control.md, 「A run's tool calls are held to a clock」).
 mcp_idle_timeout = "CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT"
 # What the program writes itself into a session's conversation: the opening of the environment block it sends
 # after a session's first words, and the tag its reminders stand in.

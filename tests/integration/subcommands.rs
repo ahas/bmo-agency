@@ -76,17 +76,24 @@ fn every_subcommand_a_caller_runs_is_read_by_the_binary() {
 }
 
 #[test]
-fn the_status_lines_shell_guard_refuses_a_launch_of_claude_code_and_lets_another_command_through() {
+fn the_status_lines_shell_hook_refuses_a_launch_of_claude_code_and_closes_another_command_s_input() {
   let place = tempfile::tempdir().unwrap();
   let at = place.path().to_string_lossy().into_owned();
-  let shell = ["agent-status", "shell", "--place", at.as_str()];
-  let refused = run(&shell, r#"{"tool_name":"Bash","tool_input":{"command":"claude -p hello"}}"#);
-  let let_through = run(&shell, r#"{"tool_name":"Bash","tool_input":{"command":"ls -la ."}}"#);
+  let guarded = ["agent-status", "shell", "--place", at.as_str(), "--refuse-claude"];
+  let refused = run(&guarded, r#"{"tool_name":"Bash","tool_input":{"command":"claude -p hello"}}"#);
+  // The shell hook reads only the call, so it answers with no place named.
+  let let_through = run(
+    &["agent-status", "shell"],
+    r#"{"tool_name":"Bash","tool_input":{"command":"ls -la ."}}"#,
+  );
 
   assert!(refused.status.success());
   assert!(String::from_utf8_lossy(&refused.stdout).contains("deny"), "{refused:?}");
   assert!(let_through.status.success());
-  assert_eq!(String::from_utf8_lossy(&let_through.stdout).trim(), "");
+
+  let answer: serde_json::Value = serde_json::from_slice(&let_through.stdout).unwrap();
+
+  assert_eq!(answer["hookSpecificOutput"]["updatedInput"]["command"], "exec </dev/null\nls -la .");
 }
 
 #[test]

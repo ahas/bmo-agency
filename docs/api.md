@@ -774,7 +774,7 @@ keep the metadata their writer filed, and a pane program's shell call carries Cl
 out and the paths the call changed. A `note` the call clock wrote about a job's tool call carries
 `toolClock` there, the call's id, tool, one-line command, process id and elapsed time and what befell it;
 a clock note filed before its fields were kept is answered with them read back out of its words
-(`docs/agent-control.md`, 「A job turn's tool calls are held to a clock」).
+(`docs/agent-control.md`, 「A run's tool calls are held to a clock」).
 
 - **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape. A role's
   name reads the lines under it and the lines of every agent of that role, a job's lines standing under the agent
@@ -1847,7 +1847,7 @@ input, so `bmo` finds it from any directory.
 | Noun | Takes | Calls |
 |---|---|---|
 | `agent` (`agents`) | the agent flags `--help` prints: the providers' switches and the account order, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, the supervisors, roles and repositories with their orders, and a supervisor's gates | the store at the data root, and the service for what it must be told |
-| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
+| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-text-tool-call`, `--hold-wording`, `--compose-typed` or `--refuse-claude`; `shell` alone needs no place and answers the shell call rewritten to close its standard input, or refused where `--refuse-claude` is given and the command starts Claude Code | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
 | `session fold` | `--role <role>`, `--path <path>`, `--model <model>`, `--all` or `--dry-run` | the roles' kept sessions, and the store |
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
@@ -1924,7 +1924,7 @@ another session, `POST /items/{itemId}/notes` is handed the handoff the old sess
 its work to the owner, the job service's `GET /questions` by `itemId` is read for a question asking the same that
 still waits, and `POST /questions` asks it only where none does (`docs/job-review.md`, 「The owner's word」); as a job's tool
 call gone silent and idle is handed over, the same read by `itemId` says whether a question of the job's item still waits,
-which holds the ask (`docs/agent-control.md`, 「A job turn's tool calls are held to a clock」); as a job ends, the
+which holds the ask (`docs/agent-control.md`, 「A run's tool calls are held to a clock」); as a job ends, the
 receiver's `POST /instructions` is handed the report for the room's supervisor; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a supervisor's turn opens a fresh

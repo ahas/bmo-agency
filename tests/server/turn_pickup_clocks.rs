@@ -1,7 +1,8 @@
 //! A turn picked up after agency's restart held to the door's clocks (docs/sessions.md, 「A restart hands the
-//! session over」, docs/agent-control.md, 「A job turn's tool calls are held to a clock」): a blocked call is
-//! cut from the resumed record and its lines kept as a live turn's are, and a job's turn past its bound is
-//! marked stopped, cut, and its item's lease given back with its assignment let go.
+//! session over」, docs/agent-control.md, 「A run's tool calls are held to a clock」): a blocked call is
+//! cut from the resumed record and its lines kept as a live turn's are, a role session's turn is held to
+//! the call clock as a job's is, and a job's turn past its bound is marked stopped, cut, and its item's
+//! lease given back with its assignment let go.
 
 use std::collections::HashMap;
 use std::io::Write as _;
@@ -14,12 +15,13 @@ use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::work::job_turn_ended;
 use agency_server::door::tool_clock::{SilentClock, ToolClock, Watch as ToolWatch};
+use agency_server::herdr_backend::apart_id;
 use agency_server::job_end::keeps_lease;
 use agency_server::now_ms;
 use agency_server::places::Ground;
 use agency_server::queue::stops::job_stop_reason;
 use agency_server::run_log::{RunLog, Target};
-use agency_server::turn_pickup::{InFlight, over_bound, watch_tools};
+use agency_server::turn_pickup::{InFlight, holds_call_clock, over_bound, watch_tools};
 use agent_session::TurnEnd;
 use harness_providers::Machine;
 use serde_json::{Value, json};
@@ -235,6 +237,32 @@ async fn a_resumed_turn_s_blocked_call_is_cut_and_its_lines_are_kept() {
     lines.iter().any(|line| line.contains("ended pid=")),
     "the resumed run's log keeps the end: {lines:?}"
   );
+}
+
+// A turn picked up as it was carried: a session's id, its run and the job it holds.
+fn carried(session: String, run: &str, job: Option<i64>) -> InFlight {
+  InFlight {
+    session,
+    turn: 1,
+    run: run.into(),
+    key: None,
+    agent: "doer".into(),
+    chat_id: None,
+    ledger: None,
+    job,
+    started_at: 0,
+  }
+}
+
+#[test]
+fn a_resumed_role_session_s_turn_is_held_to_the_call_clock_as_a_job_s_is_and_a_supervisor_s_is_not() {
+  let role = carried(apart_id("doer", 7).0, "delegate-doer-1", None);
+  let job = carried(apart_id("worker", 8).0, "job-41", Some(41));
+  let round = carried("bmo@5".into(), "round-5", None);
+
+  assert!(holds_call_clock(&role), "a role's run is held to the call clock with no job");
+  assert!(holds_call_clock(&job), "a job's turn is held to it as before");
+  assert!(!holds_call_clock(&round), "a supervisor's round is not");
 }
 
 #[tokio::test]

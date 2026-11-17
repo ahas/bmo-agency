@@ -166,10 +166,11 @@ pub async fn runner_command(
 }
 
 /// The worker line's command a role's run goes out on at its scope's folder, as one login carries it on the
-/// session given (docs/agents.md, 「A run in a pane of its own」): the platform's harness opening and the role's
-/// own prompt, the line's standing rules and, where the folder is a repository's checkout, the repository's
-/// own; on the scope's model at the effort the turn's mapping names; with the turn's variables, the role and
-/// the record its scope names, and the job's mark where it is a job's, in its environment.
+/// session given (docs/agents.md, 「A run in a pane of its own」): the platform's harness opening and the
+/// role's own prompt, the line's standing rules and, where the folder is a repository's checkout, the
+/// repository's own; on the scope's model at the effort the turn's mapping names; with the turn's
+/// variables, the role and the record its scope names, the call clock's MCP idle window, and the job's mark
+/// where it is a job's, in its environment.
 #[allow(clippy::too_many_arguments)]
 pub async fn role_command(
   ground: &Ground,
@@ -233,6 +234,10 @@ pub async fn role_command(
     env.insert(TASK_LOCKED.to_owned(), Some("1".to_owned()));
   }
 
+  let (idle, window) = mcp_idle_window();
+
+  env.entry(idle).or_insert(Some(window));
+
   let command = Command {
     args: claude::worker_args(&line, &line.settings, Some(&Session::Open(session.to_owned())))?,
     cwd: line.cwd.clone(),
@@ -287,8 +292,9 @@ pub fn after_unanswered(resume: &Resume, went_on: Option<&str>, evidence: &str) 
 }
 
 /// The composed turn handed what its runner named beyond the line: its variables beside the line's own,
-/// the agent it is a turn of, the job marker where it has a job and none otherwise, its work key, and the
-/// unit its execution is a child of and counted under, so a stop of the unit reaches it.
+/// the agent it is a turn of, the job marker where it has a job and none otherwise, the MCP idle window of
+/// the call clock, its work key, and the unit its execution is a child of and counted under, so a stop of
+/// the unit reaches it.
 pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobMark>) -> Turn {
   for (name, value) in &work.variables {
     turn.env.entry(name.clone()).or_insert_with(|| value.clone());
@@ -297,23 +303,14 @@ pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobM
   turn.env.insert(TURN_AGENT.to_owned(), agent.to_owned());
 
   if job.is_some() {
-    use policy::providers::claude_code::CLAUDE_CODE;
-    use policy::tool_clock::TOOL_CLOCK;
-
     turn.env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
-
-    // A call that waits inside the program on a socket sends no response; the program's own MCP idle
-    // window is the call clock's in-process bound, and at it the program aborts the call and hands the
-    // model a failed result (docs/agent-control.md, 「A job turn's tool calls are held to a clock」). A
-    // value the caller set stands.
-    let seconds = TOOL_CLOCK.call.in_process_seconds.max(TOOL_CLOCK.call.min_seconds);
-    turn
-      .env
-      .entry(CLAUDE_CODE.launch.mcp_idle_timeout.clone())
-      .or_insert_with(|| seconds.saturating_mul(1_000).to_string());
   } else {
     turn.env.remove(TASK_LOCKED);
   }
+
+  let (name, window) = mcp_idle_window();
+
+  turn.env.entry(name).or_insert(window);
 
   if let Some(unit) = &work.unit {
     turn.identity.parent = Some(unit.clone());
@@ -321,6 +318,19 @@ pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobM
   }
 
   turn
+}
+
+/// The variable the program reads its MCP idle window from, and the window a job's turn and a role's run
+/// give it. A call that waits inside the program on a socket sends no response; the window is the call
+/// clock's in-process bound, and at it the program aborts the call and hands the model a failed result
+/// (docs/agent-control.md, 「A run's tool calls are held to a clock」). A value the caller set stands.
+pub fn mcp_idle_window() -> (String, String) {
+  use policy::providers::claude_code::CLAUDE_CODE;
+  use policy::tool_clock::TOOL_CLOCK;
+
+  let seconds = TOOL_CLOCK.call.in_process_seconds.max(TOOL_CLOCK.call.min_seconds);
+
+  (CLAUDE_CODE.launch.mcp_idle_timeout.clone(), seconds.saturating_mul(1_000).to_string())
 }
 
 /// Whether any of the record's lines is the program compacting its session.
@@ -1374,8 +1384,29 @@ impl Attempting<'_, '_> {
   }
 }
 
-// What a job's turn is watched with: the run log it feeds, and whether the program compacted its session.
-// A question the program stops on is put to the turn's caller over the session it goes on.
+/// The clocks a turn the door carries for a job or a role's session is held to.
+#[derive(Clone, Debug)]
+pub struct WorkClocks {
+  /// The call clock, which holds a job's turn and a role's run alike: a call that makes no progress is cut
+  /// and the turn goes on (docs/agent-control.md, 「A run's tool calls are held to a clock」).
+  pub call: ToolClock,
+  /// The hard bound, a job's turn's alone: it holds an item and the queue behind it.
+  pub bound: Option<Duration>,
+}
+
+/// The clocks of a turn of the job named, or of a role session's turn where none is.
+pub fn work_clocks(job: Option<JobMark>) -> WorkClocks {
+  use policy::tool_clock::TOOL_CLOCK;
+
+  WorkClocks {
+    call: ToolClock::from(&TOOL_CLOCK.call),
+    bound: job.map(|_| Duration::from_secs(TOOL_CLOCK.turn.bound_minutes.saturating_mul(60))),
+  }
+}
+
+// What a job's turn or a role session's turn is watched with: the run log it feeds, and whether the program
+// compacted its session. A question the program stops on is put to the turn's caller over the session it
+// goes on.
 struct WorkWatch<'w> {
   ground: &'w Ground,
   log: &'w mut RunLog,
@@ -1384,7 +1415,7 @@ struct WorkWatch<'w> {
   run: &'w str,
   questions: &'w Questions,
   shown: &'w dyn Shows,
-  /// The job the turn is of; none for a thrown-away session's turn, which keeps no clock.
+  /// The job the turn is of; none for a role session's turn, which keeps no ask and no bound.
   job: Option<JobMark>,
   /// The asks opened on the job's tool calls gone silent and idle.
   asks: Option<CallAsks>,
@@ -1400,13 +1431,11 @@ impl Watch for WorkWatch<'_> {
   }
 
   fn tool_clock(&self) -> Option<ToolClock> {
-    self.job.map(|_| ToolClock::from(&policy::tool_clock::TOOL_CLOCK.call))
+    Some(work_clocks(self.job).call)
   }
 
   fn turn_clock(&self) -> Option<Duration> {
-    use policy::tool_clock::TOOL_CLOCK;
-
-    self.job.map(|_| Duration::from_secs(TOOL_CLOCK.turn.bound_minutes.saturating_mul(60)))
+    work_clocks(self.job).bound
   }
 
   // A job's call gone silent and idle is asked about, its verdict read on each read while the ask stands.

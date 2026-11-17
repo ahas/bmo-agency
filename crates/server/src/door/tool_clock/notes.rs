@@ -1,8 +1,8 @@
-//! What the call clock says of a call (docs/agent-control.md, 「A job turn's tool calls are held to a
-//! clock」): the facts as fields, which a run's log keeps as the line's `toolClock` metadata, and the
-//! sentence the unit's own log and the line's words read as. A line filed before the fields were kept is
-//! read back into them out of its sentence; the sentence is this unit's own grammar, written here beside the
-//! reading, not a general format any library reads.
+//! What the call clock says of a call (docs/agent-control.md, 「A run's tool calls are held to a clock」):
+//! the facts as fields, which a run's log keeps as the line's `toolClock` metadata, and the sentence the
+//! unit's own log and the line's words read as. A line filed before the fields were kept is read back into
+//! them out of its sentence; the sentence is this unit's own grammar, written here beside the reading, not
+//! a general format any library reads.
 
 use serde_json::{Value, json};
 

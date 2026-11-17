@@ -61,7 +61,7 @@ async fn line_of(
   let words: String = row.try_get("", "text")?;
   let metadata = text("metadata")?.and_then(|held| serde_json::from_str::<Value>(&held).ok());
   // A clock note filed before its fields were kept is answered with them read back out of its sentence
-  // (docs/agent-control.md, 「A job turn's tool calls are held to a clock」).
+  // (docs/agent-control.md, 「A run's tool calls are held to a clock」).
   let metadata = match metadata {
     None if kind == "note" => ClockNote::read(&words).map(|note| note.fields()),
     held => held,

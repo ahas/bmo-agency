@@ -1,9 +1,10 @@
-//! The status-line command and the hooks of an agent's resident program as `bmo-agency agent-status` answers them
-//! (docs/agent-control.md, 「What a resident turn reads」): what each call writes into the place, the status
-//! line, the holds a stop is given while its background work runs or its answer uses a banned word, a turn's
-//! end left open while the round owes a turn, and a person's typed line answered with the service's
-//! composition, and the shell guard's reading of a command. Each call is the verb's own function, run on a
-//! place of the test's own.
+//! The status-line command and the hooks of an agent's resident program as `bmo-agency agent-status`
+//! answers them (docs/agent-control.md, 「What a resident turn reads」): what each call writes into the
+//! place, the status line, the holds a stop is given while its background work runs or its answer uses a
+//! banned word, a turn's end left open while the round owes a turn, and a person's typed line answered with
+//! the service's composition, and the shell hook's answer to a command: its standard input closed, and a
+//! Claude launch refused where the line asks. Each call is the verb's own function, run on a place of the
+//! test's own.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ use agency_server::door::place_run::{
   begin_run, end_run, hand_run, person_submits, read_hooks, read_run, read_status,
 };
 use agency_server::verbs::agent_status::{
-  Asked, Ground, agent_status, shell_guard, typed_hook_output, typed_submission,
+  Asked, CLOSED_INPUT, Ground, agent_status, shell_guard, typed_hook_output, typed_submission,
 };
 use agency_server::wording::{WORDING_DOCUMENT, parse_glossary};
 use axum::Router;
@@ -62,6 +63,7 @@ impl Hook {
       hold_text_tool_call: flags.contains(&"--hold-text-tool-call"),
       hold_wording: flags.contains(&"--hold-wording"),
       compose_typed: flags.contains(&"--compose-typed"),
+      refuse_claude: flags.contains(&"--refuse-claude"),
     };
     let ground = Ground {
       env: &self.env,
@@ -428,15 +430,85 @@ fn a_typed_line_is_handed_over_with_its_session_and_an_empty_line_a_slash_comman
   assert_eq!(typed_submission(&json!("not json")), None);
 }
 
-// The shell guard's answer to a Bash call: the reason it denies one, or none for a call let through.
+// The shell hook's answer to a Bash call on a supervisor's program, which refuses a Claude launch: the
+// reason it denies one, or none for a call let through.
 fn shell_refusal(command: &str) -> Option<String> {
-  let answer =
-    shell_guard(&json!({ "tool_name": "Bash", "tool_input": { "command": command } }).to_string())?;
+  let answer = shell_guard(&bash_call(command), true).unwrap();
   let answer: Value = serde_json::from_str(&answer).unwrap();
 
-  assert_eq!(answer["hookSpecificOutput"]["permissionDecision"], "deny");
-
   answer["hookSpecificOutput"]["permissionDecisionReason"].as_str().map(str::to_owned)
+}
+
+// A Bash call as the program hands it to the hook.
+fn bash_call(command: &str) -> String {
+  json!({ "tool_name": "Bash", "tool_input": {
+    "command": command, "description": "what it does", "timeout": 600_000, "run_in_background": false,
+  } })
+  .to_string()
+}
+
+// The call the shell hook hands the program back in place of the one it was handed.
+fn rewritten(command: &str, refuse_claude: bool) -> Value {
+  let answer: Value =
+    serde_json::from_str(&shell_guard(&bash_call(command), refuse_claude).unwrap()).unwrap();
+
+  assert_eq!(answer["hookSpecificOutput"]["hookEventName"], "PreToolUse");
+  assert!(answer["hookSpecificOutput"].get("permissionDecision").is_none(), "{answer}");
+
+  answer["hookSpecificOutput"]["updatedInput"].clone()
+}
+
+/// hands every shell call back whole with its command behind the line that closes the shell's standard
+/// input, on every program, and a Claude launch too where the line does not refuse one
+#[test]
+fn the_shell_hook_closes_every_command_s_standard_input_and_keeps_the_rest_of_the_call() {
+  let command = r#"rg -n '"<tool_call>"|<function=' -g '*.rs' | head"#;
+  let call = rewritten(command, false);
+
+  assert_eq!(call["command"], format!("{CLOSED_INPUT}\n{command}"));
+  assert_eq!(call["description"], "what it does");
+  assert_eq!(call["timeout"], 600_000);
+  assert_eq!(call["run_in_background"], false);
+  assert_eq!(
+    rewritten(&format!("{CLOSED_INPUT}\nls ."), false)["command"],
+    format!("{CLOSED_INPUT}\nls .")
+  );
+  assert_eq!(rewritten("claude -p hi", false)["command"], format!("{CLOSED_INPUT}\nclaude -p hi"));
+  assert_eq!(rewritten("ls -la .", true)["command"], format!("{CLOSED_INPUT}\nls -la ."));
+}
+
+/// a reader given nothing to read ends at once under the rewritten command, though the shell itself stands
+/// on an input nothing ever writes to or closes, as the program's shell does where it reads a redirection
+#[test]
+fn a_reader_named_nothing_ends_under_the_rewritten_command_while_its_shell_s_input_stays_open() {
+  let command = rewritten("cat; echo ended", false)["command"].as_str().unwrap().to_owned();
+  let mut shell = std::process::Command::new("bash")
+    .args(["-c", &command])
+    .stdin(std::process::Stdio::piped())
+    .stdout(std::process::Stdio::piped())
+    .spawn()
+    .unwrap();
+  // Held, never written to and never closed, until the shell has ended.
+  let input = shell.stdin.take();
+  let ended = (0..200).find_map(|_| {
+    let done = shell.try_wait().unwrap();
+
+    if done.is_none() {
+      std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    done
+  });
+
+  if ended.is_none() {
+    let _ = shell.kill();
+  }
+
+  let output = shell.wait_with_output().unwrap();
+
+  drop(input);
+  assert!(ended.is_some_and(|status| status.success()), "the reader waited on the open input");
+  assert_eq!(String::from_utf8_lossy(&output.stdout), "ended\n");
 }
 
 /// refuses a shell command that starts Claude Code, and lets every other through
@@ -457,10 +529,10 @@ fn the_shell_guard_refuses_a_shell_command_that_starts_claude_code_and_lets_ever
   }
 
   assert_eq!(
-    shell_guard(&json!({ "tool_name": "Read", "tool_input": { "file_path": "/x" } }).to_string()),
+    shell_guard(&json!({ "tool_name": "Read", "tool_input": { "file_path": "/x" } }).to_string(), true),
     None
   );
-  assert_eq!(shell_guard("not json"), None);
+  assert_eq!(shell_guard("not json", true), None);
 }
 
 // A service that refuses every line.

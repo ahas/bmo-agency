@@ -109,7 +109,7 @@ enum Verb {
   #[command(hide = true)]
   GuardShell,
   /// An agent's resident program's status line and hooks, with what it has to say on standard input; and
-  /// its shell guard, which refuses a shell command that starts Claude Code.
+  /// its shell hook, which closes a shell command's standard input and refuses one that starts Claude Code.
   AgentStatus {
     /// status, stop, failure, submit, start or shell.
     kind: Option<String>,
@@ -123,6 +123,9 @@ enum Verb {
     hold_wording: bool,
     #[arg(long)]
     compose_typed: bool,
+    /// The shell hook refuses a command that starts Claude Code.
+    #[arg(long)]
+    refuse_claude: bool,
   },
   /// The live Claude runs a job opens, each with what it measures and why; with --list, what it opened.
   LiveClaude {
@@ -551,6 +554,7 @@ async fn run(verb: Verb) -> ExitCode {
       hold_text_tool_call,
       hold_wording,
       compose_typed,
+      refuse_claude,
     } => {
       let asked = agent_status::Asked {
         kind: kind.unwrap_or_default(),
@@ -559,6 +563,7 @@ async fn run(verb: Verb) -> ExitCode {
         hold_text_tool_call,
         hold_wording,
         compose_typed,
+        refuse_claude,
       };
       // A standing input that cannot be read is an empty one: the hook never stands in the program's way.
       let input = standing_input();

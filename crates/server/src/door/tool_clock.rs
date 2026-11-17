@@ -1,7 +1,7 @@
-//! A job turn's tool calls held to a clock (docs/agent-control.md, 「A job turn's tool calls are held to a
-//! clock」). A call is read off the turn's record: its `tool_use` block until the `tool_result` that answers
-//! it. The process tree of the turn's program is read as the kernel names it, and what the call owns is the
-//! part of that tree that began with the call.
+//! A run's tool calls held to a clock (docs/agent-control.md, 「A run's tool calls are held to a clock」). A
+//! call is read off the turn's record: its `tool_use` block until the `tool_result` that answers it. The
+//! process tree of the turn's program is read as the kernel names it, and what the call owns is the part of
+//! that tree that began with the call.
 //!
 //! A call that has burned no processor time for its stall is stopped: its process tree is signalled, the
 //! program's tool comes back to the model as a failed result, and the turn goes on. A call that keeps

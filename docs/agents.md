@@ -81,7 +81,9 @@ flowchart TD
 - **No agent starts Claude Code itself.**
   - A supervisor's program carries a shell guard: a command that would start `claude` in any form the job
     guard reads one is refused before it runs, and the refusal tells it to hand the work over with its
-    `task` tool or to put it on the TODO.
+    `task` tool or to put it on the TODO. The guard is agency's shell hook, which closes every command's
+    standard input on every program it stands on (`docs/live-claude-guard.md`, 「Agency's shell hook
+    closes every command's standard input」) and refuses this on a supervisor's alone.
   - A job's guard refuses print mode outright, whatever the job has opened (`docs/live-claude-guard.md`).
 - **The check:** a test reads this repository's code for a place that launches Claude Code in print mode,
   and fails on any it finds.

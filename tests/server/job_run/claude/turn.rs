@@ -9,6 +9,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::Duration;
 
 use agency_server::Service;
 use agency_server::config::Config;
@@ -17,12 +18,13 @@ use agency_server::door::record::{
   AccountWindow, LiveTask, ModelSpend, Reply, ReplyWindow, RequestUsage, RunWorkflow, UsageSpent,
 };
 use agency_server::door::stand::Interrupt;
+use agency_server::door::tool_clock::ToolClock;
 use agency_server::door::turn::{Seat, Timings, Turn};
 use agency_server::herdr_backend::{HerdrSessions, carried_of};
 use agency_server::job_run::claude::failure::{AccountFailure, Failure, RunEnding};
 use agency_server::job_run::claude::turn::{
   Beside, Choice, Settled, TASK_LOCKED, TURN_AGENT, Unanswered, after_unanswered, choose, compacts, ended,
-  failure_of, noted, with_work,
+  failure_of, noted, with_work, work_clocks,
 };
 use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
@@ -187,10 +189,38 @@ fn a_job_turn_carries_its_variables_its_agent_its_jobs_marker_its_work_key_and_i
   let research = with_work(composed(), "worker-a", &work(Resume::Fresh), None);
 
   assert!(!research.env.contains_key(TASK_LOCKED), "a turn with no job works for none");
-  assert!(
-    !research.env.contains_key(&CLAUDE_CODE.launch.mcp_idle_timeout),
-    "a turn with no job keeps no call clock, so it sets no idle window"
+  assert_eq!(
+    research.env[&CLAUDE_CODE.launch.mcp_idle_timeout],
+    idle.to_string(),
+    "a role session's turn is held to the call clock too, so it reads the same idle window"
   );
+}
+
+#[test]
+fn a_role_session_s_turn_is_held_to_the_call_clock_and_only_a_job_s_turn_to_the_bound() {
+  let job = work_clocks(Some(JobMark {
+    job: 41,
+    item: Some(1802),
+  }));
+  let role = work_clocks(None);
+  let clock = ToolClock::from(&TOOL_CLOCK.call);
+
+  assert_eq!(
+    format!("{:?}", job.call),
+    format!("{clock:?}"),
+    "a job's turn keeps the call clock it had"
+  );
+  assert_eq!(
+    job.bound,
+    Some(Duration::from_secs(TOOL_CLOCK.turn.bound_minutes * 60)),
+    "a job's turn keeps its hard bound"
+  );
+  assert_eq!(
+    format!("{:?}", role.call),
+    format!("{clock:?}"),
+    "a role's run is held to the same call clock"
+  );
+  assert_eq!(role.bound, None, "a role's run holds no item, so it has no hard bound");
 }
 
 #[test]
