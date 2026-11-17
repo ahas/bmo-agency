@@ -215,6 +215,8 @@ fn record(
     capabilities: capabilities.into_iter().collect(),
     grants: grants.into_iter().map(|resource| Granted { resource }).collect(),
     shown: RUN_LINES.shown(line).iter().cloned().collect(),
+    // A run reaches every entry its lines' namespaces and capabilities give it.
+    entries: None,
     variables,
     variables_file: None,
     labels,
