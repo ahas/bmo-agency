@@ -40,8 +40,14 @@ const HOLD_TASKS: &str = "--hold-tasks";
 const HOLD_TEXT_TOOL_CALL: &str = "--hold-text-tool-call";
 const HOLD_WORDING: &str = "--hold-wording";
 const COMPOSE_TYPED: &str = "--compose-typed";
-// The word the shell hook is started with where its line refuses a command that starts Claude Code.
+// The words the shell hook is started with where its line guards its shell: it refuses a command that
+// starts Claude Code, and a shell call or a subagent put in the program's own background.
 const REFUSE_CLAUDE: &str = "--refuse-claude";
+const REFUSE_BACKGROUND: &str = "--refuse-background";
+// The calls the shell hook reads: the shell alone, and on a guarded program its subagents too, whose own
+// background it refuses.
+const SHELL_CALLS: &str = "Bash";
+const GUARDED_CALLS: &str = "Bash|Agent|Task";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
 // takes, a day, and the composing it waits on is never cut short by the program.
 const TYPED_HOOK_SECONDS: u64 = 86_400;
@@ -164,7 +170,9 @@ pub struct Holds {
   pub wording: bool,
   pub compose_typed: bool,
   /// Whether a shell command that starts Claude Code is refused before it runs (docs/agents.md, 「No print
-  /// mode」). Every shell command is read before it runs either way, to close its standard input.
+  /// mode」), and a shell call or a subagent the program would put in its own background
+  /// (docs/supervisors.md, 「A supervisor's long work」). Every shell command is read before it runs either
+  /// way, to close its standard input.
   pub shell_guard: bool,
 }
 
@@ -265,9 +273,10 @@ pub fn write_place_settings(
     ),
   ];
 
-  let shell_flags: &[&str] = if holds.shell_guard { &[REFUSE_CLAUDE] } else { &[] };
-
-  own.push(shell_hook(call(SHELL_KIND, shell_flags)));
+  own.push(match holds.shell_guard {
+    true => shell_hook(GUARDED_CALLS, call(SHELL_KIND, &[REFUSE_CLAUDE, REFUSE_BACKGROUND])),
+    false => shell_hook(SHELL_CALLS, call(SHELL_KIND, &[])),
+  });
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
   merge_hooks(&mut settings, own);
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its
@@ -283,11 +292,11 @@ pub fn write_place_settings(
   Ok(path)
 }
 
-// The shell hook's entry, read before every shell call the program makes.
-fn shell_hook(command: String) -> (&'static str, Value) {
+// The shell hook's entry, read before every call of the tools `matcher` names that the program makes.
+fn shell_hook(matcher: &str, command: String) -> (&'static str, Value) {
   (
     "PreToolUse",
-    json!({ "matcher": "Bash", "hooks": [{ "type": "command", "command": command }] }),
+    json!({ "matcher": matcher, "hooks": [{ "type": "command", "command": command }] }),
   )
 }
 

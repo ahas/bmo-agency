@@ -14,7 +14,7 @@ use agency_server::door::place_run::{
   begin_run, end_run, hand_run, person_submits, read_hooks, read_run, read_status,
 };
 use agency_server::verbs::agent_status::{
-  Asked, CLOSED_INPUT, Ground, agent_status, shell_guard, typed_hook_output, typed_submission,
+  Asked, CLOSED_INPUT, Ground, Refuses, agent_status, shell_guard, typed_hook_output, typed_submission,
 };
 use agency_server::wording::{WORDING_DOCUMENT, parse_glossary};
 use axum::Router;
@@ -63,7 +63,10 @@ impl Hook {
       hold_text_tool_call: flags.contains(&"--hold-text-tool-call"),
       hold_wording: flags.contains(&"--hold-wording"),
       compose_typed: flags.contains(&"--compose-typed"),
-      refuse_claude: flags.contains(&"--refuse-claude"),
+      refuses: Refuses {
+        claude: flags.contains(&"--refuse-claude"),
+        background: flags.contains(&"--refuse-background"),
+      },
     };
     let ground = Ground {
       env: &self.env,
@@ -430,10 +433,22 @@ fn a_typed_line_is_handed_over_with_its_session_and_an_empty_line_a_slash_comman
   assert_eq!(typed_submission(&json!("not json")), None);
 }
 
+// What a supervisor's program has its shell hook refuse.
+const SUPERVISOR_S: Refuses = Refuses {
+  claude: true,
+  background: true,
+};
+
+// What every other program has it refuse: nothing.
+const OTHER_S: Refuses = Refuses {
+  claude: false,
+  background: false,
+};
+
 // The shell hook's answer to a Bash call on a supervisor's program, which refuses a Claude launch: the
 // reason it denies one, or none for a call let through.
 fn shell_refusal(command: &str) -> Option<String> {
-  let answer = shell_guard(&bash_call(command), true).unwrap();
+  let answer = shell_guard(&bash_call(command), SUPERVISOR_S).unwrap();
   let answer: Value = serde_json::from_str(&answer).unwrap();
 
   answer["hookSpecificOutput"]["permissionDecisionReason"].as_str().map(str::to_owned)
@@ -449,8 +464,11 @@ fn bash_call(command: &str) -> String {
 
 // The call the shell hook hands the program back in place of the one it was handed.
 fn rewritten(command: &str, refuse_claude: bool) -> Value {
-  let answer: Value =
-    serde_json::from_str(&shell_guard(&bash_call(command), refuse_claude).unwrap()).unwrap();
+  let refuses = Refuses {
+    claude: refuse_claude,
+    background: false,
+  };
+  let answer: Value = serde_json::from_str(&shell_guard(&bash_call(command), refuses).unwrap()).unwrap();
 
   assert_eq!(answer["hookSpecificOutput"]["hookEventName"], "PreToolUse");
   assert!(answer["hookSpecificOutput"].get("permissionDecision").is_none(), "{answer}");
@@ -529,10 +547,69 @@ fn the_shell_guard_refuses_a_shell_command_that_starts_claude_code_and_lets_ever
   }
 
   assert_eq!(
-    shell_guard(&json!({ "tool_name": "Read", "tool_input": { "file_path": "/x" } }).to_string(), true),
+    shell_guard(
+      &json!({ "tool_name": "Read", "tool_input": { "file_path": "/x" } }).to_string(),
+      SUPERVISOR_S
+    ),
     None
   );
-  assert_eq!(shell_guard("not json", true), None);
+  assert_eq!(shell_guard("not json", SUPERVISOR_S), None);
+}
+
+// A call of `tool` as the program hands it to the hook, asked to run in the background or not.
+fn call_of(tool: &str, background: bool) -> String {
+  let input = match tool {
+    "Bash" => json!({ "command": "sleep 900", "description": "wait", "run_in_background": background }),
+    _ => {
+      json!({
+        "description": "find it", "prompt": "find it", "subagent_type": "general-purpose",
+        "run_in_background": background,
+      })
+    }
+  };
+
+  json!({ "tool_name": tool, "tool_input": input }).to_string()
+}
+
+/// refuses, on a supervisor's program, a shell call or a subagent asked to run in the program's own
+/// background, naming the road its long work takes instead, and lets the same calls through in the foreground
+#[test]
+fn a_supervisor_s_background_shell_or_subagent_is_refused_and_its_foreground_one_goes_ahead() {
+  for tool in ["Bash", "Agent", "Task"] {
+    let answer: Value =
+      serde_json::from_str(&shell_guard(&call_of(tool, true), SUPERVISOR_S).unwrap()).unwrap();
+    let reason = answer["hookSpecificOutput"]["permissionDecisionReason"].as_str().unwrap();
+
+    assert_eq!(answer["hookSpecificOutput"]["permissionDecision"], "deny", "{tool}: {answer}");
+    assert!(reason.starts_with(&format!("refused: a {tool} call put in the background")), "{reason}");
+    assert!(reason.contains("bmo/wait with --async"), "{reason}");
+  }
+
+  let shell: Value =
+    serde_json::from_str(&shell_guard(&call_of("Bash", false), SUPERVISOR_S).unwrap()).unwrap();
+
+  assert_eq!(
+    shell["hookSpecificOutput"]["updatedInput"]["command"],
+    format!("{CLOSED_INPUT}\nsleep 900")
+  );
+  assert_eq!(
+    shell_guard(&call_of("Agent", false), SUPERVISOR_S),
+    None,
+    "a subagent in the turn goes ahead"
+  );
+}
+
+/// lets every other program, a job's among them, put its shell call in the background, its input closed as
+/// any other shell call's
+#[test]
+fn another_program_s_background_shell_goes_ahead_with_its_input_closed() {
+  let answer: Value = serde_json::from_str(&shell_guard(&call_of("Bash", true), OTHER_S).unwrap()).unwrap();
+  let call = &answer["hookSpecificOutput"]["updatedInput"];
+
+  assert!(answer["hookSpecificOutput"].get("permissionDecision").is_none(), "{answer}");
+  assert_eq!(call["command"], format!("{CLOSED_INPUT}\nsleep 900"));
+  assert_eq!(call["run_in_background"], true);
+  assert_eq!(shell_guard(&call_of("Agent", true), OTHER_S), None);
 }
 
 // A service that refuses every line.

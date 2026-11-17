@@ -9,8 +9,9 @@
 //! person's submitted line is answered with the composition the service hands it. Started as the shell
 //! hook, with no place needed, it hands a shell call back with its command behind the line that closes the
 //! shell's standard input (docs/live-claude-guard.md, 「Agency's shell hook closes every command's standard
-//! input」), and with the refusal flag refuses one that starts Claude Code (docs/agents.md, 「No print
-//! mode」).
+//! input」); with its refusal flags it refuses one that starts Claude Code (docs/agents.md, 「No print
+//! mode」), and a shell call or a subagent put in the program's own background (docs/supervisors.md, 「A
+//! supervisor's long work」).
 //!
 //! It never fails the program: a place it cannot write to costs the record one line, and the status line
 //! still says what it can. A hook that ended otherwise would stand in the program's way.
@@ -43,8 +44,8 @@ pub struct Asked {
   pub hold_text_tool_call: bool,
   pub hold_wording: bool,
   pub compose_typed: bool,
-  /// Whether the shell hook refuses a command that starts Claude Code (docs/agents.md, 「No print mode」).
-  pub refuse_claude: bool,
+  /// What the shell hook refuses beside closing a shell command's standard input.
+  pub refuses: Refuses,
 }
 
 /// What the hook stands on beside the place: its own environment, the code tree whose `WORDING.md` it holds
@@ -59,7 +60,7 @@ pub struct Ground<'a> {
 /// The usage line, said on the error stream where the hook was started without a kind it knows or a place.
 pub const USAGE: &str = concat!(
   "usage: bmo-agency agent-status <status|stop|failure|submit|start> --place <dir>, ",
-  "or shell [--refuse-claude]"
+  "or shell [--refuse-claude] [--refuse-background]"
 );
 
 // The session record's lines written since a moment, or none where it cannot be read.
@@ -214,19 +215,49 @@ pub async fn typed_hook_output(text: &str, session: &str, port: u16, token: Opti
 /// command runs (docs/live-claude-guard.md, 「Agency's shell hook closes every command's standard input」).
 pub const CLOSED_INPUT: &str = "exec </dev/null";
 
-/// The shell hook's answer to a PreToolUse call: where `refuse_claude` is asked, a refusal of a command
-/// that starts Claude Code in any form the job guard reads one; otherwise the call as it came, its command
-/// behind the line that closes the shell's standard input. Input it cannot read lets the call through as it
-/// is: one hook failing must not stop every shell command the agent makes.
-pub fn shell_guard(input: &str, refuse_claude: bool) -> Option<String> {
+/// What the shell hook refuses beside closing every shell command's standard input: a supervisor's program
+/// asks both (docs/supervisors.md, 「A supervisor's long work」), every other program neither.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Refuses {
+  /// A shell command that starts Claude Code (docs/agents.md, 「No print mode」).
+  pub claude: bool,
+  /// A shell call or a subagent the program would put in its own background.
+  pub background: bool,
+}
+
+/// The tools whose call the program can put in its own background.
+const BACKGROUND_TOOLS: [&str; 3] = ["Bash", "Agent", "Task"];
+
+/// The shell hook's answer to a PreToolUse call: where `refuses` asks it, a refusal of a call put in the
+/// program's own background or of a command that starts Claude Code in any form the job guard reads one;
+/// otherwise a shell call as it came, its command behind the line that closes the shell's standard input,
+/// and nothing for any other call. Input it cannot read lets the call through as it is: one hook failing
+/// must not stop every call the agent makes.
+pub fn shell_guard(input: &str, refuses: Refuses) -> Option<String> {
   let input = hook_input(input).ok()?;
+
+  if refuses.background && input.call.background && BACKGROUND_TOOLS.contains(&input.tool.as_str()) {
+    return Some(hook_refusal(&background_refusal(&input.tool)));
+  }
+
   let command = input.command.filter(|_| input.tool == "Bash")?;
 
-  if refuse_claude && let Some(refused) = shell_refusal(&command) {
+  if refuses.claude
+    && let Some(refused) = shell_refusal(&command)
+  {
     return Some(hook_refusal(&refused));
   }
 
   Some(closed_input(input.given, &command))
+}
+
+/// Why a supervisor's program may not put a call in its own background: the door reads its round as working
+/// while that work runs, so the reply it has written waits for the work, and a result that lands after the
+/// round reaches no room (docs/supervisors.md, 「A supervisor's long work」).
+pub fn background_refusal(tool: &str) -> String {
+  format!(
+    "refused: a {tool} call put in the background. Your reply would wait until it ends, and its result reaches no room. Run a subagent inside your turn; launch longer work apart with its output in a log and call bmo/wait with --async and a check on that log, whose wake brings the result back to this room (docs/supervisors.md, 「A supervisor's long work」)."
+  )
 }
 
 // The call's whole input again, its command behind the line that closes the shell's standard input, as the
@@ -258,7 +289,7 @@ pub fn shell_refusal(command: &str) -> Option<String> {
 pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Vec<String> {
   // The shell hook reads only the call it is handed, so it needs no place.
   if asked.kind == SHELL_KIND {
-    return shell_guard(input, asked.refuse_claude).into_iter().collect();
+    return shell_guard(input, asked.refuses).into_iter().collect();
   }
 
   if !KINDS.contains(&asked.kind.as_str()) || asked.place.is_empty() {

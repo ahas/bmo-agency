@@ -884,7 +884,7 @@ const CALL_AS_TEXT: &str = "\n\n<tool_call>\n<|im_start|>function>\n</function>\
 // What the stop hook a settings file names answers a bot's run whose final answer is `answer`: the hook's
 // words read off the settings as the program reads them, the bot's run begun first in the place they name.
 async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
-  use agency_server::verbs::agent_status::{Asked, Ground as HookGround, agent_status};
+  use agency_server::verbs::agent_status::{Asked, Ground as HookGround, Refuses, agent_status};
 
   let settings: Value = serde_json::from_str(&std::fs::read_to_string(settings).unwrap()).unwrap();
   let stop = settings["hooks"]["Stop"]
@@ -917,7 +917,10 @@ async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
     hold_text_tool_call: flag("--hold-text-tool-call"),
     hold_wording: flag("--hold-wording"),
     compose_typed: flag("--compose-typed"),
-    refuse_claude: flag("--refuse-claude"),
+    refuses: Refuses {
+      claude: flag("--refuse-claude"),
+      background: flag("--refuse-background"),
+    },
   };
   let hook_ground = HookGround {
     env: &BTreeMap::new(),

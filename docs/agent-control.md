@@ -285,7 +285,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   `UserPromptSubmit` and `SessionStart` hooks, and a `PreToolUse` hook on the shell that closes every
   command's standard input (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
   standard input」) and, on a supervisor's program, refuses a command starting Claude Code
-  (`docs/agents.md`, 「No print mode」).
+  (`docs/agents.md`, 「No print mode」) and a shell call or a subagent put in the program's own background
+  (`docs/supervisors.md`, 「A supervisor's long work」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that

@@ -642,11 +642,14 @@ rule to.
   supervisor in that room after the turn has ended, after the program folded its conversation and after
   its session was stood afresh: the token is taken back only once no such call under its record still
   runs (`docs/sessions.md`, 「A restart hands the session over」).
-- **What does not: the program's own background work.** A shell command or a subagent the program puts
-  in its own background lives inside the program. Its notice, where it lands after the round has ended,
-  opens a turn of the program's own that no round carries, so its answer reaches no room, and nothing
-  outside the program keeps it across the program being taken down or stood afresh. So that road is not
-  the supervisor's for work it reports.
+- **What does not: the program's own background work, which is refused.** A shell command or a subagent
+  the program puts in its own background lives inside the program, and while it runs the pane reads as
+  working, so the door holds the round, and the reply the program has already written, until that work
+  ends. Its notice that lands after a round reaches no room, and nothing outside the program keeps the
+  work across the program being taken down or stood afresh. So agency's shell hook on a supervisor's
+  program refuses a shell call or a subagent asked to run in the background, before it starts, and its
+  refusal names the road above (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
+  standard input」). The round then ends as soon as its turn has, and its reply goes out.
 - **A subagent is for work inside the turn.** The chat line leaves the program its subagent tool (「What
   each capability stands for」 above): a subagent reads and searches inside the turn and hands back only its
   conclusion, so what it read stays out of the supervisor's context.
