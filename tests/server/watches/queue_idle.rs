@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use agency_server::queue::orderer::Orderer;
 use agency_server::watches::queue_idle::{
   DRAFT_TOLD_PREFIX, Draft, LAUNCH_OWED, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
-  approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, idle, job_started,
+  approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, held, idle, job_started,
   launch_instruction, launches_due, notice, pass, room_of, unlaunchable, waiting,
 };
 use axum::body::Bytes;
@@ -64,19 +64,54 @@ fn work_a_free_worker_could_take_with_no_job_started_for_the_minutes_is_idle() {
 }
 
 #[test]
-fn an_item_for_a_busy_worker_waits_on_nobody_and_one_naming_none_waits_on_any_free_worker() {
-  let busy = standing(vec![open(1, Some("w2"))], &["w1"]);
+fn an_item_for_a_busy_worker_waits_on_nobody_and_one_naming_none_waits_on_the_worker_checkout() {
+  let busy = standing(vec![open(1, Some("w2")), open(2, None)], &["w1"]);
 
-  assert!(waiting(&busy).is_empty());
+  assert!(waiting(&busy).is_empty(), "another repository's free checkout takes neither");
   assert!(!idle(&busy, 1_000 + 10 * MINUTE));
 
-  let anyone = standing(vec![open(1, Some("w2")), open(2, None)], &["w1"]);
+  let anyone = standing(vec![open(1, Some("w2")), open(2, None)], &["w1", "worker"]);
 
   assert_eq!(waiting(&anyone), vec![&open(2, None)]);
 
   let nobody_free = standing(vec![open(2, None)], &[]);
 
   assert!(!idle(&nobody_free, 1_000 + 10 * MINUTE));
+}
+
+#[test]
+fn an_item_naming_a_repository_waits_on_any_checkout_of_it() {
+  let mut support_free = standing(vec![open(1, Some("w1"))], &["w1-w2"]);
+
+  support_free.repositories = BTreeMap::from([("w1-w2".to_owned(), "w1".to_owned())]);
+  assert_eq!(awaiting_launch(&support_free), vec![&open(1, Some("w1"))], "its support worktree free");
+  assert!(
+    awaiting_launch(&standing(vec![open(1, Some("w1"))], &["w1-w2"])).is_empty(),
+    "a base of another repository, whatever its name"
+  );
+}
+
+// A checkout is free as an assignment reads it: a hold stands on it as much as a job, the hold its item was
+// assigned again after let go first.
+#[tokio::test]
+async fn a_checkout_a_hold_stands_on_is_not_free() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  repository(db, "w1", "/checkouts/w1", &[("support_count", 1i64.into())]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (1, 30, 'left', 'w1', 'held', 0, 0), (2, 31, 'left', 'w1-w2', 'held', 0, 0),
+                (3, 31, 'harness', 'w1', 'released', 1, 1)"#,
+      vec![],
+    )
+    .await;
+
+  let standing = held(db, vec![open(1, Some("w1"))]).await.unwrap();
+
+  assert_eq!(standing.free, ["w1-w2"], "the base held, the support worktree's hold let go");
+  assert_eq!(awaiting_launch(&standing), vec![&open(1, Some("w1"))]);
 }
 
 #[test]
@@ -97,12 +132,13 @@ fn an_idle_stretch_is_told_once_and_the_switch_silences_it() {
 
 #[test]
 fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_silences_it() {
-  let mut quiet = standing(vec![open(1, Some("w1")), open(2, Some("w2")), open(3, None)], &["w1"]);
+  let mut quiet =
+    standing(vec![open(1, Some("w1")), open(2, Some("w2")), open(3, None)], &["w1", "worker"]);
 
   assert_eq!(
     awaiting_launch(&quiet),
     vec![&open(1, Some("w1")), &open(3, None)],
-    "its own assignee free, or naming none while a checkout is free"
+    "its own assignee free, or naming none while the worker checkout is free"
   );
   assert!(
     awaiting_launch(&standing(vec![open(3, None)], &[])).is_empty(),
@@ -756,7 +792,7 @@ fn kinds(peers: &crate::support::peers::Peers) -> Vec<(String, Value)> {
 }
 
 #[tokio::test]
-async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_orderer() {
+async fn open_items_that_cannot_go_or_go_to_the_worker_checkout_are_told_once_to_their_orderer() {
   use crate::support::peers::{item, stand};
 
   let scratch = Scratch::new().await;
@@ -764,6 +800,7 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
   let (peers, vars) = stand().await;
 
   repository(db, "w1", "/checkouts/w1", &[]).await;
+  repository(db, "worker", "/checkouts/worker", &[]).await;
 
   {
     let mut held = peers.lock().unwrap();
@@ -773,7 +810,7 @@ async fn open_items_that_cannot_go_or_go_to_any_checkout_are_told_once_to_their_
       json!({ "name": "later", "state": "paused", "holds": [] }),
       json!({ "name": "aside", "state": "open", "holds": [{ "reason": "deploy" }] }),
     ];
-    // 90 holds the room; 91 is raised by it and names no checkout; 92 waits on a paused queue, 93 on one
+    // 90 holds the room; 91 is raised by it and names no checkout, so it goes to `worker`; 92 waits on a paused queue, 93 on one
     // under a hold; 94 names a repository no checkout is of.
     held.items.insert(90, item(90, "done", json!({ "scope": "-9000" })));
     held.items.insert(91, item(91, "open", json!({ "raisedBy": 90 })));

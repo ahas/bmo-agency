@@ -50,6 +50,18 @@ impl Worker {
     self.support_of.as_deref().is_some_and(|base| !base.is_empty())
   }
 
+  /// The repository it is a checkout of: its base's for a support worktree or a node checkout, its own name for
+  /// a base.
+  pub fn repository(&self) -> &str {
+    self.support_of.as_deref().filter(|base| !base.is_empty()).unwrap_or(&self.name)
+  }
+
+  /// Whether it answers an assignee, the name an assignment or an item gives (docs/api.md, 「assignments and
+  /// jobs」).
+  pub fn answers_to(&self, assignee: &str) -> bool {
+    answers_to(&self.name, self.repository(), assignee)
+  }
+
   /// Whether it is a repository's checkout on a node rather than a numbered worktree here (docs/work-nodes.md,
   /// 「A checkout on a node」).
   pub fn is_node_checkout(&self) -> bool {
@@ -68,6 +80,12 @@ impl Worker {
       node: repository.node.clone().filter(|node| !node.is_empty()),
     }
   }
+}
+
+/// Whether a checkout, by its name and its repository's, answers an assignee: the checkout it names, or, where it
+/// names a repository, any checkout of that repository — its base, a support worktree or a node checkout.
+pub fn answers_to(checkout: &str, repository: &str, assignee: &str) -> bool {
+  checkout == assignee || repository == assignee
 }
 
 /// A support worktree's name.

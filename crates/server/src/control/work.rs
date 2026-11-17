@@ -24,6 +24,7 @@ use crate::now_ms;
 use crate::order::Entry;
 use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
+use crate::queue::holds::{is_free, release_ended};
 use crate::queue::routes::JOB_WORK_KEY;
 use crate::repositories::{AGENT_LABEL, MODEL_LABEL, Pin, ROLE_LABEL, named_by};
 use crate::road::{self, Closed, Road};
@@ -143,43 +144,6 @@ async fn checkouts_named(
   Ok(Some(serde_json::to_string(&checkouts).unwrap_or_else(|_| "[]".to_owned())))
 }
 
-/// What opens the holder's name of an assignment a job took for itself, the job's number after it: a checkout it
-/// borrowed from another repository.
-pub const JOB_HOLDER: &str = "job:";
-
-/// A running assignment whose job has ended is released before anything reads them, and so is one a job borrowed
-/// that no longer runs. Any other held one stands until its job starts or its harness releases it: no clock lets
-/// a hold go.
-pub(crate) async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
-  let now = now_ms();
-  run(
-    db,
-    r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
-       WHERE a."state" = 'running'
-         AND EXISTS (SELECT 1 FROM "jobs" j WHERE j."assignment_id" = a."id")
-         AND NOT EXISTS (SELECT 1 FROM "jobs" j
-               WHERE j."assignment_id" = a."id"
-                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))"#,
-    vec![now.into()],
-  )
-  .await?;
-  // A checkout a job borrowed is lent for as long as that job runs (docs/worker-slots.md, 「A job writes only in
-  // its own checkout」).
-  run(
-    db,
-    r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
-       WHERE a."state" = 'held'
-         AND a."holder_name" LIKE $2
-         AND NOT EXISTS (SELECT 1 FROM "jobs" j
-               WHERE $3 || j."id"::text = a."holder_name"
-                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))"#,
-    vec![now.into(), format!("{JOB_HOLDER}%").into(), JOB_HOLDER.into()],
-  )
-  .await?;
-
-  Ok(())
-}
-
 /// That an assignment's job has ended: the worker it held is free, whichever state the hold stood in and
 /// however the job ended (docs/api.md, 「assignments and jobs」).
 async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result<(), Refused> {
@@ -261,6 +225,39 @@ async fn unknown_repository(db: &sea_orm::DatabaseConnection, assignee: &str) ->
   )
 }
 
+/// Where an assignment's item goes (docs/api.md, 「assignments and jobs」): the `assigneeName` the ask names,
+/// else the one of the item it hands over, else the item's own as the job service answers it, and the checkout
+/// named `worker` for an item naming no repository, so an ask never takes a checkout of another repository than
+/// its item's.
+async fn item_destination(ground: &Ground, asked: &Value, item_id: i64) -> Result<String, Refused> {
+  let named = |value: &Value| {
+    value["assigneeName"]
+      .as_str()
+      .map(str::trim)
+      .filter(|name| !name.is_empty())
+      .map(str::to_owned)
+  };
+
+  if let Some(assignee) = named(asked).or_else(|| named(&asked["item"])) {
+    return Ok(assignee);
+  }
+
+  let held = match crate::queue::orderer::JobService::of(ground.vars()) {
+    Some(service) => service.item(item_id).await.map_err(|why| {
+      Refused::new(StatusCode::BAD_GATEWAY, format!("item #{item_id} could not be read: {why}"))
+        .with_code("upstream-failed")
+    })?,
+    None => None,
+  };
+
+  Ok(
+    held
+      .as_ref()
+      .and_then(named)
+      .unwrap_or_else(|| crate::queue::workers::BUILTIN_WORKER.to_owned()),
+  )
+}
+
 /// A worker held for an item for the harness that asked.
 pub struct CreateAssignment;
 
@@ -275,11 +272,8 @@ impl Route for CreateAssignment {
     if asked.get("item").is_none_or(Value::is_null) {
       return Err(bad("item is required"));
     }
-    let assignee = asked
-      .get("assigneeName")
-      .and_then(Value::as_str)
-      .map(str::trim)
-      .filter(|name| !name.is_empty());
+    let assignee = item_destination(call.ground(), &asked, item_id).await?;
+    let assignee = assignee.as_str();
     let db = &call.ground().db;
     // The role the item's job runs as, `worker` where it names none; any role the store holds, and an unknown
     // one is refused (docs/repositories.md, 「A job」).
@@ -302,21 +296,23 @@ impl Route for CreateAssignment {
 
     release_ended(db).await?;
 
-    // A checkout of a repository that no assignment or job holds now, the named one where one is named.
+    // A checkout no assignment or job holds now, of the repository or the checkout the item goes to.
     let mut picked = None;
     let checkouts = crate::queue::workers::workers(db, &call.ground().source).await?;
 
-    if let Some(assignee) = assignee
-      && !checkouts.iter().any(|checkout| checkout.name == assignee)
-    {
+    if !checkouts.iter().any(|checkout| checkout.name == assignee) {
       return Err(unknown_repository(db, assignee).await?);
     }
+
+    crate::queue::holds::release_others(db, item_id, &holder).await?;
 
     // An ask for the same item by the same holder answers the hold it already stands in, so a lost answer
     // read again is no busy worker; an ask naming another worker or role replaces that hold (docs/api.md,
     // 「assignments and jobs」).
     if let Some(standing) = standing_hold(db, item_id, &holder).await? {
-      let same_worker = assignee.is_none_or(|assignee| standing["workerName"].as_str() == Some(assignee));
+      let worker = standing["workerName"].as_str().unwrap_or_default();
+      let repository = standing["repositoryName"].as_str().unwrap_or(worker);
+      let same_worker = crate::queue::workers::answers_to(worker, repository, assignee);
       let same_role = named.is_none_or(|role| standing["roleName"].as_str() == Some(role));
 
       if same_worker && same_role {
@@ -331,7 +327,7 @@ impl Route for CreateAssignment {
     }
 
     for checkout in checkouts {
-      if checkout.builtin || assignee.is_some_and(|assignee| !answers_to(&checkout, assignee)) {
+      if checkout.builtin || !checkout.answers_to(assignee) {
         continue;
       }
 
@@ -342,35 +338,14 @@ impl Route for CreateAssignment {
     }
     let Some(picked) = picked else {
       return Err(
-        Refused::new(
-          StatusCode::UNPROCESSABLE_ENTITY,
-          if let Some(assignee) = assignee {
-            format!("no worker {assignee} is free")
-          } else {
-            "no worker is free".to_owned()
-          },
-        )
-        .with_code("no-worker-free"),
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no worker {assignee} is free"))
+          .with_code("no-worker-free"),
       );
     };
     let member = hold(call.ground(), item_id, &holder, &picked.name, &role).await?;
 
     Ok(answer(StatusCode::CREATED, member))
   }
-}
-
-/// Whether no assignment and no job holds a checkout now.
-pub(crate) async fn is_free(db: &sea_orm::DatabaseConnection, worker: &str) -> Result<bool, Refused> {
-  let held = one(
-    db,
-    r#"SELECT 1 AS "held" WHERE EXISTS (SELECT 1 FROM "assignments" WHERE "worker_name" = $1 AND "state" IN ('held', 'running'))
-         OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1
-               AND ("state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")))"#,
-    vec![worker.into()],
-  )
-  .await?;
-
-  Ok(held.is_none())
 }
 
 /// A checkout held for an item in a holder's name as the role given, answered as the assignment and published
@@ -3705,10 +3680,3 @@ impl Route for DeleteSessionLoads {
 }
 
 crate::moved!(DeleteSessionLoads);
-
-// Whether a checkout answers an assignment's assignee: the checkout it names, or, where it names a repository, any
-// checkout of that repository — its base, a support worktree or a node checkout (docs/api.md, 「assignments and
-// jobs」).
-fn answers_to(checkout: &crate::queue::workers::Worker, assignee: &str) -> bool {
-  checkout.name == assignee || checkout.support_of.as_deref() == Some(assignee)
-}

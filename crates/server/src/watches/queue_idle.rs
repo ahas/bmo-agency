@@ -109,8 +109,11 @@ pub struct Standing {
   pub open: Vec<Open>,
   /// The open items in the queues that give no lease.
   pub paused: Vec<Open>,
-  /// The checkouts not resting with no job at work.
+  /// The checkouts nothing holds now, as `POST /assignments` reads them (docs/api.md, 「assignments and jobs」).
   pub free: Vec<String>,
+  /// The repository each checkout is of, by the checkout's name; a checkout it does not name is a base, its
+  /// repository its own name.
+  pub repositories: BTreeMap<String, String>,
   /// Every checkout agency holds, free or not, the built-in worker among them.
   pub known: Vec<String>,
   /// The agents busy now: a job or a slot carries a run at work on them (docs/role-agents.md, 「When an agent is
@@ -129,6 +132,18 @@ pub struct Standing {
 }
 
 impl Standing {
+  /// Whether a checkout the assignee names, or a checkout of the repository it names, is free; for an item naming
+  /// none, the checkout named `worker`.
+  pub fn free_for(&self, assignee: Option<&str>) -> bool {
+    let assignee = assignee.unwrap_or(crate::queue::workers::BUILTIN_WORKER);
+
+    self.free.iter().any(|checkout| {
+      let repository = self.repositories.get(checkout).map_or(checkout.as_str(), String::as_str);
+
+      crate::queue::workers::answers_to(checkout, repository, assignee)
+    })
+  }
+
   /// The agents of a role, switched on, whose road runs a model, by name: the candidates of an item naming that
   /// model (docs/role-agents.md, 「Which agent a run takes」).
   pub fn candidates<'a>(&'a self, role: &'a str, model: &'a str) -> impl Iterator<Item = &'a RoleAgent> {
@@ -147,23 +162,20 @@ impl Standing {
   }
 }
 
-/// The open items a free checkout could take: those going to a free checkout, and those naming none while one
-/// is free.
+/// The open items a free checkout could take: those whose repository has a free checkout, and those naming none
+/// while the checkout named `worker` is free.
 pub fn waiting(standing: &Standing) -> Vec<&Open> {
   awaiting_launch(standing)
 }
 
-/// The open items awaiting a launch: those whose own assignee is a free checkout, and those naming none while
-/// any checkout is free; an item whose `agent` label names an agent carrying a run waits on that agent instead,
-/// and one naming a model and no agent waits until one agent of its role on that model is free.
+/// The open items awaiting a launch: those whose repository has a free checkout, and those naming none while the
+/// checkout named `worker` is free; an item whose `agent` label names an agent carrying a run waits on that agent
+/// instead, and one naming a model and no agent waits until one agent of its role on that model is free.
 pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
   standing
     .open
     .iter()
-    .filter(|item| match &item.assignee {
-      Some(worker) => standing.free.contains(worker),
-      None => !standing.free.is_empty(),
-    })
+    .filter(|item| standing.free_for(item.assignee.as_deref()))
     .filter(|item| match (&item.agent, item.asked_model()) {
       (Some(agent), _) => !standing.carrying.contains(agent),
       (None, Some(model)) => standing.free_candidates(item.role(), model).next().is_some(),
@@ -764,16 +776,11 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     .into_iter()
     .filter(|item| !working.contains(&item.id))
     .partition(|item| item.paused);
-  let busy: Vec<String> = all(
-    db,
-    r#"SELECT DISTINCT "worker_name" FROM "jobs"
-       WHERE "state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")"#,
-    vec![],
-  )
-  .await?
-  .iter()
-  .filter_map(|row| row.try_get::<String>("", "worker_name").ok())
-  .collect();
+  // A checkout is free as an assignment reads it: the holds that have ended let go first, then nothing holding
+  // it, a hold no job has started on as much as a job at work.
+  crate::queue::holds::release_ended(db).await?;
+
+  let busy = crate::queue::holds::held_checkouts(db).await?;
   let mut carrying: Vec<String> = all(
     db,
     r#"SELECT DISTINCT "item_agent" FROM "jobs"
@@ -792,6 +799,11 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
 
   let workers = crate::queue::workers::workers(db, std::path::Path::new("")).await?;
   let known = workers.iter().map(|worker| worker.name.clone()).collect();
+  let repositories = workers
+    .iter()
+    .filter(|worker| worker.is_support())
+    .map(|worker| (worker.name.clone(), worker.repository().to_owned()))
+    .collect();
   let free = workers
     .into_iter()
     .filter(|worker| !worker.builtin && !busy.contains(&worker.name))
@@ -805,6 +817,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     open,
     paused,
     free,
+    repositories,
     known,
     carrying,
     agents,

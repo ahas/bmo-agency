@@ -1770,7 +1770,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("AssignWorker"),
     answers: &[(200, Some("Assignment"), false), (201, Some("Assignment"), false)],
-    codes: &["bad-request", "unknown-repository", "no-worker-free"],
+    codes: &["bad-request", "unknown-repository", "no-worker-free", "upstream-failed"],
   },
   Operation {
     method: "POST",

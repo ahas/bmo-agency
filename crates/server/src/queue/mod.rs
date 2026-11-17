@@ -5,6 +5,7 @@
 //! runs and what it is told are the job unit's.
 
 pub mod cancels;
+pub mod holds;
 pub mod leftovers;
 pub mod orderer;
 pub mod paths;

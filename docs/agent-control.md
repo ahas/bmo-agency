@@ -3097,9 +3097,11 @@ them run a browser, and whose a place is.
   beside its own jobs. An item stands open only once an approver approved it or it was raised with one of
   the job service's unattended labels — a pull request's review among them — so its state is the whole of
   whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, a
-  checkout it may go to is free — its repository's checkout no job holds where it names one, any free
-  checkout where it names none —, the agent its `agent` label names, where it names one, carries no run, or,
-  where it names a model and no agent, one agent of its role on that model carries none
+  checkout it may go to is free — any checkout of its repository where it names one, the checkout named
+  `worker` where it names none, free as `POST /assignments` reads it: no `held` or `running` assignment and
+  no job at work holds it (`docs/api.md`, 「assignments and jobs」) —, the agent its `agent` label names, where
+  it names one, carries no run, or, where it names a model and no agent, one agent of its role on that model
+  carries none
   (`docs/repositories.md`, 「An agent an item names」), and its role has a free slot. An item a job of agency's is still at work
   on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody. Nor
   does an open item whose close merged its commit, its label `close-phase` reading `waiting-batch` or an older
@@ -3213,7 +3215,7 @@ with the session.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on its repository's free checkout, or naming none while any checkout is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), told once for each stretch it waits so and kept until the stretch ends; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on a free checkout of its repository, or naming none while the checkout named `worker` is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), told once for each stretch it waits so and kept until the stretch ends; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
 | An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |

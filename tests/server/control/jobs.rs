@@ -954,6 +954,102 @@ async fn an_assign_naming_a_repository_takes_any_free_checkout_of_it() {
   );
 }
 
+// An assignment naming no assignee goes where its item goes: the repository the item it hands over names, else the
+// checkout named `worker`, and never a checkout of another repository, even one standing first and free.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_assign_naming_no_assignee_goes_where_its_item_goes() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  for name in ["alpha", "helper", "worker"] {
+    repository(scratch.db(), name, &home.path().join(name).to_string_lossy(), &[]).await;
+  }
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let going_to = |id: i64, assignee: Option<&str>| {
+    let mut item = item();
+
+    if let Some(assignee) = assignee {
+      item["assigneeName"] = json!(assignee);
+    }
+
+    json!({ "itemId": id, "holderName": "harness", "item": item })
+  };
+  let (status, held) = post(port, token, "/assignments", going_to(81, Some("helper"))).await;
+
+  assert_eq!((status, held["workerName"].as_str()), (201, Some("helper")), "{held}");
+
+  let (status, again) = post(port, token, "/assignments", going_to(81, Some("helper"))).await;
+
+  assert_eq!((status, &again["id"]), (200, &held["id"]), "the standing hold answered: {again}");
+
+  let (status, held) = post(port, token, "/assignments", going_to(82, None)).await;
+
+  assert_eq!((status, held["workerName"].as_str()), (201, Some("worker")), "{held}");
+
+  let (status, refused) = post(port, token, "/assignments", going_to(83, None)).await;
+
+  assert_eq!((status, refused["code"].as_str()), (422, Some("no-worker-free")), "{refused}");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "assignments" WHERE "worker_name" = 'alpha'"#, vec![])
+      .await,
+    0,
+    "no ask took another repository's checkout"
+  );
+}
+
+// An item is held on one checkout at a time: a hold another holder left on an item goes as the item is asked for
+// again, and one a newer assignment of its item follows goes as the assignments are read.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_hold_its_item_was_asked_for_again_after_is_released() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  for name in ["helper", "other"] {
+    repository(scratch.db(), name, &home.path().join(name).to_string_lossy(), &[]).await;
+  }
+
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (70, 'left', 'helper', 'held', 0, 0), (72, 'left', 'other', 'held', 0, 0),
+                (72, 'harness', 'helper', 'released', 1, 1)"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let (status, held) = get(port, token, "/assignments?state=held").await;
+  let ids: Vec<i64> =
+    held["items"].as_array().unwrap().iter().filter_map(|one| one["id"].as_i64()).collect();
+
+  assert_eq!(
+    (status, ids),
+    (200, vec![1]),
+    "the hold its item was assigned again after is gone: {held}"
+  );
+
+  let ask = |id: i64, assignee: &str| json!({ "itemId": id, "holderName": "harness", "assigneeName": assignee, "item": item() });
+  let (status, taken) = post(port, token, "/assignments", ask(70, "helper")).await;
+
+  assert_eq!((status, taken["workerName"].as_str()), (201, Some("helper")), "{taken}");
+
+  let (status, taken) = post(port, token, "/assignments", ask(73, "other")).await;
+
+  assert_eq!((status, taken["workerName"].as_str()), (201, Some("other")), "{taken}");
+}
+
 // A hold given back frees the worker for the next item.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_release_frees_the_worker_for_the_next_item() {

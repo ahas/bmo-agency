@@ -1802,6 +1802,10 @@ pub struct JobItem {
   /// The room the item was filed from, where it names one: the room a job's end is told in.
   #[serde(default)]
   pub scope: Option<String>,
+  /// The repository the item goes to, where it names one: an assignment naming no assignee takes a checkout
+  /// of this repository alone.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub assignee_name: Option<String>,
   /// The item's small-model instruction, where it carries one.
   #[serde(default)]
   pub instruction: Option<JobInstruction>,

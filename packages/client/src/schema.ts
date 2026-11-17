@@ -3685,6 +3685,11 @@ export interface components {
              */
             scope: string | null;
             /**
+             * @description The repository the item goes to, where it names one: an assignment naming no assignee takes a checkout
+             *     of this repository alone.
+             */
+            assigneeName?: string | null;
+            /**
              * @description The item's small-model instruction, where it carries one.
              * @default null
              */
@@ -7687,6 +7692,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["UnknownRepository"];
             422: components["responses"]["NoWorkerFree"];
+            502: components["responses"]["UpstreamFailed"];
         };
     };
     createBorrowings: {

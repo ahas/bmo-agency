@@ -1367,11 +1367,22 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   or a checkout of one: an assignee no repository holds a checkout by is refused 422 `unknown-repository`,
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
-  to come free. An assignment naming none takes a free checkout of any repository.
+  to come free. A checkout is held now while an assignment of it is `held` or `running` or a job is at work in
+  it, `starting`, `running` or `reviewing` unparked; the queue's notices count a checkout free by the same
+  reading (`docs/agent-control.md`, 「An idle queue is told to the owner」).
+- **An assignment naming no `assigneeName` goes where its item goes,** never to a checkout of another
+  repository: the `assigneeName` of the `item` it hands over, else the item's `assigneeName` as the job
+  service answers it by `itemId`, and the checkout named `worker` for an item naming no repository. A job
+  service that cannot be read is 502 `upstream-failed`, and nothing is held.
 - **An ask for the same item by the same holder answers its standing hold,** 200 with that assignment
   instead of `no-worker-free`, so a lost answer asked again is no busy worker. An ask naming another worker
   or role releases the standing hold first. A hold the harness will not run is released by
   `PATCH /assignments/{assignmentId}` with `state` `released`, which is the harness's `release_worker`.
+- **An item is held on one checkout at a time.** An ask for an item releases first every `held` assignment of
+  it another holder left, and a `held` assignment of an item that a newer assignment of the same item follows,
+  under any holder, is released before anything reads the assignments, so a hold left under a name no session
+  ends with goes once its item is asked for again. A job's own loan, below, is no assignment of its item in
+  this sense, on either side.
 - **A hold named for a session ends with it.** An assignment held under a session's id, or under the agent's
   own name where it keeps one session across its rooms, is released when that session ends — by its end
   route, by a supervisor reset that takes it, or by a turn its guard cut — unless a `starting` or `running`

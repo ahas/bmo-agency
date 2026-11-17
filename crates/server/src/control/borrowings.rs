@@ -10,8 +10,9 @@ use axum::response::Response;
 use bmo_agency_client::{BorrowAsk, Borrowing};
 use store::{all, one};
 
-use super::work::{JOB_HOLDER, hold, is_free, release_ended};
+use super::work::hold;
 use super::{Bearer, Call, Refused, Route, answer};
+use crate::queue::holds::{JOB_HOLDER, is_free, release_ended};
 use crate::queue::workers::{Worker, workers};
 
 /// The repository's checkouts on the machine the job runs on, in the order a job takes them.
