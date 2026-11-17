@@ -1,7 +1,8 @@
 //! An account's node (docs/person-nodes.md, 「Which node is a person's」): the record agency keeps of the node an
 //! account's runs stand on, set by the service that binds the account to its machine, else the account's isolation
 //! node on this machine (docs/account-isolation.md); the supervisors and role runs placed there by it; the wait of a
-//! run of it while the node's link is not heard, placed again by the present record on every ask; several accounts
+//! run of it while the node's link is not heard, placed again by the present record on every ask, told, stopped and
+//! bounded; several accounts
 //! sharing one node, each under a root of its own (「Several accounts on one node」); and who reaches a node (「Who
 //! reaches a node」).
 
@@ -413,45 +414,93 @@ pub enum Placement {
   Gone,
 }
 
+/// What a run's wait for its node came to.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Waited {
+  /// It goes on, on the node named, or on this machine where none is.
+  On(Option<String>),
+  /// The agent it was carried for no longer stands.
+  Gone,
+  /// A stop standing over its run ended the wait.
+  Stopped,
+  /// It waited past its bound: why, naming the node and how long its link went unheard.
+  Overdue(String),
+}
+
+/// What a run's wait for its node asks and tells as it goes (docs/person-nodes.md, 「Which node is a person's」).
+pub trait NodeWait {
+  /// Whether the node's link was heard from lately.
+  fn heard(&self, node: &str) -> bool;
+  /// The run's placement as the present records give it.
+  fn present(&mut self) -> impl Future<Output = Result<Placement, Refusal>> + Send;
+  /// Whether a stop stands over the run.
+  fn stopped(&mut self) -> impl Future<Output = bool> + Send;
+  /// The wait told: the node it waits on now and the moment it began waiting, or none once it waits no more.
+  fn told(&mut self, waiting: Option<(&str, i64)>) -> impl Future<Output = ()> + Send;
+}
+
+// How long a link went unheard, as its reason says it.
+fn spoken(waited: Duration) -> String {
+  match waited.as_secs() {
+    seconds if seconds >= 60 && seconds % 60 == 0 => format!("{} minutes", seconds / 60),
+    seconds => format!("{seconds} seconds"),
+  }
+}
+
 /// Waits while the node a run stands on is not heard from, asking again every `every`, and reads the run's
-/// placement afresh with `present` before each ask (docs/person-nodes.md, 「Which node is a person's」): a node
-/// heard from goes on at once, a placement naming another node, or none, is followed, and an agent gone ends the
-/// wait. A placement that cannot be read leaves the node as it was. Answers where the run goes on, or that its
-/// agent is gone.
-pub async fn until_placed<Read, Reading>(
+/// placement afresh before each ask (docs/person-nodes.md, 「Which node is a person's」): a node heard from goes on
+/// at once, a placement naming another node, or none, is followed, an agent gone ends the wait, a stop standing
+/// over the run ends it, and so does a wait past `bound`. A placement that cannot be read leaves the node as it
+/// was. The wait is told as it begins and as it moves to another node, and told cleared once it ends.
+pub async fn until_placed(
   run: &str,
   mut node: Option<String>,
-  heard: impl Fn(&str) -> bool,
-  mut present: Read,
+  wait: &mut impl NodeWait,
   every: Duration,
-) -> Placement
-where
-  Read: FnMut() -> Reading,
-  Reading: Future<Output = Result<Placement, Refusal>>,
-{
+  bound: Duration,
+) -> Waited {
+  let began = tokio::time::Instant::now();
+  let since = crate::now_ms();
   let mut waited_on: Option<String> = None;
 
-  loop {
-    let Some(unheard) = node.as_deref().filter(|node| !heard(node)) else {
+  let came = loop {
+    let Some(unheard) = node.as_deref().filter(|node| !wait.heard(node)).map(str::to_owned) else {
       if waited_on.is_some() {
         println!("{run}: {} is heard, so it goes on", node.as_deref().unwrap_or("this machine"));
       }
 
-      return Placement::On(node);
+      break Waited::On(node);
     };
 
-    if waited_on.as_deref() != Some(unheard) {
+    if waited_on.as_deref() != Some(unheard.as_str()) {
       println!("{run}: waits for {unheard}, whose link is not heard");
-      waited_on = Some(unheard.to_owned());
+      wait.told(Some((&unheard, since))).await;
+      waited_on = Some(unheard.clone());
     }
 
-    tokio::time::sleep(every).await;
+    let waited = began.elapsed();
 
-    match present().await {
+    if waited >= bound {
+      let why = format!(
+        "{unheard}'s link was not heard for {}, so the turn ends without starting",
+        spoken(bound)
+      );
+
+      println!("{run}: {why}");
+      break Waited::Overdue(why);
+    }
+
+    tokio::time::sleep(every.min(bound - waited)).await;
+
+    if wait.stopped().await {
+      println!("{run}: a stop stands over it, so it waits for {unheard} no more");
+      break Waited::Stopped;
+    }
+
+    match wait.present().await {
       Ok(Placement::Gone) => {
         println!("{run}: the agent it was carried for no longer stands, so it waits no more");
-
-        return Placement::Gone;
+        break Waited::Gone;
       }
       Ok(Placement::On(now)) => {
         if now != node {
@@ -465,29 +514,11 @@ where
       }
       Err(why) => eprintln!("{run}: where it stands could not be read again: {}", why.detail),
     }
+  };
+
+  if waited_on.is_some() {
+    wait.told(None).await;
   }
-}
 
-/// Waits until the node a run stands on has been heard from, as the link writes its state under the data root,
-/// reading the run's placement afresh on every ask (`until_placed`).
-pub async fn wait_placed<Read, Reading>(
-  data_root: &Path,
-  run: &str,
-  node: Option<String>,
-  present: Read,
-) -> Placement
-where
-  Read: FnMut() -> Reading,
-  Reading: Future<Output = Result<Placement, Refusal>>,
-{
-  let heard = |node: &str| crate::watches::links::link_heard(data_root, node);
-
-  until_placed(
-    run,
-    node,
-    heard,
-    present,
-    Duration::from_secs(policy::person_nodes::PERSON_NODES.wait_seconds),
-  )
-  .await
+  came
 }

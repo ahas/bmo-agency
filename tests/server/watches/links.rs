@@ -107,11 +107,12 @@ impl NodeService for LogsInToOne {
   }
 }
 
-/// Units that start every link and every setup asked of them and run none before.
+/// Units that start every link, setup and check asked of them and run none before.
 #[derive(Default)]
 struct Units {
   started: Mutex<Vec<(String, PathBuf)>>,
   set_up: Mutex<Vec<String>>,
+  checked: Mutex<Vec<String>>,
 }
 
 impl LinkUnits for Units {
@@ -134,6 +135,52 @@ impl LinkUnits for Units {
     self.set_up.lock().unwrap().push(node.to_owned());
     true
   }
+
+  async fn check(&self, node: &str) -> bool {
+    self.checked.lock().unwrap().push(node.to_owned());
+    true
+  }
+}
+
+// "a workplace not ready is checked again once its while has passed, and stands no link meanwhile"
+#[tokio::test]
+async fn a_workplace_not_ready_is_checked_again_once_its_while_has_passed_and_stands_no_link_meanwhile() {
+  let scratch = Scratch::new().await;
+  let trees = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    data: trees.path().join("data"),
+    deploy: trees.path().join("agency/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
+    agents: trees.path().join("agents"),
+    home: trees.path().to_path_buf(),
+    mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
+    jake_hub: Some("/opt/jake/jake-hub".into()),
+    config_dir: trees.path().join(".claude"),
+    path: "/usr/bin:/bin".into(),
+    bun: "bun".into(),
+  };
+  let now = chrono::Utc::now().timestamp();
+  let again = policy::work_nodes::WORK_NODES.check_again_seconds;
+
+  // u7 was checked longer ago than the while, u8 just now, and account-9 is an isolation node, stood up apart.
+  for (node, checked_at) in [("u7", now - again), ("u8", now - 1), ("account-9", now - again)] {
+    scratch
+      .run(
+        r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "checked_at", "created_at", "updated_at")
+           VALUES ($1, '~/node-root', '/home/tester', 'missing', $2, 0, 0)"#,
+        vec![node.into(), checked_at.into()],
+      )
+      .await;
+  }
+
+  let units = Units::default();
+  let settled = settle(scratch.db(), &LogsInToOne, &units, &roots).await.unwrap();
+
+  assert_eq!(settled.checking, ["u7"]);
+  assert_eq!(*units.checked.lock().unwrap(), ["u7"]);
+  assert!(units.started.lock().unwrap().is_empty(), "no link stands on a workplace not ready");
 }
 
 #[tokio::test]

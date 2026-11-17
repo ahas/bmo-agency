@@ -27,7 +27,7 @@ use crate::door::turn::{Ending, Seat, Timings, Turn, Watch, pasted_lead, put};
 use crate::lines::pieces::ComposedTurn;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::token;
-use crate::person_nodes::Placement;
+use crate::person_nodes::{NodeWait, Placement, Waited};
 use crate::places::locks::{agent_lock_path, hold, try_hold};
 use crate::places::{AgentRow, Ground};
 use crate::queue::running::EXECUTION_CANCEL_PREFIX;
@@ -63,8 +63,13 @@ pub struct Reply {
 #[derive(Debug)]
 pub enum NoAnswer {
   Cut(String),
+  /// A stop standing over the run ended it before its program was put to work.
+  Stopped(String),
   Failed(String),
-  Errored { error: String, kind: Option<String> },
+  Errored {
+    error: String,
+    kind: Option<String>,
+  },
   Unsubmitted(String),
   Overtaken,
 }
@@ -377,6 +382,60 @@ pub async fn placed(ground: &Ground, agent: &str) -> Result<Option<(String, Opti
   Ok(None)
 }
 
+// A run's wait for its node as the server keeps it (docs/person-nodes.md, 「Which node is a person's」): the link's
+// state the link writes under the data root, the run's placement read by `present`, a stop standing over the run,
+// and the wait told on the turn's read, as `turn.changed` and beside the turn's kept record.
+struct NodeWaiting<'a, Read> {
+  ground: &'a Ground,
+  run: &'a str,
+  present: Read,
+  shown: Option<OutputWatch<'a>>,
+}
+
+impl<Read, Reading> NodeWait for NodeWaiting<'_, Read>
+where
+  Read: FnMut() -> Reading + Send,
+  Reading: Future<Output = Result<Placement, Refusal>> + Send,
+{
+  fn heard(&self, node: &str) -> bool {
+    crate::watches::links::link_heard(&self.ground.roots.data, node)
+  }
+
+  async fn present(&mut self) -> Result<Placement, Refusal> {
+    (self.present)().await
+  }
+
+  async fn stopped(&mut self) -> bool {
+    crate::door::execution::cancelled(&self.ground.db, &[self.run]).await.unwrap_or(false)
+  }
+
+  async fn told(&mut self, waiting: Option<(&str, i64)>) {
+    let waiting = waiting.map(|(node, since)| agent_session::Waiting {
+      kind: agent_session::WaitKind::NodeLink,
+      service: node.to_owned(),
+      reason: format!("the link of {node} is not heard"),
+      since,
+    });
+
+    crate::turn_pickup::mark_node_wait(
+      &self.ground.db,
+      self.run,
+      waiting.as_ref().map(|waiting| waiting.service.as_str()),
+    )
+    .await;
+
+    let Some(shown) = self.shown else { return };
+
+    shown.waiting(waiting.clone());
+    self.ground.events.publish(crate::herdr_backend::TurnChanged {
+      session: shown.session.0.clone(),
+      turn_id: shown.turn,
+      run: self.run.to_owned(),
+      waiting,
+    });
+  }
+}
+
 #[allow(clippy::too_many_arguments)]
 /// One run of a supervisor's turn in its resident program, under its guard where `guarded`, its tally written
 /// where `tally` names the room's session. A run the supervisor's reset overtook, its turn having begun at or
@@ -408,9 +467,28 @@ pub async fn run_turn(
       None => Placement::Gone,
     })
   };
-  let node = match crate::person_nodes::wait_placed(&ground.roots.data, &run, node, present).await {
-    Placement::On(node) => node,
-    Placement::Gone => return Err(gone()),
+  let mut waiting = NodeWaiting {
+    ground,
+    run: &run,
+    present,
+    shown,
+  };
+  let nodes = &policy::person_nodes::PERSON_NODES;
+  let waited = crate::person_nodes::until_placed(
+    &run,
+    node,
+    &mut waiting,
+    Duration::from_secs(nodes.wait_seconds),
+    Duration::from_secs(nodes.wait_bound_seconds),
+  )
+  .await;
+  let node = match waited {
+    Waited::On(node) => node,
+    Waited::Gone => return Err(gone()),
+    Waited::Stopped => {
+      return Err(NoAnswer::Stopped(format!("a stop ended {agent}'s turn while it waited")));
+    }
+    Waited::Overdue(why) => return Err(failure(why)),
   };
   let home = ground
     .home_on(agent, &label, node.as_deref())

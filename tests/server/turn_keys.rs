@@ -17,7 +17,7 @@ use agency_server::now_ms;
 use agency_server::places::Ground;
 use agency_server::queue::settings;
 use agency_server::turn_keys::{Claim, KeptEnd, Settled, TurnKeys, kept, prune};
-use agency_server::turn_pickup::{Carrying, InFlight, at_start, keep, unresumable};
+use agency_server::turn_pickup::{Carrying, InFlight, at_start, keep, mark_node_wait, unresumable};
 use agent_session::{Fault, FaultKind, SessionId, TurnEnd};
 use harness_providers::Machine;
 use serde_json::json;
@@ -266,8 +266,13 @@ async fn the_quiet_counts_a_carried_turn_of_a_standing_supervisor_no_program_has
   // Carried here, no record names it, but its supervisor was removed: it ends with the supervisor.
   keep(scratch.db(), &in_flight("agent-e", "chat:5:5", 5, None, None)).await;
   rows::supervisor(scratch.db(), "agent-a", &[]).await;
+  // Carried here, no record names it, waiting for its person's node: it has started nothing, and the next start
+  // ends it with why.
+  keep(scratch.db(), &in_flight("agent-f", "chat:5:6", 6, None, None)).await;
+  mark_node_wait(scratch.db(), "chat:5:6", Some("pc-7")).await;
+  rows::supervisor(scratch.db(), "agent-f", &[]).await;
 
-  let _carried = ["chat:5:1", "chat:5:2", "job-3", "chat:5:5"].map(Carrying::of);
+  let _carried = ["chat:5:1", "chat:5:2", "job-3", "chat:5:5", "chat:5:6"].map(Carrying::of);
   let cut: Vec<String> = unresumable(&ground).await.unwrap().into_iter().map(|turn| turn.run).collect();
 
   assert_eq!(cut, ["chat:5:1"]);

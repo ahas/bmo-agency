@@ -2230,8 +2230,9 @@ export interface components {
         /** @description TurnWaiting: what a running turn waits for, typed. */
         TurnWaiting: {
             /**
-             * @description What it waits for: `card`, a card the arbiter's master has not yet granted, or `node-program`, a program on
-             *     a node that has stood past its notice without taking the turn.
+             * @description What it waits for: `card`, a card the arbiter's master has not yet granted, `node-program`, a program on
+             *     a node that has stood past its notice without taking the turn, or `node-link`, a person's node whose link is
+             *     not heard.
              */
             for: components["schemas"]["TurnWaitKind"];
             /** @description The service whose grant it waits on, or the node whose program it waits on. */
@@ -2248,7 +2249,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        TurnWaitKind: "card" | "node-program";
+        TurnWaitKind: "card" | "node-program" | "node-link";
         /**
          * @description The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its
          *     own.
@@ -5881,6 +5882,15 @@ export interface operations {
         responses: {
             /** @description Answered. */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Turn"];
+                };
+            };
+            /** @description Answered. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

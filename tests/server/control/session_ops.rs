@@ -2,12 +2,13 @@
 //! the road and the persona trimmed and none where blank, a work turn's parts whole by the names a job's
 //! runner sends, and a body that does not read refused. A start's scope, a question's answer, a session's
 //! state and a turn's end as the routes read and write them. A turn's work carried to its end though its
-//! caller lets go.
+//! caller lets go. The interrupt's answer, which says stopped only of a turn that ended.
 
 use std::collections::BTreeMap;
 
 use agency_server::control::session_ops::{
-  answer_read, carried, context_read, scope_read, scope_value, state_value, work_asked, work_of,
+  answer_read, carried, context_read, ended_within, interrupted, scope_read, scope_value, state_value,
+  work_asked, work_of,
 };
 use agent_session::{
   AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, GateAsk, JobMark, Mapping, Outcome,
@@ -635,4 +636,50 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
     on_slot(&ground.db, &json!({}), &mut Apart::default()).await.is_err(),
     "no slot and no road"
   );
+}
+
+// "the interrupt answers stopped only of a turn that ended, and a turn still going as running with its wait"
+#[test]
+fn the_interrupt_answers_stopped_only_of_a_turn_that_ended_and_a_turn_still_going_as_running_with_its_wait()
+{
+  let session = SessionId("actor@run:3".to_owned());
+  let waiting = agent_session::Waiting {
+    kind: agent_session::WaitKind::NodeLink,
+    service: "pc-7".to_owned(),
+    reason: "the link of pc-7 is not heard".to_owned(),
+    since: 1,
+  };
+  let (status, ended) = interrupted(&session, 9, true, None);
+
+  assert_eq!(status, 200);
+  assert_eq!(
+    (ended["state"].as_str(), ended["outcome"].as_str()),
+    (Some("interrupted"), Some("stopped"))
+  );
+
+  let (status, going) = interrupted(&session, 9, false, Some(&waiting));
+
+  assert_eq!(status, 202);
+  assert_eq!(going["state"], "running");
+  assert!(going["outcome"].is_null());
+  assert_eq!(going["waiting"]["for"], "node-link");
+  assert_eq!(going["waiting"]["service"], "pc-7");
+}
+
+// "the interrupt waits for the turn's end up to its bound, and no longer"
+#[tokio::test(start_paused = true)]
+async fn the_interrupt_waits_for_the_turn_s_end_up_to_its_bound_and_no_longer() {
+  let look = std::time::Duration::from_millis(200);
+  let bound = std::time::Duration::from_secs(10);
+  let began = tokio::time::Instant::now();
+  let looks = std::sync::atomic::AtomicU32::new(0);
+  let ends_at_third = || async { looks.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= 2 };
+
+  assert!(ended_within(ends_at_third, bound, look).await);
+  assert_eq!(began.elapsed(), look * 2);
+
+  let began = tokio::time::Instant::now();
+
+  assert!(!ended_within(|| async { false }, bound, look).await);
+  assert_eq!(began.elapsed(), bound);
 }

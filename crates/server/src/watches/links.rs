@@ -16,6 +16,7 @@ use node_link::frame::Pull;
 use node_link::spec::{Forward, Jake, Landing, Local, Push, Spec};
 use policy::account_isolation::ACCOUNT_ISOLATION;
 use policy::person_nodes::PERSON_NODES;
+use policy::work_nodes::WORK_NODES;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
 use serde_json::Value;
@@ -126,6 +127,11 @@ pub fn link_unit(node: &str) -> String {
   format!("bmo-node-link-{node}")
 }
 
+/// The unit a workplace not ready is checked again under.
+pub fn check_unit(node: &str) -> String {
+  format!("bmo-node-check-{node}")
+}
+
 /// The unit an isolation node's workplace is stood up under.
 pub fn setup_unit(node: &str) -> String {
   format!("bmo-node-setup-{node}")
@@ -234,6 +240,8 @@ pub trait LinkUnits {
   fn sync(&self, node: &str) -> impl Future<Output = bool> + Send;
   /// An isolation node's workplace stood up, its user made with it, apart from the server; whether its setup runs.
   fn set_up(&self, node: &str) -> impl Future<Output = bool> + Send;
+  /// A workplace not ready checked again, apart from the server; whether its check runs.
+  fn check(&self, node: &str) -> impl Future<Output = bool> + Send;
 }
 
 /// The user's own service manager, started on with the server's roots.
@@ -351,6 +359,30 @@ impl LinkUnits for Systemd<'_> {
     )
     .await
   }
+
+  async fn check(&self, node: &str) -> bool {
+    if self.running(&check_unit(node)).await {
+      return true;
+    }
+
+    systemd(
+      "systemd-run",
+      &[
+        "--user".into(),
+        "--quiet".into(),
+        "--collect".into(),
+        format!("--unit={}", check_unit(node)),
+        self.env_file(),
+        format!("--setenv=PATH={}", self.0.path),
+        format!("--working-directory={}", self.0.deploy.display()),
+        self.0.deploy.join("bin").join(VERBS_BINARY).display().to_string(),
+        "work-node".into(),
+        "check".into(),
+        node.into(),
+      ],
+    )
+    .await
+  }
 }
 
 /// What one pass over the links came to: the links started, the ones stopped, the nodes whose copy is
@@ -362,6 +394,8 @@ pub struct Settled {
   pub syncing: Vec<String>,
   /// The isolation nodes whose setup was started (docs/account-isolation.md, 「Standing it up」).
   pub setting_up: Vec<String>,
+  /// The workplaces not ready whose check was started again (docs/work-nodes.md, 「The workplace on a node」).
+  pub checking: Vec<String>,
   pub skipped: Vec<Skipped>,
 }
 
@@ -960,7 +994,16 @@ pub async fn settle(
     if workplace.state != "ready" {
       if units.running(&unit).await {
         units.stop(&unit).await;
-        settled.stopped.push(node);
+        settled.stopped.push(node.clone());
+      }
+
+      // A workplace not ready is checked again once its while has passed, so a check that failed on something
+      // passing does not keep its link down; an isolation node is stood up again above instead.
+      let due = crate::account_isolation::Isolation::of_node(&node).is_none()
+        && workplace.checked_at.is_none_or(|at| now - at >= WORK_NODES.check_again_seconds);
+
+      if due && units.check(&node).await {
+        settled.checking.push(node);
       }
 
       continue;

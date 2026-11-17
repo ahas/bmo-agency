@@ -9,6 +9,8 @@ pub struct PersonNodes {
   pub mirror_port: u16,
   pub herdr_port: u16,
   pub wait_seconds: u64,
+  /// How long a run waits on its node's link before it ends failed, in seconds.
+  pub wait_bound_seconds: u64,
   /// The resources every tool session issued for a supervisor of no account holds.
   pub administrator_grants: Vec<String>,
   /// The verbs of the CLI a person's node may ask the home bridge to run here.

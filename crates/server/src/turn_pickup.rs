@@ -81,9 +81,42 @@ pub async fn keep(db: &sea_orm::DatabaseConnection, turn: &InFlight) {
   }
 }
 
+/// The settings family the node a kept turn waits on is kept under while it waits, by its run.
+pub const NODE_WAIT_PREFIX: &str = "turn_node_wait:";
+
+/// The node a kept turn waits on marked beside its record while it waits, or the mark taken away once it waits
+/// no more (docs/person-nodes.md, 「Which node is a person's」); a store that would not take it is said.
+pub async fn mark_node_wait(db: &sea_orm::DatabaseConnection, run: &str, node: Option<&str>) {
+  let key = format!("{NODE_WAIT_PREFIX}{run}");
+  let marked = match node {
+    Some(node) => settings::set(db, &key, node).await,
+    None => settings::forget(db, &key).await,
+  };
+
+  if let Err(why) = marked {
+    eprintln!("{run}: the node it waits on was not marked beside it: {}", why.detail);
+  }
+}
+
+/// The node a kept turn was waiting on, where it was marked so; a store that cannot be read names none.
+pub async fn node_waited(db: &sea_orm::DatabaseConnection, run: &str) -> Option<String> {
+  settings::get(db, &format!("{NODE_WAIT_PREFIX}{run}")).await.ok().flatten()
+}
+
+// Why a kept turn nothing names is ended: the node it waited on, where it waited for one.
+fn lost_why(waited: Option<&str>) -> String {
+  waited.map_or_else(
+    || LOST.to_owned(),
+    |node| format!("agency restarted while the turn waited for {node}'s link, so no program took it"),
+  )
+}
+
 /// A turn no longer kept, the run and why written to the log: its end reached its caller, was handed back,
-/// or nothing names it any more (docs/sessions.md, 「A restart hands the session over」).
+/// or nothing names it any more (docs/sessions.md, 「A restart hands the session over」). The node it waited on is
+/// let go with it.
 pub async fn forget(db: &sea_orm::DatabaseConnection, run: &str, why: &str) {
+  mark_node_wait(db, run, None).await;
+
   match settings::forget(db, &format!("{PREFIX}{run}")).await {
     Ok(()) => println!("{run}: the turn is no longer kept in flight: {why}"),
     Err(refusal) => eprintln!("{run}: the turn kept in flight was not let go ({why}): {}", refusal.detail),
@@ -733,7 +766,9 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
         forget(&ground.db, &turn.run, "no program took it; its job is launched again").await
       }
       Standing::Lost => {
-        hand_back(ground, &place, &turn, Came::Failed(LOST.to_owned()), false).await;
+        let why = lost_why(node_waited(&ground.db, &turn.run).await.as_deref());
+
+        hand_back(ground, &place, &turn, Came::Failed(why), false).await;
         close_pane(ground, pane.as_ref()).await;
       }
       Standing::Going => {
@@ -775,7 +810,7 @@ async fn found(ground: &Ground, place: &Place, turn: &InFlight) -> (Standing, Op
 /// The turns this process carries that a restart would cut (docs/sessions.md, 「A restart hands the session
 /// over」, what the deployment's quiet counts): each no job's, and one no program's record names yet, so the
 /// pickup at the next start, reading as it does here, would find nothing to attach to. A job's turn is left
-/// out, since the lease pass takes its item again; a turn this process does not carry, which the reap or the
+/// out, since the lease pass takes its item again; a turn waiting for its node's link, which the next start ends; a turn this process does not carry, which the reap or the
 /// next start ends; and a turn of a supervisor removed, which ends with it.
 pub async fn unresumable(ground: &Ground) -> Result<Vec<InFlight>, Refusal> {
   let mut cut = vec![];
@@ -787,7 +822,11 @@ pub async fn unresumable(ground: &Ground) -> Result<Vec<InFlight>, Refusal> {
 
     let place = Place::of(&ground.roots.data, &place_name_of(&turn));
 
-    if found(ground, &place, &turn).await.0 == Standing::Lost {
+    // A turn waiting for its node's link has started nothing, and the next server ends it with why
+    // (docs/sessions.md, 「A restart hands the session over」), so the deployment waits on none.
+    if found(ground, &place, &turn).await.0 == Standing::Lost
+      && node_waited(&ground.db, &turn.run).await.is_none()
+    {
       cut.push(turn);
     }
   }

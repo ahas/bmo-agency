@@ -378,8 +378,9 @@ pub enum SpannedAnswerOpened {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnWaiting {
-  /// What it waits for: `card`, a card the arbiter's master has not yet granted, or `node-program`, a program on
-  /// a node that has stood past its notice without taking the turn.
+  /// What it waits for: `card`, a card the arbiter's master has not yet granted, `node-program`, a program on
+  /// a node that has stood past its notice without taking the turn, or `node-link`, a person's node whose link is
+  /// not heard.
   #[serde(rename = "for")]
   pub kind: TurnWaitKind,
   /// The service whose grant it waits on, or the node whose program it waits on.
@@ -397,6 +398,8 @@ pub enum TurnWaitKind {
   Card,
   #[serde(rename = "node-program")]
   NodeProgram,
+  #[serde(rename = "node-link")]
+  NodeLink,
 }
 
 /// TurnInput:

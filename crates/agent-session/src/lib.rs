@@ -608,6 +608,8 @@ pub enum WaitKind {
   Card,
   /// A program on a node that has stood past its notice without taking the turn.
   NodeProgram,
+  /// A person's node whose link is not heard, which a turn of its account waits on before it starts.
+  NodeLink,
 }
 
 /// The context a session's last request carried against the window of the registration it stands on.

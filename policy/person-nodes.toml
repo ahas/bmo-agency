@@ -11,6 +11,10 @@ herdr_port = 47202
 # seconds.
 wait_seconds = 5
 
+# How long a run of an account waits on its node's link before it ends failed, in seconds: a turn whose caller has
+# left, or whose PC stays off, ends rather than waiting for ever.
+wait_bound_seconds = 600
+
 # The administrator's grants (docs/person-nodes.md, 「Who reaches a node」): the resources every tool session agency
 # issues for a supervisor of no account holds, and no other caller does. The node service's tool reads node.admin
 # as reaching every node, and agency's DeepSeek top-up declares platform.payment, the platform's own card

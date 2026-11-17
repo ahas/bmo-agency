@@ -26,8 +26,12 @@ statements below about either are kept for a rollback to the road a deployment l
     reading of the turn's place decides it, so the count and the pickup never disagree.
   - **What is not:** a turn a program has taken, which the next server picks up and its caller re-attaches
     to; a running job, below; a turn of a supervisor that no longer stands, which ends with its removal
-    (`docs/supervisors.md`, 「Adding and removing a supervisor」); and the receiver's own work, which an agency
-    restart does not cut, since the receiver re-attaches to its turns and its own quiet counts what it holds.
+    (`docs/supervisors.md`, 「Adding and removing a supervisor」); the receiver's own work, which an agency
+    restart does not cut, since the receiver re-attaches to its turns and its own quiet counts what it holds;
+    and a turn waiting for a person's node to be heard (`docs/person-nodes.md`, 「Which node is a person's」),
+    which has that node kept beside its record. Such a turn has started nothing, and how long it waits is the person's
+    PC's to say, not the deployment's, so a deployment waits on none: the next server ends it failed with why,
+    and its caller sends it again.
   - **No server listening is quiet:** a server that is not running carries no turn, and the turns its
     process left are the next start's to pick up. Nor does a server whose build answers no quiet route
     hold a count to wait on. A server that answers with any other refusal could not tell.
@@ -71,7 +75,8 @@ statements below about either are kept for a rollback to the road a deployment l
   - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
     `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
     caller's key where the send named one, the agent, the room, the turn's run in the ledger where agency
-    opened one, and the job. Every turn agency carries is sent
+    opened one, and the job; while it waits for a person's node to be heard, that node is kept beside it, by
+    its run (`turn_node_wait:<run>`). Every turn agency carries is sent
     through the session contract, so every kind is kept: a supervisor's chat turn, a conversation's, a
     gate's, and every turn of a role's thrown-away session — a job's, a co-work branch's, a worker ask's
     and a research run's among them. A turn stops being kept only once its end
@@ -131,7 +136,8 @@ statements below about either are kept for a rollback to the road a deployment l
     offered to its run while its program reads working is typed into the program and answered as taken, so
     words said to a job whose turn crossed a restart reach that turn (`docs/agent-control.md`, 「Words for a
     running job」);
-  - a turn nothing in its place names is ended failed for its caller; a job's is let go and its job launched
+  - a turn nothing in its place names is ended failed for its caller, its reason saying it waited for its
+    node's link where one is kept beside it; a job's is let go and its job launched
     again from the words its row keeps, since no program took them (`docs/api.md`, 「assignments and
     jobs」). Either way the pane of its own, where it has one, is closed, so no program stands on a turn
     nobody waits for.

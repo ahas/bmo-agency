@@ -480,7 +480,7 @@ pub const OPERATIONS: &[Operation] = &[
       },
     ],
     body: Some("TurnInterrupt"),
-    answers: &[(200, Some("Turn"), false)],
+    answers: &[(200, Some("Turn"), false), (202, Some("Turn"), false)],
     codes: &["not-found"],
   },
   Operation {

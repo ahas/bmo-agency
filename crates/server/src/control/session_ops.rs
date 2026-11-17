@@ -12,6 +12,7 @@
 //! an English sentence saying why.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use agent_session::{
   Answer, Apart, Aside, Conversation, Fault, FaultKind, GateAsk, JobMark, RoomBlock, Scope, Session,
@@ -1296,7 +1297,71 @@ impl Route for SessionOutput {
 
 crate::moved!(SessionOutput);
 
-/// The turn a session is in cut short.
+/// Whether a turn has ended, asked with `ended` every `look` until it has or `bound` has passed.
+pub async fn ended_within<Look, Looking>(mut ended: Look, bound: Duration, look: Duration) -> bool
+where
+  Look: FnMut() -> Looking,
+  Looking: Future<Output = bool>,
+{
+  let began = tokio::time::Instant::now();
+
+  loop {
+    if ended().await {
+      return true;
+    }
+
+    let waited = began.elapsed();
+
+    if waited >= bound {
+      return false;
+    }
+
+    tokio::time::sleep(look.min(bound - waited)).await;
+  }
+}
+
+/// The interrupt's answer (docs/api.md, 「sessions」): a turn that ended answered stopped, one still going
+/// answered `202` running, with what it waits for, since the stop stands over it and its end comes as
+/// `turn.ended`.
+pub fn interrupted(
+  session: &SessionId,
+  turn: i64,
+  ended: bool,
+  waiting: Option<&agent_session::Waiting>,
+) -> (StatusCode, Value) {
+  let (status, state, outcome, waiting) = if ended {
+    (StatusCode::OK, "interrupted", Value::from("stopped"), Value::Null)
+  } else {
+    (
+      StatusCode::ACCEPTED,
+      "running",
+      Value::Null,
+      waiting.and_then(|waiting| serde_json::to_value(waiting).ok()).unwrap_or(Value::Null),
+    )
+  };
+
+  (
+    status,
+    json!({
+      "id": turn,
+      "sessionId": session.0,
+      "prompt": "",
+      "context": {},
+      "state": state,
+      "delivery": Value::Null,
+      "outcome": outcome,
+      "ending": outcome,
+      "reason": Value::Null,
+      "answer": Value::Null,
+      "answers": [],
+      "text": [],
+      "waiting": waiting,
+    }),
+  )
+}
+
+/// The turn a session is in cut short: a stop stood over it and the turn waited on, up to the interrupt's bound,
+/// so the answer says whether it ended.
 pub struct SessionInterrupt;
 
 impl Route for SessionInterrupt {
@@ -1312,27 +1377,27 @@ impl Route for SessionInterrupt {
       return Err(bad("a turn is interrupted, not moved to another state"));
     }
 
-    Ok(match backend(&call)?.interrupt(&session, turn).await {
-      Ok(()) => answer(
-        StatusCode::OK,
-        json!({
-          "id": turn,
-          "sessionId": session.0,
-          "prompt": "",
-          "context": {},
-          "state": "interrupted",
-          "delivery": Value::Null,
-          "outcome": "stopped",
-          "ending": "stopped",
-          "reason": Value::Null,
-          "answer": Value::Null,
-          "answers": [],
-          "text": [],
-          "waiting": Value::Null,
-        }),
-      ),
-      Err(fault) => faulted(fault),
-    })
+    let backend = backend(&call)?;
+
+    if let Err(fault) = backend.interrupt(&session, turn).await {
+      return Ok(faulted(fault));
+    }
+
+    let stop = &policy::run_stop::RUN_STOP;
+    let read = || backend.output(&session, Some(turn));
+    let ended = ended_within(
+      || async { read().await.is_ok_and(|output| !output.running) },
+      Duration::from_millis(stop.interrupt_wait_ms),
+      Duration::from_millis(stop.interrupt_look_ms),
+    )
+    .await;
+    // A turn that ended between the last look and the bound is read once more, so the answer is as of now.
+    let now = if ended { None } else { read().await.ok() };
+    let ended = ended || now.as_ref().is_some_and(|output| !output.running);
+    let waiting = now.as_ref().and_then(|output| output.waiting.as_ref());
+    let (status, body) = interrupted(&session, turn, ended, waiting);
+
+    Ok(answer(status, body))
   }
 }
 

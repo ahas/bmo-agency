@@ -304,6 +304,70 @@ async fn a_job_whose_turn_ended_after_the_restart_ends_with_its_report_and_a_cha
   );
 }
 
+// "a turn that waited for its node's link ends failed at the start, its reason saying so, and its mark goes with it"
+#[tokio::test]
+async fn a_turn_that_waited_for_its_node_s_link_ends_failed_at_the_start_saying_so_and_its_mark_goes_with_it()
+ {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let mut ended = ground.events.subscribe::<TurnEnded>();
+
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "u7".into(),
+      ..in_flight("chat:7:1", "u7", 71, Some(7), None, None)
+    },
+  )
+  .await;
+  mark_node_wait(scratch.db(), "chat:7:1", Some("pc-7")).await;
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+
+  let lost = ended.next().await.unwrap();
+
+  assert_eq!((lost.session.as_str(), lost.end.turn), ("u7", 71));
+  assert!(lost.end.answer.is_none(), "{lost:?}");
+  assert!(
+    lost.end.reason.as_deref().is_some_and(|why| why.contains("waited for pc-7's link")),
+    "{lost:?}"
+  );
+  assert!(in_flight_turns(&scratch).await.is_empty());
+  assert_eq!(node_waited(scratch.db(), "chat:7:1").await, None);
+}
+
+// "a stop from the shell confirms a turn gone only once agency no longer keeps it"
+#[tokio::test]
+async fn a_stop_from_the_shell_confirms_a_turn_gone_only_once_agency_no_longer_keeps_it() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let gone = |run| agency_server::verbs::run_stop::turn_gone(db, run, std::time::Duration::ZERO);
+
+  assert!(gone("chat:7:2").await, "a turn not kept is gone at once");
+
+  keep(db, &in_flight("chat:7:2", "u7", 72, Some(7), None, None)).await;
+
+  let looking = {
+    let db = db.clone();
+
+    tokio::spawn(async move {
+      agency_server::verbs::run_stop::turn_gone(&db, "chat:7:2", std::time::Duration::ZERO).await
+    })
+  };
+
+  // The stop looks again and again while the turn is kept, and confirms nothing meanwhile.
+  for _ in 0..3 {
+    assert!(kept(db, "chat:7:2").await);
+  }
+
+  assert!(!looking.is_finished(), "a turn still kept is not confirmed gone");
+
+  forget(db, "chat:7:2", "it ended").await;
+
+  assert!(looking.await.unwrap());
+}
+
 async fn in_flight_turns(scratch: &Scratch) -> Vec<InFlight> {
   agency_server::turn_pickup::in_flight(scratch.db()).await.unwrap()
 }

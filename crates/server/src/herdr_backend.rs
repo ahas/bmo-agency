@@ -678,7 +678,9 @@ pub fn ending_of(end: &TurnEnd) -> &'static str {
 pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
     NoAnswer::Errored { error, kind } => (error, Some(EngineError { kind })),
-    NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Unsubmitted(why) => (why, None),
+    NoAnswer::Cut(why) | NoAnswer::Stopped(why) | NoAnswer::Failed(why) | NoAnswer::Unsubmitted(why) => {
+      (why, None)
+    }
     NoAnswer::Overtaken => ("the supervisor's reset overtook the turn".to_owned(), None),
   }
 }
@@ -1591,7 +1593,7 @@ impl HerdrSessions {
     let _keeping = hold.keeping().await;
     let (reply, placement) = match asked {
       Ok(asked) if !overtaken::overtaken(&db, agent, began).await => asked,
-      Ok(_) | Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Ok(_) | Err(NoAnswer::Overtaken | NoAnswer::Stopped(_)) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
         let _ = sessions::mark_spent(&db, agent, chat_id, Spent::default()).await;
@@ -1919,7 +1921,7 @@ impl HerdrSessions {
 
     let reply = match asked {
       Ok(reply) => reply,
-      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(NoAnswer::Overtaken | NoAnswer::Stopped(_)) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
         let road = crate::supervisors::named(&db, agent).await.ok().flatten().and_then(|held| held.road);
@@ -2040,7 +2042,7 @@ impl HerdrSessions {
 
     let reply = match asked {
       Ok(reply) => reply,
-      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(NoAnswer::Overtaken | NoAnswer::Stopped(_)) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
 
@@ -2189,7 +2191,7 @@ impl HerdrSessions {
 
     let reply = match asked {
       Ok(reply) => reply,
-      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(NoAnswer::Overtaken | NoAnswer::Stopped(_)) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
 
@@ -2951,7 +2953,7 @@ impl HerdrSessions {
         left(&reply),
         reply.answers.clone(),
       )),
-      Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
+      Err(NoAnswer::Overtaken | NoAnswer::Stopped(_)) => Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
 

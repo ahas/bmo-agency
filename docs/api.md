@@ -607,7 +607,14 @@ its `id`, `sessionId`, `prompt`, `context`, `state` (`running` or `ended`), `del
 `answer`, `text`, the last holding every text block the turn has written so far, and `waiting`. The
 progress read answers the turn named while it runs, and the session's last turn once it has ended; the
 interrupt and the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
-carries no turn of that id. A session's turn that has ended keeps what it wrote until the session's next
+carries no turn of that id.
+
+**The interrupt says whether the turn has ended.** It stands a stop over the turn's run, which the turn reads
+wherever it stands — waiting for its card or its node, or in its program — and waits for the turn to end, up to
+the interrupt's bound (`policy/run-stop.toml`). A turn that has ended within it is answered `200` with `state`
+`interrupted` and `outcome` `stopped`; one still going is answered `202` with `state` `running`, `outcome` null
+and what it waits for in `waiting`: the stop still stands over it, and its end comes as `turn.ended`. So no
+answer says stopped of a turn that goes on. A session's turn that has ended keeps what it wrote until the session's next
 turn begins.
 
 **Words said to a run.** `POST /sessions/{sessionId}/words` hands a paragraph, and any files with it, to a
@@ -647,12 +654,15 @@ the turn waits before its program is put to work it names the wait, typed: `for`
 `card`, a card the arbiter's master has not yet granted the run on a registration naming a card service
 (`docs/own-llm.md`, 「An engine the arbiter stands」), or `node-program`, a program on a node that has stood
 past its notice without taking the turn, or whose node's far end could not listen on a port the program reaches
-home through (`docs/work-nodes.md`, 「When a node drops」) —, `service`, the card
+home through (`docs/work-nodes.md`, 「When a node drops」), or `node-link`, a person's node whose link is not
+heard, on which a turn of its account waits before it starts (`docs/person-nodes.md`, 「Which node is a
+person's」) —, `service`, the card
 service or the node, `reason`, why it waits as it stands now — the master's reason, the master unreached, the
-gateway taking the granted card's entry into its table, or the program on the node not yet taking the turn, or the port its far end could not listen on —,
+gateway taking the granted card's entry into its table, or the program on the node not yet taking the turn, or the port its far end could not listen on, or the node's link not heard —,
 and `since`, the moment in epoch milliseconds the wait began. A `node-program` wait the bound overtakes ends
 the turn `unsubmitted`, its `reason` saying how long the program stood on which node, or which port its far end
-could not listen on. The wait is
+could not listen on; a `node-link` wait its bound overtakes ends the turn failed, its `reason` naming the node
+and how long its link went unheard, and a stop standing over its run ends it `stopped`. The wait is
 published as `turn.changed` — `session`, `turnId`, `run` and `waiting` — as it begins, each time its reason
 changes, and once more with `waiting` null as it clears, on the grant or on the wait's end, so a consumer
 shows it on the room's working line from the event or from the read and never from the run's log. A turn

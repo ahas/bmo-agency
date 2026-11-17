@@ -79,11 +79,23 @@ side of a remote agent, the rotation, and what a dropped node does.
     and its runs stand on this machine alone.
 - **The row says what is missing,** one thing per line, and a node with anything missing is not ready:
   nothing is launched or run on it.
+- **A look the node did not answer is not a thing missing:** where the command asking whether a tool stands
+  could not run at all — the node's shell, the hub or a step's unit failing before it gave a code — the row
+  says the tool could not be looked for, with why, rather than that it is not on the node. The node is still
+  not ready until a look answers.
+- **A workplace not ready is checked again by itself:** the process keeping the links (「The link」 below) starts
+  a check of it as a unit of its own, `bmo-node-check-<node>`, on the server's own environment file, once the
+  while the policy names (`policy/work-nodes.toml`) has passed since its last check, setup, sync or check. A check
+  that finds it ready makes the next pass stand its link again, and a sync of its copy where the deployment has
+  moved past it. So a check that failed on something passing — a hub that did not answer one step — does not
+  keep the link down. An account's isolation node is stood up again instead (`docs/account-isolation.md`,
+  「Standing it up」).
 - **The node's copy follows the deployment.** The setup writes down the deployed commit it copied, as
   the deployment's record beside the deploy tree's link names it. Where the deployed commit has moved
   past it, the process keeping the links (「The link」 below) starts a sync of its own as a unit, on the
   server's own environment file, `env/agency.env`, as every unit of a link is; a sync
-  stops the node's link, which that process stands again on the new code.
+  stops the node's link, which that process stands again on the new code once the workplace reads ready,
+  at once where the sync found it so and after the check above where it did not.
 
 ## Which nodes take jobs
 

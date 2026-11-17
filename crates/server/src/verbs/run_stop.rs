@@ -165,7 +165,8 @@ async fn systemctl_stop(ground: &Ground, unit: &str) {
 }
 
 // A unit and every execution it owns asked to end: the cancellation written, a run in a pane asked and
-// waited on until it has ended, and the unit stopped by systemd where it still stands after that.
+// waited on until it has ended, and the unit stopped by systemd where it still stands after that. A turn agency
+// keeps in flight under the name is asked by the cancellation alone, which it reads wherever it stands.
 async fn ask_unit(
   ground: &Ground,
   stops: &Stops,
@@ -185,7 +186,21 @@ async fn ask_unit(
     systemctl_stop(ground, unit).await;
   }
 
-  Ok(asked)
+  Ok(asked || crate::turn_pickup::kept(&ground.db, unit).await)
+}
+
+/// A turn agency kept in flight under the name waited on until it no longer keeps it, its end handed back,
+/// looking again every `look`.
+pub async fn turn_gone(db: &sea_orm::DatabaseConnection, unit: &str, look: Duration) -> bool {
+  loop {
+    let kept = crate::queue::settings::get(db, &format!("{}{unit}", crate::turn_pickup::PREFIX)).await;
+
+    if kept.is_ok_and(|kept| kept.is_none()) {
+      return true;
+    }
+
+    tokio::time::sleep(look).await;
+  }
 }
 
 // A unit waited on until nothing of it still runs.
@@ -300,7 +315,7 @@ async fn ask_one(
 async fn gone(ground: &Ground, running: &Running, picture: &Picture, target: &Target) -> bool {
   match target {
     Target::Unit(unit) => {
-      let gone = unit_gone(running, unit).await;
+      let gone = unit_gone(running, unit).await && turn_gone(&ground.db, unit, LOOK_EVERY).await;
 
       if gone {
         let _ = cancels::take_back(&ground.db, unit).await;

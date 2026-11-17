@@ -3444,7 +3444,10 @@ what the target's kind is, the reach 「Stopping」 above holds.
   own, because a short list read as the whole of what is running is the one way this can mislead.
 - **Called with a target, it stops that one run.** `unit:` for a run in a unit of its own, its cancellation
   written, a pane asked and waited on until its run has ended, and the unit stopped by systemd where it
-  still stands after that; `execution:` for a chat turn, the cancellation walked from its record; `item:`
+  still stands after that; the same word for a turn agency carries, whose run the reading lists while it
+  goes, its cancellation written for the turn to read wherever it stands — waiting for its card or its node,
+  or in its program — and the turn seen gone once agency no longer keeps it in flight (`docs/sessions.md`, 「A
+  restart hands the session over」); `execution:` for a chat turn, the cancellation walked from its record; `item:`
   for a work order, its job marked stopped and its run stopped, and `--why '<reason>'` because the item
   carries that reason until it is taken up again. A word that is not a target is refused before anything is
   asked.

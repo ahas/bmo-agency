@@ -265,11 +265,23 @@ fn join(base: &str, part: &str) -> String {
 // A command whose connection failed is a step that failed, said with the rest, never the end of the
 // setup.
 async fn found(shell: &dyn SetupShell, root: &str, tool: &str) -> bool {
-  shell
+  looked(shell, root, tool).await.is_ok_and(|standing| standing)
+}
+
+/// Whether a tool stands on the node's search path, or why it could not be looked for (docs/work-nodes.md, 「The
+/// workplace on a node」): `command -v` ends with 0 for a tool it finds and 1 for one it does not, so any other end
+/// — a step that came to no code, a launcher's own code, a shell that could not run — is a look the node did not
+/// answer, never a tool missing.
+pub async fn looked(shell: &dyn SetupShell, root: &str, tool: &str) -> Result<bool, String> {
+  let ran = shell
     .run(&with_path(root, &format!("command -v {} >/dev/null", shell_word(tool))))
-    .await
-    .code
-    == 0
+    .await;
+
+  match ran.code {
+    0 => Ok(true),
+    1 => Ok(false),
+    _ => Err(ran.said()),
+  }
 }
 
 // A word of a unit file's command line as systemd reads it back as itself.
@@ -355,7 +367,13 @@ pub async fn set_up_workplace(
 
   // The tools, each installed into the account where it is missing and the setup may install.
   for tool in tools(place.bun.as_deref(), &root) {
-    let standing = found(shell, &root, tool.name).await;
+    let standing = match looked(shell, &root, tool.name).await {
+      Ok(standing) => standing,
+      Err(why) => {
+        missing.push(format!("{}: could not be looked for on the node: {why}", tool.name));
+        continue;
+      }
+    };
     let version = match (&tool.version, standing) {
       (Some((ask, _)), true) => Some(shell.run(&with_path(&root, ask)).await.stdout.trim().to_owned()),
       _ => None,

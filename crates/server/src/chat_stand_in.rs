@@ -374,6 +374,8 @@ async fn deliver(
   {
     Ok(reply) => Ok(Ok(reply)),
     Err(NoAnswer::Overtaken) => Err(NoAnswer::Overtaken),
+    // A stop ends the turn, never sends it down the next road.
+    Err(NoAnswer::Stopped(why)) => Err(NoAnswer::Stopped(why)),
     // A pane that left the words unsubmitted is no road's failure: the next road would put the same words
     // before a program of its own, on a session of its own, for a dialog somebody left open.
     Err(NoAnswer::Unsubmitted(why)) => Err(NoAnswer::Unsubmitted(why)),

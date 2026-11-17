@@ -184,6 +184,9 @@ seeds. The other crates and the server reach the store only through it.
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the caller's
     key, the agent, the room, the turn's run in the ledger, the job and when it began, kept while the
     turn goes and read by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
+  - the node a turn in flight waits on, `turn_node_wait:*` by its run, the node's name, kept while the turn
+    waits for a person's node to be heard and let go with the turn, read by the deployment's quiet and the next
+    server's start (`docs/person-nodes.md`, 「Which node is a person's」);
   - a keyed turn's end, `turn_end:*` by the session and the caller's key, as JSON: the turn's id, how it
     ended, its answer and when it ended, kept for the span `policy/turn-keys.toml` names so a send repeated
     with the key is answered with it (`docs/api.md`, 「sessions」), and dropped past it by the

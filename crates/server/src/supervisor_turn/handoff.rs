@@ -248,6 +248,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, supervisor: &Speaker, 
     }
     Err(
       NoAnswer::Cut(reason)
+      | NoAnswer::Stopped(reason)
       | NoAnswer::Failed(reason)
       | NoAnswer::Unsubmitted(reason)
       | NoAnswer::Errored { error: reason, .. },

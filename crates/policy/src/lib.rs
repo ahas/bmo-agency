@@ -54,6 +54,7 @@ pub mod tool_clock;
 pub mod turn_keys;
 pub mod verb_words;
 pub mod work_keys;
+pub mod work_nodes;
 pub mod worker_words;
 pub mod workers;
 

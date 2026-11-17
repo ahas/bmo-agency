@@ -222,6 +222,10 @@ impl Places {
       println!("node link {node}: its copy is being brought up");
     }
 
+    for node in &settled.checking {
+      println!("node link {node}: its workplace is not ready, so it is checked again");
+    }
+
     for skipped in &settled.skipped {
       println!("node link {}: skipped, {}", skipped.node, skipped.why);
     }

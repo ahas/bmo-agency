@@ -4,7 +4,6 @@
 //! a node」).
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
@@ -18,7 +17,8 @@ use harness_providers::Machine;
 use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeKind, NodeRead, NodeRow, NodeService};
 use agency_server::person_nodes::{
-  self, ActingFor, Caller, Placement, RunPlaced, run_placed, supervisors_placed, until_placed,
+  self, ActingFor, Caller, NodeWait, Placement, RunPlaced, Waited, run_placed, supervisors_placed,
+  until_placed,
 };
 use agency_server::places::AgentRow;
 use agency_server::role_agents::composed_as;
@@ -249,42 +249,81 @@ fn a_node_s_link_is_heard_while_it_is_connected_and_spoke_within_twenty_seconds(
   assert!(!link_heard(data.path(), "pc-7"));
 }
 
+/// A run's wait as a test drives it: the node heard where `heard` says so, the placements it reads in turn, the
+/// last standing once the rest are read, a stop standing from the ask `stop_at` names on, and what it was told.
+struct Driven<Heard> {
+  heard: Heard,
+  placements: Vec<Placement>,
+  read: u32,
+  stop_at: Option<u32>,
+  asked: u32,
+  told: Vec<Option<String>>,
+}
+
+impl<Heard: Fn(&str) -> bool + Sync> Driven<Heard> {
+  fn new(heard: Heard, placements: Vec<Placement>) -> Self {
+    Self {
+      heard,
+      placements,
+      read: 0,
+      stop_at: None,
+      asked: 0,
+      told: Vec::new(),
+    }
+  }
+}
+
+impl<Heard: Fn(&str) -> bool + Send + Sync> NodeWait for Driven<Heard> {
+  fn heard(&self, node: &str) -> bool {
+    (self.heard)(node)
+  }
+
+  async fn present(&mut self) -> Result<Placement, agency_server::Refusal> {
+    self.read += 1;
+
+    Ok(if self.placements.len() > 1 {
+      self.placements.remove(0)
+    } else {
+      self.placements[0].clone()
+    })
+  }
+
+  async fn stopped(&mut self) -> bool {
+    self.asked += 1;
+    self.stop_at.is_some_and(|at| self.asked >= at)
+  }
+
+  async fn told(&mut self, waiting: Option<(&str, i64)>) {
+    self.told.push(waiting.map(|(node, _)| node.to_owned()));
+  }
+}
+
+const EVERY: Duration = Duration::from_secs(5);
+const BOUND: Duration = Duration::from_secs(3600);
+
 // "a run waits, asking again, until its node is heard, and goes on at once where it is"
 #[tokio::test(start_paused = true)]
 async fn a_run_waits_asking_again_until_its_node_is_heard_and_goes_on_at_once_where_it_is() {
   let pc = || Some("pc-7".to_owned());
   let asked = AtomicU32::new(0);
-  let still = || async { Ok(Placement::On(Some("pc-7".to_owned()))) };
-  let came = until_placed(
-    "chat:1:1",
-    pc(),
-    |_| asked.fetch_add(1, Ordering::SeqCst) >= 3,
-    still,
-    Duration::from_secs(5),
-  );
+  let mut waiting =
+    Driven::new(|_: &str| asked.fetch_add(1, Ordering::SeqCst) >= 3, vec![Placement::On(pc())]);
 
-  assert_eq!(came.await, Placement::On(pc()));
+  assert_eq!(until_placed("chat:1:1", pc(), &mut waiting, EVERY, BOUND).await, Waited::On(pc()));
   assert_eq!(asked.load(Ordering::SeqCst), 4);
+  assert_eq!(waiting.told, [pc(), None], "the wait is told as it begins and cleared as it ends");
 
-  let read = AtomicU32::new(0);
-  let reading = || {
-    read.fetch_add(1, Ordering::SeqCst);
-    async { Ok(Placement::Gone) }
-  };
+  let mut heard = Driven::new(|_: &str| true, vec![Placement::Gone]);
+
+  assert_eq!(until_placed("chat:1:2", pc(), &mut heard, EVERY, BOUND).await, Waited::On(pc()));
+  assert_eq!(heard.read, 0, "a run on a node heard from goes on without reading again");
+  assert!(heard.told.is_empty(), "a run that never waited is told nothing");
+
+  let mut here = Driven::new(|_: &str| false, vec![Placement::Gone]);
 
   assert_eq!(
-    until_placed("chat:1:2", pc(), |_| true, reading, Duration::from_secs(3600)).await,
-    Placement::On(pc())
-  );
-  assert_eq!(
-    read.load(Ordering::SeqCst),
-    0,
-    "a run on a node heard from goes on without reading again"
-  );
-  assert_eq!(
-    until_placed("chat:1:3", None, |_| false, || async { Ok(Placement::Gone) }, Duration::from_secs(5))
-      .await,
-    Placement::On(None),
+    until_placed("chat:1:3", None, &mut here, EVERY, BOUND).await,
+    Waited::On(None),
     "a run on this machine waits on nothing"
   );
 }
@@ -294,29 +333,56 @@ async fn a_run_waits_asking_again_until_its_node_is_heard_and_goes_on_at_once_wh
 #[tokio::test(start_paused = true)]
 async fn a_run_waiting_on_a_node_no_record_names_is_placed_again_and_one_whose_supervisor_went_waits_no_more()
  {
-  let every = Duration::from_secs(5);
-  let records = Mutex::new(vec![
-    Placement::On(Some("account-7".to_owned())),
-    Placement::On(Some("pc-7".to_owned())),
-  ]);
-  let present = || {
-    let next = records.lock().unwrap().pop().unwrap();
-
-    async move { Ok(next) }
-  };
-  let heard = |node: &str| node == "account-7";
-
-  assert_eq!(
-    until_placed("chat:1:1", Some("pc-7".to_owned()), heard, present, every).await,
-    Placement::On(Some("account-7".to_owned()))
+  let mut moved = Driven::new(
+    |node: &str| node == "account-7",
+    vec![Placement::On(Some("pc-7".to_owned())), Placement::On(Some("account-7".to_owned()))],
   );
 
-  let removed = || async { Ok(Placement::Gone) };
+  assert_eq!(
+    until_placed("chat:1:1", Some("pc-7".to_owned()), &mut moved, EVERY, BOUND).await,
+    Waited::On(Some("account-7".to_owned()))
+  );
+
+  let mut removed = Driven::new(|_: &str| false, vec![Placement::Gone]);
 
   assert_eq!(
-    until_placed("chat:1:2", Some("pc-7".to_owned()), |_| false, removed, every).await,
-    Placement::Gone
+    until_placed("chat:1:2", Some("pc-7".to_owned()), &mut removed, EVERY, BOUND).await,
+    Waited::Gone
   );
+  assert_eq!(removed.told, [Some("pc-7".to_owned()), None]);
+}
+
+// "a stop standing over a waiting run ends its wait at the next ask"
+#[tokio::test(start_paused = true)]
+async fn a_stop_standing_over_a_waiting_run_ends_its_wait_at_the_next_ask() {
+  let mut stopped = Driven::new(|_: &str| false, vec![Placement::On(Some("pc-7".to_owned()))]);
+
+  stopped.stop_at = Some(3);
+
+  assert_eq!(
+    until_placed("chat:1:1", Some("pc-7".to_owned()), &mut stopped, EVERY, BOUND).await,
+    Waited::Stopped
+  );
+  assert_eq!(stopped.read, 2, "the placement is read no more once the stop is seen");
+  assert_eq!(stopped.told, [Some("pc-7".to_owned()), None]);
+}
+
+// "a run waits on its node no longer than its bound, the reason naming the node and how long"
+#[tokio::test(start_paused = true)]
+async fn a_run_waits_on_its_node_no_longer_than_its_bound_the_reason_naming_the_node_and_how_long() {
+  let mut unheard = Driven::new(|_: &str| false, vec![Placement::On(Some("pc-7".to_owned()))]);
+  let began = tokio::time::Instant::now();
+  let waited =
+    until_placed("chat:1:1", Some("pc-7".to_owned()), &mut unheard, EVERY, Duration::from_secs(600)).await;
+
+  assert_eq!(
+    waited,
+    Waited::Overdue(
+      "pc-7's link was not heard for 10 minutes, so the turn ends without starting".to_owned()
+    )
+  );
+  assert_eq!(began.elapsed(), Duration::from_secs(600));
+  assert_eq!(unheard.told, [Some("pc-7".to_owned()), None]);
 }
 
 // "a waiting run's placement is read from the present records: a supervisor whose account's record went stands on
