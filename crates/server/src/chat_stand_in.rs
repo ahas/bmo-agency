@@ -13,14 +13,17 @@ use crate::cards;
 use crate::control::registry;
 use crate::job_run::claude::failure::request_refused;
 use crate::lines::chat::{ChatLaunch, ChatRun, Door, chat_run, compose_stand_in};
+use crate::lines::claude::Runs;
 use crate::lines::codex::lost_thread;
+use crate::lines::pieces::walked_login_for;
+use crate::lines::place::Place;
 use crate::lines::standing::{GatewayModel, member_model, place_registered};
 use crate::places::Ground;
 use crate::road;
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::session_output::OutputWatch;
-use crate::stand_in::{CLAUDE, Step, listed, step_of};
+use crate::stand_in::{CLAUDE, Step, held_thinking, listed, step_of};
 use crate::supervisor_turn::run::{NoAnswer, Reply, run_turn};
 use crate::{Refusal, now_ms};
 use store::{one, run as written};
@@ -41,6 +44,14 @@ pub fn carries_own_turns(provider: &str) -> bool {
   harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())
     .is_some_and(|resident| resident.turns != Turns::Transcript)
+}
+
+// Whether a provider's turns are its program's own, read back out of the transcript it keeps under a login of
+// its own road, as its declaration says: Claude Code's.
+fn login_road_declared(provider: &str) -> bool {
+  harness_providers::provider(provider)
+    .and_then(|declared| declared.declared().resident.as_ref())
+    .is_some_and(|resident| resident.turns == Turns::Transcript)
 }
 
 // Whether a provider's turns are Claude Code on the gateway under a member of its own road. The registry's
@@ -171,7 +182,8 @@ pub async fn road_step(
 }
 
 /// One worker's job turn carried on the road its launch resolved, on the worker line the run composed: the
-/// road's own program standing in the worker's pane, never another provider's. A role that follows the
+/// road's own program standing in the worker's pane, never another provider's — on Claude Code, Claude Code
+/// on a login of its own road (docs/person-nodes.md, 「Which node is a person's」). A role that follows the
 /// supervisor that asks it goes out on the entry of the supervisor its slot names.
 #[allow(clippy::too_many_arguments)]
 pub async fn job_turn_on(
@@ -192,6 +204,9 @@ pub async fn job_turn_on(
   run.note_persona(ground, log).await;
 
   let outcome = match taken.provider.as_str() {
+    name if login_road_declared(name) => {
+      claude_road(ground, &machine, run, &step, log, began, shown).await?
+    }
     name if inbox_declared(name) => {
       inbox_road(ground, &machine, run, &step, log, &[], began, shown).await?
     }
@@ -319,12 +334,8 @@ async fn step_on(
   reasoning: &crate::lines::worker::Reasoning,
 ) -> Result<Step, NoAnswer> {
   if provider != registry::PROVIDER {
-    let held = harness_providers::member::road_members(&ground.machine(), provider)
-      .map_err(|why| failed(format!("{provider}: {why}")))?
-      .into_iter()
-      .find(|one| one.member.name == model)
-      .ok_or_else(|| failed(format!("{provider}: {model} is no member of its road")))?;
-    let thinking = reasoning.thinking.unwrap_or(held.thinking);
+    let held = held_thinking(ground, &ground.machine(), provider, model).await.map_err(failed)?;
+    let thinking = reasoning.thinking.or(held).unwrap_or(true);
     let effort = if !thinking { "none".to_owned() } else { reasoning.level.clone().unwrap_or_default() };
 
     return Ok(Step {
@@ -609,6 +620,35 @@ async fn registered_road(
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());
+
+  Ok(Ok(reply))
+}
+
+// A turn on Claude Code's own road in the run's place: Claude Code signed in by the first login the walk offers
+// that runs where the place stands, through its token for the nodes on a node. The turn goes out on that one
+// login, and a turn that fails on it ends failed.
+async fn claude_road(
+  ground: &Ground,
+  machine: &Machine,
+  run: &ChatRun,
+  step: &Step,
+  log: &mut RunLog,
+  began: i64,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Result<Reply, String>, NoAnswer> {
+  let place = Place::of(&ground.roots.data, &run.agent);
+  let on_node = matches!(Runs::of_place(&ground.roots.data, &place.path), Runs::OnNode { .. });
+  let login = match walked_login_for(ground, &run.agent, on_node).await {
+    Ok(login) => login,
+    Err(why) => return Ok(Err(why.detail)),
+  };
+  let door = Door::Claude {
+    login: login.map(Box::new),
+  };
+  let outcome = deliver(ground, machine, run, step, &door, log, &[], began, shown).await?;
+  let Ok(mut reply) = outcome else { return Ok(outcome) };
+
+  reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
 
   Ok(Ok(reply))
 }

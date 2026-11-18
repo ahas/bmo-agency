@@ -1,12 +1,13 @@
 //! The step a turn on a road other than Claude Code's own session goes out on (docs/cache-fallback.md, 「A
-//! supervisor's turn on a road other than Claude Code」): its model, effort and answer room, resolved for its
-//! key.
+//! supervisor's turn on a road other than Claude Code」), and a role's run in a place of its own on any road:
+//! its model, effort and answer room, resolved for its key.
 
 use harness_providers::Machine;
 use harness_providers::registered::Registered;
 use policy::work_keys::WORK_KEYS;
 use sea_orm::DatabaseConnection;
 
+use crate::control::claude_accounts::Judging;
 use crate::control::own_llm::{self, OwnLlmError};
 use crate::control::registry::{self, Mapping};
 use crate::lines::worker::{Reasoning, effort_of};
@@ -48,14 +49,10 @@ pub async fn step_of(
       .unwrap_or_default();
 
   if provider != registry::PROVIDER {
-    let held = harness_providers::member::road_members(machine, provider)
-      .map_err(|why| format!("{provider}: {why}"))?
-      .into_iter()
-      .find(|one| one.member.name == mapping.model)
-      .ok_or_else(|| format!("{provider}: {} is no member of its road", mapping.model))?;
+    let held = held_thinking(ground, machine, provider, &mapping.model).await?;
     let thinking = mapping
       .thinks()
-      .unwrap_or_else(|| if effort.is_empty() { held.thinking } else { effort != "none" });
+      .unwrap_or_else(|| if effort.is_empty() { held.unwrap_or(true) } else { effort != "none" });
 
     return Ok(Step {
       provider: provider.to_owned(),
@@ -74,6 +71,37 @@ pub async fn step_of(
   };
 
   registered_step(db, key, &asked).await
+}
+
+/// Whether a provider holds the model a run in a place of its own goes out on (docs/provider-order.md, 「Models
+/// a provider holds」), and the model's thinking default where it states one. A provider whose models are the
+/// gateway's holds a member of its own road, which states its default; any other holds a model its own
+/// catalogue names, read under the login the walk would take first, and states none, so the line's own
+/// stands. A catalogue that cannot be read holds nothing against the model.
+pub async fn held_thinking(
+  ground: &Ground,
+  machine: &Machine,
+  provider: &str,
+  model: &str,
+) -> Result<Option<bool>, String> {
+  let found = harness_providers::provider(provider)
+    .ok_or_else(|| format!("{provider} is no provider of this build"))?;
+
+  if found.models_on_gateway() {
+    return harness_providers::member::road_members(machine, provider)
+      .map_err(|why| format!("{provider}: {why}"))?
+      .into_iter()
+      .find(|one| one.member.name == model)
+      .map(|one| Some(one.thinking))
+      .ok_or_else(|| format!("{provider}: {model} is no member of its road"));
+  }
+
+  match crate::control::harness::offered(Judging::of(ground), machine, found).await {
+    Ok(offered) if !offered.models.iter().any(|one| one.id == model) => {
+      Err(format!("{provider}: {model} is not in its catalogue"))
+    }
+    _ => Ok(None),
+  }
 }
 
 /// A step on the registration a caller names rather than the one the key maps to: the registration's own

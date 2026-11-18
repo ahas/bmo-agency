@@ -327,7 +327,9 @@
   program under the run name its runner gives it, carried as `BMO_RUN_NAME` beside `BMO_TURN_AGENT` and
   `BMO_TASK_LOCKED=1` where the turn has a job, so the verbs the job runs find their job; the variables
   the turn names stand beside them, and the turn's title is what the pane shows over it (`docs/api.md`,
-  「sessions」, a work turn's parts). A co-work branch is a run in the standing checkout it works in
+  「sessions」, a work turn's parts). A run of an account with a node stands the same program, on the same
+  line and session, in a place of its own on that node rather than in a pane here (`docs/person-nodes.md`,
+  「Which node is a person's」). A co-work branch is a run in the standing checkout it works in
   (`docs/role-slots.md`, 「Standing branch checkouts and their list」), on an apart session of its own
   that it keeps nowhere; an apart session handed a runner line's instructions goes out on that runner
   line rather than this one (`docs/api.md`, 「sessions」). Any role on the line may run in any

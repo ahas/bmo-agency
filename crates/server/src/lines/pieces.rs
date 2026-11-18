@@ -153,11 +153,23 @@ pub fn generation_run(values: &IndexMap<String, Value>) -> (Option<i64>, IndexMa
 /// The login the walk offers an agent now on Claude Code's own road, none where it carries no login of the
 /// deployment's, and the refusal where every login it carries is closed.
 pub(crate) async fn walked_login(ground: &Ground, agent: &str) -> Result<Option<Account>, Refusal> {
+  walked_login_for(ground, agent, false).await
+}
+
+/// The login the walk offers an agent now on Claude Code's own road for a program standing here or, where
+/// `on_node`, on a node, which takes only a login that runs there, since an endpoint account's key stays on
+/// this machine; none where the road carries no login of the deployment's, and the refusal where every login
+/// it carries is closed.
+pub(crate) async fn walked_login_for(
+  ground: &Ground,
+  agent: &str,
+  on_node: bool,
+) -> Result<Option<Account>, Refusal> {
   let login = claude_accounts::walk_for(claude_accounts::Judging::of(ground))
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()
-    .next();
+    .find(|login| !on_node || login.credential.runs_on_nodes());
 
   if login.is_none()
     && !claude_accounts::carried_for_user(&ground.db, None)

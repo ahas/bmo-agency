@@ -2806,7 +2806,8 @@ impl HerdrSessions {
     }
   }
 
-  // One turn of a role's session on a provider other than Claude Code's own, in the place of its own
+  // One turn of a role's session in the place of its own, on a provider other than Claude Code's own or, for a
+  // run of an account with a node, on any provider
   // (docs/api.md, 「sessions」): the runner line it names with the instructions its caller handed in, or else
   // the worker line opening on the platform's harness and the role's prompt, with the repository's own where
   // its folder is a repository's checkout; on the session the role keeps at that folder on that provider and

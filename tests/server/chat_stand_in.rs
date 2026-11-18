@@ -1,9 +1,10 @@
 //! A turn on a road other than Claude Code's own session (docs/cache-fallback.md, 「A supervisor's turn on a road
 //! other than Claude Code」): the turn composed for Codex on the kept thread and for OpenRouter's loop through a
 //! tap, the turn's variables handed to the run and kept out of the program's own, none of Claude Code's launch
-//! variables; and the chat's turn across rooms on the supervisor's one road — failed with why where the road
-//! cannot answer, nothing standing in, left to Claude Code's own session where the road is Claude Code's, and
-//! not sent out once stopped from outside.
+//! variables; a role's run in a place of its own on Claude Code, on its login and its catalogue's model; and the
+//! chat's turn across rooms on the supervisor's one road — failed with why where the road cannot answer,
+//! nothing standing in, left to Claude Code's own session where the road is Claude Code's, and not sent out
+//! once stopped from outside.
 
 use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
@@ -13,12 +14,13 @@ use crate::support::rows::supervisor;
 use agency_server::Service;
 use agency_server::chat_stand_in::road_turn;
 use agency_server::config::Config;
+use agency_server::control::claude_accounts::{Account, Credential};
 use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
 use agency_server::lines::standing::GatewayModel;
 use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
-use agency_server::stand_in::Step;
+use agency_server::stand_in::{Step, held_thinking};
 use agency_server::supervisor_turn::run::NoAnswer;
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
@@ -214,6 +216,97 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   );
   assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
 }
+
+// A role's run in a place of its own on Claude Code (docs/person-nodes.md, 「Which node is a person's」): Claude
+// Code itself on the step's model and effort, signed in by the login the door names, with nothing of the gateway.
+#[tokio::test]
+async fn a_claude_code_step_stands_claude_code_on_its_login_and_not_on_the_gateway() {
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(DatabaseConnection::Disconnected, home.path(), &[]);
+  let login_home = home.path().join("login");
+  let login = Account {
+    id: "main".into(),
+    name: "main".into(),
+    place: 0,
+    enabled: true,
+    credential: Credential::Directory {
+      home: login_home.clone(),
+    },
+    needs_login_at: None,
+    user_id: None,
+    base_prompt: None,
+    node_token_gone: None,
+  };
+  let composed = compose_stand_in(
+    &ground,
+    &ground.machine(),
+    &chat_run(home.path()),
+    &step("claude-code", "claude-sonnet-5"),
+    &Door::Claude {
+      login: Some(Box::new(login)),
+    },
+    &[4],
+    1,
+  )
+  .await
+  .unwrap();
+  let args = &composed.command.args;
+  let env = &composed.command.env;
+  let launch = CLAUDE_CODE.launch.variables.keys().next().unwrap();
+
+  assert_eq!(args.first().map(String::as_str), Some("claude"));
+  assert!(args.windows(2).any(|pair| pair == ["--model", "claude-sonnet-5"]), "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--effort", "medium"]), "{args:?}");
+  assert!(
+    !env.contains_key("ANTHROPIC_BASE_URL") && !env.contains_key("ANTHROPIC_MODEL"),
+    "{env:?}"
+  );
+  assert!(env.contains_key(launch), "{env:?}");
+  assert_eq!(
+    env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+    Some(login_home.to_string_lossy().as_ref())
+  );
+  assert_eq!(env.get("BMO_TURN_MESSAGES").map(String::as_str), Some("4"));
+  assert_eq!(composed.account.as_deref(), Some("main"));
+  // The session the run names stands nowhere under the login's records, so a new one is opened.
+  assert_ne!(composed.session, "claude-session");
+}
+
+// A Claude Code model is held to the catalogue the Claude CLI keeps, never to the gateway's members, and a
+// catalogue that cannot be read holds nothing against it (docs/provider-order.md, 「Models a provider holds」).
+#[tokio::test]
+async fn a_claude_code_model_is_held_to_the_claude_catalogue() {
+  let home = tempfile::tempdir().unwrap();
+  let scratch = Scratch::new().await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
+  let machine = ground.machine();
+
+  assert_eq!(held_thinking(&ground, &machine, "claude-code", "claude-sonnet-5").await, Ok(None));
+
+  let catalogue = home.path().join(".claude/cache/model-catalog");
+
+  std::fs::create_dir_all(&catalogue).unwrap();
+  std::fs::write(
+    catalogue.join("main-cc.json"),
+    serde_json::json!({
+      "version": 2,
+      "fetchedAt": 1_000,
+      "staleAt": 3_601_000,
+      "catalog": { "surface": "cc", "config": { "id": "cc", "models": [
+        { "id": "claude-sonnet-5", "name": "Sonnet 5", "section": "overflow" },
+      ] } },
+    })
+    .to_string(),
+  )
+  .unwrap();
+
+  assert_eq!(held_thinking(&ground, &machine, "claude-code", "claude-sonnet-5").await, Ok(None));
+
+  let refused = held_thinking(&ground, &machine, "claude-code", "claude-unknown").await;
+
+  assert!(matches!(&refused, Err(said) if said.contains("claude-unknown")), "{refused:?}");
+}
+
 fn log() -> RunLog {
   RunLog::new(Target {
     agent: "chat-agent".into(),

@@ -34,6 +34,7 @@ use super::token::{self, facts};
 use super::worker::{Reasoning, WorkerRun, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
+use crate::control::claude_accounts::Account;
 use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
@@ -1222,6 +1223,9 @@ pub enum Door {
     held: Box<GatewayModel>,
     placement: Option<String>,
   },
+  /// Claude Code on its own road, signed in by the login named, or the machine's where none is named, as
+  /// the place it stands in hands that login over: its token for the nodes on a node.
+  Claude { login: Option<Box<Account>> },
 }
 
 /// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
@@ -1281,7 +1285,7 @@ pub async fn compose_stand_in(
 
   // A program that is a harness of its own takes its tools whole or not at all, so it cannot hold a limited
   // supervisor to the built-in tools its limit keeps (docs/supervisors.md, 「What each capability stands for」).
-  if run.tools_kept.is_some() && !matches!(door, Door::Gateway { .. }) {
+  if run.tools_kept.is_some() && !matches!(door, Door::Gateway { .. } | Door::Claude { .. }) {
     return Err(fault(format!(
       "{} holds a tool limit, so its turns go out on Claude Code alone and never on a harness of its own.",
       run.agent
@@ -1438,6 +1442,81 @@ pub async fn compose_stand_in(
           home: held.home.clone(),
         }),
         ..composed(command, sent_run.resume.clone().unwrap_or_else(|| opened.clone()), effort)
+      })
+    }
+    Door::Claude { login } => {
+      let login = login.as_deref();
+      let cwd = claude_folder(ground, run)?;
+      let home = login
+        .and_then(|login| login.credential.own_home())
+        .map_or_else(|| ClaudeCode::machine_config_dir(machine), Path::to_path_buf);
+      // A session the login's records no longer hold is no session to resume, as on the gateway.
+      let resume = run.resume.clone().filter(|id| {
+        ClaudeCode::records_under(&home, Path::new(&cwd), id)
+          .iter()
+          .any(|record| record.exists())
+      });
+      let place = Place::of(&ground.roots.data, &run.agent);
+      // A role's run on the worker line stands on the line whole, its settings and their hooks among it.
+      let worker = run.worker.as_deref();
+      let holds = Holds {
+        shell_guard: worker.is_none(),
+        ..Holds::of_line(run.line)
+      };
+      let given = worker.map(|worker| read_settings(&worker.settings)).unwrap_or_default();
+      let settings = write_place_settings(&place.path, given, &status_root(ground), holds)?;
+      let args = match worker {
+        Some(worker) => {
+          let sent = WorkerRun {
+            model: step.model.clone(),
+            effort: step.effort.clone(),
+            thinking: step.thinking,
+            ..worker.clone()
+          };
+          let session = match &resume {
+            Some(resumed) => Session::Resume(resumed.clone()),
+            None => Session::Open(opened.clone()),
+          };
+
+          super::claude::worker_args(&sent, &settings, Some(&session))?
+        }
+        None => {
+          let sent = ChatRun {
+            model: step.model.clone(),
+            effort: step.effort.clone(),
+            thinking: step.thinking,
+            resume: resume.clone(),
+            ..run.clone()
+          };
+
+          resident_args(&sent, &settings, &opened)?
+        }
+      };
+      let runs = Runs::of_place(&ground.roots.data, &place.path);
+      let mut handed = command_env(&run.env, login, &runs, step.thinking)?;
+
+      // The turn's own variables over the login's, never a variable of the process that would stand over it.
+      handed.extend(
+        env
+          .into_iter()
+          .filter(|(name, _)| name.starts_with("BMO_TURN_"))
+          .map(|(name, value)| (name, Some(value))),
+      );
+      handed.insert(
+        agent_host::place::STDERR_VARIABLE.to_owned(),
+        Some(place.path.join("stderr.log").to_string_lossy().into_owned()),
+      );
+
+      let command = ResidentCommand {
+        args,
+        cwd: PathBuf::from(&cwd),
+        env: handed.into_iter().filter_map(|(name, value)| Some((name, value?))).collect(),
+        login_file: None,
+      };
+
+      Ok(ComposedTurn {
+        account: login.map(|login| login.id.clone()),
+        ..composed(command, resume.unwrap_or_else(|| opened.clone()), effort)
       })
     }
   }

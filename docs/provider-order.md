@@ -161,6 +161,10 @@ one provider at once. How the Claude Code provider walks its own accounts inside
 - **A catalogue that cannot be read at the moment a road is written** keeps the model rather than refusing
   it, since a catalogue that cannot be read says nothing against the name; one that reads and does not name
   the model refuses it.
+- **A run in a place of its own is held to the same as it goes out:** a model of a provider whose models
+  are the gateway's members must be a member of the provider's own road, and a Claude Code model must be one
+  the Claude catalogue names, a catalogue that cannot be read letting the run go out. A run whose model its
+  provider does not hold ends failed, naming the provider and the model.
 
 ## Effort and thinking
 

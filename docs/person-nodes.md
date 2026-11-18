@@ -21,7 +21,11 @@ desktop coding agent whose models and tools are served from elsewhere.
   - its supervisors' sessions: a supervisor of the account stands on the node as a worker of a node does, its
     head, its room panes and every turn of it in the node's herdr session;
   - its role agents' runs: a run whose slot belongs to the account goes the place-based road whatever its
-    provider, its place opened on the node, its folder read as the node reads this machine's roots;
+    provider, its place opened on the node, its folder read as the node reads this machine's roots. On Claude
+    Code the program in that place is Claude Code on the run's line, signed in by the token for the nodes of
+    the first login the Claude Code road's walk offers among those that run on a node (`docs/work-nodes.md`,
+    「The logins on a node」); the run goes out on that one login, and a run that fails on it ends failed
+    rather than walking on. On another provider it is that road's own program;
   - the link mirrors each of these places as it mirrors a worker's: its program and settings sent, its running
     record and its transcripts brought back;
   - the folder each of these programs works in, its supervisor's own or its run's, is named in the spec, and the
