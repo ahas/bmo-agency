@@ -411,19 +411,7 @@ impl TurnRead {
 pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
   let turn = records.get(from..).unwrap_or_default();
   let assistants: Vec<&Value> = turn.iter().filter(|record| kind(record) == Some("assistant")).collect();
-  let mine: Vec<&Value> =
-    assistants.iter().copied().filter(|record| !is_true(record, "isSidechain")).collect();
-  let last = mine.last().copied();
-  let last_id = last.and_then(|last| last.pointer("/message/id"));
-  let last_response: Vec<&Value> = match (last, last_id) {
-    (None, _) => vec![],
-    (Some(last), None) => vec![last],
-    (Some(_), Some(id)) => mine
-      .iter()
-      .copied()
-      .filter(|record| record.pointer("/message/id") == Some(id))
-      .collect(),
-  };
+  let (last, spoken) = last_answer(turn);
   // One entry per response: the last of a response's lines is kept, since it is the one written once
   // the response was whole.
   let mut responses: IndexMap<String, &Value> = IndexMap::new();
@@ -466,14 +454,6 @@ pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
     held.tokens += input + output + read + write;
   }
 
-  let spoken = last_response
-    .iter()
-    .flat_map(|record| blocks_of(record))
-    .filter(|block| text_of(block, "type") == Some("text"))
-    .filter_map(|block| text_of(block, "text"))
-    .collect::<String>()
-    .trim()
-    .to_owned();
   // How much the model was holding on its last request of the turn, which the fold's clock is read
   // against: the sum of what that request carried.
   let context_tokens = last.map(|last| {
@@ -502,6 +482,39 @@ pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
     live_tasks,
     workflows,
   }
+}
+
+/// The answer of the turn that begins at `from` as it stands: [`read_turn`]'s text, read without the
+/// rest of that reading, which serialises every line of the turn to find the work it left going.
+pub fn answer_since(records: &[Value], from: usize) -> String {
+  last_answer(records.get(from..).unwrap_or_default()).1
+}
+
+// The last response of the turn's own, not a side chain's, and its words: the text of every line that
+// response was split into.
+fn last_answer(turn: &[Value]) -> (Option<&Value>, String) {
+  let mine = || {
+    turn
+      .iter()
+      .filter(|record| kind(record) == Some("assistant") && !is_true(record, "isSidechain"))
+  };
+  let Some(last) = mine().next_back() else { return (None, String::new()) };
+  let spoken = match last.pointer("/message/id") {
+    None => text_blocks(std::iter::once(last)),
+    Some(id) => text_blocks(mine().filter(|record| record.pointer("/message/id") == Some(id))),
+  };
+
+  (Some(last), spoken)
+}
+
+fn text_blocks<'a>(records: impl Iterator<Item = &'a Value>) -> String {
+  records
+    .flat_map(blocks_of)
+    .filter(|block| text_of(block, "type") == Some("text"))
+    .filter_map(|block| text_of(block, "text"))
+    .collect::<String>()
+    .trim()
+    .to_owned()
 }
 
 /// Whether the record holds an answer of the run's own, not a co-worker's, written at or after `from`.

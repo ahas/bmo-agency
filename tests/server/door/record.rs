@@ -65,20 +65,25 @@ fn a_response_split_into_several_lines_is_counted_once_and_answers_with_all_of_i
     line["message"]["content"] = json!([block]);
     line
   };
-  let turn = read_turn(
-    &[
-      split(json!({ "type": "thinking", "thinking": "…" })),
-      split(json!({ "type": "text", "text": "Kept " })),
-      split(json!({ "type": "text", "text": "warm." })),
-    ],
-    0,
-  );
+  let lines = [
+    said("an earlier answer"),
+    split(json!({ "type": "thinking", "thinking": "…" })),
+    split(json!({ "type": "text", "text": "Kept " })),
+    assistant(Some("a co-worker's words"), "claude-opus-5", true, [0, 0, 0, 0]),
+    split(json!({ "type": "text", "text": "warm." })),
+  ];
+  let turn = read_turn(&lines[1..], 0);
 
   assert_eq!(
     serde_json::to_value(&turn.spend).unwrap(),
     json!([{ "mode": "claude-code", "model": "claude-opus-5", "tokens": 53_646, "inputTokens": 2, "outputTokens": 100, "cacheReadTokens": 0, "cacheWriteTokens": 53_544, "cost": 0.0 }])
   );
   assert_eq!(turn.text, "Kept warm.");
+  assert_eq!(
+    answer_since(&lines, 1),
+    turn.text,
+    "the progress read answers what the whole reading does"
+  );
 }
 
 #[test]

@@ -30,8 +30,8 @@ use crate::door::inbox::{
 };
 use crate::door::place_run::{end_run, latest_failure, read_hooks, read_run, transcript_since};
 use crate::door::record::{
-  CLAUDE_CODE, Notices, Reply, RoundState, Tail, UsageSpent, answered_since, prompted_since, read_round,
-  read_turn, turn_closed_since, turn_error,
+  CLAUDE_CODE, Notices, Reply, RoundState, Tail, UsageSpent, answer_since, answered_since, prompted_since,
+  read_round, read_turn, turn_closed_since, turn_error,
 };
 use crate::door::tool_clock::{CallVerdict, ClockNote, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
@@ -422,17 +422,22 @@ async fn carried_apart(ground: &Ground, turn: &InFlight, place: &Place, pane: Op
 pub fn standing_in_pane(pane: &OwnPane) -> Standing {
   let lines = transcript_since(&pane.transcript, pane.started_at).unwrap_or_default();
 
-  if !prompted_since(&lines, 0) {
+  standing_in_lines(pane, &lines)
+}
+
+// Where a kept turn in a pane of its own stands, read off its transcript's lines from the turn's beginning.
+fn standing_in_lines(pane: &OwnPane, lines: &[Value]) -> Standing {
+  if !prompted_since(lines, 0) {
     return Standing::Lost;
   }
 
   // A pane of its own carries a role's turn, whose line never carries its background apart.
-  let round = read_round(&lines, Notices::Joined);
+  let round = read_round(lines, Notices::Joined);
 
   match round.state {
     RoundState::Interrupted => Standing::Ended(Came::Failed("the turn was interrupted".to_owned())),
-    RoundState::Ended if turn_closed_since(&lines, 0) => {
-      Standing::Ended(came_of(&lines, &pane.session, None, Notices::Joined))
+    RoundState::Ended if turn_closed_since(lines, 0) => {
+      Standing::Ended(came_of(lines, &pane.session, None, Notices::Joined))
     }
     _ if pane.program.as_ref().is_some_and(crate::door::liveness::alive_here) => Standing::Going,
     _ => Standing::Ended(Came::Failed(GONE.to_owned())),
@@ -612,7 +617,7 @@ impl Following {
       }
 
       // What the turn has written so far answers the progress read under its own id.
-      shown(ground, turn, read_turn(tail.look(), self.begins).text);
+      shown(ground, turn, answer_since(tail.look(), self.begins));
 
       return;
     }
@@ -639,6 +644,19 @@ impl Following {
     if !fresh.is_empty() {
       self.log.feed(&ground.db, &fresh, &self.source).await;
       self.place_fed += fresh.len();
+    }
+  }
+}
+
+impl Following {
+  // Where the turn in a pane of its own stands, read off the lines its reader holds rather than the transcript
+  // parsed again; the transcript is read whole only where no reader is armed on it.
+  fn standing_in(&mut self, pane: &OwnPane) -> Standing {
+    let begins = self.begins;
+
+    match self.tail.as_mut() {
+      Some(tail) => standing_in_lines(pane, tail.look().get(begins..).unwrap_or_default()),
+      None => standing_in_pane(pane),
     }
   }
 }
@@ -961,7 +979,7 @@ async fn followed(
   loop {
     let now = now_ms();
     let standing = match pane {
-      Some(pane) => standing_in_pane(pane),
+      Some(pane) => following.standing_in(pane),
       None => standing(place, turn),
     };
 
