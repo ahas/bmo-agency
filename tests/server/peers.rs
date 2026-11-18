@@ -573,10 +573,6 @@ impl Gate for Recording {
     self.0.lock().unwrap().push(supervisor.to_owned());
     Box::pin(async { Ok(Vec::new()) })
   }
-
-  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
-    Box::pin(async { Ok(Vec::new()) })
-  }
 }
 
 impl Recording {

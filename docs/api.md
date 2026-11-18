@@ -1077,8 +1077,10 @@ notice that holds nothing is withdrawn.
   declared kinds. Every supervisor's turn passes the declared kinds; agency keeps no subset of its own.
 - **A declaration names its gates,** each as the gate publishes it: `gateName`, `part` (`pre`, `post` or
   `apart`), `step`, `condition` or null, `switchable`, `layaProbe`, `defaultLayaMode` and `answerTokens`.
-  An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate
-  the address does not answer leaves the declaration already kept as it stands.
+  An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`.
+- **What a read keeps.** An empty order the gate answers through `GET /gates` is kept as one, so no kind
+  stands and no supervisor shows a gate switch. A deployment that names no gate address, and a gate the
+  address does not answer, leave the declaration already kept as it stands.
 
 ### pull request reviews
 

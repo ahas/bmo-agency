@@ -620,3 +620,63 @@ async fn the_double_s_role_and_its_open_slots_go_and_no_slot_is_kept_as_asked_sh
 
   assert_eq!(short, 0, "no slot is kept as asked short");
 }
+
+#[tokio::test]
+async fn the_retired_sanitiser_and_output_format_gates_kinds_and_switches_go() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that lets the two gates go.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20270108_000001_gate_keys_retired")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+
+  scratch
+    .run(
+      r#"INSERT INTO "gate_kinds" ("key", "part", "step", "position", "declared_at")
+         VALUES ('sanitizer', 'pre', 0, 0, 0), ('output-format', 'post', 0, 1, 0), ('translator', 'apart', 0, 2, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value")
+         VALUES ('agent_gate:pal:sanitizer', 'off'), ('agent_gate:pal:output-format', 'off'),
+           ('agent_gate:pal:hacking-gate', 'off'), ('agent_gate:pal:translator', 'off'), ('reset_point:sanitizer', '1')"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
+
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "gate_kinds" WHERE "key" <> 'translator'"#, vec![])
+      .await,
+    0,
+    "the two gates' kinds go"
+  );
+  assert_eq!(
+    scratch.count(r#"SELECT count(*) FROM "gate_kinds""#, vec![]).await,
+    1,
+    "another gate's kind stays"
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "settings" WHERE "key" IN ('agent_gate:pal:translator', 'reset_point:sanitizer')"#,
+        vec![]
+      )
+      .await,
+    2,
+    "another gate's switch and a key that is no switch stay"
+  );
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "settings" WHERE "key" LIKE 'agent_gate:%'"#, vec![])
+      .await,
+    1,
+    "the retired gates' switches go"
+  );
+}

@@ -59,9 +59,11 @@ pub trait Gate: Send + Sync {
   /// where the gate is undeployed or does not answer.
   fn reference<'a>(&'a self, supervisor: &'a str, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
 
-  /// The gate kinds and the order they stand in, as the gate publishes them. Empty where the gate is
-  /// undeployed, so agency keeps no copy of its order.
-  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>>;
+  /// The gate kinds and the order they stand in, as the gate publishes them: an empty order where the gate
+  /// declares that no gate stands, and none where no gate is deployed to publish one.
+  fn kinds<'a>(&'a self) -> Asking<'a, Option<Vec<bmo_gate_client::Gate>>> {
+    Box::pin(async { Ok(None) })
+  }
 
   /// Each original read into `language`, in the order given, each whole or with the parts the translator
   /// could not render standing as written. A gate that translates nothing answers that it cannot.
@@ -100,10 +102,6 @@ pub struct NoGate;
 
 impl Gate for NoGate {
   fn reference<'a>(&'a self, _supervisor: &'a str, _lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
-    Box::pin(async { Ok(Vec::new()) })
-  }
-
-  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
     Box::pin(async { Ok(Vec::new()) })
   }
 }
@@ -178,8 +176,8 @@ impl Gate for PublishedGate {
     Box::pin(async move { self.reference_selected(supervisor, lines).await })
   }
 
-  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
-    Box::pin(async move { self.client.gates().await.map(|page| page.items).map_err(fault) })
+  fn kinds<'a>(&'a self) -> Asking<'a, Option<Vec<bmo_gate_client::Gate>>> {
+    Box::pin(async move { self.client.gates().await.map(|page| Some(page.items)).map_err(fault) })
   }
 
   fn translate<'a>(&'a self, language: &'a str, originals: Vec<String>) -> Asking<'a, Vec<Reading>> {

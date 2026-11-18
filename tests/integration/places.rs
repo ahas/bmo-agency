@@ -163,8 +163,7 @@ fn node(name: &str, label: &str, state: &str) -> NodeRow {
 
 // The pass that stands every agent's head on its host, over the heads it finds there.
 #[tokio::test]
-async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once_idle_and_a_renamed_workspace_closed()
- {
+async fn every_head_on_the_hosts_is_stood_and_a_head_of_the_other_kind_replaced_once_idle() {
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
 
@@ -191,9 +190,7 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
     )
     .await;
 
-  // The input sanitiser's old name, whose row is gone; a co-work role with no row, on a bun head.
-  herdr.workspace("Context gate", json!({ "agent": "hacking-gate" }), Some(&["zsh"]));
-
+  // A co-work role with no row, on a bun head.
   let role_head = bench.bun_head("role");
 
   herdr.workspace("role", json!({ "agent": "role" }), Some(&as_words(&role_head)));
@@ -210,7 +207,6 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
     Some((false, "Supervisor".to_owned()))
   );
   assert_eq!(herdr.commands_of("agent", "busy"), [busy_head]);
-  assert!(herdr.commands_of("agent", "hacking-gate").is_empty());
   assert_eq!(herdr.commands_of("agent", "role"), [bench.head("role")]);
 
   // A supervisor with no workspace yet is given one under its label, its token reported.

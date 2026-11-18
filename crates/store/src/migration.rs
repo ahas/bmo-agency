@@ -96,6 +96,7 @@ mod m20270104_000001_personal_supply;
 mod m20270105_000001_owned_accounts;
 mod m20270106_000001_supply_reservations;
 mod m20270107_000001_run_cost;
+mod m20270108_000001_gate_keys_retired;
 
 use sea_orm_migration::prelude::*;
 
@@ -286,6 +287,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270105_000001_owned_accounts::Migration),
       Box::new(m20270106_000001_supply_reservations::Migration),
       Box::new(m20270107_000001_run_cost::Migration),
+      Box::new(m20270108_000001_gate_keys_retired::Migration),
     ]
   }
 

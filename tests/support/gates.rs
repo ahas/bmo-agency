@@ -1,6 +1,6 @@
-//! Gates a test hands agency in place of the published one: none, which translates nothing, and a translator that
-//! reads each original out of a table the test sets, writes down every call it is asked, and can be told to answer
-//! a reading only in part or never to answer.
+//! Gates a test hands agency in place of the published one: none, which translates nothing; one publishing the
+//! order it is given; and a translator that reads each original out of a table the test sets, writes down every
+//! call it is asked, and can be told to answer a reading only in part or never to answer.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -67,10 +67,6 @@ impl Gate for Translator {
     Box::pin(async { Ok(Vec::new()) })
   }
 
-  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
-    Box::pin(async { Ok(Vec::new()) })
-  }
-
   fn translate<'a>(&'a self, language: &'a str, originals: Vec<String>) -> Asking<'a, Vec<Reading>> {
     self.asked.lock().unwrap().push((language.to_owned(), originals.clone()));
 
@@ -90,5 +86,24 @@ impl Gate for Translator {
 
       Ok::<_, PeerFault>(readings)
     })
+  }
+}
+
+/// A gate that publishes the order it is given and picks no reference.
+pub struct Declaring(pub Vec<bmo_gate_client::Gate>);
+
+impl Gate for Declaring {
+  fn reference<'a>(
+    &'a self,
+    _supervisor: &'a str,
+    _lines: Vec<String>,
+  ) -> Asking<'a, Vec<bmo_gate_client::Entry>> {
+    Box::pin(async { Ok(Vec::new()) })
+  }
+
+  fn kinds<'a>(&'a self) -> Asking<'a, Option<Vec<bmo_gate_client::Gate>>> {
+    let order = self.0.clone();
+
+    Box::pin(async move { Ok(Some(order)) })
   }
 }

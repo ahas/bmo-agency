@@ -134,16 +134,17 @@ pub async fn store(db: &sea_orm::DatabaseConnection, gates: &[Declared]) -> Resu
   Ok(())
 }
 
-/// The gate's declaration read afresh, kept where the agent switches and the reasoning read it. A gate
-/// that is undeployed or answers nothing leaves what the store holds as it stands.
+/// The gate's declaration read afresh, kept where the agent switches and the reasoning read it. An empty
+/// order the gate answers is kept as one; a gate that is undeployed or does not answer leaves what the
+/// store holds as it stands.
 pub async fn refresh(ground: &Ground) {
   match ground.peers.gate.kinds().await {
-    Ok(gates) if !gates.is_empty() => {
+    Ok(Some(gates)) => {
       if let Err(why) = store(&ground.db, &gates).await {
         eprintln!("gate kinds: the declaration did not read: {}", why.detail);
       }
     }
-    Ok(_) => {}
+    Ok(None) => {}
     Err(why) => eprintln!("gate kinds: the gate did not answer: {why}"),
   }
 }
