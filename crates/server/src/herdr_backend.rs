@@ -2691,28 +2691,39 @@ impl HerdrSessions {
           // A run of an account with a node goes the place-based road whatever its provider, so the link carries
           // its place to the node (docs/person-nodes.md, 「Which node is a person's」). A node that cannot be
           // read ends the turn refused, as any other turn refused once it began.
-          let came = match crate::person_nodes::run_placed(db, apart.role.as_deref(), &apart.cwd).await {
-            Err(why) => Err(fault(FaultKind::Refused, why.detail)),
-            Ok(placed) if apart.provider == worker_session::PROVIDER && placed.node.is_none() => {
-              self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
-            }
-            Ok(placed) => {
-              let began = turn.context.began.unwrap_or(at);
+          // Boxed: the turn's future is large, and wrapped once more it would no longer fit a test thread's stack.
+          let going = Box::pin(async {
+            match crate::person_nodes::run_placed(db, apart.role.as_deref(), &apart.cwd).await {
+              Err(why) => Err(fault(FaultKind::Refused, why.detail)),
+              Ok(placed) if apart.provider == worker_session::PROVIDER && placed.node.is_none() => {
+                self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
+              }
+              Ok(placed) => {
+                let began = turn.context.began.unwrap_or(at);
 
-              self
-                .apart_in_place(
-                  &turn.session,
-                  &agent,
-                  apart,
-                  work,
-                  &turn.prompt,
-                  began,
-                  turn.context.job,
-                  placed,
-                  shown,
-                )
-                .await
+                self
+                  .apart_in_place(
+                    &turn.session,
+                    &agent,
+                    apart,
+                    work,
+                    &turn.prompt,
+                    began,
+                    turn.context.job,
+                    placed,
+                    shown,
+                  )
+                  .await
+              }
             }
+          });
+          // The turn runs as the seat of the slot its session was started on, whatever folder it works in
+          // (docs/role-agents.md, 「What a run reads off its agent」), so a slot asked with no path still goes out
+          // on its seat's account and node.
+          let came = match crate::role_agents::session_seat(db, &turn.session.0).await {
+            Ok(Some(seat)) => crate::role_agents::composed_as(seat, going).await,
+            Ok(None) => going.await,
+            Err(why) => Err(fault(FaultKind::Refused, why.to_string())),
           };
 
           if turn.context.job.is_some() {
@@ -3249,11 +3260,15 @@ impl Sessions for HerdrSessions {
       Scope::Apart(apart) => {
         let mut apart = apart.clone();
 
-        // A session on a runner line naming no folder goes out in that line's own.
-        if apart.cwd.trim().is_empty()
-          && let Some(line) = apart.line.as_deref()
-        {
-          apart.cwd = Trees::of(self.ground()).agents.join(line).to_string_lossy().into_owned();
+        // A session naming no folder goes out in its line's own, the worker line's where it names no runner
+        // line: a folder by its absolute path, which is how the program keeps its trust and its records.
+        if apart.cwd.trim().is_empty() {
+          let line = apart.line.as_deref().unwrap_or(crate::lines::worker::LINE);
+          let folder = Trees::of(self.ground()).agents.join(line);
+
+          std::fs::create_dir_all(&folder)
+            .map_err(|why| fault(FaultKind::Refused, format!("{}: {why}", folder.display())))?;
+          apart.cwd = folder.to_string_lossy().into_owned();
         }
 
         // A number whose place still stands, kept for a turn the process before left in flight, is passed

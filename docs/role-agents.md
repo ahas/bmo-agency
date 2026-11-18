@@ -56,7 +56,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 
 ## What a run reads off its agent
 
-- **A run finds its agent by the slot it holds:** the seat of the slot request of its role that stands
+- **A run finds its agent by the slot it holds.** A turn of a role's session takes the seat of the slot its
+  session was started on (`docs/api.md`, 「sessions」), whatever folder it works in, so a slot asked with no
+  path still runs as its seat, on its seat's account and node; everything the turn reads off its agent, below,
+  reads that seat. Any other run takes the seat of the slot request of its role that stands
   active at the folder the run works in — a job's checkout, a worker ask's folder, a place — the newest
   where more than one stands there. A run that names no folder, a translation among them, takes the seat of
   its role's only active request. A run whose seat neither tells stands on its role's preset alone.

@@ -430,15 +430,31 @@ pub async fn bundles_at<C: ConnectionTrait>(
 }
 
 tokio::task_local! {
-  // The agent a composition is made as, where it is made outside any run of that agent.
+  // The agent a composition is made as, where the work names it outright rather than by its folder.
   static COMPOSED_AS: String;
 }
 
-/// A piece of work done as an agent that holds no slot while it goes — the warm ping of its kept session
-/// (docs/keepalive-schedule.md, 「An agent's kept session」): whatever it composes reads that agent as its
-/// seat, so the command it goes out on is the one the agent's run went out on.
+/// A piece of work done as an agent named outright — the warm ping of its kept session, which holds no slot
+/// while it goes (docs/keepalive-schedule.md, 「An agent's kept session」), or a turn of a role's session, which
+/// runs as the seat of the slot its session was started on (docs/role-agents.md, 「What a run reads off its
+/// agent」): whatever it composes and wherever it is placed reads that agent as its seat.
 pub async fn composed_as<F: Future>(agent: String, work: F) -> F::Output {
   COMPOSED_AS.scope(agent, work).await
+}
+
+/// The seat of the slot a role's session was started on, where the slot still stands active; none otherwise.
+pub async fn session_seat<C: ConnectionTrait>(db: &C, session: &str) -> Result<Option<String>, Fault> {
+  one(
+    db,
+    r#"SELECT "seat" FROM "role_slot_requests"
+       WHERE "session" = $1 AND "state" = 'active' AND "seat" IS NOT NULL
+       ORDER BY "sequence" DESC LIMIT 1"#,
+    vec![session.into()],
+  )
+  .await?
+  .map(|row| row.try_get::<String>("", "seat"))
+  .transpose()
+  .map_err(Into::into)
 }
 
 /// Whether a run works in a folder now: a slot request stands active at it.

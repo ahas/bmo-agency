@@ -308,6 +308,16 @@ async fn a_session_handing_its_instructions_takes_a_pane_of_its_own_and_its_line
     }),
     "a session on a runner line naming no folder leaves it to the line"
   );
+
+  let worker = sessions.start(start("scout", apart("claude-code", ""))).await.unwrap();
+  let own = agents.join("worker");
+
+  assert_eq!(
+    worker.scope,
+    Scope::Apart(apart("claude-code", &own.to_string_lossy())),
+    "a session on the worker line naming no folder goes out in the worker line's own, by its absolute path"
+  );
+  assert!(own.is_dir(), "the worker line's folder is made where it is missing");
 }
 
 fn handed(provider: &str, model: &str) -> Apart {

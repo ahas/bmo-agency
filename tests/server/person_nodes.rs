@@ -555,3 +555,62 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   assert_eq!(acting(false).grants(), Vec::<String>::new());
   assert_eq!(acting(true).grants(), ["node.admin", "platform.payment"]);
 }
+
+// "a role session's turn runs as the seat of the slot it was started on, one asked with no path among them"
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_session_s_turn_runs_as_the_seat_of_its_slot_one_asked_with_no_path_among_them() {
+  use agency_server::order_run::dispatch::{self, Asked, Wanted};
+  use agency_server::role_agents::session_seat;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+
+  crate::support::grounds::deepseek_balance(&ground, 5.0).await;
+
+  let asked = Asked {
+    request_key: "test:pathless".into(),
+    owner: "owner:pathless".into(),
+    wanted: Wanted {
+      role: "worker",
+      path: None,
+      fixed: None,
+      agent: None,
+    },
+    ..Asked::default()
+  };
+  let held = dispatch::enqueue(db, &ground.events, &asked, "job", async |_, _| Ok(())).await.unwrap();
+  let active = dispatch::acquire(&ground, &held).await.unwrap().expect("let in");
+  let seat = active.seat.clone().expect("seated");
+  let folder = "/agents/worker";
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "owner_account" = '7' WHERE "name" = $1"#,
+      vec![seat.clone().into()],
+    )
+    .await;
+  person_nodes::set(db, "7", "pc-7", false).await.unwrap().unwrap();
+  dispatch::bind_session(db, &ground.events, &active.token, "worker@run:1").await.unwrap();
+
+  assert_eq!(
+    run_placed(db, Some("worker"), folder).await.unwrap(),
+    RunPlaced::default(),
+    "a slot asked with no path is found at no folder"
+  );
+  assert_eq!(session_seat(db, "worker@run:1").await.unwrap(), Some(seat.clone()));
+  assert_eq!(
+    session_seat(db, "worker@run:2").await.unwrap(),
+    None,
+    "a session no slot was started on"
+  );
+  assert_eq!(
+    composed_as(seat, run_placed(db, Some("worker"), folder)).await.unwrap(),
+    RunPlaced {
+      account: Some("7".into()),
+      node: Some("pc-7".into()),
+    },
+    "run as its slot's seat, the turn stands on that seat's account's node"
+  );
+}

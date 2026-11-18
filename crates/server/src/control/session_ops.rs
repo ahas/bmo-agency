@@ -757,12 +757,11 @@ pub async fn on_slot(
   apart.model.clone_from(&held.model);
   apart.effort.clone_from(&held.effort);
 
-  if apart.cwd.is_empty() {
-    apart.cwd = match (&held.path, apart.on_runner_line()) {
-      (Some(path), _) => path.clone(),
-      (None, true) => String::new(),
-      (None, false) => ".".to_owned(),
-    };
+  // A slot naming no path leaves the folder to the start, which puts it in the line's own.
+  if apart.cwd.is_empty()
+    && let Some(path) = &held.path
+  {
+    apart.cwd.clone_from(path);
   }
 
   Ok(())
