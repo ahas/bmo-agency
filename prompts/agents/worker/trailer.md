@@ -6,10 +6,12 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
 
 - **A command is waited on until it ends.** The Bash tool's wait is set to the largest it takes,
   2147483647 ms, so a call that names no `timeout` waits for its command however long it runs. Where the
-  tool hook asks a long command for a `timeout`, give it that largest one. The call clock still cuts a
-  call in the foreground whose processes burn nothing here for five minutes, as a check, a close or a
-  testbed run does while it waits on another machine: such work is started with `run_in_background` and
-  waited on as the `bmo-waiting-on-long-work` skill says, never through a wait written by hand. A command you put in the
+  tool hook asks a long command for a `timeout`, give it that largest one. The call clock cuts a call in
+  the foreground whose processes burn nothing here, start nothing and write nothing for five minutes. A
+  check, a close and a testbed run say where they stand at least once a minute while they wait on
+  another machine or on the testbed's line, so the clock leaves them running in the foreground; work
+  you start with `run_in_background` to go on meanwhile is waited on as the `bmo-waiting-on-long-work`
+  skill says, never through a wait written by hand. A command you put in the
   background, or one whose call named a shorter `timeout`, runs on as a background task. Nothing that depends on it starts until it has ended: no
   commit while its tests run, no close while the push does. Wait for it to end, however long that
   takes: the tool tells you when a background task finishes, and until then read the file its output
