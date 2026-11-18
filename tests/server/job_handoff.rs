@@ -26,6 +26,7 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use crate::support::grounds::seeded_with;
+use crate::support::program;
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::stand_in::StandIn;
@@ -134,7 +135,9 @@ async fn a_stopped_job_s_answer_is_noted_as_its_handoff_and_the_item_s_next_job_
   repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   std::fs::create_dir_all(home.path().join("helper")).unwrap();
 
-  // A running job of item 42 whose turn goes on in its program, picked up as agency's start picks it up.
+  // A running job of item 42 whose turn goes on in its program, picked up as agency's start picks it up. The
+  // program stands until the test ends, so the pickup waits on the turn's record however late the stop comes.
+  let _program = program::running(&place);
   let now = now_ms();
 
   scratch

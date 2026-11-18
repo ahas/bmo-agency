@@ -23,6 +23,7 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use crate::support::grounds::{deepseek_balance, job_slot, seeded, slot_now};
+use crate::support::program;
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
@@ -101,34 +102,6 @@ async fn holding(port: u16, repository: &str) -> Value {
 
 async fn job_stop(port: u16, body: Value) -> (u16, Value) {
   call(port, reqwest::Method::POST, "/job-stops", Some(body)).await
-}
-
-// A process standing in for a worker's program, taken down with its descendants when it is dropped.
-struct Program(std::process::Child);
-
-impl Drop for Program {
-  fn drop(&mut self) {
-    let _ = self.0.kill();
-    let _ = self.0.wait();
-  }
-}
-
-// A program recorded as the place's running one, so a turn picked up there reads its program alive for as
-// long as the program is held, however slowly the test goes on.
-fn program_running(place: &Place) -> Program {
-  let program = Program(std::process::Command::new("sleep").arg("infinity").spawn().unwrap());
-  let identity = agent_host::identity::ProcessIdentity::of(program.0.id() as i32).unwrap();
-
-  std::fs::create_dir_all(&place.path).unwrap();
-  std::fs::write(
-    place.path.join("running.json"),
-    json!({ "identity": "one", "pid": identity.pid, "birth": identity.birth, "loop": identity,
-            "starts": 1, "startedAt": now_ms(), "recent": [] })
-    .to_string(),
-  )
-  .unwrap();
-
-  program
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -223,7 +196,7 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
   };
 
   // The job's turn goes on in the worker's program across agency's restart, picked up and waited on.
-  let _program = program_running(&place);
+  let _program = program::running(&place);
   running(&scratch, "worker-a", 8, 42, Some("job-8")).await;
   keep(
     scratch.db(),
