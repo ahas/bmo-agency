@@ -220,7 +220,8 @@ impl Roots {
     self.node_dir(node).join("link.json")
   }
 
-  /// Where a node's setup leaves its record: its herdr session and socket, and the commit its copy holds.
+  /// Where a node's setup leaves its record: its herdr session and socket, the commit its copy holds, and on a PC
+  /// the machine id its Linux shell reads.
   pub fn setup_path(&self, node: &str) -> PathBuf {
     self.node_dir(node).join("setup.json")
   }

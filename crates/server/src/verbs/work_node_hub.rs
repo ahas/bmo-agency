@@ -28,6 +28,10 @@ use crate::peers::node::HubReach;
 const WSL_NETWORKING: &str =
   "wslinfo --networking-mode 2>/dev/null || echo unknown; cat /proc/sys/net/ipv4/ip_local_port_range";
 
+/// What a PC's Linux shell is asked of the machine it is: the id systemd keeps for it, one for every agent that
+/// reaches that shell.
+const MACHINE_ID: &str = "cat /etc/machine-id";
+
 /// A command as the hub is handed it (docs/person-nodes.md, 「The workplace on a PC」): one line that decodes it and
 /// gives it to the Linux shell, holding nothing a shell on the way would read in the command's place.
 pub fn carried(command: &str) -> String {
@@ -244,6 +248,16 @@ impl HubDoor {
       Ok(read) if read.code == 0 => wsl_said(&read.stdout, ports),
       Ok(read) => vec![format!("wsl: its networking could not be read: {}", read.said())],
       Err(why) => vec![format!("wsl: its networking could not be read: {why}")],
+    }
+  }
+
+  /// The machine id the PC's Linux shell reads, which tells one far end from another whichever agent reaches it
+  /// (docs/person-nodes.md, 「The workplace on a PC」); or why it could not be read.
+  pub async fn machine(&self) -> Result<String, String> {
+    match self.exec_again(MACHINE_ID).await {
+      Ok(read) if read.code == 0 && !read.stdout.trim().is_empty() => Ok(read.stdout.trim().to_owned()),
+      Ok(read) => Err(read.said()),
+      Err(why) => Err(why),
     }
   }
 

@@ -6,7 +6,9 @@ use crate::integration::common;
 use std::sync::Mutex;
 
 use agency_server::peers::node::NoNodeService;
-use agency_server::verbs::work_node::{WorkNodeVerb, refused_listens, work_node_on, work_refusal};
+use agency_server::verbs::work_node::{
+  WorkNodeVerb, far_end_taken, refused_listens, work_node_on, work_refusal,
+};
 use agency_server::verbs::work_node_setup::{
   FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace,
   SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
@@ -384,6 +386,43 @@ async fn a_workplace_is_listed_its_runs_switched_and_let_go() {
       .await
       .is_err()
   );
+}
+
+// "a PC's far end another node's ready workplace holds, told by the machine id its setup record keeps, is said
+// taken; a workplace not ready, the node's own and another machine's hold none"
+#[tokio::test]
+async fn a_pc_s_far_end_another_ready_workplace_holds_is_said_taken() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let db = scratch.db();
+
+  for (node, state, machine) in
+    [("pc-a", "ready", "m1"), ("pc-b", "missing", "m1"), ("pc-c", "ready", "m2")]
+  {
+    scratch
+      .run(
+        r#"INSERT INTO "node_workplaces" ("node", "root", "runs", "state", "created_at", "updated_at") VALUES ($1, '~/w', 0, $2, 1, 1)"#,
+        vec![node.into(), state.into()],
+      )
+      .await;
+    std::fs::create_dir_all(data.path().join("nodes").join(node)).unwrap();
+    std::fs::write(
+      data.path().join("nodes").join(node).join("setup.json"),
+      format!(r#"{{"herdrSession": "bmo", "machine": "{machine}"}}"#),
+    )
+    .unwrap();
+  }
+
+  let taken = |node: &'static str, machine: &'static str| far_end_taken(db, data.path(), node, machine);
+
+  assert_eq!(
+    taken("pc-b", "m1").await.unwrap().as_deref(),
+    Some(
+      "far end: pc-a's ready workplace holds this PC's far end, the same Linux shell answering both; one far end serves one node, so one of the two workplaces is removed first"
+    )
+  );
+  assert_eq!(taken("pc-a", "m1").await.unwrap(), None);
+  assert_eq!(taken("pc-d", "m3").await.unwrap(), None);
 }
 
 const PC_PORTS: FarEnd = FarEnd {

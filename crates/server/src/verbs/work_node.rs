@@ -166,6 +166,12 @@ fn node_dir(data_root: &Path, node: &str) -> PathBuf {
   data_root.join("nodes").join(node)
 }
 
+// Where a node's setup leaves its record: its herdr session and socket, the commit its copy holds, and on a PC
+// the machine id its Linux shell reads.
+fn setup_record(data_root: &Path, node: &str) -> PathBuf {
+  node_dir(data_root, node).join("setup.json")
+}
+
 fn read_json(path: &Path) -> Option<Value> {
   serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
@@ -598,6 +604,24 @@ async fn stand(
     .or_else(|| held.map(|held| held.root))
     .unwrap_or_else(|| DEFAULT_WORKPLACE_ROOT.to_owned());
   let workplace = place_workplace(db, node, &root).await?;
+  // One PC's Linux shell holds one far end, so a workplace on a PC whose far end another ready workplace holds is
+  // neither set up nor made ready, and nothing is laid on the PC (docs/person-nodes.md, 「The workplace on a PC」).
+  let machine = match &door {
+    Door::Hub(door) => Some(door.machine().await),
+    _ => None,
+  };
+
+  if let Some(Ok(machine)) = &machine
+    && let Some(taken) = far_end_taken(db, data_root, node, machine).await?
+  {
+    record_state(db, node, "missing", Some(taken.clone()), None).await?;
+
+    return Ok(Answer {
+      lines: vec![format!("{node}: not ready"), format!("  - {taken}")],
+      code: 1,
+    });
+  }
+
   let standing = crate::queue::workers::workers(db, std::path::Path::new(""))
     .await
     .map_err(|why| VerbError::Refused(why.detail))?;
@@ -674,6 +698,12 @@ async fn stand(
   let mut notes = Vec::new();
 
   if let (Door::Hub(door), Some(far_end)) = (&door, &place.far_end) {
+    if let Some(Err(why)) = &machine {
+      outcome.missing.push(format!(
+        "far end: the PC's machine id could not be read, so whether another workplace holds its far end is not known: {why}"
+      ));
+    }
+
     outcome.missing.extend(door.wanting(far_end));
     outcome.missing.extend(refused_listens(data_root, node, &home_ports));
 
@@ -709,7 +739,7 @@ async fn stand(
   }
 
   if let Some(socket) = &outcome.herdr_socket {
-    let path = node_dir(data_root, node).join("setup.json");
+    let path = setup_record(data_root, node);
     // The commit the code on the node now stands at, where this run laid its copy there, so agency knows when a
     // deployment has moved past it; a copy that failed leaves the commit the node held.
     let commit = if copy_code && outcome.copied {
@@ -717,7 +747,13 @@ async fn stand(
     } else {
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
-    let record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
+    let mut record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
+
+    // The machine a PC's Linux shell reads, by which another workplace tells whether this one holds the PC's far end.
+    if let Some(Ok(machine)) = &machine {
+      record[SETUP_MACHINE] = Value::String(machine.clone());
+    }
+
     let body = format!("{}\n", serde_json::to_string_pretty(&record).unwrap_or_default());
     let next = PathBuf::from(format!("{}.{}", path.display(), std::process::id()));
     let written = std::fs::OpenOptions::new()
@@ -738,14 +774,8 @@ async fn stand(
     (Some(_), false) => "missing",
   };
   let detail = (!outcome.missing.is_empty()).then(|| outcome.missing.join("\n"));
-  let at = now_seconds();
 
-  run(
-    db,
-    r#"UPDATE "node_workplaces" SET "state" = $1, "detail" = $2, "home" = COALESCE($3, "home"), "checked_at" = $4, "updated_at" = $4 WHERE "node" = $5"#,
-    vec![state.into(), detail.into(), outcome.home.clone().into(), at.into(), node.clone().into()],
-  )
-  .await?;
+  record_state(db, node, state, detail, outcome.home.clone()).await?;
 
   // A copy or a build moved what the link's far end runs, so the link is stood again on it.
   if copy_code {
@@ -769,6 +799,55 @@ async fn stand(
     lines.extend(notes.iter().map(|line| format!("  {line}")));
     Answer { lines, code: 1 }
   })
+}
+
+/// Where a node's setup record keeps the machine id its PC's Linux shell reads.
+const SETUP_MACHINE: &str = "machine";
+
+// A workplace's state and what it still misses, as its last setup, check or sync found them.
+async fn record_state(
+  db: &DatabaseConnection,
+  node: &str,
+  state: &str,
+  detail: Option<String>,
+  home: Option<String>,
+) -> Result<(), VerbError> {
+  let at = now_seconds();
+
+  run(
+    db,
+    r#"UPDATE "node_workplaces" SET "state" = $1, "detail" = $2, "home" = COALESCE($3, "home"), "checked_at" = $4, "updated_at" = $4 WHERE "node" = $5"#,
+    vec![state.into(), detail.into(), home.into(), at.into(), node.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
+/// What says another node's ready workplace already holds the far end of the PC whose Linux shell reads the
+/// machine id given, as that workplace's setup record keeps it; or none where no other does
+/// (docs/person-nodes.md, 「The workplace on a PC」).
+pub async fn far_end_taken(
+  db: &DatabaseConnection,
+  data_root: &Path,
+  node: &str,
+  machine: &str,
+) -> Result<Option<String>, VerbError> {
+  let holds = |other: &str| {
+    read_json(&setup_record(data_root, other))
+      .is_some_and(|setup| setup.get(SETUP_MACHINE).and_then(Value::as_str) == Some(machine))
+  };
+  let holder = workplaces(db)
+    .await?
+    .into_iter()
+    .find(|other| other.node != node && other.state == "ready" && holds(&other.node));
+
+  Ok(holder.map(|holder| {
+    format!(
+      "far end: {}'s ready workplace holds this PC's far end, the same Linux shell answering both; one far end serves one node, so one of the two workplaces is removed first",
+      holder.node
+    )
+  }))
 }
 
 /// Each port the far end on a person's PC could not listen on, as its link last said, by what it is for among the
