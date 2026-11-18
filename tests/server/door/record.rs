@@ -625,6 +625,120 @@ fn a_record_is_read_as_it_grows_and_a_last_line_still_being_written_counts_only_
   assert_eq!(tail.look(), [json!({ "c": 3 })]);
 }
 
+fn appended(path: &std::path::Path, lines: &[Value]) {
+  use std::io::Write;
+
+  let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+
+  for line in lines {
+    writeln!(file, "{line}").unwrap();
+  }
+}
+
+fn account(tokens: i64) -> Value {
+  json!({ "type": "cost-state", "modelUsage": { "claude-sonnet-5": { "inputTokens": tokens, "costUSD": 0.5 } } })
+}
+
+// A long session's history: many rounds, each a prompt, a long answer and its end.
+fn history(rounds: usize) -> Vec<Value> {
+  let long = "x".repeat(2000);
+
+  (0..rounds)
+    .flat_map(|at| [words(&format!("prompt {at}")), response(&format!("r{at}"), &long), end()])
+    .collect()
+}
+
+#[test]
+fn a_reader_from_the_end_holds_only_what_the_record_gained_and_what_a_whole_reading_turns_on() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  appended(&path, &history(2000));
+  appended(&path, &[account(100), queue("enqueue"), words("still being answered")]);
+
+  let mut tail = Tail::at_end(&path);
+  let from = tail.count();
+
+  assert_eq!(from, 6003, "every line keeps its number from the record's start");
+  assert_eq!(
+    tail.held(),
+    Held {
+      records: 4,
+      raw_bytes: 0
+    },
+    "before the floor: the last end, the account line, the queue operation and the last line of the conversation"
+  );
+
+  appended(&path, &[queue("dequeue"), response("new", "the turn's answer"), account(130), end()]);
+
+  let mut whole = Tail::new(&path);
+  let records = tail.look();
+
+  assert_eq!(records.len(), from + 4);
+  assert_eq!(read_turn(records, from).text, "the turn's answer");
+  assert_eq!(
+    agency_server::door::turn::spend_since(records, from).unwrap()[0].input_tokens,
+    30,
+    "the spend is measured from the account line before the turn"
+  );
+  assert_eq!(rests_apart(records), rests_apart(whole.look()));
+  assert_eq!(ends_on_turn_end(records), ends_on_turn_end(whole.look()));
+  assert_eq!(
+    turns_owed(records, Notices::Apart).queued,
+    turns_owed(whole.look(), Notices::Apart).queued
+  );
+  assert_eq!(tail.held().records, 8);
+}
+
+#[test]
+fn a_reader_from_the_end_of_a_record_not_written_yet_holds_all_it_gains() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+  let mut tail = Tail::at_end(&path);
+
+  assert_eq!(tail.count(), 0);
+  appended(&path, &[words("the first prompt"), response("a", "the first answer")]);
+  assert_eq!(read_turn(tail.look(), 0).text, "the first answer");
+  assert_eq!(tail.held().records, 2);
+}
+
+#[test]
+fn a_line_still_being_written_stays_above_a_floor_set_at_the_end() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  std::fs::write(&path, format!("{}\n{}", words("before"), response("a", "being written"))).unwrap();
+
+  let mut tail = Tail::at_end(&path);
+
+  assert_eq!(tail.count(), 2);
+  std::fs::write(&path, format!("{}\n{}\n", words("before"), response("a", "being written"))).unwrap();
+  assert_eq!(read_turn(tail.look(), 1).text, "being written");
+}
+
+#[test]
+fn a_raised_floor_lets_go_of_the_lines_before_it_and_a_filed_line_of_its_words_as_written() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  appended(&path, &history(10));
+
+  let mut tail = Tail::new(&path);
+
+  tail.look();
+  assert_eq!(tail.held().records, 30);
+  tail.forget_raw_before(30);
+  assert_eq!(tail.held().raw_bytes, 0);
+  assert_eq!(tail.raw().len(), 30, "a line as written keeps its place once let go");
+  tail.forget_before(27);
+  assert_eq!(
+    tail.held().records,
+    2 + 3,
+    "the last line of the conversation and the last end, then the last round"
+  );
+  assert_eq!(read_turn(tail.look(), 27).text, "x".repeat(2000));
+}
+
 #[test]
 fn a_child_is_asked_for_by_its_call_and_ended_by_its_notice() {
   let mut reader = ChildReader::default();

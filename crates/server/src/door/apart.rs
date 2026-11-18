@@ -358,7 +358,7 @@ impl Folding<'_> {
 
     command.args = resumed_command(&command.args, &taken);
 
-    let mut tail = Tail::new(record_of(ground, &command, &taken));
+    let mut tail = Tail::at_end(record_of(ground, &command, &taken));
     let from = tail.count();
     let fold = Apart {
       agent: self.agent,
@@ -379,7 +379,7 @@ impl Folding<'_> {
       resume_else: None,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
-    let compacted = compacted_since(&tail.look(), from);
+    let compacted = compacted_since(tail.look(), from);
 
     // Whatever a consumer sent the session to hold is folded away once the fold reached it, or may have.
     if compacted || ended.is_ok() {

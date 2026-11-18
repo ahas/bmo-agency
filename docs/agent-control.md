@@ -2252,6 +2252,35 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
   ends `silent` once its record closes a turn after the prompt; until then it is waited on. A command of
   the program's own ends on its own words instead (「How a command of the program's own ends」).
 
+### A session record is read within a bound
+
+A session's transcript only grows: a supervisor's runs past sixty megabytes, a job's to fifteen, and one
+line parsed as JSON takes about four and a half times its bytes. Every turn agency watches reads its
+transcript several times a second, so what agency's server holds is bounded by what each reader keeps,
+never by how long a transcript has grown.
+
+- **A look hands back the lines the reader holds, never a copy of them.** Each look parses only the bytes
+  written since the last whole line it took. A reading that must outlive the reader's next look, the
+  turn's own lines at its end, is the one copy a turn makes.
+- **A reader has a floor: the line its owner reads nothing before again.** A line before the floor
+  is let go unless a reading of the whole record still turns on it:
+  - every queue operation, which together say what stands queued;
+  - the last turn's end line and the last line of the conversation, which say whether the foreground
+    rests;
+  - the last account line (`cost-state`), which a turn's spend is measured from.
+  Every line keeps its number from the record's start, so a turn's indexes stay the record's own.
+- **Where each owner puts its floor:**
+  - A turn the door puts in sets its floor after every whole line already written when the turn begins,
+    so the lines it holds are the turn's own. So does a fold.
+  - A turn picked up at start holds its lines from where the turn began, or from where its run log
+    last filed, whichever is earlier. Its first reading parses the whole transcript. Every turn in
+    flight is picked up at once, so those first readings run one at a time.
+- **A line as written is held only until its owner has filed it** into the run's log.
+- **So the server holds, per watched turn, that turn's lines and a few small lines before them.** A
+  supervisor's round is a few hundred lines. A job's turn is its whole session, fifteen megabytes of
+  transcript at the longest seen, about seventy megabytes parsed. Sixteen jobs and the chat lines stay
+  well under a gigabyte.
+
 ### A first interactive run stops at the trust-this-folder check
 
 Measured. An interactive CLI launched into a herdr pane with the worker's flags plus

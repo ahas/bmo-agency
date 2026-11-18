@@ -29,14 +29,20 @@ pub const CLAUDE_CODE: &str = "claude-code";
 // the one they came from.
 const SEAM_BYTES: u64 = 64;
 
-/// A session's record read as it grows. A turn in a pane is watched by looking at its record every
-/// second, and a session's record runs to tens of megabytes, so the lines already parsed are kept and
-/// each look reads only the bytes written since the last whole line it took. What a look answers is
-/// what parsing the whole file would: every line that is JSON, in order, a line that is not passed
-/// over, and a last line still being written counted only where it already parses. The kept lines are
-/// thrown away and the file read again from its start wherever it is not the file they came from:
-/// another file under the path, a file shorter than what was taken, or bytes before the point taken
-/// that no longer read as they did.
+/// A session's record read as it grows (docs/agent-control.md, 「A session record is read within a
+/// bound」). A turn in a pane is watched by looking at its record several times a second, and a
+/// session's record runs to tens of megabytes, so the lines already parsed are kept and each look reads
+/// only the bytes written since the last whole line it took, and hands back the lines it holds without
+/// copying them. What a look answers is what parsing the whole file would: every line that is JSON, in
+/// order, a line that is not passed over, and a last line still being written counted only where it
+/// already parses. The kept lines are thrown away and the file read again from its start wherever it is
+/// not the file they came from: another file under the path, a file shorter than what was taken, or
+/// bytes before the point taken that no longer read as they did.
+///
+/// A record's lines are numbered from its start, but its owner reads nothing before its floor again. A
+/// line before the floor stands as null unless a reading of the whole record still turns on it
+/// ([`Kept`]), so a look holds the lines from the floor on and a few small lines before it. A line as it
+/// was written is held only until its owner has filed it.
 #[derive(Debug)]
 pub struct Tail {
   path: PathBuf,
@@ -44,12 +50,30 @@ pub struct Tail {
   offset: u64,
   seam: Vec<u8>,
   records: Vec<Value>,
-  // Each record line as it was written, for a reader that keeps its own order of keys.
+  // Each record line as it was written, for a reader that keeps its own order of keys; empty once
+  // forgotten.
   raw: Vec<String>,
-  unfinished_raw: Vec<String>,
+  // How many of the lines came from whole lines of the file; a line after them is the last line still
+  // being written, read again by the next look.
+  whole: usize,
+  floor: usize,
+  raw_floor: usize,
+  // Whether the floor is set to the end of what the first look reads.
+  floor_at_end: bool,
+  // The line before the floor kept of each kind only the last of which is read.
+  last_kept: [Option<usize>; Lasting::KINDS],
+}
+
+/// What a [`Tail`] holds whole: the lines it holds parsed, the nulls before its floor not counted, and
+/// the bytes of the lines as written it holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+  pub records: usize,
+  pub raw_bytes: usize,
 }
 
 impl Tail {
+  /// A reader of the whole record: its floor stands at its start until its owner raises it.
   pub fn new(path: impl Into<PathBuf>) -> Self {
     Self {
       path: path.into(),
@@ -58,7 +82,20 @@ impl Tail {
       seam: vec![],
       records: vec![],
       raw: vec![],
-      unfinished_raw: vec![],
+      whole: 0,
+      floor: 0,
+      raw_floor: 0,
+      floor_at_end: false,
+      last_kept: [None; Lasting::KINDS],
+    }
+  }
+
+  /// A reader of what the record gains from now: its first look sets the floor after every whole line
+  /// already written, so the lines before it are never held.
+  pub fn at_end(path: impl Into<PathBuf>) -> Self {
+    Self {
+      floor_at_end: true,
+      ..Self::new(path)
     }
   }
 
@@ -66,14 +103,21 @@ impl Tail {
     &self.path
   }
 
-  /// Every JSON line of the record now, in order; nothing where there is no file.
-  pub fn look(&mut self) -> Vec<Value> {
+  /// Every JSON line of the record now, in order, each line before the floor that no reading of the
+  /// whole record turns on standing as null; nothing where there is no file.
+  pub fn look(&mut self) -> &[Value] {
+    // A record not written yet holds nothing before the end the first look reads.
     let Ok(mut file) = std::fs::File::open(&self.path) else {
       self.restart(0);
+      self.floor_at_end = false;
 
-      return vec![];
+      return &self.records;
     };
-    let Ok(meta) = file.metadata() else { return vec![] };
+    let Ok(meta) = file.metadata() else {
+      self.floor_at_end = false;
+
+      return &self.records;
+    };
     let intact = self.ino == meta.ino()
       && meta.len() >= self.offset
       && read_at(&mut file, self.offset - self.seam.len() as u64, self.seam.len() as u64) == self.seam;
@@ -82,41 +126,113 @@ impl Tail {
       self.restart(meta.ino());
     }
 
+    // The last line read unfinished is read again with whatever has been written after it.
+    self.records.truncate(self.whole);
+    self.raw.truncate(self.whole);
+
     let fresh = read_at(&mut file, self.offset, meta.len() - self.offset);
     let end = fresh.iter().rposition(|byte| *byte == b'\n');
 
     if let Some(end) = end {
-      parse(&String::from_utf8_lossy(&fresh[..=end]), &mut self.records, &mut self.raw);
+      if self.floor_at_end {
+        self.floor = usize::MAX;
+        self.raw_floor = usize::MAX;
+      }
+
+      self.take(&String::from_utf8_lossy(&fresh[..=end]));
       self.offset += end as u64 + 1;
       self.seam = read_at(&mut file, self.offset.saturating_sub(SEAM_BYTES), SEAM_BYTES.min(self.offset));
     }
 
-    // A last line with no newline yet is taken only where it already reads whole, and it is not kept:
-    // the next look reads it again with whatever has been written after it.
-    let mut unfinished = vec![];
+    self.whole = self.records.len();
 
-    self.unfinished_raw.clear();
-    parse(
-      &String::from_utf8_lossy(&fresh[end.map_or(0, |end| end + 1)..]),
-      &mut unfinished,
-      &mut self.unfinished_raw,
-    );
+    if std::mem::take(&mut self.floor_at_end) {
+      self.floor = self.whole;
+      self.raw_floor = self.whole;
+    }
 
-    let mut records = self.records.clone();
+    // A last line with no newline yet is taken only where it already reads whole.
+    self.take(&String::from_utf8_lossy(&fresh[end.map_or(0, |end| end + 1)..]));
 
-    records.extend(unfinished);
-    records
+    &self.records
   }
 
-  /// The record's lines as they were written, as the last look read them: one for each record it
-  /// handed back.
-  pub fn raw(&self) -> Vec<String> {
-    self.raw.iter().chain(&self.unfinished_raw).cloned().collect()
+  /// The record's lines as they were written, as the last look read them: one for each line it
+  /// handed back, empty for one before the floor or already filed.
+  pub fn raw(&self) -> &[String] {
+    &self.raw
   }
 
   /// How many lines the record holds now.
   pub fn count(&mut self) -> usize {
     self.look().len()
+  }
+
+  /// Raises the floor to `at`: the owner reads no line before it again. Each such line is let go as
+  /// [`Tail`] says, and so is its line as written. A floor never comes down, and never passes the last
+  /// line still being written.
+  pub fn forget_before(&mut self, at: usize) {
+    let at = at.min(self.whole);
+
+    self.forget_raw_before(at);
+
+    while self.floor < at {
+      self.settle(self.floor);
+      self.floor += 1;
+    }
+  }
+
+  /// Lets go of the lines as written before `at`, once the owner has filed them.
+  pub fn forget_raw_before(&mut self, at: usize) {
+    let at = at.min(self.whole);
+
+    while self.raw_floor < at {
+      self.raw[self.raw_floor] = String::new();
+      self.raw_floor += 1;
+    }
+  }
+
+  /// What the reader holds whole now.
+  pub fn held(&self) -> Held {
+    Held {
+      records: self.records.iter().filter(|record| !record.is_null()).count(),
+      raw_bytes: self.raw.iter().map(String::len).sum(),
+    }
+  }
+
+  fn take(&mut self, text: &str) {
+    for line in text.split('\n') {
+      let trimmed = line.trim();
+
+      if trimmed.is_empty() {
+        continue;
+      }
+
+      let Ok(record) = serde_json::from_str::<Value>(trimmed) else { continue };
+      let at = self.records.len();
+
+      self.records.push(record);
+      self.raw.push(if at < self.raw_floor { String::new() } else { trimmed.to_owned() });
+
+      if at < self.floor {
+        self.settle(at);
+      }
+    }
+  }
+
+  // A line before the floor: kept where a reading of the whole record turns on it, else let go.
+  fn settle(&mut self, at: usize) {
+    match Kept::of(&self.records[at]) {
+      Kept::Every => {}
+      Kept::Last(kind) => {
+        if let Some(before) = self.last_kept[kind as usize].replace(at)
+          && before != at
+        {
+          self.records[before] = Value::Null;
+        }
+      }
+      Kept::Not => self.records[at] = Value::Null,
+    }
   }
 
   fn restart(&mut self, ino: u64) {
@@ -125,6 +241,52 @@ impl Tail {
     self.seam.clear();
     self.records.clear();
     self.raw.clear();
+    self.whole = 0;
+    self.floor = 0;
+    self.raw_floor = 0;
+    self.last_kept = [None; Lasting::KINDS];
+  }
+}
+
+/// The line a program writes its running account into, by model, as its session changes or it ends.
+pub const COST_STATE: &str = "cost-state";
+
+/// How a line before a reader's floor is kept, by what a reading of the whole record still reads of it:
+/// whether the foreground rests and what stands queued ([`rests_apart`], [`ends_on_turn_end`]) turn on
+/// every queue operation, the last line of the conversation and the last turn's end, and a turn's spend
+/// is measured from the last account line before it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kept {
+  Every,
+  Last(Lasting),
+  Not,
+}
+
+/// A kind of line of which only the last before a reader's floor is kept.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lasting {
+  /// A prompt, an answer, or a tool's call or answer.
+  Talk,
+  TurnEnd,
+  Account,
+}
+
+impl Lasting {
+  const KINDS: usize = 3;
+}
+
+impl Kept {
+  pub fn of(record: &Value) -> Self {
+    if is_turn_end(record) {
+      return Self::Last(Lasting::TurnEnd);
+    }
+
+    match kind(record) {
+      Some("queue-operation") => Self::Every,
+      Some(COST_STATE) => Self::Last(Lasting::Account),
+      Some("user" | "assistant") => Self::Last(Lasting::Talk),
+      _ => Self::Not,
+    }
   }
 }
 
@@ -136,21 +298,6 @@ fn read_at(file: &mut std::fs::File, from: u64, length: u64) -> Vec<u8> {
   }
 
   bytes
-}
-
-fn parse(text: &str, into: &mut Vec<Value>, raw: &mut Vec<String>) {
-  for line in text.split('\n') {
-    let trimmed = line.trim();
-
-    if trimmed.is_empty() {
-      continue;
-    }
-
-    if let Ok(record) = serde_json::from_str::<Value>(trimmed) {
-      into.push(record);
-      raw.push(trimmed.to_owned());
-    }
-  }
 }
 
 fn text_of<'a>(record: &'a Value, key: &str) -> Option<&'a str> {
@@ -408,19 +555,7 @@ impl TurnRead {
 pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
   let turn = records.get(from..).unwrap_or_default();
   let assistants: Vec<&Value> = turn.iter().filter(|record| kind(record) == Some("assistant")).collect();
-  let mine: Vec<&Value> =
-    assistants.iter().copied().filter(|record| !is_true(record, "isSidechain")).collect();
-  let last = mine.last().copied();
-  let last_id = last.and_then(|last| last.pointer("/message/id"));
-  let last_response: Vec<&Value> = match (last, last_id) {
-    (None, _) => vec![],
-    (Some(last), None) => vec![last],
-    (Some(_), Some(id)) => mine
-      .iter()
-      .copied()
-      .filter(|record| record.pointer("/message/id") == Some(id))
-      .collect(),
-  };
+  let (last, spoken) = last_answer(turn);
   // One entry per response: the last of a response's lines is kept, since it is the one written once
   // the response was whole.
   let mut responses: IndexMap<String, &Value> = IndexMap::new();
@@ -463,14 +598,6 @@ pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
     held.tokens += input + output + read + write;
   }
 
-  let spoken = last_response
-    .iter()
-    .flat_map(|record| blocks_of(record))
-    .filter(|block| text_of(block, "type") == Some("text"))
-    .filter_map(|block| text_of(block, "text"))
-    .collect::<String>()
-    .trim()
-    .to_owned();
   // How much the model was holding on its last request of the turn, which the fold's clock is read
   // against: the sum of what that request carried.
   let context_tokens = last.map(|last| {
@@ -499,6 +626,39 @@ pub fn read_turn(records: &[Value], from: usize) -> TurnRead {
     live_tasks,
     workflows,
   }
+}
+
+/// The answer of the turn that begins at `from` as it stands: [`read_turn`]'s text, read without the
+/// rest of that reading.
+pub fn answer_since(records: &[Value], from: usize) -> String {
+  last_answer(records.get(from..).unwrap_or_default()).1
+}
+
+// The last response of the turn's own, not a side chain's, and its words: the text of every line that
+// response was split into.
+fn last_answer(turn: &[Value]) -> (Option<&Value>, String) {
+  let mine = || {
+    turn
+      .iter()
+      .filter(|record| kind(record) == Some("assistant") && !is_true(record, "isSidechain"))
+  };
+  let Some(last) = mine().next_back() else { return (None, String::new()) };
+  let spoken = match last.pointer("/message/id") {
+    None => text_blocks(std::iter::once(last)),
+    Some(id) => text_blocks(mine().filter(|record| record.pointer("/message/id") == Some(id))),
+  };
+
+  (Some(last), spoken)
+}
+
+fn text_blocks<'a>(records: impl Iterator<Item = &'a Value>) -> String {
+  records
+    .flat_map(blocks_of)
+    .filter(|block| text_of(block, "type") == Some("text"))
+    .filter_map(|block| text_of(block, "text"))
+    .collect::<String>()
+    .trim()
+    .to_owned()
 }
 
 /// Whether the record holds an answer of the run's own, not a co-worker's, written at or after `from`.

@@ -46,7 +46,7 @@ use super::place_run::{
   write_stopped,
 };
 use super::record::{
-  ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
+  COST_STATE, ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
   command_closing_since, command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity,
   prompted_since, read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed,
   word_written_down,
@@ -628,7 +628,7 @@ impl<W: Watch> Door<'_, W> {
     }
   }
 
-  fn lines(&mut self) -> Vec<Value> {
+  fn lines(&mut self) -> &[Value] {
     self.tail.look()
   }
 
@@ -743,8 +743,8 @@ impl<W: Watch> Door<'_, W> {
     loop {
       let records = self.lines();
 
-      if written(&records) {
-        return spend_since(&records, from);
+      if written(records) {
+        return spend_since(records, from);
       }
 
       // herdr saying the pane is gone, or the program's own process gone, is the program done writing.
@@ -753,7 +753,7 @@ impl<W: Watch> Door<'_, W> {
       {
         let records = self.lines();
 
-        return written(&records).then(|| spend_since(&records, from)).flatten();
+        return written(records).then(|| spend_since(records, from)).flatten();
       }
 
       tokio::time::sleep(Duration::from_millis(100)).await;
@@ -797,7 +797,7 @@ impl<W: Watch> Door<'_, W> {
   }
 
   async fn record_children(&mut self) {
-    let records = self.lines();
+    let records = self.tail.look();
 
     for record in records.iter().skip(self.observed) {
       let said = {
@@ -830,7 +830,10 @@ impl<W: Watch> Door<'_, W> {
       self.watch.record(&lines[at..]).await;
     }
 
-    self.fed = Some(lines.len().max(at));
+    let fed = lines.len().max(at);
+
+    self.fed = Some(fed);
+    self.tail.forget_raw_before(fed);
   }
 
   // A run that trusts its folder has the folder written as trusted, in the file its own login reads,
@@ -973,7 +976,7 @@ impl<W: Watch> Door<'_, W> {
       return now;
     };
 
-    if self.notices == Notices::Apart && now.is("working") && foreground_rests(&place, &self.lines(), since)
+    if self.notices == Notices::Apart && now.is("working") && foreground_rests(&place, self.lines(), since)
     {
       return Look::Status("idle".to_owned());
     }
@@ -1166,7 +1169,7 @@ impl<W: Watch> Door<'_, W> {
     let by = tokio::time::Instant::now() + self.turn.timings.submit;
 
     loop {
-      if prompted_since(&self.lines(), from) {
+      if prompted_since(self.lines(), from) {
         return Submit::Seen;
       }
 
@@ -1198,9 +1201,10 @@ impl<W: Watch> Door<'_, W> {
     self.hand(true);
 
     let run = self.standing.as_ref().and_then(|(place, _)| read_run(&place.path));
+    let notices = self.notices;
     let records = self.lines();
     let over = run.is_some_and(|run| run.person || run.ended_at.is_some())
-      || read_round(records.get(from..).unwrap_or_default(), self.notices).state != RoundState::Working;
+      || read_round(records.get(from..).unwrap_or_default(), notices).state != RoundState::Working;
     let at = records.len();
     let said = if over {
       Err(Fault {
@@ -1224,7 +1228,7 @@ impl<W: Watch> Door<'_, W> {
 
     // Waited on until the record holds it, or the round no longer works and the word is the next
     // round's.
-    while !word_written_down(&self.lines(), at) && self.round_state(from) == RoundState::Working {
+    while !word_written_down(self.lines(), at) && self.round_state(from) == RoundState::Working {
       tokio::time::sleep(self.turn.timings.poll).await;
     }
 
@@ -1242,9 +1246,10 @@ impl<W: Watch> Door<'_, W> {
   }
 
   fn round_state(&mut self, from: usize) -> RoundState {
+    let notices = self.notices;
     let records = self.lines();
 
-    read_round(records.get(from..).unwrap_or_default(), self.notices).state
+    read_round(records.get(from..).unwrap_or_default(), notices).state
   }
 }
 
@@ -1331,7 +1336,7 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
       .filter(|dir| !dir.is_empty())
       .map_or_else(|| PathBuf::from(machine.var("HOME").unwrap_or_default()), PathBuf::from),
   );
-  let mut tail = Tail::new(&record);
+  let mut tail = Tail::at_end(&record);
   let from = tail.count();
   // A turn of a standing program is for the agent whose program it is, where the caller names none.
   let identity = Identity {
@@ -1610,9 +1615,6 @@ async fn open_own<W: Watch>(door: &mut Door<'_, W>) -> Result<String, String> {
     .await
     .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
 }
-
-// The record line a program writes its running account into as it ends.
-const COST_STATE: &str = "cost-state";
 
 /// What a run spent since `from`, by the record's account lines: the last one after it less the last one
 /// before it, model by model, each kind never below nought; none where no account line follows `from` or
@@ -1919,7 +1921,7 @@ async fn watch_turn<W: Watch>(
     }
 
     // A program gone takes no `enter`: the words went into nothing that can answer them.
-    if matches!(door.peer(), Peer::Gone(_)) && !turn_closed_since(&door.lines(), from) {
+    if matches!(door.peer(), Peer::Gone(_)) && !turn_closed_since(door.lines(), from) {
       *ending = End::Exited;
 
       return Ok(door.lost(pane, Lost::Program, "unsubmitted").await);
@@ -1969,9 +1971,9 @@ async fn watch_turn<W: Watch>(
     let program = door.program.as_ref().map(|program| program.pid);
 
     if let (Some(watching), Some(program)) = (tools.as_mut(), program) {
-      let records = door.lines();
+      let records = door.tail.look();
       let mut question = CallerQuestion(&mut *door.watch);
-      let said = watching.look(&turn.name, &records, from, program, now_ms(), &mut question).await;
+      let said = watching.look(&turn.name, records, from, program, now_ms(), &mut question).await;
 
       for note in &said {
         let sentence = note.sentence();
@@ -2060,7 +2062,7 @@ async fn watch_turn<W: Watch>(
           stop_cut = true;
 
           let records = door.lines();
-          let said = watching.cut_for_stop(&turn.name, &records, from, program, now).await;
+          let said = watching.cut_for_stop(&turn.name, records, from, program, now).await;
 
           for note in &said {
             let sentence = note.sentence();
@@ -2177,7 +2179,7 @@ async fn watch_turn<W: Watch>(
     if let (Some(at), Some(clock)) = (ask_at, clock)
       && now_ms() >= at
     {
-      let activity = last_activity(&door.lines(), from);
+      let activity = last_activity(door.lines(), from);
       let asked = Overrun {
         started_at: prompted_at,
         bound_ms: clock.as_millis() as i64,
@@ -2214,11 +2216,10 @@ async fn watch_turn<W: Watch>(
     let closed = {
       let records = door.lines();
 
-      turn_closed_since(&records, answer_from)
-        || ended_on_error(&records, answer_from)
-        || door.failure_since(failed_from).is_some()
-        || (command && command_words(&records, answer_from).is_some())
-    };
+      turn_closed_since(records, answer_from)
+        || ended_on_error(records, answer_from)
+        || (command && command_words(records, answer_from).is_some())
+    } || door.failure_since(failed_from).is_some();
 
     if matches!(peer, Peer::Gone(_)) {
       if closed {
@@ -2296,7 +2297,7 @@ async fn watch_turn<W: Watch>(
     // the program's own that hides it.
     if over_on_error(
       now.is("working"),
-      ended_on_error(&door.lines(), answer_from),
+      ended_on_error(door.lines(), answer_from),
       door.failure_since(failed_from).is_some(),
     ) {
       if now.is("blocked") {
@@ -2323,16 +2324,16 @@ async fn watch_turn<W: Watch>(
     door.questions.look(door.herdr, pane, &now, door.watch).await;
 
     // Words led by a slash the program took for a prompt answer as any prompt does, and are read as one.
-    command = command && !answered_since(&door.lines(), answer_from);
+    command = command && !answered_since(door.lines(), answer_from);
 
     if command {
       let records = door.lines();
 
-      if command_words(&records, answer_from).is_some() {
+      if command_words(records, answer_from).is_some() {
         break;
       }
 
-      if now.at_rest() && (worked || command_closing_since(&records, answer_from)) {
+      if now.at_rest() && (worked || command_closing_since(records, answer_from)) {
         if rested_at == Some(records.len()) {
           break;
         }
@@ -2371,13 +2372,13 @@ async fn watch_turn<W: Watch>(
 
     // Over when it has come back to rest having done something: seen at work, or with an answer in the
     // record written after this turn began, which the idle before the prompt cannot have.
-    if now.at_rest() && (worked || answered_since(&door.lines(), answer_from)) {
+    if now.at_rest() && (worked || answered_since(door.lines(), answer_from)) {
       break;
     }
 
     // Back at rest never seen working and with no answer: over once the record closes a turn after the
     // prompt.
-    if now.at_rest() && !worked && turn_closed_since(&door.lines(), answer_from) {
+    if now.at_rest() && !worked && turn_closed_since(door.lines(), answer_from) {
       break;
     }
 
@@ -2426,9 +2427,9 @@ async fn watch_turn<W: Watch>(
   // nothing of an answer was written, a program gone or a silent peer is the turn's ending.
   let mut lost_after_rest: Option<(Lost, String)> = None;
 
-  if !command && (worked || answered_since(&door.lines(), answer_from)) {
+  if !command && (worked || answered_since(door.lines(), answer_from)) {
     loop {
-      if turn_closed_since(&door.lines(), answer_from)
+      if turn_closed_since(door.lines(), answer_from)
         || door.round_state(answer_from) == RoundState::Interrupted
         || door.cancelled().await
       {
@@ -2461,9 +2462,9 @@ async fn watch_turn<W: Watch>(
   }
 
   if let Some((lost, herdr)) = lost_after_rest
-    && !answered_since(&door.lines(), answer_from)
-    && !turn_closed_since(&door.lines(), answer_from)
-    && !ended_on_error(&door.lines(), answer_from)
+    && !answered_since(door.lines(), answer_from)
+    && !turn_closed_since(door.lines(), answer_from)
+    && !ended_on_error(door.lines(), answer_from)
     && door.failure_since(failed_from).is_none()
   {
     *ending = if lost == Lost::Program { End::Exited } else { End::Cancelled };
@@ -2477,14 +2478,32 @@ async fn watch_turn<W: Watch>(
   // under one task — so a program reading at rest on two looks in a row, its record unchanged between
   // them and ending on a turn's end, has nothing still to come, and the wait ends there and says what the
   // count still expected. A program of the turn's own is handed nothing past its prompt.
-  if door.standing.is_some() && answered_since(&door.lines(), from) {
+  if door.standing.is_some() && answered_since(door.lines(), from) {
     let mut rested_at: Option<usize> = None;
 
     while !door.cancelled().await {
-      let records = door.lines();
-      let round = records.get(from..).unwrap_or_default();
+      let notices = door.notices;
+      let (working, count, ends_on_end, owed, ended) = {
+        let records = door.lines();
+        let round = records.get(from..).unwrap_or_default();
+        let ended = round
+          .iter()
+          .filter(|record| {
+            record.get("type").and_then(Value::as_str) == Some("system")
+              && record.get("subtype").and_then(Value::as_str) == Some("turn_duration")
+          })
+          .count();
 
-      if read_round(round, door.notices).state != RoundState::Working {
+        (
+          read_round(round, notices).state == RoundState::Working,
+          records.len(),
+          ends_on_turn_end(round),
+          turns_owed(round, notices),
+          ended,
+        )
+      };
+
+      if !working {
         break;
       }
 
@@ -2495,17 +2514,8 @@ async fn watch_turn<W: Watch>(
         break;
       }
 
-      if now.at_rest() && ends_on_turn_end(round) {
-        if rested_at == Some(records.len()) {
-          let owed = turns_owed(round, door.notices);
-          let ended = round
-            .iter()
-            .filter(|record| {
-              record.get("type").and_then(Value::as_str) == Some("system")
-                && record.get("subtype").and_then(Value::as_str) == Some("turn_duration")
-            })
-            .count();
-
+      if now.at_rest() && ends_on_end {
+        if rested_at == Some(count) {
           door
             .watch
             .note(&fill_marks(
@@ -2520,7 +2530,7 @@ async fn watch_turn<W: Watch>(
           break;
         }
 
-        rested_at = Some(records.len());
+        rested_at = Some(count);
       } else {
         rested_at = None;
       }
@@ -2533,7 +2543,9 @@ async fn watch_turn<W: Watch>(
   // submit never came would take the next person's line for the bot's.
   door.hand(false);
 
-  let records = door.lines();
+  // The turn's lines as they stand at its end, read across the waits below: the reader holds them from the
+  // turn's beginning, so this is the one copy a turn makes of them.
+  let records = door.lines().to_vec();
   let answered = answered_since(&records, from);
   let read = read_turn(&records, from);
   let failure = door.failure_since(failed_from).map(|failure| failure.failure());

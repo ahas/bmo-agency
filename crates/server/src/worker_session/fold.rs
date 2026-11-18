@@ -205,12 +205,12 @@ async fn folded(
     },
   )
   .await?;
-  let mut tail = Tail::new(record_of(ground, &turn.env, &turn.cwd, session));
+  let mut tail = Tail::at_end(record_of(ground, &turn.env, &turn.cwd, session));
   let from = tail.count();
   let ending = put(ground, &turn, &mut Quiet).await.map_err(fault)?;
   let written = tail.look();
-  let compacted = compacted_since(&written, from);
-  let thin = command_words(&written, from).is_some_and(|said| TOO_SHORT.is_match(&said.text));
+  let compacted = compacted_since(written, from);
+  let thin = command_words(written, from).is_some_and(|said| TOO_SHORT.is_match(&said.text));
   let (spend, answered_by) = match &ending {
     Ending::Answered { reply, .. } => (reply.spend.clone(), reply.account.clone()),
     _ => (vec![], None),
