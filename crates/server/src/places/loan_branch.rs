@@ -43,11 +43,17 @@ fn park(cwd: &str, branch: &str) -> Result<(), String> {
   .map_err(|why| format!("what was open in {cwd} could not be parked on {branch}: {why}"))
 }
 
+/// Whether a checkout stands on main with something open in it: somebody's work, which no loan takes. Main is read
+/// off `base`, the repository's base checkout.
+pub fn open_on_main(cwd: &str, base: &str) -> bool {
+  standing_branch(cwd).is_some_and(|standing| standing == main_branch(base))
+    && has_open(cwd).unwrap_or(true)
+}
+
 /// A lent checkout put on the job's branch: what was open there on a branch other than main and the job's parked
 /// onto that branch; the job's branch checked out where it exists, and otherwise made from main with main written
 /// beside it in the repository's git config; and the repository's setup run where the branch moved. Main is read
-/// off `base`, the repository's base checkout, and what a person left open on main is carried across. Answers
-/// whether the checkout moved.
+/// off `base`, the repository's base checkout. Answers whether the checkout moved.
 pub fn put_on_branch(cwd: &str, base: &str, branch: &str, bun: &str) -> Result<bool, String> {
   let standing = standing_branch(cwd);
 

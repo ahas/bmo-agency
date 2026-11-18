@@ -314,6 +314,30 @@ async fn a_job_is_lent_no_checkout_past_its_bound() {
   assert_eq!(refused.code.as_deref(), Some("too-many-checkouts"), "{}", refused.error);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn a_checkout_standing_on_main_with_something_open_is_somebody_s_work_and_is_not_lent() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded_with(scratch.db(), home.path(), &Default::default()).await;
+  let web = home.path().join("web");
+
+  made_repository(&web);
+  repository(scratch.db(), "helper", &at(&home.path().join("helper")), &[]).await;
+  repository(scratch.db(), "web", &at(&web), &[("support_count", 0i64.into())]).await;
+  job(&scratch, 25, 250, "running", None).await;
+  std::fs::write(web.join("draft.md"), "a person's edit\n").unwrap();
+
+  let borrower = Borrower::of_job(&ground, 25).await.unwrap().unwrap();
+  let known = workers(scratch.db(), &ground.source).await.unwrap();
+
+  assert!(matches!(borrower.lend(&ground, &known, "web").await, Ok(Lending::Busy(_))));
+  assert_eq!(standing_branch(&at(&web)).as_deref(), Some("main"));
+
+  std::fs::remove_file(web.join("draft.md")).unwrap();
+
+  assert!(matches!(borrower.lend(&ground, &known, "web").await, Ok(Lending::Lent(_))));
+}
+
 // A process the test started, taken down where the test ends before it does.
 struct Started(std::process::Child);
 

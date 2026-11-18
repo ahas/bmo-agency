@@ -159,7 +159,8 @@
   1. the checkout of the repository that has the job's branch checked out, where one has: git lets a branch
      stand checked out in one worktree of a repository at a time, so it is the only one that can take the
      branch, and it is waited for while something holds it;
-  2. otherwise a free support worktree by number, then the base checkout;
+  2. otherwise a free support worktree by number, then the base checkout, passing over one standing on main
+     with something open, which is somebody's work;
   3. where none is free, one grown for a repository that grows (「Growing a checkout at a launch」).
 
   A support worktree not made yet is made first, as a launch makes it (「Names and places」).
@@ -175,7 +176,7 @@
      the branch it stands on: the earlier job's work, parked;
   2. `work/<item>` is checked out where it exists, and otherwise made from main, with main written down
      beside it in the repository's git config, which is how main is read off a base checkout standing on
-     it; what a person left open on main is carried across as it stands;
+     it;
   3. the repository's setup is run on what the branch holds, where the branch was moved.
 
   A checkout that cannot be put on the branch is given back, and the launch fails or the borrowing is
@@ -217,6 +218,9 @@
   is the one row's. Its work is done in the checkouts lent to it, which stand below the folder.
 - **It runs one job at a time.** An umbrella row takes no support checkouts and no node checkouts, refused at
   the add and the change, so its one checkout's lock lets one job in.
+- **Host work may run there.** An item naming no repository goes to the checkout named `worker` (`docs/api.md`,
+  「assignments and jobs」); a deployment whose `worker` row is its umbrella runs that host work in the umbrella
+  folder, one job at a time and under the same guard, and one umbrella row stands at a path, never two.
 - **Its own tree is guarded, against every job:** the job guard refuses a write to a file the umbrella's git
   tracks and git changing the umbrella's own repository, its own job's as much as any other's, and lets a write
   in a checkout lent to the job through (「A job writes only in its own checkout」; `docs/live-claude-guard.md`).

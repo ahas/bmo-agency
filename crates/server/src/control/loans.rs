@@ -172,6 +172,8 @@ impl Borrower {
       Some(name) => members.iter().copied().filter(|member| member.name == *name).collect(),
       None => members.clone(),
     };
+    let taken_up = somebody_s_work(ground, repository, &order).await?;
+    let order: Vec<&Worker> = order.into_iter().filter(|member| !taken_up.contains(&member.name)).collect();
     let holder = self.holder();
 
     for member in &order {
@@ -281,6 +283,36 @@ impl Borrower {
       }
     }
   }
+}
+
+// The checkouts of these, on this machine, standing on main with something open: somebody's work, which no loan
+// takes (docs/worker-slots.md, 「A checkout lent to a job」).
+async fn somebody_s_work(
+  ground: &Ground,
+  repository: &str,
+  members: &[&Worker],
+) -> Result<Vec<String>, Refused> {
+  let Some(base) = crate::repositories::named(&ground.db, repository)
+    .await?
+    .map(|repository| repository.path)
+  else {
+    return Ok(vec![]);
+  };
+  let here: Vec<(String, String)> = members
+    .iter()
+    .filter(|member| member.node.is_none() && std::path::Path::new(&member.cwd).join(".git").exists())
+    .map(|member| (member.name.clone(), member.cwd.clone()))
+    .collect();
+
+  tokio::task::spawn_blocking(move || {
+    here
+      .into_iter()
+      .filter(|(_, cwd)| loan_branch::open_on_main(cwd, &base))
+      .map(|(name, _)| name)
+      .collect()
+  })
+  .await
+  .map_err(Refused::failed)
 }
 
 /// What refuses a job more checkouts than its bound.
