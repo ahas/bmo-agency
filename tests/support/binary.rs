@@ -45,6 +45,29 @@ fn place(dir: &Path, name: &str, built: &Path) {
   }
 
   fs::rename(&fresh, &placed).unwrap_or_else(|error| panic!("{name} could not be placed: {error}"));
+
+  // Renaming one link of a file over another link of the same file does nothing and leaves both, so where the
+  // binary placed is still the one built the fresh link stands on and is taken away here.
+  let _ = fs::remove_file(&fresh);
+}
+
+// The fresh links a test binary that is gone left in `dir`: each is named for the process that made it, and
+// one whose process no longer stands is no run's any more, so it goes. Left standing, each keeps a whole
+// binary of an older build on the disk.
+fn sweep(dir: &Path) {
+  let Ok(entries) = fs::read_dir(dir) else { return };
+
+  for entry in entries.flatten() {
+    let name = entry.file_name().to_string_lossy().into_owned();
+    let made_by = name
+      .strip_prefix('.')
+      .and_then(|rest| rest.rsplit_once('.'))
+      .map(|(_, pid)| pid.to_owned());
+
+    if made_by.is_some_and(|pid| pid.parse::<u32>().is_ok() && !Path::new("/proc").join(&pid).exists()) {
+      let _ = fs::remove_file(entry.path());
+    }
+  }
 }
 
 /// The directory every workspace binary stands in under its own name.
@@ -54,6 +77,8 @@ pub fn placed_dir() -> &'static Path {
     let dir = Path::new(first).parent().expect("a built binary stands in a directory").join(PLACED);
 
     fs::create_dir_all(&dir).unwrap_or_else(|error| panic!("{} could not be made: {error}", dir.display()));
+
+    sweep(&dir);
 
     for (name, built) in BINARIES {
       place(&dir, name, Path::new(built));
