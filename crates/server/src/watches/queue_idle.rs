@@ -847,53 +847,6 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
   })
 }
 
-// One read of the job service, its answer's body.
-async fn read_job(service: &JobService, path: &str, query: &[(&str, &str)]) -> Result<Value, String> {
-  let answer = reqwest::Client::new()
-    .get(format!("{}{path}", service.url))
-    .query(query)
-    .bearer_auth(&service.token)
-    .send()
-    .await
-    .map_err(|why| why.to_string())?;
-
-  if !answer.status().is_success() {
-    return Err(format!("the job service answered {} to {path}", answer.status().as_u16()));
-  }
-
-  answer.json().await.map_err(|why| why.to_string())
-}
-
-// Every page of a list of the job service's, past `after` while it says more stand.
-async fn every_page(
-  service: &JobService,
-  path: &str,
-  query: &[(&str, &str)],
-) -> Result<Vec<Value>, String> {
-  let mut held = Vec::new();
-  let mut after: Option<String> = None;
-
-  loop {
-    let mut asked = query.to_vec();
-
-    asked.push(("limit", "500"));
-
-    if let Some(after) = &after {
-      asked.push(("after", after));
-    }
-
-    let page = read_job(service, path, &asked).await?;
-    let members = page["items"].as_array().cloned().unwrap_or_default();
-
-    held.extend(members.iter().cloned());
-
-    match members.last().and_then(|last| last["id"].as_i64()) {
-      Some(last) if page["more"] == true => after = Some(last.to_string()),
-      _ => return Ok(held),
-    }
-  }
-}
-
 // The job service's open items, each marked by whether its queue gives a lease — open, holding nothing. An item
 // stands open only once an approver approved it or it was raised with an unattended label, so its state is the
 // whole of whether it may be launched.
@@ -907,7 +860,7 @@ pub fn merged_awaiting_deploy(item: &Value) -> bool {
 }
 
 async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
-  let queues = read_job(service, "/queues", &[]).await?;
+  let queues = service.read("/queues", &[]).await?;
   let taking: Vec<&str> = queues["items"]
     .as_array()
     .into_iter()
@@ -919,7 +872,8 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
     .collect();
 
   Ok(
-    every_page(service, "/items", &[("state", "open")])
+    service
+      .every_page("/items", &[("state", "open")])
       .await?
       .iter()
       .filter(|item| !merged_awaiting_deploy(item))
@@ -952,7 +906,8 @@ pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String
     return Ok(());
   };
   let fault = |why: Refusal| why.detail;
-  let drafts: Vec<Draft> = every_page(&service, "/items", &[("state", "draft")])
+  let drafts: Vec<Draft> = service
+    .every_page("/items", &[("state", "draft")])
     .await?
     .iter()
     .filter_map(draft_of)
@@ -981,7 +936,8 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
     return Ok(());
   };
   let fault = |why: Refusal| why.detail;
-  let followers: Vec<Follower> = every_page(&service, "/items", &[("state", "held")])
+  let followers: Vec<Follower> = service
+    .every_page("/items", &[("state", "held")])
     .await?
     .iter()
     .filter_map(follower_of)
@@ -995,7 +951,7 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
 
     for id in &follower.waits_on {
       if !read.contains_key(id) {
-        read.insert(*id, read_job(&service, &format!("/items/{id}"), &[]).await.ok());
+        read.insert(*id, service.read(&format!("/items/{id}"), &[]).await.ok());
       }
 
       waited.push(read[id].clone());

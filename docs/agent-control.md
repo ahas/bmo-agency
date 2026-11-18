@@ -3510,8 +3510,9 @@ with the session.
   open, so the notice of each commit told as it began to wait has long been judged; this notice tells the mark
   itself.
   - **What waits.** Every `deploy_due_read_seconds` (`policy/job-notices.toml`) agency reads the job service's
-    items under a close (`GET /items` with the label `close-phase`). A commit waits for a repository where an
-    item that is not `done`, `dropped` or `merged` carries that repository's pair `close-phase:<repository>`
+    items under a close that have not ended (`GET /items` with the label `close-phase` and the states `draft`,
+    `open`, `leased` and `held`, every page of it, since the items that ended outnumber them by far). A commit
+    waits for a repository where such an item carries that repository's pair `close-phase:<repository>`
     `waiting-batch` with `close-commit:<repository>`; on an item that carries no repository's pair, the commit
     of `close-commit` beside `close-phase` `waiting-batch` or an older close's `waiting-live` waits for the
     repository its `assigneeName` names. A commit the repository's deployment record names as running, or holds

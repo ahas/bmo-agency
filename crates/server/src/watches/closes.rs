@@ -84,21 +84,13 @@ pub fn waiting_in<'a>(closes: &'a [Close], repository: &str) -> Option<&'a str> 
     .waiting()
 }
 
-/// The job service's items under a close, the label naming a close's phase carried, whatever their state.
+/// The states of an item not ended, the only ones whose closes still stand.
+const UNENDED: &str = "draft,open,leased,held";
+
+/// The job service's items under a close that have not ended, the label naming a close's phase carried, every page
+/// of them: the items that ended outnumber them by far and would crowd them off a single page.
 pub async fn items(service: &JobService) -> Result<Vec<Value>, String> {
-  let answer = reqwest::Client::new()
-    .get(format!("{}/items", service.url))
-    .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
-    .bearer_auth(&service.token)
-    .send()
+  service
+    .every_page("/items", &[("label", MACHINE_TURN.close_label.as_str()), ("state", UNENDED)])
     .await
-    .map_err(|why| why.to_string())?;
-
-  if !answer.status().is_success() {
-    return Err(format!("the job service answered {} to /items", answer.status().as_u16()));
-  }
-
-  let page: Value = answer.json().await.map_err(|why| why.to_string())?;
-
-  Ok(page["items"].as_array().cloned().unwrap_or_default())
 }

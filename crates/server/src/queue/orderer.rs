@@ -87,6 +87,49 @@ impl JobService {
     Some(Self { url, token })
   }
 
+  /// One read of the service at `path` with `query`, its answer's body.
+  pub async fn read(&self, path: &str, query: &[(&str, &str)]) -> Result<Value, String> {
+    let answer = reqwest::Client::new()
+      .get(format!("{}{path}", self.url))
+      .query(query)
+      .bearer_auth(&self.token)
+      .send()
+      .await
+      .map_err(|why| why.to_string())?;
+
+    if !answer.status().is_success() {
+      return Err(format!("the job service answered {} to {path}", answer.status().as_u16()));
+    }
+
+    answer.json().await.map_err(|why| why.to_string())
+  }
+
+  /// Every page of a list of the service's at `path` with `query`, past `after` while it says more stand.
+  pub async fn every_page(&self, path: &str, query: &[(&str, &str)]) -> Result<Vec<Value>, String> {
+    let mut held = Vec::new();
+    let mut after: Option<String> = None;
+
+    loop {
+      let mut asked = query.to_vec();
+
+      asked.push(("limit", "500"));
+
+      if let Some(after) = &after {
+        asked.push(("after", after));
+      }
+
+      let page = self.read(path, &asked).await?;
+      let members = page["items"].as_array().cloned().unwrap_or_default();
+
+      held.extend(members.iter().cloned());
+
+      match members.last().and_then(|last| last["id"].as_i64()) {
+        Some(last) if page["more"] == true => after = Some(last.to_string()),
+        _ => return Ok(held),
+      }
+    }
+  }
+
   /// One item by its number; none where the service answers that it holds no such item.
   pub async fn item(&self, id: i64) -> Result<Option<Value>, String> {
     let answer = reqwest::Client::new()
