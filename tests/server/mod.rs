@@ -77,6 +77,7 @@ mod control {
   mod pane_death;
   mod person_node_routes;
   mod pickup_restart;
+  mod preamble;
   mod registry;
   mod repository_addition;
   mod repository_removal;

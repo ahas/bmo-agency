@@ -281,6 +281,8 @@ async fn job_on(scratch: &Scratch, home: &std::path::Path, id: i64, item: i64, p
 
   repository(scratch.db(), "helper", &home.join("helper").to_string_lossy(), &[]).await;
   std::fs::create_dir_all(home.join("helper")).unwrap();
+  // A git checkout on no item's branch, so the prompt carries no preamble bundle above the handoff.
+  crate::support::git::git(&["-C", &crate::support::git::at(&home.join("helper")), "init", "--quiet"]);
   scratch
     .run(
       r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",

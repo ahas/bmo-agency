@@ -794,6 +794,31 @@ fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   prompt
 }
 
+/// A job's prompt with a section under its title, the title being its first line that opens a heading of the
+/// first level; the section stands first where it has none, and the prompt stands as it is where the section is
+/// empty.
+pub fn under_title(prompt: &str, section: &str) -> String {
+  if section.is_empty() {
+    return prompt.to_owned();
+  }
+
+  let mut at = 0;
+
+  for line in prompt.split_inclusive('\n') {
+    at += line.len();
+
+    if line.starts_with("# ") {
+      let rest = &prompt[at..];
+      let blank = if rest.starts_with('\n') { 1 } else { 0 };
+      let (head, tail) = prompt.split_at(at + blank);
+
+      return format!("{head}{}{section}\n{tail}", if blank == 0 { "\n" } else { "" });
+    }
+  }
+
+  format!("{section}\n{prompt}")
+}
+
 /// An item's notes as a job's prompt carries them: the newest that fit `most` bytes, in their order, after a
 /// line saying how many older ones were left out where any were.
 pub fn notes_within(notes: &[&str], most: usize) -> String {
@@ -2723,10 +2748,18 @@ impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
       (Some(handoff), Some(carried)) => Some(crate::job_handoff::ahead(&handoff.text, carried)),
       _ => None,
     };
-    let prompt = match (&resume, &self.carried) {
-      (None, Some(carried)) => opened.as_deref().unwrap_or(carried.as_str()),
-      _ => prompt,
+    // A fresh session opens on the job's prompt, so it carries the checkout's bundle read now, under the title
+    // and above the handoff (docs/worker-bench.md, 「Preamble」).
+    let item = member["itemId"].as_i64().unwrap_or_default();
+    let fresh = match (&resume, &self.carried) {
+      (None, Some(carried)) => {
+        let opening = opened.as_deref().unwrap_or(carried.as_str());
+
+        Some(crate::control::preamble::bundled(ground, self.worker, item, opening).await)
+      }
+      _ => None,
     };
+    let prompt = fresh.as_deref().unwrap_or(prompt);
     // Where the session's record is gone the turn opens a new one on what it carries, its run log standing for
     // the handoff the session can no longer write.
     let gone = match (&resume, &self.carried) {
@@ -2736,7 +2769,11 @@ impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
       _ => None,
     };
     let instead = match (&gone, &self.carried) {
-      (Some(handoff), Some(carried)) => Some(crate::job_handoff::ahead(&handoff.text, carried)),
+      (Some(handoff), Some(carried)) => {
+        let opening = crate::job_handoff::ahead(&handoff.text, carried);
+
+        Some(crate::control::preamble::bundled(ground, self.worker, item, &opening).await)
+      }
       _ => None,
     };
     let carried = self.on_session(id, taken, &parts, prompt, resume.clone(), instead).await;
@@ -3073,12 +3110,15 @@ pub async fn launched<S: Sessions + Send + Sync>(
     None => match kept_turn_words(&ground.db, id).await {
       Some(words) => (words, None, None),
       None => {
-        let prompt = crate::control::loans::with_lent(&prompt, &lent_section);
+        let prompt = under_title(&prompt, &lent_section);
 
         if !lent_section.is_empty() {
           kept_prompt(&ground.db, id, &prompt).await;
         }
 
+        // The checkout's bundle is read now and stands above the lent checkouts, never kept on the job's row
+        // (docs/worker-bench.md, 「Preamble」).
+        let prompt = crate::control::preamble::bundled(ground, &worker_name, item, &prompt).await;
         let prompt = referenced(ground.peers.gate.as_ref(), &member, &prompt).await;
         let Some(opening) = crate::job_review::opened(ground, id).await else {
           return Ok(None);

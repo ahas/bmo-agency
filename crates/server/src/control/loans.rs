@@ -530,27 +530,3 @@ pub fn lent_words(taken: &[Lent], branch: &str) -> String {
 
   text
 }
-
-/// A job's prompt with the section naming its lent checkouts under its title, the title being its first line that
-/// opens a heading of the first level; the section stands first where it has none.
-pub fn with_lent(prompt: &str, section: &str) -> String {
-  if section.is_empty() {
-    return prompt.to_owned();
-  }
-
-  let mut at = 0;
-
-  for line in prompt.split_inclusive('\n') {
-    at += line.len();
-
-    if line.starts_with("# ") {
-      let rest = &prompt[at..];
-      let blank = if rest.starts_with('\n') { 1 } else { 0 };
-      let (head, tail) = prompt.split_at(at + blank);
-
-      return format!("{head}{}{section}\n{tail}", if blank == 0 { "\n" } else { "" });
-    }
-  }
-
-  format!("{section}\n{prompt}")
-}

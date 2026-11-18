@@ -1,4 +1,6 @@
-//! The names under a worker's workbench agency keeps (docs/worker-bench.md, 「An item's scratch」).
+//! What a job's prompt is composed with: the names under a worker's workbench agency keeps
+//! (docs/worker-bench.md, 「An item's scratch」), how much of its item's notes it carries, the section naming
+//! its lent checkouts, and its preamble bundle (docs/worker-bench.md, 「Preamble」).
 
 use serde::Deserialize;
 
@@ -8,6 +10,31 @@ pub struct JobPrompt {
   pub workbench: Workbench,
   pub notes: Notes,
   pub lent: Lent,
+  pub bench: Bench,
+}
+
+/// The preamble bundle a job's prompt carries under its title: the header's heading and lines, each said where
+/// it holds, and the heading the repository's preamble stands under.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bench {
+  /// The header's heading.
+  pub heading: String,
+  /// The job's checkout, with `{checkout}`, `{repository}` and `{path}`.
+  pub checkout: String,
+  /// A support checkout's number and what the preamble's words for the base mean in it, with `{slot}` and
+  /// `{repository}`.
+  pub support: String,
+  /// A checkout standing on the item's branch, with `{branch}`.
+  pub branch: String,
+  /// The workbench folder and the item's scratch in it, with `{workbench}`, `{scratch}` and `{database}`.
+  pub workbench: String,
+  /// A directory that is not a git checkout, with `{path}`.
+  pub not_checkout: String,
+  /// The dev server and its lines, with `{start}`, `{restart}`, `{stop}` and `{log}`.
+  pub dev: String,
+  /// The heading the repository's preamble stands under.
+  pub preamble_heading: String,
 }
 
 /// What opens a job's prompt where checkouts of other repositories are lent to it.

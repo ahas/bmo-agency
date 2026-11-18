@@ -54,10 +54,13 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A run working in a repository's checkout is handed the repository's own,** whatever its role:
   - its system prompt opens on the platform's harness opening and the role's prompt, then the worker line's
     standing rules, the repository's rules and its prefix documents, each headed by its path;
-  - a job's prompt opens with the repository's preamble, then the item.
-- **What the repository hands is part of the prefix,** so a changed prefix document, rule or preamble moves
-  the prefix of every session kept at that path, and the next run there opens a new session
-  (`docs/sessions.md`, 「A role's session」).
+  - a job's prompt carries, under the item's title, the repository's preamble under agency's header naming
+    the job's checkout, its workbench and its dev server (`docs/worker-bench.md`, 「Preamble」), then the
+    item.
+- **What the repository's system prompt holds is part of the prefix,** so a changed prefix document or rule
+  moves the prefix of every session kept at that path, and the next run there opens a new session
+  (`docs/sessions.md`, 「A role's session」). The preamble is no part of it: it stands in the job's prompt,
+  so a changed preamble reaches the next job's prompt and folds no session.
 - **A run whose path is no repository's** — a worker ask in a supervisor's scratch folder, a search, a
   translation — is handed nothing of a repository.
 

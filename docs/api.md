@@ -1667,8 +1667,9 @@ service.
   - **The job's report ends with them,** as with any word said into its turn (「sessions」 above).
 - **A job's prompt opens on its item's handoff,** where the item holds one: the newest note the job service
   answers for the item labelled `kind` `handoff`, unless a job of the item ended answered after it was written,
-  stands right after the item's title, ahead of its instruction and brief, under a heading that says it is the
-  last session's own handoff, and the
+  stands under the item's title, after the preamble bundle and the checkouts lent to the job where the prompt
+  carries them (`docs/worker-bench.md`, 「Preamble」), ahead of its instruction and brief, under a heading that
+  says it is the last session's own handoff, and the
   item's notes below leave it out (`docs/sessions.md`, 「The handoff a job's session leaves」). Its notes are
   read from the job service as the job is written, so a relaunch of the item on any agent or model opens where
   the last session left off.

@@ -500,8 +500,9 @@ statements below about either are kept for a rollback to the road a deployment l
   other than the one asked leaves a handoff written from the last lines the job's run logged, said to be that.
   The ask goes out under the job's run, so a stop of the job ends it as it ends any turn of the job.
 - **A launch of the job's item opens on its handoff,** on whatever agent or model it goes out: the newest
-  handoff note on the item stands right after the item's title, ahead of the rest of the job's prompt, under a
-  heading that says it is the last session's own handoff, unless a job of the item ended with its work answered after that note was written.
+  handoff note on the item stands under the item's title, after the preamble bundle and the checkouts lent to
+  the job where the prompt carries them (`docs/worker-bench.md`, 「Preamble」), ahead of the rest of the job's
+  prompt, under a heading that says it is the last session's own handoff, unless a job of the item ended with its work answered after that note was written.
   A job's turn that goes out again after agency's restart carries the words it was composed with, the
   handoff among them.
 

@@ -347,12 +347,13 @@
 - **It is told its number:** the pane runs it with `BMO_WORKER_SLOT=<n>` in its environment, and a
   dev server that binds ports moves them by that number. The operations repository's bench does
   (`docs/worker-bench.md`); the base's dev server runs with none and keeps its ports.
-- **The job's preamble says which checkout it is:** a job in a support checkout opens with the
-  repository's preamble under a header saying it is support checkout `n` of the repository, in its own worktree and on
-  its item's branch, that its dev server stands only once the job starts it, the lines that start,
-  restart and stop that dev server, and that where the owner's text names the base's
-  workbench, console or ports, it means the support checkout's own. A base job on its
-  item's branch is told the branch, and that the close lands it rather than a push.
+- **The job's preamble says which checkout it is:** a job in a support checkout carries, under its
+  title, the repository's preamble under a header saying it is support checkout `n` of the repository, in
+  its own worktree, with its own workbench, that its dev server stands only once the job starts it, the
+  lines that start, restart and stop that dev server, and that where the owner's text names the base's
+  workbench, console or ports, it means the support checkout's own. A job whose checkout, base or
+  support, stands on its item's branch is told the branch, and that the close lands it rather than a
+  push (`docs/worker-bench.md`, 「The bundle is agency's header plus the owner's text」).
 
 ## A job writes only in its own checkout
 

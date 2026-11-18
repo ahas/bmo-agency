@@ -129,7 +129,8 @@ async fn a_launch_lends_each_repository_its_item_names_on_the_job_s_branch_and_n
   let ground = seeded_with(scratch.db(), home.path(), &vars).await;
   let (web, ui) = (home.path().join("web"), home.path().join("ui"));
 
-  std::fs::create_dir_all(home.path().join("helper")).unwrap();
+  // The job's own checkout is a plain base on main, so its prompt carries no bundle above the lent checkouts.
+  made_repository(&home.path().join("helper"));
   made_repository(&web);
   made_repository(&ui);
   repository(scratch.db(), "helper", &at(&home.path().join("helper")), &[]).await;

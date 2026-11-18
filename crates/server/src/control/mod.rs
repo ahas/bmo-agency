@@ -32,6 +32,7 @@ pub mod own_llm;
 mod person_node_routes;
 pub mod pool;
 mod pool_routes;
+pub mod preamble;
 pub mod quota;
 pub mod registry;
 pub mod relay_routes;

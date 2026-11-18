@@ -4,10 +4,10 @@
 
 Each repository holds three things beside the work of its jobs:
 
-1. the **preamble**, which stands ahead of the job prompt
+1. the **preamble**, which a job's prompt carries under its title
 2. the **workbench folder**, which remains regardless of sessions
-3. the **dev server** its row names, which agency stands for each of its jobs in that job's checkout and which a
-   job does not start beside the pane but restarts when it needs to
+3. the **dev server** its row names, which stands in a pane of its own in a job's checkout once that job
+   starts it, and which the job starts, restarts and stops through agency's verb, never beside the pane
 
 - **Where they come from:** all three follow from what the repository's row says, and differ per repository.
 - **None of them is part of a session's prefix.** What the row puts into the prefix is its list of
@@ -67,26 +67,31 @@ Each repository holds three things beside the work of its jobs:
 - **The owner's text, and the owner's choice.** For example: which port the dev server stands on,
   what its outside address is, and to check it rather than start a new one.
 
-### It stands at the very front of the prompt that opens a job
+### It opens the prompt a job's session is handed
 
-- **Read fresh:** every time the runner hands a job's text to its run, it reads the preamble from the
-  repository row at that moment and attaches it.
-- **Every job gets it:**
-  - ordinary jobs
-  - each stage of a work order, since each is its own job — builder turns continuing the same session,
-    and branch roles running their own session in a copy
-- **The order of the prompt received:**
-  1. the preamble bundle
-  2. the impact grounds its item was filed with, where it carries any and the run is not a co-work
-     branch (the job unit's `todo.md`, 「Impact grounds」)
-  3. the job's text
-  4. the knowledge its item calls for, where the knowledge gate picked any (the reference unit's
-     `reference-selection.md`, 「Work beyond a turn」)
+- **Read fresh:** whenever agency hands a job's prompt to a session that does not hold it yet, it reads
+  the repository row and the checkout at that moment and composes the bundle anew:
+  - the job's first turn;
+  - a turn of the job's review carried into a fresh session, because the session it answered on cannot
+    be continued (`docs/job-review.md`), which opens on the job's prompt again.
+- **Every job in a repository's checkout gets it,** whatever its role. A turn said to a session that
+  holds the prompt already carries no bundle of its own: a later stage of the work order, or a rework.
+  The turn a road that stopped answering hands to the next road repeats the words that went out, the
+  bundle with them where they carried it.
+- **The order of the first prompt:**
+  1. the item's title
+  2. the bundle
+  3. the checkouts lent to the job, where any are (`docs/worker-slots.md`, 「A checkout lent to a job」)
+  4. the handoff the last session on the item left, where one did (`docs/sessions.md`, 「The handoff a
+     job's session leaves」)
+  5. the job's text: its instruction, brief, work order and notes
+  6. the reference the gate picked over the job's instruction, where it picked any
+  7. the opening of the job's review (`docs/job-review.md`)
 
   The report trailer is no part of it: it stands in the run's prefix, after its rules
   (`docs/launch-lines.md`).
-- **Reshape requests:** a request to reshape repeats the whole job prompt, so the preamble goes along
-  inside it.
+- **Not kept:** the prompt the job's row keeps is the one without the bundle, so a later session opened
+  on it reads the row again rather than repeating an old reading.
 - **Editing the field:** the new text stands from the next job prompt handed over.
 
 ### What it is not attached to
@@ -102,32 +107,48 @@ Each repository holds three things beside the work of its jobs:
 - **The preamble is in none of them,** nor in the run line's arguments or environment.
 - **So editing the field** leaves agency's prefix digest unchanged: no session fold, no cold cache.
 
-### It is attached outside sanitising
+### It is agency's own words
 
-- **Why:** the preamble is agency's setting, not something someone sent.
-- **When:** it is attached after the job's text has been sanitised.
+- **Why:** the bundle is agency's header and the owner's setting, not something someone sent, so it
+  goes into the prompt as composed and is never put through the sanitiser gate (`docs/cache-fallback.md`,
+  「The sanitiser gate」).
 - **No cross-effects:**
   - A verdict on the job's text never alters this field's text.
   - Editing this field never revokes a verdict remembered for the job's text.
 
 ### The bundle is agency's header plus the owner's text
 
-- **The header:** if the repository has a preamble or a dev-server command, or works in a directory that is
-  not a git checkout, the job's prompt opens with a header:
-  - the path of this checkout's workbench folder, and where in it what one item alone needs goes
-    (「An item's scratch」 below)
-  - if the directory is not a checkout, that there is nothing to commit, push or deploy, so the closing
-    steps that need git are skipped and no repository is made
-  - if there is a dev-server command, that the dev server stands in a pane outside the job, the path of
-    its log file, and the exact line that restarts it — with the rule that a job restarts a dev server
-    that is down, failing or serving stale code and carries on, rather than leaving it as unfinished
-- **Below it** stands the owner's text as written.
-- **None present:** a repository with none of the three has no bundle at all in its job prompt.
+- **When there is one:** a job's prompt carries the bundle where any of these holds; where none does, it
+  carries none at all:
+  - the repository has a preamble;
+  - the repository has a dev-server command and the checkout stands on this machine;
+  - the checkout's directory is not a git checkout;
+  - the checkout is a support checkout;
+  - the checkout stands on the item's branch, `work/<item>`.
+- **The header** opens it, under a heading of its own, saying:
+  - which checkout the job runs in: its name, the repository's, and its path;
+  - for a support checkout, that it is support checkout `n` of the repository in a worktree of its own,
+    and that where the owner's text names the base checkout's workbench, console or ports, it means this
+    checkout's own (`docs/worker-slots.md`, 「Dev servers」);
+  - for a checkout on the item's branch, the branch, and that the close lands it, so it is never pushed;
+  - for a checkout on this machine, the path of its workbench folder, and where in it what one item
+    alone needs goes, the item's folder and its database's name (「An item's scratch」 below);
+  - for a directory that is not a git checkout, that there is nothing to commit, push or deploy, so the
+    closing steps that need git are skipped and no repository is made;
+  - for a dev-server command on a checkout on this machine, that the dev server stands in a pane outside
+    the job only once the job starts it, the path of its log file and the three lines that start,
+    restart and stop it (「A job starts, restarts and stops it」) — with the rule that a job restarts a
+    dev server that is down, failing or serving stale code and carries on, rather than leaving it as
+    unfinished.
+- **A checkout on a work node** is told neither a workbench nor a dev server: both stand on this machine,
+  and a worker on a node runs no dev server (「Agency sets it up」). Its directory is taken to be a git
+  checkout, since agency reads no file on the node.
+- **Below it** stands the owner's text as written, under a heading of its own.
 - **Language:** the header, like the report trailer, is the deployment speaking to the job's run, so it is
-  written in English.
-- **Its lines** are the job unit's, which composes the job's prompt; agency keeps what it is composed
-  from: the repository's preamble and dev-server command on its row, and the checkout's workbench folder
-  (「Workbench folder」 below).
+  written in English; its lines stand in agency's policy, beside the lent checkouts' heading.
+- **What it is composed from:** the repository's preamble and dev-server command on its row, the
+  checkout's own row — its support number, its node and its path — the branch the checkout stands on,
+  and the checkout's workbench folder (「Workbench folder」 below).
 
 ## Workbench folder
 
@@ -157,10 +178,11 @@ Each repository holds three things beside the work of its jobs:
 - **Inside no checkout,** for the same reason the data root is outside every checkout.
 - **Left out of deployment backups:** its contents can be remade, and one data copy exceeds a hundred
   megabytes.
-- **How a job learns the path:** only from the header line of the preamble bundle. It is not passed as an
-  environment variable, since the worker line's environment is fixed. The job unit that composes
-  that header asks agency for the path, with the item scratch folders standing under it (`docs/api.md`,
-  「repositories, prefix-checks and room-holdings」, a repository's workbench).
+- **How a job learns the path:** only from the header of the preamble bundle, which agency composes
+  (「The bundle is agency's header plus the owner's text」). It is not passed as an environment variable,
+  since the worker line's environment is fixed. Another caller reads the path, with the item scratch
+  folders standing under it, from agency's repository routes (`docs/api.md`, 「repositories,
+  prefix-checks and room-holdings」, a repository's workbench).
 
 ### An item's scratch
 
