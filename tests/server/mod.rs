@@ -23,6 +23,7 @@ mod command_reading {
   mod records;
   mod removal;
   mod shell;
+  mod writes;
 }
 
 mod supervisor_homes;

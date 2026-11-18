@@ -1,8 +1,10 @@
 //! What the job guard stands on in the shell hook's process (docs/live-claude-guard.md): the testbed's
-//! `classify` verb for a heavy command, agency's store for the accounts' record directories and the job's
-//! live-Claude opening, and the machine's own configuration directory. The store is opened once, and only
-//! where a reading needs it; one that cannot be reached answers that nothing is known.
+//! `classify` verb for a heavy command, agency's store for the accounts' record directories, the job's
+//! live-Claude opening, its own checkout and the ones it borrowed, the machine's own configuration directory,
+//! and the job service for the job's item. The store is opened once, and only where a reading needs it; one
+//! that cannot be reached answers that nothing is known.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -13,8 +15,14 @@ use tokio::sync::OnceCell;
 use super::live_claude;
 use crate::command_reading::job_guard::JobGround;
 use crate::command_reading::testbed::Classified;
+use crate::command_reading::writes::{Checkouts, ForeignCheckout, STRUCTURE_DOCUMENT};
 use crate::control::claude_accounts::{accounts, machine_config_dir};
-use store::{one, run};
+use crate::control::item_filings::{ASKED_BY, OWNER};
+use crate::queue::holds::JOB_HOLDER;
+use crate::queue::orderer::JobService;
+use crate::queue::paths::resolve;
+use crate::queue::workers::{Worker, workers};
+use store::{all, one, run};
 
 /// The testbed's binary, found on the path as every caller finds it.
 const TESTBED: &str = "bmo-testbed";
@@ -25,6 +33,15 @@ pub struct StoreGround {
   machine: Machine,
   run: Option<String>,
   store: OnceCell<Option<DatabaseConnection>>,
+  job: OnceCell<Option<Job>>,
+}
+
+// The job working in this program's run, as agency's store holds it.
+#[derive(Clone, Debug)]
+struct Job {
+  id: i64,
+  item_id: i64,
+  worker: String,
 }
 
 impl StoreGround {
@@ -35,7 +52,32 @@ impl StoreGround {
       machine,
       run: live_claude::job_run(),
       store: OnceCell::new(),
+      job: OnceCell::new(),
     }
+  }
+
+  // The latest job working in the run, whatever its state: the program asking is that job's own.
+  async fn job(&self) -> Option<&Job> {
+    self
+      .job
+      .get_or_init(|| async {
+        let row = one(
+          self.db().await?,
+          r#"SELECT "id", "item_id", "worker_name" FROM "jobs" WHERE "run_name" = $1 ORDER BY "id" DESC LIMIT 1"#,
+          vec![self.run.as_deref()?.into()],
+        )
+        .await
+        .inspect_err(|why| eprintln!("job-guard: {why}"))
+        .ok()??;
+
+        Some(Job {
+          id: row.try_get("", "id").ok()?,
+          item_id: row.try_get("", "item_id").ok()?,
+          worker: row.try_get("", "worker_name").ok()?,
+        })
+      })
+      .await
+      .as_ref()
   }
 
   async fn db(&self) -> Option<&DatabaseConnection> {
@@ -109,5 +151,74 @@ impl JobGround for StoreGround {
     {
       eprintln!("job-guard: {why}");
     }
+  }
+
+  async fn checkouts(&self) -> Checkouts {
+    let (Some(job), Some(db)) = (self.job().await, self.db().await) else {
+      return Checkouts::default();
+    };
+    let known = match workers(db, Path::new("")).await {
+      Ok(known) => known,
+      Err(why) => {
+        eprintln!("job-guard: {}", why.detail);
+        return Checkouts::default();
+      }
+    };
+    let Some(own) = known.iter().find(|checkout| checkout.name == job.worker) else {
+      return Checkouts::default();
+    };
+    let borrowed: Vec<String> = match all(
+      db,
+      r#"SELECT "worker_name" FROM "assignments" WHERE "holder_name" = $1 AND "state" IN ('held', 'running')"#,
+      vec![format!("{JOB_HOLDER}{}", job.id).into()],
+    )
+    .await
+    {
+      Ok(rows) => rows.iter().filter_map(|row| row.try_get("", "worker_name").ok()).collect(),
+      Err(why) => {
+        eprintln!("job-guard: {why}");
+        return Checkouts::default();
+      }
+    };
+    let path = |checkout: &Worker| resolve(&checkout.cwd).to_string_lossy().into_owned();
+    let here: Vec<&Worker> = known
+      .iter()
+      .filter(|checkout| !checkout.builtin && !checkout.cwd.is_empty() && checkout.node == own.node)
+      .collect();
+    let (writes_in, others): (Vec<&Worker>, Vec<&Worker>) = here.into_iter().partition(|checkout| {
+      checkout.name == own.name || borrowed.contains(&checkout.name) || path(checkout) == path(own)
+    });
+
+    Checkouts {
+      own: writes_in.into_iter().map(path).collect(),
+      foreign: others
+        .into_iter()
+        .map(|checkout| ForeignCheckout {
+          worker: checkout.name.clone(),
+          repository: checkout.repository().to_owned(),
+          cwd: path(checkout),
+        })
+        .collect(),
+    }
+  }
+
+  async fn opens_structure(&self) -> bool {
+    let Some(job) = self.job().await else { return false };
+    let vars: BTreeMap<String, String> =
+      self.machine.vars().map(|(name, value)| (name.to_owned(), value.to_owned())).collect();
+    let Some(service) = JobService::of(&vars) else { return false };
+    let item = match service.item(job.item_id).await {
+      Ok(Some(item)) => item,
+      Ok(None) => return false,
+      Err(why) => {
+        eprintln!("job-guard: {why}");
+        return false;
+      }
+    };
+    let names = ["title", "brief"]
+      .iter()
+      .any(|part| item[part].as_str().is_some_and(|words| words.contains(STRUCTURE_DOCUMENT)));
+
+    item["labels"][ASKED_BY].as_str() == Some(OWNER) && names
   }
 }

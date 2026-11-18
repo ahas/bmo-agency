@@ -11,6 +11,7 @@ pub mod records;
 pub mod removal;
 pub mod shell;
 pub mod testbed;
+pub mod writes;
 
 use serde_json::{Map, Value, json};
 

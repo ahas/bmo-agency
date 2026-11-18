@@ -24,7 +24,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::{CONTROL_PORT, CONTROL_TOKEN, control_port, control_token};
-use crate::command_reading::job_guard::{JobGround, job_refusal};
+use crate::command_reading::job_guard::{FILE_WRITERS, JobGround, file_refusal, job_refusal};
 use crate::command_reading::records::claude_launch;
 use crate::command_reading::{hook_input, hook_refusal};
 use crate::door::place_run::{
@@ -257,16 +257,22 @@ pub fn shell_guard(input: &str, refuses: Refuses) -> Option<String> {
 }
 
 /// The shell hook's answer to a PreToolUse call, the job guard first where `refuses` asks it: its refusal of a
-/// job's shell command, read with what `job` stands on and the paths spelled under `home`; otherwise the
-/// shell guard's answer. Input it cannot read lets the call through as it is.
+/// job's shell command or of a file tool's write, read with what `job` stands on and the paths spelled under
+/// `home`; otherwise the shell guard's answer, which is nothing for a file tool's call. Input it cannot read
+/// lets the call through as it is.
 pub async fn shell_hook(input: &str, refuses: Refuses, home: &str, job: &impl JobGround) -> Option<String> {
   if refuses.job
     && let Ok(read) = hook_input(input)
-    && read.tool == "Bash"
-    && let Some(command) = read.command
-    && let Some(refused) = job_refusal(&command, read.call, home, job).await
   {
-    return Some(hook_refusal(&refused));
+    let refused = match (read.tool.as_str(), read.command, read.path) {
+      ("Bash", Some(command), _) => job_refusal(&command, read.call, home, job).await,
+      (tool, _, Some(path)) if FILE_WRITERS.contains(&tool) => file_refusal(&path, job).await,
+      _ => None,
+    };
+
+    if let Some(refused) = refused {
+      return Some(hook_refusal(&refused));
+    }
   }
 
   shell_guard(input, refuses)

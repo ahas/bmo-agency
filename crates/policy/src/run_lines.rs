@@ -25,7 +25,8 @@ pub struct RunLine {
   /// work's finished notice carried to the room it was launched in rather than taken into a turn.
   #[serde(default)]
   pub background_apart: bool,
-  /// Whether its programs are jobs', whose shell hook refuses what the job guard refuses.
+  /// Whether its programs are jobs', whose shell hook refuses what the job guard refuses of a shell command
+  /// and of a file tool's write.
   #[serde(default)]
   pub guards_job_shell: bool,
   /// What its runs may reach of the tool host; none for a line handed no tools.

@@ -39,17 +39,22 @@
 - **Where:** agency's shell hook (「Agency's shell hook closes every command's standard input」) takes every
   Bash command of a program on a line whose declaration says its programs are jobs' (`guards_job_shell` in
   `policy/run-lines.toml`) — the worker line — and judges it before it runs, as the job guard. The place's
-  settings start the hook with the word that asks for it, `--guard-job`. A job's file edits go to the tool
-  unread.
+  settings start the hook with the word that asks for it, `--guard-job`. On such a line the hook also takes
+  every call of the file tools that write — `Edit`, `Write`, `MultiEdit` and `NotebookEdit` — and judges the
+  file it names for the two places a job does not write into (「The same hook keeps a job to its own
+  checkout」, 「The same hook keeps STRUCTURE.md the owner's」); every other judgement here is of a shell
+  command alone.
 - **Who judges:** agency, in the hook's own process. A refusal comes back as a deny decision carrying the
   reason and the piece of the command the guard read it in — the program word, the redirect's target, the
   text handed to `eval` or a shell, and where a word was read as a command, why it was read that way. So a
   job reads what was blocked and why instead of guessing at the rule and writing around it.
 - **In what order:** first what no opening lets through — print mode (below), a removal the CLI would stop
   on and the shell habits that stall a job (「The same hook refuses a removal the CLI would stop on」, 「The
-  same hook refuses the shell habits that stall a job」) — then a heavy command started outside the testbed
-  (「The same hook sends a heavy command to the testbed」), then the four things below unless the job has opened the guard. A command none of
-  them refuses goes to the tool with its standard input closed.
+  same hook refuses the shell habits that stall a job」), a change to `STRUCTURE.md` the job's item does not
+  carry the owner's word for and a write into another worker's checkout — then a heavy command started
+  outside the testbed (「The same hook sends a heavy command to the testbed」), then the four things below
+  unless the job has opened the guard. A command none of them refuses goes to the tool with its standard
+  input closed, and a file tool's call none refuses goes to the tool as it came.
 
 ### The four things it refuses
 
@@ -114,8 +119,9 @@
 
 - A testbed that does not answer reads the command as light. A store the hook cannot reach leaves the
   records to the machine's spellings, and the job's opening unread, so a command of the four things above is
-  refused as it is before an opening. A hook that cannot read its input, or fails, lets the command go to the
-  tool as written.
+  refused as it is before an opening, and leaves the checkouts unread, so no write is refused as another
+  worker's. An item that cannot be read leaves the owner's word unread, so a change to `STRUCTURE.md` is
+  refused. A hook that cannot read its input, or fails, lets the command go to the tool as written.
 - One hook failing to run must not stop every shell command of every job, and the second layer
   stands behind it.
 
@@ -144,6 +150,57 @@
 - **Nothing opens it.** The refusal says how to write the removal instead: guard the
   variable, quote the path, or name the path outright, and leave files under `~/.claude` alone.
 
+## The same hook keeps a job to its own checkout
+
+- **Why:** a job writes only in its own checkout and in one it has borrowed (`docs/worker-slots.md`, 「A job
+  writes only in its own checkout」).
+- **Whose checkouts these are,** read off agency's store. The job is the latest of agency's jobs working in
+  the program's run, `BMO_RUN_NAME`, read only in a process carrying both of a job's marks (「Which processes
+  are a job's」). Its own checkout is the one that job runs in, and the ones it borrowed are those the
+  assignments held or running under its own holder name, `job:<jobId>`, name. Every other checkout of every
+  repository the store holds, on the machine the job's own checkout stands on, is another worker's, unless it
+  stands at the job's own path. A checkout's path counts as written as it stands and from the home as `~`,
+  `$HOME` or `${HOME}`, and only at a boundary, so a support worktree whose path begins with its base's is
+  not read as the base. Where one checkout stands inside another's directory, a path is the deepest
+  checkout's that holds it, so a write in the job's own checkout is never read as the enclosing one's. A program that is no job's, or a store the hook cannot read, makes no checkout
+  another worker's.
+- **What it refuses of a shell command** that names such a checkout, read the way the shell splits it —
+  behind assignments and runners, and inside the text handed to a shell's `-c` or to `eval`:
+  - a redirect into it;
+  - a program that copies, moves, links, creates or removes files (`cp`, `mv`, `ln`, `rm`, `rsync`, `tee`,
+    `install`, `truncate`, `dd`, `touch`, `mkdir`, `rmdir`, `unlink`) with a word naming it — of `cp`,
+    `rsync`, `install` and `ln` their destination alone, so a copy out of the checkout is no write into it;
+  - an in-place edit there: `sed`, `perl` or `ruby` with `-i`;
+  - git changing it — `add`, `commit`, `rm`, `mv`, `checkout`, `switch`, `restore`, `reset`, `apply`,
+    `stash`, `merge`, `rebase`, `revert`, `cherry-pick` or `pull` — named by a path or after a `cd` into it;
+  - a script an interpreter is handed on its command line or by a heredoc (`python3 -c`, `node -e`,
+    `perl -e`, `python3 - <<'EOF'` and the like) whose write call names a file there, or that names the
+    checkout and makes a write call whose file the reading cannot resolve.
+  After a `cd` or `pushd` into the checkout, every relative path counts as being there.
+- **What it refuses of a file tool:** a file whose path lies inside such a checkout.
+- **What it lets through:** a read (`cat`, `grep`, `git diff`, `git log`), any write in the job's own
+  checkout or in one it borrowed, and a write where no checkout stands.
+- **The refusal** names the checkout, whose it is, and the verb that borrows one, `bmo job borrow
+  <repository>`. Nothing opens it.
+
+## The same hook keeps STRUCTURE.md the owner's
+
+- **Why:** `STRUCTURE.md` is the owner's statement of the system, and only the owner's own request naming it
+  may change it. Where the code differs from it, a job reports the difference instead.
+- **What it refuses:** a shell command that names `STRUCTURE.md` and writes it — a redirect into it, a
+  program of the writing ones above with a word naming it, an in-place edit of it, git's `rm`, `mv`,
+  `checkout`, `restore` or `apply` naming it, a script that writes it — read as the checkout's writes are,
+  but with no `cd` followed; and a file tool's call on a file named `STRUCTURE.md`, in any directory.
+- **Whose word opens it:** a job whose item the owner asked for and whose title or brief names
+  `STRUCTURE.md`. The item is the one agency's row of the job names; the hook reads it from the job service,
+  `GET /items/{itemId}`, at the address and with the token the program's environment names (`BMO_JOB_URL`,
+  and `BMO_JOB_TOKEN` or the file `BMO_JOB_TOKEN_FILE` names). The owner asked for it where it carries the
+  label `asked-by=owner`, which agency alone writes, on an item a supervisor files from a turn whose every
+  message is the owner's (`docs/api.md`, 「assignments and jobs」). An item's `requesterName` is a name its
+  filer writes, which no service ties to the owner's sender, so it is not read.
+- **It is read only where a write of `STRUCTURE.md` is,** and an item that cannot be read, a job that cannot
+  be found, or a program that is no job's leaves the change refused. Nothing else opens it.
+
 ## Agency's shell hook closes every command's standard input
 
 This is what the hook does on every line, whether or not it judges as the job guard there.
@@ -167,7 +224,8 @@ This is what the hook does on every line, whether or not it judges as the job gu
   worker's, a worker session's, and the thrown-away place a run in a pane of its own is given for its hooks
   where its line holds its stops, as the worker line does. On a supervisor's program it also refuses a
   command that starts Claude Code (`docs/agents.md`, 「No print mode」), and on a job's it judges as the job
-  guard (「First layer」 above). A run in a
+  guard (「First layer」 above), where the settings name the file tools that write beside the shell among
+  the calls it takes. A run in a
   pane of its own on a line that holds no stops, and a runner line's program, which is handed no settings,
   hold no such hook.
 - **The tool's wait does not end such a command.** The worker's settings set the tool's wait, the

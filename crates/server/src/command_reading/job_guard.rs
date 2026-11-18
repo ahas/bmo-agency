@@ -1,19 +1,29 @@
 //! The job guard: what agency's shell hook refuses of a shell command on a line whose programs are jobs'
 //! (docs/live-claude-guard.md). It refuses, in this order, what no opening lets through — Claude Code in
-//! print mode, a removal the CLI would stop on, a shell habit that stalls a job — then a heavy command started
-//! outside the testbed, then a command that starts Claude Code, writes into its session records, forks a
-//! session or puts words into a pane, unless the job has opened the live-Claude guard for itself, in which case
-//! the command is recorded against the opening and let through.
+//! print mode, a removal the CLI would stop on, a shell habit that stalls a job, a change to the statement
+//! document the job's item does not open, a write into another worker's checkout — then a heavy command
+//! started outside the testbed, then a command that starts Claude Code, writes into its session records, forks
+//! a session or puts words into a pane, unless the job has opened the live-Claude guard for itself, in which
+//! case the command is recorded against the opening and let through. Of a file tool's write it refuses the
+//! statement document and another worker's checkout alone.
 //!
 //! What it needs beyond the command's text it asks of its ground: the testbed's reading of the line, the
-//! configuration directories of the accounts, and the job's opening. The reading never fails a command: a
-//! ground that cannot answer lets it through.
+//! configuration directories of the accounts, the job's opening, the other workers' checkouts and whether the
+//! job's item opens the statement document. A ground that cannot answer lets a command through, but for the
+//! statement document, which it leaves refused.
 
 use super::ShellCall;
 use super::habits::habit_refusal;
 use super::records::{CliRecords, command_refusal, print_mode_refusal};
 use super::removal::removal_refusal;
 use super::testbed::{Classified, testbed_refusal};
+use super::writes::{
+  Checkouts, foreign_command_write, foreign_file_write, foreign_refusal, structure_command_write,
+  structure_file_write, structure_refusal,
+};
+
+/// The file tools that write, whose calls the guard reads for the file they name.
+pub const FILE_WRITERS: [&str; 4] = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
 
 /// The word every account's record directory ends in: a command that writes into one names it in its text.
 const RECORDS_WORD: &str = "projects";
@@ -29,6 +39,54 @@ pub trait JobGround {
   fn opening(&self) -> impl Future<Output = Option<i64>>;
   /// A command let through because of the opening, recorded against it.
   fn record(&self, opening: i64, what: &str) -> impl Future<Output = ()>;
+  /// The job's own checkout and those it borrowed, and every other worker's on the job's machine; none where
+  /// the job or the store cannot be read.
+  fn checkouts(&self) -> impl Future<Output = Checkouts>;
+  /// Whether the job's item opens the statement document: the owner asked for it and its words name the
+  /// document; false where it cannot be read.
+  fn opens_structure(&self) -> impl Future<Output = bool>;
+}
+
+// Whether a command's text could name a path of another checkout at all: every spelling of one holds a
+// slash or a tilde, so a command holding neither asks the store nothing.
+fn names_a_path(command: &str) -> bool {
+  command.contains('/') || command.contains('~')
+}
+
+// Why the job may not write where the command or the file tool would, or nothing: the statement document its
+// item does not open, then another worker's checkout. The ground is asked only where the text names either.
+async fn place_refusal(
+  structure: Option<String>,
+  foreign: impl FnOnce(&Checkouts) -> Option<String>,
+  may_name_checkout: bool,
+  ground: &impl JobGround,
+) -> Option<String> {
+  if let Some(why) = structure
+    && !ground.opens_structure().await
+  {
+    return Some(structure_refusal(&why));
+  }
+
+  if !may_name_checkout {
+    return None;
+  }
+
+  let checkouts = ground.checkouts().await;
+
+  foreign(&checkouts)
+}
+
+/// Why a job may not make this file tool's call on `path`, or nothing.
+pub async fn file_refusal(path: &str, ground: &impl JobGround) -> Option<String> {
+  place_refusal(
+    structure_file_write(path),
+    |checkouts| {
+      foreign_file_write(path, checkouts).map(|checkout| foreign_refusal(checkout, "it edits a file there"))
+    },
+    true,
+    ground,
+  )
+  .await
 }
 
 /// What a refusal of a command the job has not opened the live-Claude guard for says.
@@ -49,6 +107,19 @@ pub async fn job_refusal(
   if let Some(refused) = print_mode_refusal(command)
     .or_else(|| removal_refusal(command))
     .or_else(|| habit_refusal(command, call))
+  {
+    return Some(refused);
+  }
+
+  if let Some(refused) = place_refusal(
+    structure_command_write(command),
+    |checkouts| {
+      foreign_command_write(command, checkouts, home).map(|(checkout, why)| foreign_refusal(checkout, &why))
+    },
+    names_a_path(command),
+    ground,
+  )
+  .await
   {
     return Some(refused);
   }

@@ -19,6 +19,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use super::fault;
 use crate::Refusal;
+use crate::command_reading::job_guard::FILE_WRITERS;
 use crate::watches::links::place_node;
 
 /// The variable a resident program names its place in.
@@ -49,7 +50,8 @@ const REFUSE_CLAUDE: &str = "--refuse-claude";
 // The word the shell hook is started with where its line's programs are jobs': it refuses what the job guard
 // refuses (docs/live-claude-guard.md).
 const GUARD_JOB: &str = "--guard-job";
-// The calls the shell hook reads.
+// The calls the shell hook reads: the shell's, and on a job's line the file tools that write as well, which the
+// job guard judges for the file they name.
 const SHELL_CALLS: &str = "Bash";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
 // takes, a day, and the composing it waits on is never cut short by the program.
@@ -296,7 +298,12 @@ pub fn write_place_settings(
     .filter_map(|(asked, flag)| asked.then_some(flag))
     .collect();
 
-  own.push(shell_hook(SHELL_CALLS, call(SHELL_KIND, &shell_flags)));
+  let shell_calls = match holds.job_guard {
+    true => std::iter::once(SHELL_CALLS).chain(FILE_WRITERS).collect::<Vec<_>>().join("|"),
+    false => SHELL_CALLS.to_owned(),
+  };
+
+  own.push(shell_hook(&shell_calls, call(SHELL_KIND, &shell_flags)));
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
   merge_hooks(&mut settings, own);
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its

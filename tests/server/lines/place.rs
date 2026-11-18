@@ -136,7 +136,8 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
   );
 }
 
-// The worker line's programs are jobs', so their place's shell hook is started as the job guard.
+// The worker line's programs are jobs', so their place's shell hook is started as the job guard, and takes
+// the file tools that write beside the shell.
 #[test]
 fn a_worker_s_place_guards_its_shell_as_a_job_s() {
   let dir = tempfile::tempdir().unwrap();
@@ -152,6 +153,7 @@ fn a_worker_s_place_guards_its_shell_as_a_job_s() {
       place.display()
     )
   );
+  assert_eq!(settings["hooks"]["PreToolUse"][0]["matcher"], "Bash|Edit|Write|MultiEdit|NotebookEdit");
   assert!(!Holds::of_line("chat").job_guard, "a supervisor's line is no job's");
 }
 
