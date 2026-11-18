@@ -89,9 +89,13 @@ impl Drop for Program {
 
 // A session id of this test's own. The door finds a turn's program by the session its command line carries
 // on the whole machine, so a fixed id would find the same test's program in another harness running beside
-// this one, and read that program's end as this turn's.
+// this one, and read that program's end as this turn's. The count keeps two tests of this harness that start
+// in the same millisecond apart, since each would otherwise find the other's program too.
 fn own_session(name: &str) -> String {
-  format!("{name}-{}-{}", std::process::id(), agency_server::now_ms())
+  static MADE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+  let made = MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+  format!("{name}-{made}-{}-{}", std::process::id(), agency_server::now_ms())
 }
 
 fn clock(min_ms: i64, stall_ms: i64, stop_stall_ms: i64) -> ToolClock {
