@@ -147,6 +147,7 @@ mod peers;
 mod person_nodes;
 
 mod lines {
+  mod agent_plugin;
   mod chat;
   mod claude;
   mod codex;

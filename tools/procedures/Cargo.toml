@@ -11,6 +11,12 @@ name = "procedures-tool"
 path = "src/main.rs"
 test = false
 
+# The crate's tests stand in the root package's harness, so the library's own test target holds none: left
+# on, every test build compiles the whole library a second time for an empty binary.
+[lib]
+test = false
+doctest = false
+
 [dependencies]
 regex.workspace = true
 reqwest.workspace = true
