@@ -118,6 +118,8 @@ holds_stops = true
 guards_job_shell = true
 # `bmo` stands in the record alone, for the brain's lessons form `bmo use` reaches; no configuration names it.
 namespaces = ["web", "worker", "bmo"]
+# The gate's address and the path of its token file, which the queue tools read the titles' kept translations with.
+variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
 lessons = true
 shown = [
   "web/web_fetch", "web/web_search", "worker/todo_show",

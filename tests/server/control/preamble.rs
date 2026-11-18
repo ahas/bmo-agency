@@ -134,6 +134,11 @@ fn checkout_on(path: &Path, branch: &str) {
 
 // A job of the item working in the checkout `shop`, starting.
 async fn job(scratch: &Scratch, id: i64, item: i64) {
+  job_titled(scratch, id, item, &format!("item {item}")).await;
+}
+
+// A job of the item under its title working in the checkout `shop`, starting.
+async fn job_titled(scratch: &Scratch, id: i64, item: i64, title: &str) {
   let now = now_ms();
 
   scratch
@@ -154,7 +159,7 @@ async fn job(scratch: &Scratch, id: i64, item: i64) {
         item.into(),
         format!("job-{id}").into(),
         now.into(),
-        format!("# item {item}\n\nDo the work.").into(),
+        format!("# {title}\n\nDo the work.").into(),
       ],
     )
     .await;
@@ -377,4 +382,47 @@ async fn a_launch_carries_the_owner_s_preamble_as_the_gate_read_it_into_the_work
       .unwrap();
 
   assert_eq!(kept, greek, "the row keeps the owner's text as written");
+}
+
+// The prompt the first turn of a job of an item filed under `title` opens on, launched with `gate`.
+async fn opening(title: &str, gate: std::sync::Arc<dyn agency_server::peers::gate::Gate>) -> String {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (_peers, vars) = crate::support::peers::stand().await;
+  let mut ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let shop = home.path().join("shop");
+
+  ground.peers.gate = gate;
+  checkout_on(&shop, "main-copy");
+  repository(scratch.db(), "shop", &at(&shop), &[]).await;
+  job_titled(&scratch, 34, 340, title).await;
+
+  let sessions = StandIn::answering(&[("Done.", "s-4")]);
+
+  launched(&ground, Some(sessions.clone()), 34, None)
+    .await
+    .unwrap()
+    .expect("the turn's end");
+
+  sessions.turns()[0].2.clone()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_opens_on_the_item_s_title_as_the_gate_read_it_into_the_worker_s_language() {
+  let greek = "Η ουρά δείχνει τους τίτλους";
+  let translator = crate::support::gates::Translator::reading(&[(greek, "The queue shows the titles")]);
+  let prompt = opening(greek, std::sync::Arc::new(translator)).await;
+
+  assert!(prompt.starts_with("# The queue shows the titles\n"), "{prompt}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_with_no_reading_of_its_title_opens_on_the_title_as_written_with_the_mark_after_it() {
+  let greek = "Κανένας τίτλος";
+  let prompt = opening(greek, crate::support::gates::none()).await;
+
+  assert!(
+    prompt.starts_with(&format!("# {greek} {}\n", JOB_PROMPT.translation.untranslated_title)),
+    "{prompt}"
+  );
 }

@@ -194,15 +194,18 @@ impl Bench {
   }
 }
 
-/// A job's prompt with its checkout's bundle under its title, read now and its preamble put into the worker's
-/// language; the prompt as it stands where the bundle says nothing.
+/// A job's prompt with its title in the worker's language and its checkout's bundle under it, read now and its
+/// preamble put into the worker's language; the prompt with its title alone so put where the bundle says nothing.
 pub async fn bundled(ground: &Ground, checkout: &str, item: i64, prompt: &str) -> String {
+  let gate = ground.peers.gate.as_ref();
+
   match Bench::of_job(ground, checkout, item).await {
     Some(bench) => {
-      let bench = bench.in_english(ground.peers.gate.as_ref()).await;
+      let (prompt, bench) =
+        tokio::join!(crate::control::work::title_in_english(gate, prompt), bench.in_english(gate));
 
-      crate::control::work::under_title(prompt, &bench.words())
+      crate::control::work::under_title(&prompt, &bench.words())
     }
-    None => prompt.to_owned(),
+    None => crate::control::work::title_in_english(gate, prompt).await,
   }
 }

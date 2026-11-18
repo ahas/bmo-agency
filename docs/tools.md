@@ -49,9 +49,9 @@ belongs to no one service is a repository of its own, not a folder here.
   `labels`: the line, the store's address and the agent's place where it is a resident program; an apart
   session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do not read. The turn's own variables stand in `variables`, beside the
   deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
-  them, each where the deployment sets it in agency's environment — the chat line's `BMO_GATE_URL` and
-  `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the gate's translate
-  tool calls it with, so no token enters the record. A tool reads only the parts it needs and passes over
+  them, each where the deployment sets it in agency's environment — the chat and worker lines'
+  `BMO_GATE_URL` and `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the
+  gate's translate tool and the job service's queue tools call it with, so no token enters the record. A tool reads only the parts it needs and passes over
   the rest.
 - **The turn a request is made in** is read afresh from the record: the run the agent's place names
   in its `run.json` — none for a person's turn — or else the run's own variables. Its variables are

@@ -9,13 +9,16 @@
 - Served as MCP tools instead, the names and their arguments stand in the session's own tool list.
   There is nothing to look up and nothing to spell, so those round trips do not happen.
 - **They answer in English.** A worker reads English (`docs/worker-language.md`), so the two queue
-  tools give their labels in English and every text a person or the bot wrote as it was written, never
-  asking the translator themselves.
-- **They answer as the scripts do.** The tools are Rust, placed by the job service and served by the tool host
-  (`mcp-host.md`, 「Placed tools」); the scripts
-  are TypeScript until their own port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
-  same answer, so a tool and the script cannot answer the same question differently. The script
-  run by a job answers in the same English; run by a person or by the supervisor, in the reader's language.
+  tools give their labels in English and every title in the translation the gate keeps for it, read
+  through the gate's kept translations with the address and token file the worker line's record
+  carries, never asking the translator themselves. A title in the Latin script stands as written; one
+  with no translation kept, or a gate that does not answer within the tools' bound, shows the title as
+  written with `[not translated]` after it. The other texts of an item stand as they were written
+  (「What agency translates on the way in」 in `docs/worker-language.md`).
+- **They are the job service's own.** The tools are Rust, placed by the job service's deployment and
+  served by the tool host; what each answers, and how it reads a title, are the job service's
+  `docs/tools.md`. The chat agent's readings of the same queue, in the `bmo` namespace, show every text
+  as it was written, in the reader's language.
 
 ## What they serve
 
@@ -37,8 +40,8 @@
   running is already agency's running report's (`docs/agent-control.md`, 「Reading everything running at
   once」). It is typed as a command, where it is read before it
   runs.
-- The scripts keep every verb they had. They are what a person types and what a chat session calls,
-  and the reading verbs answer there exactly as they answer here.
+- A person and a chat session reach the queue through the job service's own commands and the chat
+  agent's tools, which keep every verb that writes.
 
 ## How the host serves them
 
@@ -115,7 +118,7 @@
 - The tools are served by the tool host, under the `worker` namespace of the worker line's one
   configuration, `worker.mcp.json`, beside the `web` namespace.
 - The queue a call answers out of is the job service the session's record reaches, read on every call.
-- The answers stand under the standing ceiling on what a verb of ours returns
-  (`job-tools.md` 「What a verb answers with」), cut by the same units the scripts cut by.
+- The titles' translations are read from the gate the worker line's record names (`docs/tools.md`,
+  「A tool's folder」).
 - Which namespaces the worker's line is handed, and what else stands in its fixed prompt, are in
   `docs/launch-lines.md`.

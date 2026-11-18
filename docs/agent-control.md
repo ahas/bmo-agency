@@ -3365,8 +3365,8 @@ with the session.
   notice is owed beyond the launch's own minute and a repository's batch deployment come due below: every
   other one is keyed by the transition it tells.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
-  (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `note.created`, `question.created`,
-  `question.due` and `reply.created`, past its cursor), keeping the last event's number as the settings row
+  (`GET /events` with `Accept: application/json`, `kinds` `item.created`, `item.changed`, `note.created`,
+  `question.created`, `question.due` and `reply.created`, past its cursor), keeping the last event's number as the settings row
   `job_events_after`. A pass with no cursor, or one the job service answers 410 because the cursor left its
   window, reads to the end and keeps the last number, telling nothing of what it passed but a commit waiting to
   go live: that notice stands on the item's state rather than on its change, so the last event the passed
@@ -3381,7 +3381,9 @@ with the session.
   `note.created` tells nobody: a note on the item of a job that runs is kept for that job and handed to its
   turn (「Words for a running job」), since the note's words are for the work, and a note on any other item is
   passed over. A note the store would not keep ends the pass there as a notice would, so it is taken again;
-  a note taken again is kept once.
+  a note taken again is kept once. An `item.created`, and an `item.changed` whose `previousState` is null, tells
+  nobody either: the item's title is asked of the gate in a task the pass never waits on
+  (`docs/worker-language.md`, 「What agency translates on the way in」).
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|

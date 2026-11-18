@@ -27,6 +27,8 @@ pub struct Translation {
   pub wait_ms: u64,
   /// The line set over a text that goes in untranslated.
   pub untranslated: String,
+  /// The words set after a title that goes in untranslated.
+  pub untranslated_title: String,
 }
 
 /// The preamble bundle a job's prompt carries under its title: the header's heading and lines, each said where

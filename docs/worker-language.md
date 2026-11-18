@@ -68,19 +68,25 @@ screens, the rooms — is read in the owner's language by the units that show it
 
 ## What agency translates on the way in
 
-- **The job run, as it composes the prompt a fresh session opens on,** translates the owner's part of
-  the worker's preamble (`docs/worker-bench.md`, 「Preamble」) before the prompt goes in: the job's
-  first turn, and a turn carried into a fresh session. Agency's header over it is English at its source
-  and goes in as written. A preamble that could not be rendered goes in under the mark (「When there is
-  no translation」), and the job starts all the same.
+- **The job run, as it composes the prompt a fresh session opens on,** translates the item's title in
+  the heading the prompt opens on and the owner's part of the worker's preamble (`docs/worker-bench.md`,
+  「Preamble」), both asked at once, before the prompt goes in: the job's first turn, and a turn carried
+  into a fresh session. Agency's header under the title is English at its source and goes in as
+  written. A title or a preamble that could not be rendered goes in under the mark (「When there is no
+  translation」), and the job starts all the same.
 - **The job run, as it hands words to a running job,** translates them: a word said to the worker and
   a note of its item alike, each as it is offered to the turn working now and as a later turn carries
   it behind its own prompt. The word is kept and logged as said (`docs/agent-control.md`, 「Words for a
   running job」); only what goes into the turn is the English. A change to the brief is English already
   and goes in as written.
-- **The item's own texts are not translated by agency.** A job's start asks nothing for an item's
-  title, its sections or its rows' titles, and the queue tools show them as they were written
-  (`docs/worker-mcp.md`).
+- **An item's title is asked of the gate ahead of any job.** As the job service tells of an item raised,
+  or of one changed with its state left where it stood, which is where a new title shows, agency asks the
+  gate for the title's translation in a task nothing waits on, bounded like every hand-over. The gate
+  keeps it, so the queue tools find it kept when a worker reads the queue, its own item and the rows
+  beside it alike. A title in the Latin script asks nothing.
+- **The queue tools show the titles as the gate keeps their translations** and the rest of an item as
+  written (`docs/worker-mcp.md`): its brief is English at its source, its notes reach a running job
+  translated as words handed to it, and its questions and reports are a worker's own.
 - **A co-work step's prompt** is composed by the job unit, which translates what it carries before it
   enqueues the step; an earlier stage's result is a co-worker's own English and passes untouched.
 - **No translation for a job's prompt.** Whoever hands a job its prompt, agency hands it to the
@@ -91,8 +97,8 @@ screens, the rooms — is read in the owner's language by the units that show it
   agency (`docs/own-llm.md`, 「Gates are not agency's runs」), under instructions for a worker: quoted
   speech is translated too, since the person who said it is not the reader. A part already in English,
   a fenced quote in it included, passes untouched and asks nothing of the translator.
-- **Nothing a worker runs calls the translator.** The queue tools never ask the gate, so a worker's
-  reading never waits on a model.
+- **Nothing a worker runs calls the translator.** The queue tools read only the translations the gate
+  keeps, never asking its translator, so a worker's reading never waits on a model.
 
 ## Where the translation is made
 
@@ -111,8 +117,9 @@ screens, the rooms — is read in the owner's language by the units that show it
 - **The gate keeps one translation per original and language,** so an unchanged original is answered
   from what is kept and never translated twice, whichever preamble, word or job it stands in, while a
   changed one is translated afresh.
-- **The original is never overwritten.** The repository's preamble stays as the owner wrote it and a
-  job's word as it was said; the translation is a reading of them, made as they are handed over.
+- **The original is never overwritten.** The repository's preamble stays as the owner wrote it, a job's
+  word as it was said and an item's title as it was filed; the translation is a reading of them, kept
+  by the gate beside them.
 - **Only a translation that passed the structure check is kept.** Every part the translator answers is
   held to the check that it is a translation — not a line introducing one, a word about the gate's role,
   a question back or a summary — and has no translation where it fails.
@@ -127,6 +134,9 @@ screens, the rooms — is read in the owner's language by the units that show it
 - **A text with no translation goes in its original, marked:** a line in English before it says it
   could not be translated and stands in its original language. A reading the gate answered as not
   whole is used under the same mark, since half a text in English is better than none.
+- **A title stands inside a line,** so it wears its mark after it rather than a line over it:
+  `[not translated]`, the words `policy/job-prompt.toml`'s `[translation]` `untranslated_title` gives,
+  which are the words the queue tools mark a title with.
 - **A failure is not kept.** The next reading that needs the text asks again.
 - **An item's instruction keeps English heads even then.** The heads are the queue's own words, so
   the worker still reads each block's label and the fixed words of its source line in English; the
@@ -138,8 +148,9 @@ screens, the rooms — is read in the owner's language by the units that show it
   trailer, the header over a job's turns, a co-worker place's instructions, and every answer and
   refusal of the worker's tools (`docs/worker-mcp.md`) are written in English where they are kept, so
   nothing waits on the translator and nothing is kept twice.
-- **The header over a job's turns names the item as the queue tools do:** its number and its title as
-  written, since no translation is asked for an item's own texts.
+- **The heading a job's prompt opens on names the item as the queue tools do:** its title in the
+  worker's language, or, where the gate gave no whole reading in time, the title as written with
+  `[not translated]` after it.
 - **What it quotes stays as written:** a title as a person filed it, a phrase a verb was handed, a row
   a query read.
 

@@ -5,7 +5,7 @@
 //! live; a commit waiting for its deployment told once for each commit, never again on another change, a start or
 //! the sender's retelling; a question past its due time taken again owing its parked job's notice again; and a
 //! note added to the item of a running job kept for that job before the cursor moves past it, and offered to its
-//! working turn.
+//! working turn; and an item's title asked of the gate as the item is raised or changed.
 
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
@@ -60,7 +60,10 @@ async fn a_pass_with_no_cursor_tells_nothing_it_passed_and_keeps_the_last_number
     .query
     .clone();
 
-  assert!(asked.contains("kinds=item.changed%2Cnote.created%2Cquestion.created"), "{asked}");
+  assert!(
+    asked.contains("kinds=item.created%2Citem.changed%2Cnote.created%2Cquestion.created"),
+    "{asked}"
+  );
   assert!(!asked.contains("after="), "no cursor reads from the oldest: {asked}");
 
   // An empty window starts the cursor at nothing, so what comes next is told.
@@ -624,4 +627,48 @@ async fn items_waiting_for_their_deployment_are_told_once_each_and_not_again_on_
 
   assert_eq!(kinds.len(), 4, "{kinds:?}");
   assert_eq!(kinds[3], json!("item-awaits-deploy:102"));
+}
+
+#[tokio::test]
+async fn an_item_s_title_is_asked_of_the_gate_as_it_is_raised_or_its_fields_change_and_not_as_its_state_moves()
+ {
+  use std::sync::Arc;
+
+  use agency_server::peers::gate::Gate;
+
+  use crate::support::gates::Translator;
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let translator = Arc::new(Translator::default());
+  let gate: Arc<dyn Gate> = translator.clone();
+  let titled = |id: i64, title: &str, previous: Option<&str>| {
+    item(id, "open", json!({ "title": title, "previousState": previous, "changedBy": "someone" }))
+  };
+
+  settings::set(db, CURSOR_KEY, "2").await.unwrap();
+  peers.lock().unwrap().events = vec![
+    event(3, "item.created", titled(81, "Ουρά εργασιών", None)),
+    event(4, "item.changed", titled(82, "Νέος τίτλος", None)),
+    event(5, "item.changed", titled(83, "Κατάσταση", Some("leased"))),
+    event(6, "item.created", titled(84, "Repair the queue", None)),
+  ];
+
+  agency_server::watches::job_events::pass(db, &vars, &gate).await.unwrap();
+
+  // The titles are asked in tasks of their own, which run once the pass lets the runtime go.
+  for _ in 0..100 {
+    if translator.calls().len() >= 2 {
+      break;
+    }
+
+    tokio::task::yield_now().await;
+  }
+
+  let mut asked: Vec<String> =
+    translator.calls().into_iter().flat_map(|(_, originals)| originals).collect();
+
+  asked.sort();
+  assert_eq!(asked, ["Νέος τίτλος", "Ουρά εργασιών"], "a moved state and a Latin title ask nothing");
 }

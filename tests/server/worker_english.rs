@@ -1,10 +1,10 @@
 //! What a person wrote for a job's worker, put into the worker's language on its way in (docs/worker-language.md,
 //! 「What agency translates on the way in」, 「Where the translation is made」, 「When there is no translation」): a
 //! Latin text goes as written and asks nothing, any other goes as the gate read it, and one the gate did not read
-//! whole in time goes as written under the mark.
+//! whole in time goes as written under the mark, a title with the mark after it.
 
 use agency_server::peers::gate::NoGate;
-use agency_server::worker_english::{english, english_one};
+use agency_server::worker_english::{english, english_one, english_titles};
 use policy::job_prompt::JOB_PROMPT;
 
 use crate::support::gates::{Answering, Translator};
@@ -81,5 +81,17 @@ async fn a_gate_that_does_not_answer_within_the_bound_leaves_the_text_as_written
   assert!(
     started.elapsed().as_millis() >= u128::from(JOB_PROMPT.translation.wait_ms),
     "it waited the bound out"
+  );
+}
+
+#[tokio::test]
+async fn a_title_the_gate_did_not_read_whole_stands_with_the_mark_after_it() {
+  let gate = Translator::reading(&[(GREEK, ENGLISH)]);
+  let titled = |title: &str| format!("{title} {}", JOB_PROMPT.translation.untranslated_title);
+
+  assert_eq!(english_titles(&gate, vec![GREEK.to_owned()]).await, [ENGLISH]);
+  assert_eq!(
+    english_titles(&NoGate, vec![GREEK.to_owned(), ENGLISH.to_owned()]).await,
+    [titled(GREEK), ENGLISH.to_owned()]
   );
 }

@@ -55,7 +55,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   「A token is handed as the file it stands in」), and every reader of the token reads that file where the
   variable is not set.
 - The same file names the variables a line hands the session records of its runs
-  (`docs/tools.md`, 「The session record」): for the chat line, `BMO_GATE_URL`, the gate's address, and
+  (`docs/tools.md`, 「A tool's folder」): for the chat and worker lines, `BMO_GATE_URL`, the gate's address, and
   `BMO_GATE_TOKEN_FILE`, the path of the gate's token file under the data root's `env/`.
 - The same file names the tool host's port, `BMO_MCP_HOST_PORT`, with the value the tool host's own
   `env/pocket.env` gives it (3290 where neither names one): every MCP configuration agency writes points
@@ -2024,8 +2024,10 @@ session in place of one it had, the receiver's `POST /handoffs/{agentName}` is a
 handoff, with `reason` and `room` where the turn names one, while agency still names the session, and
 waited on (`docs/sessions.md`, 「A restart hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open`, `GET /items` with `state` `draft` and `GET /items` with `state` `held` are read, and its events as a page, `GET /events` with `Accept:
-application/json` past the cursor agency keeps, narrowed to `item.changed`, `note.created`, `question.created`,
-`question.due` and `reply.created`, a note on the item of a job that runs handed to that job (「assignments and
+application/json` past the cursor agency keeps, narrowed to `item.created`, `item.changed`, `note.created`,
+`question.created`, `question.due` and `reply.created`, an item's title asked of the gate as the item is raised or
+changed (`docs/worker-language.md`, 「What agency translates on the way in」), a note on the item of a job that runs
+handed to that job (「assignments and
 jobs」, 「Words and notes for a running job」); an idle queue is told through the receiver's `POST /owner/notices`
 with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told to
 the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event

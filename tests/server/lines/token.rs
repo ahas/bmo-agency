@@ -104,7 +104,12 @@ fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set(
     line_variables(&ground, "chat"),
     [("BMO_GATE_URL".to_owned(), "http://[::1]:9".to_owned())]
   );
-  assert!(line_variables(&ground, "worker").is_empty());
+  assert_eq!(
+    line_variables(&ground, "worker"),
+    line_variables(&ground, "chat"),
+    "the worker names the gate's too"
+  );
+  assert!(line_variables(&ground, "translate").is_empty(), "a line naming none is handed none");
 }
 
 /// A tool host standing on `socket` that keeps one asynchronous call running under the record of `token` while

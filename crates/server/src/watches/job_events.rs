@@ -3,7 +3,8 @@
 //! agency's outbox — a close that handed its commit over and waits on its deployment, told once for each commit
 //! and kept until it no longer waits, an item closed by somebody other than its orderer, a run's question asked,
 //! a question past its due time, and a settling reply that withdraws the question's instruction — and a note
-//! added to the item of a job that runs, handed to that job (「Words for a running job」). The cursor advances
+//! added to the item of a job that runs, handed to that job (「Words for a running job」); and the title of an item
+//! raised or changed, asked of the gate so a worker reads it translated (docs/worker-language.md). The cursor advances
 //! only past events whose notices are owed and whose notes are kept. A pass with no cursor, or one whose cursor
 //! left the service's window, reads to the end and tells nothing of what it passed but a commit waiting to go
 //! live, owed or let go by the last event of each item it passed, since that notice stands on the item's state
@@ -29,7 +30,8 @@ pub const QUESTION_OWED: &str = "question-awaits-answer:";
 /// The prefix of the key a commit waiting to go live is owed under, its item's number after it.
 pub const DEPLOY_OWED: &str = "item-awaits-deploy:";
 /// The kinds read.
-pub const KINDS: &str = "item.changed,note.created,question.created,question.due,reply.created";
+pub const KINDS: &str =
+  "item.created,item.changed,note.created,question.created,question.due,reply.created";
 
 // A page of events past `after`, and whether more stand; none where the cursor left the service's window.
 async fn page(service: &JobService, after: Option<i64>) -> Result<Option<(Vec<Value>, bool)>, String> {
@@ -205,6 +207,13 @@ async fn deploy_told(
   Ok(())
 }
 
+// The title of the item an event carries asked of the gate ahead of any job, in a task nothing waits on.
+fn title_asked(gate: &Arc<dyn Gate>, data: &Value) {
+  if let Some(title) = data["title"].as_str() {
+    crate::worker_english::ask_ahead(gate.clone(), title.to_owned());
+  }
+}
+
 // One event's notice owed to whom it calls for.
 async fn told(
   db: &DatabaseConnection,
@@ -216,7 +225,16 @@ async fn told(
   let data = &event["data"];
 
   match event["kind"].as_str().unwrap_or_default() {
+    // An item's title is asked of the gate as the item is raised, so a worker reads it in its own language
+    // (docs/worker-language.md, 「What agency translates on the way in」).
+    "item.created" => title_asked(gate, data),
     "item.changed" => {
+      // A change that left the item's state where it was may be a new title; one kept already asks nothing more
+      // of the translator.
+      if data["previousState"].is_null() {
+        title_asked(gate, data);
+      }
+
       deploy_told(db, vars, service, data).await?;
 
       let moved_to_done =

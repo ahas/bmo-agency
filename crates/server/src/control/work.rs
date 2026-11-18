@@ -794,6 +794,29 @@ fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   prompt
 }
 
+/// A job's prompt with its title, its first line that opens a heading of the first level, in the worker's language
+/// (docs/worker-language.md, 「What agency writes for a worker」); the prompt as it stands where it has no title.
+pub async fn title_in_english(gate: &dyn crate::peers::gate::Gate, prompt: &str) -> String {
+  let mut at = 0;
+
+  for line in prompt.split_inclusive('\n') {
+    if let Some(title) = line.trim_end_matches('\n').strip_prefix("# ") {
+      let english = crate::worker_english::english_titles(gate, vec![title.to_owned()])
+        .await
+        .pop()
+        .unwrap_or_default();
+      let rest = &prompt[at + line.len()..];
+      let ending = if line.ends_with('\n') { "\n" } else { "" };
+
+      return format!("{}# {english}{ending}{rest}", &prompt[..at]);
+    }
+
+    at += line.len();
+  }
+
+  prompt.to_owned()
+}
+
 /// A job's prompt with a section under its title, the title being its first line that opens a heading of the
 /// first level; the section stands first where it has none, and the prompt stands as it is where the section is
 /// empty.

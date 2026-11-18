@@ -41,9 +41,11 @@ preamble_heading = "## The repository's preamble"
 # is put into the worker's language on its way in (docs/worker-language.md, 「What agency translates on the way
 # in」): the language the gate is asked for, by the tag the gate's translation policy names; the most originals one
 # call to the gate carries, as the gate's contract bounds them; the longest one hand-over waits for the gate's
-# answer before it goes on with the texts as written; and the line set over a text that goes in untranslated.
+# answer before it goes on with the texts as written; the line set over a text that goes in untranslated; and the
+# words set after a title that goes in untranslated, as the queue tools mark one.
 [translation]
 language = "en"
 most_originals = 16
 wait_ms = 90000
 untranslated = "The text below could not be translated into English and stands in its original language."
+untranslated_title = "[not translated]"
