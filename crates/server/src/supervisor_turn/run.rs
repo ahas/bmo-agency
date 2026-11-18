@@ -329,15 +329,11 @@ async fn take_down(
 
 /// What a session's record says its last request held: the input of the last request it kept usage for.
 pub(crate) fn last_request_tokens(path: &std::path::Path) -> Option<i64> {
-  let text = std::fs::read_to_string(path).ok()?;
   let mut last = None;
 
-  for line in text.lines().filter(|line| !line.trim().is_empty()) {
-    let Some(usage) = serde_json::from_str::<Value>(line)
-      .ok()
-      .and_then(|entry| entry.get("message")?.get("usage").cloned())
-    else {
-      continue;
+  crate::door::record::each_line(path, |_, entry| {
+    let Some(usage) = entry.get("message").and_then(|message| message.get("usage")) else {
+      return;
     };
     let count = |name: &str| usage.get(name).and_then(Value::as_f64).unwrap_or(0.0) as i64;
     let tokens =
@@ -346,7 +342,7 @@ pub(crate) fn last_request_tokens(path: &std::path::Path) -> Option<i64> {
     if tokens > 0 {
       last = Some(tokens);
     }
-  }
+  });
 
   last
 }

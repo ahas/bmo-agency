@@ -358,7 +358,7 @@ impl Folding<'_> {
 
     command.args = resumed_command(&command.args, &taken);
 
-    let mut tail = Tail::new(record_of(ground, &command, &taken));
+    let mut tail = Tail::at_end(record_of(ground, &command, &taken));
     let from = tail.count();
     let fold = Apart {
       agent: self.agent,

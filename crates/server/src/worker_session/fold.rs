@@ -205,7 +205,7 @@ async fn folded(
     },
   )
   .await?;
-  let mut tail = Tail::new(record_of(ground, &turn.env, &turn.cwd, session));
+  let mut tail = Tail::at_end(record_of(ground, &turn.env, &turn.cwd, session));
   let from = tail.count();
   let ending = put(ground, &turn, &mut Quiet).await.map_err(fault)?;
   let written = tail.look();

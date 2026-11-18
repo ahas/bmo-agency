@@ -551,9 +551,9 @@ impl Following {
     if let Some(pane) = pane {
       self.source = CLAUDE_CODE.to_owned();
 
-      let (mut tail, fed) = reading(ground, turn, &pane.transcript, pane.started_at).await;
+      let (tail, fed, begins) = reading(ground, turn, &pane.transcript, pane.started_at).await;
 
-      self.begins = first_since(tail.look(), pane.started_at);
+      self.begins = begins;
       self.tail = Some(tail);
       self.fed = fed;
 
@@ -575,9 +575,9 @@ impl Following {
     if let Some((transcript, since)) = claude_place(place, turn) {
       self.source = CLAUDE_CODE.to_owned();
 
-      let (mut tail, fed) = reading(ground, turn, &transcript, since).await;
+      let (tail, fed, begins) = reading(ground, turn, &transcript, since).await;
 
-      self.begins = first_since(tail.look(), since);
+      self.begins = begins;
       self.tail = Some(tail);
       self.fed = fed;
     }
@@ -606,7 +606,7 @@ impl Following {
       if count < self.fed {
         let newest = newest_source(ground, turn).await;
 
-        self.fed = newest.and_then(|newest| resumed_at(tail.look(), &newest)).unwrap_or(0);
+        self.fed = Spots::of(tail.path(), i64::MAX, newest.as_deref()).resumed.unwrap_or(0);
       }
 
       let raw = tail.raw();
@@ -615,6 +615,10 @@ impl Following {
         self.log.feed(&ground.db, &raw[self.fed..], &self.source).await;
         self.fed = raw.len();
       }
+
+      // The reader holds the turn's lines from its beginning, and the lines as written until they are filed.
+      tail.forget_before(self.begins.min(self.fed));
+      tail.forget_raw_before(self.fed);
 
       // What the turn has written so far answers the progress read under its own id.
       shown(ground, turn, answer_since(tail.look(), self.begins));
@@ -666,19 +670,61 @@ fn shown(ground: &Ground, turn: &InFlight, text: String) {
   ground.outputs.shown(&SessionId(turn.session.clone()), turn.turn, text);
 }
 
-// A transcript read from the line the run's log last took out of it, else from the turn's beginning: the
-// transcript as it stands now, and how many of its lines are filed.
-async fn reading(ground: &Ground, turn: &InFlight, transcript: &Path, since: i64) -> (Tail, usize) {
-  let newest = newest_source(ground, turn).await;
-  let mut tail = Tail::new(transcript);
-  let records = tail.look();
-  let fed = match newest {
-    Some(newest) => resumed_at(records, &newest).unwrap_or_else(|| first_since(records, since)),
-    None => first_since(records, since),
-  };
-  let fed = fed.min(records.len());
+// One whole transcript read at a time by the pickup: every turn in flight is picked up at once at start,
+// several of them on the supervisor's one long transcript, and each is read through twice, a line at a time,
+// before its reader holds only the lines from where the turn begins.
+static WHOLE_READS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
 
-  (tail, fed)
+// A transcript read from the line the run's log last took out of it, else from the turn's beginning: the
+// transcript as it stands now, holding only the lines from where either begins, how many of its lines are
+// filed, and where the turn's lines begin.
+async fn reading(ground: &Ground, turn: &InFlight, transcript: &Path, since: i64) -> (Tail, usize, usize) {
+  let newest = newest_source(ground, turn).await;
+  let _one = WHOLE_READS.acquire().await;
+  let spots = Spots::of(transcript, since, newest.as_deref());
+  let fed = spots.resumed.unwrap_or(spots.begins).min(spots.count);
+  let mut tail = Tail::from_line(transcript, spots.begins.min(fed));
+
+  tail.look();
+
+  (tail, fed, spots.begins)
+}
+
+// Where a picked-up turn's lines stand in its transcript, read a line at a time so no more than one line is
+// held while the whole is read.
+struct Spots {
+  // The first line stamped at or after the turn began, else the end.
+  begins: usize,
+  // The line after the newest one the run's log filed, by the id that line carried; none where the
+  // transcript no longer names it.
+  resumed: Option<usize>,
+  count: usize,
+}
+
+impl Spots {
+  fn of(transcript: &Path, since: i64, newest: Option<&str>) -> Self {
+    let mut begins = None;
+    let mut resumed = None;
+    let mut count = 0;
+
+    crate::door::record::each_line(transcript, |at, record| {
+      if begins.is_none() && stamped_since(&record, since) {
+        begins = Some(at);
+      }
+
+      if newest.is_some_and(|newest| names_source(&record, newest)) {
+        resumed = Some(at + 1);
+      }
+
+      count = at + 1;
+    });
+
+    Self {
+      begins: begins.unwrap_or(count),
+      resumed,
+      count,
+    }
+  }
 }
 
 // The newest line of the run's log that came out of its program's record, by the id the record carried: where
@@ -697,28 +743,19 @@ async fn newest_source(ground: &Ground, turn: &InFlight) -> Option<String> {
   .and_then(|row| row.try_get::<Option<String>>("", "source_id").ok().flatten())
 }
 
-// Where the records after the one a filed line came from begin, or none where the record no longer names it.
-fn resumed_at(records: &[Value], newest: &str) -> Option<usize> {
-  let at = records.iter().rposition(|record| {
-    record.pointer("/message/id").and_then(Value::as_str) == Some(newest)
-      || record.get("uuid").and_then(Value::as_str) == Some(newest)
-  })?;
-
-  Some(at + 1)
+// Whether a record is the one a filed line came from, by the id it carried.
+fn names_source(record: &Value, newest: &str) -> bool {
+  record.pointer("/message/id").and_then(Value::as_str) == Some(newest)
+    || record.get("uuid").and_then(Value::as_str) == Some(newest)
 }
 
-// Where a transcript's records from a moment on begin.
-fn first_since(records: &[Value], since: i64) -> usize {
-  records
-    .iter()
-    .position(|record| {
-      record
-        .get("timestamp")
-        .and_then(Value::as_str)
-        .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
-        .is_some_and(|at| at.timestamp_millis() >= since)
-    })
-    .unwrap_or(records.len())
+// Whether a record was stamped at or after a moment.
+fn stamped_since(record: &Value, since: i64) -> bool {
+  record
+    .get("timestamp")
+    .and_then(Value::as_str)
+    .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+    .is_some_and(|at| at.timestamp_millis() >= since)
 }
 
 // The transcript a Claude Code pane in a place writes its turn into, and when that run began, where the

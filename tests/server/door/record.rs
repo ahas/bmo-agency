@@ -630,6 +630,120 @@ fn a_record_is_read_as_it_grows_and_a_last_line_still_being_written_counts_only_
   assert_eq!(tail.look(), [json!({ "c": 3 })]);
 }
 
+fn appended(path: &std::path::Path, lines: &[Value]) {
+  use std::io::Write;
+
+  let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+
+  for line in lines {
+    writeln!(file, "{line}").unwrap();
+  }
+}
+
+fn account(tokens: i64) -> Value {
+  json!({ "type": "cost-state", "modelUsage": { "claude-sonnet-5": { "inputTokens": tokens, "costUSD": 0.5 } } })
+}
+
+// A long session's history: many rounds, each a prompt, a long answer and its end.
+fn history(rounds: usize) -> Vec<Value> {
+  let long = "x".repeat(2000);
+
+  (0..rounds)
+    .flat_map(|at| [words(&format!("prompt {at}")), response(&format!("r{at}"), &long), end()])
+    .collect()
+}
+
+#[test]
+fn a_reader_from_the_end_holds_only_what_the_record_gained_and_what_a_whole_reading_turns_on() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  appended(&path, &history(2000));
+  appended(&path, &[account(100), queue("enqueue"), words("still being answered")]);
+
+  let mut tail = Tail::at_end(&path);
+  let from = tail.count();
+
+  assert_eq!(from, 6003, "every line keeps its number from the record's start");
+  assert_eq!(
+    tail.held(),
+    Held {
+      records: 4,
+      raw_bytes: 0
+    },
+    "before the floor: the last end, the account line, the queue operation and the last line of the conversation"
+  );
+
+  appended(&path, &[queue("dequeue"), response("new", "the turn's answer"), account(130), end()]);
+
+  let mut whole = Tail::new(&path);
+  let records = tail.look();
+
+  assert_eq!(records.len(), from + 4);
+  assert_eq!(read_turn(records, from).text, "the turn's answer");
+  assert_eq!(
+    agency_server::door::turn::spend_since(records, from).unwrap()[0].input_tokens,
+    30,
+    "the spend is measured from the account line before the turn"
+  );
+  assert_eq!(rests_apart(records), rests_apart(whole.look()));
+  assert_eq!(ends_on_turn_end(records), ends_on_turn_end(whole.look()));
+  assert_eq!(
+    turns_owed(records, Notices::Apart).queued,
+    turns_owed(whole.look(), Notices::Apart).queued
+  );
+  assert_eq!(tail.held().records, 8);
+}
+
+#[test]
+fn a_reader_from_the_end_of_a_record_not_written_yet_holds_all_it_gains() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+  let mut tail = Tail::at_end(&path);
+
+  assert_eq!(tail.count(), 0);
+  appended(&path, &[words("the first prompt"), response("a", "the first answer")]);
+  assert_eq!(read_turn(tail.look(), 0).text, "the first answer");
+  assert_eq!(tail.held().records, 2);
+}
+
+#[test]
+fn a_line_still_being_written_stays_above_a_floor_set_at_the_end() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  std::fs::write(&path, format!("{}\n{}", words("before"), response("a", "being written"))).unwrap();
+
+  let mut tail = Tail::at_end(&path);
+
+  assert_eq!(tail.count(), 2);
+  std::fs::write(&path, format!("{}\n{}\n", words("before"), response("a", "being written"))).unwrap();
+  assert_eq!(read_turn(tail.look(), 1).text, "being written");
+}
+
+#[test]
+fn a_raised_floor_lets_go_of_the_lines_before_it_and_a_filed_line_of_its_words_as_written() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  appended(&path, &history(10));
+
+  let mut tail = Tail::new(&path);
+
+  tail.look();
+  assert_eq!(tail.held().records, 30);
+  tail.forget_raw_before(30);
+  assert_eq!(tail.held().raw_bytes, 0);
+  assert_eq!(tail.raw().len(), 30, "a line as written keeps its place once let go");
+  tail.forget_before(27);
+  assert_eq!(
+    tail.held().records,
+    2 + 3,
+    "the last line of the conversation and the last end, then the last round"
+  );
+  assert_eq!(read_turn(tail.look(), 27).text, "x".repeat(2000));
+}
+
 #[test]
 fn a_child_is_asked_for_by_its_call_and_ended_by_its_notice() {
   let mut reader = ChildReader::default();
@@ -880,4 +994,136 @@ fn a_subagent_s_background_shells_are_those_no_notice_ended() {
     (left[0].task.as_str(), left[0].command.as_str()),
     ("bwait", "while pgrep -f find; do sleep 5; done")
   );
+}
+
+// What a reader holds of a record's lines before `from`, written out: the marks it keeps there.
+fn held_before(lines: &[Value], from: usize) -> usize {
+  lines[..from]
+    .iter()
+    .filter(|line| !line.is_null())
+    .map(|line| line.to_string().len())
+    .sum()
+}
+
+#[test]
+fn a_reader_for_each_of_many_turns_on_a_growing_session_holds_its_turn_and_small_marks_before_it() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+  let asked = "w".repeat(4000);
+  let long = "x".repeat(2000);
+  let notice = format!("<task-notification><task-id>t1</task-id>{asked}</task-notification>");
+
+  // A long supervisor session: every round its words queued and taken, a long answer and its end.
+  for round in 0..300 {
+    appended(
+      &path,
+      &[
+        queued("enqueue", &asked),
+        queued("dequeue", ""),
+        words(&format!("prompt {round}")),
+        response(&format!("r{round}"), &long),
+        end(),
+        account(100 + round as i64),
+      ],
+    );
+  }
+
+  // A notice queued before the turns, which keeps one entry standing in the queue through all of them.
+  appended(&path, &[queued("enqueue", &notice)]);
+
+  let mut first_marks = 0;
+
+  for turn in 0..30 {
+    let mut tail = Tail::at_end(&path);
+    let from = tail.count();
+    let on_disk = std::fs::metadata(&path).unwrap().len() as usize;
+    let marks = held_before(tail.lines(), from);
+
+    if turn == 0 {
+      first_marks = marks;
+    }
+
+    assert!(
+      marks * 20 < on_disk,
+      "turn {turn}: {marks} bytes held before the turn of {on_disk} written"
+    );
+    assert!(
+      marks <= first_marks + turn * 200,
+      "turn {turn}: what is held before the turn grows by the marks of the turns since, no more"
+    );
+
+    appended(
+      &path,
+      &[
+        queued("enqueue", &asked),
+        queued("dequeue", ""),
+        words(&format!("turn {turn}")),
+        response(&format!("n{turn}"), &format!("answer {turn}")),
+        account(5000 + turn as i64),
+        end(),
+      ],
+    );
+
+    let records = tail.look();
+    let count = records.len();
+
+    assert_eq!(count, from + 6);
+    assert_eq!(read_round(&records[from..], Notices::Apart).text, format!("answer {turn}"));
+    assert_eq!(turns_owed(records, Notices::Joined).queued, 1, "one entry still stands queued");
+
+    // What the whole record says is read the same off what the reader keeps, at the first turn and the last.
+    if turn == 0 || turn == 29 {
+      let mut whole = Tail::new(&path);
+
+      assert_eq!(turns_owed(whole.look(), Notices::Joined).queued, 1);
+      assert_eq!(
+        turns_owed(records, Notices::Apart).queued,
+        turns_owed(whole.look(), Notices::Apart).queued,
+        "a queued notice is told from queued words off its mark alone"
+      );
+      assert_eq!(rests_apart(records), rests_apart(whole.look()));
+      assert_eq!(ends_on_turn_end(records), ends_on_turn_end(whole.look()));
+    }
+
+    tail.forget_raw_before(count);
+    assert_eq!(tail.held().raw_bytes, 0);
+    assert!(tail.held().records <= 6 + 4 + 2 * (300 + turn) + 1);
+  }
+}
+
+#[test]
+fn a_reader_from_a_line_found_a_line_at_a_time_holds_only_the_lines_from_there_across_many_looks() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+
+  appended(&path, &history(300));
+  appended(&path, &[words("the turn picked up")]);
+
+  // Where the turn begins is found as the pickup finds it, a line at a time.
+  let mut begins = None;
+
+  each_line(&path, |at, record| {
+    if record.pointer("/message/content").and_then(Value::as_str) == Some("the turn picked up") {
+      begins = Some(at);
+    }
+  });
+
+  let begins = begins.unwrap();
+  let mut tail = Tail::from_line(&path, begins);
+
+  assert_eq!(begins, 900);
+  assert_eq!(tail.count(), 901);
+  assert!(tail.held().records <= 2 + 1, "the last end before the turn, and the turn's own line");
+
+  for look in 0..200 {
+    appended(&path, &[step(&format!("s{look}"))]);
+
+    let records = tail.look();
+
+    assert_eq!(records.len(), 902 + look);
+    assert!(prompted_since(records, begins));
+    tail.forget_raw_before(902 + look);
+    assert!(tail.held().records <= 2 + 1 + look + 1);
+    assert_eq!(tail.held().raw_bytes, 0);
+  }
 }

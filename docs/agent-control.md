@@ -2254,6 +2254,48 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
   ends `silent` once its record closes a turn after the prompt; until then it is waited on. A command of
   the program's own ends on its own words instead (「How a command of the program's own ends」).
 
+### A session record is read within a bound
+
+A session's transcript only grows: a supervisor's runs past eighty megabytes, a job's to fifteen, and one
+line parsed as JSON takes about four and a half times its bytes. A supervisor takes a turn every half
+minute or so, and every turn agency watches reads its transcript several times a second, so what agency's
+server holds is bounded by what each reader keeps, never by how long a transcript has grown. A heap that
+large is not given back once freed either: each of the server's threads keeps the pages it once held, so
+a reading that is ever whole sets the server's size for good.
+
+- **A look hands back the lines the reader holds, never a copy of them.** Each look parses only the bytes
+  written since the last whole line it took. A reading that must outlive the reader's next look, the
+  turn's own lines at its end, is the one copy a turn makes.
+- **A reader has a floor: the line its owner reads nothing before again.** A line before the floor
+  is let go as it is parsed, unless a reading of the whole record still turns on it:
+  - every queue operation, which together say what stands queued, kept as its mark alone: what it did
+    to the queue and whether what it queued is a background task's notice, the words it queued let go;
+  - the last turn's end line and the last line of the conversation, which say whether the foreground
+    rests;
+  - the last account line (`cost-state`), which a turn's spend is measured from.
+  Every line keeps its number from the record's start, so a turn's indexes stay the record's own.
+- **Where each owner puts its floor:**
+  - A turn the door puts in sets its floor after every whole line already written when the turn begins,
+    so the lines it holds are the turn's own. So does a fold.
+  - A turn picked up at start holds its lines from where the turn began, or from where its run log
+    last filed, whichever is earlier. Where those begin is found by reading the transcript through a
+    line at a time; the reader then starts with its floor there, so no reading holds the whole
+    transcript. Every turn in flight is picked up at once, so those first readings run one at a time.
+  - A picked-up turn in a pane of its own is looked at four times a second until it ends, and where it
+    stands is read off the lines that same reader holds from the turn's beginning; its transcript is read
+    again only where no reader could be armed on it, and then a line at a time.
+- **A line as written is held only until its owner has filed it** into the run's log.
+- **A look reads the lines it holds where they stand.** What a turn's round stands at, read on every
+  look, reads only each turn's last answer and what stands queued; the spend and the work a turn left
+  going are read once, at its end. A task's notice is looked for in the texts a line holds, never in the
+  line written out again.
+- **A transcript read once for a few of its lines is read a line at a time:** the lines since a moment,
+  and the last request's size a registration's context is measured by.
+- **So the server holds, per watched turn, that turn's lines and a few small lines before them.** A
+  supervisor's round is a few hundred lines. A job's turn is its whole session, fifteen megabytes of
+  transcript at the longest seen, about seventy megabytes parsed. Sixteen jobs and the chat lines stay
+  well under a gigabyte.
+
 ### A first interactive run stops at the trust-this-folder check
 
 Measured. An interactive CLI launched into a herdr pane with the worker's flags plus

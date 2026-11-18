@@ -288,23 +288,26 @@ pub fn append(path: &Path, record: &Value) -> std::io::Result<()> {
 }
 
 /// The lines a Claude Code session's own record, its transcript, holds stamped at or after `since`, oldest
-/// first; none where it cannot be read.
+/// first; none where it cannot be read. The transcript is read a line at a time, so what is held is the
+/// lines kept and never the whole file.
 pub fn transcript_since(transcript: &Path, since: i64) -> Option<Vec<Value>> {
-  let text = std::fs::read_to_string(transcript).ok()?;
+  std::fs::metadata(transcript).ok()?;
 
-  Some(
-    text
-      .split('\n')
-      .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-      .filter(|record| {
-        record
-          .get("timestamp")
-          .and_then(Value::as_str)
-          .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
-          .is_some_and(|at| at.timestamp_millis() >= since)
-      })
-      .collect(),
-  )
+  let mut kept = vec![];
+
+  crate::door::record::each_line(transcript, |_, record| {
+    let stamped = record
+      .get("timestamp")
+      .and_then(Value::as_str)
+      .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+      .is_some_and(|at| at.timestamp_millis() >= since);
+
+    if stamped {
+      kept.push(record);
+    }
+  });
+
+  Some(kept)
 }
 
 /// The failure the program's latest turn since `since` ended with: none where that turn ended with a stop,

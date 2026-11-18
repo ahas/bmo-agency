@@ -46,7 +46,7 @@ use super::place_run::{
   write_stopped,
 };
 use super::record::{
-  ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
+  COST_STATE, ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
   command_closing_since, command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity,
   prompted_since, read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed,
   word_written_down,
@@ -830,7 +830,10 @@ impl<W: Watch> Door<'_, W> {
       self.watch.record(&lines[at..]).await;
     }
 
-    self.fed = Some(lines.len().max(at));
+    let fed = lines.len().max(at);
+
+    self.fed = Some(fed);
+    self.tail.forget_raw_before(fed);
   }
 
   // A run that trusts its folder has the folder written as trusted, in the file its own login reads,
@@ -1333,7 +1336,7 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
       .filter(|dir| !dir.is_empty())
       .map_or_else(|| PathBuf::from(machine.var("HOME").unwrap_or_default()), PathBuf::from),
   );
-  let mut tail = Tail::new(&record);
+  let mut tail = Tail::at_end(&record);
   let from = tail.count();
   // A turn of a standing program is for the agent whose program it is, where the caller names none.
   let identity = Identity {
@@ -1612,9 +1615,6 @@ async fn open_own<W: Watch>(door: &mut Door<'_, W>) -> Result<String, String> {
     .await
     .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
 }
-
-// The record line a program writes its running account into as it ends.
-const COST_STATE: &str = "cost-state";
 
 /// What a run spent since `from`, by the record's account lines: the last one after it less the last one
 /// before it, model by model, each kind never below nought; none where no account line follows `from` or
@@ -2543,8 +2543,8 @@ async fn watch_turn<W: Watch>(
   // submit never came would take the next person's line for the bot's.
   door.hand(false);
 
-  // The turn's lines as they stand at its end, read across the waits below: the one copy a turn makes of
-  // its record.
+  // The turn's lines as they stand at its end, read across the waits below: the reader holds them from the
+  // turn's beginning, so this is the one copy a turn makes of them.
   let records = door.lines().to_vec();
   let answered = answered_since(&records, from);
   let read = read_turn(&records, from);
