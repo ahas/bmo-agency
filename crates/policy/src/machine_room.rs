@@ -1,4 +1,4 @@
-//! This machine's room (docs/agent-control.md, 「Room on the machine」): the machine's four limits over
+//! This machine's room (docs/agent-control.md, 「Room on the machine」): the machine's five limits over
 //! the standing the node service reports, and agency's two job-count limits.
 
 use serde::Deserialize;
@@ -45,6 +45,8 @@ pub struct MachineRoom {
   pub launch_load_per_thread: MachineLimit,
   /// The free space of the data root's disk, in gigabytes.
   pub launch_disk_free_gb: MachineLimit,
+  /// What one job is reckoned to grow to, in gigabytes, taken ahead from `MemAvailable`.
+  pub launch_job_memory_gb: MachineLimit,
   /// The jobs at work on this machine.
   pub launch_jobs: CountLimit,
   /// The jobs at work whose place runs a browser.

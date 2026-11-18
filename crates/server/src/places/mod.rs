@@ -15,6 +15,7 @@ pub mod gate_places;
 mod ground;
 pub mod heads;
 pub mod home;
+pub mod idle_supports;
 pub mod item_sweep;
 pub mod locks;
 pub mod nodes;
@@ -75,7 +76,8 @@ impl Places {
   }
 
   /// Every head, room pane, dev pane, workbench, server and checkout on its moment, for as long as the
-  /// process runs: the workbenches made and the renamed checkouts moved as it starts; the dev panes of
+  /// process runs: the workbenches made, the renamed checkouts moved and the grown support checkouts settled
+  /// as it starts and on the heads' clock; the dev panes of
   /// the workers a job holds, the heads and the room panes as it attaches to herdr and after every drop;
   /// the heads, the room panes and the checkouts again every ten minutes, with each pane a consumer
   /// claims and marks idle taken down; every run whose program is gone
@@ -93,6 +95,7 @@ impl Places {
 
       if own {
         checkouts::move_renamed(&starting.ground).await;
+        settle_supports(&starting.ground).await;
       }
     });
 
@@ -128,6 +131,7 @@ impl Places {
       async move {
         if own {
           checkouts::move_renamed(&places.ground).await;
+          settle_supports(&places.ground).await;
         }
 
         places.stand_heads().await;
@@ -231,6 +235,14 @@ impl Places {
     }
 
     Ok(())
+  }
+}
+
+/// The support checkouts of the repositories set to `auto` settled (docs/worker-slots.md, 「An idle support
+/// checkout」), what could not be said on the error stream.
+async fn settle_supports(ground: &Ground) {
+  if let Err(why) = idle_supports::pass(ground, crate::now_ms()).await {
+    eprintln!("agency: the support checkouts were not settled: {why}");
   }
 }
 

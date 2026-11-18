@@ -337,6 +337,31 @@ impl Route for CreateAssignment {
       }
     }
     let Some(picked) = picked else {
+      // A repository set to `auto` grows its next support checkout instead (docs/worker-slots.md, 「Growing a
+      // checkout at a launch」); a checkout named on its own never grows.
+      if let Some(repository) = crate::repositories::named(db, assignee).await? {
+        let account = crate::supervisors::named(db, &holder)
+          .await?
+          .and_then(|supervisor| supervisor.owner_account)
+          .map(|account| account.to_string());
+        let seating = super::support_growth::Seating {
+          item: &asked["item"],
+          role: &role,
+          account: account.as_deref(),
+        };
+        let holding = super::support_growth::Holding {
+          item_id,
+          holder: &holder,
+          role: &role,
+        };
+
+        if let Some(grown) =
+          super::support_growth::grow(call.ground(), &repository, Some(seating), holding).await?
+        {
+          return Ok(answer(StatusCode::CREATED, grown.assignment));
+        }
+      }
+
       return Err(
         Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no worker {assignee} is free"))
           .with_code("no-worker-free"),
@@ -357,7 +382,20 @@ pub(crate) async fn hold(
   worker: &str,
   role: &str,
 ) -> Result<Value, Refused> {
-  let db = &ground.db;
+  let id = write_hold(&ground.db, item_id, holder, worker, role).await?;
+
+  held(ground, id).await
+}
+
+/// A hold written in whatever connection a caller holds, by its assignment's id, neither answered nor
+/// published yet.
+pub(crate) async fn write_hold<C: sea_orm::ConnectionTrait>(
+  db: &C,
+  item_id: i64,
+  holder: &str,
+  worker: &str,
+  role: &str,
+) -> Result<i64, Refused> {
   let now = now_ms();
   let row = one(
     db,
@@ -368,8 +406,13 @@ pub(crate) async fn hold(
   )
   .await?
   .ok_or_else(|| Refused::failed("the assignment was written but not answered"))?;
-  let id: i64 = row.try_get("", "id")?;
-  let member = assignment(db, id).await?;
+
+  Ok(row.try_get("", "id")?)
+}
+
+/// A hold written, answered as the assignment and published as created.
+pub(crate) async fn held(ground: &Ground, id: i64) -> Result<Value, Refused> {
+  let member = assignment(&ground.db, id).await?;
 
   publish(ground, "assignment.created", member.clone());
 
@@ -1005,7 +1048,7 @@ fn seat_words(role: &str, agent: Option<&str>) -> String {
 /// item names」): a job standing on it — starting, running, or under a review that has not paused it — else the
 /// run a slot request let in on it stands for, a job standing in the machine's turn leaving it free
 /// (docs/role-agents.md, 「When an agent is busy」). None where it is free.
-async fn agent_carries<C: sea_orm::ConnectionTrait>(
+pub(crate) async fn agent_carries<C: sea_orm::ConnectionTrait>(
   db: &C,
   agent: &str,
 ) -> Result<Option<String>, Refused> {

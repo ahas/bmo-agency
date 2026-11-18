@@ -1770,7 +1770,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("AssignWorker"),
     answers: &[(200, Some("Assignment"), false), (201, Some("Assignment"), false)],
-    codes: &["bad-request", "unknown-repository", "no-worker-free", "upstream-failed"],
+    codes: &["bad-request", "unknown-repository", "no-worker-free", "agent-busy", "upstream-failed"],
   },
   Operation {
     method: "POST",
@@ -1788,6 +1788,7 @@ pub const OPERATIONS: &[Operation] = &[
       "own-repository",
       "no-checkout-here",
       "no-worker-free",
+      "checkout-not-made",
     ],
   },
   Operation {
@@ -3198,7 +3199,7 @@ fn status_of(code: &str) -> u16 {
     | "worker-on-node" | "agent-busy" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
-    "failed" => 500,
+    "failed" | "checkout-not-made" => 500,
     "upstream-failed" => 502,
     "not-ready" | "no-login-open" | "no-word-road" | "stopping" => 503,
     _ => 422,

@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
+use bmo_agency_client::SupportCount;
 use futures_util::future::BoxFuture;
 use harness_providers::{ARCHIVE_PROVIDERS, Machine};
 use policy::control_words::CONTROL_WORDS;
@@ -139,7 +140,7 @@ pub struct AgentsArgs {
   pub downgrade_heal: Option<String>,
   #[arg(long)]
   pub keepalive: Option<String>,
-  /// A repository's support checkout count, with `--set` naming the repository.
+  /// A repository's support checkout count, `auto` or a number, with `--set` naming the repository.
   #[arg(long)]
   pub support: Option<String>,
   #[arg(long)]
@@ -727,12 +728,17 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
   Ok(said)
 }
 
-/// A support count as the verb takes it: a whole number from zero to the most a repository may have.
-fn support_count(value: Option<&str>) -> Option<i64> {
-  let value = value?;
-  let count = value.trim().parse::<i64>().ok()?;
+/// A support count as the verb takes it: `auto`, or a whole number from zero to the most a repository may have.
+fn support_count(value: Option<&str>) -> Option<SupportCount> {
+  let value = value?.trim();
 
-  (0..=WORKERS.support_most).contains(&count).then_some(count)
+  if value == crate::repositories::AUTO {
+    return Some(SupportCount::AUTO);
+  }
+
+  let count = value.parse::<i64>().ok()?;
+
+  (0..=WORKERS.support_most).contains(&count).then_some(SupportCount::Count(count))
 }
 
 // A repository's support checkout count (docs/worker-slots.md, 「The base checkout and the support
@@ -755,14 +761,16 @@ async fn repository_support(db: &DatabaseConnection, args: &AgentsArgs) -> Resul
   store::run(
     db,
     r#"UPDATE "repositories" SET "support_count" = $2, "updated_at" = $3 WHERE "name" = $1"#,
-    vec![name.to_owned().into(), count.into(), now_ms().into()],
+    vec![name.to_owned().into(), count.stored().into(), now_ms().into()],
   )
   .await?;
 
-  said.line(format!(
-    "repository {name}: {count} support checkout{}",
-    if count == 1 { "" } else { "s" }
-  ));
+  said.line(match count.stored() {
+    Some(count) => {
+      format!("repository {name}: {count} support checkout{}", if count == 1 { "" } else { "s" })
+    }
+    None => format!("repository {name}: support checkouts grown as its launches need them"),
+  });
 
   Ok(said)
 }

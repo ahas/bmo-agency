@@ -3609,6 +3609,40 @@ pub struct NodeAccess {
   pub root: Option<String>,
 }
 
+/// SupportCount: how many support checkouts a repository has beside its base: a whole number from 0 to 8, or
+/// `auto` for as many as its launches grow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum SupportCount {
+  Count(i64),
+  Grown(SupportAuto),
+}
+
+/// SupportAuto: the support count that grows a checkout at a launch that finds every one held.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SupportAuto {
+  Auto,
+}
+
+impl SupportCount {
+  /// The count a repository takes where none is named.
+  pub const AUTO: Self = Self::Grown(SupportAuto::Auto);
+
+  /// The count as the store keeps it: the number, or none for `auto`.
+  pub fn stored(self) -> Option<i64> {
+    match self {
+      Self::Count(count) => Some(count),
+      Self::Grown(_) => None,
+    }
+  }
+
+  /// The count the store's column holds: none is `auto`.
+  pub fn of_stored(count: Option<i64>) -> Self {
+    count.map_or(Self::AUTO, Self::Count)
+  }
+}
+
 /// Repository: one repository as its row holds it, with its checkouts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3619,7 +3653,7 @@ pub struct Repository {
   pub owner_account: Option<i64>,
   pub path: String,
   pub node_name: Option<String>,
-  pub support_count: i64,
+  pub support_count: SupportCount,
   pub prefix_documents: Vec<String>,
   pub preamble: Option<String>,
   pub rules: Option<String>,
@@ -3656,7 +3690,7 @@ pub struct RepositoryAsk {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node_name: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub support_count: Option<i64>,
+  pub support_count: Option<SupportCount>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prefix_documents: Option<Vec<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

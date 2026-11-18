@@ -45,7 +45,8 @@ interface RepositoryRow {
   label: string | null;
   path: string;
   node: string | null;
-  support_count: number | string;
+  // Null where the repository is set to `auto`, its support checkouts then the ones it recorded.
+  support_count: number | string | null;
   pinned_provider: AgentMode | null;
   pinned_model: string | null;
 }
@@ -108,8 +109,17 @@ export class AgentStore {
     return await this.sql.get("SELECT name, label, path, node, support_count, pinned_provider, pinned_model FROM repositories WHERE name = ?", name) as RepositoryRow | null;
   }
 
-  // A checkout by its name: a repository's base, a support worktree `<base>-w<slot>` within its count, or a
-  // checkout on a node `<base>@<node>` its row keeps.
+  // Whether a repository has a support worktree at a slot: within its count, or recorded where it is set to
+  // `auto` (docs/worker-slots.md, 「The base checkout and the support checkouts」).
+  private async standsAt(of: RepositoryRow, slot: number): Promise<boolean> {
+    if (slot < firstSupportSlot) return false;
+    if (of.support_count !== null) return slot < firstSupportSlot + Number(of.support_count);
+
+    return await this.sql.get("SELECT 1 AS held FROM support_checkouts WHERE repository = ? AND slot = ?", of.name, slot) !== null;
+  }
+
+  // A checkout by its name: a repository's base, a support worktree `<base>-w<slot>` within its count or recorded
+  // for a repository set to `auto`, or a checkout on a node `<base>@<node>` its row keeps.
   private async checkout(name: string): Promise<AgentRecord | null> {
     const base = await this.repository(name);
 
@@ -121,7 +131,7 @@ export class AgentStore {
       const of = await this.repository(support[1]!);
       const slot = Number(support[2]);
 
-      if (of !== null && slot >= firstSupportSlot && slot < firstSupportSlot + Number(of.support_count)) {
+      if (of !== null && await this.standsAt(of, slot)) {
         return checkoutOf(of, name, `${of.label ?? of.name}#${slot}`, `${of.path}-w${slot}`, nonEmpty(of.node), of.name);
       }
     }

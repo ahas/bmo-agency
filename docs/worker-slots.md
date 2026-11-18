@@ -14,15 +14,65 @@
 - **Support checkouts:** further worktrees of the same repository, numbered from 2, which exist so that
   the queue can run more than one item of one repository at a time. They are the repository's, never rows
   of their own.
-- **The support count is the repository's setting,** from 0 to 8 (`policy/workers.toml`): how many support
-  checkouts stand beside the base. Zero is none, and the repository then runs one job at a time.
+- **The support count is the repository's setting:** `auto`, or a whole number from 0 to 8
+  (`policy/workers.toml`). `auto` is every repository's default.
+  - **A number** is how many support checkouts stand beside the base, `w2` up to its count. Zero is none,
+    and the repository then runs one job at a time. A count lowered leaves the worktrees beyond it on disk,
+    unlisted, and a count raised again takes them up as they stand.
+  - **`auto`** sets no number. The repository's support checkouts are the ones it has made, each recorded
+    by its slot, and a launch that finds every one of them held makes the next (「Growing a checkout at a
+    launch」). An idle one is kept for its next job and taken away only after the idle time (「An idle
+    support checkout」).
 - **Where it is changed:** the repository's settings in the console's repository tab, agency's repository
   routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), and `bmo-agency agent --set
-  <repository> --support <n>`. A change settles the checkouts at once: a missing one is made at its first
-  launch, and one beyond the count is removed once no job holds it. Agency settles every repository's
-  checkouts again as its server starts, so a setting written while it was down takes effect then.
+  <repository> --support auto|<n>`. The checkouts follow the setting at once: a numbered checkout missing on
+  disk is made at its first launch.
 - **A TODO item names the repository, never a checkout:** the repository's queue is every one of its
   checkouts' queue.
+
+## Growing a checkout at a launch
+
+- **What grows:** a repository set to `auto` whose base stands on this machine. A launch of one of its items
+  that finds every checkout held records the next support checkout and holds it for the item at once, in
+  place of refusing `no-worker-free` (`docs/api.md`, 「assignments and jobs」). Its worktree is then made at the
+  launch like any support checkout's (「Names and places」). A repository whose base stands on a work node
+  grows nothing: this machine's room says nothing of that node's.
+- **Its number** is the lowest from 2 that the repository has not recorded and that nothing holds, so a
+  slot taken away is the first made again, at the same path and with the sessions kept under it.
+- **Two bounds, and nothing else, hold it back:**
+  1. **A free agent.** The agents that could carry the item are the one its `agent` label names, or the
+     candidates of its role for the model its `model` label names (`docs/role-slots.md`;
+     `docs/role-agents.md`, 「Which agent a run takes」). Of those carrying no run now, one must be left over
+     the holds of the same role that no job has started on yet, since each of those is a launch about to
+     take an agent. With none left the launch is refused 409 `agent-busy`, naming what each candidate
+     carries, and no checkout is made. An item naming neither label grows nothing, since no launch would
+     seat it.
+  2. **Room on the machine.** The same judgement the launcher reads before every launch
+     (`docs/agent-control.md`, 「Room on the machine」), the memory the jobs at work are still to grow into
+     among it. Where it holds, the launch is refused 422 `no-worker-free`, its sentence naming each reason
+     with its figure, and the item waits as it waits for any checkout.
+- **One launch grows one checkout at a time.** The repository's row and the candidate agents are held for
+  the growth's transaction, so two launches at once never record the same slot nor both count the same free
+  agent.
+- **A borrowing grows the same way** (「A job writes only in its own checkout」), bounded by the machine's
+  room alone, since a borrowed checkout seats no agent.
+
+## An idle support checkout
+
+- **It is kept,** worktree, installs and the sessions kept under its path alike, so the next job of the
+  repository starts warm.
+- **It is taken away once idle for `support_idle_hours`** (6, `policy/workers.toml`): no assignment of it has
+  changed and nothing has held it since, counted from when it was recorded where nothing ever has. Agency
+  looks on the heads' clock, every ten minutes, and only on its own data root.
+- **What is never taken away:** a checkout something holds — an assignment `held` or `running`, or a job at
+  work in it — or whose checkout lock a job or a fold holds; and a worktree with anything open in it, which
+  stays and is named on the error stream each pass. Its branches and commits are the repository's and stay
+  with it, and its workbench folder under the data root stays for the slot's next making.
+- **The taking away** is `git worktree remove` from the base checkout, then the record dropped. A record
+  whose worktree is already gone is dropped alone.
+- **A worktree standing at a slot's path with no record,** of a repository set to `auto`, is recorded on the
+  same pass, from that moment: one made under a number before the repository went `auto` is taken up, and
+  leaves once idle like any other.
 
 ## Names and places
 
@@ -306,6 +356,10 @@
   within the count — and each of them waits for a slot of the role it runs as as well
   (`docs/role-slots.md`). The fact that tells the supervisor the queue is waiting counts the free checkouts
   of each repository, and one item is launched per free checkout.
+- **A repository that grows counts as free while it may grow:** set to `auto`, its base on this machine, and
+  no launch held for the machine's room by the launcher's notice. Every open item of it is then told as
+  awaiting a launch, each still waiting on its agent as below, so the queue is offered one item per free
+  agent rather than per checkout.
 - **The launcher picks the checkout.** It takes, in this order: a free support checkout already on the
   item's branch; the base checkout; a free support checkout by number. A launch naming a support checkout
   directly takes that one or is refused. Where the repository has checkouts on the nodes, the launch first
@@ -347,11 +401,13 @@
   reading cannot see, such as a script file.
 - **Borrowing:** `bmo job borrow <repository>`, run inside a job, takes a free checkout of that
   repository for the rest of the job — a support worktree first, the base checkout where the repository
-  has no support checkout free, on the job's own machine — and prints its path. It is an assignment held in
+  has no support checkout free, on the job's own machine — and prints its path, a support worktree not made
+  yet made first as a launch makes it. It is an assignment held in
   the job's name (`docs/api.md`, 「assignments and jobs」), so the borrowed checkout reads held everywhere a
   held checkout is read, and nothing is launched into it. The job commits, pushes and closes there the way
   that repository closes a job. A job's own repository is refused, and so is a repository whose every
-  checkout is at work: it says so, and asks nothing to wait.
+  checkout is at work and that cannot grow one (「Growing a checkout at a launch」): it says so, and asks
+  nothing to wait.
 - **A job borrows with what its program holds.** A job's program is handed no control token, so the verb
   calls agency's server with the job's session token, and the server lends only to the job running in the
   checkout that token was issued for (`docs/api.md`, 「The control port」). A process holding neither token

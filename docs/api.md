@@ -1210,9 +1210,13 @@ of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday
   where the least value itself is refused, and `whole`, true where only whole numbers are taken. A setting
   left out of `sampling` is the engine's own default, which agency neither sets nor reads, so no default value
   is answered: a screen shows a setting the repository leaves out as the default.
+- **`supportCount` is `"auto"` or a whole number from 0 to 8** (`docs/worker-slots.md`, 「The base checkout and the
+  support checkouts」). An add naming none takes `"auto"`; a change takes either, and refuses anything else 400
+  `supportCount`.
 - **A repository answers its checkouts,** `checkouts`, each `name`, `path`, `nodeName`, the node it stands on or
   null, `kind` — `base`, `support` or `node` — and `job`, the job holding it, `{jobId, itemId, role}`, or null, so
-  a screen reads which of its checkouts are free.
+  a screen reads which of its checkouts are free. A repository set to `"auto"` lists the support checkouts it has
+  made and keeps.
 - **A repository keeps no log of its own.** What ran in it is its jobs': `GET /jobs?repositoryName=…` lists
   them newest first, and a job's run is read by the job's own log; a screen shows the log of the job going in
   the repository, else of its latest.
@@ -1370,7 +1374,10 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   or a checkout of one: an assignee no repository holds a checkout by is refused 422 `unknown-repository`,
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
   a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
-  to come free. A checkout is held now while an assignment of it is `held` or `running` or a job is at work in
+  to come free. A repository set to `"auto"` grows a support checkout instead and answers it held
+  (`docs/worker-slots.md`, 「Growing a checkout at a launch」): refused 409 `agent-busy` where no agent of the
+  item's `agent` or `model` label is left free, and 422 `no-worker-free` where the machine has no room, its
+  sentence naming each reason. A checkout is held now while an assignment of it is `held` or `running` or a job is at work in
   it, `starting`, `running` or `reviewing` unparked; the queue's notices count a checkout free by the same
   reading (`docs/agent-control.md`, 「An idle queue is told to the owner」).
 - **An assignment naming no `assigneeName` goes where its item goes,** never to a checkout of another
@@ -1400,12 +1407,16 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   - **Who may ask:** the control token's holder for any running job, or the job's own program by its session
     token: a record whose holder is not the checkout the job runs in is refused 403 `not-this-job`.
   - **What it takes:** a free support worktree of the repository first, its base checkout last, each on the
-    machine the job's own checkout stands on, held as the assignment `job:<jobId>` for the job's item. It
+    machine the job's own checkout stands on, held as the assignment `job:<jobId>` for the job's item. Where
+    none is free, a repository set to `"auto"` grows one, bounded by the machine's room alone. A support
+    worktree not made yet is made before the answer, as a launch makes it; one that cannot be made lets the
+    loan go and is refused 500 `checkout-not-made`, saying why. It
     answers 201 with `workerName`, `cwd` and the assignment's `assignmentId`, or 200 with the loan the job
     already holds, asked again.
   - **What it refuses:** a run no starting or running job works in 404 `no-job`; the job's own repository 422
     `own-repository`; a repository with no checkout on that machine 422 `no-checkout-here`; one whose every
-    checkout there is at work 422 `no-worker-free`, naming them. Nothing waits.
+    checkout there is at work and that grows none 422 `no-worker-free`, naming them, and the machine's reasons
+    where its room held the growth. Nothing waits.
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role

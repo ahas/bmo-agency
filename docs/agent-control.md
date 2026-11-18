@@ -3120,16 +3120,19 @@ and what the person launched.
 Jobs, their closes, their browsers and model training share one machine, and nothing about a free
 checkout says the machine has room for another job. So the machine itself is read before a job is
 launched, and watched while jobs run. The node service reads the machine and reports its standing (the
-node service's `docs/machine.md`); agency judges the six limits below, which jobs are open, which of
+node service's `docs/machine.md`); agency judges the seven limits below, which jobs are open, which of
 them run a browser, and whose a place is.
 
 ### What is read
 
 - **The machine, by the node service:** the kernel's pressure, load, memory, swap and the data root's
-  disk, every browser main process and every process worth naming, each with the agent place its
-  environment names (the place variable every agent's pane carries and every process under it
-  inherits). Agency asks it for this machine through its published client and reads the standing: the
-  reading, what each place holds, how many browsers run and the largest processes.
+  disk, every browser main process and every process worth naming, each with the agent its environment
+  names. That is `BMO_TURN_AGENT`, the agent a turn is, which a job's program carries as its worker's name
+  and every process under it inherits, a dev server and a typecheck it starts among them; the node
+  service reads it as its `scope_variable`, set in its configuration, and with none set no place holds
+  anything and every job at work is reckoned to grow its whole share. Agency asks it for this machine
+  through its published client and reads the standing: the reading, what each place holds, how many
+  browsers run and the largest processes.
 - **The jobs, by agency:** every job at work on this machine — a job's run open in the executions whose
   repository's row names no work node. A job of a repository placed on a work node is that node's and is
   not counted here.
@@ -3142,11 +3145,11 @@ them run a browser, and whose a place is.
 
 ### The limits
 
-- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; for the four judged
+- **The seven limits are rows of agency's settings table**, keyed `machine_limit:<name>`; for the five judged
   over the machine's reading a missing row, or one that is not a positive number, reads as the default, and
   the two job counts have none: no fixed number of jobs holds a launch, so a count holds only where the
   owner wrote one, and otherwise how many jobs run is bounded by the roles' caps (`docs/role-slots.md`, 「The
-  cap」), the repositories' free checkouts and the machine's own room. The four judged over the machine's
+  cap」), the repositories' free checkouts and the machine's own room. The five judged over the machine's
   reading are agency's: the node service reports the standing and judges only the alerts it tells.
 - **What holds a launch,** any one of them met:
 
@@ -3156,12 +3159,20 @@ them run a browser, and whose a place is.
   | `launch_memory_available_gb` | 4 | `MemAvailable` is under it |
   | `launch_load_per_thread` | 2 | the one-minute load divided by the thread count is at or above it |
   | `launch_disk_free_gb` | 20 | the free space of the data root's disk is under it, in gigabytes |
+  | `launch_job_memory_gb` | 2 | `MemAvailable`, less what the jobs at work are still to grow into and one more job's share, is under `launch_memory_available_gb` |
   | `launch_jobs` | none | the jobs at work number at least the owner's count |
   | `launch_browser_jobs` | none | the jobs with a browser running number at least the owner's count |
 
+- **A job's share of memory is reckoned ahead.** A job launched a minute ago holds little yet; its dev
+  server, its typecheck and its browser come later. So each job at work is reckoned to grow to
+  `launch_job_memory_gb`, and what it still lacks of that — the share less what its place holds in the
+  standing, none where it holds more — is taken from `MemAvailable` before the launch is judged, with one
+  more share for the job to be launched. It is judged only where the plain `launch_memory_available_gb` is
+  not met already, so one shortage is told once.
 - **The reasons are written with each figure whole:** `memory pressure <value>% >= <limit>%`,
   `available memory <value>GB < <limit>GB`, `load <value> >= <threads> threads x <limit>`,
-  `disk free <value>GB < <limit>GB`, `jobs <jobs> >= <limit>` and
+  `disk free <value>GB < <limit>GB`, `available memory <value>GB less <growth>GB the <jobs> jobs at work are
+  still to grow into and <share>GB for one more < <limit>GB`, `jobs <jobs> >= <limit>` and
   `browser jobs <jobs> >= <limit>`.
 - **What is told as pressure** is the node service's to judge, by its `alert_memory_full_pct` (10)
   standing for `alert_minutes` (2) and its `alert_disk_free_gb` (20).
@@ -3172,13 +3183,17 @@ them run a browser, and whose a place is.
   - an ordinary working day: about 16 GB in use, memory `full` under 1%, load between 20 and 35;
   - the disk line is about what a job's first minutes write — a build, a suite round, a store
     copy — beside the hourly snapshot's pack of about 8 GB; at a few gigabytes free, a job launched
-    dies at its first write with `ENOSPC`.
+    dies at its first write with `ENOSPC`;
+  - the job share: fourteen jobs at once on the 30 GB workstation, each with its agent session and most
+    with a dev server and a typecheck, held about 15.5 GB between them — 9.6 GB of dev servers and
+    typechecks, 5.9 GB of agent sessions — beside 5 GB of agency's own, and the kernel ended a browser and
+    node processes for memory; a heavy job's dev server and typecheck alone pass 2 GB.
 
 ### A launch waits for room
 
 - **The launcher is the job unit.** Before it launches a job on this machine, after every refusal an
   item is owed and before any row is opened, it asks agency for the room (`docs/api.md`, 「road-blocks
-  and launch-room」), and agency asks the node service for the standing and judges the six limits.
+  and launch-room」), and agency asks the node service for the standing and judges the seven limits.
   Where anything is held nothing is launched, and the launcher's answer names each reason with its
   figure.
 - **A held launch is no refusal of the item:** it keeps its place, its approval and its launch wait
@@ -3319,7 +3334,7 @@ with the session.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on a free checkout of its repository, or naming none while the checkout named `worker` is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), told once for each stretch it waits so and kept until the stretch ends; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
+| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on a free checkout of its repository or one its repository may grow (`docs/worker-slots.md`, 「The queue with support checkouts」), or naming none while the checkout named `worker` is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), told once for each stretch it waits so and kept until the stretch ends; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
 | An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |

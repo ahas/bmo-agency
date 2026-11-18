@@ -14,8 +14,12 @@ preamble_most = 8000
 # How long the one line a worker's dev server is started with may be.
 dev_command_most = 1000
 
-# How many support workers one base may have beside it.
+# How many support workers one base may have beside it where its count is a number; `auto` sets none.
 support_most = 8
+
+# How long a support checkout of a repository set to `auto` stands idle, nothing holding it and no
+# assignment of it changing, before it is taken away, in hours.
+support_idle_hours = 6
 
 # The first support worker's number: the base is the first of its repository.
 first_support_slot = 2

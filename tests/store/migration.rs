@@ -119,7 +119,7 @@ async fn a_row_written_with_only_its_required_columns_takes_the_defaults_the_sto
   .unwrap();
 
   assert_eq!(row.try_get::<i64>("", "downgrade_heal").unwrap(), 1);
-  assert_eq!(row.try_get::<i64>("", "support_count").unwrap(), 0);
+  assert_eq!(row.try_get::<Option<i64>>("", "support_count").unwrap(), None, "auto");
   assert!(row.try_get::<i64>("", "rowid").unwrap() > 0);
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "settings""#, vec![]).await, 1);
 }

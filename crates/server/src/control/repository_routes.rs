@@ -5,12 +5,14 @@
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
+use bmo_agency_client::SupportCount;
 use policy::roles::ROLES;
+use policy::workers::WORKERS;
 use serde_json::{Value, json};
 use store::{all, run};
 
 use super::claude_accounts::Judging;
-use super::{Call, Refused, Route, agent_sampling, answer, whole};
+use super::{Call, Refused, Route, agent_sampling, answer};
 use crate::now_ms;
 use crate::places::Ground;
 use crate::queue::settings;
@@ -303,7 +305,7 @@ struct Fields {
   label: Option<Option<String>>,
   path: Option<String>,
   node: Option<Option<String>>,
-  support_count: Option<i64>,
+  support_count: Option<SupportCount>,
   prefix_documents: Option<Vec<String>>,
   preamble: Option<Option<String>>,
   rules: Option<Option<String>>,
@@ -341,9 +343,21 @@ impl Fields {
     }
 
     if let Some(count) = body.get("supportCount") {
-      match whole(count).filter(|count| *count >= 0) {
+      let most = WORKERS.support_most;
+      let judged = match serde_json::from_value::<SupportCount>(count.clone()) {
+        Ok(SupportCount::Count(count)) => (0..=most).contains(&count).then_some(SupportCount::Count(count)),
+        Ok(grown) => Some(grown),
+        Err(_) => None,
+      };
+
+      match judged {
         Some(count) => fields.support_count = Some(count),
-        None => return Err(bad("supportCount", "A support count is a whole number of zero or more.")),
+        None => {
+          return Err(bad(
+            "supportCount",
+            format!("A support count is \"auto\" or a whole number from 0 to {most}."),
+          ));
+        }
       }
     }
 
@@ -433,7 +447,7 @@ impl Route for RepositoryCreate {
         body.get("ownerAccount").and_then(Value::as_i64).into(),
         path.into(),
         fields.node.clone().flatten().into(),
-        fields.support_count.unwrap_or(0).into(),
+        fields.support_count.unwrap_or(SupportCount::AUTO).stored().into(),
         serde_json::to_string(&fields.prefix_documents.clone().unwrap_or_default()).map_err(Refused::failed)?.into(),
         fields.preamble.clone().flatten().into(),
         fields.rules.clone().flatten().into(),
@@ -530,7 +544,7 @@ impl Route for RepositoryChange {
         fields.label.clone().unwrap_or(held.label.clone()).into(),
         fields.path.clone().unwrap_or(held.path.clone()).into(),
         fields.node.clone().unwrap_or(held.node.clone()).into(),
-        fields.support_count.unwrap_or(held.support_count).into(),
+        fields.support_count.unwrap_or(held.support_count).stored().into(),
         serde_json::to_string(&fields.prefix_documents.clone().unwrap_or(held.prefix_documents.clone()))
           .map_err(Refused::failed)?
           .into(),

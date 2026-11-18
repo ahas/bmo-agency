@@ -31,9 +31,11 @@ seeds. The other crates and the server reach the store only through it.
     — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a
     role row holds」);
   - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
-    support count, prefix documents, preamble, rules folder, dev command, pinned provider and model or
-    none, and the sampling a run on a pinned registration is sent (`docs/repositories.md`, 「What a
-    repository row holds」); and `repository_node_checkouts`, its checkouts on the work nodes;
+    support count, null for `auto`, prefix documents, preamble, rules folder, dev command, pinned provider
+    and model or none, and the sampling a run on a pinned registration is sent (`docs/repositories.md`,
+    「What a repository row holds」); `repository_node_checkouts`, its checkouts on the work nodes; and
+    `support_checkouts`, the support checkouts a repository set to `auto` has made, each its repository,
+    slot and when it was recorded (`docs/worker-slots.md`, 「Growing a checkout at a launch」);
   - what ran: `agent_log`, `agent_executions`, `execution_attempts`, `branch_agents` and `session_resets`,
     each naming the supervisor or the role and path a line, an execution or a reset is of;
   - the sessions roles keep: `role_sessions`, one row a session a role's run opened — the role, the path,
@@ -212,7 +214,7 @@ seeds. The other crates and the server reach the store only through it.
     `deploy_watch`, as JSON, the unit last judged for each deploy root under `judged` and the units seen
     running and not yet judged, each with its deploy root, under `running` (`docs/agent-control.md`, 「A
     deployment that did not go live is told」);
-  - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
+  - the machine's room: its seven limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
   - the rest: `rest_until`, `rest_until:*`, `rest_kind`; and one model's rest on one login,

@@ -1,8 +1,8 @@
 //! A checkout of another repository lent to a running job (docs/api.md, 「assignments and jobs」;
 //! docs/worker-slots.md, 「A job writes only in its own checkout」): a free support worktree first, the base
-//! checkout where none is, each on the machine the job's own checkout stands on, held as an assignment in the
-//! job's name, so everything that reads what is held reads it and nothing is launched into it. It stands until
-//! the job no longer runs. The job's own program asks for it with its session token, since it holds no control
+//! checkout where none is, each on the machine the job's own checkout stands on, or one grown for a repository
+//! set to `auto` where none is free, held as an assignment in the job's name, so everything that reads what is
+//! held reads it and nothing is launched into it. It stands until the job no longer runs. The job's own program asks for it with its session token, since it holds no control
 //! token, and is lent only for the job running in its own checkout.
 
 use axum::http::{Method, StatusCode};
@@ -40,6 +40,27 @@ fn lent(status: StatusCode, checkout: &Worker, assignment_id: i64) -> Result<Res
   };
 
   Ok(answer(status, serde_json::to_value(borrowing).map_err(Refused::failed)?))
+}
+
+// The lent checkout's worktree made where it is missing, as a launch makes it (docs/worker-slots.md, 「Names and
+// places」); a worktree that cannot be made lets the loan go, refused with why.
+async fn made(
+  ground: &crate::places::Ground,
+  checkout: &Worker,
+  assignment_id: i64,
+) -> Result<(), Refused> {
+  let Err(why) = crate::places::checkouts::ensure_support_checkout(ground, &checkout.name).await else {
+    return Ok(());
+  };
+
+  store::run(
+    &ground.db,
+    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2"#,
+    vec![crate::now_ms().into(), assignment_id.into()],
+  )
+  .await?;
+
+  Err(refused(StatusCode::INTERNAL_SERVER_ERROR, "checkout-not-made", why))
 }
 
 /// A checkout lent to the job working in the run the ask names.
@@ -133,8 +154,31 @@ impl Route for Borrow {
       if is_free(db, &member.name).await? {
         let assignment =
           hold(call.ground(), item_id, &holder, &member.name, crate::agent_roles::job_role()).await?;
+        let id = assignment["id"].as_i64().unwrap_or_default();
 
-        return lent(StatusCode::CREATED, member, assignment["id"].as_i64().unwrap_or_default());
+        made(call.ground(), member, id).await?;
+
+        return lent(StatusCode::CREATED, member, id);
+      }
+    }
+
+    // A repository set to `auto` grows one on this machine, bounded by the machine's room alone (docs/worker-slots.md,
+    // 「Growing a checkout at a launch」).
+    if node.is_none()
+      && let Some(of) = crate::repositories::named(db, repository).await?
+    {
+      let holding = super::support_growth::Holding {
+        item_id,
+        holder: &holder,
+        role: crate::agent_roles::job_role(),
+      };
+
+      if let Some(grown) = super::support_growth::grow(call.ground(), &of, None, holding).await? {
+        let id = grown.assignment["id"].as_i64().unwrap_or_default();
+
+        made(call.ground(), &grown.checkout, id).await?;
+
+        return lent(StatusCode::CREATED, &grown.checkout, id);
       }
     }
 

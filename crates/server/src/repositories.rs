@@ -55,8 +55,8 @@ pub struct Repository {
   pub path: String,
   /// The work node the base checkout stands on, where it stands on one.
   pub node: Option<String>,
-  /// How many support worktrees stand beside the base.
-  pub support_count: i64,
+  /// How many support worktrees stand beside the base, or `auto` for as many as its launches grow.
+  pub support_count: bmo_agency_client::SupportCount,
   /// The paths of the documents a run's prefix carries here, in order.
   pub prefix_documents: Vec<String>,
   pub preamble: Option<String>,
@@ -68,6 +68,12 @@ pub struct Repository {
 }
 
 impl Repository {
+  /// Whether a launch that finds every checkout held grows the next support checkout: set to `auto`, its base
+  /// on this machine (docs/worker-slots.md, 「Growing a checkout at a launch」).
+  pub fn grows(&self) -> bool {
+    self.support_count.stored().is_none() && self.node.as_deref().is_none_or(str::is_empty)
+  }
+
   pub fn of(row: &QueryResult) -> Result<Self, Fault> {
     let documents: Option<String> = row.try_get("", "prefix_documents")?;
     let provider: Option<String> = row.try_get("", "pinned_provider")?;
@@ -79,7 +85,7 @@ impl Repository {
       owner_account: row.try_get("", "owner_account")?,
       path: row.try_get("", "path")?,
       node: row.try_get("", "node")?,
-      support_count: row.try_get("", "support_count")?,
+      support_count: bmo_agency_client::SupportCount::of_stored(row.try_get("", "support_count")?),
       prefix_documents: documents.and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default(),
       preamble: row.try_get("", "preamble")?,
       rules: row.try_get("", "prompts")?,

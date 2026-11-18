@@ -77,8 +77,8 @@ pub async fn release_others(db: &DatabaseConnection, item_id: i64, holder: &str)
   Ok(())
 }
 
-/// Whether nothing holds a checkout now.
-pub async fn is_free(db: &DatabaseConnection, checkout: &str) -> Result<bool, Refusal> {
+/// Whether nothing holds a checkout now, read in whatever connection a caller holds.
+pub async fn is_free<C: sea_orm::ConnectionTrait>(db: &C, checkout: &str) -> Result<bool, Refusal> {
   let held = one(
     db,
     &format!(r#"SELECT 1 AS "held" FROM ({HOLDING}) h WHERE h."worker_name" = $1 LIMIT 1"#),

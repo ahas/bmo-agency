@@ -1,5 +1,5 @@
 //! This machine's room for the launcher (docs/agent-control.md, 「Room on the machine」): the node service
-//! reports the machine's standing, agency judges the machine's four limits over it and its own two over the
+//! reports the machine's standing, agency judges the machine's five limits over it and its own two over the
 //! jobs at work, keeps the launcher's notice of a held launch and says when the room has returned.
 
 use agent_session::JobMark;
@@ -168,7 +168,25 @@ pub fn counted(at_work: &[AtWork], standing: &Standing) -> (u64, u64) {
   (at_work.len() as u64, browsing as u64)
 }
 
-/// This machine's room: the machine's four limits over the standing the node service reports, then
+/// What the jobs at work still lack of the share each is reckoned to grow to, in gigabytes: the share less
+/// what the job's place holds in the standing, none where it holds more.
+pub fn still_to_grow(at_work: &[AtWork], standing: &Standing, share_gb: f64) -> f64 {
+  at_work
+    .iter()
+    .map(|worker| {
+      let held_mb = standing
+        .scopes
+        .iter()
+        .filter(|place| place.scope == worker.worker)
+        .map(|place| place.megabytes)
+        .sum::<i64>();
+
+      (share_gb - held_mb as f64 / 1024.0).max(0.0)
+    })
+    .sum()
+}
+
+/// This machine's room: the machine's five limits over the standing the node service reports, then
 /// agency's own job-count limits met. A standing that cannot be read holds nothing of the machine's part
 /// and counts no browser.
 pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Room, Refusal> {
@@ -176,6 +194,7 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
     eprintln!("agency: the machine's standing: {fault}");
     Standing::unread()
   });
+  let working = at_work(db).await?;
   let mut held = vec![];
 
   if let Some(reading) = &standing.reading {
@@ -200,6 +219,22 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
         &MACHINE_ROOM.launch_memory_available_gb.held,
         &[("value", &tenth(reading.mem_available_gb)), ("limit", &shown(limit))],
       ));
+    } else {
+      let share = machine_limit(db, "launch_job_memory_gb", &MACHINE_ROOM.launch_job_memory_gb).await?;
+      let growth = still_to_grow(&working, &standing, share);
+
+      if reading.mem_available_gb - growth - share < limit {
+        held.push(fill_marks(
+          &MACHINE_ROOM.launch_job_memory_gb.held,
+          &[
+            ("value", &tenth(reading.mem_available_gb)),
+            ("growth", &tenth(growth)),
+            ("jobs", &working.len().to_string()),
+            ("share", &shown(share)),
+            ("limit", &shown(limit)),
+          ],
+        ));
+      }
     }
 
     let limit = machine_limit(db, "launch_load_per_thread", &MACHINE_ROOM.launch_load_per_thread).await?;
@@ -227,7 +262,7 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
     }
   }
 
-  let (jobs, browser_jobs) = counted(&at_work(db).await?, &standing);
+  let (jobs, browser_jobs) = counted(&working, &standing);
 
   for (name, of, count) in [
     ("launch_jobs", &MACHINE_ROOM.launch_jobs, jobs),

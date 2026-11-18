@@ -150,7 +150,13 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   std::fs::create_dir_all(&login).unwrap();
   std::fs::create_dir_all(home.path().join("helper")).unwrap();
   tool_host(&host);
-  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  repository(
+    scratch.db(),
+    "helper",
+    &home.path().join("helper").to_string_lossy(),
+    &[("support_count", 0i64.into())],
+  )
+  .await;
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
     .run(
@@ -868,7 +874,13 @@ async fn an_assign_for_the_same_item_and_holder_answers_the_standing_hold() {
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  repository(
+    scratch.db(),
+    "helper",
+    &home.path().join("helper").to_string_lossy(),
+    &[("support_count", 0i64.into())],
+  )
+  .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -966,7 +978,13 @@ async fn an_assign_naming_no_assignee_goes_where_its_item_goes() {
   std::fs::create_dir_all(&data).unwrap();
 
   for name in ["alpha", "helper", "worker"] {
-    repository(scratch.db(), name, &home.path().join(name).to_string_lossy(), &[]).await;
+    repository(
+      scratch.db(),
+      name,
+      &home.path().join(name).to_string_lossy(),
+      &[("support_count", 0i64.into())],
+    )
+    .await;
   }
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);

@@ -68,7 +68,6 @@ fn checkout(name: &str, support_of: Option<&str>, node: Option<&str>) -> Worker 
     label: name.to_owned(),
     cwd: format!("/work/{name}"),
     builtin: false,
-    support_count: 0,
     support_of: support_of.map(str::to_owned),
     support_slot: support_of.map(|_| 2),
     node: node.map(str::to_owned),

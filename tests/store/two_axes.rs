@@ -399,9 +399,13 @@ async fn worker_rows_become_repositories_and_only_a_registered_pin_is_carried() 
     Some("flash-next")
   );
 
-  let web = row(&scratch, "repositories", "web").await;
   assert_eq!(
-    web.try_get::<i64>("", "support_count").unwrap(),
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "support_checkouts" WHERE "repository" = 'web' AND "slot" = 2"#,
+        vec![]
+      )
+      .await,
     1,
     "a support row here is a support checkout"
   );

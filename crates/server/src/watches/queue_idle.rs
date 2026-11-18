@@ -111,6 +111,9 @@ pub struct Standing {
   pub paused: Vec<Open>,
   /// The checkouts nothing holds now, as `POST /assignments` reads them (docs/api.md, 「assignments and jobs」).
   pub free: Vec<String>,
+  /// The repositories a launch grows a support checkout for while no launch is held for the machine's room
+  /// (docs/worker-slots.md, 「The queue with support checkouts」), by name.
+  pub growing: Vec<String>,
   /// The repository each checkout is of, by the checkout's name; a checkout it does not name is a base, its
   /// repository its own name.
   pub repositories: BTreeMap<String, String>,
@@ -132,10 +135,14 @@ pub struct Standing {
 }
 
 impl Standing {
-  /// Whether a checkout the assignee names, or a checkout of the repository it names, is free; for an item naming
-  /// none, the checkout named `worker`.
+  /// Whether a checkout the assignee names, or a checkout of the repository it names, is free, or the repository
+  /// it names grows one; for an item naming none, the checkout named `worker`.
   pub fn free_for(&self, assignee: Option<&str>) -> bool {
     let assignee = assignee.unwrap_or(crate::queue::workers::BUILTIN_WORKER);
+
+    if self.growing.iter().any(|repository| repository == assignee) {
+      return true;
+    }
 
     self.free.iter().any(|checkout| {
       let repository = self.repositories.get(checkout).map_or(checkout.as_str(), String::as_str);
@@ -168,9 +175,10 @@ pub fn waiting(standing: &Standing) -> Vec<&Open> {
   awaiting_launch(standing)
 }
 
-/// The open items awaiting a launch: those whose repository has a free checkout, and those naming none while the
-/// checkout named `worker` is free; an item whose `agent` label names an agent carrying a run waits on that agent
-/// instead, and one naming a model and no agent waits until one agent of its role on that model is free.
+/// The open items awaiting a launch: those whose repository has a free checkout or grows one, and those naming
+/// none while the checkout named `worker` is free; an item whose `agent` label names an agent carrying a run waits
+/// on that agent instead, and one naming a model and no agent waits until one agent of its role on that model is
+/// free.
 pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
   standing
     .open
@@ -809,6 +817,16 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     .filter(|worker| !worker.builtin && !busy.contains(&worker.name))
     .map(|worker| worker.name)
     .collect();
+  // A launch held for the machine grows nothing, so no repository counts as growing while it stands.
+  let growing = match crate::watches::machine::launch_held(db).await? {
+    Some(_) => vec![],
+    None => crate::repositories::every(db)
+      .await?
+      .into_iter()
+      .filter(crate::repositories::Repository::grows)
+      .map(|repository| repository.name)
+      .collect(),
+  };
   let last_start = one(db, r#"SELECT MAX("started_at") AS "at" FROM "jobs""#, vec![])
     .await?
     .and_then(|row| row.try_get::<Option<i64>>("", "at").ok().flatten());
@@ -817,6 +835,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     open,
     paused,
     free,
+    growing,
     repositories,
     known,
     carrying,

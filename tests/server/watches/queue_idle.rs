@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use agency_server::queue::orderer::Orderer;
+use agency_server::watches::machine::{LaunchHeld, tell_launch_held};
 use agency_server::watches::queue_idle::{
   DRAFT_TOLD_PREFIX, Draft, LAUNCH_OWED, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
   approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, held, idle, job_started,
@@ -112,6 +113,43 @@ async fn a_checkout_a_hold_stands_on_is_not_free() {
 
   assert_eq!(standing.free, ["w1-w2"], "the base held, the support worktree's hold let go");
   assert_eq!(awaiting_launch(&standing), vec![&open(1, Some("w1"))]);
+}
+
+// A repository set to `auto` counts as free with every checkout held, so each of its open items awaits a launch,
+// until the launcher holds launches for the machine's room; one set to a count waits for a checkout.
+#[tokio::test]
+async fn a_repository_that_grows_counts_as_free_until_launches_are_held_for_the_machine() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  repository(db, "grown", "/checkouts/grown", &[]).await;
+  repository(db, "fixed", "/checkouts/fixed", &[("support_count", 0i64.into())]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (1, 30, 'left', 'grown', 'held', 0, 0), (2, 31, 'left', 'fixed', 'held', 0, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let items = || vec![open(1, Some("grown")), open(2, Some("grown")), open(3, Some("fixed"))];
+  let standing = held(db, items()).await.unwrap();
+
+  assert_eq!(awaiting_launch(&standing), vec![&open(1, Some("grown")), &open(2, Some("grown"))]);
+
+  tell_launch_held(
+    db,
+    &LaunchHeld {
+      at: 1,
+      held: vec!["available memory 3GB < 4GB".to_owned()],
+    },
+  )
+  .await
+  .unwrap();
+
+  let standing = held(db, items()).await.unwrap();
+
+  assert!(awaiting_launch(&standing).is_empty(), "a launch held for the machine grows nothing");
 }
 
 #[test]
@@ -447,8 +485,8 @@ async fn a_told_item_that_stops_waiting_is_let_go_so_it_is_told_again_once_free(
   let peers = Peers::default();
   let vars = stand(&peers).await;
 
-  repository(db, "w1", "/checkouts/w1", &[]).await;
-  repository(db, "w2", "/checkouts/w2", &[]).await;
+  repository(db, "w1", "/checkouts/w1", &[("support_count", 0i64.into())]).await;
+  repository(db, "w2", "/checkouts/w2", &[("support_count", 0i64.into())]).await;
   supervisor(db, "chat", &[]).await;
   scratch
     .run(
@@ -490,8 +528,8 @@ async fn an_item_awaiting_a_launch_is_told_once_for_its_stretch_and_again_once_i
   let calls = peers.calls.clone();
   let vars = stand(&peers).await;
 
-  repository(db, "w1", "/checkouts/w1", &[]).await;
-  repository(db, "w2", "/checkouts/w2", &[]).await;
+  repository(db, "w1", "/checkouts/w1", &[("support_count", 0i64.into())]).await;
+  repository(db, "w2", "/checkouts/w2", &[("support_count", 0i64.into())]).await;
   supervisor(db, "chat", &[]).await;
 
   let told_11 = |calls: &Calls| {

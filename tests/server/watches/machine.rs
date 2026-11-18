@@ -1,4 +1,4 @@
-//! This machine's room for the launcher: the machine's four limits over the standing the node service
+//! This machine's room for the launcher: the machine's five limits over the standing the node service
 //! reports, agency's job-count limits over the workers at work here, the launcher's notice of a held
 //! launch kept, and the room's return told once nothing holds a launch.
 
@@ -185,7 +185,7 @@ async fn the_room_holds_on_the_machines_limits_and_then_on_agency_s_job_counts()
   workers(&scratch).await;
 
   let roomy = Machine {
-    standing: standing(reading(Some(1.0), 8.0, 10.0, 100.0)),
+    standing: standing(reading(Some(1.0), 12.0, 10.0, 100.0)),
     down: false,
   };
 
@@ -202,6 +202,20 @@ async fn the_room_holds_on_the_machines_limits_and_then_on_agency_s_job_counts()
   };
 
   assert_eq!((jobs, browser_jobs, browsers), (2, 1, 3));
+
+  // 8GB available, less the 1.2GB w1 and the 1.7GB w2 still lack of their 2GB shares and 2GB for one more.
+  let growing = Machine {
+    standing: standing(reading(Some(1.0), 8.0, 10.0, 100.0)),
+    down: false,
+  };
+
+  assert_eq!(
+    room(db, &growing).await.unwrap().held,
+    vec![
+      "available memory 8GB less 2.9GB the 2 jobs at work are still to grow into and 2GB for one more < 4GB"
+    ],
+    "the jobs at work are reckoned to grow"
+  );
 
   let short = Machine {
     standing: standing(reading(Some(5.04), 3.5, 50.0, 12.0)),

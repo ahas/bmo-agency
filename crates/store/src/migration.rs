@@ -89,6 +89,7 @@ mod m20261228_000001_call_names;
 mod m20261229_000001_short_slots;
 mod m20261230_000001_run_turns;
 mod m20261231_000001_double_gone;
+mod m20270101_000001_support_auto;
 
 use sea_orm_migration::prelude::*;
 
@@ -114,12 +115,13 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 56] = [
+pub const OWN_TABLES: [&str; 57] = [
   "supervisors",
   "roles",
   "role_seeded",
   "repositories",
   "repository_node_checkouts",
+  "support_checkouts",
   "role_sessions",
   "role_slot_requests",
   "role_agents",
@@ -266,6 +268,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261229_000001_short_slots::Migration),
       Box::new(m20261230_000001_run_turns::Migration),
       Box::new(m20261231_000001_double_gone::Migration),
+      Box::new(m20270101_000001_support_auto::Migration),
     ]
   }
 

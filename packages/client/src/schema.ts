@@ -4403,8 +4403,7 @@ export interface components {
             ownerAccount: number | null;
             path: string;
             nodeName: string | null;
-            /** Format: int64 */
-            supportCount: number;
+            supportCount: components["schemas"]["SupportCount"];
             prefixDocuments: string[];
             preamble: string | null;
             rules: string | null;
@@ -4419,6 +4418,16 @@ export interface components {
             samplingSettings: components["schemas"]["SamplingSetting"][];
             checkouts: components["schemas"]["RepositoryCheckout"][];
         };
+        /**
+         * @description SupportCount: how many support checkouts a repository has beside its base: a whole number from 0 to 8, or
+         *     `auto` for as many as its launches grow.
+         */
+        SupportCount: number | components["schemas"]["SupportAuto"];
+        /**
+         * @description SupportAuto: the support count that grows a checkout at a launch that finds every one held.
+         * @enum {string}
+         */
+        SupportAuto: "auto";
         /** @description RepositoryPin: a repository's pinned provider and model. */
         RepositoryPin: {
             provider: string;
@@ -4471,8 +4480,7 @@ export interface components {
             ownerAccount?: number | null;
             path?: string | null;
             nodeName?: string | null;
-            /** Format: int64 */
-            supportCount?: number | null;
+            supportCount?: components["schemas"]["SupportCount"] | null;
             prefixDocuments?: string[] | null;
             preamble?: string | null;
             rules?: string | null;
@@ -4906,6 +4914,15 @@ export interface components {
         };
         /** @description bad-signature */
         BadSignature: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description checkout-not-made */
+        CheckoutNotMade: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7690,6 +7707,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["UnknownRepository"];
+            409: components["responses"]["AgentBusy"];
             422: components["responses"]["NoWorkerFree"];
             502: components["responses"]["UpstreamFailed"];
         };
@@ -7729,6 +7747,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NoJob"];
             422: components["responses"]["NotThisJob"];
+            500: components["responses"]["CheckoutNotMade"];
         };
     };
     readAssignmentsByAssignmentId: {

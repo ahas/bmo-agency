@@ -15,7 +15,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   - **its path,** the base checkout, the directory its jobs work in, which every add names: agency makes no
     checkout and no directory for a repository; and **its node,** where the base checkout stands on a work
     node that takes jobs rather than here (`docs/work-nodes.md`, 「Which nodes take jobs」);
-  - **its checkouts:** how many support worktrees stand beside the base, and the checkouts it keeps on the
+  - **its checkouts:** how many support worktrees stand beside the base, `auto` for as many as its launches
+    grow (`docs/worker-slots.md`, 「Growing a checkout at a launch」), and the checkouts it keeps on the
     work nodes that take jobs, set as one list (`docs/worker-slots.md`, 「Checkouts on the nodes」);
   - **its prefix documents,** the paths of the documents a run's prefix carries in this repository, in
     order (`docs/worker-bench.md`, 「Prefix documents」);

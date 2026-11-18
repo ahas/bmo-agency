@@ -151,10 +151,11 @@ not_restable = "{worker} is not a worker that can rest or wake: only a worker th
 no_worker = "There is no worker named {worker}."
 # A repository named {name} that the store does not hold.
 no_repository = "There is no repository named {name}."
-# A support count that is no whole number from zero to the most one repository may have, {most}.
-support_count = "A support count is a whole number from 0 to {most}."
+# A support count that is neither `auto` nor a whole number from zero to the most one repository may have,
+# {most}.
+support_count = "A support count is auto or a whole number from 0 to {most}."
 # The usage a --support with no --set is answered with.
-support_usage = "usage: bmo-agency agent --set <repository> --support <count>"
+support_usage = "usage: bmo-agency agent --set <repository> --support auto|<count>"
 # A worker brought back from a node with no path of this machine to work in.
 back_here_path = "Coming back to this machine, give this machine's path with --path."
 nothing_to_change = "There is nothing to change."

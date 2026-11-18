@@ -1,7 +1,7 @@
 //! The checkouts jobs work in, as the repositories hold them (docs/worker-slots.md): each repository's base
-//! checkout, the support worktrees its count asks for beside it, and the checkouts it keeps on the work nodes.
-//! A checkout is a place, never an agent: it is read off its repository's row, and nothing of it is written
-//! but the repository's own fields.
+//! checkout, the support worktrees its count asks for beside it or, for a repository set to `auto`, the ones it
+//! has grown, and the checkouts it keeps on the work nodes. A checkout is a place, never an agent: it is read off
+//! its repository's row and the support checkouts it has recorded.
 
 use std::path::Path;
 
@@ -37,7 +37,6 @@ pub struct Worker {
   pub label: String,
   pub cwd: String,
   pub builtin: bool,
-  pub support_count: i64,
   pub support_of: Option<String>,
   pub support_slot: Option<i64>,
   /// The work node it stands on, none for this machine.
@@ -68,13 +67,13 @@ impl Worker {
     self.node.is_some() && self.support_slot.is_none()
   }
 
-  fn base(repository: &Repository) -> Self {
+  /// A repository's base checkout.
+  pub fn base(repository: &Repository) -> Self {
     Self {
       name: repository.name.clone(),
       label: repository.label.clone().unwrap_or_else(|| repository.name.clone()),
       cwd: repository.path.clone(),
       builtin: false,
-      support_count: repository.support_count,
       support_of: None,
       support_slot: None,
       node: repository.node.clone().filter(|node| !node.is_empty()),
@@ -128,19 +127,46 @@ pub fn repository_named_by(checkout: &str, held: impl Fn(&str) -> bool) -> Optio
   [Some(checkout), support_base, node_base].into_iter().flatten().find(|name| held(name))
 }
 
+/// What a repository's support worktree is when it is the one at `slot`.
+pub fn support_worker(base: &Worker, slot: i64) -> Worker {
+  Worker {
+    name: support_name(&base.name, slot),
+    label: support_label(&base.label, slot),
+    cwd: support_path(&base.cwd, slot),
+    builtin: false,
+    support_of: Some(base.name.clone()),
+    support_slot: Some(slot),
+    node: base.node.clone(),
+  }
+}
+
+/// The support checkouts every repository set to `auto` has recorded, as their rows read.
+const RECORDED: &str =
+  r#"SELECT "repository", "slot" FROM "support_checkouts" ORDER BY "repository", "slot""#;
+
+// The slots a repository's support worktrees stand at: within its count, or the ones it recorded where it is
+// set to `auto`.
+fn support_slots(repository: &Repository, recorded: &[QueryResult]) -> Vec<i64> {
+  match repository.support_count.stored() {
+    Some(count) => (WORKERS.first_support_slot..WORKERS.first_support_slot + count).collect(),
+    None => recorded
+      .iter()
+      .filter(|row| row.try_get::<String>("", "repository").is_ok_and(|of| of == repository.name))
+      .filter_map(|row| row.try_get::<i64>("", "slot").ok())
+      .collect(),
+  }
+}
+
 // A repository's checkouts after its base: its support worktrees by slot, then its node checkouts.
-fn supports(base: &Worker, nodes: &[QueryResult]) -> Vec<Worker> {
-  let mut held: Vec<Worker> = (WORKERS.first_support_slot..WORKERS.first_support_slot + base.support_count)
-    .map(|slot| Worker {
-      name: support_name(&base.name, slot),
-      label: support_label(&base.label, slot),
-      cwd: support_path(&base.cwd, slot),
-      builtin: false,
-      support_count: 0,
-      support_of: Some(base.name.clone()),
-      support_slot: Some(slot),
-      node: base.node.clone(),
-    })
+fn supports(
+  repository: &Repository,
+  base: &Worker,
+  recorded: &[QueryResult],
+  nodes: &[QueryResult],
+) -> Vec<Worker> {
+  let mut held: Vec<Worker> = support_slots(repository, recorded)
+    .into_iter()
+    .map(|slot| support_worker(base, slot))
     .collect();
 
   for row in nodes {
@@ -158,7 +184,6 @@ fn supports(base: &Worker, nodes: &[QueryResult]) -> Vec<Worker> {
         label: node_checkout_label(&base.label, &node),
         cwd: path,
         builtin: false,
-        support_count: 0,
         support_of: Some(base.name.clone()),
         support_slot: None,
         node: Some(node),
@@ -174,11 +199,12 @@ fn supports(base: &Worker, nodes: &[QueryResult]) -> Vec<Worker> {
 pub async fn workers(db: &DatabaseConnection, source: &Path) -> Result<Vec<Worker>, Refusal> {
   let nodes =
     all(db, r#"SELECT * FROM "repository_node_checkouts" ORDER BY "repository", "node""#, vec![]).await?;
+  let recorded = all(db, RECORDED, vec![]).await?;
   let mut workers = vec![];
 
   for repository in repositories::every(db).await? {
     let base = Worker::base(&repository);
-    let beside = supports(&base, &nodes);
+    let beside = supports(&repository, &base, &recorded, &nodes);
 
     workers.push(base);
     workers.extend(beside);
@@ -192,7 +218,6 @@ pub async fn workers(db: &DatabaseConnection, source: &Path) -> Result<Vec<Worke
         label: BUILTIN_WORKER.into(),
         cwd: source.to_string_lossy().into_owned(),
         builtin: true,
-        support_count: 0,
         support_of: None,
         support_slot: None,
         node: None,
@@ -292,14 +317,15 @@ pub async fn workers_in<C: sea_orm::ConnectionTrait>(db: &C) -> Result<Vec<Strin
   let nodes =
     all(db, r#"SELECT * FROM "repository_node_checkouts" ORDER BY "repository", "node""#, vec![]).await?;
   let rows = all(db, r#"SELECT * FROM "repositories" ORDER BY "name""#, vec![]).await?;
+  let recorded = all(db, RECORDED, vec![]).await?;
   let mut names = vec![];
 
   for row in &rows {
     let repository = Repository::of(row)?;
     let base = Worker::base(&repository);
 
-    names.extend(supports(&base, &nodes).into_iter().map(|worker| worker.name));
-    names.insert(names.len() - supports(&base, &nodes).len(), base.name);
+    names.push(base.name.clone());
+    names.extend(supports(&repository, &base, &recorded, &nodes).into_iter().map(|worker| worker.name));
   }
 
   Ok(names)

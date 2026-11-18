@@ -87,6 +87,7 @@ mod control {
   mod supervisor_reset;
   mod supervisor_road;
   mod supervisor_settings;
+  mod support_growth;
   mod turn_restart;
   mod worker_runtime;
 }
@@ -170,6 +171,7 @@ mod places {
   mod ground;
   mod handed_tokens;
   mod home;
+  mod idle_supports;
   mod item_sweep;
   mod locks;
   mod nodes;

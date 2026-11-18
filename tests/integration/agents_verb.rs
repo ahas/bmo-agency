@@ -64,11 +64,16 @@ async fn asked(db: &DatabaseConnection, home: &Path, args: &AgentsArgs) -> Said 
   agents(&stand, args).await.unwrap()
 }
 
-// The repository's support count as its row holds it now.
-async fn support_of(scratch: &Scratch, name: &str) -> i64 {
-  scratch
-    .count(r#"SELECT "support_count" FROM "repositories" WHERE "name" = $1"#, vec![name.into()])
-    .await
+// The repository's support count as its row holds it now, none for `auto`.
+async fn support_of(scratch: &Scratch, name: &str) -> Option<i64> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "support_count" FROM "repositories" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await
+  .unwrap()
+  .and_then(|row| row.try_get::<Option<i64>>("", "support_count").unwrap())
 }
 
 #[tokio::test]
@@ -77,17 +82,14 @@ async fn a_support_count_given_on_the_verb_is_written_to_the_repository() {
   let home = tempfile::tempdir().unwrap();
   repository(scratch.db(), "video", "/checkouts/video", &[]).await;
 
-  assert_eq!(support_of(&scratch, "video").await, 0, "a repository starts with none");
+  assert_eq!(support_of(&scratch, "video").await, None, "a repository starts at auto");
 
-  let said = ask(scratch.db(), home.path(), "video", "3").await;
+  for (count, held) in [("3", Some(3)), ("0", Some(0)), ("auto", None)] {
+    let said = ask(scratch.db(), home.path(), "video", count).await;
 
-  assert_eq!(said.ended, None, "{said:?}");
-  assert_eq!(support_of(&scratch, "video").await, 3);
-
-  let said = ask(scratch.db(), home.path(), "video", "0").await;
-
-  assert_eq!(said.ended, None, "{said:?}");
-  assert_eq!(support_of(&scratch, "video").await, 0);
+    assert_eq!(said.ended, None, "{count}: {said:?}");
+    assert_eq!(support_of(&scratch, "video").await, held, "{count}");
+  }
 }
 
 #[tokio::test]
@@ -96,11 +98,11 @@ async fn a_support_count_outside_the_range_is_refused_and_writes_nothing() {
   let home = tempfile::tempdir().unwrap();
   repository(scratch.db(), "video", "/checkouts/video", &[]).await;
 
-  for count in ["9", "-1", "1.5", "many"] {
+  for count in ["9", "-1", "1.5", "many", "AUTO"] {
     let said = ask(scratch.db(), home.path(), "video", count).await;
 
     assert_eq!(said.ended.as_ref().map(|(code, _)| *code), Some(1), "{count}: {said:?}");
-    assert_eq!(support_of(&scratch, "video").await, 0, "{count}");
+    assert_eq!(support_of(&scratch, "video").await, None, "{count}");
   }
 }
 

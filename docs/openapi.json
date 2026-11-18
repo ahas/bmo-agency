@@ -4484,6 +4484,9 @@
           "422": {
             "$ref": "#/components/responses/NoWorkerFree"
           },
+          "409": {
+            "$ref": "#/components/responses/AgentBusy"
+          },
           "502": {
             "$ref": "#/components/responses/UpstreamFailed"
           }
@@ -4493,6 +4496,7 @@
           "bad-request",
           "unknown-repository",
           "no-worker-free",
+          "agent-busy",
           "upstream-failed"
         ],
         "requestBody": {
@@ -4546,6 +4550,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NoJob"
+          },
+          "500": {
+            "$ref": "#/components/responses/CheckoutNotMade"
           }
         },
         "x-codes": [
@@ -4555,7 +4562,8 @@
           "no-job",
           "own-repository",
           "no-checkout-here",
-          "no-worker-free"
+          "no-worker-free",
+          "checkout-not-made"
         ],
         "requestBody": {
           "required": true,
@@ -14767,8 +14775,7 @@
             ]
           },
           "supportCount": {
-            "type": "integer",
-            "format": "int64"
+            "$ref": "#/components/schemas/SupportCount"
           },
           "prefixDocuments": {
             "type": "array",
@@ -14848,6 +14855,25 @@
           "checkouts"
         ],
         "description": "Repository: one repository as its row holds it, with its checkouts."
+      },
+      "SupportCount": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "format": "int64"
+          },
+          {
+            "$ref": "#/components/schemas/SupportAuto"
+          }
+        ],
+        "description": "SupportCount: how many support checkouts a repository has beside its base: a whole number from 0 to 8, or\n`auto` for as many as its launches grow."
+      },
+      "SupportAuto": {
+        "type": "string",
+        "enum": [
+          "auto"
+        ],
+        "description": "SupportAuto: the support count that grows a checkout at a launch that finds every one held."
       },
       "RepositoryPin": {
         "type": "object",
@@ -15028,11 +15054,14 @@
             ]
           },
           "supportCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupportCount"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "prefixDocuments": {
             "type": [
@@ -16202,6 +16231,16 @@
       },
       "BadSignature": {
         "description": "bad-signature",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "CheckoutNotMade": {
+        "description": "checkout-not-made",
         "content": {
           "application/json": {
             "schema": {

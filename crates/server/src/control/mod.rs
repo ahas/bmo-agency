@@ -47,6 +47,7 @@ mod supervisor_removal;
 pub mod supervisor_reset;
 mod supervisor_routes;
 pub mod supervisor_settings;
+pub(crate) mod support_growth;
 pub mod translation_runs;
 pub mod typed_line;
 mod walk_reads;
