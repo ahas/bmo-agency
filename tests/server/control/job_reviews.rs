@@ -356,6 +356,9 @@ async fn a_rejection_is_counted_and_a_stage_passed_hands_the_next_one_over() {
     member["review"]["stages"],
     json!(["Change the screen", "Check it with the design skill"])
   );
+  // The second stage goes out as a turn the way the rework did; it is waited out, so no turn of it still holds the
+  // store when the test's database is dropped.
+  until_state(port, 24, "stopped").await;
   turn_marks::ended(agent, "run-s1");
 }
 
