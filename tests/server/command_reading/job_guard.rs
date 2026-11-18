@@ -65,7 +65,7 @@ fn web() -> Checkouts {
       repository: "web".into(),
       cwd: "/home/tester/repos/web-w2".into(),
     }],
-    sealed: None,
+    sealed: vec![],
   }
 }
 
@@ -216,11 +216,11 @@ async fn an_umbrella_job_s_relative_write_into_its_folder_is_read_from_where_the
     checkouts: Checkouts {
       own: vec!["/home/tester/repos".into(), "/home/tester/repos/agency".into()],
       foreign: vec![],
-      sealed: Some(SealedTree {
+      sealed: vec![SealedTree {
         repository: "tree".into(),
         cwd: "/home/tester/repos".into(),
         tracked: vec!["README.md".into()],
-      }),
+      }],
     },
     ..Stand::default()
   };

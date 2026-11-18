@@ -1,8 +1,8 @@
 //! The job guard: what agency's shell hook refuses of a shell command on a line whose programs are jobs'
 //! (docs/live-claude-guard.md). It refuses, in this order, what no opening lets through — Claude Code in
 //! print mode, a removal the CLI would stop on, a shell habit that stalls a job, a change to the statement
-//! document the job's item does not open, a write into another worker's checkout, a write into an umbrella
-//! job's own folder — then a heavy command
+//! document the job's item does not open, a write into another worker's checkout, a write of a file an
+//! umbrella's folder tracks — then a heavy command
 //! started outside the testbed, then a command that starts Claude Code, writes into its session records, forks
 //! a session or puts words into a pane, unless the job has opened the live-Claude guard for itself, in which
 //! case the command is recorded against the opening and let through. Of a file tool's write it refuses the
@@ -87,7 +87,7 @@ pub async fn file_refusal(path: &str, ground: &impl JobGround) -> Option<String>
     |checkouts| {
       foreign_file_write(path, checkouts)
         .map(|checkout| foreign_refusal(checkout, "it edits a file there"))
-        .or_else(|| sealed(checkouts, sealed_file_write(path, checkouts)))
+        .or_else(|| sealed_file_write(path, checkouts).map(|(tree, why)| sealed_refusal(tree, &why)))
     },
     true,
     ground,
@@ -100,11 +100,6 @@ pub fn live_claude_refusal(refused: &str) -> String {
   format!(
     "refused before this job has said what for: {refused}, which writes a whole prefix to the cache again. To open it for this job: bmo live-claude --purpose '<what you measure and why>'. Nobody is asked; every run it lets through is recorded and the count goes into the item's report (docs/live-claude-guard.md, 「A job opens it by saying what for」)."
   )
-}
-
-// A write into an umbrella job's own folder, as its refusal says it.
-fn sealed(checkouts: &Checkouts, why: Option<String>) -> Option<String> {
-  Some(sealed_refusal(checkouts.sealed.as_ref()?, &why?))
 }
 
 /// Why a job's shell may not run this command as written, or nothing; `home` is the home the command's
@@ -133,7 +128,9 @@ pub async fn job_refusal(
     |checkouts| {
       foreign_command_write(command, checkouts, &standing)
         .map(|(checkout, why)| foreign_refusal(checkout, &why))
-        .or_else(|| sealed(checkouts, sealed_command_write(command, checkouts, &standing)))
+        .or_else(|| {
+          sealed_command_write(command, checkouts, &standing).map(|(tree, why)| sealed_refusal(tree, &why))
+        })
     },
     names_a_path(command) || (cwd.is_some() && may_write(command)),
     ground,

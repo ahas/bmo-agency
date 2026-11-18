@@ -182,15 +182,17 @@
   worker's checkout is that checkout's, by the same deepest-checkout reading, so a job standing in a folder
   that holds other checkouts below it writes into none of them by a relative path either.
 - **What it refuses of a file tool:** a file whose path lies inside such a checkout.
-- **An umbrella job's own folder is sealed** (`docs/worker-slots.md`, 「An umbrella repository」). Where the job's
-  own checkout is an umbrella's, the files its git tracks are read as the hook starts, and the hook refuses,
-  read the way the checkouts' writes are and from where the shell stands: a write naming one of those files
-  however its path is spelled, absolute or relative; and git changing that repository itself — one of the git
-  subcommands above run where the shell stands in the folder and in no checkout below it, or naming the folder.
-  Of a file tool, a file the umbrella tracks. A write in a checkout lent to the job, which stands below the
-  folder, is the deepest checkout's and goes through, and so does a file the umbrella's git does not track.
-  `STRUCTURE.md` keeps its own rule below, in the umbrella as anywhere. The refusal names the folder and says
-  that the job's work goes in the checkouts lent to it.
+- **Every umbrella's folder is sealed, for every job** (`docs/worker-slots.md`, 「An umbrella repository」). For
+  each umbrella on the job's machine, its own job's among them, the files its git tracks are read as the hook
+  needs them, and the hook refuses, read the way the checkouts' writes are and from where the shell stands: a
+  write naming one of those files however its path is spelled, absolute or relative; and git changing that
+  repository itself — one of the git subcommands above naming the folder, or run where the shell stands in the
+  folder or in a directory of it holding files it tracks, in no checkout below it. Of a file tool, a file the
+  umbrella tracks. An umbrella is no other worker's checkout beyond those files: a write in a checkout below
+  the folder is that checkout's, by the deepest-checkout reading, and a place below it that no checkout names,
+  or a file its git does not track, is not guarded. `STRUCTURE.md` keeps its own rule below, in the umbrella as
+  anywhere. The refusal names the folder and says that a job's work goes in its own checkout and the ones lent
+  to it.
 - **What it lets through:** a read (`cat`, `grep`, `git diff`, `git log`), any write in the job's own
   checkout or in one it borrowed, and a write where no checkout stands.
 - **The refusal** names the checkout, whose it is, and the verb that borrows one, `bmo job borrow

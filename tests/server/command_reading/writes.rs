@@ -23,7 +23,7 @@ fn checkouts() -> Checkouts {
   Checkouts {
     own: vec!["/home/tester/repos/agency".into()],
     foreign: vec![checkout("web", "/home/tester/repos/web"), checkout("umbrella", "/home/tester/repos")],
-    sealed: None,
+    sealed: vec![],
   }
 }
 
@@ -45,11 +45,15 @@ fn umbrella() -> Checkouts {
   Checkouts {
     own: vec!["/home/tester/repos".into(), "/home/tester/repos/agency".into()],
     foreign: vec![checkout("web", "/home/tester/repos/web")],
-    sealed: Some(SealedTree {
-      repository: "tree".into(),
-      cwd: "/home/tester/repos".into(),
-      tracked: vec!["README.md".into(), "docs/owner/plan.md".into()],
-    }),
+    sealed: vec![tree()],
+  }
+}
+
+fn tree() -> SealedTree {
+  SealedTree {
+    repository: "tree".into(),
+    cwd: "/home/tester/repos".into(),
+    tracked: vec!["README.md".into(), "docs/owner/plan.md".into()],
   }
 }
 
@@ -63,7 +67,7 @@ fn in_folder() -> Standing {
 #[test]
 fn an_umbrella_job_writes_none_of_its_folder_s_tracked_files_and_writes_in_the_checkouts_lent_to_it() {
   let known = umbrella();
-  let sealed = |command: &str| sealed_command_write(command, &known, &in_folder());
+  let sealed = |command: &str| sealed_command_write(command, &known, &in_folder()).map(|(_, why)| why);
 
   for command in [
     "echo x > README.md",
@@ -100,6 +104,42 @@ fn an_umbrella_job_writes_none_of_its_folder_s_tracked_files_and_writes_in_the_c
   assert!(sealed_file_write("/home/tester/repos/docs/owner/plan.md", &known).is_some());
   assert_eq!(sealed_file_write("/home/tester/repos/agency/README.md", &known), None);
   assert_eq!(sealed_file_write("/home/tester/repos/new-notes.md", &known), None);
+}
+
+#[test]
+fn another_job_writes_none_of_an_umbrella_s_tracked_files_and_anywhere_else_below_its_folder() {
+  // A job in a checkout below the folder, and a repository below it that no row names.
+  let known = Checkouts {
+    own: vec!["/home/tester/repos/agency".into()],
+    foreign: vec![checkout("web", "/home/tester/repos/web")],
+    sealed: vec![tree()],
+  };
+  let standing = Standing {
+    at: Some("/home/tester/repos/agency".into()),
+    home: HOME.into(),
+  };
+  let sealed = |command: &str| sealed_command_write(command, &known, &standing).map(|(_, why)| why);
+
+  for command in [
+    "echo x > ../README.md",
+    "cd .. && git commit -am x",
+    "cd ~/repos/docs && echo x > owner/plan.md",
+  ] {
+    assert!(sealed(command).is_some(), "let through: {command}");
+  }
+
+  for command in [
+    "echo x > notes.md",
+    "git commit -am x",
+    "echo x > ../agency-scratch/notes.md",
+    "cd ../agency-scratch && git commit -am x",
+  ] {
+    assert_eq!(sealed(command), None, "{command}");
+    assert_eq!(foreign_command_write(command, &known, &standing), None, "{command}");
+  }
+
+  assert!(sealed_file_write("/home/tester/repos/README.md", &known).is_some());
+  assert_eq!(sealed_file_write("/home/tester/repos/agency-scratch/a.md", &known), None);
 }
 
 #[test]

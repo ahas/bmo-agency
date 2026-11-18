@@ -217,9 +217,11 @@
   is the one row's. Its work is done in the checkouts lent to it, which stand below the folder.
 - **It runs one job at a time.** An umbrella row takes no support checkouts and no node checkouts, refused at
   the add and the change, so its one checkout's lock lets one job in.
-- **Its own tree is guarded:** the job guard refuses a write to a file the umbrella's git tracks and git
-  changing the umbrella's own repository, and lets a write in a checkout lent to the job through (「A job
-  writes only in its own checkout」; `docs/live-claude-guard.md`).
+- **Its own tree is guarded, against every job:** the job guard refuses a write to a file the umbrella's git
+  tracks and git changing the umbrella's own repository, its own job's as much as any other's, and lets a write
+  in a checkout lent to the job through (「A job writes only in its own checkout」; `docs/live-claude-guard.md`).
+  The umbrella is no other worker's checkout beyond its tracked files, so a place below its folder that no
+  checkout names stays as unguarded as it was.
 
 ## A repository whose base is a worktree of another's
 

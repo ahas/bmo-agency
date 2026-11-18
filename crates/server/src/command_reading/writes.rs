@@ -73,9 +73,9 @@ pub struct ForeignCheckout {
   pub cwd: String,
 }
 
-/// An umbrella job's own folder, whose tracked files none of its jobs writes (docs/worker-slots.md, 「An umbrella
-/// repository」): the umbrella repository, its path, and the files its git tracks, relative to the path,
-/// `STRUCTURE.md` left to its own rule.
+/// An umbrella's own folder, whose tracked files no job writes (docs/worker-slots.md, 「An umbrella repository」):
+/// the umbrella repository, its path, and the files its git tracks, relative to the path, `STRUCTURE.md` left to
+/// its own rule.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SealedTree {
   pub repository: String,
@@ -84,13 +84,14 @@ pub struct SealedTree {
 }
 
 /// The checkouts a job's writes are judged against: the paths it writes in — its own checkout and those it
-/// borrowed — every other worker's checkout on its machine, and its own folder where that is an umbrella's. A
-/// path is the deepest checkout's that holds it, since one checkout may stand inside another's directory.
+/// borrowed — every other worker's checkout on its machine, and every umbrella's own folder there, its own among
+/// them where it is an umbrella's job. A path is the deepest checkout's that holds it, since one checkout may
+/// stand inside another's directory; an umbrella's folder guards only the files it tracks.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Checkouts {
   pub own: Vec<String>,
   pub foreign: Vec<ForeignCheckout>,
-  pub sealed: Option<SealedTree>,
+  pub sealed: Vec<SealedTree>,
 }
 
 impl Checkouts {
@@ -211,9 +212,9 @@ impl Foreign<'_> {
   }
 }
 
-// An umbrella job's own folder as a command may name it: each file it tracks, by its whole path under any spelling
-// of the home, and the folder itself; and, from where the shell stands, a relative word landing on a tracked file
-// in no checkout below the folder, and git run in the folder outside every checkout below it.
+// An umbrella's own folder as a command may name it: each file it tracks, by its whole path under any spelling of
+// the home, and the folder itself; and, from where the shell stands, a relative word landing on a tracked file in
+// no checkout below the folder, and git run in a directory of the folder's own.
 struct Sealed<'a> {
   tree: &'a SealedTree,
   patterns: Vec<Regex>,
@@ -275,8 +276,18 @@ impl WriteTarget for Sealed<'_> {
         .is_some_and(|file| self.tree.tracked.iter().any(|tracked| tracked == file))
   }
 
+  // Git run here works on the umbrella's own repository where the directory is its folder or one that holds files
+  // it tracks: any other directory below the folder is ignored by it, and a repository standing there is that
+  // repository's own.
   fn stands_in(&self, at: &str) -> bool {
+    let root = trimmed(&self.tree.cwd);
+    let at = trimmed(at);
+
     self.outside_inner(at)
+      && (at == root
+        || at.strip_prefix(&format!("{root}/")).is_some_and(|folder| {
+          self.tree.tracked.iter().any(|file| file.starts_with(&format!("{folder}/")))
+        }))
   }
 }
 
@@ -542,7 +553,9 @@ impl Standing {
     match args.iter().find(|arg| !arg.starts_with('-')) {
       None => home,
       Some(word) if word.starts_with('/') => Some(resolved("/", word)),
-      Some(word) if word == "~" || word.starts_with("~/") => home.map(|home| resolved(&home, &word[1..])),
+      Some(word) if word == "~" || word.starts_with("~/") => {
+        home.map(|home| resolved(&home, word[1..].trim_start_matches('/')))
+      }
       Some(word) if relative_path(word) => self.at.as_deref().map(|at| resolved(at, word)),
       Some(_) => None,
     }
@@ -684,30 +697,35 @@ pub fn foreign_file_write<'a>(path: &str, checkouts: &'a Checkouts) -> Option<&'
   checkouts.foreign.iter().find(|checkout| checkout.cwd == deepest)
 }
 
-/// Why a command would write a file an umbrella job's own folder tracks, or change its repository through git, or
-/// nothing; `standing` is where the shell stands and the home its paths are spelled under.
-pub fn sealed_command_write(command: &str, checkouts: &Checkouts, standing: &Standing) -> Option<String> {
-  let tree = checkouts.sealed.as_ref()?;
-
-  reason_at(command, &Sealed::of(tree, checkouts, &standing.home), standing, 0)
+/// The umbrella whose tracked files a command would write, or whose repository it would change through git, with
+/// why, or nothing; `standing` is where the shell stands and the home its paths are spelled under.
+pub fn sealed_command_write<'a>(
+  command: &str,
+  checkouts: &'a Checkouts,
+  standing: &Standing,
+) -> Option<(&'a SealedTree, String)> {
+  checkouts.sealed.iter().find_map(|tree| {
+    reason_at(command, &Sealed::of(tree, checkouts, &standing.home), standing, 0).map(|why| (tree, why))
+  })
 }
 
-/// Why a file tool's call on this path would write a file an umbrella job's own folder tracks, or nothing: the
-/// folder is the deepest checkout holding it, and its git tracks the file.
-pub fn sealed_file_write(path: &str, checkouts: &Checkouts) -> Option<String> {
-  let tree = checkouts.sealed.as_ref()?;
-  let root = trimmed(&tree.cwd);
-  let file = path.strip_prefix(&format!("{root}/"))?;
-  let in_folder = deepest(checkouts.paths(), path).map(trimmed) == Some(root);
+/// The umbrella whose tracked file a file tool's call on this path would write, with why, or nothing: the
+/// umbrella's folder is the deepest checkout holding the path, and its git tracks the file.
+pub fn sealed_file_write<'a>(path: &str, checkouts: &'a Checkouts) -> Option<(&'a SealedTree, String)> {
+  checkouts.sealed.iter().find_map(|tree| {
+    let root = trimmed(&tree.cwd);
+    let file = path.strip_prefix(&format!("{root}/"))?;
+    let in_folder = deepest(checkouts.paths().chain([root]), path).map(trimmed) == Some(root);
 
-  (in_folder && tree.tracked.iter().any(|tracked| tracked == file))
-    .then(|| format!("it edits {path}, a file the umbrella {} tracks", tree.repository))
+    (in_folder && tree.tracked.iter().any(|tracked| tracked == file))
+      .then(|| (tree, format!("it edits {path}, a file the umbrella {} tracks", tree.repository)))
+  })
 }
 
-/// What a refusal of a write into an umbrella job's own folder says.
+/// What a refusal of a write into an umbrella's own folder says.
 pub fn sealed_refusal(tree: &SealedTree, why: &str) -> String {
   format!(
-    "refused: {why} — {cwd} is the umbrella {repository}'s own folder, which its jobs never write: its files are the owner's. An umbrella job's work goes in the checkouts lent to it, which stand below the folder; borrow another with bmo job borrow <repository> (docs/worker-slots.md, 「An umbrella repository」).",
+    "refused: {why} — {cwd} is the umbrella {repository}'s own folder, whose files are the owner's and which no job writes. A job's work goes in its own checkout and the checkouts lent to it, which stand below the folder; borrow another with bmo job borrow <repository> (docs/worker-slots.md, 「An umbrella repository」).",
     cwd = tree.cwd,
     repository = tree.repository,
   )

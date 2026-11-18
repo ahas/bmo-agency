@@ -189,17 +189,25 @@ impl JobGround for StoreGround {
       checkout.name == own.name || borrowed.contains(&checkout.name) || path(checkout) == path(own)
     });
 
-    let sealed = own.umbrella.then(|| SealedTree {
-      repository: own.repository().to_owned(),
-      cwd: path(own),
-      tracked: tracked_files(&path(own)),
-    });
+    // An umbrella guards the files its folder tracks, for its own job and every other: it is no other worker's
+    // checkout beyond them, so a place below its folder that no checkout names stays unguarded.
+    let sealed = writes_in
+      .iter()
+      .chain(&others)
+      .filter(|checkout| checkout.umbrella)
+      .map(|checkout| SealedTree {
+        repository: checkout.repository().to_owned(),
+        cwd: path(checkout),
+        tracked: tracked_files(&path(checkout)),
+      })
+      .collect();
 
     Checkouts {
       sealed,
       own: writes_in.into_iter().map(path).collect(),
       foreign: others
         .into_iter()
+        .filter(|checkout| !checkout.umbrella)
         .map(|checkout| ForeignCheckout {
           worker: checkout.name.clone(),
           repository: checkout.repository().to_owned(),
