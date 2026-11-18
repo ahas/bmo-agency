@@ -177,7 +177,20 @@
     `perl -e`, `python3 - <<'EOF'` and the like) whose write call names a file there, or that names the
     checkout and makes a write call whose file the reading cannot resolve.
   After a `cd` or `pushd` into the checkout, every relative path counts as being there.
+- **A relative path is read from where the shell stands:** the working directory the hook is handed with the
+  call, followed through each `cd` and `pushd` the command makes. A relative word that lands inside another
+  worker's checkout is that checkout's, by the same deepest-checkout reading, so a job standing in a folder
+  that holds other checkouts below it writes into none of them by a relative path either.
 - **What it refuses of a file tool:** a file whose path lies inside such a checkout.
+- **An umbrella job's own folder is sealed** (`docs/worker-slots.md`, 「An umbrella repository」). Where the job's
+  own checkout is an umbrella's, the files its git tracks are read as the hook starts, and the hook refuses,
+  read the way the checkouts' writes are and from where the shell stands: a write naming one of those files
+  however its path is spelled, absolute or relative; and git changing that repository itself — one of the git
+  subcommands above run where the shell stands in the folder and in no checkout below it, or naming the folder.
+  Of a file tool, a file the umbrella tracks. A write in a checkout lent to the job, which stands below the
+  folder, is the deepest checkout's and goes through, and so does a file the umbrella's git does not track.
+  `STRUCTURE.md` keeps its own rule below, in the umbrella as anywhere. The refusal names the folder and says
+  that the job's work goes in the checkouts lent to it.
 - **What it lets through:** a read (`cat`, `grep`, `git diff`, `git log`), any write in the job's own
   checkout or in one it borrowed, and a write where no checkout stands.
 - **The refusal** names the checkout, whose it is, and the verb that borrows one, `bmo job borrow

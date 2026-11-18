@@ -265,7 +265,7 @@ pub async fn shell_hook(input: &str, refuses: Refuses, home: &str, job: &impl Jo
     && let Ok(read) = hook_input(input)
   {
     let refused = match (read.tool.as_str(), read.command, read.path) {
-      ("Bash", Some(command), _) => job_refusal(&command, read.call, home, job).await,
+      ("Bash", Some(command), _) => job_refusal(&command, read.call, home, read.cwd.as_deref(), job).await,
       (tool, _, Some(path)) if FILE_WRITERS.contains(&tool) => file_refusal(&path, job).await,
       _ => None,
     };

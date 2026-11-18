@@ -60,9 +60,13 @@ and the agency's own:
   A launch whose item names neither is refused `agent-unnamed` with the same list. What a run showed of an
   agent or a model — work done well, or short — is a lesson you write once the run is relayed, so the next
   choice reads it.
-- **Work across several repositories is one item per repository,** each with the same brief and the
-  same `series=<name>` label, the name one short word for the whole of it, so the items read as one
-  piece of work in the queue.
+- **One change that reaches two or more repositories is one item.** File it to the repository it runs
+  in, the umbrella repository where the change has no home of its own, with its label `repositories`
+  naming every repository it reaches, comma-separated. Its launch lends its job a checkout of each before
+  its first turn, waiting while one is busy, and the job closes them in one close; its stages stay few and
+  broad, never one a repository. Work across repositories that is not one change stays one item per
+  repository, and a `series=<name>` label, one short word for the whole of it, ties such items together
+  in the queue.
 - **The brief is the run's whole instruction.** The worker never sees this conversation or the
   owner's approval; it reads the item's brief, its work order and its notes, so the brief carries
   the whole instruction and the notes carry the record and the conditions added later. Write it in
@@ -299,7 +303,7 @@ and the agency's own:
   read with `job_items` the items whose `close-phase:<repository>` reads `waiting-batch` (the label filter
   `close-phase:<repository>=waiting-batch`), and the older ones whose `close-phase` alone does, and, for each
   repository that holds such an item, what related work is still open or leased: an item of the same
-  repository, or of the same `series` in another repository. While any is left, the waiting commits stay
+  repository, one naming it in its `repositories` label, or one of the same `series` in another repository. While any is left, the waiting commits stay
   waiting. When none is left — or the oldest waiting commit of the repository has waited three hours, or the owner says to put it live now — put that
   repository's main live once, with the deploy tool, the repository's declared name, main's commit and an
   English reason naming the items it carries, without asking anybody: every item that runs was approved, and

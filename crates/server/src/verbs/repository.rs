@@ -36,9 +36,10 @@ pub fn added(status: u16, answer: Option<Value>, name: &str, path: &str) -> Resu
   Err(VerbError::Refused(format!("repository add: {why}")))
 }
 
-/// The repository `name` added at `path`, with the label it is shown by where one is named, through the
-/// server's `POST /repositories` route. Every other field is left at the server's default.
-pub async fn add(name: &str, path: &str, label: Option<&str>) -> Result<Answer, VerbError> {
+/// The repository `name` added at `path`, with the label it is shown by where one is named and marked an umbrella
+/// where `umbrella` says so, through the server's `POST /repositories` route. Every other field is left at the
+/// server's default.
+pub async fn add(name: &str, path: &str, label: Option<&str>, umbrella: bool) -> Result<Answer, VerbError> {
   let name = name.trim();
   let path = path.trim();
 
@@ -58,6 +59,10 @@ pub async fn add(name: &str, path: &str, label: Option<&str>) -> Result<Answer, 
 
   if let Some(label) = label {
     body.insert("label".to_owned(), label.into());
+  }
+
+  if umbrella {
+    body.insert("umbrella".to_owned(), true.into());
   }
 
   let body = Value::Object(body);

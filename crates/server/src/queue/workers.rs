@@ -41,6 +41,9 @@ pub struct Worker {
   pub support_slot: Option<i64>,
   /// The work node it stands on, none for this machine.
   pub node: Option<String>,
+  /// Whether it is an umbrella's checkout, whose own tree its jobs never write (docs/worker-slots.md, 「An
+  /// umbrella repository」).
+  pub umbrella: bool,
 }
 
 impl Worker {
@@ -77,6 +80,7 @@ impl Worker {
       support_of: None,
       support_slot: None,
       node: repository.node.clone().filter(|node| !node.is_empty()),
+      umbrella: repository.umbrella,
     }
   }
 }
@@ -137,6 +141,7 @@ pub fn support_worker(base: &Worker, slot: i64) -> Worker {
     support_of: Some(base.name.clone()),
     support_slot: Some(slot),
     node: base.node.clone(),
+    umbrella: false,
   }
 }
 
@@ -187,6 +192,7 @@ fn supports(
         support_of: Some(base.name.clone()),
         support_slot: None,
         node: Some(node),
+        umbrella: false,
       });
     }
   }
@@ -221,6 +227,7 @@ pub async fn workers(db: &DatabaseConnection, source: &Path) -> Result<Vec<Worke
         support_of: None,
         support_slot: None,
         node: None,
+        umbrella: false,
       },
     );
   }

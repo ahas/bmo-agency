@@ -37,6 +37,24 @@ pub const ROLE_LABEL: &str = "role";
 /// The label an item names the agent its job runs on with (docs/repositories.md, 「An agent an item names」).
 pub const AGENT_LABEL: &str = "agent";
 
+/// The label an item names the other repositories its job is lent a checkout of with, comma-separated
+/// (docs/worker-slots.md, 「A checkout lent to a job」).
+pub const REPOSITORIES_LABEL: &str = "repositories";
+
+/// The repositories an item's labels name to be lent, each once, in the order named; none where the label is
+/// absent or names nothing.
+pub fn named_repositories(labels: &serde_json::Value) -> Vec<String> {
+  let mut named: Vec<String> = vec![];
+
+  for name in labels[REPOSITORIES_LABEL].as_str().unwrap_or_default().split(',').map(str::trim) {
+    if !name.is_empty() && !named.iter().any(|kept| kept == name) {
+      named.push(name.to_owned());
+    }
+  }
+
+  named
+}
+
 /// The value of a label that names nothing, as an absent or empty one.
 pub const AUTO: &str = "auto";
 
@@ -64,6 +82,9 @@ pub struct Repository {
   pub rules: Option<String>,
   pub dev_command: Option<String>,
   pub pin: Option<Pin>,
+  /// Whether it is an umbrella: a folder holding other repositories' checkouts, whose own tree its jobs never
+  /// write (docs/worker-slots.md, 「An umbrella repository」).
+  pub umbrella: bool,
   pub downgrade_heal: bool,
 }
 
@@ -71,7 +92,9 @@ impl Repository {
   /// Whether a launch that finds every checkout held grows the next support checkout: set to `auto`, its base
   /// on this machine (docs/worker-slots.md, 「Growing a checkout at a launch」).
   pub fn grows(&self) -> bool {
-    self.support_count.stored().is_none() && self.node.as_deref().is_none_or(str::is_empty)
+    !self.umbrella
+      && self.support_count.stored().is_none()
+      && self.node.as_deref().is_none_or(str::is_empty)
   }
 
   pub fn of(row: &QueryResult) -> Result<Self, Fault> {
@@ -91,6 +114,7 @@ impl Repository {
       rules: row.try_get("", "prompts")?,
       dev_command: row.try_get("", "dev_command")?,
       pin: Pin::of_parts(provider, model),
+      umbrella: row.try_get::<i64>("", "umbrella")? != 0,
       downgrade_heal: row.try_get::<i64>("", "downgrade_heal")? != 0,
     })
   }

@@ -112,7 +112,7 @@ fn the_file_item_tool_takes_the_repository_and_says_how_work_across_repositories
 
   assert!(input["properties"]["repository"].is_object(), "{input}");
   assert!(
-    file_item.description.contains("repository") && file_item.description.contains("series="),
+    file_item.description.contains("repository") && file_item.description.contains("repositories label"),
     "{}",
     file_item.description
   );

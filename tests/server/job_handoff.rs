@@ -7,8 +7,7 @@
 //! session's first turn opening on what it wrote, and a stopped job's relaunch sending its first turn on the
 //! handoff the stopped session wrote.
 
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use agency_server::control::work::{handed_over, launched};
@@ -21,9 +20,7 @@ use agency_server::now_ms;
 use agency_server::run_log::lines::Line;
 use agency_server::run_log::{RunLog, Target};
 use agency_server::turn_pickup::{InFlight, at_start, keep};
-use agent_session::{
-  Fault, FaultKind, Reply, Scope, Session, SessionId, Sessions, Start, State, Turn, TurnEnd,
-};
+use agent_session::Scope;
 use policy::job_handoff::JOB_HANDOFF;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -31,6 +28,7 @@ use tokio::net::TcpListener;
 use crate::support::grounds::seeded_with;
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
+use crate::support::stand_in::StandIn;
 
 const TOKEN: &str = "secret";
 
@@ -275,120 +273,6 @@ async fn a_stopped_job_s_answer_is_noted_as_its_handoff_and_the_item_s_next_job_
     Some(json!({ "state": "stopped", "report": "The test is over." })),
   )
   .await;
-}
-
-/// A backend of the test's own over the session contract: it keeps every session it was asked to start and
-/// every turn it was handed, and answers each turn, in order, with the words and the harness session given.
-#[derive(Default)]
-struct StandIn {
-  started: Mutex<Vec<Start>>,
-  sent: Mutex<Vec<Turn>>,
-  answers: Mutex<VecDeque<(String, String)>>,
-}
-
-impl StandIn {
-  fn answering(answers: &[(&str, &str)]) -> Arc<Self> {
-    Arc::new(Self {
-      answers: Mutex::new(
-        answers
-          .iter()
-          .map(|(words, session)| ((*words).to_owned(), (*session).to_owned()))
-          .collect(),
-      ),
-      ..Self::default()
-    })
-  }
-
-  // Each turn handed, with the session it was started on: its road and the harness session it resumes.
-  fn turns(&self) -> Vec<(String, Option<String>, String)> {
-    let started = self.started.lock().unwrap();
-
-    self
-      .sent
-      .lock()
-      .unwrap()
-      .iter()
-      .map(|turn| {
-        let number: usize = turn.session.0.trim_start_matches("stand-in-").parse().unwrap();
-        let Scope::Apart(apart) = &started[number].scope else {
-          panic!("a job's turn goes on an apart session")
-        };
-
-        (apart.provider.clone(), apart.resume.clone(), turn.prompt.clone())
-      })
-      .collect()
-  }
-}
-
-impl Sessions for StandIn {
-  async fn start(&self, request: Start) -> Result<Session, Fault> {
-    let mut started = self.started.lock().unwrap();
-    let id = SessionId(format!("stand-in-{}", started.len()));
-
-    started.push(request.clone());
-
-    Ok(Session {
-      id,
-      agent: request.agent,
-      scope: request.scope,
-    })
-  }
-
-  async fn switch(&self, _: &SessionId, _: Option<&str>, _: Option<&str>) -> Result<Session, Fault> {
-    Err(Fault::new(FaultKind::Refused, "the stand-in does not switch"))
-  }
-
-  async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
-    self.sent.lock().unwrap().push(turn);
-
-    let (words, session) = self
-      .answers
-      .lock()
-      .unwrap()
-      .pop_front()
-      .ok_or_else(|| Fault::new(FaultKind::Refused, "no answer left"))?;
-    let reply = Reply {
-      mode: "stand-in".into(),
-      model: None,
-      effort: None,
-      text: words.clone(),
-      session_id: Some(session),
-      account: None,
-      context_ratio: None,
-      context_tokens: None,
-      session_usage: None,
-      spend: vec![],
-      live_tasks: vec![],
-      workflows: vec![],
-      upstream: None,
-      request_usages: None,
-    };
-
-    Ok(TurnEnd {
-      reply: Some(Box::new(reply)),
-      ..TurnEnd::answered("job-run", words)
-    })
-  }
-
-  async fn read_state(&self, _: &SessionId, _: Option<&str>) -> Result<State, Fault> {
-    Err(Fault::new(FaultKind::Refused, "the stand-in keeps no state"))
-  }
-
-  async fn interrupt(&self, _: &SessionId, _: i64) -> Result<(), Fault> {
-    Ok(())
-  }
-
-  async fn fold(&self, _: &SessionId) -> Result<(), Fault> {
-    Ok(())
-  }
-
-  async fn end(&self, _: &SessionId) -> Result<(), Fault> {
-    Ok(())
-  }
-
-  async fn list(&self) -> Result<Vec<Session>, Fault> {
-    Ok(Vec::new())
-  }
 }
 
 // A job of the item in the base checkout `helper`, running on agent `worker-01` with the prompt given.

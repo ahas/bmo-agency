@@ -958,8 +958,9 @@ pub struct FileItem {
   /// The queue it is filed in.
   pub queue_name: String,
   /// The repository the work is in, by its internal name, so only that repository's worker takes it;
-  /// left out for host work, which is in no repository. Work across several repositories is one item per
-  /// repository, each with the same brief and the same `series=<name>` label.
+  /// left out for host work, which is in no repository. One change that reaches two or more repositories is one
+  /// item: its repository the one it runs in, an umbrella where it has no home of its own, and its label
+  /// `repositories` naming every repository it reaches, comma-separated.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1968,6 +1969,9 @@ pub struct AssignWorker {
 pub struct BorrowAsk {
   pub run_name: String,
   pub repository_name: String,
+  /// wait for a checkout to come free rather than be refused for none
+  #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+  pub wait: bool,
 }
 
 /// A checkout lent to a job: the checkout's name, where it stands, and the assignment held in the job's name.
@@ -3659,6 +3663,9 @@ pub struct Repository {
   pub rules: Option<String>,
   pub dev_command: Option<String>,
   pub pin: Option<RepositoryPin>,
+  /// a folder holding other repositories' checkouts below it, whose own tree its jobs never write
+  #[serde(default)]
+  pub umbrella: bool,
   pub downgrade_heal: bool,
   /// each setting it holds by name: a number or a switch; a setting left out is the engine's own default
   pub sampling: Option<BTreeMap<String, Value>>,
@@ -3701,6 +3708,9 @@ pub struct RepositoryAsk {
   pub dev_command: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub pin: Option<Option<RepositoryPin>>,
+  /// an umbrella, which takes no support checkouts and no node checkouts
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub umbrella: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub downgrade_heal: Option<bool>,
   /// each setting by name, a number, a switch, or null to leave it to the engine

@@ -3411,8 +3411,8 @@ with the session.
   of one model are offered different items at once. Of the items that wait to go on one agent,
   one is told at a time, the first in the queue's order not yet told — the highest priority, then the earliest
   place, then the lowest number: a free agent is offered its next item, and another once the next-offer seconds
-  (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never its whole
-  series at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
+  (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never all
+  of them at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
   notice and does not wait for the idle minutes.
 - **The notice is how a busy agent's next job starts.** An agent is busy while a job naming it stands
   `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, unless every such

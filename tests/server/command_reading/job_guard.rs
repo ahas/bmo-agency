@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use agency_server::command_reading::job_guard::JobGround;
 use agency_server::command_reading::testbed::Classified;
-use agency_server::command_reading::writes::{Checkouts, ForeignCheckout};
+use agency_server::command_reading::writes::{Checkouts, ForeignCheckout, SealedTree};
 use agency_server::verbs::agent_status::{CLOSED_INPUT, Refuses, shell_hook};
 use serde_json::{Value, json};
 
@@ -65,6 +65,7 @@ fn web() -> Checkouts {
       repository: "web".into(),
       cwd: "/home/tester/repos/web-w2".into(),
     }],
+    sealed: None,
   }
 }
 
@@ -206,6 +207,51 @@ async fn a_write_into_another_worker_s_checkout_is_refused_with_the_verb_that_bo
   assert!(reason.contains("it edits a file there"), "{reason}");
   assert_eq!(file_answer("Write", "/home/tester/repos/agency/src/a.rs", &stand).await, None);
   assert_eq!(file_answer("Read", "/home/tester/repos/web-w2/src/a.ts", &stand).await, None);
+}
+
+#[tokio::test]
+async fn an_umbrella_job_s_relative_write_into_its_folder_is_read_from_where_the_hook_says_the_shell_stands()
+ {
+  let stand = Stand {
+    checkouts: Checkouts {
+      own: vec!["/home/tester/repos".into(), "/home/tester/repos/agency".into()],
+      foreign: vec![],
+      sealed: Some(SealedTree {
+        repository: "tree".into(),
+        cwd: "/home/tester/repos".into(),
+        tracked: vec!["README.md".into()],
+      }),
+    },
+    ..Stand::default()
+  };
+  let standing_in = |command: &str| {
+    json!({ "tool_name": "Bash", "cwd": "/home/tester/repos", "tool_input": { "command": command } })
+      .to_string()
+  };
+  let decision = |answer: Option<String>| {
+    let answer: Value = serde_json::from_str(&answer.unwrap()).unwrap();
+
+    (
+      answer["hookSpecificOutput"]["permissionDecision"].as_str().map(str::to_owned),
+      answer["hookSpecificOutput"]["permissionDecisionReason"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned(),
+    )
+  };
+  let (refused, reason) = decision(shell_hook(&standing_in("echo x > README.md"), JOB, HOME, &stand).await);
+
+  assert_eq!(refused.as_deref(), Some("deny"), "{reason}");
+  assert!(reason.contains("the umbrella tree's own folder"), "{reason}");
+
+  let (sent, _) = decision(shell_hook(&standing_in("echo x > agency/README.md"), JOB, HOME, &stand).await);
+
+  assert_ne!(sent.as_deref(), Some("deny"), "a write in the checkout lent to the job goes through");
+
+  let reason = file_answer("Write", "/home/tester/repos/README.md", &stand).await.unwrap();
+
+  assert!(reason.contains("umbrella tree"), "{reason}");
+  assert_eq!(file_answer("Write", "/home/tester/repos/agency/README.md", &stand).await, None);
 }
 
 #[tokio::test]

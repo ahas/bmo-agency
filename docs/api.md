@@ -1203,8 +1203,13 @@ of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday
 
 - **Every repository is a row** (`docs/repositories.md`, 「What a repository row holds」): `name`, `label`,
   `ownerAccount`, `path`, `nodeName`, `supportCount`, `prefixDocuments`, `preamble`, `rules`, `devCommand`,
-  `pin` — `{provider, model}` or null — `downgradeHeal`, and `sampling`, the sampling a run on a pinned
-  registration is sent: each setting it holds by name, a number or a switch.
+  `pin` — `{provider, model}` or null — `umbrella`, `downgradeHeal`, and `sampling`, the sampling a run on a
+  pinned registration is sent: each setting it holds by name, a number or a switch.
+- **`umbrella`** is true for a folder holding other repositories' checkouts below it, whose own tree its jobs
+  never write (`docs/worker-slots.md`, 「An umbrella repository」), false where an add names none. An umbrella
+  takes no support checkouts and no node checkouts: an add of one naming no `supportCount` takes `0`, and an
+  add or a change that would leave an umbrella with a `supportCount` other than `0` or with node checkouts is
+  refused 400 `umbrella`.
 - **A repository answers its sampling's settings,** `samplingSettings`, every setting its sampling may hold,
   each `name` and either `switch`, true for an on-or-off setting, or its bounds — `min`, `max`, `aboveMin`, true
   where the least value itself is refused, and `whole`, true where only whole numbers are taken. A setting
@@ -1334,9 +1339,9 @@ where the shell stands in an agent's program, else the owner.
 | POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, the harness releases it, or the session its holder names ends; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment. |
-| POST | `/borrowings` | Lend a running job a free checkout of another repository on its own machine, held in the job's name until the job no longer runs. |
+| POST | `/borrowings` | Lend a running job a checkout of another repository on its own machine, put on the job's branch and held in the job's name until the job gives its checkout up; with `wait`, wait for one to come free. |
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
-| POST | `/jobs` | Run an item as its assignment's role in its repository: the harness hands over the item's content and the lease it holds, and agency launches the run once a slot of the role and a checkout are free; never refused for quota, it waits. |
+| POST | `/jobs` | Run an item as its assignment's role in its repository: the harness hands over the item's content and the lease it holds, and agency launches the run once a slot of the role, a checkout and a checkout of every other repository its `repositories` label names are free; never refused for quota, it waits. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released and its slot given back. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
@@ -1399,24 +1404,42 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   job owns it. So a hold a turn took and never started its job for does not outlive the session. An
   assignment a job runs on is the job's: its end releases it.
 - **A job's own loan of a checkout is an assignment held in its name,** its `holderName` `job:<jobId>`
-  (`docs/worker-slots.md`, 「A job writes only in its own checkout」). No job starts on it, and any read of the
-  assignments releases it once that job no longer runs.
+  (`docs/worker-slots.md`, 「A checkout lent to a job」). No job starts on it. Once that job gives its checkout
+  up — ended, stopped, failed, or its review paused — any read of the assignments gives the loan back: parked
+  onto the job's branch first on this machine, reading held until it is released (`docs/worker-slots.md`,
+  「Loans across a job's review」).
+- **A launch lends the repositories its item names.** `POST /jobs` reads the `item`'s label `repositories`,
+  repository names comma-separated, and keeps the names other than the job's own repository on the job; they
+  are held fixed on the lease with the launch's other labels (below). It refuses, nothing written: a name no
+  repository holds 422 `unknown-repository`; a repository with no checkout on the machine the job's checkout
+  stands on 422 `no-checkout-here`; more checkouts than `job_checkouts_most` (`policy/workers.toml`), the
+  job's own among them, 422 `too-many-checkouts`. Before the job's first turn a checkout of each is lent
+  together, the job waiting `starting` with its `heldFor` naming them while any has none to give, and its
+  prompt opens with each lent repository, its path and its branch (`docs/worker-slots.md`, 「A checkout lent
+  to a job」). A checkout that cannot be put on the job's branch fails the job with what git said.
 - **`POST /borrowings` lends a job a checkout,** the route under `bmo job borrow` (`docs/worker-slots.md`,
-  「A job writes only in its own checkout」). Its body names the job by `runName`, the run it works in, and the
-  repository by `repositoryName`.
+  「A job writes only in its own checkout」). Its body names the job by `runName`, the run it works in, the
+  repository by `repositoryName`, and `wait`, true to wait for a checkout rather than be refused for none.
   - **Who may ask:** the control token's holder for any running job, or the job's own program by its session
     token: a record whose holder is not the checkout the job runs in is refused 403 `not-this-job`.
-  - **What it takes:** a free support worktree of the repository first, its base checkout last, each on the
-    machine the job's own checkout stands on, held as the assignment `job:<jobId>` for the job's item. Where
-    none is free, a repository set to `"auto"` grows one, bounded by the machine's room alone. A support
-    worktree not made yet is made before the answer, as a launch makes it; one that cannot be made lets the
-    loan go and is refused 500 `checkout-not-made`, saying why. It
-    answers 201 with `workerName`, `cwd` and the assignment's `assignmentId`, or 200 with the loan the job
-    already holds, asked again.
+  - **What it takes:** a checkout of the repository on the machine the job's own checkout stands on, chosen as
+    every loan is — the one standing on the job's branch where one does, else a free support worktree first
+    and its base checkout last — held as the assignment `job:<jobId>` for the job's item. Where none is free,
+    a repository set to `"auto"` grows one, bounded by the machine's room alone. A support worktree not made
+    yet is made before the answer, as a launch makes it; one that cannot be made lets the loan go and is
+    refused 500 `checkout-not-made`, saying why. The checkout is then put on the job's branch; one that cannot
+    be is given back and refused 500 `checkout-not-placed`, with what git said. It answers 201 with
+    `workerName`, `cwd` and the assignment's `assignmentId`, or 200 with the loan the job already holds, asked
+    again.
   - **What it refuses:** a run no starting or running job works in 404 `no-job`; the job's own repository 422
-    `own-repository`; a repository with no checkout on that machine 422 `no-checkout-here`; one whose every
-    checkout there is at work and that grows none 422 `no-worker-free`, naming them, and the machine's reasons
-    where its room held the growth. Nothing waits.
+    `own-repository`; a repository with no checkout on that machine 422 `no-checkout-here`; a loan that would
+    take the job past `job_checkouts_most` 422 `too-many-checkouts`; one whose every checkout there is at work
+    and that grows none 422 `no-worker-free`, naming them, and the machine's reasons where its room held the
+    growth.
+  - **With `wait`,** a repository with no checkout to give holds the ask, looking again whenever a job or an
+    assignment changes, for at most `borrow_wait_seconds` (`policy/workers.toml`), and answers 201 once one is
+    lent, or 202 with `still-waiting` as its `code` and the sentence naming what holds every checkout, for the
+    verb to ask again. Every other refusal stands as above.
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
   answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
@@ -1445,7 +1468,7 @@ service.
 - **A running job's lease holds fixed what its launch read** (`docs/repositories.md`, 「An agent an item
   names」): as the job is written, and with every renewal and every lease taken again while it is `starting`,
   `running` or `reviewing`, agency sets the lease's `frozen` in the job service to the item's labels `agent`,
-  `role` and `model` and its fields `assigneeName` and `scope`, with the reason naming the job and the agent it
+  `role`, `model` and `repositories` and its fields `assigneeName` and `scope`, with the reason naming the job and the agent it
   runs on, so the job service refuses a change of any of them while the job runs. A renewal of a lease whose
   job has ended sets `frozen` to null, so what the item's next launch reads is changed freely. A lease the
   job service could not be asked to hold is said in agency's log, and the next pass asks again.
@@ -1463,6 +1486,10 @@ service.
     does not hold is 422 `unknown-repository`, and a call naming an `assigneeName` other than its
     `repository` is 400 `bad-request`. An item for work in no repository, host work, names none and goes to
     whichever worker its launch names;
+  - a label `repositories` names the repositories a change reaching two or more of them is lent at its launch
+    (「A launch lends the repositories its item names」 above), each one the store holds, refused 422
+    `unknown-repository` otherwise, and no more than `job_checkouts_most` with the item's own repository among
+    them, refused 422 `too-many-checkouts`;
   - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
     the owner's, said under the owner's own sender, which the account service links to the owner's account, whatever
     surface it came through, the console's included (`STRUCTURE.md`, 「In the console a person is their account」) — and lose any `asked-by` the call names, so the job service's unattended labels open an item
@@ -1851,8 +1878,8 @@ input, so `bmo` finds it from any directory.
 | `supervisor reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/supervisors/{supervisorName}/resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
-| `job borrow` | `<repository>`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither; on the port `AGENCY_CONTROL_PORT` names, else the one the data root's `env/agency.env` names (「The control port」) | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
-| `repository` | `add <name> --path <base checkout> [--label <label>]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
+| `job borrow` | `<repository> [--wait]`, run inside a job, which names it by `BMO_RUN_NAME`; it calls with the control token where the process holds one and with the job's session token `BMO_MCP_TOKEN` otherwise, and is refused where it holds neither; on the port `AGENCY_CONTROL_PORT` names, else the one the data root's `env/agency.env` names (「The control port」); `--wait` asks with `wait` and asks again on each `still-waiting`, printing what it waits for | the service's `POST /borrowings` route (`docs/worker-slots.md`, 「A job writes only in its own checkout」) |
+| `repository` | `add <name> --path <base checkout> [--label <label>] [--umbrella]`, or `remove <name>` | the service's `POST /repositories` and `DELETE /repositories/{repositoryName}` routes, a removal refused while a job holds one of its checkouts |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run say` | `<kind>:<id>` — `session:`, `job:`, `repository:` or `worker:` — `--words <text>`, `--file <path>` repeated, `--by <name>` | the server's words routes |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
@@ -1877,8 +1904,9 @@ tool is a thin call of one route through the agency's own client.
 - `file_item` calls `POST /item-filings`, naming the agent its server was started for (`bmo-agency mcp
   --agent <name>`); it is the chat line's one road for filing an item: the job plugin is started without its own
   item creation on every program, and no prompt names it. Its description tells the agent to name the
-  repository the work is in, none for host work, and to file work across several repositories as one item
-  per repository, each with the same brief and a shared `series=<name>` label.
+  repository the work is in, none for host work, and to file one change that reaches two or more repositories
+  as one item, its repository the one it runs in, an umbrella where it has no home of its own, and its label
+  `repositories` naming every repository it reaches.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
 - `review_job` calls `POST /job-reviews` the same way, and is listed beside them on the same terms. Its

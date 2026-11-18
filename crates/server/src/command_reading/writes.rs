@@ -1,8 +1,9 @@
 //! What a job's command or file tool writes into a place the job guard keeps (docs/live-claude-guard.md,
 //! 「The same hook keeps a job to its own checkout」, 「The same hook keeps STRUCTURE.md the owner's」): the
-//! owner's statement document, and another worker's checkout. It is a reading of text: a redirect, a program
-//! that writes files, an in-place editor, git changing a tree, and a script handed to an interpreter on the
-//! command line or by a heredoc. A command that only reads — `cat`, `grep`, `git diff` — writes nothing.
+//! owner's statement document, another worker's checkout, and the files an umbrella job's own folder tracks. It
+//! is a reading of text: a redirect, a program that writes files, an in-place editor, git changing a tree, and a
+//! script handed to an interpreter on the command line or by a heredoc, a relative path read from where the shell
+//! stands. A command that only reads — `cat`, `grep`, `git diff` — writes nothing.
 
 use std::sync::LazyLock;
 
@@ -24,12 +25,23 @@ const INTERPRETERS: [&str; 7] = ["python", "python3", "node", "bun", "perl", "ru
 
 /// A place a command may write into, as a reading of its text: what it is called in a refusal, what names
 /// it, the git subcommands that count as changing it, and whether a `cd` into it makes every relative path
-/// it.
+/// it. Where the reading knows where the shell stands, a relative word is read from there: whether it lands in
+/// the place, and whether git run there changes it.
 pub trait WriteTarget {
   fn label(&self) -> String;
   fn names(&self, text: &str) -> bool;
   fn git_writers(&self) -> &'static [&'static str];
   fn follows_cd(&self) -> bool;
+
+  /// Whether a relative word, read from the directory `at`, names the place.
+  fn names_from(&self, _word: &str, _at: &str) -> bool {
+    false
+  }
+
+  /// Whether git run in the directory `at` changes the place.
+  fn stands_in(&self, _at: &str) -> bool {
+    false
+  }
 }
 
 /// The statement document.
@@ -61,13 +73,24 @@ pub struct ForeignCheckout {
   pub cwd: String,
 }
 
+/// An umbrella job's own folder, whose tracked files none of its jobs writes (docs/worker-slots.md, 「An umbrella
+/// repository」): the umbrella repository, its path, and the files its git tracks, relative to the path,
+/// `STRUCTURE.md` left to its own rule.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SealedTree {
+  pub repository: String,
+  pub cwd: String,
+  pub tracked: Vec<String>,
+}
+
 /// The checkouts a job's writes are judged against: the paths it writes in — its own checkout and those it
-/// borrowed — and every other worker's checkout on its machine. A path is the deepest checkout's that holds
-/// it, since one checkout may stand inside another's directory.
+/// borrowed — every other worker's checkout on its machine, and its own folder where that is an umbrella's. A
+/// path is the deepest checkout's that holds it, since one checkout may stand inside another's directory.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Checkouts {
   pub own: Vec<String>,
   pub foreign: Vec<ForeignCheckout>,
+  pub sealed: Option<SealedTree>,
 }
 
 impl Checkouts {
@@ -94,6 +117,30 @@ fn within(path: &str, root: &str) -> bool {
   path == root || path.starts_with(&format!("{root}/"))
 }
 
+// A word read from the directory `at`: joined to it where it is relative, then its `.` and `..` parts walked,
+// so the path it names is compared as it stands.
+fn resolved(at: &str, word: &str) -> String {
+  let joined = if word.starts_with('/') { word.to_owned() } else { format!("{}/{word}", trimmed(at)) };
+  let mut parts: Vec<&str> = vec![];
+
+  for part in joined.split('/') {
+    match part {
+      "" | "." => {}
+      ".." => {
+        parts.pop();
+      }
+      part => parts.push(part),
+    }
+  }
+
+  format!("/{}", parts.join("/"))
+}
+
+// The deepest of these directories that holds the path, where any does.
+fn deepest<'a>(roots: impl Iterator<Item = &'a str>, path: &str) -> Option<&'a str> {
+  roots.filter(|root| within(path, root)).max_by_key(|root| trimmed(root).len())
+}
+
 // Another worker's checkout as a command may name it: its path as it stands and under the home, each matched
 // at a boundary, so a support worktree whose path begins with its base's is never read as the base; and a
 // path naming a checkout that stands inside this one is that checkout's, not this one's.
@@ -101,6 +148,7 @@ struct Foreign<'a> {
   checkout: &'a ForeignCheckout,
   patterns: Vec<Regex>,
   nested: Vec<Regex>,
+  inner: Vec<String>,
 }
 
 impl<'a> Foreign<'a> {
@@ -121,6 +169,7 @@ impl<'a> Foreign<'a> {
       checkout,
       patterns: at_boundary(&checkout.cwd, ""),
       nested,
+      inner: inner_paths(checkouts, &checkout.cwd),
     }
   }
 }
@@ -139,29 +188,125 @@ impl WriteTarget for Foreign<'_> {
   }
 
   fn git_writers(&self) -> &'static [&'static str] {
-    &[
-      "add",
-      "commit",
-      "rm",
-      "mv",
-      "checkout",
-      "switch",
-      "restore",
-      "reset",
-      "apply",
-      "stash",
-      "merge",
-      "rebase",
-      "revert",
-      "cherry-pick",
-      "pull",
-    ]
+    GIT_TREE_WRITERS
   }
 
   fn follows_cd(&self) -> bool {
     true
   }
+
+  fn names_from(&self, word: &str, at: &str) -> bool {
+    self.holds(&resolved(at, word))
+  }
+
+  fn stands_in(&self, at: &str) -> bool {
+    self.holds(at)
+  }
 }
+
+impl Foreign<'_> {
+  // Whether a path is this checkout's: inside it, and inside no checkout standing deeper within it.
+  fn holds(&self, path: &str) -> bool {
+    within(path, &self.checkout.cwd) && !self.inner.iter().any(|inner| within(path, inner))
+  }
+}
+
+// An umbrella job's own folder as a command may name it: each file it tracks, by its whole path under any spelling
+// of the home, and the folder itself; and, from where the shell stands, a relative word landing on a tracked file
+// in no checkout below the folder, and git run in the folder outside every checkout below it.
+struct Sealed<'a> {
+  tree: &'a SealedTree,
+  patterns: Vec<Regex>,
+  inner: Vec<String>,
+}
+
+impl<'a> Sealed<'a> {
+  fn of(tree: &'a SealedTree, checkouts: &Checkouts, home: &str) -> Self {
+    let root = trimmed(&tree.cwd);
+    let spelled = |path: &str, after: &str| {
+      spellings(path, home)
+        .iter()
+        .filter_map(|spelling| Regex::new(&format!("{}{after}", regex::escape(spelling))).ok())
+        .collect::<Vec<_>>()
+    };
+    let mut patterns = spelled(root, r#"(?:[\s"';&|)]|$)"#);
+
+    for file in &tree.tracked {
+      patterns.extend(spelled(&format!("{root}/{file}"), BOUNDARY));
+    }
+
+    Self {
+      tree,
+      patterns,
+      inner: inner_paths(checkouts, root),
+    }
+  }
+
+  // Whether git standing at this path works on the umbrella's own repository.
+  fn outside_inner(&self, path: &str) -> bool {
+    within(path, &self.tree.cwd) && !self.inner.iter().any(|inner| within(path, inner))
+  }
+}
+
+impl WriteTarget for Sealed<'_> {
+  fn label(&self) -> String {
+    format!("{} (the umbrella {}'s own folder)", self.tree.cwd, self.tree.repository)
+  }
+
+  fn names(&self, text: &str) -> bool {
+    self.patterns.iter().any(|pattern| pattern.is_match(text))
+  }
+
+  fn git_writers(&self) -> &'static [&'static str] {
+    GIT_TREE_WRITERS
+  }
+
+  fn follows_cd(&self) -> bool {
+    false
+  }
+
+  fn names_from(&self, word: &str, at: &str) -> bool {
+    let path = resolved(at, word);
+    let root = trimmed(&self.tree.cwd);
+
+    self.outside_inner(&path)
+      && path
+        .strip_prefix(&format!("{root}/"))
+        .is_some_and(|file| self.tree.tracked.iter().any(|tracked| tracked == file))
+  }
+
+  fn stands_in(&self, at: &str) -> bool {
+    self.outside_inner(at)
+  }
+}
+
+// Every path of a checkout standing inside this directory, the directory itself left out.
+fn inner_paths(checkouts: &Checkouts, root: &str) -> Vec<String> {
+  checkouts
+    .paths()
+    .filter(|path| trimmed(path) != trimmed(root) && within(trimmed(path), root))
+    .map(|path| trimmed(path).to_owned())
+    .collect()
+}
+
+// The git subcommands that change a working tree.
+const GIT_TREE_WRITERS: &[&str] = &[
+  "add",
+  "commit",
+  "rm",
+  "mv",
+  "checkout",
+  "switch",
+  "restore",
+  "reset",
+  "apply",
+  "stash",
+  "merge",
+  "rebase",
+  "revert",
+  "cherry-pick",
+  "pull",
+];
 
 // The letters and the words an interpreter carries a script under: python's `-c`, and the evaluate and
 // print flags of node, bun, deno, perl and ruby.
@@ -377,13 +522,42 @@ fn handed_text(run: &reading::Run) -> Option<String> {
 
 /// Why this command would write into the target, or nothing.
 pub fn write_reason(command: &str, target: &dyn WriteTarget) -> Option<String> {
-  reason_at(command, target, 0)
+  reason_at(command, target, &Standing::default(), 0)
 }
 
-fn reason_at(original: &str, target: &dyn WriteTarget, depth: usize) -> Option<String> {
+/// Where the shell a command runs in stands, as far as the reading knows: the directory the hook was handed, and
+/// the home a `cd` with no word or with `~` goes to.
+#[derive(Clone, Debug, Default)]
+pub struct Standing {
+  pub at: Option<String>,
+  pub home: String,
+}
+
+impl Standing {
+  // Where a `cd` to these words leaves the shell: the directory its first plain word names, read from here where
+  // it is relative; the home where it names none; unknown where its word cannot be read.
+  fn after_cd(&self, args: &[String]) -> Option<String> {
+    let home = (!self.home.is_empty()).then(|| trimmed(&self.home).to_owned());
+
+    match args.iter().find(|arg| !arg.starts_with('-')) {
+      None => home,
+      Some(word) if word.starts_with('/') => Some(resolved("/", word)),
+      Some(word) if word == "~" || word.starts_with("~/") => home.map(|home| resolved(&home, &word[1..])),
+      Some(word) if relative_path(word) => self.at.as_deref().map(|at| resolved(at, word)),
+      Some(_) => None,
+    }
+  }
+}
+
+fn reason_at(
+  original: &str,
+  target: &dyn WriteTarget,
+  standing: &Standing,
+  depth: usize,
+) -> Option<String> {
   let command = expand_assigned(original);
 
-  if !target.names(&command) {
+  if !target.names(&command) && standing.at.is_none() {
     return None;
   }
 
@@ -391,9 +565,16 @@ fn reason_at(original: &str, target: &dyn WriteTarget, depth: usize) -> Option<S
   let label = target.label();
   // Whether the shell stands inside the target, after a `cd` into it.
   let mut inside = false;
+  // Where the shell stands, followed through each `cd`.
+  let mut standing = standing.clone();
 
   for segment in &read.commands {
-    let named = |word: &String| target.names(word) || (inside && relative_path(word));
+    let at = standing.at.clone();
+    let named = |word: &String| {
+      target.names(word)
+        || (inside && relative_path(word))
+        || at.as_deref().is_some_and(|at| relative_path(word) && target.names_from(word, at))
+    };
 
     if segment.redirects.iter().any(named) {
       return Some(format!("it writes into {label}"));
@@ -404,13 +585,25 @@ fn reason_at(original: &str, target: &dyn WriteTarget, depth: usize) -> Option<S
     };
     let program = run.program.as_str();
 
-    if target.follows_cd() && (program == "cd" || program == "pushd") {
-      inside = run.args.iter().any(|arg| target.names(arg))
-        || (inside && run.args.iter().any(|arg| relative_path(arg)));
+    if program == "cd" || program == "pushd" {
+      if target.follows_cd() {
+        inside = run.args.iter().any(|arg| target.names(arg))
+          || (inside && run.args.iter().any(|arg| relative_path(arg)));
+      }
+
+      standing.at = standing.after_cd(&run.args);
       continue;
     }
 
     let arg_named = run.args.iter().any(named);
+    // Where git works: the directory its `-C` names, read from where the shell stands, else that.
+    let git_dir = match run.args.iter().position(|arg| arg == "-C").and_then(|flag| run.args.get(flag + 1))
+    {
+      Some(dir) if dir.starts_with('/') => Some(resolved("/", dir)),
+      Some(dir) => at.as_deref().map(|at| resolved(at, dir)),
+      None => at.clone(),
+    };
+    let stands_in = git_dir.as_deref().is_some_and(|dir| target.stands_in(dir));
 
     if WRITER_WORDS.contains(&program) && written_words(program, &run.args).into_iter().any(named) {
       return Some(format!("it copies, moves, creates or removes files in {label}"));
@@ -420,7 +613,7 @@ fn reason_at(original: &str, target: &dyn WriteTarget, depth: usize) -> Option<S
       return Some(format!("it edits {label} in place"));
     }
 
-    if (arg_named || inside)
+    if (arg_named || inside || stands_in)
       && program == "git"
       && run.args.iter().any(|arg| target.git_writers().contains(&arg.as_str()))
     {
@@ -443,7 +636,7 @@ fn reason_at(original: &str, target: &dyn WriteTarget, depth: usize) -> Option<S
 
     if depth < INNER_TEXT_DEPTH
       && let Some(inner) = handed_text(&run)
-      && let Some(refused) = reason_at(&inner, target, depth + 1)
+      && let Some(refused) = reason_at(&inner, target, &standing, depth + 1)
     {
       return Some(refused);
     }
@@ -470,27 +663,75 @@ pub fn structure_refusal(why: &str) -> String {
   )
 }
 
-/// The checkout a command would write into that is another worker's, with why, or nothing; `home` is the home
-/// the command's paths are spelled under.
+/// The checkout a command would write into that is another worker's, with why, or nothing; `standing` is where
+/// the shell stands and the home its paths are spelled under.
 pub fn foreign_command_write<'a>(
   command: &str,
   checkouts: &'a Checkouts,
-  home: &str,
+  standing: &Standing,
 ) -> Option<(&'a ForeignCheckout, String)> {
   checkouts.foreign.iter().find_map(|checkout| {
-    write_reason(command, &Foreign::of(checkout, checkouts, home)).map(|why| (checkout, why))
+    reason_at(command, &Foreign::of(checkout, checkouts, &standing.home), standing, 0)
+      .map(|why| (checkout, why))
   })
 }
 
 /// The checkout a file tool's target lies in that is another worker's, or nothing: the deepest checkout
 /// holding the path, where that one is another worker's.
 pub fn foreign_file_write<'a>(path: &str, checkouts: &'a Checkouts) -> Option<&'a ForeignCheckout> {
-  let deepest = checkouts
-    .paths()
-    .filter(|root| within(path, root))
-    .max_by_key(|root| trimmed(root).len())?;
+  let deepest = deepest(checkouts.paths(), path)?;
 
   checkouts.foreign.iter().find(|checkout| checkout.cwd == deepest)
+}
+
+/// Why a command would write a file an umbrella job's own folder tracks, or change its repository through git, or
+/// nothing; `standing` is where the shell stands and the home its paths are spelled under.
+pub fn sealed_command_write(command: &str, checkouts: &Checkouts, standing: &Standing) -> Option<String> {
+  let tree = checkouts.sealed.as_ref()?;
+
+  reason_at(command, &Sealed::of(tree, checkouts, &standing.home), standing, 0)
+}
+
+/// Why a file tool's call on this path would write a file an umbrella job's own folder tracks, or nothing: the
+/// folder is the deepest checkout holding it, and its git tracks the file.
+pub fn sealed_file_write(path: &str, checkouts: &Checkouts) -> Option<String> {
+  let tree = checkouts.sealed.as_ref()?;
+  let root = trimmed(&tree.cwd);
+  let file = path.strip_prefix(&format!("{root}/"))?;
+  let in_folder = deepest(checkouts.paths(), path).map(trimmed) == Some(root);
+
+  (in_folder && tree.tracked.iter().any(|tracked| tracked == file))
+    .then(|| format!("it edits {path}, a file the umbrella {} tracks", tree.repository))
+}
+
+/// What a refusal of a write into an umbrella job's own folder says.
+pub fn sealed_refusal(tree: &SealedTree, why: &str) -> String {
+  format!(
+    "refused: {why} — {cwd} is the umbrella {repository}'s own folder, which its jobs never write: its files are the owner's. An umbrella job's work goes in the checkouts lent to it, which stand below the folder; borrow another with bmo job borrow <repository> (docs/worker-slots.md, 「An umbrella repository」).",
+    cwd = tree.cwd,
+    repository = tree.repository,
+  )
+}
+
+/// Whether a command could write at all, as far as its text says: a redirect, or a program that writes files,
+/// edits in place, changes a tree through git, runs a script or hands text to a shell. A command that could not is
+/// read for no checkout.
+pub fn may_write(command: &str) -> bool {
+  let read = read_command(&expand_assigned(command));
+
+  read.commands.iter().any(|segment| {
+    !segment.redirects.is_empty()
+      || program_of(&segment.words).is_some_and(|run| {
+        let program = run.program.as_str();
+
+        WRITER_WORDS.contains(&program)
+          || IN_PLACE_EDITORS.contains(&program)
+          || INTERPRETERS.contains(&program)
+          || SHELLS.contains(&program)
+          || program == "git"
+          || program == "eval"
+      })
+  })
 }
 
 /// What a refusal of a write into another worker's checkout says.

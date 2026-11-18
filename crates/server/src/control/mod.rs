@@ -24,6 +24,7 @@ mod hook_routes;
 pub mod item_filings;
 pub mod job_stops;
 mod keepalive;
+pub mod loans;
 mod machine;
 pub mod models;
 mod node_reads;

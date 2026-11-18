@@ -80,7 +80,7 @@ fn make_worktree(base: &str, cwd: &str, bun: &str) -> Result<(), String> {
   git_at(base, &["worktree", "add", "--detach", cwd, &main])
     .map_err(|why| format!("the worktree at {cwd} could not be made from {main}: {why}"))?;
 
-  if let Err(why) = set_up(at, bun) {
+  if let Err(why) = set_up(at, bun, true) {
     let _ = git_at(base, &["worktree", "remove", "--force", cwd]);
 
     return Err(why);
@@ -89,10 +89,11 @@ fn make_worktree(base: &str, cwd: &str, bun: &str) -> Result<(), String> {
   Ok(())
 }
 
-// The repository's own setup of a fresh worktree: its submodules brought to the commit's pins first,
-// then the script its manifest names where it names one.
-fn set_up(at: &Path, bun: &str) -> Result<(), String> {
-  bring_submodules(at, true)?;
+// The repository's own setup of a checkout: its submodules brought to the commit's pins first, what is open
+// inside them thrown away where `discard` says the tree is no one's yet, then the script its manifest names
+// where it names one.
+pub(super) fn set_up(at: &Path, bun: &str, discard: bool) -> Result<(), String> {
+  bring_submodules(at, discard)?;
 
   if !setup_script(at) {
     return Ok(());
@@ -126,7 +127,7 @@ fn set_up(at: &Path, bun: &str) -> Result<(), String> {
 // checkout stands on where that is not a job's; on a job's branch, the one it was put on from where that
 // was written down and still exists; and otherwise the one the remote's head names, then `main`, then
 // `master`.
-fn main_branch(base: &str) -> String {
+pub(super) fn main_branch(base: &str) -> String {
   if let Ok(standing) = git_at(base, &["symbolic-ref", "--quiet", "--short", "HEAD"])
     && !standing.is_empty()
   {
@@ -158,7 +159,7 @@ fn main_branch(base: &str) -> String {
     .to_owned()
 }
 
-fn branch_exists(base: &str, branch: &str) -> bool {
+pub(super) fn branch_exists(base: &str, branch: &str) -> bool {
   git_at(base, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")]).is_ok()
 }
 
@@ -172,7 +173,7 @@ fn setup_script(at: &Path) -> bool {
 
 // Git in a directory, asked nothing on its terminal and handed no editor: what it printed, or why it
 // failed.
-fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
+pub(super) fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
   let done = std::process::Command::new("git")
     .arg("-C")
     .arg(cwd)

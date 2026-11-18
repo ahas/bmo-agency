@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use agency_server::control::borrowings::candidates;
+use agency_server::control::loans::candidates;
 use agency_server::queue::workers::{BUILTIN_WORKER, Worker, repository_of, support_name, workers};
 
 use crate::support::scratch::Scratch;
@@ -71,6 +71,7 @@ fn checkout(name: &str, support_of: Option<&str>, node: Option<&str>) -> Worker 
     support_of: support_of.map(str::to_owned),
     support_slot: support_of.map(|_| 2),
     node: node.map(str::to_owned),
+    umbrella: false,
   }
 }
 

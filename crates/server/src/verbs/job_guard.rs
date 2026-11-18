@@ -15,7 +15,7 @@ use tokio::sync::OnceCell;
 use super::live_claude;
 use crate::command_reading::job_guard::JobGround;
 use crate::command_reading::testbed::Classified;
-use crate::command_reading::writes::{Checkouts, ForeignCheckout, STRUCTURE_DOCUMENT};
+use crate::command_reading::writes::{Checkouts, ForeignCheckout, STRUCTURE_DOCUMENT, SealedTree};
 use crate::control::claude_accounts::{accounts, machine_config_dir};
 use crate::control::item_filings::{ASKED_BY, OWNER};
 use crate::queue::holds::JOB_HOLDER;
@@ -189,7 +189,14 @@ impl JobGround for StoreGround {
       checkout.name == own.name || borrowed.contains(&checkout.name) || path(checkout) == path(own)
     });
 
+    let sealed = own.umbrella.then(|| SealedTree {
+      repository: own.repository().to_owned(),
+      cwd: path(own),
+      tracked: tracked_files(&path(own)),
+    });
+
     Checkouts {
+      sealed,
       own: writes_in.into_iter().map(path).collect(),
       foreign: others
         .into_iter()
@@ -220,5 +227,29 @@ impl JobGround for StoreGround {
       .any(|part| item[part].as_str().is_some_and(|words| words.contains(STRUCTURE_DOCUMENT)));
 
     item["labels"][ASKED_BY].as_str() == Some(OWNER) && names
+  }
+}
+
+// The files an umbrella's git tracks, relative to its folder, `STRUCTURE.md` left to its own rule; none where git
+// cannot read them.
+fn tracked_files(root: &str) -> Vec<String> {
+  let listed = std::process::Command::new("git")
+    .args(["-C", root, "ls-files", "-z"])
+    .stdin(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .output();
+
+  match listed {
+    Ok(listed) if listed.status.success() => listed
+      .stdout
+      .split(|byte| *byte == 0)
+      .filter(|file| !file.is_empty())
+      .map(|file| String::from_utf8_lossy(file).into_owned())
+      .filter(|file| file.rsplit('/').next() != Some(STRUCTURE_DOCUMENT))
+      .collect(),
+    _ => {
+      eprintln!("job-guard: the files the umbrella at {root} tracks could not be read");
+      vec![]
+    }
   }
 }

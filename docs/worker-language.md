@@ -43,7 +43,7 @@ screens, the rooms — is read in the owner's language by the units that show it
   messages, names of address, and domain terms a reader needs to match against the code or the
   screens.
 - **What a worker writes into git is English only.** The worker's standing rules say so
-  (`prompts/agents/worker/standing-rules.md`, 「Language」), and every landing refuses a commit that
+  (`prompts/agents/worker/standing-rules.md`, 「Language」), and the job unit's close refuses a commit that
   breaks it (`docs/worker-slots.md`, 「Landing on main」). Every repository a worker lands in is held
   to it, since every worker reads the same standing rules.
 

@@ -104,4 +104,37 @@ async fn a_repository_is_added_through_the_route_and_its_refusals_are_carried_ba
       .await,
     0
   );
+
+  // An umbrella is added with no support checkouts, and a change that would give it some is refused.
+  let umbrella = add(server.port, home.path(), &data, &["tree", "--path", "/checkouts", "--umbrella"]);
+
+  assert!(umbrella.status.success(), "{}", String::from_utf8_lossy(&umbrella.stderr));
+
+  let row = store::one(
+    scratch.db(),
+    r#"SELECT "umbrella", "support_count" FROM "repositories" WHERE "name" = 'tree'"#,
+    vec![],
+  )
+  .await
+  .unwrap()
+  .unwrap();
+
+  assert_eq!(row.try_get::<i64>("", "umbrella").unwrap(), 1);
+  assert_eq!(row.try_get::<Option<i64>>("", "support_count").unwrap(), Some(0));
+
+  let changed = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{}/repositories/tree", server.port))
+    .bearer_auth(TOKEN)
+    .json(&serde_json::json!({ "supportCount": 2 }))
+    .send()
+    .await
+    .unwrap();
+  let status = changed.status().as_u16();
+  let refused: serde_json::Value = changed.json().await.unwrap();
+
+  assert_eq!(
+    (status, refused["field"].as_str().or(refused["code"].as_str())),
+    (400, Some("umbrella")),
+    "{refused}"
+  );
 }

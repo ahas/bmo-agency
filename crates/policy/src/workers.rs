@@ -20,6 +20,16 @@ pub struct WorkerRules {
   pub support_idle_hours: i64,
   /// The first support worker's number.
   pub first_support_slot: i64,
+  /// How many checkouts one job may hold at once, its own and those lent to it.
+  pub job_checkouts_most: usize,
+  /// How often a launch or a borrowing waiting for a checkout to lend looks again unwoken, in seconds.
+  pub loan_look_seconds: u64,
+  /// How long a borrowing that waits holds its ask before it answers that it still waits, in seconds.
+  pub borrow_wait_seconds: u64,
+  /// How long a loan's give-back stands begun before another read takes it up again, in seconds.
+  pub loan_return_seconds: i64,
+  /// The message of the commit that parks a lent checkout, with `{checkout}` and `{branch}`.
+  pub park_message: String,
 }
 
 crate::part!(pub WORKERS: WorkerRules = "workers.toml");

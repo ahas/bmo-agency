@@ -1,16 +1,17 @@
 # A repository's checkouts
 
 - **What this says:** how one repository runs several jobs at once — its base checkout, the support
-  checkouts beside it, the worktree each is, the branch each job works on, how a job's work lands on
-  main, and what a job may write outside its own checkout. Which role a job runs as and how many of a
+  checkouts beside it, the worktree each is, the checkouts lent to a job beyond its own and the umbrella
+  repository whose job works in them, how a job's work lands on main, and what a job may write outside its own
+  checkout. Which role a job runs as and how many of a
   role's runs go at once are `docs/role-slots.md`'s; a checkout bounds only how many jobs of one repository
   stand in its tree at once.
 
 ## The base checkout and the support checkouts
 
-- **The base checkout:** the path the repository's row names (`docs/repositories.md`). Between jobs it
-  stands on main; while a job of a repository with support checkouts is at work in it, it stands on that
-  job's item branch (「A job in the base checkout」).
+- **The base checkout:** the path the repository's row names (`docs/repositories.md`). Agency moves it off
+  main only while it is lent to another repository's job, which it stands on that job's branch for (「A
+  checkout lent to a job」).
 - **Support checkouts:** further worktrees of the same repository, numbered from 2, which exist so that
   the queue can run more than one item of one repository at a time. They are the repository's, never rows
   of their own.
@@ -103,15 +104,14 @@
   over, and a worktree whose setup failed is taken away so that the next launch starts it afresh. The
   setup runs until its script exits, however long a cold install takes, and a second launch of the same
   support checkout waits for the first to finish making the worktree, then finds it standing.
-- **The setup is run again every time a checkout's files may have moved under its installs:**
-  whenever the runner, a work order or a borrowing puts a checkout on a job's branch — a support
-  worktree or a base checkout alike — and whenever a close has rebased a branch onto main. Main
-  moves under every checkout as other jobs land, and a lockfile it brought along leaves the
-  installs behind the code, so a suite would fail on something the job never touched.
+- **The setup is run again every time agency moves a checkout's files under its installs:** whenever it
+  puts a checkout lent to a job on that job's branch (「A checkout lent to a job」), a support worktree or a
+  base checkout alike. Main moves under every checkout as other jobs land, and a lockfile it brought along
+  leaves the installs behind the code, so a check would fail on something the job never touched.
 - **So a repository's setup is cheap when nothing moved,** and deciding what moved is the
   repository's own: a setup may hash its lockfiles and install only where that hash differs from the
-  one written beside its installs when they were last made, or where nothing is installed. A setup that fails stops the job from starting, or fails the close,
-  and says why.
+  one written beside its installs when they were last made, or where nothing is installed. A setup that
+  fails stops the job from starting, or refuses the loan, and says why.
 - **What is shared and what is not:**
   1. The package installs share Bun's install cache, which hard-links the files, so a support
      worktree's `node_modules` costs links rather than copies and is still right for its own branch.
@@ -119,75 +119,107 @@
   3. Each support checkout has its own workbench folder under its own name, so its dev server reads
      a data copy of its own and never the live data.
 
-## A job on a support checkout
+## A job's own checkout
 
-- **Every job works on a branch of its item,** made from main in that worktree: `work/<item>`, or
-  `work/job-<job id>` for a job with no item. The worktree never has main checked out.
+- **Agency moves no branch in a job's own checkout.** The job is handed the checkout as it stands: a support
+  worktree as its last job left it, or as it was made, detached at main; the base checkout on whatever was
+  last checked out there. Nothing is committed, switched or parked there for it. Which branch the job works
+  on and what it leaves open are its own, and its close lands what its `HEAD` holds (「Landing on main」).
 - **Main is the branch the base checkout stands on,** read off the base checkout — the one the
-  repository's row names — and never off the support worktree, which stands on a `work/` branch. A base
-  standing on a branch other than `main` has its support checkouts' jobs made from that branch, and
-  the job unit's landing verb and the close land them back on it.
-  - Where the base checkout itself stands on a `work/` branch — its own job's — main is the branch
-    that `work/` branch was put on from. Putting a checkout on a job's branch writes that down in
-    the repository's git config, beside the branch, and deleting the branch takes it away.
+  repository's row names — and never off a support worktree. Main is what a new worktree is detached at
+  and what a lent checkout's job branch is made from (「A checkout lent to a job」).
+  - Where the base checkout itself stands on a `work/` branch, main is the branch that `work/` branch was
+    put on from, where the repository's git config writes it down beside the branch and that branch still
+    exists.
   - Where nothing is written down, it is the branch the remote's own head names, and failing that
     `main`, then `master`.
-- **Making a job's branch also writes down the branch it was made from,** beside it in the same
-  config, once, as it is made. Taking the branch up again later leaves that alone, whatever main
-  then reads, and it is what the landing checks the branch against (「Landing on main」).
-- **Before the job's turn starts, the runner puts the worktree on that branch:**
-  1. Whatever the last job left uncommitted there is committed onto the branch that job was on,
-     which is how a job is parked. Where the worktree is already on the job's own branch, what is
-     open is that item's own and is left open for the job.
-  2. A branch already fully merged into main is deleted once the worktree has moved off it.
-  3. The item's branch is checked out where it exists — a rerun takes up where the last run
-     stopped — and made from main where it does not.
-  4. The repository's setup is run on what the branch holds.
 - **A job launched again stands in the same checkout.** Where a job's road stopped answering and the job goes
-  out again on it once it answers (`docs/cache-fallback.md`, 「The road judgement」), its turn is put on the
-  same branch of the same worktree, which is already the job's own: what the turn before left open there
-  stays open, and the new turn is told it continues work already in the checkout.
-- **The job commits on its branch and does not push it.** The close lands it.
+  out again on it once it answers (`docs/cache-fallback.md`, 「The road judgement」), its turn goes out in the
+  same checkout: what the turn before left open there stays open, and the new turn is told it continues
+  work already in the checkout.
 - **A verb run inside the worktree works on the worktree.** The job carries agency's
   environment, whose `BMO_SOURCE_DIR` names the base checkout, so every verb that reads or writes
   the checkout's own files asks for the working checkout instead: the worktree the
   command was started inside, where git registered it under the base checkout's repository, and the
   source root everywhere else. The deploy tree is such a worktree too and never counts.
 
-## A job in the base checkout
+## A checkout lent to a job
 
-- **A repository with support checkouts keeps main out of every job's hands.** An ordinary job the
-  repository runs in the base checkout works on its item's branch there too, the same `work/`
-  branch a support checkout would take, and lands the same way. A repository whose support count is
-  zero has nobody to land beside it, and its base job works on main as it stands.
-- **Why:** a landing moves main, and a checkout standing on main with a job's uncommitted files open
-  in it is one main cannot be moved in without either refusing or overwriting that job's work. With
-  the base job on a branch, main stands checked out nowhere while it works, and every landing moves
-  the ref alone and goes through at once, whichever files the base job has open.
-- **As the job starts, the runner puts the base checkout on the branch:**
-  1. From main, the branch is made or taken up, and anything already open on main — a person's own
-     edit — is carried across as it stands rather than committed; it stays somebody else's to the
-     job, as it always is in a shared checkout.
-  2. From a `work/` branch an earlier job was left on, what is open is parked on that branch first,
-     as a support checkout parks.
-  3. The repository's setup is run on what the branch holds, as in a support worktree.
-- **As the job ends — before its report goes out — the runner puts the base checkout back on
-  main:** what the job itself left uncommitted is committed onto its branch, which is parked work
-  exactly as on a support checkout; main is checked out as the landings left it, so the checkout is
-  current the moment the job is over; and the branch is deleted where main already holds all of it.
-  What was open before the job began is carried back as it stands. A switch that cannot be made is
-  named in the report, and the next job's start parks and moves off the branch.
-- **A work order in the base checkout works on its item's branch too.** The order puts the checkout
-  on the branch when it takes it and back on main when it lets it go, and its stages run on that
-  branch without moving it; the close of its last stage lands the branch.
-  - It lets go by stopping or by finishing. Either way the change its own turns wrote there — read by
-    their time windows, since others may write in a base checkout — is committed onto the branch,
-    unchecked, since the branch is not main; what anybody else left open goes back to main as it
-    stands, and a file mixing the two is left open and named.
-  - An order that parked onto main or onto `wip/<item>` before it worked on branches has that parking
-    brought back as before, onto its branch.
-- **A base checkout another repository's job borrows** is put on that job's branch and back the same
-  way, where its repository has support checkouts.
+- **A job may hold checkouts of other repositories beside its own,** each an assignment held in the job's
+  name, `job:<jobId>` (`docs/api.md`, 「assignments and jobs」): it reads held everywhere a held checkout is
+  read, and nothing is launched into it. The job writes, commits and closes there as in its own (「A job
+  writes only in its own checkout」, 「Landing on main」).
+- **Two roads lend one:**
+  1. **At the launch,** each repository the item's label `repositories` names, comma-separated as the job
+     unit's `todo --add` writes it, other than the job's own repository. The list is read as the job is
+     written and held fixed with the rest of what the launch read (`docs/repositories.md`, 「An agent an item
+     names」).
+  2. **During the job,** `bmo job borrow <repository>` (「A job writes only in its own checkout」).
+- **Which checkout,** on the job's own machine:
+  1. the checkout of the repository that has the job's branch checked out, where one has: git lets a branch
+     stand checked out in one worktree of a repository at a time, so it is the only one that can take the
+     branch, and it is waited for while something holds it;
+  2. otherwise a free support worktree by number, then the base checkout;
+  3. where none is free, one grown for a repository that grows (「Growing a checkout at a launch」).
+
+  A support worktree not made yet is made first, as a launch makes it (「Names and places」).
+- **A launch takes its loans together or waits.** Before the job's first turn every repository its item
+  names is lent in one pass. Where any of them has no checkout to give, every loan the pass took is given
+  back and the job waits `starting`, its `heldFor` naming the repositories it waits for, told to its item's
+  orderer once, with no clock, as a launch waits for its seat (`docs/role-slots.md`). It looks again
+  whenever a job or an assignment changes, and at least every `loan_look_seconds` (`policy/workers.toml`).
+  A job stopped while it waits goes no further. Taking all or none keeps a launch from holding one
+  repository while it waits on another.
+- **Each lent checkout is put on the job's branch** before it is handed over, `work/<item>`, on this machine:
+  1. where it stands on a branch other than main and the job's with something open, that is committed onto
+     the branch it stands on: the earlier job's work, parked;
+  2. `work/<item>` is checked out where it exists, and otherwise made from main, with main written down
+     beside it in the repository's git config, which is how main is read off a base checkout standing on
+     it; what a person left open on main is carried across as it stands;
+  3. the repository's setup is run on what the branch holds, where the branch was moved.
+
+  A checkout that cannot be put on the branch is given back, and the launch fails or the borrowing is
+  refused with what git said. A checkout on a work node, and a directory that is no git checkout, is lent as it
+  stands.
+- **The job's prompt names them.** The prompt of a job holding loans opens, under its title, with every lent
+  repository, its checkout's path and its branch, in the words of `policy/job-prompt.toml`; a review turn
+  that took loans again after a pause carries the same list ahead of its words (「Loans across a job's
+  review」).
+- **How many:** one job holds at most `job_checkouts_most` checkouts (`policy/workers.toml`), its own among
+  them. An item naming more is refused at its filing and at its launch, and a borrowing past the bound is
+  refused.
+
+## Loans across a job's review
+
+- **A loan stands while the job is at work:** `starting`, `running`, or `reviewing` with its checkout kept
+  (`docs/job-review.md`, 「The states of a job under review」), so every round of the review keeps it.
+- **A job that gives its checkout up gives its loans up:** its review paused past the owner's due time, or
+  the job ended, stopped or failed. Each loan is given back on the next read of the assignments:
+  1. on this machine, what is open in the checkout is committed onto the job's branch, parked;
+  2. a lent base checkout is put back on main, and the job's branch deleted where main already holds all of
+     it; a support worktree stays on the branch;
+  3. the loan is released.
+
+  A checkout being given back still reads held, so nothing takes it half parked. A give-back cut short by a
+  stop of agency is taken up again once `loan_return_seconds` (`policy/workers.toml`) have passed.
+- **A paused job takes its loans again** before its next turn, after its own checkout: every repository it
+  held a loan of, chosen as a launch chooses, so a support worktree still on the job's branch is taken again
+  where it is free and waited for where it is not.
+
+## An umbrella repository
+
+- **A repository row may be an umbrella:** its path is the folder that holds other repositories' checkouts
+  below it, and its own tree is written by none of its jobs. It is marked on its row (`umbrella`,
+  `docs/repositories.md`) and registered with the repository verbs like any other; its path is deployment
+  data.
+- **Its job stands in the folder.** The session opens at the umbrella's path, so the rules each checkout
+  below it carries and the owner's documents there are read as files of that folder, and its cached prefix
+  is the one row's. Its work is done in the checkouts lent to it, which stand below the folder.
+- **It runs one job at a time.** An umbrella row takes no support checkouts and no node checkouts, refused at
+  the add and the change, so its one checkout's lock lets one job in.
+- **Its own tree is guarded:** the job guard refuses a write to a file the umbrella's git tracks and git
+  changing the umbrella's own repository, and lets a write in a checkout lent to the job through (「A job
+  writes only in its own checkout」; `docs/live-claude-guard.md`).
 
 ## A repository whose base is a worktree of another's
 
@@ -204,123 +236,30 @@
 - **It works the way a support checkout does:**
   1. Main is read off the repository's main worktree — the checkout git keeps the repository in — and never
      off the worktree, which cannot have main checked out while that checkout does.
-  2. Every job works on its item's branch made from that main, put on and parked as on a support checkout
-     (「A job on a support checkout」), and the worktree is never put back on main.
+  2. Agency moves no branch in it for its own jobs (「A job's own checkout」), and the close lands what a job's
+     `HEAD` holds on that main.
   3. Nothing else writes in the worktree, so everything a job leaves open there is its own.
-  4. The close lands the branch on that main, and a work order and a borrowing take the worktree the way
-     they take a support checkout.
+  4. A loan takes the worktree the way it takes a support checkout (「A checkout lent to a job」), and gives it
+     back on its branch, never on main.
 - **The worktree is made once, by hand:** `git worktree add --detach <path> main` in the main checkout, the
   repository's setup (`worktree:setup`) run in it, and the row then pointed at it with `bmo-agency agent
   --set <repository> --path <path>`. Nothing makes or removes it for the row.
 
 ## Landing on main
 
-- **The job unit's close does it.** Agency states it here because every checkout it keeps is landed
-  by it. The close, run in a checkout standing on a
-  `work/` branch — a support worktree, or the base checkout during its job — refuses a tree with
-  uncommitted changes to tracked files, then:
-  1. waits its turn in the repository's close line (the deploy unit's `deploy.md`, 「The close line」), so no other
-     close of the repository on this machine checks or lands until it has landed;
-  2. rebases the branch onto main as it stands now; a conflict aborts the rebase and is refused
-     with the files it stopped on, and resolving it — rebase, fix, continue, close again — is the
-     job's own work; the repository's setup is then run on the rebased tree, and a setup that fails
-     refuses the close;
-  3. runs the static check and the tests the rebased commit selects (the repository's own rule for which tests a change runs), or skips the tests with `--skip-suite` as any close may;
-  4. lands the commit, in this order:
-     - pushes each submodule commit the landed commits pin anew to its own repository's main where
-       that does not hold it yet. A submodule commit that would not fast-forward its repository's
-       main refuses the landing with nothing moved, and rebasing it there and moving the pin again
-       is the job's;
-     - where main is checked out, makes sure fast-forwarding that checkout would overwrite none of
-       the files open there;
-     - pushes the commit to the remote's main as a plain fast-forward;
-     - only once the remote has taken it, fast-forwards main here, writes down what the job landed
-       and sets the checkout main stands in up again;
-  5. writes the landed commit down as waiting to go live, and lets the line go.
-- **The remote's main is what a landing wins.** A push the remote refuses (a commit pushed there from
-  elsewhere first, a rule of the remote's own) leaves main here and the record of what the job
-  landed untouched, and the landing takes another round: the remote's main is brought in where the
-  close follows it, and the branch rebased again. A refusal on every round refuses the landing with
-  what the remote said.
-  - Where main here does not move once the push went through, the next round follows the remote's
-    main and moves it there; a main that still will not move refuses the landing as one that could
-    not be fast-forwarded, the commit already on the remote.
-- **Where main is checked out, fast-forwarding it moves that checkout.** That is the base checkout
-  between jobs, fast-forwarded in place; what is open there stays where it is, and where the
-  landing would overwrite one of those files the landing is refused before the push, naming the
-  checkout and the files, with nothing moved. While a base job is at work main is checked out
-  nowhere, and the landing moves the ref alone, guarded by the commit it expects main to be at.
-- **A checkout moved by a landing is set up again where its installs moved.** Where the commits
-  main moved over changed a path the close names as an install's input, the repository's setup runs in the checkout main stands in once the push went
-  through and main is fast-forwarded there, so its installed packages match what it now stands on.
-  - Which paths call for it is the close's to say: the landing itself knows no repository's
-    install, and the landing verb names none.
-  - A setup that fails there does not undo the landing, which has already happened; the close says
-    it failed and names the checkout, and the next setup in that checkout brings it level.
-  - Where no setup is called for, that checkout's submodules are still brought to the pins main
-    now holds, as the setup brings them first, and a failure is said the same way.
-- **The units linked into the checkout main stands in follow its files.** An installed user unit
-  may be a link into that checkout rather than into the deploy tree — the gate's long runs, herdr —
-  and a commit moving the unit's file would leave the link dangling, so the next reload makes the
-  unit vanish. The close and the landing verb keep them by the deployment's own rule
-  (the deploy unit's `deploy.md`, 「The unit links」):
-  - Before main moves, every such link whose file the landed commit lacks is matched to the
-    commit's one tracked file of the unit's own name. None, or several, refuses the landing with
-    nothing moved, naming the unit.
-  - A unit linked there that is running in a folder the landed commit no longer has — its working
-    directory — holds the landing: it is refused, naming the unit, until the unit stands idle, since
-    a running process whose folder is removed under it fails on its next relative path.
-  - Once main has moved there, each link is pointed at its file and the user units are reloaded.
-  - A base checkout put back on main as its job ends relinks the same way whatever its job's own
-    commits left dangling; nothing holds there, since those commits already moved the files.
-- **A branch lands only on the branch it was made from.** Before anything moves (the close's first
-  rebase, and every round of a landing) the branch it was made from is read: the one written down
-  as it was made, or, for a branch made before that was written, each branch it could then have been
-  made from: the one written down for the checkout's return, the remote's head, `main`, `master`.
-  Where one of those shares a commit with the job's branch that the branch being landed on lacks,
-  the landing is refused and names both, since the rebase would carry that branch's commits across
-  and the push would publish them.
-  - Which branch the work belongs on is the owner's call, and the refusal says how to land it
-    either way: move only the job's own commits across with `git rebase --onto <landing branch>
-    <the branch it was made from>` and close again, or stand the base checkout on the branch it was
-    made from.
-  - A branch made from the branch it lands on passes however far that branch has moved since, as
-    does one whose own commits were moved across that way.
-- **Whoever lands second rebases.** Two jobs that changed the same file each land on their own
-  close: the first moves main, and the second's rebase, once its turn in the close line has come,
-  meets the first's change and resolves it.
-- **Two landings do not race.** Landing holds the repository's landing lock, and waits for another
-  landing to let it go, however long that landing's own check again takes; a landing whose process
-  has ended holds nothing. The
-  closes of this machine already land one after another through the close line; the lock is what
-  keeps a close on a work node, which lands from outside it, from racing one of theirs.
-- **A commit lands only on the main it was checked against.** Inside the close line main moves only
-  by a landing from outside it. Where main moved while the close checked, the landing rebases the
-  branch onto it once more and, before fast-forwarding, the close
-  checks the rebased commit again: the repository's setup, the static check, and the tests selected
-  over the range from the main it last checked to HEAD — what main brought meanwhile and the job's
-  own commits together. A commit written against files main has since moved or renamed is refused
-  there rather than landed.
-  - The check again runs inside the landing lock and inside the landing's three rounds: a main that
-    moves again while it runs is taken in by the next round, checked from the main the last check
-    covered.
-  - A failure refuses the landing with what failed, as a failing close does; the branch stays
-    rebased, and the job mends it and closes again.
-  - Tests the close skipped with `--skip-suite` stay skipped; the static check always runs.
-  - The backlog deployment runs the tests at the head for any batch of more than one commit,
-    which is where two commits that each passed are checked together.
-- **A repository without such a close lands with the job unit's landing verb,** out of the deploy
-  tree's binary, run in the checkout standing on the job's `work/` branch after the job's own checks:
-  the same rebase and the same landing, without a suite of its own.
-- **A commit holding Hangul never lands, in any repository.** Before it pushes, every landing — the
-  close's, the landing verb's and one a work node asks of the operations machine — reads the job's own
-  commits on the branch past main and refuses where a subject or body holds Hangul outside the names
-  of address the close's policy sets aside, naming each commit by its short hash and subject, with
-  nothing moved (the worker's standing rules, 「Language」). Rewording them and
-  landing again is the job's.
-- **What the runner counts as the job's own commits** on a branch is what the landing recorded it
-  landed and what is still on the branch past main — not everything between where the branch began
-  and where main now stands, which holds other jobs' landings too.
+- **The job unit's close lands a job's work,** `bmo-job job close`, which a job runs once its work and its
+  commits are done; its canonical statement is the job unit's `docs/cli.md`, 「bmo-job job close」. Agency
+  holds no part of it: no lock, no line, no rebase and no check of its own.
+- **What it does, in short:** it fetches the remote's main, refuses a checkout whose main no longer stands
+  under its `HEAD` (it merges by fast-forward alone and never rewrites the checkout), refuses a commit
+  message holding Hangul, runs the change check over what changed since main, pushes `HEAD` onto the
+  remote's main, and writes where it stands onto the item's labels, a pair for each repository it closed.
+  It runs no suite, takes no close line and rebases nothing.
+- **Several checkouts in one close:** a job holding loans closes every checkout it changed in one run, each
+  named by a repeated `--checkout`, its own and the lent ones alike. Which order they are pushed in, and the
+  one check over all of them, are the close's and the testbed's; agency only lent the checkouts.
+- **A branch that main moved past** is the job's to bring up — merge or rebase main into it and close again —
+  since the close fast-forwards alone.
 
 ## Checkouts on the nodes
 
@@ -330,25 +269,17 @@
   jobs」). Its base stands on this machine. Its path is the one the setting names, written from the node's home
   or absolute, else the base's folder name followed by the node's beside the base; one removed from the list
   while no job holds it goes from the row, and its checkout on the node stays there.
-- **Its jobs work on their item's branch as every support checkout's do,** made from the remote's main,
-  which the runner brings up in that checkout first.
-- **Its landing keeps the rules above:** the node's close or the landing verb holds the repository's landing
-  lock here through the home bridge, takes the remote's main in before each round and pushes it, and
-  the base checkout here follows. A landing here takes the remote's main in first wherever the
-  repository has a checkout on a node (`docs/work-nodes.md`, 「Ending a job on a node」).
+- **Its jobs work in it as in any job's own checkout** (「A job's own checkout」), and close it with the job
+  unit's close run on the node, which pushes onto the remote's main as every close does (「Landing on main」;
+  `docs/work-nodes.md`, 「Ending a job on a node」).
+- **A loan of it is lent and given back as it stands:** agency moves no branch on a node.
 
 ## Parking
 
-- **Parking is leaving the branch.** A job that ends without landing leaves its branch where it is,
-  and the next job on that worktree commits what it left open onto it before moving off.
-- **A stopped work order on a support checkout** commits everything open in its worktree onto its
-  item's branch and lets the worktree go. Nothing else writes in that worktree, so all of it is the
-  order's; no check runs and nothing is sorted by who wrote it. On resume it takes that worktree
-  again once it is free, and checks its branch out there.
-- **A base checkout parks by time windows:** a stopped work order sorts out its own change there by
-  its turns' time windows. Where the repository has support checkouts the change goes onto the order's
-  branch (「A job in the base checkout」); where it has none it is checked and goes onto main or
-  `wip/<item>`, as the job unit's `work-orders.md` states.
+- **Agency parks only what it lent.** A loan given back commits what is open in its checkout onto the job's
+  branch (「Loans across a job's review」), and a loan of a checkout standing on another branch than main with
+  something open parks that onto its branch first (「A checkout lent to a job」).
+- **A job's own checkout is left as the job left it.** What it left open stays there, for its report to name.
 
 ## The queue with support checkouts
 
@@ -360,8 +291,8 @@
   no launch held for the machine's room by the launcher's notice. Every open item of it is then told as
   awaiting a launch, each still waiting on its agent as below, so the queue is offered one item per free
   agent rather than per checkout.
-- **The launcher picks the checkout.** It takes, in this order: a free support checkout already on the
-  item's branch; the base checkout; a free support checkout by number. A launch naming a support checkout
+- **The launcher picks the checkout.** It takes the first free of the base checkout and then the support
+  checkouts by number, and grows one where none is free and the repository grows. A launch naming a support checkout
   directly takes that one or is refused. Where the repository has checkouts on the nodes, the launch first
   takes its machine from the rotation and then the checkouts there in that order (`docs/work-nodes.md`, 「The
   rotation」).
@@ -399,22 +330,24 @@
   whose checkout it is and the verb that borrows one (`docs/live-claude-guard.md`, 「The same hook keeps a job
   to its own checkout」). It is a reading of text, so the rule stays the job's own to keep where the
   reading cannot see, such as a script file.
-- **Borrowing:** `bmo job borrow <repository>`, run inside a job, takes a free checkout of that
-  repository for the rest of the job — a support worktree first, the base checkout where the repository
-  has no support checkout free, on the job's own machine — and prints its path, a support worktree not made
-  yet made first as a launch makes it. It is an assignment held in
-  the job's name (`docs/api.md`, 「assignments and jobs」), so the borrowed checkout reads held everywhere a
-  held checkout is read, and nothing is launched into it. The job commits, pushes and closes there the way
-  that repository closes a job. A job's own repository is refused, and so is a repository whose every
-  checkout is at work and that cannot grow one (「Growing a checkout at a launch」): it says so, and asks
-  nothing to wait.
+- **Borrowing:** `bmo job borrow <repository>`, run inside a job, lends it a checkout of that repository for
+  the rest of the job, chosen and put on the job's branch as every loan is (「A checkout lent to a job」), and
+  prints its path. The job commits and closes there as in its own checkout (「Landing on main」). A job's own
+  repository is refused, and so is a loan past the job's bound of checkouts.
+  - **Where no checkout can be given** — every one at work and none to grow — the plain form says so and asks
+    nothing to wait.
+  - **`--wait`** waits for one instead: the server holds the ask until a checkout comes free, looking again
+    whenever a job or an assignment changes, for at most `borrow_wait_seconds` (`policy/workers.toml`), and
+    the verb prints a line saying what it waits for each time the server answers that it still waits, then
+    asks again, so the call is never quiet long enough for the call clock. It ends lent, or refused for any
+    other reason.
 - **A job borrows with what its program holds.** A job's program is handed no control token, so the verb
   calls agency's server with the job's session token, and the server lends only to the job running in the
   checkout that token was issued for (`docs/api.md`, 「The control port」). A process holding neither token
   is refused, naming both. Nor is it handed the server's port: the verb reads it from the deployment's
   settings, `AGENCY_CONTROL_PORT` in `env/agency.env` under the data root the job's `BMO_DATA_DIR` names.
-- **When the job ends the loan ends.** The next read of the assignments releases one its job no longer runs
-  under, whichever way the job ended. What it left open stays in the checkout, for its report to name.
-- **Why:** a stopped job parks everything open in its checkout as its own, so a write from any
-  other job would leave with it. With every job in a checkout of its own, what is open in a checkout
-  is its holder's, and parking needs to sort nothing.
+- **When the job gives its checkout up the loan ends,** parked onto the job's branch first (「Loans across a
+  job's review」).
+- **Why:** a loan given back parks everything open in its checkout as the job's own, so a write from any
+  other job would leave with it. With every job in checkouts of its own, what is open in a checkout is its
+  holder's, and parking needs to sort nothing.

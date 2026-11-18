@@ -17,6 +17,7 @@ pub mod heads;
 pub mod home;
 pub mod idle_supports;
 pub mod item_sweep;
+pub mod loan_branch;
 pub mod locks;
 pub mod nodes;
 pub mod process_table;

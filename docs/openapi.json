@@ -12684,6 +12684,10 @@
           },
           "repositoryName": {
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean",
+            "description": "wait for a checkout to come free rather than be refused for none"
           }
         },
         "required": [
@@ -14811,6 +14815,11 @@
               }
             ]
           },
+          "umbrella": {
+            "type": "boolean",
+            "description": "a folder holding other repositories' checkouts below it, whose own tree its jobs never write",
+            "default": false
+          },
           "downgradeHeal": {
             "type": "boolean"
           },
@@ -14849,6 +14858,7 @@
           "rules",
           "devCommand",
           "pin",
+          "umbrella",
           "downgradeHeal",
           "sampling",
           "samplingSettings",
@@ -15099,6 +15109,13 @@
                 "type": "null"
               }
             ]
+          },
+          "umbrella": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "an umbrella, which takes no support checkouts and no node checkouts"
           },
           "downgradeHeal": {
             "type": [
@@ -16047,7 +16064,7 @@
               "string",
               "null"
             ],
-            "description": "The repository the work is in, by its internal name, so only that repository's worker takes it;\nleft out for host work, which is in no repository. Work across several repositories is one item per\nrepository, each with the same brief and the same `series=<name>` label."
+            "description": "The repository the work is in, by its internal name, so only that repository's worker takes it;\nleft out for host work, which is in no repository. One change that reaches two or more repositories is one\nitem: its repository the one it runs in, an umbrella where it has no home of its own, and its label\n`repositories` naming every repository it reaches, comma-separated."
           },
           "priority": {
             "type": [

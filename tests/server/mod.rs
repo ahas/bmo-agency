@@ -70,6 +70,7 @@ mod control {
   mod job_roads;
   mod job_stops;
   mod jobs;
+  mod loans;
   mod mcp;
   mod models;
   mod own_llm;

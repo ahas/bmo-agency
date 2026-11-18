@@ -1,9 +1,10 @@
 //! The reading of what a job's command or file tool writes into a place the job guard keeps: another worker's
-//! checkout and the statement document.
+//! checkout, the statement document, and an umbrella job's own folder, a relative path read from where the shell
+//! stands.
 
 use agency_server::command_reading::writes::{
-  Checkouts, ForeignCheckout, foreign_command_write, foreign_file_write, structure_command_write,
-  structure_file_write,
+  Checkouts, ForeignCheckout, SealedTree, Standing, foreign_command_write, foreign_file_write,
+  sealed_command_write, sealed_file_write, structure_command_write, structure_file_write,
 };
 
 const HOME: &str = "/home/tester";
@@ -22,12 +23,83 @@ fn checkouts() -> Checkouts {
   Checkouts {
     own: vec!["/home/tester/repos/agency".into()],
     foreign: vec![checkout("web", "/home/tester/repos/web"), checkout("umbrella", "/home/tester/repos")],
+    sealed: None,
+  }
+}
+
+fn nowhere() -> Standing {
+  Standing {
+    at: None,
+    home: HOME.into(),
   }
 }
 
 fn foreign(command: &str) -> Option<String> {
-  foreign_command_write(command, &checkouts(), HOME)
+  foreign_command_write(command, &checkouts(), &nowhere())
     .map(|(checkout, why)| format!("{}: {why}", checkout.worker))
+}
+
+// An umbrella job: its own folder holds the checkout lent to it and another worker's, and tracks two files of its
+// own; its shell stands in the folder.
+fn umbrella() -> Checkouts {
+  Checkouts {
+    own: vec!["/home/tester/repos".into(), "/home/tester/repos/agency".into()],
+    foreign: vec![checkout("web", "/home/tester/repos/web")],
+    sealed: Some(SealedTree {
+      repository: "tree".into(),
+      cwd: "/home/tester/repos".into(),
+      tracked: vec!["README.md".into(), "docs/owner/plan.md".into()],
+    }),
+  }
+}
+
+fn in_folder() -> Standing {
+  Standing {
+    at: Some("/home/tester/repos".into()),
+    home: HOME.into(),
+  }
+}
+
+#[test]
+fn an_umbrella_job_writes_none_of_its_folder_s_tracked_files_and_writes_in_the_checkouts_lent_to_it() {
+  let known = umbrella();
+  let sealed = |command: &str| sealed_command_write(command, &known, &in_folder());
+
+  for command in [
+    "echo x > README.md",
+    "sed -i 's/a/b/' docs/owner/plan.md",
+    "cd docs && echo x >> owner/plan.md",
+    "echo x > /home/tester/repos/README.md",
+    "cp notes.md ~/repos/README.md",
+    "git commit -am x",
+    "git -C /home/tester/repos add .",
+    "cd agency && cd .. && git add README.md",
+  ] {
+    assert!(sealed(command).is_some(), "let through: {command}");
+  }
+
+  for command in [
+    "echo x > agency/notes.md",
+    "cd agency && git commit -am x",
+    "git -C agency commit -am x",
+    "echo x > new-notes.md",
+    "cat README.md",
+    "git log --oneline -5",
+  ] {
+    assert_eq!(sealed(command), None, "{command}");
+  }
+
+  // A relative path into a checkout below the folder that is no loan of the job's is that worker's.
+  for command in ["echo x > web/notes.md", "cd web && git commit -am x"] {
+    let whose =
+      foreign_command_write(command, &known, &in_folder()).map(|(checkout, _)| checkout.worker.clone());
+
+    assert_eq!(whose.as_deref(), Some("web"), "{command}");
+  }
+
+  assert!(sealed_file_write("/home/tester/repos/docs/owner/plan.md", &known).is_some());
+  assert_eq!(sealed_file_write("/home/tester/repos/agency/README.md", &known), None);
+  assert_eq!(sealed_file_write("/home/tester/repos/new-notes.md", &known), None);
 }
 
 #[test]

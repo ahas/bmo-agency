@@ -273,8 +273,13 @@ enum Verb {
 
 #[derive(Subcommand)]
 enum JobVerb {
-  /// A free checkout of another repository, held for the rest of this job, and where it stands.
-  Borrow { repository: String },
+  /// A checkout of another repository lent for the rest of this job, on the job's branch, and where it stands.
+  Borrow {
+    repository: String,
+    /// Wait for a checkout to come free rather than be refused for none.
+    #[arg(long)]
+    wait: bool,
+  },
 }
 
 #[derive(Subcommand)]
@@ -288,6 +293,9 @@ enum RepositoryVerb {
     /// What the console and the agent list show it by, where it is shown by another name.
     #[arg(long)]
     label: Option<String>,
+    /// An umbrella: a folder holding other repositories' checkouts, whose own tree its jobs never write.
+    #[arg(long)]
+    umbrella: bool,
   },
   /// Remove a repository's registration, refused while a job holds one of its checkouts.
   Remove { name: String },
@@ -602,12 +610,15 @@ async fn run(verb: Verb) -> ExitCode {
     }
     Verb::LiveClaude { purpose, list } => ended(live_claude_run(&data_root, purpose, list).await),
     Verb::Job {
-      what: JobVerb::Borrow { repository },
-    } => ended(borrow::run(&repository).await.map(Answer::from)),
+      what: JobVerb::Borrow { repository, wait },
+    } => ended(borrow::run(&repository, wait).await.map(Answer::from)),
     Verb::Repository { what } => match what {
-      RepositoryVerb::Add { name, path, label } => {
-        ended(repository::add(&name, &path, label.as_deref()).await)
-      }
+      RepositoryVerb::Add {
+        name,
+        path,
+        label,
+        umbrella,
+      } => ended(repository::add(&name, &path, label.as_deref(), umbrella).await),
       RepositoryVerb::Remove { name } => ended(repository::run(&name).await),
     },
     Verb::Claude {

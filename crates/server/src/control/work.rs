@@ -873,6 +873,7 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
+    let lent_named = to_lend(call.ground(), &item, &worker_name).await?;
     // Every job names its agent, or the model and the role whose free agent it takes, and that agent carries its
     // role and its road (docs/repositories.md, 「An agent an item names」).
     let asked_role = item_role(db, item_id, &item).await?.unwrap_or_else(|| {
@@ -922,8 +923,8 @@ impl Route for CreateJob {
       &written,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
               "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role", "item_provider",
-              "item_model", "chosen_by", "item_agent", "notes_through")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING "id""#,
+              "item_model", "chosen_by", "item_agent", "notes_through", "named_repositories")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -940,6 +941,7 @@ impl Route for CreateJob {
         resolution.chosen_by.map(|chosen| chosen.word().to_owned()).into(),
         Some(item_agent.name.clone()).into(),
         crate::job_words::notes_through(&item).into(),
+        Some(lent_named.join(",")).filter(|named| !named.is_empty()).into(),
       ],
     )
     .await?
@@ -990,6 +992,48 @@ impl Route for CreateJob {
 }
 
 crate::moved!(CreateJob);
+
+/// The repositories an item's label names to be lent to its job, the job's own left out, each judged
+/// (docs/api.md, 「assignments and jobs」): a repository the store holds, with a checkout on the machine the job's
+/// own checkout stands on, and no more than the bound of checkouts one job holds, its own among them.
+async fn to_lend(ground: &Ground, item: &Value, worker: &str) -> Result<Vec<String>, Refused> {
+  let named = crate::repositories::named_repositories(&item["labels"]);
+
+  if named.is_empty() {
+    return Ok(named);
+  }
+
+  let known = crate::queue::workers::workers(&ground.db, &ground.source).await?;
+  let own = known.iter().find(|checkout| checkout.name == worker);
+  let own_repository = own.map_or(worker, |checkout| checkout.repository());
+  let node = own.and_then(|checkout| checkout.node.as_deref());
+  let lent: Vec<String> = named.into_iter().filter(|name| name != own_repository).collect();
+
+  for name in &lent {
+    if crate::repositories::named(&ground.db, name).await?.is_none() {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no repository is named {name}"))
+          .with_code("unknown-repository"),
+      );
+    }
+
+    if super::loans::candidates(&known, name, node).is_empty() {
+      return Err(
+        Refused::new(
+          StatusCode::UNPROCESSABLE_ENTITY,
+          format!("{name} is no repository with a checkout on this job's machine"),
+        )
+        .with_code("no-checkout-here"),
+      );
+    }
+  }
+
+  if lent.len() + 1 > policy::workers::WORKERS.job_checkouts_most {
+    return Err(super::loans::too_many(policy::workers::WORKERS.job_checkouts_most));
+  }
+
+  Ok(lent)
+}
 
 /// The wait a job's first turn will begin with, judged as the job is written (docs/api.md, 「assignments and
 /// jobs」): the closed road's sentence where no road of its walk answers, as its turn will wait for a road, else
@@ -2401,7 +2445,7 @@ pub async fn role_of_job(ground: &Ground, id: i64) -> String {
 }
 
 // One line written into a job's log under its run.
-async fn noted_line(ground: &Ground, id: i64, text: &str) {
+pub(crate) async fn noted_line(ground: &Ground, id: i64, text: &str) {
   let Ok((member, _)) = job(&ground.db, id).await else {
     return;
   };
@@ -3010,6 +3054,13 @@ pub async fn launched<S: Sessions + Send + Sync>(
   let Some(sessions) = sessions else {
     return Err("agency stands no places to carry sessions on".to_owned());
   };
+  // Every checkout the job is to be lent is lent before its turn goes out, the job waiting while one is busy
+  // (docs/worker-slots.md, 「A checkout lent to a job」); a job stopped meanwhile goes no further.
+  let Some(lent) = crate::control::loans::lend_job(ground, id).await? else {
+    return Ok(None);
+  };
+  let lent_section =
+    crate::control::loans::lent_words(&lent, &crate::places::loan_branch::job_branch(item));
 
   // The gate picks the reference a job's instruction calls for, and the run carries it in its first
   // prompt; a job with no instruction stands as it was. The first prompt closes with what the review opens
@@ -3020,6 +3071,12 @@ pub async fn launched<S: Sessions + Send + Sync>(
     None => match kept_turn_words(&ground.db, id).await {
       Some(words) => (words, None, None),
       None => {
+        let prompt = crate::control::loans::with_lent(&prompt, &lent_section);
+
+        if !lent_section.is_empty() {
+          kept_prompt(&ground.db, id, &prompt).await;
+        }
+
         let prompt = referenced(ground.peers.gate.as_ref(), &member, &prompt).await;
         let Some(opening) = crate::job_review::opened(ground, id).await else {
           return Ok(None);
@@ -3029,9 +3086,14 @@ pub async fn launched<S: Sessions + Send + Sync>(
       }
     },
     Some(turn) => {
-      let carried = crate::job_review::carried(ground, &member, &prompt, &turn.words).await;
+      // A turn that took loans again after its review paused says where each now stands, ahead of its words.
+      let words = match lent.iter().any(|lent| lent.fresh) {
+        true => format!("{lent_section}\n{}", turn.words),
+        false => turn.words,
+      };
+      let carried = crate::job_review::carried(ground, &member, &prompt, &words).await;
 
-      (turn.words, turn.resume, Some(carried))
+      (words, turn.resume, Some(carried))
     }
   };
   let item_agent = item_agent_of_job(ground, id).await;
@@ -3062,6 +3124,15 @@ pub async fn launched<S: Sessions + Send + Sync>(
     &mut carrier,
   )
   .await
+}
+
+// The prompt a job was launched with, written again once it names the checkouts lent to it.
+async fn kept_prompt(db: &sea_orm::DatabaseConnection, id: i64, prompt: &str) {
+  if let Err(why) =
+    run(db, r#"UPDATE "jobs" SET "prompt" = $1 WHERE "id" = $2"#, vec![prompt.into(), id.into()]).await
+  {
+    eprintln!("job {id}: the prompt naming its loans was not kept: {why}");
+  }
 }
 
 // What a job's turn's end makes of the job, its run closed with it.

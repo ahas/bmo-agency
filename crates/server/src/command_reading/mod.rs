@@ -29,6 +29,8 @@ pub struct HookInput {
   pub command: Option<String>,
   pub path: Option<String>,
   pub call: ShellCall,
+  /// The directory the program stood in when it made the call.
+  pub cwd: Option<String>,
   pub given: Map<String, Value>,
 }
 
@@ -46,6 +48,7 @@ pub fn hook_input(text: &str) -> Result<HookInput, String> {
       timeout_ms: given.get("timeout").and_then(Value::as_u64),
       background: given.get("run_in_background") == Some(&Value::Bool(true)),
     },
+    cwd: text_of(parsed.get("cwd")).filter(|cwd| cwd.starts_with('/')),
     given,
   })
 }

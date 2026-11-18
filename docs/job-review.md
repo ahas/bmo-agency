@@ -32,8 +32,9 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   agent is busy」). The seat is the
   job's slot lease, bound to none of its turns, so the end of the turn that reported does not give it back,
   and neither does a restart of agency while the job stands under review (`docs/role-slots.md`, 「The line」).
-  The job's assignment keeps its checkout, and its item's lease is renewed on the same clock as a running
-  job's (`docs/api.md`, 「assignments and jobs」).
+  The job's assignment keeps its checkout, every checkout lent to it stays lent (`docs/worker-slots.md`,
+  「Loans across a job's review」), and its item's lease is renewed on the same clock as a running job's
+  (`docs/api.md`, 「assignments and jobs」).
 - **A turn the review asks for runs the job again:** the job is `running` while it goes and `reviewing` once it
   has answered, as many times as the review asks. A turn that ends in anything but an answer — failed, blocked,
   stopped, cut — ends the job as any job's turn ends it, its review left as it stood.
@@ -173,7 +174,8 @@ jobs」), naming the job, one action and its words.
   clock」).
 - **While it waits the job stays under review** and every action of the orderer's is refused `awaits-owner`.
 - **Past its due time with no answer, the job gives its checkout and its agent's seat up:** its assignment is
-  released, so the repository's checkout takes the next launch, its agent is free for other work, and the
+  released, so the repository's checkout takes the next launch, every checkout lent to it is parked onto its
+  branch and given back (`docs/worker-slots.md`, 「Loans across a job's review」), its agent is free for other work, and the
   orderer is told `job-review-parked`, to launch the work that can go now; this is the one pause in which an
   agent leaves a job before its end. The item stays leased, so no launch takes it as new work, and the job keeps its session.
 - **The owner's settling answer is written as the round's ruling** and told to the orderer as the check due, with
@@ -181,8 +183,11 @@ jobs」), naming the job, one action and its words.
   it.
 - **A job that gave its checkout up takes it again before its next turn:** the same checkout, held for the job
   as a launch holds one, waiting for it to come free however long that takes, since the job's session and its
-  commits stand there; and its agent's seat, asked in the line for that agent and waited for however long that
-  takes, since the review's move asked for that turn.
+  commits stand there; then a checkout of every repository it held a loan of, chosen and waited for as its
+  launch took them, the turn's words opening with where each now stands (`docs/worker-slots.md`, 「Loans across
+  a job's review」); and its agent's seat, asked in the line for that agent and waited for however long that
+  takes, since the review's move asked for that turn. A job stopped while it waits for any of them goes no
+  further.
 
 ## The turns the review asks for
 

@@ -179,7 +179,7 @@ async fn a_launched_job_s_lease_holds_fixed_the_labels_and_fields_its_launch_rea
 
   let frozen = &asked[0].2["frozen"];
 
-  assert_eq!(frozen["labels"], json!(["agent", "role", "model"]));
+  assert_eq!(frozen["labels"], json!(["agent", "role", "model", "repositories"]));
   assert_eq!(frozen["fields"], json!(["assigneeName", "scope"]));
 
   let reason = frozen["reason"].as_str().unwrap();

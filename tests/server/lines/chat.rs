@@ -484,10 +484,11 @@ fn the_agent_approves_every_sound_draft_itself_and_names_each_item_s_repository(
      judgement of taste",
     "never a member's ask",
     "An item you approved yourself is yours to launch",
-    // An item names its repository; work across several is one item per repository in a series.
+    // An item names its repository; one change reaching several is one item naming them all.
     "file_item's repository",
     "Host work names none",
-    "one item per repository, each with the same brief and the same series=<name> label",
+    "One change that reaches two or more repositories is one item",
+    "its repositories label naming every repository it reaches",
   ] {
     assert!(queue.contains(said), "{said}: {queue}");
   }

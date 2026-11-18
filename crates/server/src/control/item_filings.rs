@@ -250,6 +250,30 @@ impl Route for FileItem {
       );
     }
 
+    // The repositories a change reaching several is lent at its launch, each one the store holds and no more than
+    // one job's bound of checkouts (docs/api.md, 「assignments and jobs」).
+    let lent =
+      crate::repositories::named_repositories(&serde_json::to_value(&ask.labels).unwrap_or_default());
+    let own = given(ask.repository.as_ref());
+
+    for name in &lent {
+      if crate::repositories::named(&call.ground().db, name).await?.is_none() {
+        return Err(
+          Refused::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("no repository is named {name}, in repositories"),
+          )
+          .with_code("unknown-repository"),
+        );
+      }
+    }
+
+    let checkouts = lent.iter().filter(|name| Some(name.as_str()) != own).count() + 1;
+
+    if !lent.is_empty() && checkouts > policy::workers::WORKERS.job_checkouts_most {
+      return Err(super::loans::too_many(policy::workers::WORKERS.job_checkouts_most));
+    }
+
     // The steps are checked against the agent the item runs on before anything is filed: a filing that names no
     // mark, or not the one that check answers, is told what to check and filed by the next.
     let (mark, check) = steps_check(call.ground(), &ask).await?;

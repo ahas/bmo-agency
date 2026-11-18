@@ -12,3 +12,11 @@ item_database = "bmo_item_"
 [notes]
 most_bytes = 4096
 left_out = "{n} older notes are left out of this prompt; they stand on the item."
+
+# What opens a job's prompt under its title where checkouts of other repositories are lent to it
+# (docs/worker-slots.md, 「A checkout lent to a job」): the heading, the line before the list, and one line a
+# checkout, with `{repository}`, `{path}` and `{branch}`.
+[lent]
+heading = "## Checkouts lent to this job"
+lead = "Each of these repositories' checkouts is this job's until it ends, standing on the job's branch. Work, commit and close there as in this job's own checkout; one close closes them all, each named by a --checkout."
+line = "- `{repository}`: `{path}`, on `{branch}`"

@@ -90,6 +90,7 @@ mod m20261229_000001_short_slots;
 mod m20261230_000001_run_turns;
 mod m20261231_000001_double_gone;
 mod m20270101_000001_support_auto;
+mod m20270102_000001_lent_checkouts;
 
 use sea_orm_migration::prelude::*;
 
@@ -269,6 +270,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261230_000001_run_turns::Migration),
       Box::new(m20261231_000001_double_gone::Migration),
       Box::new(m20270101_000001_support_auto::Migration),
+      Box::new(m20270102_000001_lent_checkouts::Migration),
     ]
   }
 

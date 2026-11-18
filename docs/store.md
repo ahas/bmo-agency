@@ -32,7 +32,7 @@ seeds. The other crates and the server reach the store only through it.
     role row holds」);
   - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
     support count, null for `auto`, prefix documents, preamble, rules folder, dev command, pinned provider
-    and model or none, and the sampling a run on a pinned registration is sent (`docs/repositories.md`,
+    and model or none, whether it is an umbrella, and the sampling a run on a pinned registration is sent (`docs/repositories.md`,
     「What a repository row holds」); `repository_node_checkouts`, its checkouts on the work nodes; and
     `support_checkouts`, the support checkouts a repository set to `auto` has made, each its repository,
     slot and when it was recorded (`docs/worker-slots.md`, 「Growing a checkout at a launch」);
@@ -102,9 +102,10 @@ seeds. The other crates and the server reach the store only through it.
     job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
   - the work a harness hands over: `assignments`, one row an item held for a repository — the item, the
-    holder, the repository, the role it runs as and its state — and `jobs`, one row the item's run — the
+    holder, the repository, the role it runs as and its state, and for a loan when its give-back began
+    (`docs/worker-slots.md`, 「Loans across a job's review」) — and `jobs`, one row the item's run — the
     item and lease the harness named, the assignment, the repository, the role, the agent its item named where
-    it named one, the checkout, the session and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
+    it named one, the other repositories its item named to be lent, the checkout, the session and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
     reason it waits where no road can answer, its state, outcome and report, where its review stands — its
     stages, the stage, round and check under way, its rejections, the owner's question its work waits on and
     whether it gave its checkout up meanwhile, and the words its due check is told with and when it came due

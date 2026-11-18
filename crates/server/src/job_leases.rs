@@ -24,7 +24,7 @@ use crate::job_notices;
 use crate::outbox::{self, Keep, Notice, Receiver};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
-use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL};
+use crate::repositories::{AGENT_LABEL, MODEL_LABEL, REPOSITORIES_LABEL, ROLE_LABEL};
 use crate::watches::queue_idle::merged_awaiting_deploy;
 
 /// The item fields a job's launch reads beside its labels: the repository its job runs in and the room it
@@ -39,7 +39,7 @@ pub fn launch_frozen(job: i64, agent: Option<&str>) -> Value {
 
   json!({
     "fields": LAUNCH_FIELDS,
-    "labels": [AGENT_LABEL, ROLE_LABEL, MODEL_LABEL],
+    "labels": [AGENT_LABEL, ROLE_LABEL, MODEL_LABEL, REPOSITORIES_LABEL],
     "reason": format!(
       "job {job} runs on {runs_on} with what its launch read; stop the job, and the change reaches the item's next launch"
     ),

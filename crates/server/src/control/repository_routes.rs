@@ -90,6 +90,7 @@ pub async fn view(ground: &Ground, repository: &Repository) -> Result<Value, Ref
     "rules": repository.rules,
     "devCommand": repository.dev_command,
     "pin": repository.pin.as_ref().map(|pin| json!({ "provider": pin.provider, "model": pin.model })),
+    "umbrella": repository.umbrella,
     "downgradeHeal": repository.downgrade_heal,
     "sampling": sampling,
     "samplingSettings": sampling_settings,
@@ -311,7 +312,21 @@ struct Fields {
   rules: Option<Option<String>>,
   dev_command: Option<Option<String>>,
   pin: Option<Option<(String, String)>>,
+  umbrella: Option<bool>,
   downgrade_heal: Option<bool>,
+}
+
+// Why an umbrella would hold checkouts beside its one, or nothing: it takes no support checkouts and no node
+// checkouts, so its one checkout's lock runs one job at a time (docs/worker-slots.md, 「An umbrella repository」).
+fn umbrella_refusal(umbrella: bool, support: SupportCount, node_checkouts: bool) -> Result<(), Refused> {
+  if umbrella && (support.stored() != Some(0) || node_checkouts) {
+    return Err(bad(
+      "umbrella",
+      "An umbrella takes no support checkouts and no node checkouts: its support count is 0.",
+    ));
+  }
+
+  Ok(())
 }
 
 fn optional_text(body: &Value, field: &str) -> Result<Option<Option<String>>, Refused> {
@@ -398,6 +413,14 @@ impl Fields {
       });
     }
 
+    if let Some(umbrella) = body.get("umbrella") {
+      fields.umbrella = Some(
+        umbrella
+          .as_bool()
+          .ok_or_else(|| bad("umbrella", "A repository is an umbrella or is not."))?,
+      );
+    }
+
     if let Some(heal) = body.get("downgradeHeal") {
       fields.downgrade_heal =
         Some(heal.as_bool().ok_or_else(|| bad("downgradeHeal", "The downgrade heal is on or off."))?);
@@ -433,21 +456,30 @@ impl Route for RepositoryCreate {
     let fields = Fields::of(call.ground(), &body).await?;
     let path = fields.path.clone().ok_or_else(|| bad("path", "A repository names its path."))?;
     let pin = fields.pin.clone().flatten();
+    let umbrella = fields.umbrella.unwrap_or(false);
+    // An umbrella naming no support count takes none (docs/api.md, 「repositories, prefix-checks and
+    // room-holdings」).
+    let support =
+      fields
+        .support_count
+        .unwrap_or(if umbrella { SupportCount::Count(0) } else { SupportCount::AUTO });
     let now = now_ms();
+
+    umbrella_refusal(umbrella, support, false)?;
 
     run(
       call.store(),
       r#"INSERT INTO "repositories" ("name", "label", "owner_account", "path", "node", "support_count",
            "prefix_documents", "preamble", "prompts", "dev_command", "pinned_provider", "pinned_model", "downgrade_heal",
-           "created_at", "updated_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)"#,
+           "created_at", "updated_at", "umbrella")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15)"#,
       vec![
         name.clone().into(),
         fields.label.clone().flatten().into(),
         body.get("ownerAccount").and_then(Value::as_i64).into(),
         path.into(),
         fields.node.clone().flatten().into(),
-        fields.support_count.unwrap_or(SupportCount::AUTO).stored().into(),
+        support.stored().into(),
         serde_json::to_string(&fields.prefix_documents.clone().unwrap_or_default()).map_err(Refused::failed)?.into(),
         fields.preamble.clone().flatten().into(),
         fields.rules.clone().flatten().into(),
@@ -456,6 +488,7 @@ impl Route for RepositoryCreate {
         pin.as_ref().map(|(_, model)| model.clone()).into(),
         i64::from(fields.downgrade_heal.unwrap_or(true)).into(),
         now.into(),
+        i64::from(umbrella).into(),
       ],
     )
     .await?;
@@ -516,6 +549,20 @@ impl Route for RepositoryChange {
       }
       None => None,
     };
+    let umbrella = fields.umbrella.unwrap_or(held.umbrella);
+    let keeps_node_checkouts = match &node_checkouts {
+      Some(asked) => !asked.is_empty(),
+      None => store::one(
+        call.store(),
+        r#"SELECT 1 AS "kept" FROM "repository_node_checkouts" WHERE "repository" = $1 LIMIT 1"#,
+        vec![name.clone().into()],
+      )
+      .await?
+      .is_some(),
+    };
+
+    umbrella_refusal(umbrella, fields.support_count.unwrap_or(held.support_count), keeps_node_checkouts)?;
+
     let node_checkouts = match &node_checkouts {
       Some(asked) => {
         let base_node = fields.node.clone().unwrap_or(held.node.clone());
@@ -537,7 +584,7 @@ impl Route for RepositoryChange {
       call.store(),
       r#"UPDATE "repositories" SET "label" = $2, "path" = $3, "node" = $4, "support_count" = $5,
            "prefix_documents" = $6, "preamble" = $7, "prompts" = $8, "dev_command" = $9, "pinned_provider" = $10,
-           "pinned_model" = $11, "downgrade_heal" = $12, "updated_at" = $13
+           "pinned_model" = $11, "downgrade_heal" = $12, "updated_at" = $13, "umbrella" = $14
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -555,6 +602,7 @@ impl Route for RepositoryChange {
         pin.as_ref().map(|(_, model)| model.clone()).into(),
         i64::from(fields.downgrade_heal.unwrap_or(held.downgrade_heal)).into(),
         now_ms().into(),
+        i64::from(umbrella).into(),
       ],
     )
     .await?;

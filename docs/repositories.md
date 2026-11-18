@@ -30,6 +30,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
     sampling a run on a pinned registration is sent: the supervisors' generation settings by the same names
     and bounds, less the answer ceiling, each held or left out; one left out is the engine's own default,
     which agency neither sets nor reads (`docs/own-llm.md`);
+  - **whether it is an umbrella,** off unless set: a folder that holds other repositories' checkouts below it,
+    whose own tree its jobs never write and whose job does its work in the checkouts lent to it
+    (`docs/worker-slots.md`, 「An umbrella repository」);
   - **its downgrade heal,** on unless the owner turns it off, whether a job that fell to a lower model is
     launched on its own model again (`docs/cache-fallback.md`, 「A repository the owner keeps on its fallen
     model」).
@@ -39,7 +42,7 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A repository is added, changed and removed on the console's repository tab** or through the repository
   routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), with no restart; a removal is refused while a job holds one of
   its checkouts. From a shell, `bmo repository add <name> --path <base checkout>` adds one — `--label` names
-  what the console and the agent list show it by — and `bmo repository remove <name>` takes one away; each
+  what the console and the agent list show it by, and `--umbrella` marks it an umbrella — and `bmo repository remove <name>` takes one away; each
   asks the same route and prints what it wrote or the route's refusal, and the checkout and the deploy tree
   on disk stand as they were.
 - **A repository keeps no log of its own.** It is a place, so what ran in it is its jobs' runs, each with its
@@ -75,6 +78,11 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
+- **A job whose work spans repositories** is one item whose label `repositories` names them, comma-separated,
+  filed to the repository it runs in, an umbrella where the work has no home of its own
+  (`docs/worker-slots.md`, 「An umbrella repository」). Its launch lends it a checkout of each other repository
+  named before its first turn, waiting for them as it waits for its seat, and it keeps them through its review
+  (`docs/worker-slots.md`, 「A checkout lent to a job」, 「Loans across a job's review」).
 - **Its checkout, its branch and its landing** are `docs/worker-slots.md`'s; its workbench and dev server
   are `docs/worker-bench.md`'s.
 
@@ -97,7 +105,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   「Which agent a run takes」). The agent taken is the job's as if the item had named it: nothing about its agent,
   role or road changes after the launch.
 - **A running job holds fixed what its launch read of its item.** Agency has the job service hold fixed, on the
-  item's lease (bmo-job's `docs/api.md`, "While leased"), the labels `agent`, `role` and `model`, the item's
+  item's lease (bmo-job's `docs/api.md`, "While leased"), the labels `agent`, `role`, `model` and
+  `repositories`, the item's
   `assigneeName`, the repository its job runs in, and its `scope`, the room the job answers to, with a reason
   naming the job and the agent it runs on (`docs/api.md`, 「assignments and jobs」). A change of any of them while
   the job is `starting`, `running` or `reviewing` is refused by the job service with that reason, and the

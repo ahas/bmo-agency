@@ -5,8 +5,11 @@
 use sea_orm::DatabaseConnection;
 use store::{all, one, run};
 
+use policy::workers::WORKERS;
+
 use crate::Refusal;
 use crate::now_ms;
+use crate::places::loan_branch;
 
 /// What opens the holder's name of an assignment a job took for itself, the job's number after it: a checkout it
 /// borrowed from another repository.
@@ -17,8 +20,8 @@ const HOLDING: &str = r#"SELECT "worker_name" FROM "assignments" WHERE "state" I
   UNION ALL SELECT "worker_name" FROM "jobs"
    WHERE "state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")"#;
 
-/// The assignments whose hold has ended, released: a running one whose job has ended, one a job borrowed that no
-/// longer runs, and a held one a newer assignment of the same item follows, since an item is held on one checkout
+/// The assignments whose hold has ended, released: a running one whose job has ended, one lent to a job that gave
+/// its checkout up, given back, and a held one a newer assignment of the same item follows, since an item is held on one checkout
 /// at a time. No clock lets any other hold go.
 pub async fn release_ended(db: &DatabaseConnection) -> Result<(), Refusal> {
   let now = now_ms();
@@ -33,19 +36,9 @@ pub async fn release_ended(db: &DatabaseConnection) -> Result<(), Refusal> {
     vec![now.into()],
   )
   .await?;
-  // A checkout a job borrowed is lent for as long as that job runs (docs/worker-slots.md, 「A job writes only in
-  // its own checkout」).
-  run(
-    db,
-    r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
-       WHERE a."state" = 'held'
-         AND a."holder_name" LIKE $2
-         AND NOT EXISTS (SELECT 1 FROM "jobs" j
-               WHERE $3 || j."id"::text = a."holder_name"
-                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))"#,
-    vec![now.into(), format!("{JOB_HOLDER}%").into(), JOB_HOLDER.into()],
-  )
-  .await?;
+  // A checkout lent to a job is given back once that job gives its checkout up (docs/worker-slots.md, 「Loans
+  // across a job's review」): parked onto the job's branch first, held meanwhile.
+  give_back_loans(db, now).await?;
   // A hold its item was assigned again after, under whichever holder, is one no job will start on: a hold left
   // under a name no session ends with goes here. A job's loan is no assignment of its item on either side.
   run(
@@ -73,6 +66,59 @@ pub async fn release_others(db: &DatabaseConnection, item_id: i64, holder: &str)
     vec![now_ms().into(), item_id.into(), holder.into(), format!("{JOB_HOLDER}%").into()],
   )
   .await?;
+
+  Ok(())
+}
+
+// The loans whose job gave its checkout up, each given back: claimed by marking when its give-back began, so one
+// reader alone parks it and nothing takes it half parked, then parked on this machine and released. A claim a
+// stop of agency cut short is taken up again once the policy's seconds have passed.
+async fn give_back_loans(db: &DatabaseConnection, now: i64) -> Result<(), Refusal> {
+  let claimed = all(
+    db,
+    r#"UPDATE "assignments" a SET "returning_at" = $1
+       WHERE a."state" = 'held'
+         AND a."holder_name" LIKE $2
+         AND (a."returning_at" IS NULL OR a."returning_at" < $4)
+         AND NOT EXISTS (SELECT 1 FROM "jobs" j
+               WHERE $3 || j."id"::text = a."holder_name"
+                 AND (j."state" IN ('starting', 'running') OR (j."state" = 'reviewing' AND NOT j."review_parked")))
+       RETURNING a."id", a."worker_name", a."item_id""#,
+    vec![
+      now.into(),
+      format!("{JOB_HOLDER}%").into(),
+      JOB_HOLDER.into(),
+      (now - WORKERS.loan_return_seconds * 1000).into(),
+    ],
+  )
+  .await?;
+
+  for loan in claimed {
+    let id: i64 = loan.try_get("", "id")?;
+    let worker: String = loan.try_get("", "worker_name")?;
+    let item: i64 = loan.try_get("", "item_id")?;
+    let checkout = crate::queue::workers::worker_row(db, &worker, std::path::Path::new("")).await?;
+
+    if let Some(checkout) = checkout.filter(|checkout| checkout.node.is_none() && !checkout.cwd.is_empty())
+    {
+      let branch = loan_branch::job_branch(item);
+      let parked =
+        tokio::task::spawn_blocking(move || loan_branch::give_back(&checkout.cwd, &branch)).await;
+
+      match parked {
+        Ok(Ok(())) => {}
+        Ok(Err(why)) => eprintln!("loan {id} of {worker}: {why}; it is released as it stands"),
+        Err(why) => eprintln!("loan {id} of {worker}: its give-back did not run: {why}"),
+      }
+    }
+
+    run(
+      db,
+      r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'held'"#,
+      vec![crate::now_ms().into(), id.into()],
+    )
+    .await?;
+  }
 
   Ok(())
 }

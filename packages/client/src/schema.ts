@@ -3708,6 +3708,8 @@ export interface components {
         BorrowAsk: {
             runName: string;
             repositoryName: string;
+            /** @description wait for a checkout to come free rather than be refused for none */
+            wait?: boolean;
         };
         /** @description The body that releases an assignment. */
         AssignmentChange: {
@@ -4409,6 +4411,11 @@ export interface components {
             rules: string | null;
             devCommand: string | null;
             pin: components["schemas"]["RepositoryPin"] | null;
+            /**
+             * @description a folder holding other repositories' checkouts below it, whose own tree its jobs never write
+             * @default false
+             */
+            umbrella: boolean;
             downgradeHeal: boolean;
             /** @description each setting it holds by name: a number or a switch; a setting left out is the engine's own default */
             sampling: {
@@ -4486,6 +4493,8 @@ export interface components {
             rules?: string | null;
             devCommand?: string | null;
             pin?: components["schemas"]["RepositoryPin"] | null;
+            /** @description an umbrella, which takes no support checkouts and no node checkouts */
+            umbrella?: boolean | null;
             downgradeHeal?: boolean | null;
             /** @description each setting by name, a number, a switch, or null to leave it to the engine */
             sampling?: {
@@ -4790,8 +4799,9 @@ export interface components {
             queueName: string;
             /**
              * @description The repository the work is in, by its internal name, so only that repository's worker takes it;
-             *     left out for host work, which is in no repository. Work across several repositories is one item per
-             *     repository, each with the same brief and the same `series=<name>` label.
+             *     left out for host work, which is in no repository. One change that reaches two or more repositories is one
+             *     item: its repository the one it runs in, an umbrella where it has no home of its own, and its label
+             *     `repositories` naming every repository it reaches, comma-separated.
              */
             repository?: string | null;
             /** Format: int64 */

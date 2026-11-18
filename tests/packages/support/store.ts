@@ -109,6 +109,7 @@ const LATER_MIGRATIONS: readonly string[] = [
   "job_turn_words.sql",
   "registration_languages.sql",
   "support_auto.sql",
+  "lent_checkouts.sql",
 ];
 
 let swept: Promise<void> | null = null;

@@ -7,6 +7,19 @@ use serde::Deserialize;
 pub struct JobPrompt {
   pub workbench: Workbench,
   pub notes: Notes,
+  pub lent: Lent,
+}
+
+/// What opens a job's prompt where checkouts of other repositories are lent to it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Lent {
+  /// The heading over the list.
+  pub heading: String,
+  /// The line before the list.
+  pub lead: String,
+  /// One line a lent checkout, with `{repository}`, `{path}` and `{branch}`.
+  pub line: String,
 }
 
 /// How much of its item's notes a job's prompt carries.

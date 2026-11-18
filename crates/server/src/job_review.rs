@@ -1113,8 +1113,8 @@ async fn gone_out(
   standing: &Standing,
   turn: Turn,
 ) {
-  if standing.parked {
-    reclaimed(&ground.db, id, standing.assignment, &standing.worker).await;
+  if standing.parked && !reclaimed(&ground, id, standing.assignment, &standing.worker).await {
+    return;
   }
 
   if let Err(why) = run(
@@ -1156,9 +1156,15 @@ pub async fn resumed_turn(ground: Arc<Ground>, sessions: Option<crate::herdr_bac
 const RECLAIM_LOOK: std::time::Duration = std::time::Duration::from_secs(5);
 
 // The checkout a parked job gave up taken again for it, once no other hold or job stands on it, however long
-// that takes (docs/job-review.md, 「The owner's word」).
-async fn reclaimed(db: &DatabaseConnection, id: i64, assignment: i64, worker: &str) {
+// that takes (docs/job-review.md, 「The owner's word」). False where the job was stopped while it waited.
+async fn reclaimed(ground: &Ground, id: i64, assignment: i64, worker: &str) -> bool {
+  let db = &ground.db;
+
   loop {
+    if crate::control::work::called_off(ground, id).await {
+      return false;
+    }
+
     let taken = run(
       db,
       r#"UPDATE "assignments" SET "state" = 'running', "changed_at" = $1
@@ -1188,6 +1194,8 @@ async fn reclaimed(db: &DatabaseConnection, id: i64, assignment: i64, worker: &s
   }
 
   println!("job {id}: took its checkout {worker} again");
+
+  true
 }
 
 // The work put to the owner: the escalation written and the owner's question asked on the item.
