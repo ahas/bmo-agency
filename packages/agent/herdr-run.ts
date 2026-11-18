@@ -274,6 +274,9 @@ interface ExportedLayout {
   layout?: { root?: LayoutNode };
 }
 
+// The fault a home's workspace found gone before its head was looked for answers.
+const WORKSPACE_GONE = "workspace_not_found";
+
 // A standing agent's workspace, found or made, with its head running.
 //
 // Found by the token this reports on it first, and by its label after: the token is live state a
@@ -285,8 +288,17 @@ interface ExportedLayout {
 // Two launches can both find none and both make one. Each reads the picture again after making its
 // own, and where the agent now has more than one each takes the lowest-numbered and closes its own
 // if that is not it, so both arrive at the same one.
+//
+// A workspace found that is gone by the time its head is looked for — its one pane's loop ended
+// between the two readings — is looked for again, and made where none stands, once.
 export async function standingWorkspace(home: AgentHome, options: Where = {}): Promise<HerdrAnswer<StandingWorkspace>> {
   options = at(home, options);
+  const stood = await foundOrMade(home, options);
+
+  return !stood.ok && stood.error.code === WORKSPACE_GONE ? await foundOrMade(home, options) : stood;
+}
+
+async function foundOrMade(home: AgentHome, options: Where): Promise<HerdrAnswer<StandingWorkspace>> {
   const first = await snapshotOf(options);
 
   if (!first.ok) {
@@ -492,7 +504,7 @@ async function headed(home: AgentHome, workspaceId: string, options: Where): Pro
   const panes = (seen.result.panes ?? []).filter((pane) => pane.workspace_id === workspaceId);
 
   if (workspace === undefined) {
-    return { ok: false, error: { code: "workspace_not_found", message: `${home.label}'s workspace went away` } };
+    return { ok: false, error: { code: WORKSPACE_GONE, message: `${home.label}'s workspace went away` } };
   }
 
   // A name the owner has changed since the workspace was made goes on everything that shows it:

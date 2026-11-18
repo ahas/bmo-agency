@@ -40,6 +40,8 @@ interface HerdrLike {
   path: string;
   asked: Asked[];
   model: HerdrModel;
+  // A pane whose program ends right after the next picture is read, its pane going with it.
+  endsAfterNextSnapshot(paneId: string): void;
   stop(): void;
 }
 
@@ -62,10 +64,14 @@ function herdrLike(
 
   rmSync(path, { force: true });
 
+  let ending: string | null = null;
   const kept: HerdrLike = {
     path,
     asked: [],
     model,
+    endsAfterNextSnapshot(paneId) {
+      ending = paneId;
+    },
     stop() {
       server.stop(true);
       rmSync(path, { force: true });
@@ -80,7 +86,14 @@ function herdrLike(
       return options.promptBlocked === true ? "blocked" : { type: "agent_prompted" };
     }
 
-    return model.answer(method, params) ?? null;
+    const answered = model.answer(method, params) ?? null;
+
+    if (method === "session.snapshot" && ending !== null) {
+      model.answer("pane.close", { pane_id: ending });
+      ending = null;
+    }
+
+    return answered;
   };
   const server = Bun.listen<undefined>({
     unix: path,
@@ -304,6 +317,26 @@ describe("a run of a standing agent", () => {
     expect(herdr.model.panes().filter((pane) => pane.command === null)).toHaveLength(0);
     expect(herdr.model.panes().filter((pane) => pane.command?.includes(paneHead))).toHaveLength(1);
     expect(herdr.asked.filter((one) => one.method === "workspace.create")).toHaveLength(1);
+  });
+
+  // A head pane's loop that ends between the two readings of a stand takes the workspace whose one pane it
+  // is with it; the stand looks again and makes the workspace anew rather than failing the turn.
+  test("a workspace gone between its finding and its head's is made again", async () => {
+    const herdr = herdrLike("gone");
+    const first = await standingWorkspace(home(), { socket: herdr.path });
+
+    expect(first.ok).toBe(true);
+
+    const before = first.ok ? first.result : null;
+
+    herdr.endsAfterNextSnapshot(before?.headPaneId ?? "");
+
+    const again = await standingWorkspace(home(), { socket: herdr.path });
+
+    expect(again.ok).toBe(true);
+    expect(again.ok ? again.result.workspaceId : before?.workspaceId).not.toBe(before?.workspaceId);
+    expect(herdr.model.workspaces()).toHaveLength(1);
+    expect(herdr.model.panes().filter((pane) => pane.command?.includes(paneHead))).toHaveLength(1);
   });
 
   test("a leftover is swept on its own, with nothing made where the agent has no workspace", async () => {

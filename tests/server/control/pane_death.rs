@@ -1,5 +1,6 @@
-//! A head pane's death: the loop reports its exit code and last stderr line, and the worker's running job
-//! ends failed with that in the report (docs/agent-control.md, 「A pane that dies」).
+//! A head pane's death: the loop reports its exit code and last stderr line and starts the head again
+//! however often it ends, stopping only on the head's exit 3 (docs/agent-control.md, 「One standing pane per
+//! agent」), and the worker's running job ends failed with that in the report (「A pane that dies」).
 
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
@@ -13,7 +14,7 @@ use harness_providers::Machine;
 use crate::support::scratch::Scratch;
 
 #[tokio::test]
-async fn a_head_loop_reports_a_death_bounds_three_fast_deaths_and_keeps_exit_three_deliberate() {
+async fn a_head_loop_starts_its_head_again_however_often_it_is_ended_and_stops_only_on_exit_three() {
   let home = tempfile::tempdir().unwrap();
   let scratch = Scratch::new().await;
   let variables = HashMap::<String, String>::new();
@@ -27,14 +28,49 @@ async fn a_head_loop_reports_a_death_bounds_three_fast_deaths_and_keeps_exit_thr
     ),
     None,
   );
+  let starts = home.path().join("starts");
+  let head = home.path().join("bin").join("pane-head");
+
+  // A head ended by SIGTERM four times, as the bot ends a program to stand another and the agent host
+  // ends a view giving way, and letting go of the pane on its fifth start.
+  std::fs::create_dir_all(head.parent().unwrap()).unwrap();
+  std::fs::write(
+    &head,
+    format!(
+      "#!/bin/sh\necho start >> '{0}'\n[ \"$(wc -l < '{0}')\" -ge 5 ] && exit 3\nkill -TERM $$\n",
+      starts.display()
+    ),
+  )
+  .unwrap();
+  std::fs::set_permissions(&head, std::fs::Permissions::from_mode(0o755)).unwrap();
+
   let command = ground.head_command("worker", home.path());
   let script = &command[2];
 
   assert!(script.contains("pane-deaths"), "{script}");
   assert!(script.contains("stderr.log"), "{script}");
-  assert!(script.contains("deaths"), "{script}");
-  assert!(script.contains("\"$deaths\" -ge 3"), "{script}");
-  assert!(script.contains("3) exit 0"), "{script}");
+
+  let mut looping = tokio::process::Command::new(&command[0]);
+
+  looping
+    .args(&command[1..])
+    .env("BMO_HEAD_PAUSE", "0")
+    .env_remove("AGENCY_CONTROL_TOKEN")
+    .process_group(0)
+    .kill_on_drop(true);
+
+  let mut child = looping.spawn().unwrap();
+  let group = child.id().unwrap() as i32;
+  let ended = tokio::time::timeout(std::time::Duration::from_secs(20), child.wait()).await;
+
+  unsafe {
+    libc::killpg(group, libc::SIGKILL);
+  }
+
+  let status = ended.expect("the loop ends on the head's exit 3").unwrap();
+
+  assert!(status.success(), "the loop ends 0 on the one exit it obeys");
+  assert_eq!(std::fs::read_to_string(&starts).unwrap().lines().count(), 5);
 }
 
 #[tokio::test]

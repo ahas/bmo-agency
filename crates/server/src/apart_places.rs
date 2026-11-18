@@ -117,8 +117,9 @@ pub async fn placed_now(ground: &Ground, name: &str) -> Result<Option<String>, R
 }
 
 /// A session's place ended: its program released, the session token it carried taken back, its workspace
-/// closed and its folder taken away, under its lock, taken once a turn still holding it ends however long
-/// that takes.
+/// closed in the herdr of the node it stands on, or of this machine, and its folder taken away, under its
+/// lock, taken once a turn still holding it ends however long that takes. The workspace lives as long as the
+/// session: no turn's end closes it.
 pub async fn end(ground: &Ground, name: &str) {
   let data = &ground.roots.data;
   let _held = match hold(agent_lock_path(data, name)).await {
@@ -126,13 +127,18 @@ pub async fn end(ground: &Ground, name: &str) {
     Err(fault) => return eprintln!("thrown-away place {name}: its lock could not be taken ({fault})"),
   };
   let place = Place::of(data, name);
+  let node = links::place_node(&ground.roots.place(name));
 
   if let Some(token) = place.release().await.as_ref().and_then(token_of) {
     token::revoke(ground, token).await;
   }
 
-  if let Some(home) = ground.home_of(name, name) {
-    let _ = home.close().await;
+  match ground.home_on(name, name, node.as_deref()).await {
+    Ok(Some(home)) => {
+      let _ = home.close().await;
+    }
+    Ok(None) => {}
+    Err(why) => eprintln!("thrown-away place {name}: its workspace was not closed ({})", why.detail),
   }
 
   let _ = std::fs::remove_dir_all(&place.path);

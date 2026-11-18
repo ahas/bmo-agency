@@ -30,6 +30,9 @@ pub const PANE_HEAD: &str = "/bin/pane-head";
 /// The one exit a head makes that its pane is not to start it again on.
 pub const HEAD_STOPPED: i32 = 3;
 
+/// The fault a home's workspace found gone before its head was looked for answers.
+const WORKSPACE_GONE: &str = "workspace_not_found";
+
 /// The verb a worker's dev-server pane runs, a word of its command line after the verbs' binary.
 pub const DEV_VERB: &str = "dev-pane";
 
@@ -245,9 +248,19 @@ impl Home {
   /// Two passes can both find none and both make one. Each reads the picture again after making its
   /// own, and where the agent now has more than one each takes the lowest-numbered and closes its own
   /// if that is not it, so both arrive at the same one.
+  ///
+  /// A workspace found that is gone by the time its head is looked for — its one pane's loop ended
+  /// between the two readings — is looked for again, and made where none stands, once.
   pub async fn stand(&self) -> Result<Standing, Fault> {
-    let first = self.herdr.snapshot().await?;
-    let workspace = match self.candidates(&first).into_iter().next() {
+    match self.found_or_made().await {
+      Err(fault) if fault.code == WORKSPACE_GONE => self.found_or_made().await,
+      stood => stood,
+    }
+  }
+
+  async fn found_or_made(&self) -> Result<Standing, Fault> {
+    let seen = self.herdr.snapshot().await?;
+    let workspace = match self.candidates(&seen).into_iter().next() {
       Some(found) => found,
       None => self.make().await?,
     };
@@ -311,7 +324,7 @@ impl Home {
       seen.workspaces.iter().find(|one| one.workspace_id.as_deref() == Some(workspace_id))
     else {
       return Err(Fault {
-        code: "workspace_not_found".into(),
+        code: WORKSPACE_GONE.into(),
         message: format!("{}'s workspace went away", self.label),
       });
     };

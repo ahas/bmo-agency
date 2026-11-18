@@ -153,6 +153,10 @@ The owner's words:
   - **One exit is not started again:** the code `HEAD_STOPPED`, which only the head gives, when the
     agent host tells it to let go of the pane. Any other end, a program ended by a signal included, is
     started again; a pane closed from herdr takes its loop down with it by the hangup.
+  - **The loop keeps no count of its own.** A program the bot ends to stand another and a view giving
+    way end the head as a crash does, so the loop stops on nothing but that exit; how soon a program
+    starts again is the agent host's bound below. A loop that stopped would take with it the workspace
+    whose one pane it is, under a session still taking turns.
   - **Starting again is bounded.** The agent host keeps the times of the recent starts of the program
     the place holds in the place. The first three within a minute start at once; each start after that
     waits twice as long as the one before, from two seconds up to thirty. The start is recorded before
@@ -186,6 +190,10 @@ The owner's words:
   stood up. A job's dev server runs its own command and is kept, and so is a standing pane — one
   whose command line carries the standing mark (`bmo-standing-*`), such as a supervisor's follow pane
   (`docs/supervisors.md`, 「What a turn shows」).
+- **A workspace gone as it is stood is made again.** Standing a home reads herdr's picture once to find
+  its workspace and again to find the head in it; a workspace gone between the two readings is looked for
+  again, and made where none stands, once, before a turn goes in. A thrown-away session's workspace is
+  closed with the session, in the herdr of the node its place stands on, and no turn's end closes it.
 - **A job's end sweeps the whole of herdr the same way.** When a job ends, and on agency's own clock
   every ten minutes, agency reads every workspace and every pane in it, on this machine and on each ready work node whose
   link the node service reports up. Every supervisor standing and every run open counts, a pane a

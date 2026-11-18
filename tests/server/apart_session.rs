@@ -1045,3 +1045,59 @@ async fn a_job_in_a_pane_of_its_own_is_given_a_place_whose_stop_hook_holds_a_too
   assert_eq!(held["decision"], "block", "{held}");
   assert!(hooks_place(&ground, &run("search")).unwrap().is_none());
 }
+
+#[tokio::test]
+async fn a_node_s_thrown_away_session_takes_its_second_turn_after_its_workspace_went() {
+  use agency_server::apart_places;
+  use agency_server::supervisor_turn::run::placed;
+  use agency_server::watches::links;
+
+  use crate::integration::common::herdr::HerdrModel;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+  let node_herdr = home.path().join("data").join("nodes").join("pc");
+
+  std::fs::create_dir_all(&node_herdr).unwrap();
+
+  let node = HerdrModel::stand(node_herdr.join("herdr.sock"));
+  let ground = ground(&scratch, &machine, Some(herdr::Herdr::there(home.path().join("own-herdr.sock"))));
+  let session = SessionId("actor@run:1793".into());
+  let name = apart_places::place_name(&session);
+
+  apart_places::mark(&ground, &name, &session, None).unwrap();
+  links::mark_place_on(&ground.roots.place(&name), Some("pc"), "/work").unwrap();
+
+  let (label, on) = placed(&ground, &name).await.unwrap().unwrap();
+
+  assert_eq!(on.as_deref(), Some("pc"));
+
+  // Each turn stands the place's home in the node's herdr before it puts its words in.
+  let home_of_turn = || async { ground.home_on(&name, &label, on.as_deref()).await.unwrap().unwrap() };
+  let first = home_of_turn().await.stand().await.unwrap();
+
+  // The head pane's loop ends while the second turn stands the home: after it found the workspace and
+  // before it looks for the head in it, the workspace going with its one pane.
+  node.ends_after_next_snapshot(&first.head_pane);
+
+  let second = home_of_turn().await.stand().await.expect("the second turn finds its workspace");
+  let workspaces = node.workspaces();
+
+  assert_ne!(second.workspace, first.workspace, "the workspace that went is made again");
+  assert_eq!(
+    workspaces.iter().map(|one| one.id.as_str()).collect::<Vec<_>>(),
+    [second.workspace.as_str()]
+  );
+  assert!(
+    node
+      .panes()
+      .iter()
+      .any(|pane| pane.id == second.head_pane && pane.workspace == second.workspace),
+    "the second turn's head pane stands in the workspace made again"
+  );
+
+  apart_places::end(&ground, &name).await;
+
+  assert!(node.workspaces().is_empty(), "the session's end closes its workspace on the node");
+}

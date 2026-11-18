@@ -49,6 +49,8 @@ struct Arrangement {
   agents: Vec<(String, String)>,
   // The words typed into panes rather than put as a prompt.
   typed: Vec<(String, String)>,
+  // A pane whose program ends right after the next picture is read, its pane going with it.
+  ends_after_snapshot: Option<String>,
 }
 
 impl Arrangement {
@@ -281,7 +283,16 @@ impl Arrangement {
         self.workspaces.retain(|workspace| workspace.id != id);
         json!({ "type": "ok" })
       }
-      "session.snapshot" => json!({ "snapshot": self.snapshot() }),
+      "session.snapshot" => {
+        let seen = json!({ "snapshot": self.snapshot() });
+
+        if let Some(pane) = self.ends_after_snapshot.take() {
+          self.panes.retain(|one| one.id != pane);
+          self.tidy();
+        }
+
+        seen
+      }
       _ => Value::Null,
     }
   }
@@ -438,6 +449,12 @@ impl HerdrModel {
   /// The keys typed into panes, each with its pane.
   pub fn keys(&self) -> Vec<(String, Vec<String>)> {
     self.held.lock().unwrap().keys.clone()
+  }
+
+  /// A pane whose program ends right after the next picture is read, as a head pane's loop that stops
+  /// between two readings takes its pane, and the workspace whose one pane it is, with it.
+  pub fn ends_after_next_snapshot(&self, pane: &str) {
+    self.held.lock().unwrap().ends_after_snapshot = Some(pane.to_owned());
   }
 
   /// How many times a method was asked.
