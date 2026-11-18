@@ -36,17 +36,20 @@
 
 ## First layer: a hook that reads shell commands before they run
 
-- **Where:** a PreToolUse hook in the worker settings (`prompts/agents/worker/settings.json`) takes a job's
-  Bash command before it runs and judges it. The same hook also takes the job's file edits, for the
-  document below.
-- **Who judges:** the job guard of the service that holds the jobs, which the deployment names in
-  agency's environment as `BMO_JOB_GUARD` and agency hands to every program of the worker line it starts
-  (`docs/api.md`, 「hooks」). The hook runs it through `sh` with the hook's input on standard input. A
-  refusal comes back as a deny decision carrying the reason and the piece of the command the guard read
-  it in — the program word, the redirect's target, the text handed to `eval` or a shell, and where a word
-  was read as a command, why it was read that way. So a job reads what was blocked and why instead of
-  guessing at the rule and writing around it. What the guard refuses, below, is that service's; agency
-  holds only the hook that hands it the call.
+- **Where:** agency's shell hook (「Agency's shell hook closes every command's standard input」) takes every
+  Bash command of a program on a line whose declaration says its programs are jobs' (`guards_job_shell` in
+  `policy/run-lines.toml`) — the worker line — and judges it before it runs, as the job guard. The place's
+  settings start the hook with the word that asks for it, `--guard-job`. A job's file edits go to the tool
+  unread.
+- **Who judges:** agency, in the hook's own process. A refusal comes back as a deny decision carrying the
+  reason and the piece of the command the guard read it in — the program word, the redirect's target, the
+  text handed to `eval` or a shell, and where a word was read as a command, why it was read that way. So a
+  job reads what was blocked and why instead of guessing at the rule and writing around it.
+- **In what order:** first what no opening lets through — print mode (below), a removal the CLI would stop
+  on and the shell habits that stall a job (「The same hook refuses a removal the CLI would stop on」, 「The
+  same hook refuses the shell habits that stall a job」) — then a heavy command started outside the testbed
+  (「The same hook sends a heavy command to the testbed」), then the four things below unless the job has opened the guard. A command none of
+  them refuses goes to the tool with its standard input closed.
 
 ### The four things it refuses
 
@@ -58,11 +61,12 @@
      or from `${HOME}`.
    - Which configuration directories there are is agency's store's: the accounts the owner registers through
      agency's account routes (`docs/api.md`, 「accounts, rest and usage」). The hook reads them off the
-     store's database before it judges a command, and hands the list to the guard; an endpoint account keeps
-     its records in its own configuration home, which is listed like a directory account's; a token account
-     keeps its records in the machine's directory, and the machine's own directory in the hook's environment
-     is added beside them. A store with no account, or one the hook cannot read, leaves the guard with the
-     machine's spellings alone, which it refuses exactly as before.
+     store's database where the command's text holds the word `projects`, which every record directory's
+     path ends in, and judges against them; an endpoint account keeps its records in its own configuration
+     home, which is listed like a directory account's; a token account keeps its records in the machine's
+     directory, and the machine's own directory in the hook's environment is added beside them. A store with
+     no account, or one the hook cannot read, leaves the guard with the machine's spellings alone, which it
+     refuses exactly as before.
    - Among commands that mention the records anywhere: those that copy, move, link, delete or
      create (`cp`, `mv`, `ln`, `rm`, `rsync`, `tee`, `touch` and the like), edit in place
      (`sed -i`), or redirect to anything other than the null device or a literal path outside
@@ -106,43 +110,22 @@
   and git commands. Some of them still have to ask for a wait that covers
   them (「The same hook refuses the shell habits that stall a job」).
 
-### When the hook cannot run
+### When a reading cannot be made
 
-- If the hook cannot run the guard — the worker's line names no source checkout, the deployment names
-  no guard, the guard is missing, or it fails or reads no input — the command is not blocked. The
-  guard's judgement is waited for until the guard ends: the hook's limit is the longest the program
-  takes, a day, and nothing cuts the guard short.
+- A testbed that does not answer reads the command as light. A store the hook cannot reach leaves the
+  records to the machine's spellings, and the job's opening unread, so a command of the four things above is
+  refused as it is before an opening. A hook that cannot read its input, or fails, lets the command go to the
+  tool as written.
 - One hook failing to run must not stop every shell command of every job, and the second layer
   stands behind it.
 
 ### The hook moves the worker's prefix
 
-- The hook is in the worker settings file, so it moves the mark of the worker's prefix.
+- The hook stands in the place's settings agency writes for the worker line, so starting it with another word
+  moves the mark of the worker's prefix.
 - A role's kept session stands on the prefix it was opened on, so a run after a deployment that changed
   these settings resumes a session whose prefix moved once, and pays that move once
   (`docs/sessions.md`, 「A role's session」).
-
-## The same hook holds the owner's statement of the system
-
-- **What it guards:** the file agency's policy names as the owner's statement of the system, which a
-  job changes only on the owner's own request.
-- **Where:** the same hook takes every file edit a job makes (Edit, Write, MultiEdit, NotebookEdit)
-  as well as its shell commands.
-- **What it refuses:**
-  - a file tool whose target is a file of that name
-  - a shell command naming it that writes to it: a redirect into it, a writer program (`cp`, `mv`,
-    `rm`, `tee`, `touch` and the like) or an in-place editor given it, `git rm`, `mv`, `checkout`,
-    `restore` or `apply` on it, and an interpreter's inline script whose write call names it — or
-    that names it and writes somewhere the reading cannot resolve, which is refused rather than
-    guessed at
-  - the same inside `bash -c`, `zsh -c` and `eval`, with the variables the command assigns read as
-    their values
-- **What it lets through:** reading it — `cat`, `grep`, `git diff`, `git add`, and a script that
-  only opens it to read.
-- **Who may change it:** a job whose TODO item was requested by the owner (the requester id is the
-  owner's) and whose title or instruction names the file. The job is found by its run name,
-  as for the live-Claude opening. No question is asked and nothing else opens it.
-- **Where the code differs from it:** the job reports the difference; the refusal says so.
 
 ## The same hook refuses a removal the CLI would stop on
 
@@ -163,7 +146,7 @@
 
 ## Agency's shell hook closes every command's standard input
 
-This is agency's own hook, not the job guard's: it stands whether or not the deployment names a guard.
+This is what the hook does on every line, whether or not it judges as the job guard there.
 
 - **Why:** the Bash tool opens a command's standard input on `/dev/null` only while it reads no input
   redirection in the command's text. Where it reads one — a `<`, `<<` or `<<<`, a `<` inside a quoted
@@ -183,7 +166,8 @@ This is agency's own hook, not the job guard's: it stands whether or not the dep
 - **Where it stands.** It is among the hooks of every place's settings: a supervisor's place, a standing
   worker's, a worker session's, and the thrown-away place a run in a pane of its own is given for its hooks
   where its line holds its stops, as the worker line does. On a supervisor's program it also refuses a
-  command that starts Claude Code (`docs/agents.md`, 「No print mode」). A run in a
+  command that starts Claude Code (`docs/agents.md`, 「No print mode」), and on a job's it judges as the job
+  guard (「First layer」 above). A run in a
   pane of its own on a line that holds no stops, and a runner line's program, which is handed no settings,
   hold no such hook.
 - **The tool's wait does not end such a command.** The worker's settings set the tool's wait, the
@@ -204,12 +188,13 @@ This is agency's own hook, not the job guard's: it stands whether or not the dep
 - **What it refuses**, read the way the shell splits the command — behind assignments and runners,
   inside `bash -c`, `zsh -c`, `eval` and command substitutions, and never inside a heredoc body,
   which is text:
-  - **A known long command with no wait asked for.** The close and the check of a change, by their
-    script or their command, the whole suite (or `bun test` with no file), the web console's typecheck
-    or build, asking the owner, the landing verb, a testbed run and
-    `git push`, in a Bash call whose `timeout` is under five minutes and which does not
-    run in the background. Past its wait the tool moves the command to the background and answers
-    at once, so what depends on it would start before it ends.
+  - **A known long command with a short wait asked for.** The close (`bmo job close`), the check of a
+    change (`bmo check`) and the testbed's cargo verb, the whole suite (`bmo test suite`, `bmo test full`,
+    or `bun test` with no file), the web console's typecheck or build, asking the owner (`bmo job ask`), a
+    testbed run (any verb of the testbed but its status and its classify) and `git push`, in a Bash call
+    that names a `timeout` under five minutes and does not run in the background. Past its wait the tool
+    moves the command to the background and answers at once, so what depends on it would start before it
+    ends. A call that names no `timeout` waits until the command ends (below), and is let through.
   - **A reader named nothing to read.** `ls` or `eza` given no path, and `cat`, `head`, `tail`,
     `wc`, `sort`, `grep` (not recursive), `sed`, `jq` (not `-n`), `python3`, `tr` and `xargs` given
     nothing to read, where neither a pipe, a redirect, a heredoc, a here-string nor a `while` loop's
@@ -224,8 +209,8 @@ This is agency's own hook, not the job guard's: it stands whether or not the dep
     or `rg -g`.
   - **A sleeping wait with no bound.** A `while` or `until` loop in a command that also sleeps,
     unless the loop runs under `timeout`.
-- **What it lets through:** the same commands with a path, a file, a redirect, a quoted pattern, a
-  covering `timeout`, `run_in_background`, `pgrep -af`, a `for` loop of fixed turns, and a loop
+- **What it lets through:** the same commands with a path, a file, a redirect, a quoted pattern, no
+  `timeout` or a covering one, `run_in_background`, `pgrep -af`, a `for` loop of fixed turns, and a loop
   under `timeout <secs> zsh -c '…'`.
 - **Nothing opens it.** Each refusal names what the command would have done and how to write it.
 
@@ -236,28 +221,14 @@ This is agency's own hook, not the job guard's: it stands whether or not the dep
   every worker's line, whatever checkout the job works in, so it is the one place every such command
   passes.
 - **What it refuses:** a command some language of the testbed claims as heavy, read the way the shell
-  splits it as the habits are, that is not itself a run of the testbed.
+  splits it as the habits are, that is not itself a run of the testbed. The hook asks the testbed's
+  `classify --json` verb (the testbed's `docs/boundary.md`), found on the path, with the command's whole
+  text.
 - **What it answers with:** the whole command written after the testbed's run verb and
-  `--`, with the call's `timeout` to give it.
+  `--`, as the testbed's `classify` verb writes it, to be run with no `timeout` or the largest.
 - **What it lets through:** a light command no language claims, the testbed's own run, and a verb of the checkout's own
   that takes the turn itself — the close, the suite's script, a cargo wrapper.
 - **Nothing opens it.**
-
-## The same hook keeps a job in its own checkout
-
-- **What it guards:** every repository's checkout — each base and each support worktree — but the job's
-  own and the ones the job has borrowed (`docs/worker-slots.md`, 「A job writes only in its own
-  checkout」).
-- **What counts as a write there:** a file tool whose target lies in it, a redirect, a writer
-  program, an in-place editor, a git command that changes files, an interpreter's inline script, and
-  relative paths after a `cd` into it. A path is matched at a boundary, so a support
-  worktree whose path begins with its base's is never read as the base, and `~` and `$HOME` spellings
-  count.
-- **What it refuses with:** whose checkout it is, and `bmo job borrow <repository>` by the deploy tree's
-  path, which lends the job a free checkout of that repository.
-- **When it cannot tell:** a job whose row or repository it cannot read, or a store that holds no loans yet,
-  refuses nothing. The job's own checkout is also what the shell's verb refusals
-  (`job-tools.md`) read as 「the checkout」.
 
 ## Second layer: the guard in agency's code
 

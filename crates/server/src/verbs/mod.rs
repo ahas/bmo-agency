@@ -11,6 +11,7 @@ pub mod claude_batch;
 pub mod claude_token;
 pub mod dev_servers;
 pub mod hand_tokens;
+pub mod job_guard;
 pub mod live_claude;
 pub mod models;
 pub mod node_pane;

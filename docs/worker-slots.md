@@ -341,8 +341,8 @@
 - **Every repository's checkout is someone's.** A job may write in its own checkout and in a checkout it
   has borrowed, and in no other checkout of any repository — base or support — whoever holds it. A place no
   repository names is not guarded by this.
-- **The job guard refuses the write,** from the file tools and from the shell alike, and the
-  refusal names whose checkout it is and the verb that borrows one.
+- **The rule is the job's own to keep.** The job guard reads no checkout (`docs/live-claude-guard.md`), so
+  nothing refuses such a write; the way to another repository's checkout is borrowing one.
 - **Borrowing:** `bmo job borrow <repository>`, run inside a job, takes a free checkout of that
   repository for the rest of the job — a support worktree first, the base checkout where the repository
   has no support checkout free, on the job's own machine — and prints its path. It is an assignment held in

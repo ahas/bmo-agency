@@ -67,6 +67,7 @@ impl Hook {
       carry_background: flags.contains(&"--carry-background"),
       refuses: Refuses {
         claude: flags.contains(&"--refuse-claude"),
+        job: flags.contains(&"--guard-job"),
       },
     };
     let ground = Ground {
@@ -435,7 +436,10 @@ fn a_typed_line_is_handed_over_with_its_session_and_an_empty_line_a_slash_comman
 }
 
 // What a supervisor's program has its shell hook refuse.
-const SUPERVISOR_S: Refuses = Refuses { claude: true };
+const SUPERVISOR_S: Refuses = Refuses {
+  claude: true,
+  job: false,
+};
 
 // The shell hook's answer to a Bash call on a supervisor's program, which refuses a Claude launch: the
 // reason it denies one, or none for a call let through.
@@ -458,6 +462,7 @@ fn bash_call(command: &str) -> String {
 fn rewritten(command: &str, refuse_claude: bool) -> Value {
   let refuses = Refuses {
     claude: refuse_claude,
+    job: false,
   };
   let answer: Value = serde_json::from_str(&shell_guard(&bash_call(command), refuses).unwrap()).unwrap();
 

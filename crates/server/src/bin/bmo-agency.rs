@@ -10,6 +10,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use agency_server::lines::place::SHELL_KIND;
 use agency_server::mcp::AgencyServer;
 use agency_server::run_groups;
 use agency_server::verbs::agents::{self, AgentsArgs};
@@ -25,8 +26,8 @@ use agency_server::verbs::run_stop::{self, StopArgs};
 use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
-  Answer, VerbError, agent_status, borrow, claude_token, code_tree, deploy_link, live_claude, node_pane,
-  repository, supervisor_follow, turns,
+  Answer, VerbError, agent_status, borrow, claude_token, code_tree, deploy_link, job_guard, live_claude,
+  node_pane, repository, supervisor_follow, turns,
 };
 use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
@@ -109,7 +110,8 @@ enum Verb {
   #[command(hide = true)]
   GuardShell,
   /// An agent's resident program's status line and hooks, with what it has to say on standard input; and
-  /// its shell hook, which closes a shell command's standard input and refuses one that starts Claude Code.
+  /// its shell hook, which closes a shell command's standard input, refuses one that starts Claude Code, and
+  /// refuses what the job guard refuses of a job's.
   AgentStatus {
     /// status, stop, failure, submit, start or shell.
     kind: Option<String>,
@@ -129,6 +131,9 @@ enum Verb {
     /// The shell hook refuses a command that starts Claude Code.
     #[arg(long)]
     refuse_claude: bool,
+    /// The shell hook refuses what the job guard refuses of a job's shell command.
+    #[arg(long)]
+    guard_job: bool,
   },
   /// The live Claude runs a job opens, each with what it measures and why; with --list, what it opened.
   LiveClaude {
@@ -559,6 +564,7 @@ async fn run(verb: Verb) -> ExitCode {
       compose_typed,
       carry_background,
       refuse_claude,
+      guard_job,
     } => {
       let asked = agent_status::Asked {
         kind: kind.unwrap_or_default(),
@@ -570,12 +576,21 @@ async fn run(verb: Verb) -> ExitCode {
         carry_background,
         refuses: agent_status::Refuses {
           claude: refuse_claude,
+          job: guard_job,
         },
       };
       // A standing input that cannot be read is an empty one: the hook never stands in the program's way.
       let input = standing_input();
       let env: BTreeMap<String, String> = std::env::vars().collect();
       let machine = Machine::of_process(&data_root);
+
+      if asked.kind == SHELL_KIND {
+        let home = machine.var("HOME").unwrap_or_default().to_owned();
+        let job = job_guard::StoreGround::new(&data_root, machine);
+        let answer = agent_status::shell_hook(&input, asked.refuses, &home, &job).await;
+
+        return ended(Ok(answer.into_iter().collect::<Vec<_>>().into()));
+      }
       let ground = agent_status::Ground {
         env: &env,
         code_tree: &code_tree(),

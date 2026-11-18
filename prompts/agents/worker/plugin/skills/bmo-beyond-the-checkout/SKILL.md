@@ -34,7 +34,7 @@ description: "What a job owns and where it may write once the work reaches past 
   the job ends, a support worktree first and the base checkout where none of those is free. Where every
   one of them is at work it says so: borrow once one is free, or raise the work as a row of that repository.
   - Work, commit, push and close there the way that repository closes a job.
-- The job guard refuses a write into anyone else's checkout and says the same.
+- Nothing refuses a write into anyone else's checkout for you: keeping out of one is yours.
 
 ## Reaching the infrastructure
 

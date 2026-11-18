@@ -17,8 +17,11 @@ mod conversation_session;
 mod role_runs;
 mod role_sessions;
 mod command_reading {
+  mod habits;
+  mod job_guard;
   mod reading;
   mod records;
+  mod removal;
   mod shell;
 }
 
@@ -155,7 +158,6 @@ mod lines {
   mod token;
   mod trees;
   mod worker;
-  mod worker_settings;
 }
 
 // The places built so far; the others stand beside these and are declared with their modules.

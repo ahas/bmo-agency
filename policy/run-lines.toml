@@ -16,6 +16,9 @@
 # background_apart: whether a bot's turn ends at its stop while its program's own background work still runs,
 #   that work's finished notice carried to the room the turn was in as a wake of that room's own, rather than
 #   taken into a turn (docs/agent-control.md, 「Background work on a line that carries it apart」).
+# guards_job_shell: whether the line's programs are jobs', whose shell hook refuses what the job guard refuses of
+#   a job's shell command: print mode, a removal the CLI would stop on, the shell habits that stall a job, a heavy
+#   command outside the testbed, and a live Claude session the job has not opened (docs/live-claude-guard.md).
 # capabilities: what every run of the line may reach of the tool host, whoever it runs for;
 #   absent on a line whose runs hold only what their
 #   agent's role gives (docs/agent-roles.md), or that is handed no tools.
@@ -110,6 +113,7 @@ keeps_session = false
 needs = []
 keeps_session = true
 holds_stops = true
+guards_job_shell = true
 # `bmo` stands in the record alone, for the brain's lessons form `bmo use` reaches; no configuration names it.
 namespaces = ["web", "worker", "bmo"]
 lessons = true

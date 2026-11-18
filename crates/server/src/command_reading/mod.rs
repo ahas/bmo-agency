@@ -1,11 +1,16 @@
 //! The reading of a shell command an agent's program is about to run (docs/live-claude-guard.md;
 //! docs/agents.md, 「No print mode」): the words it runs, read the way a POSIX shell splits them by a
 //! maintained shell parser, the programs it starts, and whether one of them is the Claude Code CLI or
-//! writes into its session records; and the hook's input it is handed and the refusal it answers with.
+//! writes into its session records; the job guard's readings of a job's command; and the hook's input it is
+//! handed and the refusal it answers with.
 
+pub mod habits;
+pub mod job_guard;
 pub mod reading;
 pub mod records;
+pub mod removal;
 pub mod shell;
+pub mod testbed;
 
 use serde_json::{Map, Value, json};
 

@@ -25,6 +25,9 @@ pub struct RunLine {
   /// work's finished notice carried to the room it was launched in rather than taken into a turn.
   #[serde(default)]
   pub background_apart: bool,
+  /// Whether its programs are jobs', whose shell hook refuses what the job guard refuses.
+  #[serde(default)]
+  pub guards_job_shell: bool,
   /// What its runs may reach of the tool host; none for a line handed no tools.
   #[serde(default)]
   pub capabilities: Vec<String>,
@@ -135,6 +138,12 @@ impl RunLines {
   /// carries it apart」).
   pub fn background_apart(&self, name: &str) -> bool {
     self.line(name).is_some_and(|line| line.background_apart)
+  }
+
+  /// Whether the line's programs are jobs', whose shell hook refuses what the job guard refuses of a job's
+  /// shell command (docs/live-claude-guard.md).
+  pub fn guards_job_shell(&self, name: &str) -> bool {
+    self.line(name).is_some_and(|line| line.guards_job_shell)
   }
 
   /// Whether a run of the line writes the deployment's agent's brain rather than its runner's.

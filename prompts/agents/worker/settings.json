@@ -23,19 +23,5 @@
   "env": {
     "BASH_DEFAULT_TIMEOUT_MS": "2147483647",
     "BASH_MAX_TIMEOUT_MS": "2147483647"
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || [ -z \"$BMO_JOB_GUARD\" ] || sh -c \"$BMO_JOB_GUARD\" || true",
-            "timeout": 86400
-          }
-        ]
-      }
-    ]
   }
 }

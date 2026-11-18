@@ -922,6 +922,7 @@ async fn stop_hook_answers(settings: &str, answer: &str) -> Vec<String> {
     carry_background: flag("--carry-background"),
     refuses: Refuses {
       claude: flag("--refuse-claude"),
+      job: flag("--guard-job"),
     },
   };
   let hook_ground = HookGround {

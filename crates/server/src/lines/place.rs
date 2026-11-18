@@ -46,6 +46,9 @@ pub const CARRY_BACKGROUND: &str = "--carry-background";
 // The word the shell hook is started with where its line guards its shell: it refuses a command that
 // starts Claude Code.
 const REFUSE_CLAUDE: &str = "--refuse-claude";
+// The word the shell hook is started with where its line's programs are jobs': it refuses what the job guard
+// refuses (docs/live-claude-guard.md).
+const GUARD_JOB: &str = "--guard-job";
 // The calls the shell hook reads.
 const SHELL_CALLS: &str = "Bash";
 // The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
@@ -172,14 +175,18 @@ pub struct Holds {
   /// Whether a shell command that starts Claude Code is refused before it runs (docs/agents.md, 「No print
   /// mode」). Every shell command is read before it runs either way, to close its standard input.
   pub shell_guard: bool,
+  /// Whether the shell hook refuses what the job guard refuses of a job's shell command, the line's programs
+  /// being jobs' (docs/live-claude-guard.md).
+  pub job_guard: bool,
   /// Whether the stop and submit hooks write the program's background work into the place's background
   /// record, the line carrying that work apart.
   pub carry_background: bool,
 }
 
 impl Holds {
-  /// What a run of the line asks of its place's hooks, as its declaration names it: the stop holds and a
-  /// person's typed line composed; no shell guard, which a caller adds where its program carries one.
+  /// What a run of the line asks of its place's hooks, as its declaration names it: the stop holds, a
+  /// person's typed line composed and the job guard; no shell guard, which a caller adds where its program
+  /// carries one.
   pub fn of_line(line: &str) -> Self {
     let stops = RUN_LINES.holds_stops(line);
 
@@ -189,6 +196,7 @@ impl Holds {
       wording: stops,
       compose_typed: RUN_LINES.composes_typed_lines(line),
       shell_guard: false,
+      job_guard: RUN_LINES.guards_job_shell(line),
       carry_background: RUN_LINES.background_apart(line),
     }
   }
@@ -283,10 +291,12 @@ pub fn write_place_settings(
     ),
   ];
 
-  own.push(match holds.shell_guard {
-    true => shell_hook(SHELL_CALLS, call(SHELL_KIND, &[REFUSE_CLAUDE])),
-    false => shell_hook(SHELL_CALLS, call(SHELL_KIND, &[])),
-  });
+  let shell_flags: Vec<&str> = [(holds.shell_guard, REFUSE_CLAUDE), (holds.job_guard, GUARD_JOB)]
+    .into_iter()
+    .filter_map(|(asked, flag)| asked.then_some(flag))
+    .collect();
+
+  own.push(shell_hook(SHELL_CALLS, call(SHELL_KIND, &shell_flags)));
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
   merge_hooks(&mut settings, own);
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its

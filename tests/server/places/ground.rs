@@ -33,12 +33,7 @@ fn code_tree(tree: &Path) {
 #[test]
 fn a_run_apart_is_handed_the_home_and_the_bmo_variables_and_nothing_else() {
   let machine = machine(
-    &[
-      ("HOME", "/home/tester"),
-      ("BMO_OWNER_ID", "7"),
-      ("BMO_JOB_GUARD", "/srv/jobs/bin/guard"),
-      ("SSH_AUTH_SOCK", "/run/keyring"),
-    ],
+    &[("HOME", "/home/tester"), ("BMO_OWNER_ID", "7"), ("SSH_AUTH_SOCK", "/run/keyring")],
     "/data",
   );
   let ground = Ground::new(&service(&[]), &machine, None);
@@ -46,8 +41,6 @@ fn a_run_apart_is_handed_the_home_and_the_bmo_variables_and_nothing_else() {
 
   assert_eq!(env.get("HOME").map(String::as_str), Some("/home/tester"));
   assert_eq!(env.get("BMO_OWNER_ID").map(String::as_str), Some("7"));
-  // The job guard the deployment names reaches every program, so the worker's hook can run it.
-  assert_eq!(env.get("BMO_JOB_GUARD").map(String::as_str), Some("/srv/jobs/bin/guard"));
   assert_eq!(env.get("BMO_RUN_NAME").map(String::as_str), Some("search-9"));
   assert!(!env.contains_key("SSH_AUTH_SOCK"));
 }

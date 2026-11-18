@@ -105,6 +105,7 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
       wording: false,
       compose_typed: false,
       shell_guard: false,
+      job_guard: false,
       carry_background: false,
     },
   )
@@ -133,6 +134,25 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
     format!("'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}'", place.display()),
     "every place reads a shell call first to close its standard input, refusing nothing"
   );
+}
+
+// The worker line's programs are jobs', so their place's shell hook is started as the job guard.
+#[test]
+fn a_worker_s_place_guards_its_shell_as_a_job_s() {
+  let dir = tempfile::tempdir().unwrap();
+  let place = dir.path().join("place");
+  let path =
+    write_place_settings(&place, Map::new(), Path::new("/deploy"), Holds::of_line("worker")).unwrap();
+  let settings: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+
+  assert_eq!(
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"],
+    format!(
+      "'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}' '--guard-job'",
+      place.display()
+    )
+  );
+  assert!(!Holds::of_line("chat").job_guard, "a supervisor's line is no job's");
 }
 
 #[test]

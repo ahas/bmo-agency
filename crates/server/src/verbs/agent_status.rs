@@ -12,7 +12,8 @@
 //! carries it apart」). Started as the shell hook, with no place needed, it hands a shell call back with its
 //! command behind the line that closes the shell's standard input (docs/live-claude-guard.md, 「Agency's shell
 //! hook closes every command's standard input」); with its refusal flag it refuses one that starts Claude
-//! Code (docs/agents.md, 「No print mode」).
+//! Code (docs/agents.md, 「No print mode」), and with its job flag whatever the job guard refuses
+//! (docs/live-claude-guard.md).
 //!
 //! It never fails the program: a place it cannot write to costs the record one line, and the status line
 //! still says what it can. A hook that ended otherwise would stand in the program's way.
@@ -23,6 +24,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::{CONTROL_PORT, CONTROL_TOKEN, control_port, control_token};
+use crate::command_reading::job_guard::{JobGround, job_refusal};
 use crate::command_reading::records::claude_launch;
 use crate::command_reading::{hook_input, hook_refusal};
 use crate::door::place_run::{
@@ -66,7 +68,7 @@ pub struct Ground<'a> {
 /// The usage line, said on the error stream where the hook was started without a kind it knows or a place.
 pub const USAGE: &str = concat!(
   "usage: bmo-agency agent-status <status|stop|failure|submit|start> --place <dir>, ",
-  "or shell [--refuse-claude]"
+  "or shell [--refuse-claude] [--guard-job]"
 );
 
 // The session record's lines written since a moment, or none where it cannot be read.
@@ -233,6 +235,8 @@ pub const CLOSED_INPUT: &str = "exec </dev/null";
 pub struct Refuses {
   /// A shell command that starts Claude Code (docs/agents.md, 「No print mode」).
   pub claude: bool,
+  /// Whatever the job guard refuses of a job's shell command (docs/live-claude-guard.md).
+  pub job: bool,
 }
 
 /// The shell hook's answer to a PreToolUse call: where `refuses` asks it, a refusal of a command that starts
@@ -250,6 +254,22 @@ pub fn shell_guard(input: &str, refuses: Refuses) -> Option<String> {
   }
 
   Some(closed_input(input.given, &command))
+}
+
+/// The shell hook's answer to a PreToolUse call, the job guard first where `refuses` asks it: its refusal of a
+/// job's shell command, read with what `job` stands on and the paths spelled under `home`; otherwise the
+/// shell guard's answer. Input it cannot read lets the call through as it is.
+pub async fn shell_hook(input: &str, refuses: Refuses, home: &str, job: &impl JobGround) -> Option<String> {
+  if refuses.job
+    && let Ok(read) = hook_input(input)
+    && read.tool == "Bash"
+    && let Some(command) = read.command
+    && let Some(refused) = job_refusal(&command, read.call, home, job).await
+  {
+    return Some(hook_refusal(&refused));
+  }
+
+  shell_guard(input, refuses)
 }
 
 // The call's whole input again, its command behind the line that closes the shell's standard input, as the
@@ -279,7 +299,8 @@ pub fn shell_refusal(command: &str) -> Option<String> {
 /// or a typed line's composition. What goes wrong is said on the error stream and never ends the call with
 /// a fault.
 pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Vec<String> {
-  // The shell hook reads only the call it is handed, so it needs no place.
+  // The shell hook reads only the call it is handed, so it needs no place; the job guard is `shell_hook`'s,
+  // which stands on more than this hook does.
   if asked.kind == SHELL_KIND {
     return shell_guard(input, asked.refuses).into_iter().collect();
   }
