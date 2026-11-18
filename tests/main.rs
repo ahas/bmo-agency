@@ -19,7 +19,6 @@ mod literals;
 mod llm_gateway;
 mod node_link;
 mod pane_head;
-mod personal_data;
 mod policy;
 mod server;
 mod store;

@@ -76,7 +76,7 @@ them.
 - **No personal data**, as `docs/PERSONAL-DATA.md` states it: not a name, handle, account id, mail
   address, host name, home path, device or other network detail of the owner or of a person they know.
   A value that differs by installation is read from settings; an example is neutral.
-  `tests/personal_data.rs` fails on a mail address, a home path, a telephone number, a token and a
+  The testbed's `personal-data` check fails on a mail address, a home path, a telephone number, a token and a
   private network address in any tracked file, naming the file, the line and the kind but never the value.
 - **No directory named after its parent.** `tests/layout.rs` fails on one.
 - **Only Cargo manifests at the root,** beside `testbed.toml`, the testbed's declaration. The root

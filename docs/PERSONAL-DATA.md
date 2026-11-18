@@ -18,9 +18,10 @@ a comment, a document, a test fixture or a commit message.
 
 ## The check
 
-`tests/personal_data.rs` reads every file git tracks or would track and fails where it finds a mail
-address, a home path, a telephone number, a token or a private network address. A finding names the file,
-the line and the kind, never the value it found.
+The testbed's `personal-data` check, which the declaration enables, reads every file git tracks or would
+track and fails where it finds a mail address, a home path, a telephone number, a token or a private
+network address. A finding names the file, the line and the kind, never the value it found. The forms are
+the testbed's policy (its `docs/checks.md`, 「The quick checks」).
 
 The check keeps the forms, not a list of names or values to look for: such a list would itself be the
 personal data the rule keeps out. It admits the reserved example domains, the neutral home folders above,

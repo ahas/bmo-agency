@@ -39,7 +39,7 @@ check_script = "check:types"
 dir = "tools"
 
 [check]
-quick = ["layout", "dependencies", "cargo-profile", "shared-versions"]
+quick = ["layout", "dependencies", "cargo-profile", "shared-versions", "personal-data"]
 base_libraries = [
   "bmo-chat",
   "bmo-chat-client",
