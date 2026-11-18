@@ -2022,7 +2022,7 @@ role `administrator`, each else from the mail unit's settings file `env/mail.tom
   leaves the paragraph out and the launch logs one sentence saying so.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
-`tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
+the declaration's `base_libraries`, which the testbed's `dependencies` check holds; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 
 It calls no downstream but the job service's lease, item and event routes and the receiver's instruction

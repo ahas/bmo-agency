@@ -7,7 +7,6 @@ mod support;
 
 mod agent_host;
 mod cache_siren;
-mod dependencies;
 mod deploy_quiet;
 mod harness_machine;
 mod harness_providers;
