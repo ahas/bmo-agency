@@ -144,5 +144,8 @@ says, and every subagent a job's program opens and every line the owner types in
   deployment's outcome is started in the background, and the work that does not hang on its result is done
   meanwhile: the documents, the lessons, the report's draft, the next step's reading. Its result is
   then only read: a failure is fixed and the command started again, a pass goes on.
-- **Wait on your own command by its own output file or its own process id,** never by a pattern another
-  job's command would also match, such as a search for every running close.
+- **Wait on your own command by the exit line it writes into its own output file,** at a bound, as the
+  `bmo-waiting-on-long-work` skill gives the one wait: never by a `pgrep -f` pattern, which also matches
+  the waiting shell and another job's command, never through a `tail -f` pipe, never for a line the work
+  may not write, and never by a time window standing in for the id a launch returned. A check that
+  ended as hung, failed or was killed has ended.
