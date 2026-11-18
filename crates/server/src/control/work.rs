@@ -1238,6 +1238,7 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
   let ended = launched(&ground, sessions, id, None).await;
 
   finish(&ground, id, ended).await;
+  crate::places::base_mains::after_turn(&ground);
 }
 
 /// A turn a job's review asks for (docs/job-review.md, 「The turns the review asks for」): carried as the job's
@@ -1253,6 +1254,7 @@ pub async fn carry_review_turn(
   let ended = launched(&ground, sessions, id, Some(turn)).await;
 
   finish(&ground, id, ended).await;
+  crate::places::base_mains::after_turn(&ground);
 }
 
 /// The words of the turn a job carries, kept on its row until that turn comes back from its session, or let go

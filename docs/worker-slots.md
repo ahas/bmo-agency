@@ -2,8 +2,8 @@
 
 - **What this says:** how one repository runs several jobs at once — its base checkout, the support
   checkouts beside it, the worktree each is, the checkouts lent to a job beyond its own and the umbrella
-  repository whose job works in them, how a job's work lands on main, and what a job may write outside its own
-  checkout. Which role a job runs as and how many of a
+  repository whose job works in them, how a job's work lands on main and how the base's main follows it, and
+  what a job may write outside its own checkout. Which role a job runs as and how many of a
   role's runs go at once are `docs/role-slots.md`'s; a checkout bounds only how many jobs of one repository
   stand in its tree at once.
 
@@ -121,7 +121,9 @@
 
 ## A job's own checkout
 
-- **Agency moves no branch in a job's own checkout.** The job is handed the checkout as it stands: a support
+- **Agency moves no branch in a job's own checkout while the job holds it;** between jobs it brings an idle
+  base's main up to the remote's (「The base checkout's main brought up to the remote's」). The job is handed
+  the checkout as it stands: a support
   worktree as its last job left it, or as it was made, detached at main; the base checkout on whatever was
   last checked out there. Nothing is committed, switched or parked there for it. Which branch the job works
   on and what it leaves open are its own, and its close lands what its `HEAD` holds (「Landing on main」).
@@ -266,6 +268,31 @@
   one check over all of them, are the close's and the testbed's; agency only lent the checkouts.
 - **A branch that main moved past** is the job's to bring up — merge or rebase main into it and close again —
   since the close fast-forwards alone.
+
+## The base checkout's main brought up to the remote's
+
+- **The close moves the remote's main alone,** so the repository's main on this machine is agency's to bring
+  up. The base checkout is what other repositories build against by path, and main read off it is what a new
+  support worktree is detached at (「Names and places」), so a main left behind breaks both.
+- **What moves:** the repository's main branch, read off the base checkout (「A job's own checkout」), brought
+  up to the same branch on the remote that branch follows, else `origin`, by a fast-forward alone. A main
+  ahead of the remote's, or gone apart from it, is left as it stands.
+- **Where main stands decides how it moves:**
+  1. checked out in the base checkout: the checkout is fast-forwarded in place and what is open there stays
+     open. Where the move would overwrite an open file git moves nothing, and the base is named on the error
+     stream on every pass until that file is cleared;
+  2. checked out nowhere, the base standing on a job's branch or detached: the branch is moved alone,
+     guarded by the commit it was read at;
+  3. checked out in another worktree: left to the repository whose base that worktree is.
+- **Only an idle base is moved:** nothing holds it (an assignment `held` or `running`, or a job at work in
+  it), no job or fold holds its checkout lock or its agent's lock, it stands on this machine, and it is no
+  umbrella. A base passed over is brought up on a later pass.
+- **A base checkout fast-forwarded in place is set up again,** as every checkout agency moves under its
+  installs is (「Names and places」); a setup that fails is said on the error stream, and the move stands.
+- **When it runs:** as each job's turn ends, from what git on this machine already knows of the remote, since
+  a close run here pushes from a checkout of the same repository and git records the remote's main as it
+  pushes; and every ten minutes on a clock of its own, with the remote's main fetched first, which brings what
+  was pushed from elsewhere, a node's checkout among it. Only on agency's own data root.
 
 ## Checkouts on the nodes
 

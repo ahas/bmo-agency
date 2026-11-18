@@ -166,6 +166,7 @@ mod lines {
 
 // The places built so far; the others stand beside these and are declared with their modules.
 mod places {
+  mod base_mains;
   mod branch;
   mod claims;
   mod follow;

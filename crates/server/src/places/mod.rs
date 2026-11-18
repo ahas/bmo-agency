@@ -6,6 +6,7 @@
 //! What an agent's program is stays its launcher's: a head stood here is answered whatever the place holds
 //! once the launcher writes it (docs/agent-control.md, 「One standing pane per agent」).
 
+pub mod base_mains;
 pub mod branch;
 pub mod checkouts;
 pub mod claims;
@@ -44,6 +45,9 @@ use crate::watches::links::{self, Systemd};
 // run left swept (docs/run-groups.md); and how often the node service's list is read for the nodes' workspaces and the links
 // brought to the store.
 const HEADS_PASS: Duration = Duration::from_secs(10 * 60);
+// How often every idle base's main is brought up to its remote's, the remote fetched first
+// (docs/worker-slots.md, 「The base checkout's main brought up to the remote's」).
+const BASE_MAINS_PASS: Duration = Duration::from_secs(10 * 60);
 const SERVERS_PASS: Duration = Duration::from_secs(10 * 60);
 const NODES_PASS: Duration = Duration::from_secs(60);
 const LINKS_PASS: Duration = Duration::from_secs(60);
@@ -81,7 +85,8 @@ impl Places {
   /// as it starts and on the heads' clock; the dev panes of
   /// the workers a job holds, the heads and the room panes as it attaches to herdr and after every drop;
   /// the heads, the room panes and the checkouts again every ten minutes, with each pane a consumer
-  /// claims and marks idle taken down; every run whose program is gone
+  /// claims and marks idle taken down; every idle base's main brought up to its remote's every ten minutes;
+  /// every run whose program is gone
   /// taken down every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
   /// and every minute. A process on a copy of the data root moves no checkout, sweeps no run and keeps
   /// no link: the machine is not the copy's.
@@ -141,6 +146,17 @@ impl Places {
         Ok(())
       }
     }));
+
+    // The bases' mains brought up on a clock of their own, since each fetches its remote.
+    if own {
+      let fetching = self.clone();
+
+      tokio::spawn(every("bases' mains", BASE_MAINS_PASS, BASE_MAINS_PASS, move || {
+        let places = fetching.clone();
+
+        async move { base_mains::pass(&places.ground, base_mains::Remote::Fetched).await.map(drop) }
+      }));
+    }
 
     let noding = self.clone();
 
