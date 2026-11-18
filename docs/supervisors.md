@@ -661,9 +661,10 @@ rule to.
   told once, by the same kind of wake, rather than left waiting. So work that must outlive the session is a
   call made apart, and the program's background is for work that ends within it; the chat manual says so.
 - **Background work is held to the call clock.** A background shell, or a shell call or background shell of a
-  background subagent, whose processes burn no processor time past the clock's stall, or that writes no output
-  and stands idle across the silent window — a wait that only polls — is cut as a call in the turn is, with no
-  ask opened, and the wake carried to its room says it was cut and why. A shell that waits on a process by a
+  background subagent, whose processes burn no processor time, begin no process and write no output past the
+  clock's stall, or that writes no output and stands idle across the silent window — a wait that only
+  polls — is cut as a call in the turn is, with no ask opened, and the wake carried to its room says it was
+  cut and why. A shell that waits on a process by a
   `pgrep -f` pattern its own command line also holds counts itself and never ends; the chat manual tells the
   supervisor to wait on its own command's output file or process id instead.
 - **A stop of the supervisor's turn ends its program's background work,** within the bound

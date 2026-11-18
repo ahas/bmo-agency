@@ -49,7 +49,7 @@ subagent = "the subagent"
 # One line of `{cuts}` for each call the clock cut: `{call}` is the call's command, `{minutes}` how long it ran
 # and `{why}` one of the two reasons below.
 cut = "\n\nThe call clock cut {call} after {minutes} minutes: {why}."
-stalled = "its processes burned no processor time"
+stalled = "its processes burned no processor time, began no process and wrote no output"
 idle = "it wrote nothing and stood idle, a wait that only polls"
 
 # The one line the wake is summed up by, where the room's notices are listed. `{description}` as above.

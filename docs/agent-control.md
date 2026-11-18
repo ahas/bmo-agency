@@ -1050,12 +1050,13 @@ turn reads」 says, the job's turn among them, unchanged.
   background shell of a background subagent, read off the subagent's own record beside the session's, is a
   call as 「A run's tool calls are held to a clock」 reads one: its processes are those of the program's tree
   that began with it and that its command names. Agency's server reads them every look and, as a supervisor's
-  call opens no ask, cuts one by signalling its processes where it is past the clock's minimum and its
-  processes have burned no processor time for the stall, or where it has written no output and stood idle
-  across the silent window, under the idle share: a wait that only polls. The task's notice then ends it, and
-  the wake carried to its room names each cut and why. A call that keeps burning processor time, a long
-  search among them, is never cut. On a place standing on a node no process is read here, and the clock
-  reaches nothing there.
+  call opens no ask, cuts one by signalling its processes where it is past the clock's minimum and for the
+  stall its processes have burned no processor time, begun no process and written no output, or where it has
+  written no output and stood idle across the silent window, under the idle share: a wait that only polls.
+  The task's notice then ends it, and the wake carried to its room names each cut and why. A call that keeps
+  burning processor time, a long search among them, or whose output keeps growing, a check that says once a
+  minute that a step placed on another machine still runs, is never cut. On a place standing on a node no
+  process is read here, and the clock reaches nothing there.
 - **The session is free for the next round.** A round ends at its own turn's stop and a notice's turn is no
   round's, so a supervisor takes its next round as soon as its answer is handed over, whatever its program's
   background still runs.

@@ -1067,7 +1067,7 @@ pub struct BackgroundCall {
 }
 
 /// A call of a program's background work the clock cut: its id, its command, how long it had run, and
-/// whether it was cut for burning no processor time rather than for writing nothing while it stood idle.
+/// whether it was cut for its stall rather than for writing nothing while it stood idle.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackgroundCut {
   pub id: String,
@@ -1078,9 +1078,9 @@ pub struct BackgroundCut {
 
 /// The call clock over a program's background work (docs/agent-control.md, 「Background work on a line that
 /// carries it apart」): each call read as a turn's call is, and cut, its processes signalled, where it is past
-/// the clock's minimum and its processes burned no processor time for the stall, or where it wrote no output
-/// and stood idle across the silent window. Nobody is asked first. A call with no process of its own leaves
-/// nothing to read or cut.
+/// the clock's minimum and for the stall its processes burned no processor time, began no process and wrote
+/// no output, or where it wrote no output and stood idle across the silent window. Nobody is asked first. A
+/// call with no process of its own leaves nothing to read or cut.
 #[derive(Debug)]
 pub struct BackgroundClock {
   clock: ToolClock,
@@ -1153,7 +1153,8 @@ impl BackgroundClock {
       read_activity(call, &owned, now, self.clock.silent.window_ms);
 
       let elapsed = now - call.started_at;
-      let stalled = elapsed >= self.clock.min_ms && now - call.last_progress_at >= self.clock.stall_ms;
+      let moved_at = call.last_progress_at.max(call.output_changed_at);
+      let stalled = elapsed >= self.clock.min_ms && now - moved_at >= self.clock.stall_ms;
       let idle = idle_percent(call, now, &self.clock).is_some();
 
       if stalled || idle {

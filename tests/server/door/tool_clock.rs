@@ -1353,6 +1353,47 @@ async fn a_background_shell_that_burns_nothing_is_cut_at_its_stall() {
   );
 }
 
+/// a background shell that burns nothing but whose output grows, as a check that says a placed step still runs,
+/// is not cut at its stall, and is cut once its output stops growing for the stall
+#[tokio::test]
+async fn a_background_shell_whose_output_grows_is_not_cut_at_its_stall() {
+  let dir = tempfile::tempdir().unwrap();
+  let output = dir.path().join("tasks/bsays.output");
+  let program = with_tasks(dir.path(), &[("bsays", "sleep 1000")]);
+  let stall = 1_000;
+  let mut clock = BackgroundClock::new(clock(0, stall, 0));
+  let began = agency_server::now_ms();
+  let calls = [background("bsays", began)];
+
+  for _ in 0..200 {
+    if !task_processes(program.pid, &["bsays".to_owned()]).is_empty() {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(10)).await;
+  }
+
+  assert!(
+    clock.look(program.pid, &calls, began).await.is_empty(),
+    "the first look takes its measure"
+  );
+
+  for pass in 1..=3 {
+    let mut file = std::fs::OpenOptions::new().append(true).open(&output).unwrap();
+    writeln!(file, "check: a placed step still running").unwrap();
+
+    let cuts = clock.look(program.pid, &calls, began + pass * (stall + 1)).await;
+    assert!(cuts.is_empty(), "a shell whose output grew is left to run: {cuts:?}");
+  }
+
+  let cuts = clock.look(program.pid, &calls, began + 4 * (stall + 1)).await;
+  assert_eq!(
+    cuts.iter().map(|cut| (cut.id.as_str(), cut.stalled)).collect::<Vec<_>>(),
+    [("bsays", true)],
+    "a shell whose output stopped is cut at its stall"
+  );
+}
+
 /// a stop's ending reaches the processes of the tasks it names and every process they began, within its grace,
 /// and leaves the program's other children standing
 #[tokio::test]

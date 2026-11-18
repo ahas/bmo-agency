@@ -37,7 +37,8 @@ pub struct BackgroundWords {
   pub subagent: String,
   /// One line for each call the clock cut; `{call}`, `{minutes}` and `{why}` are filled.
   pub cut: String,
-  /// Why a call was cut whose processes burned no processor time.
+  /// Why a call was cut for its stall: its processes burned no processor time, began no process and wrote
+  /// no output.
   pub stalled: String,
   /// Why a call was cut that wrote nothing and stood idle.
   pub idle: String,
