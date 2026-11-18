@@ -29,9 +29,10 @@ pub const CLAUDE_CODE: &str = "claude-code";
 // the one they came from.
 const SEAM_BYTES: u64 = 64;
 
-/// A session's record read as it grows. A turn in a pane is watched by looking at its record every
-/// second, and a session's record runs to tens of megabytes, so the lines already parsed are kept and
-/// each look reads only the bytes written since the last whole line it took. What a look answers is
+/// A session's record read as it grows. A turn in a pane is watched by looking at its record several
+/// times a second, and a session's record runs to tens of megabytes, so the lines already parsed are kept,
+/// each look reads only the bytes written since the last whole line it took, and a look hands back the
+/// lines it holds without copying them. What a look answers is
 /// what parsing the whole file would: every line that is JSON, in order, a line that is not passed
 /// over, and a last line still being written counted only where it already parses. The kept lines are
 /// thrown away and the file read again from its start wherever it is not the file they came from:
@@ -46,7 +47,9 @@ pub struct Tail {
   records: Vec<Value>,
   // Each record line as it was written, for a reader that keeps its own order of keys.
   raw: Vec<String>,
-  unfinished_raw: Vec<String>,
+  // How many of the lines came from whole lines of the file; a line after them is the last line still
+  // being written, read again by the next look.
+  whole: usize,
 }
 
 impl Tail {
@@ -58,7 +61,7 @@ impl Tail {
       seam: vec![],
       records: vec![],
       raw: vec![],
-      unfinished_raw: vec![],
+      whole: 0,
     }
   }
 
@@ -67,13 +70,13 @@ impl Tail {
   }
 
   /// Every JSON line of the record now, in order; nothing where there is no file.
-  pub fn look(&mut self) -> Vec<Value> {
+  pub fn look(&mut self) -> &[Value] {
     let Ok(mut file) = std::fs::File::open(&self.path) else {
       self.restart(0);
 
-      return vec![];
+      return &self.records;
     };
-    let Ok(meta) = file.metadata() else { return vec![] };
+    let Ok(meta) = file.metadata() else { return &self.records };
     let intact = self.ino == meta.ino()
       && meta.len() >= self.offset
       && read_at(&mut file, self.offset - self.seam.len() as u64, self.seam.len() as u64) == self.seam;
@@ -81,6 +84,10 @@ impl Tail {
     if !intact {
       self.restart(meta.ino());
     }
+
+    // The last line read unfinished is read again with whatever has been written after it.
+    self.records.truncate(self.whole);
+    self.raw.truncate(self.whole);
 
     let fresh = read_at(&mut file, self.offset, meta.len() - self.offset);
     let end = fresh.iter().rposition(|byte| *byte == b'\n');
@@ -91,27 +98,22 @@ impl Tail {
       self.seam = read_at(&mut file, self.offset.saturating_sub(SEAM_BYTES), SEAM_BYTES.min(self.offset));
     }
 
-    // A last line with no newline yet is taken only where it already reads whole, and it is not kept:
-    // the next look reads it again with whatever has been written after it.
-    let mut unfinished = vec![];
+    self.whole = self.records.len();
 
-    self.unfinished_raw.clear();
+    // A last line with no newline yet is taken only where it already reads whole.
     parse(
       &String::from_utf8_lossy(&fresh[end.map_or(0, |end| end + 1)..]),
-      &mut unfinished,
-      &mut self.unfinished_raw,
+      &mut self.records,
+      &mut self.raw,
     );
 
-    let mut records = self.records.clone();
-
-    records.extend(unfinished);
-    records
+    &self.records
   }
 
   /// The record's lines as they were written, as the last look read them: one for each record it
   /// handed back.
-  pub fn raw(&self) -> Vec<String> {
-    self.raw.iter().chain(&self.unfinished_raw).cloned().collect()
+  pub fn raw(&self) -> &[String] {
+    &self.raw
   }
 
   /// How many lines the record holds now.
@@ -125,6 +127,7 @@ impl Tail {
     self.seam.clear();
     self.records.clear();
     self.raw.clear();
+    self.whole = 0;
   }
 }
 

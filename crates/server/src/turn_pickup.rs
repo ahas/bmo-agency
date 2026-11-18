@@ -548,7 +548,7 @@ impl Following {
 
       let (mut tail, fed) = reading(ground, turn, &pane.transcript, pane.started_at).await;
 
-      self.begins = first_since(&tail.look(), pane.started_at);
+      self.begins = first_since(tail.look(), pane.started_at);
       self.tail = Some(tail);
       self.fed = fed;
 
@@ -572,7 +572,7 @@ impl Following {
 
       let (mut tail, fed) = reading(ground, turn, &transcript, since).await;
 
-      self.begins = first_since(&tail.look(), since);
+      self.begins = first_since(tail.look(), since);
       self.tail = Some(tail);
       self.fed = fed;
     }
@@ -595,17 +595,16 @@ impl Following {
     }
 
     if let Some(tail) = &mut self.tail {
-      tail.look();
-
-      let raw = tail.raw();
+      let count = tail.look().len();
 
       // A record replaced under the reader is read again from where its newest filed line stands.
-      if raw.len() < self.fed {
-        self.fed = newest_source(ground, turn)
-          .await
-          .and_then(|newest| resumed_at(&tail.look(), &newest))
-          .unwrap_or(0);
+      if count < self.fed {
+        let newest = newest_source(ground, turn).await;
+
+        self.fed = newest.and_then(|newest| resumed_at(tail.look(), &newest)).unwrap_or(0);
       }
+
+      let raw = tail.raw();
 
       if raw.len() > self.fed {
         self.log.feed(&ground.db, &raw[self.fed..], &self.source).await;
@@ -613,7 +612,7 @@ impl Following {
       }
 
       // What the turn has written so far answers the progress read under its own id.
-      shown(ground, turn, read_turn(&tail.look(), self.begins).text);
+      shown(ground, turn, read_turn(tail.look(), self.begins).text);
 
       return;
     }
@@ -652,14 +651,16 @@ fn shown(ground: &Ground, turn: &InFlight, text: String) {
 // A transcript read from the line the run's log last took out of it, else from the turn's beginning: the
 // transcript as it stands now, and how many of its lines are filed.
 async fn reading(ground: &Ground, turn: &InFlight, transcript: &Path, since: i64) -> (Tail, usize) {
+  let newest = newest_source(ground, turn).await;
   let mut tail = Tail::new(transcript);
   let records = tail.look();
-  let fed = match newest_source(ground, turn).await {
-    Some(newest) => resumed_at(&records, &newest).unwrap_or_else(|| first_since(&records, since)),
-    None => first_since(&records, since),
+  let fed = match newest {
+    Some(newest) => resumed_at(records, &newest).unwrap_or_else(|| first_since(records, since)),
+    None => first_since(records, since),
   };
+  let fed = fed.min(records.len());
 
-  (tail, fed.min(records.len()))
+  (tail, fed)
 }
 
 // The newest line of the run's log that came out of its program's record, by the id the record carried: where
@@ -994,7 +995,7 @@ async fn followed(
     let records = following.tail.as_mut().map(Tail::look);
     let program = tool_program(place, pane);
 
-    if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
+    if let (Some(watch), Some(records)) = (tools.as_mut(), records) {
       watch_tools(ground, turn, records, program, watch, asks.as_deref_mut(), &mut following.log, now)
         .await;
     }
@@ -1084,7 +1085,7 @@ async fn followed(
       cut = true;
       stop_seen_at = Some(now);
 
-      if let (Some(watch), Some(records)) = (tools.as_mut(), records.as_deref()) {
+      if let (Some(watch), Some(records)) = (tools.as_mut(), records) {
         cut_tools(ground, turn, records, program, watch, &mut following.log, now).await;
       }
 
