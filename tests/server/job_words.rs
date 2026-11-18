@@ -13,9 +13,11 @@ use agency_server::door::aside;
 use agency_server::door::turn::AsideOutcome;
 use agency_server::job_words::{self, Note};
 use agency_server::now_ms;
+use agency_server::peers::gate::NoGate;
 use agency_server::turn_pickup::{InFlight, keep};
 use agency_server::words;
 
+use crate::support::gates;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -126,7 +128,7 @@ async fn a_job_s_sessions_take_words_while_it_runs_and_refuse_them_only_once_it_
   );
 
   // Every word said was kept for the job's next turn, which carries them all.
-  let kept = job_words::carried(scratch.db(), 61).await;
+  let kept = job_words::carried(scratch.db(), &NoGate, 61).await;
 
   assert_eq!(kept.behind("stage 2").matches("more").count(), 4, "{kept:?}");
 
@@ -168,7 +170,7 @@ async fn a_word_said_to_a_running_job_goes_into_the_turn_it_works_now_and_waits_
   let said = tokio::spawn({
     let (db, running) = (db.clone(), running.clone());
 
-    async move { job_words::say(&db, &running, "check the other branch too", "owner", None).await }
+    async move { job_words::say(&db, &NoGate, &running, "check the other branch too", "owner", None).await }
   });
 
   // The turn's door takes the offer at its look.
@@ -190,7 +192,7 @@ async fn a_word_said_to_a_running_job_goes_into_the_turn_it_works_now_and_waits_
 
   assert_eq!(said.outcome, Some(AsideOutcome::Delivered));
   assert_eq!(
-    job_words::carried(&db, 62).await.text,
+    job_words::carried(&db, &NoGate, 62).await.text,
     None,
     "a word the turn took is not carried again"
   );
@@ -198,14 +200,17 @@ async fn a_word_said_to_a_running_job_goes_into_the_turn_it_works_now_and_waits_
   // A turn that ends before taking a word leaves it for the job's next turn.
   drop(listening);
 
-  let said = job_words::say(&db, &running, "and update the document", "owner", None)
+  let said = job_words::say(&db, &NoGate, &running, "and update the document", "owner", None)
     .await
     .unwrap()
     .unwrap();
 
   assert_eq!(said.outcome, None);
   assert!(
-    job_words::carried(&db, 62).await.behind("stage 3").ends_with("and update the document"),
+    job_words::carried(&db, &NoGate, 62)
+      .await
+      .behind("stage 3")
+      .ends_with("and update the document"),
     "the kept word follows the next turn's own prompt"
   );
 }
@@ -236,14 +241,14 @@ async fn a_note_added_to_a_running_job_s_item_reaches_its_next_turn_and_is_never
     note(8, "bmo-job", "record"),
     handoff,
   ] {
-    job_words::note_added(&db, passed).await.unwrap();
+    job_words::note_added(&db, &gates::none(), passed).await.unwrap();
   }
 
   // A note the orderer added while the job runs is kept for it, once however often its event is read.
-  job_words::note_added(&db, note(5, "harness", "Also cover the console's screen."))
+  job_words::note_added(&db, &gates::none(), note(5, "harness", "Also cover the console's screen."))
     .await
     .unwrap();
-  job_words::note_added(&db, note(5, "harness", "Also cover the console's screen."))
+  job_words::note_added(&db, &gates::none(), note(5, "harness", "Also cover the console's screen."))
     .await
     .unwrap();
 
@@ -254,7 +259,7 @@ async fn a_note_added_to_a_running_job_s_item_reaches_its_next_turn_and_is_never
   })
   .await;
 
-  let kept = job_words::carried(&db, 63).await;
+  let kept = job_words::carried(&db, &NoGate, 63).await;
   let prompt = kept.behind("Do stage 2 now.");
 
   assert!(prompt.starts_with("Do stage 2 now."), "{prompt}");
@@ -271,11 +276,11 @@ async fn a_note_added_to_a_running_job_s_item_reaches_its_next_turn_and_is_never
   // A turn that did not go out to its end leaves the note for the next, which carries it again.
   kept.left(&db).await;
 
-  let kept = job_words::carried(&db, 63).await;
+  let kept = job_words::carried(&db, &NoGate, 63).await;
 
   assert!(kept.behind("").contains("Also cover the console's screen."));
   kept.taken(&db, 63, "job-63").await;
-  assert_eq!(job_words::carried(&db, 63).await.text, None, "a carried note is handed once");
+  assert_eq!(job_words::carried(&db, &NoGate, 63).await.text, None, "a carried note is handed once");
 
   // The job's report says what it was told while it ran.
   let report = words::report(&db, 63).await.unwrap().unwrap();
@@ -336,4 +341,77 @@ async fn a_server_numbers_its_sessions_past_every_number_a_process_before_it_gav
     .unwrap();
 
   assert_eq!(started.id.0, "worker@run:58", "no id a process before gave is given again");
+}
+
+#[tokio::test]
+async fn a_word_in_another_language_is_kept_as_said_and_goes_into_the_turn_and_the_next_one_in_english() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db().clone();
+  let greek = "Έλεγξε και τον άλλο κλάδο.";
+  let later = "Ενημέρωσε και το έγγραφο.";
+  let gate = std::sync::Arc::new(gates::Translator::reading(&[
+    (greek, "Check the other branch too."),
+    (later, "Update the document too."),
+  ]));
+
+  job(&scratch, 64, 9, "running", "worker@run:4", Some(0)).await;
+  keep(
+    &db,
+    &InFlight {
+      session: "worker@run:4".into(),
+      turn: 1,
+      run: "job-64".into(),
+      key: None,
+      agent: "worker".into(),
+      chat_id: Some(5),
+      ledger: None,
+      job: Some(64),
+      started_at: now_ms(),
+    },
+  )
+  .await;
+
+  let running = job_words::named(&db, 64).await.unwrap().unwrap();
+  let listening = aside::listen("job-64");
+  let said = tokio::spawn({
+    let (db, running, gate) = (db.clone(), running.clone(), gate.clone());
+
+    async move { job_words::say(&db, gate.as_ref(), &running, greek, "owner", None).await }
+  });
+  let mut offered = None;
+
+  until(|| {
+    offered = offered.take().or_else(|| listening.take());
+
+    std::future::ready(offered.is_some())
+  })
+  .await;
+
+  let offered = offered.unwrap();
+
+  assert_eq!(offered.words, "Check the other branch too.");
+  listening.said(offered, AsideOutcome::Delivered);
+  said.await.unwrap().unwrap().unwrap();
+
+  // A word no turn took is carried by the next in English too, and the store keeps both as said.
+  drop(listening);
+  job_words::say(&db, gate.as_ref(), &running, later, "owner", None)
+    .await
+    .unwrap()
+    .unwrap();
+
+  let carried = job_words::carried(&db, gate.as_ref(), 64).await.behind("stage 2");
+
+  assert!(carried.ends_with("Update the document too."), "{carried}");
+  assert!(!carried.contains(later), "{carried}");
+
+  let kept: Vec<String> =
+    store::all(&db, r#"SELECT "text" FROM "job_words" WHERE "job_id" = 64 ORDER BY "id""#, vec![])
+      .await
+      .unwrap()
+      .iter()
+      .map(|row| row.try_get("", "text").unwrap())
+      .collect();
+
+  assert_eq!(kept, [greek, later]);
 }

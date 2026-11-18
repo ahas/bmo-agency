@@ -82,7 +82,7 @@ async fn events_read_while_the_receiver_cuts_every_call_are_owed_and_told_once_i
   }
 
   front.set(Mode::Cut);
-  job_events::pass(db, &vars).await.unwrap();
+  job_events::pass(db, &vars, &crate::support::gates::none()).await.unwrap();
 
   assert_eq!(
     settings::get(db, CURSOR_KEY).await.unwrap().as_deref(),

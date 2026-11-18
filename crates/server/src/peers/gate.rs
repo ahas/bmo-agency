@@ -1,10 +1,12 @@
 //! The gate (docs/api.md, 「Calls agency makes」) through the client it publishes: the reference a job's
 //! first prompt is handed, picked over its instruction by the gate's reference road. The reference is the knowledge, rules and documents of the brain of the supervisor the call names,
-//! chosen by the gate; a worker and a voyager read the brain only through what the gate hands them here.
+//! chosen by the gate; a worker and a voyager read the brain only through what the gate hands them here. And
+//! the English of what a person wrote for a job's worker, read by the gate's translator (docs/worker-language.md,
+//! 「What agency translates on the way in」).
 
 use std::sync::Arc;
 
-use bmo_gate_client::{Entry, GateClient, ReferenceAsk};
+use bmo_gate_client::{Entry, GateClient, Reading, ReferenceAsk, TranslationAsk};
 use url::Url;
 
 use super::{Asking, PeerFault, Variables};
@@ -60,6 +62,19 @@ pub trait Gate: Send + Sync {
   /// The gate kinds and the order they stand in, as the gate publishes them. Empty where the gate is
   /// undeployed, so agency keeps no copy of its order.
   fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>>;
+
+  /// Each original read into `language`, in the order given, each whole or with the parts the translator
+  /// could not render standing as written. A gate that translates nothing answers that it cannot.
+  fn translate<'a>(&'a self, language: &'a str, originals: Vec<String>) -> Asking<'a, Vec<Reading>> {
+    let _ = (language, originals);
+
+    Box::pin(async {
+      Err(PeerFault::Unreachable {
+        peer: PEER,
+        detail: "no gate translates here".to_owned(),
+      })
+    })
+  }
 }
 
 /// A prompt with the reference the gate picked attached, its entries under a heading of their own, each
@@ -165,6 +180,17 @@ impl Gate for PublishedGate {
 
   fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
     Box::pin(async move { self.client.gates().await.map(|page| page.items).map_err(fault) })
+  }
+
+  fn translate<'a>(&'a self, language: &'a str, originals: Vec<String>) -> Asking<'a, Vec<Reading>> {
+    Box::pin(async move {
+      let ask = TranslationAsk {
+        language: language.to_owned(),
+        originals,
+      };
+
+      self.client.translate(&ask).await.map(|answer| answer.readings).map_err(fault)
+    })
   }
 }
 

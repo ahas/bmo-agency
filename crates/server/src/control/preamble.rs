@@ -1,7 +1,7 @@
 //! The preamble bundle a job's prompt carries under its title (docs/worker-bench.md, 「Preamble」): agency's
 //! header naming the job's checkout, its workbench and its dev server, and the repository's preamble below it
-//! as the owner wrote it. It is read afresh each time a session is handed the job's prompt and is never kept
-//! on the job's row.
+//! as the owner wrote it, put into the worker's language (docs/worker-language.md, 「What agency translates on the
+//! way in」). It is read afresh each time a session is handed the job's prompt and is never kept on the job's row.
 
 use std::path::{Path, PathBuf};
 
@@ -155,6 +155,16 @@ impl Bench {
     text
   }
 
+  /// The bench with the owner's preamble put into the worker's language, or under the untranslated mark where
+  /// the gate did not render it whole in time.
+  pub async fn in_english(mut self, gate: &dyn crate::peers::gate::Gate) -> Self {
+    if let Some(preamble) = self.preamble.take() {
+      self.preamble = Some(crate::worker_english::english_one(gate, &preamble).await);
+    }
+
+    self
+  }
+
   fn workbench_line(&self, workbench: &Path) -> String {
     let names = &JOB_PROMPT.workbench;
     let scratch = workbench.join(&names.scratch).join(self.item.to_string());
@@ -184,11 +194,15 @@ impl Bench {
   }
 }
 
-/// A job's prompt with its checkout's bundle under its title, read now; the prompt as it stands where the bundle
-/// says nothing.
+/// A job's prompt with its checkout's bundle under its title, read now and its preamble put into the worker's
+/// language; the prompt as it stands where the bundle says nothing.
 pub async fn bundled(ground: &Ground, checkout: &str, item: i64, prompt: &str) -> String {
   match Bench::of_job(ground, checkout, item).await {
-    Some(bench) => crate::control::work::under_title(prompt, &bench.words()),
+    Some(bench) => {
+      let bench = bench.in_english(ground.peers.gate.as_ref()).await;
+
+      crate::control::work::under_title(prompt, &bench.words())
+    }
     None => prompt.to_owned(),
   }
 }

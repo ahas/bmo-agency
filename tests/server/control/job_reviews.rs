@@ -22,7 +22,7 @@ use agency_server::outbox::{owed, restarted, send_due};
 use agency_server::places::Ground;
 use agency_server::queue::settings;
 use agency_server::turn_marks::{self, Mark};
-use agency_server::watches::job_events::{CURSOR_KEY, QUESTION_OWED, pass};
+use agency_server::watches::job_events::{CURSOR_KEY, QUESTION_OWED};
 use bmo_agency_client::{AgencyClient, JobReviewAsk, JobState};
 use harness_providers::Machine;
 use serde_json::{Value, json};
@@ -32,6 +32,14 @@ use crate::support::grounds::{deepseek_balance, seeded};
 use crate::support::peers::{Peers, item, stand};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
+
+// The pass with no gate deployed, so a word for a job goes as written.
+async fn pass(
+  db: &sea_orm::DatabaseConnection,
+  vars: &std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+  agency_server::watches::job_events::pass(db, vars, &crate::support::gates::none()).await
+}
 
 const TOKEN: &str = "secret";
 

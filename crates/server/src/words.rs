@@ -416,7 +416,7 @@ async fn to_job(ground: &Ground, job: job_words::Job, ask: WordsAsk) -> Result<W
   }
 
   let prompt = with_files(ground, &job.worker, &ask)?;
-  let said = job_words::say(&ground.db, &job, &prompt, &by, None)
+  let said = job_words::say(&ground.db, ground.peers.gate.as_ref(), &job, &prompt, &by, None)
     .await?
     .ok_or_else(|| Refused::failed(format!("the words for job {} were not kept", job.id)))?;
   let word = match said.outcome {

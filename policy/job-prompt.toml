@@ -36,3 +36,14 @@ workbench = "Its workbench folder is `{workbench}`, where what jobs here reuse a
 not_checkout = "`{path}` is not a git checkout: there is nothing to commit, push or deploy. Skip the closing steps that need git, and make no repository."
 dev = "The repository's dev server stands in a pane outside this job, and only once this job starts it: start it before looking at what it serves. Start it with `{start}`, restart it with `{restart}` and stop it with `{stop}`; its log is `{log}`. A dev server that is down, failing or serving stale code is restarted and the work goes on; it is never left as unfinished."
 preamble_heading = "## The repository's preamble"
+
+# How what a person wrote for a job's worker, the owner's part of its preamble and a word handed to a running job,
+# is put into the worker's language on its way in (docs/worker-language.md, 「What agency translates on the way
+# in」): the language the gate is asked for, by the tag the gate's translation policy names; the most originals one
+# call to the gate carries, as the gate's contract bounds them; the longest one hand-over waits for the gate's
+# answer before it goes on with the texts as written; and the line set over a text that goes in untranslated.
+[translation]
+language = "en"
+most_originals = 16
+wait_ms = 90000
+untranslated = "The text below could not be translated into English and stands in its original language."

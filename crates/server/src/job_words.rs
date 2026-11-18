@@ -3,10 +3,11 @@
 //! before anything is tried; the turn the job works now offered them at its next look, this process's or one
 //! picked up across a restart; and any later turn of the job carrying what is still kept behind its own prompt.
 //! A word is marked handed only once a turn of the job took it, so none is lost to a turn's end, a review
-//! between stages or a restart.
+//! between stages or a restart. A word is kept as said and goes into a turn in the worker's language
+//! (docs/worker-language.md, 「What agency translates on the way in」).
 
 use std::collections::HashSet;
-use std::sync::{LazyLock, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
 
 use policy::fill_marks;
 use policy::worker_words::WORKER_WORDS;
@@ -17,6 +18,7 @@ use store::{Fault, all, one, run};
 use crate::door::aside;
 use crate::door::turn::AsideOutcome;
 use crate::now_ms;
+use crate::peers::gate::Gate;
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::turn_pickup::{self, InFlight};
@@ -258,6 +260,7 @@ pub struct Said {
 /// turn it works now, the outcome answered being this word's own.
 pub async fn say(
   db: &DatabaseConnection,
+  gate: &dyn Gate,
   job: &Job,
   text: &str,
   by: &str,
@@ -267,19 +270,25 @@ pub async fn say(
     return Ok(None);
   };
 
-  Ok(Some(offered_now(db, job, word, text).await?))
+  Ok(Some(offered_now(db, gate, job, word, text).await?))
 }
 
 // A word kept for the job written to its log and offered, with every word still kept before it, to the turn the
 // job works now; the outcome answered is this word's own.
-async fn offered_now(db: &DatabaseConnection, job: &Job, word: i64, text: &str) -> Result<Said, Fault> {
+async fn offered_now(
+  db: &DatabaseConnection,
+  gate: &dyn Gate,
+  job: &Job,
+  word: i64,
+  text: &str,
+) -> Result<Said, Fault> {
   let turn = turn_of(db, job.id).await;
   let run = turn.as_ref().map_or_else(|| job.own_run(), |turn| turn.run.clone());
 
   line(db, job, &run, "prompt", text).await;
 
   let offered = match &turn {
-    Some(turn) => offer(db, job, turn).await?,
+    Some(turn) => offer(db, gate, job, turn).await?,
     None => vec![],
   };
   let outcome = offered.iter().find(|(id, _)| *id == word).map(|(_, outcome)| *outcome);
@@ -307,11 +316,12 @@ fn account(outcome: Option<AsideOutcome>) -> String {
   }
 }
 
-// Every word kept for the job offered in order to its working turn, until one is not taken: a word the turn
-// took marked handed, and one it did not left kept. Answers each word offered with what became of it; a word
-// another offer holds is passed.
+// Every word kept for the job offered in order to its working turn in the worker's language, until one is not
+// taken: a word the turn took marked handed, and one it did not left kept. Answers each word offered with what
+// became of it; a word another offer holds is passed.
 async fn offer(
   db: &DatabaseConnection,
+  gate: &dyn Gate,
   job: &Job,
   turn: &InFlight,
 ) -> Result<Vec<(i64, AsideOutcome)>, Fault> {
@@ -322,6 +332,7 @@ async fn offer(
       continue;
     }
 
+    let text = crate::worker_english::english_one(gate, &text).await;
     let outcome = match aside::offer(&turn.run, &text) {
       Some(mut offer) => Some((&mut offer.answer).await.unwrap_or(AsideOutcome::Refused)),
       None => None,
@@ -350,8 +361,8 @@ pub struct Carried {
   pub text: Option<String>,
 }
 
-/// Every word still kept for the job, taken for the turn about to go out.
-pub async fn carried(db: &impl ConnectionTrait, job: i64) -> Carried {
+/// Every word still kept for the job, taken for the turn about to go out and put into the worker's language.
+pub async fn carried(db: &impl ConnectionTrait, gate: &dyn Gate, job: i64) -> Carried {
   let mut words = vec![];
   let mut texts = vec![];
 
@@ -367,7 +378,7 @@ pub async fn carried(db: &impl ConnectionTrait, job: i64) -> Carried {
   }
 
   let text = std::iter::once(WORKER_WORDS.job.waited.clone())
-    .chain(texts)
+    .chain(crate::worker_english::english(gate, texts).await)
     .collect::<Vec<_>>()
     .join("\n\n");
 
@@ -435,7 +446,7 @@ impl Note {
 /// The note is kept before this answers, so the pass reading the events moves its cursor past it only once it
 /// stands; a note kept already is kept once. The offer to the job's working turn goes on apart, so the pass never
 /// waits on a turn's look.
-pub async fn note_added(db: &DatabaseConnection, note: Note) -> Result<(), String> {
+pub async fn note_added(db: &DatabaseConnection, gate: &Arc<dyn Gate>, note: Note) -> Result<(), String> {
   let Some(job) = running_on(db, note.item).await.map_err(|why| why.detail)? else {
     return Ok(());
   };
@@ -452,11 +463,11 @@ pub async fn note_added(db: &DatabaseConnection, note: Note) -> Result<(), Strin
   else {
     return Ok(());
   };
-  let db = db.clone();
+  let (db, gate) = (db.clone(), gate.clone());
 
   println!("queue: item #{}'s note {} kept for job {}", note.item, note.id, job.id);
   tokio::spawn(async move {
-    if let Err(why) = offered_now(&db, &job, word, &text).await {
+    if let Err(why) = offered_now(&db, gate.as_ref(), &job, word, &text).await {
       eprintln!("job {}: the note {} was not offered to its turn: {}", job.id, note.id, why.detail);
     }
   });
@@ -466,7 +477,7 @@ pub async fn note_added(db: &DatabaseConnection, note: Note) -> Result<(), Strin
 
 /// Every running job's kept words offered again to the turn it works now, so a word kept while that turn could
 /// not take it reaches the turn rather than waiting for the next. Each job's offer goes on apart.
-pub async fn offer_kept(db: &DatabaseConnection) {
+pub async fn offer_kept(db: &DatabaseConnection, gate: &Arc<dyn Gate>) {
   let Ok(rows) = all(
     db,
     &format!(
@@ -482,10 +493,10 @@ pub async fn offer_kept(db: &DatabaseConnection) {
 
   for job in rows.iter().filter_map(|row| Job::of(row).ok()) {
     let Some(turn) = turn_of(db, job.id).await else { continue };
-    let db = db.clone();
+    let (db, gate) = (db.clone(), gate.clone());
 
     tokio::spawn(async move {
-      if let Ok(offered) = offer(&db, &job, &turn).await {
+      if let Ok(offered) = offer(&db, gate.as_ref(), &job, &turn).await {
         for (_, outcome) in offered {
           line(&db, &job, &turn.run, "note", &account(Some(outcome))).await;
         }

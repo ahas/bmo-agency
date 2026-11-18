@@ -125,6 +125,7 @@ pub mod watches {
 }
 pub mod wording;
 pub mod words;
+pub mod worker_english;
 pub mod worker_session;
 
 use std::path::Path;

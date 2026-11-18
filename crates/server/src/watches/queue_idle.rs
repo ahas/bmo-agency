@@ -8,6 +8,7 @@
 //! silences the idle notice and the launch notice until the next job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use policy::fill_marks;
 use policy::job_notices::JOB_NOTICES;
@@ -19,6 +20,7 @@ use store::{all, one};
 use crate::Refusal;
 use crate::job_notices;
 use crate::outbox::{self, Keep, Notice, Receiver};
+use crate::peers::gate::Gate;
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
 use crate::repositories::{AGENT_LABEL, MODEL_LABEL, ROLE_LABEL, named_by};
@@ -980,7 +982,11 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
 /// One pass of the alarm: the queue read; each item awaiting a launch, each open item that cannot go, each
 /// draft awaiting approval and each held item whose wait has ended told to its orderer once; the job service's
 /// events told; and an idle queue told to the owner once, the moments kept.
-pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
+pub async fn pass(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  gate: &Arc<dyn Gate>,
+) -> Result<(), String> {
   let Some(service) = JobService::of(vars) else { return Ok(()) };
   let open = open_items(&service).await?;
   let standing = held(db, open).await.map_err(|why| why.detail)?;
@@ -1002,12 +1008,12 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
     eprintln!("queue: a held item whose wait has ended was not told: {why}");
   }
 
-  if let Err(why) = crate::watches::job_events::pass(db, vars).await {
+  if let Err(why) = crate::watches::job_events::pass(db, vars, gate).await {
     eprintln!("queue: the job service's events were not told: {why}");
   }
 
   // Words kept for a running job while its turn could not take them are offered to that turn again.
-  crate::job_words::offer_kept(db).await;
+  crate::job_words::offer_kept(db, gate).await;
 
   if !idle(&standing, now) {
     return Ok(());

@@ -12,7 +12,7 @@ use agency_server::watches::machine::{LaunchHeld, tell_launch_held};
 use agency_server::watches::queue_idle::{
   DRAFT_TOLD_PREFIX, Draft, LAUNCH_OWED, MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing,
   approval_instruction, awaiting_launch, brief_head, draft_of, drafts_due, held, idle, job_started,
-  launch_instruction, launches_due, notice, pass, room_of, unlaunchable, waiting,
+  launch_instruction, launches_due, notice, room_of, unlaunchable, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -25,6 +25,14 @@ use tokio::net::TcpListener;
 use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 use crate::support::wording::assert_no_instruction;
+
+// The pass with no gate deployed, so a word for a job goes as written.
+async fn pass(
+  db: &sea_orm::DatabaseConnection,
+  vars: &std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+  agency_server::watches::queue_idle::pass(db, vars, &crate::support::gates::none()).await
+}
 
 fn open(id: i64, assignee: Option<&str>) -> Open {
   Open {

@@ -1,6 +1,7 @@
 //! What a job's prompt is composed with: the names under a worker's workbench agency keeps
 //! (docs/worker-bench.md, 「An item's scratch」), how much of its item's notes it carries, the section naming
-//! its lent checkouts, and its preamble bundle (docs/worker-bench.md, 「Preamble」).
+//! its lent checkouts, its preamble bundle (docs/worker-bench.md, 「Preamble」), and how what a person wrote for
+//! the worker is put into its language (docs/worker-language.md, 「What agency translates on the way in」).
 
 use serde::Deserialize;
 
@@ -11,6 +12,21 @@ pub struct JobPrompt {
   pub notes: Notes,
   pub lent: Lent,
   pub bench: Bench,
+  pub translation: Translation,
+}
+
+/// How what a person wrote for a job's worker is put into the worker's language on its way in.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Translation {
+  /// The language the gate is asked for, by its tag.
+  pub language: String,
+  /// The most originals one call to the gate carries.
+  pub most_originals: usize,
+  /// The longest one hand-over waits for the gate's answer.
+  pub wait_ms: u64,
+  /// The line set over a text that goes in untranslated.
+  pub untranslated: String,
 }
 
 /// The preamble bundle a job's prompt carries under its title: the header's heading and lines, each said where

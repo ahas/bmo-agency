@@ -332,3 +332,49 @@ async fn a_review_turn_carried_into_a_fresh_session_opens_it_on_the_bundle_while
 
   assert!(!turns[0].2.contains(&JOB_PROMPT.bench.heading), "{}", turns[0].2);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_carries_the_owner_s_preamble_as_the_gate_read_it_into_the_worker_s_language() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (_peers, vars) = crate::support::peers::stand().await;
+  let mut ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let shop = home.path().join("shop");
+  let greek = "Η κονσόλα βρίσκεται στη θύρα 3000.";
+  let translator = std::sync::Arc::new(crate::support::gates::Translator::reading(&[(
+    greek,
+    "The console stands on port 3000.",
+  )]));
+
+  ground.peers.gate = translator.clone();
+  checkout_on(&shop, "main-copy");
+  repository(scratch.db(), "shop", &at(&shop), &[("preamble", greek.into())]).await;
+  job(&scratch, 33, 330).await;
+
+  let sessions = StandIn::answering(&[("Done.", "s-3")]);
+
+  launched(&ground, Some(sessions.clone()), 33, None)
+    .await
+    .unwrap()
+    .expect("the turn's end");
+
+  let prompt = &sessions.turns()[0].2;
+
+  assert!(
+    prompt
+      .contains(&format!("{}\n\nThe console stands on port 3000.\n", JOB_PROMPT.bench.preamble_heading)),
+    "{prompt}"
+  );
+  assert!(!prompt.contains(greek), "{prompt}");
+  assert_eq!(translator.calls().len(), 1, "the preamble alone was asked");
+
+  let kept: String =
+    store::one(scratch.db(), r#"SELECT "preamble" FROM "repositories" WHERE "name" = 'shop'"#, vec![])
+      .await
+      .unwrap()
+      .unwrap()
+      .try_get("", "preamble")
+      .unwrap();
+
+  assert_eq!(kept, greek, "the row keeps the owner's text as written");
+}

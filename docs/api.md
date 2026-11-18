@@ -1990,7 +1990,9 @@ supervisor's replaced program carried, a namespace's facts, the paragraph on fin
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
 reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's instruction
 calls for, picked over the brain of the supervisor the call names in its `agent`, and attaches the picked entries
-to the run's first prompt; and it
+to the run's first prompt; it asks `POST /translations` for the English of what a person wrote for a job's
+worker, the owner's part of its preamble and the words handed to a running job, waiting for the answer no longer
+than its own bound (`docs/worker-language.md`, 「What agency translates on the way in」); and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here. Of the
 mail service the DeepSeek top-up asks, while DeepSeek's sign-in waits on a code or a link it mails, `GET
 /accounts` for the account carrying the DeepSeek login's address, then `GET /accounts/{accountName}/messages` with

@@ -78,6 +78,10 @@ Each repository holds three things beside the work of its jobs:
   holds the prompt already carries no bundle of its own: a later stage of the work order, or a rework.
   The turn a road that stopped answering hands to the next road repeats the words that went out, the
   bundle with them where they carried it.
+- **The owner's text goes in English.** Each time the bundle is composed, the preamble is translated into
+  the worker's language, or goes in as written under a mark where no translation came back in time
+  (`docs/worker-language.md`, 「What agency translates on the way in」); the row keeps it as the owner wrote
+  it.
 - **The order of the first prompt:**
   1. the item's title
   2. the bundle

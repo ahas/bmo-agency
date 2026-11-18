@@ -9,13 +9,21 @@
 
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
-use agency_server::watches::job_events::{CURSOR_KEY, DEPLOY_OWED, QUESTION_OWED, pass};
+use agency_server::watches::job_events::{CURSOR_KEY, DEPLOY_OWED, QUESTION_OWED};
 use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
 use crate::support::peers::{item, stand};
 use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
+
+// The pass with no gate deployed, so a word for a job goes as written.
+async fn pass(
+  db: &sea_orm::DatabaseConnection,
+  vars: &std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+  agency_server::watches::job_events::pass(db, vars, &crate::support::gates::none()).await
+}
 
 fn event(id: i64, kind: &str, data: Value) -> Value {
   json!({ "id": id, "kind": kind, "at": id, "data": data })
@@ -554,7 +562,12 @@ async fn a_note_added_to_a_running_job_s_item_is_kept_before_the_cursor_moves_an
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
 
-  assert_eq!(agency_server::job_words::carried(db, 64).await.text, None);
+  assert_eq!(
+    agency_server::job_words::carried(db, &agency_server::peers::gate::NoGate, 64)
+      .await
+      .text,
+    None
+  );
 
   settings::set(db, CURSOR_KEY, "10").await.unwrap();
   pass(db, &vars).await.unwrap();

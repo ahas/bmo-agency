@@ -1097,6 +1097,9 @@ takes them, however the job stands when they arrive.
   handed over, a question of its review or a rework (`docs/job-review.md`, 「The turns the review asks for」). A
   turn that goes out again on another road because its own stopped answering carries them again; a turn that
   went out and ended marks them handed.
+- **A word goes into the turn in English.** It is kept as said, and translated into the worker's language
+  each time it is offered or carried, or goes in as said under a mark where no translation came back in time
+  (`docs/worker-language.md`, 「What agency translates on the way in」).
 - **The record and the report.** Each word stands in the job's log as said, a `prompt` line named `word`, with a
   `note` line saying whether a turn took it or it was kept, and a line as a later turn takes what was kept; the
   job's report ends with them (「Words that arrive while a turn is working」 above).

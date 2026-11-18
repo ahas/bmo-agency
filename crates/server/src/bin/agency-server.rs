@@ -439,7 +439,9 @@ fn clocks(ground: &Arc<Ground>) {
     every("idle queue's alarm", period, period, move || {
       let ground = idle.clone();
 
-      async move { agency_server::watches::queue_idle::pass(&ground.db, ground.vars()).await }
+      async move {
+        agency_server::watches::queue_idle::pass(&ground.db, ground.vars(), &ground.peers.gate).await
+      }
     })
     .await
   });

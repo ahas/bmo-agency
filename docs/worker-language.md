@@ -68,60 +68,65 @@ screens, the rooms — is read in the owner's language by the units that show it
 
 ## What agency translates on the way in
 
-- **The job run, before the first turn,** translates the owner's part of the worker's preamble
-  (`docs/worker-bench.md`, 「Preamble」), and asks that every text of the item the queue tools would
-  show the worker — its title, its own sections while it has no brief, the titles of the rows it
-  names — has its translation kept, so they are there before the job first asks for its item. A text
-  that could not be rendered is shown under the mark (「When there is no translation」), and the job
-  starts all the same.
-- **The job run, as it pushes words into a running job,** translates the words said to the worker
-  before they go in, and the same for a run asked again over words that came after its answer. A
-  change to the brief is English already and goes in as written.
+- **The job run, as it composes the prompt a fresh session opens on,** translates the owner's part of
+  the worker's preamble (`docs/worker-bench.md`, 「Preamble」) before the prompt goes in: the job's
+  first turn, and a turn carried into a fresh session. Agency's header over it is English at its source
+  and goes in as written. A preamble that could not be rendered goes in under the mark (「When there is
+  no translation」), and the job starts all the same.
+- **The job run, as it hands words to a running job,** translates them: a word said to the worker and
+  a note of its item alike, each as it is offered to the turn working now and as a later turn carries
+  it behind its own prompt. The word is kept and logged as said (`docs/agent-control.md`, 「Words for a
+  running job」); only what goes into the turn is the English. A change to the brief is English already
+  and goes in as written.
+- **The item's own texts are not translated by agency.** The queue tools show an item's title, its
+  sections and its rows' titles as the translation table keeps them (`docs/worker-mcp.md`), and a job's
+  start asks nothing for them; a text with none kept is shown under its mark.
 - **A co-work step's prompt** is composed by the job unit, which translates what it carries before it
   enqueues the step; an earlier stage's result is a co-worker's own English and passes untouched.
 - **No translation for a job's prompt.** Whoever hands a job its prompt, agency hands it to the
   worker as written, through the sanitiser alone. A part in another language that a person handed
   over anyway reaches the worker as written, and the worker reads it as it stands.
-- **The hand that translates is the gate service's translator** (`translator`), which runs its own
-  judgements outside agency (`docs/own-llm.md`, 「Gates are not agency's runs」), under instructions for a worker:
-  quoted speech is translated too, since the person who said it is not the reader. A part already in
-  English, a fenced quote in it included, passes untouched and asks nothing of the gate.
+- **The hand that translates is the gate's,** asked through its `POST /translations` into the worker's
+  language (the gate's `docs/api.md`, 「Translations」). Its translator (`translator`) runs outside
+  agency (`docs/own-llm.md`, 「Gates are not agency's runs」), under instructions for a worker: quoted
+  speech is translated too, since the person who said it is not the reader. A part already in English,
+  a fenced quote in it included, passes untouched and asks nothing of the translator.
 - **Nothing a worker runs calls the translator.** The queue tools read translations that are already
   kept and never ask the gate, so a worker's reading never waits on a model.
 
 ## Where the translation is made
 
-- **Code decides the language, part by part.** A text is cut into parts the way a long document is
-  cut, and each part is read by one count: a part with few letters of the owner's script against its
-  Latin ones, outside code, is English and stays exactly as written; only the other parts are
-  translated. An English text quoting a paragraph of another language outside a fence has that
-  paragraph translated.
-- **A part with no letters outside its fences and inline code takes the language of its text.** A
-  long fenced quote can be cut into a part of its own, and a part with nothing to count is read as the
-  whole text it was cut from reads: a fenced quote inside an English text is never translated.
-- **A text is translated in parts,** up to three at a time, and joined back; the text's translation is
-  kept only when every part came back.
+- **The gate decides the language, part by part.** It cuts a text into parts, leaves a part already in
+  English exactly as written and translates the others, and answers each text's reading: whole, or with
+  the parts it could not render standing as written (the gate's `docs/api.md`, 「Translations」). Agency
+  cuts nothing and judges no part itself.
+- **A text with no letter outside the Latin script is never sent.** The gate would leave every part of
+  it as written, so it goes in as it stands and its hand-over waits on nothing; a text holding a letter
+  of any other script is the gate's to read.
+- **The texts of one hand-over are asked together,** in calls of no more originals than the gate takes
+  in one, and each comes back in the order asked.
 
 ## What is kept
 
-- **One row per text, keyed by the text itself,** in the translation table the document unit keeps:
-  the key is the SHA-256 of the original exactly as written, and the row holds the whole English. A
-  changed original is a new key and is translated afresh, while an unchanged one is read straight out
-  of the table and never translated twice, whichever item, note or job it stands in.
-- **The original is never overwritten.** The translation is a reading of it, kept beside it.
-- **Only a translation that passed the structure check is kept.** Every part the gate answers is held
-  to the check that it is a translation — not a line introducing one, a word about the gate's role, a
-  question back or a summary — asked once more where it fails, and has no translation where it fails
-  twice.
+- **The gate keeps one translation per original and language,** so an unchanged original is answered
+  from what is kept and never translated twice, whichever preamble, word or job it stands in, while a
+  changed one is translated afresh.
+- **The original is never overwritten.** The repository's preamble stays as the owner wrote it and a
+  job's word as it was said; the translation is a reading of them, made as they are handed over.
+- **Only a translation that passed the structure check is kept.** Every part the translator answers is
+  held to the check that it is a translation — not a line introducing one, a word about the gate's role,
+  a question back or a summary — and has no translation where it fails.
 
 ## When there is no translation
 
-- **The job is never held for a translation.** A translation is asked once per need and waited for
-  only as long as the translator's own time limit.
+- **The job is never held for a translation.** The gate queues a translation behind those asked before
+  it and waits however long its translator takes, so agency waits for each hand-over's answer no
+  longer than its own bound, `policy/job-prompt.toml`'s `[translation]` `wait_ms`, and then goes on
+  with the texts as written. A gate that is not deployed, not reached or answering out of shape is no
+  translation the same way.
 - **A text with no translation goes in its original, marked:** a line in English before it says it
-  could not be translated and stands in its original language. A part that came back is used and a
-  part that did not stays as written under the same mark, since half a text in English is better than
-  none.
+  could not be translated and stands in its original language. A reading the gate answered as not
+  whole is used under the same mark, since half a text in English is better than none.
 - **A text standing inside a line** — a title, a state, a reason for a hold — wears its mark after it,
   `[not translated]`, rather than a line over it.
 - **A failure is not kept.** The next reading that needs the text asks again.

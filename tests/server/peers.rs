@@ -163,6 +163,14 @@ async fn answer(
       "name": body["name"],
       "createdAt": 1
     }),
+    ("POST", "translations") => json!({
+      "readings": body["originals"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|original| json!({ "text": format!("read: {}", original.as_str().unwrap_or_default()), "whole": true }))
+        .collect::<Vec<_>>()
+    }),
     ("POST", "reference/selected") => json!({
       "entries": [{ "path": "knowledge/index.md", "text": "a known fact", "source": "knowledge" }]
     }),
@@ -530,6 +538,26 @@ async fn the_gate_is_asked_for_a_roomless_reference_read_for_the_supervisor_name
   assert_eq!(asked.body["roomId"], json!(0));
   assert_eq!(asked.body["lines"], json!(["the instruction"]));
   assert!(asked.body.get("situation").is_none(), "{}", asked.body);
+}
+
+#[tokio::test]
+async fn the_gate_is_asked_to_read_originals_into_a_language_and_answers_each_reading_in_order() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+  let readings = peers.gate.translate("en", vec!["first".to_owned(), "second".to_owned()]).await.unwrap();
+
+  assert_eq!(
+    readings
+      .iter()
+      .map(|reading| (reading.text.as_str(), reading.whole))
+      .collect::<Vec<_>>(),
+    [("read: first", true), ("read: second", true)]
+  );
+
+  let asked = taken(&calls).pop().expect("the gate was asked");
+
+  assert_eq!((asked.method.as_str(), asked.path.as_str()), ("POST", "/base/translations"));
+  assert_eq!(asked.body, json!({ "language": "en", "originals": ["first", "second"] }));
 }
 
 /// A gate that writes down the supervisor each reference is asked for, and picks nothing.

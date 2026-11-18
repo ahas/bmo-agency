@@ -1444,7 +1444,7 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
       break;
     }
 
-    agency_server::job_words::offer_kept(scratch.db()).await;
+    agency_server::job_words::offer_kept(scratch.db(), &crate::support::gates::none()).await;
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
   }
 
@@ -1482,7 +1482,9 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
     "id": 11, "kind": "note.created", "at": 11,
     "data": { "id": 5, "itemId": 1, "text": note, "actorName": "chat-agent", "labels": {}, "createdAt": now_ms() },
   })];
-  agency_server::watches::job_events::pass(scratch.db(), &vars).await.unwrap();
+  agency_server::watches::job_events::pass(scratch.db(), &vars, &crate::support::gates::none())
+    .await
+    .unwrap();
 
   let noted = |herdr: &common::herdr::HerdrModel| {
     herdr.prompts().iter().any(|(target, text)| {
@@ -1495,7 +1497,7 @@ async fn a_job_s_turn_in_a_pane_of_its_own_stays_kept_through_every_pass_and_is_
       break;
     }
 
-    agency_server::job_words::offer_kept(scratch.db()).await;
+    agency_server::job_words::offer_kept(scratch.db(), &crate::support::gates::none()).await;
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
   }
 

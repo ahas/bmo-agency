@@ -10,12 +10,14 @@
 //! rather than on its change.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
 use crate::job_notices;
 use crate::outbox::{self, Keep, Notice, Receiver};
+use crate::peers::gate::Gate;
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
 use crate::watches::closes::{self, Close};
@@ -69,7 +71,11 @@ async fn keep(db: &DatabaseConnection, at: i64) -> Result<(), String> {
 /// names no job service or no receiver. An event whose notice could not be owed ends the pass there, the cursor
 /// kept at the event before it, so the next pass takes it again. A stretch read without telling keeps its cursor
 /// only once the commits waiting to go live it passed are owed or let go.
-pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
+pub async fn pass(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  gate: &Arc<dyn Gate>,
+) -> Result<(), String> {
   let (Some(service), Some(_)) = (JobService::of(vars), Receiver::of(vars)) else {
     return Ok(());
   };
@@ -103,7 +109,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> R
         {
           passed.insert(item, event["data"].clone());
         }
-      } else if let Err(why) = told(db, vars, &service, event).await {
+      } else if let Err(why) = told(db, vars, gate, &service, event).await {
         if let Some(last) = after {
           keep(db, last).await?;
         }
@@ -203,6 +209,7 @@ async fn deploy_told(
 async fn told(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
+  gate: &Arc<dyn Gate>,
   service: &JobService,
   event: &Value,
 ) -> Result<(), String> {
@@ -234,7 +241,7 @@ async fn told(
     // (docs/agent-control.md, 「Words for a running job」); a note on any other item tells nobody.
     "note.created" => {
       if let Some(note) = crate::job_words::Note::of(data) {
-        crate::job_words::note_added(db, note).await?;
+        crate::job_words::note_added(db, gate, note).await?;
       }
     }
     "question.created" => {

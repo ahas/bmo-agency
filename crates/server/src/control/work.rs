@@ -2881,7 +2881,7 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
 
     // The words kept for the job while no turn of it took them go out behind this turn's own prompt
     // (docs/agent-control.md, 「Words for a running job」).
-    let kept = crate::job_words::carried(&ground.db, id).await;
+    let kept = crate::job_words::carried(&ground.db, ground.peers.gate.as_ref(), id).await;
     let sent = self
       .sessions
       .send_turn(Turn {

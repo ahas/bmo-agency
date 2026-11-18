@@ -319,7 +319,9 @@ async fn a_test_ground_reaches_no_peer_even_one_it_names() {
 
   delivered_with(scratch.db(), &vars, &member(Some("The work is done."), None)).await;
   assert!(agency_server::job_leases::pass(scratch.db(), &vars).await.unwrap().is_empty());
-  agency_server::watches::queue_idle::pass(scratch.db(), &vars).await.unwrap();
+  agency_server::watches::queue_idle::pass(scratch.db(), &vars, &crate::support::gates::none())
+    .await
+    .unwrap();
 
   assert_eq!(calls.load(Ordering::SeqCst), 0, "a test ground made a peer call");
 }
