@@ -950,7 +950,10 @@ The owner's words:
     looks in a row, its record unchanged between them and its last line of the conversation the end
     line of a turn, the round is read as over, and the run log says what the count still expected. A
     program with words still queued takes them the moment a turn ends, so a record ending on a turn's
-    end beside a program at rest has nothing still to come.
+    end beside a program at rest has nothing still to come. A turn a failed request ended writes no
+    end line: the failure hook the program reported since the words went in stands in that line's place,
+    both here and where a turn come back to rest is waited on for its end line, so neither wait outlasts
+    it.
 - **A surface that takes no words mid-turn** keeps the buffer: the batch waits there and the next
   round carries it.
 - **A run's turn takes them by the same door.** A job's run, a co-work branch and every other role's run

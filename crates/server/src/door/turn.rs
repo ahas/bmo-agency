@@ -406,6 +406,20 @@ pub fn over_on_error(working: bool, error_in_record: bool, failure_reported: boo
   failure_reported || (error_in_record && !working)
 }
 
+/// Whether a turn come back to rest has nothing more to write of its end: the line a turn ends with is in its
+/// record, the interrupted marker is, or its program reported the failed request that ended it, after which no
+/// such line is written (docs/agent-control.md, 「Telling that a turn's program is gone」).
+pub fn end_written(closed: bool, interrupted: bool, failure_reported: bool) -> bool {
+  closed || interrupted || failure_reported
+}
+
+/// Whether a round's program at rest may be read as owing no further turn once its record stands unchanged
+/// between two looks: the record ends on a turn's end, or the program reported the failed request its latest
+/// turn ended with.
+pub fn rests_on_an_end(at_rest: bool, ends_on_end: bool, failure_reported: bool) -> bool {
+  at_rest && (ends_on_end || failure_reported)
+}
+
 /// How a turn ended, for its execution row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum End {
@@ -2421,7 +2435,8 @@ async fn watch_turn<W: Watch>(
   // At rest is not over: the program's screen can come to rest before the answer of a turn of a second or
   // two has reached its record, and the record's closing line comes after the last of the answer's words.
   // So a turn seen at work, or one that answered, is over once that line is written, waited for until it
-  // is; one a person interrupted writes the interrupted marker instead, and a turn stopped meanwhile, one
+  // is; one a person interrupted writes the interrupted marker instead, one a failed request ended is over on
+  // its program's failure hook, which no such line follows, and a turn stopped meanwhile, one
   // whose pane herdr says is gone, or one whose program is gone, is read as it stands. No program to name,
   // a pane showing none and nothing it writes moving between two looks is the other end gone. Where
   // nothing of an answer was written, a program gone or a silent peer is the turn's ending.
@@ -2429,9 +2444,11 @@ async fn watch_turn<W: Watch>(
 
   if !command && (worked || answered_since(door.lines(), answer_from)) {
     loop {
-      if turn_closed_since(door.lines(), answer_from)
-        || door.round_state(answer_from) == RoundState::Interrupted
-        || door.cancelled().await
+      if end_written(
+        turn_closed_since(door.lines(), answer_from),
+        door.round_state(answer_from) == RoundState::Interrupted,
+        door.failure_since(failed_from).is_some(),
+      ) || door.cancelled().await
       {
         break;
       }
@@ -2514,7 +2531,7 @@ async fn watch_turn<W: Watch>(
         break;
       }
 
-      if now.at_rest() && ends_on_end {
+      if rests_on_an_end(now.at_rest(), ends_on_end, door.failure_since(failed_from).is_some()) {
         if rested_at == Some(count) {
           door
             .watch
