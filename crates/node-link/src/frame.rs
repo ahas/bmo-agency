@@ -6,7 +6,7 @@ use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 
 /// One file or tree the far end watches and sends back.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Pull {
   /// The path on the node.
   pub remote: String,
@@ -37,14 +37,30 @@ pub enum Frame {
   /// The near end's first words on a mirror session: the node its link is for, whose newest session alone the far end
   /// keeps, beside the sessions of other nodes (docs/person-nodes.md, 「The link over jake」).
   Near { node: String },
-  /// What the far end is to watch, replacing whatever it watched before.
-  Watch { pulls: Vec<Pull> },
+  /// What the far end is to watch, replacing whatever it watched before, and how much of each growing file the
+  /// near end already holds, which the far end goes on from rather than sending it again. A near end that says
+  /// nothing of what it holds is sent every file whole.
+  ///
+  /// A list the near end numbers goes on with what was sent of each pull it still names, every frame of what is
+  /// watched naming the list it was read under, so a frame on its way when the list moved lands where its own list
+  /// put it. A list numbered by none is sent from nothing whenever it changes, since its numbering may have moved.
+  Watch {
+    pulls: Vec<Pull>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    held: Vec<Held>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    list: Option<u64>,
+  },
   /// A file written whole, at its path on the receiving end's side of the pull or push it belongs to.
   Put {
     pull: Option<usize>,
     path: String,
     data: String,
     mode: Option<u32>,
+    /// The watch list the frame was read under, by the number the near end gave it; none from a far end that
+    /// numbers no list, or for what the near end pushes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    list: Option<u64>,
   },
   /// Bytes a growing file grew by, from the offset they start at.
   Append {
@@ -52,13 +68,31 @@ pub enum Frame {
     path: String,
     offset: u64,
     data: String,
+    /// The watch list the frame was read under, by the number the near end gave it; none from a far end that
+    /// numbers no list, or for what the near end pushes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    list: Option<u64>,
   },
   /// A file that is no longer there.
-  Gone { pull: Option<usize>, path: String },
+  Gone {
+    pull: Option<usize>,
+    path: String,
+    /// The watch list the frame was read under, by the number the near end gave it; none from a far end that
+    /// numbers no list, or for what the near end pushes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    list: Option<u64>,
+  },
   /// The folders the programs placed on the node work in, each made where it is not.
   Folders { paths: Vec<String> },
   /// Which processes a place's running record names are alive, by the pull that watches it.
-  Alive { pull: usize, alive: Vec<Identity> },
+  Alive {
+    pull: usize,
+    alive: Vec<Identity>,
+    /// The watch list the frame was read under, by the number the near end gave it; none from a far end that
+    /// numbers no list, or for what the near end pushes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    list: Option<u64>,
+  },
   /// The node's load, memory and pressure files, by their names under the proc root.
   Proc { files: Vec<(String, String)> },
   /// A signal for a process on the node, sent only where it is still the process recorded.
@@ -89,6 +123,14 @@ pub enum Home {
   Port(u16),
   /// The home bridge's socket.
   Bridge,
+}
+
+/// How much of a growing file the near end holds: the file by the pull it belongs to and its path under it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Held {
+  pub pull: usize,
+  pub path: String,
+  pub len: u64,
 }
 
 /// A port the far end could not listen on, and why.

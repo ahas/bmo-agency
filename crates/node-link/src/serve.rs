@@ -15,7 +15,7 @@ use serde::Deserialize;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::frame::{Frame, Identity, Pull, decode, encode};
+use crate::frame::{Frame, Held, Identity, Pull, decode, encode};
 use crate::home::{Carrier, listen_again, take_bridge};
 
 /// How often what is watched is looked at, how often a place's processes are told without a change,
@@ -27,6 +27,9 @@ const PROC_EVERY: Duration = Duration::from_secs(5);
 const CHUNK: u64 = 512 * 1024;
 /// The most files one tree is walked for.
 const TREE_MOST: usize = 5000;
+/// The most frames of files read ahead of what the connection has carried: enough to keep it busy, and few
+/// enough that what the link says of its own waits behind no more than a few chunks.
+const FILES_AHEAD: usize = 4;
 
 /// The proc files a machine's standing is read from (docs/agent-control.md, 「Room on the machine」).
 const PROC_FILES: [&str; 5] = ["loadavg", "meminfo", "stat", "pressure/memory", "pressure/cpu"];
@@ -344,12 +347,21 @@ async fn session(
   mut superseded: oneshot::Receiver<()>,
 ) {
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
-  let pulls: Arc<Mutex<Vec<Pull>>> = Arc::new(Mutex::new(Vec::new()));
+  let (files, mut files_sending) = mpsc::channel::<Frame>(FILES_AHEAD);
+  let asked: Arc<Mutex<Asked>> = Arc::new(Mutex::new(Asked::default()));
 
+  // What the link says of its own first, a file's bytes only where nothing of it waits.
   let writer = tokio::spawn(async move {
     let mut out = writer;
 
-    while let Some(frame) = sending.recv().await {
+    loop {
+      let frame = tokio::select! {
+        biased;
+        Some(frame) = sending.recv() => frame,
+        Some(frame) = files_sending.recv() => frame,
+        else => break,
+      };
+
       if out.write_all(frame.line().as_bytes()).await.is_err() || out.flush().await.is_err() {
         break;
       }
@@ -368,12 +380,10 @@ async fn session(
     carrier.attach(send.clone());
   }
 
-  let watching = {
-    let send = send.clone();
-    let pulls = pulls.clone();
-
-    tokio::spawn(async move { watch(pulls, send).await })
-  };
+  let watching = [
+    tokio::spawn(watch_files(asked.clone(), files)),
+    tokio::spawn(watch_standing(asked.clone(), send.clone())),
+  ];
 
   let mut lines = reader.lines();
   let mut first = first;
@@ -404,7 +414,7 @@ async fn session(
       continue;
     }
 
-    if let Err(said) = take(frame, &pulls) {
+    if let Err(said) = take(frame, &asked) {
       let _ = send.send(Frame::Trouble { said });
     }
   }
@@ -413,7 +423,9 @@ async fn session(
     carrier.detach(&send);
   }
 
-  watching.abort();
+  for watch in &watching {
+    watch.abort();
+  }
   drop(send);
 
   // A session a newer near end overtook may be writing into a stream nobody reads, so its writer is ended rather
@@ -464,10 +476,25 @@ pub fn make_folders(paths: &[String]) -> Result<(), String> {
   Ok(())
 }
 
-fn take(frame: Frame, pulls: &Mutex<Vec<Pull>>) -> Result<(), String> {
+/// What the near end asked to be watched, and how much of each growing file it said it holds, which the files'
+/// watch takes once.
+#[derive(Default)]
+struct Asked {
+  pulls: Vec<Pull>,
+  held: Vec<Held>,
+  list: Option<u64>,
+}
+
+impl Asked {
+  fn take(&mut self) -> (Vec<Pull>, Vec<Held>, Option<u64>) {
+    (self.pulls.clone(), std::mem::take(&mut self.held), self.list)
+  }
+}
+
+fn take(frame: Frame, asked: &Mutex<Asked>) -> Result<(), String> {
   match frame {
-    Frame::Watch { pulls: asked } => {
-      *pulls.lock().map_err(|_| "the watch list is poisoned".to_owned())? = asked;
+    Frame::Watch { pulls, held, list } => {
+      *asked.lock().map_err(|_| "the watch list is poisoned".to_owned())? = Asked { pulls, held, list };
       Ok(())
     }
     Frame::Put {
@@ -610,109 +637,241 @@ fn read_range(path: &Path, from: u64, to: u64) -> std::io::Result<Vec<u8>> {
   Ok(bytes)
 }
 
-async fn watch(pulls: Arc<Mutex<Vec<Pull>>>, send: mpsc::UnboundedSender<Frame>) {
-  // What was last sent of each file, by its pull and its path under it, and of each place's processes.
-  let mut sent: HashMap<(usize, String), Seen> = HashMap::new();
-  let mut told: HashMap<usize, (Vec<Identity>, Instant)> = HashMap::new();
-  let mut watched: Vec<Pull> = Vec::new();
+/// Where a frame of what is watched goes: ahead with what the link says of its own, or behind it in the files'
+/// queue, which the far end fills no faster than the connection carries it.
+enum Out {
+  Link(mpsc::UnboundedSender<Frame>),
+  Files(mpsc::Sender<Frame>),
+}
+
+impl Out {
+  /// The frame sent, waiting for room where it goes behind; false once the session no longer reads.
+  async fn send(&self, frame: Frame) -> bool {
+    match self {
+      Self::Link(link) => link.send(frame).is_ok(),
+      Self::Files(files) => files.send(frame).await.is_ok(),
+    }
+  }
+
+  fn is_closed(&self) -> bool {
+    match self {
+      Self::Link(link) => link.is_closed(),
+      Self::Files(files) => files.is_closed(),
+    }
+  }
+}
+
+/// One look at a pull's files: each new or changed one sent, a growing one from where it was last sent or, where
+/// none of it was sent yet, from what the near end holds of it, and each one gone said gone. False once the session
+/// no longer reads.
+async fn send_pull(
+  (index, list): (usize, Option<u64>),
+  pull: &Pull,
+  sent: &mut HashMap<String, Seen>,
+  holds: &mut HashMap<String, u64>,
+  out: &Out,
+) -> bool {
+  let mut here: Vec<String> = Vec::new();
+
+  for relative in files_of(pull) {
+    let path = Path::new(&pull.remote).join(&relative);
+    let Ok(meta) = fs::metadata(&path) else { continue };
+
+    if !meta.is_file() {
+      continue;
+    }
+
+    here.push(relative.clone());
+
+    let now = seen(&meta);
+    let before = sent.get(&relative).copied();
+
+    if before == Some(now) {
+      continue;
+    }
+
+    let from = match before {
+      Some(was) if pull.append && was.inode == now.inode && was.len <= now.len => was.len,
+      Some(_) => 0,
+      None => holds.remove(&relative).filter(|held| pull.append && *held <= now.len).unwrap_or(0),
+    };
+
+    if pull.append {
+      let mut offset = from;
+
+      while offset < now.len {
+        let to = (offset + CHUNK).min(now.len);
+        let Ok(bytes) = read_range(&path, offset, to) else { break };
+        let frame = Frame::Append {
+          pull: index,
+          path: relative.clone(),
+          offset,
+          data: encode(&bytes),
+          list,
+        };
+
+        if !out.send(frame).await {
+          return false;
+        }
+
+        offset = to;
+      }
+
+      if offset == 0 && now.len == 0 {
+        let frame = Frame::Append {
+          pull: index,
+          path: relative.clone(),
+          offset: 0,
+          data: String::new(),
+          list,
+        };
+
+        if !out.send(frame).await {
+          return false;
+        }
+      }
+    } else if let Ok(bytes) = fs::read(&path) {
+      let frame = Frame::Put {
+        pull: Some(index),
+        path: relative.clone(),
+        data: encode(&bytes),
+        mode: Some(meta.mode() & 0o777),
+        list,
+      };
+
+      if !out.send(frame).await {
+        return false;
+      }
+    }
+
+    sent.insert(relative, now);
+  }
+
+  let gone: Vec<String> = sent.keys().filter(|relative| !here.contains(relative)).cloned().collect();
+
+  for relative in gone {
+    sent.remove(&relative);
+
+    if !out
+      .send(Frame::Gone {
+        pull: Some(index),
+        path: relative,
+        list,
+      })
+      .await
+    {
+      return false;
+    }
+  }
+
+  true
+}
+
+/// What was sent of each watched file, by the pull it belongs to and its path under it. A pull is known by what it
+/// is rather than by where the list puts it, so a list asked anew, as one is whenever a place comes or goes, goes on
+/// with every pull it still names and sends from nothing only those it newly names — where the near end numbers its
+/// lists, so each frame names the list it was read under. A list numbered by none is sent from nothing as it
+/// changes, since a frame on its way could not say which list's numbering it was read under.
+#[derive(Default)]
+struct Sent {
+  watched: Vec<Pull>,
+  list: Option<u64>,
+  files: HashMap<Pull, HashMap<String, Seen>>,
+  holds: HashMap<Pull, HashMap<String, u64>>,
+}
+
+impl Sent {
+  /// The list asked for now, what was sent of a pull it no longer names forgotten, and what the near end holds of
+  /// each growing file kept until the file is first sent.
+  fn follow(&mut self, pulls: Vec<Pull>, held: Vec<Held>, list: Option<u64>) {
+    if pulls != self.watched {
+      if list.is_none() {
+        self.files.clear();
+        self.holds.clear();
+      }
+
+      self.files.retain(|pull, _| pulls.contains(pull));
+      self.holds.retain(|pull, _| pulls.contains(pull));
+      self.watched = pulls;
+    }
+
+    self.list = list;
+
+    for one in held {
+      if let Some(pull) = self.watched.get(one.pull).filter(|pull| pull.append) {
+        self.holds.entry(pull.clone()).or_default().insert(one.path, one.len);
+      }
+    }
+  }
+
+  /// One look at every pull `which` picks; false once the session no longer reads.
+  async fn send(&mut self, which: impl Fn(&Pull) -> bool, out: &Out) -> bool {
+    for (index, pull) in self.watched.iter().enumerate().filter(|(_, pull)| which(pull)) {
+      let sent = self.files.entry(pull.clone()).or_default();
+      let holds = self.holds.entry(pull.clone()).or_default();
+
+      if !send_pull((index, self.list), pull, sent, holds, out).await {
+        return false;
+      }
+    }
+
+    true
+  }
+}
+
+/// The files of every pull that does not tell a place's processes, sent behind what the link says of its own, as
+/// fast as the connection carries them and no faster.
+async fn watch_files(asked: Arc<Mutex<Asked>>, files: mpsc::Sender<Frame>) {
+  let out = Out::Files(files);
+  let mut sent = Sent::default();
+
+  loop {
+    let (pulls, held, list) = asked.lock().map(|mut asked| asked.take()).unwrap_or_default();
+
+    sent.follow(pulls, held, list);
+
+    if !sent.send(|pull| !pull.alive, &out).await || out.is_closed() {
+      return;
+    }
+
+    tokio::time::sleep(LOOK_EVERY).await;
+  }
+}
+
+/// Each place's running record and which of its processes are alive, and the node's load, sent with what the link
+/// says of its own, so a transcript on its way never holds them back.
+async fn watch_standing(asked: Arc<Mutex<Asked>>, link: mpsc::UnboundedSender<Frame>) {
+  let out = Out::Link(link.clone());
+  let mut sent = Sent::default();
+  let mut told: HashMap<Pull, (Vec<Identity>, Instant)> = HashMap::new();
   let mut proc_at: Option<Instant> = None;
 
   loop {
-    let now_watching = pulls.lock().map(|held| held.clone()).unwrap_or_default();
+    let (pulls, list) = asked.lock().map(|asked| (asked.pulls.clone(), asked.list)).unwrap_or_default();
 
-    // A list asked anew is a list sent anew from nothing, since its numbering may have moved.
-    if now_watching != watched {
-      sent.clear();
+    // A list numbered by none is told from nothing as it changes, as its files are.
+    if list.is_none() && pulls != sent.watched {
       told.clear();
-      watched = now_watching;
     }
 
-    for (index, pull) in watched.iter().enumerate() {
-      let mut here: Vec<String> = Vec::new();
+    told.retain(|pull, _| pulls.contains(pull));
+    sent.follow(pulls, Vec::new(), list);
 
-      for relative in files_of(pull) {
-        let path = Path::new(&pull.remote).join(&relative);
-        let Ok(meta) = fs::metadata(&path) else { continue };
+    if !sent.send(|pull| pull.alive, &out).await {
+      return;
+    }
 
-        if !meta.is_file() {
-          continue;
-        }
+    for (index, pull) in sent.watched.iter().enumerate().filter(|(_, pull)| pull.alive) {
+      let alive = alive_in(Path::new(&pull.remote));
+      let due = told.get(pull).is_none_or(|(was, at)| *was != alive || at.elapsed() >= ALIVE_EVERY);
 
-        here.push(relative.clone());
-
-        let now = seen(&meta);
-        let before = sent.get(&(index, relative.clone())).copied();
-
-        if before == Some(now) {
-          continue;
-        }
-
-        let from = match before {
-          Some(was) if pull.append && was.inode == now.inode && was.len <= now.len => was.len,
-          _ => 0,
-        };
-
-        if pull.append {
-          let mut offset = from;
-
-          while offset < now.len {
-            let to = (offset + CHUNK).min(now.len);
-            let Ok(bytes) = read_range(&path, offset, to) else { break };
-
-            let _ = send.send(Frame::Append {
-              pull: index,
-              path: relative.clone(),
-              offset,
-              data: encode(&bytes),
-            });
-            offset = to;
-          }
-
-          if offset == 0 && now.len == 0 {
-            let _ = send.send(Frame::Append {
-              pull: index,
-              path: relative.clone(),
-              offset: 0,
-              data: String::new(),
-            });
-          }
-        } else if let Ok(bytes) = fs::read(&path) {
-          let _ = send.send(Frame::Put {
-            pull: Some(index),
-            path: relative.clone(),
-            data: encode(&bytes),
-            mode: Some(meta.mode() & 0o777),
-          });
-        }
-
-        sent.insert((index, relative), now);
-      }
-
-      let gone: Vec<String> = sent
-        .keys()
-        .filter(|(pulled, relative)| *pulled == index && !here.contains(relative))
-        .map(|(_, relative)| relative.clone())
-        .collect();
-
-      for relative in gone {
-        sent.remove(&(index, relative.clone()));
-        let _ = send.send(Frame::Gone {
-          pull: Some(index),
-          path: relative,
+      if due {
+        let _ = link.send(Frame::Alive {
+          pull: index,
+          alive: alive.clone(),
+          list: sent.list,
         });
-      }
-
-      if pull.alive {
-        let alive = alive_in(Path::new(&pull.remote));
-        let due = told.get(&index).is_none_or(|(was, at)| *was != alive || at.elapsed() >= ALIVE_EVERY);
-
-        if due {
-          let _ = send.send(Frame::Alive {
-            pull: index,
-            alive: alive.clone(),
-          });
-          told.insert(index, (alive, Instant::now()));
-        }
+        told.insert(pull.clone(), (alive, Instant::now()));
       }
     }
 
@@ -726,11 +885,11 @@ async fn watch(pulls: Arc<Mutex<Vec<Pull>>>, send: mpsc::UnboundedSender<Frame>)
         })
         .collect();
 
-      let _ = send.send(Frame::Proc { files });
+      let _ = link.send(Frame::Proc { files });
       proc_at = Some(Instant::now());
     }
 
-    if send.is_closed() {
+    if link.is_closed() {
       return;
     }
 

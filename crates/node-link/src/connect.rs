@@ -3,7 +3,7 @@
 //! bridge, keeps the mirror both ways over the session's standing input and output, answers the bot on
 //! its control socket, and makes the connection again whenever it drops.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::fs;
 use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::fs::MetadataExt;
@@ -19,11 +19,11 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use crate::bridge;
-use crate::frame::{Frame, Home, Refused, decode, encode};
+use crate::frame::{Frame, Held, Home, Pull, Refused, decode, encode};
 use crate::home::{DIAL_WAIT, Stream};
 use crate::rewrite::{NodeEnv, rewrite_json};
-use crate::serve::write_whole;
-use crate::spec::{Local, Spec};
+use crate::serve::{files_of, write_whole};
+use crate::spec::{Landing, Local, Spec};
 
 /// How often the pushed files are looked at, how often the spec is, and the bounds of the wait before
 /// the connection is made again.
@@ -59,6 +59,44 @@ pub struct State {
   dropped: Option<String>,
   refused: Vec<Refused>,
   written: Option<u128>,
+  lists: Lists,
+}
+
+/// How many of the watch lists asked last are kept, so a frame read under one of them still lands where it put it.
+const LISTS_KEPT: usize = 64;
+
+/// The watch lists asked of the far end, by the number each was given, the latest of them kept.
+#[derive(Default)]
+struct Lists {
+  last: u64,
+  asked: VecDeque<(u64, Vec<Landing>)>,
+}
+
+impl Lists {
+  fn ask(&mut self, spec: &Spec) -> u64 {
+    self.last += 1;
+    self.asked.push_back((self.last, spec.pull.clone()));
+
+    while self.asked.len() > LISTS_KEPT {
+      self.asked.pop_front();
+    }
+
+    self.last
+  }
+
+  /// Where a frame of what is watched lands: by the list it names, or by the spec's own where it names none, as a
+  /// far end that numbers no list sends; nowhere where its list is no longer kept.
+  fn landing<'a>(&'a self, spec: &'a Spec, list: Option<u64>, index: usize) -> Option<&'a Landing> {
+    match list {
+      None => spec.pull.get(index),
+      Some(list) => self
+        .asked
+        .iter()
+        .rev()
+        .find(|(number, _)| *number == list)
+        .and_then(|(_, landings)| landings.get(index)),
+    }
+  }
 }
 
 impl State {
@@ -438,6 +476,7 @@ impl Pushing {
             let _ = send.send(Frame::Gone {
               pull: None,
               path: remote,
+              list: None,
             });
           }
         }
@@ -452,6 +491,7 @@ impl Pushing {
             path: remote,
             data: encode(&bytes),
             mode: Some(0o600),
+            list: None,
           });
           self.sent.insert(path, stamp);
         }
@@ -471,8 +511,9 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
       path,
       data,
       mode,
+      list,
     } => {
-      let (Some(landing), Some(bytes)) = (spec.pull.get(index), decode(&data)) else {
+      let (Some(landing), Some(bytes)) = (state.lists.landing(spec, list, index), decode(&data)) else {
         return;
       };
       let Some(local) = landed(&landing.local, &path) else { return };
@@ -484,8 +525,11 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
       path,
       offset,
       data,
+      list,
     } => {
-      let (Some(landing), Some(bytes)) = (spec.pull.get(pull), decode(&data)) else { return };
+      let (Some(landing), Some(bytes)) = (state.lists.landing(spec, list, pull), decode(&data)) else {
+        return;
+      };
       let Some(local) = landed(&landing.local, &path) else { return };
 
       if let Some(dir) = local.parent() {
@@ -506,13 +550,16 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
     Frame::Gone {
       pull: Some(index),
       path,
+      list,
     } => {
-      if let Some(local) = spec.pull.get(index).and_then(|landing| landed(&landing.local, &path)) {
+      if let Some(local) =
+        state.lists.landing(spec, list, index).and_then(|landing| landed(&landing.local, &path))
+      {
         let _ = fs::remove_file(local);
       }
     }
-    Frame::Alive { pull, alive } => {
-      if let Some(landing) = spec.pull.get(pull) {
+    Frame::Alive { pull, alive, list } => {
+      if let Some(landing) = state.lists.landing(spec, list, pull) {
         let body = json!({ "at": now_ms(), "alive": alive });
 
         let _ = write_whole(&landing.local.join("node-alive.json"), format!("{body}\n").as_bytes(), 0o600);
@@ -541,6 +588,35 @@ pub fn apply(spec: &Spec, frame: Frame, state: &mut State) {
       state.written = None;
     }
     _ => {}
+  }
+}
+
+/// What the far end is to watch, under a number of its own, with how much of each growing file this machine already
+/// holds of it, so a new connection goes on from there rather than sending every transcript again from nothing.
+pub fn watch(spec: &Spec, state: &mut State) -> Frame {
+  let mut held = Vec::new();
+
+  for (index, landing) in spec.pull.iter().enumerate().filter(|(_, landing)| landing.pull.append) {
+    let here = Pull {
+      remote: landing.local.to_string_lossy().into_owned(),
+      ..landing.pull.clone()
+    };
+
+    for path in files_of(&here) {
+      if let Ok(meta) = fs::metadata(landing.local.join(&path)) {
+        held.push(Held {
+          pull: index,
+          path,
+          len: meta.len(),
+        });
+      }
+    }
+  }
+
+  Frame::Watch {
+    pulls: spec.pulls(),
+    held,
+    list: Some(state.lists.ask(spec)),
   }
 }
 
@@ -645,7 +721,7 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
           state.connected_since = Some(now);
           state.dropped = None;
           let _ = send.send(Frame::Near { node: spec.node.clone() });
-          let _ = send.send(Frame::Watch { pulls: spec.pulls() });
+          let _ = send.send(watch(spec, state));
           let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
           carry(spec, &send);
           pushing = Pushing::new();
@@ -687,7 +763,7 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
               // Before the far end greets, what it is asked waits for the greeting, which asks it whole and after
               // the node's name.
               if node_path.is_some() {
-                let _ = send.send(Frame::Watch { pulls: spec.pulls() });
+                let _ = send.send(watch(spec, state));
                 let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
                 carry(spec, &send);
               }

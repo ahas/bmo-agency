@@ -263,7 +263,8 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
     that changes;
   - each connection the far end takes there, or on the node's bridge socket, is held while the far end asks the
     newest standing session's near end over the mirror to dial it home, naming it by a number of its own and what
-    it is for;
+    it is for, the ask going ahead of any file the mirror is still sending (`docs/work-nodes.md`, 「The link」), so
+    a transcript on its way never holds a hook's call past the wait below;
   - the near end opens a new byte stream to the mirror port, reads the far end's greeting, names the connection on
     it, and joins the stream to the port here, or to the bridge's socket here; the far end joins the stream to the
     connection it held, each side's close passed on to the other as it comes. A connection not dialed within

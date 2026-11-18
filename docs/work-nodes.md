@@ -161,6 +161,18 @@ side of a remote agent, the rotation, and what a dropped node does.
   - from the node to here: the place's running record and start failure; the program's transcripts,
     under the same configuration directory here as the account's own, sent as what they grew by; and the node's load, memory, processor count and pressure, into the
     node's directory here, every few seconds;
+  - a file is sent once and then as it changes, for as long as the far end watches it: a watch list the
+    near end asks anew, as it does whenever a place comes or goes, sends from nothing only what it newly
+    names, and a new connection starts each growing file from the length this machine already holds of it,
+    where the node's file is at least that long. A node holds hundreds of megabytes of transcripts, which a
+    send from nothing would put ahead of everything else the link says for many minutes;
+  - the near end numbers each watch list it asks and keeps the latest of them, and every frame of what is
+    watched names the list it was read under, so a frame still on its way when a list moved lands where its
+    own list put it. A near end that numbers no list has its list sent from nothing whenever it changes,
+    since a frame on its way could not say which numbering it was read under;
+  - the far end reads the files it sends no faster than the connection carries them, so what the link says
+    of its own goes ahead of the files still on their way rather than behind them: each place's running
+    record and which of its processes are alive, the node's load, and on a person's PC the road home;
   - which processes of a remote place's running record are alive, written beside it, and a signal
     asked for a process on the node through the link's control socket.
 - **Its state** — connected since, last heard from, the node's home, the reason it last dropped, and on a

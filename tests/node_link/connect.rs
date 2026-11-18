@@ -42,6 +42,7 @@ fn a_grown_file_is_written_from_the_offset_the_node_names() {
       path: "s.jsonl".into(),
       offset: 0,
       data: encode(b"one\n"),
+      list: None,
     },
     &mut state,
   );
@@ -52,6 +53,7 @@ fn a_grown_file_is_written_from_the_offset_the_node_names() {
       path: "s.jsonl".into(),
       offset: 4,
       data: encode(b"two\n"),
+      list: None,
     },
     &mut state,
   );
@@ -65,6 +67,7 @@ fn a_grown_file_is_written_from_the_offset_the_node_names() {
       path: "s.jsonl".into(),
       offset: 0,
       data: encode(b"new\n"),
+      list: None,
     },
     &mut state,
   );
@@ -225,4 +228,100 @@ pub async fn ask_bridge(socket: &Path, header: &str, input: &[u8]) -> (Vec<u8>, 
   }
 
   (out, err, code)
+}
+
+#[test]
+fn a_watch_asked_says_how_much_of_each_growing_file_is_held_here() {
+  use node_link::frame::Held;
+
+  let dir = tempfile::tempdir().expect("dir");
+  let (grown, whole) = (dir.path().join("grown"), dir.path().join("whole"));
+
+  fs::create_dir_all(grown.join("sub")).expect("dir");
+  fs::create_dir_all(&whole).expect("dir");
+  fs::write(grown.join("sub/s.jsonl"), "one\n").expect("write");
+  fs::write(whole.join("running.json"), "{}").expect("write");
+
+  let pull = |remote: &str, append: bool| Pull {
+    remote: remote.into(),
+    files: vec![],
+    tree: true,
+    append,
+    alive: false,
+  };
+  let spec = Spec {
+    pull: vec![
+      Landing {
+        pull: pull("/r/whole", false),
+        local: whole,
+      },
+      Landing {
+        pull: pull("/r/grown", true),
+        local: grown,
+      },
+    ],
+    ..Spec::default()
+  };
+
+  let Frame::Watch { pulls, held, list } = watch(&spec, &mut State::default()) else {
+    panic!("a watch is asked")
+  };
+
+  assert_eq!(pulls, spec.pulls());
+  assert_eq!(
+    held,
+    vec![Held {
+      pull: 1,
+      path: "sub/s.jsonl".into(),
+      len: 4
+    }]
+  );
+  assert!(list.is_some(), "the list is numbered");
+}
+
+#[test]
+fn a_frame_read_under_an_earlier_watch_list_lands_where_that_list_put_it() {
+  let dir = tempfile::tempdir().expect("dir");
+  let landing = |name: &str| Landing {
+    pull: Pull {
+      remote: format!("/r/{name}"),
+      files: vec![],
+      tree: true,
+      append: true,
+      alive: false,
+    },
+    local: dir.path().join(name),
+  };
+  let before = Spec {
+    pull: vec![landing("kept")],
+    ..Spec::default()
+  };
+  // A place came, its pull put first.
+  let now = Spec {
+    pull: vec![landing("added"), landing("kept")],
+    ..Spec::default()
+  };
+  let mut state = State::default();
+  let Frame::Watch { list: earlier, .. } = watch(&before, &mut state) else {
+    panic!("a watch is asked")
+  };
+  let _ = watch(&now, &mut state);
+  let append = |pull, list| Frame::Append {
+    pull,
+    path: "s.jsonl".into(),
+    offset: 0,
+    data: encode(b"one\n"),
+    list,
+  };
+
+  apply(&now, append(0, earlier), &mut state);
+  assert_eq!(fs::read_to_string(dir.path().join("kept/s.jsonl")).expect("read"), "one\n");
+  assert!(
+    !dir.path().join("added/s.jsonl").exists(),
+    "nothing lands in the pull the new list put first"
+  );
+
+  // A far end that numbers no list is read by the spec's own.
+  apply(&now, append(0, None), &mut state);
+  assert!(dir.path().join("added/s.jsonl").exists());
 }
