@@ -30,8 +30,7 @@ let placer: Placer | undefined;
 let opened: Archive | null = null;
 
 // The archive execution records go to: the one this process installed, or else the machine's own,
-// opened the first time a process that installed none — a script sending one message through the
-// sanitiser — launches a run.
+// opened the first time a process that installed none launches a run.
 function executionArchive(): Archive {
   const installed = providerSettingsArchive();
   if (installed) return installed;

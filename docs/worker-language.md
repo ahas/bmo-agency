@@ -84,7 +84,7 @@ screens, the rooms — is read in the owner's language by the units that show it
 - **A co-work step's prompt** is composed by the job unit, which translates what it carries before it
   enqueues the step; an earlier stage's result is a co-worker's own English and passes untouched.
 - **No translation for a job's prompt.** Whoever hands a job its prompt, agency hands it to the
-  worker as written, through the sanitiser alone. A part in another language that a person handed
+  worker as written. A part in another language that a person handed
   over anyway reaches the worker as written, and the worker reads it as it stands.
 - **The hand that translates is the gate's,** asked through its `POST /translations` into the worker's
   language (the gate's `docs/api.md`, 「Translations」). Its translator (`translator`) runs outside

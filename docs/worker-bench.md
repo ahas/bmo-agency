@@ -113,12 +113,9 @@ Each repository holds three things beside the work of its jobs:
 
 ### It is agency's own words
 
-- **Why:** the bundle is agency's header and the owner's setting, not something someone sent, so it
-  goes into the prompt as composed and is never put through the sanitiser gate (`docs/cache-fallback.md`,
-  「The sanitiser gate」).
-- **No cross-effects:**
-  - A verdict on the job's text never alters this field's text.
-  - Editing this field never revokes a verdict remembered for the job's text.
+- **The bundle is agency's header and the owner's setting,** not something someone sent, and it goes
+  into the prompt as composed, as every part of a job's prompt does: no gate reads a job's prompt
+  (`docs/cache-fallback.md`, 「No sanitiser stands on a session's boundary」).
 
 ### The bundle is agency's header plus the owner's text
 

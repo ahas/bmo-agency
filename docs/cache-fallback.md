@@ -1,4 +1,4 @@
-# Model fallback, context hygiene and the sanitiser gate
+# Model fallback and demotion
 
 Agency launches every model run and reads back which model, provider and account it actually answered
 on. Two things can make a run come back on something other than what it was launched on, and agency
@@ -12,137 +12,32 @@ carries both.
   to find one that will. It never leaves the run's one road for another provider or model
   (`docs/provider-order.md`).
 
-Agency also runs the **sanitiser gate** on the words that cross a session boundary it owns, so the
-context the safeguard rereads does not keep catching on a passage that was said once and then stayed
-in the record.
+No gate reads the words that cross a session boundary agency owns
+(「No sanitiser stands on a session's boundary」 below), so a passage the safeguard catches is answered
+after the fact, by the demotion detection and its heal (「Demotion detection and self-healing」).
 
 None of this is a turn-content decision. Which words a turn carries, which room or rule governs it,
 which references it loads, and whether an answer is acceptable are the caller's (`docs/api.md`).
 Agency's part is the boundary those words cross on the way into and out of the session it owns, the
 model it launched, the account the run went out on, and the walk it runs when a login will not answer.
 
-## The sanitiser gate
+## No sanitiser stands on a session's boundary
 
-- **What it is:** one gate run on a small model (Haiku by default), standing where words a caller hands
-  agency enter the session context agency carries. It does not rewrite freely: only where there is
-  security-penetration material a model's safeguard would read as inciting a real attack does it mark
-  that passage out, and it passes the rest through unchanged.
-- **Why it exists:** the safeguard rereads a session's whole accumulated context on every run. A
-  passage that caught once stays in the record and catches again every turn, demoting an otherwise
-  ordinary run. Sanitising that passage before it reaches the record stops the misfire.
-- **What it covers, in the abstract:** an instruction to attack a real target, a report that copies
-  the results of such an attack, and a workaround written to slip either past a safeguard. The
-  safeguard reads all three alike and all three pile up in the record, so the gate defuses all three.
-- **What it leaves alone:** a room's rough tone, work a speaker does on their own system or their own
-  model, and administration of a machine the speaker owns and consents to. What divides those from an
-  attack is whose machine it is and whether its owner consents, not the words used, so the gate does
-  not touch them.
-- **The point:** not to make a model carry out anything, but to make the context the safeguard reads
-  harmless. A refused turn helps no one — the message it carried was ordinary and nothing could have
-  been carried out in any case.
-
-### The incoming side
-
-- **What passes through it:** a round's new messages, the past-record block a first turn reloads,
-  reference pieces loaded into a round, the
-  quiet instructions a search or browse run passes with someone else's page, and the prompt handed to
-  a job worker.
-- **The caller that carries the words asks the gate,** through one memo of verdicts, so the same words
-  are not judged twice. Words that enter through these roads are written into the session transcript
-  already sanitised, so later contamination from that record is blocked.
-- **A document is cleaned where it is written,** by whatever writes it, not on every read — what was
-  written once is loaded again and again.
-
-### The outgoing side
-
-- **What passes through it:** every place an answer agency delivered goes back to a room — the
-  session's answer, alerts, captions, and what a voice message speaks aloud.
-- **Why clean outgoing words:** an outgoing word is soon an incoming word. A sent message stays in the
-  record as it was and is reread into the session context, into the brain the agent writes as it
-  reads, and into later searches, so an attack instruction or a copied report mixed into it returns on its own
-  feet days later and touches the safeguard.
-- **One clean before the message exists,** so the words a room reads, the words a later gate judges and
-  the words kept in the record are one and the same text. Spoken words are cleaned before the sound is
-  made, so what a room heard never disagrees with its record.
-
-### The verdict travels with the words
-
-- **One judgement serves every stage after it.** The same text crosses many boundaries — a message
-  into a session, the session's answer out again and into the store, a job's text into a worker, a
-  candidate into a gate. Text is handed on as a payload that records whether the sanitiser has read it,
-  what it made of it and where; a payload already sanitised passes straight through, without the
-  pre-screen and without the model.
-- **Where a boundary can carry nothing but a string** — a prompt written to a file for another
-  process, a message read back out of the store on a later turn, a document on disk — the flag cannot
-  ride along, so the verdict is written under a hash of the words themselves and whoever next holds
-  those words finds it again.
-- **That memo also keeps the answer the same for the same words,** which a model asked twice does not
-  promise on its own. It is swept of anything older than ninety days at each start.
-- **A job worker's prompt passes the same sanitiser before the run,** since a worker runs on the same
-  safeguard and falls the same way: the item's instruction, the owner's note and the account of the
-  runs before it are one text, and an order to attack quoted anywhere in it is defused there, with the
-  fixed report trailer appended afterwards so the shape a job is held to is never touched.
-- **A quoted order counts as much as a fresh one,** in a room or in a job, because the safeguard reads
-  the words and not who is said to have said them.
-- **Markup handed in with words the sanitiser changed is dropped** rather than sent on.
-- **The gate is `packages/agent/sanitizer.ts`,** recorded and costed like the other gates; it is not kept
-  warm, since it runs only when a word makes it worth asking.
-- **What it cannot reach is a model's own record of what it wrote:** the answer in that transcript is
-  the model's own words, so a session can still put an order back into its own context. That is what
-  the downgrade heal is for (「Demotion detection and self-healing」).
-
-### What is already stuck
-
-- **The gate does not edit a session's on-disk transcript,** so a session already carrying an
-  instruction still reloads it under an ordinary resume.
-- **When it clears on its own:** when the session is replaced, the new session opens with nothing of
-  the old one carried over, so it opens clean and the gate keeps it clean thereafter.
-- **To clear it at once:** open a new session for that room, which opens with nothing carried over.
-
-### When it runs, and the cost
-
-- **A cheap local keyword pre-screen stands in front of the gate:** if no attack-meaning word is in the
-  context, the gate is not called at all, so an ordinary turn pays nothing.
-- **Every incoming road gets the pre-screen,** not one particular room, since a new instruction can
-  enter any of them.
-- **The cost:** on the rare turn a word catches, one small-model run runs, recorded in usage like any
-  other gate. The pre-screen presses that cost near zero, which is what lets the gate stand on every
-  road contamination can enter rather than only in an already-contaminated one.
-
-### The answer's shape
-
-- **The gate does not rewrite text.** With no material it answers the single word `CLEAN`; with
-  material present it answers the passages to mark out, one per line after `DEFUSE: `, copied verbatim.
-- **A passage is kept within one line of the text,** and the target's own name is left outside it so it
-  stays in the text.
-- **Agency marks out every place that passage appears** and touches nothing else. Because the answer's
-  length is unrelated to the text's, even a long text gets a short, fast answer.
-- **When a passage cannot be found verbatim,** it is searched for again allowing only spacing to
-  differ; if it is still not found, a local mark-out is applied once over the whole text, since the
-  gate saw material but could not point at the place.
-- **A whole-text rewrite instead of passages** is used as is only when it is longer than half the
-  original, and otherwise replaced with a local mark-out. An unintelligible answer is replaced the same
-  way.
-
-### Long text
-
-- **When the gate's road limits request size** — an own LLM service does (`docs/own-llm.md`, 「A turn at
-  the input limit」) — text that exceeds the limit is not handed whole to another road but split and put
-  back on the same one.
-- **Splitting** cuts in two around the middle — at a paragraph boundary, else a line boundary, else by
-  character count — and each half is put in again; a half still too large splits again. Joining the
-  pieces back differs from the original by not one character, and each piece is told it is one piece of
-  a longer text.
-- **Each piece gets the pre-screen again,** so a piece with no attack word is left as is. One piece is
-  one gate run with no fallback, so a piece the road could not answer for is given a local mark-out for
-  that piece alone while the other pieces' verdicts stand, and the result is joined back in order.
-- **On a road with no size limit it does not split.**
-
-### The boundary
-
-- **This is a context-hygiene device, not a way to bypass a safeguard.** It stops the safeguard's
-  misfire — refusing an ordinary new conversation every turn because an old passage stayed in the
-  record — and it does not make any model carry anything out.
+- **Words go in as handed.** A round's new messages, the past-record block a first turn reloads, the
+  reference attached to a turn or to a job's first prompt, the instructions a search or browse run
+  passes with someone else's page, and the prompt a job worker is handed enter the session context as
+  their caller handed them or agency composed them.
+- **Nobody on the way asks a gate to read them.** Agency runs no sanitising of its own, the job service
+  hands agency the item rather than a prompt, and the gate's order holds no sanitiser (the gate's
+  `docs/gates.md`, 「No gate stands」).
+- **Words come out as written.** A session's answer, an alert, a caption and what a voice message speaks
+  go back to their room as the session wrote them.
+- **No verdict travels with the words.** No memo of read texts is kept, and a text carries no mark of
+  having been read.
+- **What this leaves to the safeguard:** the safeguard rereads a session's whole accumulated context on
+  every run, so a passage that caught once stays in the record and can catch again on later turns. The
+  demotion detection reads each such fall, and its heal discards the fallen session so the next turn
+  opens on a context with nothing carried over (「Demotion detection and self-healing」).
 
 ## Demotion detection and self-healing
 
@@ -186,9 +81,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **Same position as a room:** a job's run goes on in the session its role kept at that path on that
   provider and model (`docs/sessions.md`, 「A role's session」), so it sits where a room sits. A job's
-  input passes sanitising, but words already stuck in the session transcript reload as they are, and
-  then one job quietly answers on a sibling model and ends — nobody the wiser, and the next job at that
-  path inherits the same session.
+  prompt goes in as composed (「No sanitiser stands on a session's boundary」) and words already in the
+  session transcript reload as they are, so one job can quietly answer on a sibling model and end —
+  nobody the wiser, and the next job at that path inherits the same session.
 - **One function for both:** detection uses one function for rooms and jobs — compare the model a
   run reported against the model chosen at launch; if tokens went to a different same-family sibling,
   it was demoted.
