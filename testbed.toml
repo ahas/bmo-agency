@@ -16,6 +16,11 @@ setup = ["cd packages && bun install --frozen-lockfile"]
 # docs/suite.md, 「The guards」).
 guard_seconds = 600
 file_guard_seconds = 300
+# The server crate is compiled as one unit, and the compiler writes nothing while it works on one: its release
+# build stands silent for longer than the testbed's ten minutes on a bench carrying other work, with nothing
+# wrong. The limit stands above that build's measured time (the testbed's docs/testbed.md, 「A holder whose
+# command falls silent lets go」).
+silence_seconds = 1800
 
 # The tests make their own scratch databases on the server, so no template is named.
 [test.database]
