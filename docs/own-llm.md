@@ -693,6 +693,29 @@ never the model's name.
   is the running gateway's: a new child starts with every instance on no role, and the first request of
   each role restores it.
 
+### Session files
+
+- **Why:** an instance that keeps role files holds one conversation at a time. A request of another session
+  takes the place of the one it held, and that one's next request is read again from its first token, which
+  on a long session is minutes. The instance parks conversations in its own memory and brings a parked one
+  back by itself, but a long session is larger than what it parks.
+- **What the gateway does:** the same hook keeps for each such instance the session it last served, as the
+  program's session header names it. Before a request of another session, or of none, is sent, the instance
+  saves the session it holds into a file; and a request whose session has a file on that instance has it
+  restored first, in place of the role's file, since the session's state stands past the role's prefix. A
+  save and a restore of a session near the context's end take a few seconds each.
+- **Which sessions are saved:** one whose last request read at least 32,000 tokens, as the instance's own
+  figures say when it is left. A shorter one is left to the instance's memory, and a file it had is no
+  longer its own.
+- **The files are a fixed few:** three for each instance, named `session-<n>.bin`. A further session takes
+  the file least recently used, so the files' space on the node does not grow with the sessions served.
+- **A save or a restore that fails is a plain request:** the session is left without a file, with a line in
+  the log saying why, and its next request there is read as it stands. What the hook keeps is the running
+  gateway's: a new child knows no instance's session and no file, and writes the files over as sessions
+  come.
+- **Requests that reach an instance at once** are sent in the order the instance takes them, not the order
+  the hook saw them, so a session whose request waits behind another's may be read again once.
+
 ## Where a registration is named
 
 - **A road on the registry's provider names one registration,** with the answer ceiling and the thinking a
