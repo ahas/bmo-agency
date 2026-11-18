@@ -9,8 +9,8 @@
 - Served as MCP tools instead, the names and their arguments stand in the session's own tool list.
   There is nothing to look up and nothing to spell, so those round trips do not happen.
 - **They answer in English.** A worker reads English (`docs/worker-language.md`), so the two queue
-  tools give their labels in English and every text a person or the bot wrote as its translation out
-  of the table, never asking the translator themselves.
+  tools give their labels in English and every text a person or the bot wrote as it was written, never
+  asking the translator themselves.
 - **They answer as the scripts do.** The tools are Rust, placed by the job service and served by the tool host
   (`mcp-host.md`, 「Placed tools」); the scripts
   are TypeScript until their own port. A parity test runs each tool and the script's rendering on the same fixture and asserts the
@@ -22,7 +22,7 @@
 | Tool | What it answers |
 |---|---|
 | `todo_list` | The queue, or what is pending, held or merged |
-| `todo_show` | One item as a worker reads it: its state, what jobs wrote onto it, and the bot's brief with the changes handed, never the conversation or the words people added (`docs/worker-language.md`, 「The queue tools, as a worker reads them」) |
+| `todo_show` | One item as a worker reads it: its state, what jobs wrote onto it, and the bot's brief with the changes handed, never the conversation or the words people added (`docs/worker-language.md`, 「What agency translates on the way in」) |
 
 - **Two tools, both read-only.** They are marked read-only in the protocol's own
   words, which is what lets Claude Code send several of them at once; a tool that stopped saying so

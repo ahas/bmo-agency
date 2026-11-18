@@ -78,9 +78,9 @@ screens, the rooms — is read in the owner's language by the units that show it
   it behind its own prompt. The word is kept and logged as said (`docs/agent-control.md`, 「Words for a
   running job」); only what goes into the turn is the English. A change to the brief is English already
   and goes in as written.
-- **The item's own texts are not translated by agency.** The queue tools show an item's title, its
-  sections and its rows' titles as the translation table keeps them (`docs/worker-mcp.md`), and a job's
-  start asks nothing for them; a text with none kept is shown under its mark.
+- **The item's own texts are not translated by agency.** A job's start asks nothing for an item's
+  title, its sections or its rows' titles, and the queue tools show them as they were written
+  (`docs/worker-mcp.md`).
 - **A co-work step's prompt** is composed by the job unit, which translates what it carries before it
   enqueues the step; an earlier stage's result is a co-worker's own English and passes untouched.
 - **No translation for a job's prompt.** Whoever hands a job its prompt, agency hands it to the
@@ -91,8 +91,8 @@ screens, the rooms — is read in the owner's language by the units that show it
   agency (`docs/own-llm.md`, 「Gates are not agency's runs」), under instructions for a worker: quoted
   speech is translated too, since the person who said it is not the reader. A part already in English,
   a fenced quote in it included, passes untouched and asks nothing of the translator.
-- **Nothing a worker runs calls the translator.** The queue tools read translations that are already
-  kept and never ask the gate, so a worker's reading never waits on a model.
+- **Nothing a worker runs calls the translator.** The queue tools never ask the gate, so a worker's
+  reading never waits on a model.
 
 ## Where the translation is made
 
@@ -127,8 +127,6 @@ screens, the rooms — is read in the owner's language by the units that show it
 - **A text with no translation goes in its original, marked:** a line in English before it says it
   could not be translated and stands in its original language. A reading the gate answered as not
   whole is used under the same mark, since half a text in English is better than none.
-- **A text standing inside a line** — a title, a state, a reason for a hold — wears its mark after it,
-  `[not translated]`, rather than a line over it.
 - **A failure is not kept.** The next reading that needs the text asks again.
 - **An item's instruction keeps English heads even then.** The heads are the queue's own words, so
   the worker still reads each block's label and the fixed words of its source line in English; the
@@ -140,8 +138,8 @@ screens, the rooms — is read in the owner's language by the units that show it
   trailer, the header over a job's turns, a co-worker place's instructions, and every answer and
   refusal of the worker's tools (`docs/worker-mcp.md`) are written in English where they are kept, so
   nothing waits on the translator and nothing is kept twice.
-- **The header over a job's turns names the item as the queue tools do:** its number and its kept
-  English title, or, with none kept, the title as written with `[not translated]` after it.
+- **The header over a job's turns names the item as the queue tools do:** its number and its title as
+  written, since no translation is asked for an item's own texts.
 - **What it quotes stays as written:** a title as a person filed it, a phrase a verb was handed, a row
   a query read.
 
