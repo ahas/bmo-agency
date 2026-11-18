@@ -56,6 +56,11 @@ pub struct ConsoleLogin {
   pub finish_seconds: u64,
   /// How long a sign-in may stand before it is ended, in minutes.
   pub keep_minutes: u64,
+  /// The words the CLI says once a login took, any one of which a sign-in on a person's node, read off its
+  /// pane, is judged by (docs/supply.md, 「Signing a person's login in」).
+  pub took: Vec<String>,
+  /// The words the CLI says once it refused the code, any one of which ends such a sign-in refused.
+  pub refused: Vec<String>,
 }
 
 /// Each account's token for the work nodes: where this machine keeps it, the verb that makes one, and

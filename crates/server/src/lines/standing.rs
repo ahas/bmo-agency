@@ -163,7 +163,11 @@ pub async fn claude_program(
   cwd: &str,
 ) -> Result<Standing, Refusal> {
   let trees = Trees::of(ground);
-  let walked = claude_accounts::walk_for(claude_accounts::Judging::of(ground))
+  // The logins its supply takes: a person's job's own or the lendable ones, the platform's otherwise
+  // (docs/supply.md, 「Choosing a source as a run starts」).
+  let carrying =
+    crate::supply::carrying(ground, crate::supply::chosen_for(&ground.roots.data, worker).as_ref());
+  let walked = claude_accounts::walk_for_user(claude_accounts::Judging::of(ground), carrying, None)
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()
@@ -171,7 +175,7 @@ pub async fn claude_program(
 
   // A program is stood only on a login that answers now, never on the machine's own in place of one.
   if walked.is_none()
-    && !claude_accounts::carried_for_user(&ground.db, None)
+    && !claude_accounts::carried_for_user(&ground.db, carrying)
       .await
       .map_err(|refused| fault(refused.error))?
       .is_empty()
@@ -625,17 +629,40 @@ pub async fn gateway_command(
     },
     Placing::At(node) => node,
   };
-  let name = held.placed(&placement);
+  let placed = held.placed(&placement);
+  // A person's run goes out under their own call key, and on their own key's member where its supply is
+  // personal (docs/own-llm.md, 「The keys」 and 「Personal members」).
+  // The run is its agent's, a thrown-away session's place read as its session's agent — a job's checkout — and its
+  // account the one the run's supply was chosen for — a job's is its holder's, whose checkout names no account —
+  // else the one the agent itself is for.
+  let run_agent =
+    crate::apart_places::session_agent(&ground.roots.data, on.agent).unwrap_or_else(|| on.agent.to_owned());
+  let chosen = crate::supply::chosen_for(&ground.roots.data, &run_agent);
+  let account = match &chosen {
+    Some(chosen) => chosen.account,
+    None => crate::supply::account_of(ground, on.agent).await?,
+  };
+  let person = crate::supply::person(ground, account).await?;
+  let name = match (&held.registration, person) {
+    (None, Some(_)) => crate::supply::personal_member(chosen.as_ref(), &placed).unwrap_or(placed),
+    _ => placed,
+  };
+  let key_file = match person {
+    Some(account) => crate::call_keys::ensure(&ground.db, &ground.roots.data, account).await?,
+    None => Registered::key_file(machine),
+  };
   let claude_word = on.claude_effort.unwrap_or(if thinking { "medium" } else { "low" });
   let mut args = words(&name, claude_word, thinking, &settings)?;
 
   if let Some(at) = args.iter().position(|arg| arg == "--settings")
     && let Some(given) = args.get(at + 1).cloned()
   {
-    args[at + 1] = keyed_settings(machine, &home, Some(&given))?.to_string_lossy().into_owned();
+    args[at + 1] = keyed_settings_at(&home, Some(&given), &key_file)?.to_string_lossy().into_owned();
   }
 
   let mut headers = gateway_headers(on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
+
+  headers.push(format!("x-bmo-run: {run_agent}"));
 
   headers.extend(on.card_terms.headers());
 
@@ -737,17 +764,9 @@ async fn place_registration(
 }
 
 /// The settings a run on the gateway is handed: those given, where a run is given any, with the helper that
-/// prints the gateway's key beside them and the warning a program started in bypass mode stands on passed
-/// over, written under the registration's home by what they were made from.
-pub(crate) fn keyed_settings(
-  machine: &Machine,
-  home: &Path,
-  given: Option<&str>,
-) -> Result<PathBuf, Refusal> {
-  keyed_settings_at(home, given, &Registered::key_file(machine))
-}
-
-/// The same, for a road whose key file is its own.
+/// prints the key file named — the gateway's own, a person's call key, or a road's own — beside them and the
+/// warning a program started in bypass mode stands on passed over, written under the registration's home by
+/// what they were made from.
 pub(crate) fn keyed_settings_at(
   home: &Path,
   given: Option<&str>,

@@ -8,8 +8,14 @@
 //! naming a card service whose engine stands nowhere asks the door for its card first, and is sent once
 //! the granted card's entry is served. A streamed answer whose request names its program's session has its
 //! open block counted as it passes (`streams`).
+//!
+//! The front takes the gateway's own key, the platform's, or a call key the store holds unrevoked, and names
+//! the request's payer to the child; a request on a call key goes on under the gateway's own key. A personal
+//! member answers its own person alone, and while a supply hook is registered a person reaches the platform's
+//! supply only on an open reservation (`supply`). What each request cost comes back from the child's costs
+//! hook and is written down (`costs`).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -32,8 +38,13 @@ use tokio::net::TcpStream;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
+use crate::costs::{Cost, Records};
 use crate::door::{Door, Seat};
 use crate::streams::{SESSION_HEADER, Streams};
+use crate::supply::{Payer, Supply};
+
+/// The header the front names a request's payer to the child in, in place of any the caller sent.
+pub const PAYER_HEADER: &str = "x-bmo-payer";
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -56,6 +67,8 @@ struct Serving {
   table: String,
   /// Every model name the table holds an entry under.
   names: BTreeSet<String>,
+  /// Each personal member the table serves, with the account whose it is.
+  owners: BTreeMap<String, i64>,
   child: Box<dyn Child>,
   in_hand: AtomicUsize,
   retired: AtomicBool,
@@ -82,6 +95,10 @@ pub struct Front {
   stall: Duration,
   /// The block each program session's streamed answer is writing.
   streams: Streams,
+  /// The call keys, the personal supply and the reservations, as the store last read.
+  supply: Supply,
+  /// Where each request's cost is written down.
+  records: Records,
   on_status: Box<dyn Fn(&Status) + Send + Sync>,
 }
 
@@ -160,13 +177,42 @@ fn same_secret(given: &[u8], key: &[u8]) -> bool {
 
 /// Whether a request carries the key as its Bearer: the scheme in any case, the key as it stands.
 pub fn carries_key(headers: &header::HeaderMap, key: &str) -> bool {
-  let Some(said) = headers.get(header::AUTHORIZATION).map(HeaderValue::as_bytes) else {
-    return false;
-  };
-  let Some((scheme, given)) = said.split_at_checked(7) else {
-    return false;
-  };
-  scheme.eq_ignore_ascii_case(b"bearer ") && same_secret(given.trim_ascii(), key.as_bytes())
+  bearer(headers).is_some_and(|given| same_secret(given, key.as_bytes()))
+}
+
+// The key a request carries as its Bearer, the scheme in any case, trimmed.
+fn bearer(headers: &header::HeaderMap) -> Option<&[u8]> {
+  let said = headers.get(header::AUTHORIZATION).map(HeaderValue::as_bytes)?;
+  let (scheme, given) = said.split_at_checked(7)?;
+  scheme.eq_ignore_ascii_case(b"bearer ").then(|| given.trim_ascii())
+}
+
+// An error in the OpenAI shape, as LiteLLM's callers read one.
+fn openai_error(status: StatusCode, message: &str, kind: &str, code: &str) -> Response {
+  let body = serde_json::json!({
+    "error": { "message": message, "type": kind, "code": code }
+  });
+  (status, [(header::CONTENT_TYPE, "application/json")], body.to_string()).into_response()
+}
+
+// A request naming a person's own member under another's key.
+fn not_yours() -> Response {
+  openai_error(
+    StatusCode::FORBIDDEN,
+    "This model is a person's own key and answers only that person's call key.",
+    "permission_error",
+    "not-your-member",
+  )
+}
+
+// A request of a person's on the platform's supply with no reservation open while a supply hook stands.
+fn no_supply() -> Response {
+  openai_error(
+    StatusCode::PAYMENT_REQUIRED,
+    "This account holds no open reservation of the platform's supply, so the request was not sent.",
+    "insufficient_quota",
+    "no-supply",
+  )
 }
 
 // A request without the key, refused in the OpenAI error shape before anything of it is handed on.
@@ -193,12 +239,15 @@ fn terms_of(headers: &HeaderMap) -> CardTerms {
 }
 
 impl Front {
-  /// A front checking every request against the gateway's own key, which is never empty, asking its
-  /// cards at the door where one is given, and cutting a streamed answer silent for `stall`.
+  /// A front checking every request against the gateway's own key, which is never empty, and the call
+  /// keys `supply` holds, asking its cards at the door where one is given, cutting a streamed answer silent
+  /// for `stall`, and writing each request's cost into `records`.
   pub fn new(
     key: String,
     door: Option<Arc<Door>>,
     stall: Duration,
+    supply: Supply,
+    records: Records,
     on_status: impl Fn(&Status) + Send + Sync + 'static,
   ) -> Arc<Front> {
     assert!(!key.is_empty(), "the gateway's key is never empty");
@@ -210,6 +259,8 @@ impl Front {
       card_services: Mutex::new(HashMap::new()),
       stall,
       streams: Streams::default(),
+      supply,
+      records,
       on_status: Box::new(on_status),
     })
   }
@@ -217,6 +268,11 @@ impl Front {
   /// The block each program session's streamed answer is writing.
   pub fn streams(&self) -> &Streams {
     &self.streams
+  }
+
+  /// The call keys, the personal supply and the reservations, as the store last read.
+  pub fn supply(&self) -> &Supply {
+    &self.supply
   }
 
   /// The registrations naming a card service, each with its service, as the registry now reads.
@@ -241,13 +297,14 @@ impl Front {
     (self.on_status)(&status);
   }
 
-  /// The table the front is to serve, with the names it holds entries under. A table already served, or a
-  /// start already under way, starts nothing; a new one starts its child, waits for it, and takes over from
-  /// the old one, which drains.
+  /// The table the front is to serve, with the names it holds entries under and the personal members among
+  /// them with their accounts. A table already served, or a start already under way, starts nothing; a new
+  /// one starts its child, waits for it, and takes over from the old one, which drains.
   pub async fn take(
     &self,
     table: &str,
     names: BTreeSet<String>,
+    owners: BTreeMap<String, i64>,
     start: impl Future<Output = Result<Box<dyn Child>, String>>,
   ) -> Result<(), String> {
     {
@@ -269,6 +326,7 @@ impl Front {
       let old = held.current.replace(Arc::new(Serving {
         table: table.to_owned(),
         names,
+        owners,
         child,
         in_hand: AtomicUsize::new(0),
         retired: AtomicBool::new(false),
@@ -285,6 +343,34 @@ impl Front {
     }
     self.report();
     Ok(())
+  }
+
+  // Who pays for a request: the platform on the gateway's own key, the account a call key is, or none, which
+  // is refused.
+  async fn payer_of(&self, headers: &HeaderMap) -> Option<Payer> {
+    if carries_key(headers, &self.key) {
+      return Some(Payer::Platform);
+    }
+    let given = std::str::from_utf8(bearer(headers)?).ok().filter(|given| !given.is_empty())?;
+    self.supply.account_of(given).await.map(Payer::Account)
+  }
+
+  // Why a request naming `model` is not sent, where it is not: a person's own member under another's key,
+  // or a person on the platform's supply with no reservation open while a supply hook stands.
+  async fn withheld(&self, payer: Payer, model: &str) -> Option<Response> {
+    let owner = {
+      let held = self.held.lock().unwrap();
+      held.current.as_ref().and_then(|serving| serving.owners.get(model).copied())
+    };
+    if owner.is_some_and(|owner| payer != Payer::Account(owner)) {
+      return Some(not_yours());
+    }
+    match payer {
+      Payer::Account(account) if owner.is_none() && !self.supply.supplied(account).await => {
+        Some(no_supply())
+      }
+      _ => None,
+    }
   }
 
   // Whether any table stands.
@@ -356,9 +442,9 @@ impl Front {
   /// One request, refused without the key, else carried to the child serving now and its answer
   /// carried back as it comes.
   pub async fn handle(self: &Arc<Self>, request: Request) -> Response {
-    if !carries_key(request.headers(), &self.key) {
+    let Some(payer) = self.payer_of(request.headers()).await else {
       return refused();
-    }
+    };
     let (parts, body) = request.into_parts();
     let session = parts
       .headers
@@ -376,6 +462,13 @@ impl Front {
         }
       };
       let model = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model);
+      let withheld = match model.as_deref() {
+        Some(named) => self.withheld(payer, named).await,
+        None => None,
+      };
+      if let Some(refusal) = withheld {
+        return refusal;
+      }
       let door = self.door.as_ref().filter(|_| self.stands());
       match (door, model.as_deref()) {
         (Some(door), Some(named)) => match self.carded(door, bytes, named, &terms_of(&parts.headers)).await
@@ -409,6 +502,18 @@ impl Front {
     let (mut parts, body) = request.into_parts();
     for name in UNPASSED {
       parts.headers.remove(name);
+    }
+    // The payer is the front's to name, in place of any the caller sent, and a request on a call key goes on
+    // under the gateway's own key, which LiteLLM's own check holds.
+    parts
+      .headers
+      .insert(PAYER_HEADER, HeaderValue::from_str(&payer.named()).expect("a payer is a plain word"));
+    if payer != Payer::Platform {
+      parts.headers.insert(
+        header::AUTHORIZATION,
+        HeaderValue::from_str(&format!("Bearer {}", self.key))
+          .expect("the gateway's key is a header's value"),
+      );
     }
     // The answer goes back byte for byte, so it is asked for as it is written.
     parts.headers.insert(header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
@@ -561,11 +666,28 @@ async fn open_block(
   }
 }
 
-/// Every path and method comes through the front, and through its check of the key; the gateway's own reading
-/// of an open block stands under `/gateway/`, which no route of the child's takes.
+/// One request's cost, as the child's costs hook hands it, written down; only the gateway's own key is taken,
+/// so no caller writes a record.
+async fn cost(State(front): State<Arc<Front>>, headers: HeaderMap, body: Bytes) -> Response {
+  if !carries_key(&headers, &front.key) {
+    return refused();
+  }
+  let cost: Cost = match serde_json::from_slice(&body) {
+    Ok(cost) => cost,
+    Err(fault) => return text(StatusCode::BAD_REQUEST, format!("the cost does not read: {fault}")),
+  };
+
+  front.records.write(&cost).await;
+  StatusCode::NO_CONTENT.into_response()
+}
+
+/// Every path and method comes through the front, and through its check of the key; the gateway's own
+/// routes, the reading of an open block and the costs the child hands back, stand under `/gateway/`, which no
+/// route of the child's takes, and take the gateway's own key alone.
 pub fn router(front: Arc<Front>) -> Router {
   Router::new()
     .route("/gateway/streams/{session}", axum::routing::get(open_block))
+    .route("/gateway/costs", axum::routing::post(cost))
     .fallback(
       |State(front): State<Arc<Front>>, request: Request| async move { front.handle(request).await },
     )

@@ -521,6 +521,7 @@ struct JobSpend {
   cache_write_tokens: Option<i64>,
   unsplit_jobs: i64,
   unsplit_tokens: i64,
+  cost_micros: Option<i64>,
 }
 
 // Two groups' sums of one kind as one: none only where neither group has a job that reported it.
@@ -549,10 +550,11 @@ impl JobSpend {
                   (SUM("cache_read_tokens") FILTER (WHERE "split"))::bigint AS "cache_read",
                   (SUM("cache_write_tokens") FILTER (WHERE "split"))::bigint AS "cache_write",
                   COUNT(*) FILTER (WHERE NOT "split" AND "token_count" > 0) AS "unsplit_jobs",
-                  COALESCE(SUM("token_count") FILTER (WHERE NOT "split"), 0)::bigint AS "unsplit_tokens"
+                  COALESCE(SUM("token_count") FILTER (WHERE NOT "split"), 0)::bigint AS "unsplit_tokens",
+                  SUM("cost_micros")::bigint AS "cost"
            FROM (
              SELECT COALESCE(CAST("{column}" AS text), '') AS "key", "token_count", "started_at", "ended_at",
-                    "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+                    "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "cost_micros",
                     ("input_tokens" IS NOT NULL AND "output_tokens" IS NOT NULL
                       AND "cache_read_tokens" IS NOT NULL AND "cache_write_tokens" IS NOT NULL) AS "split"
              FROM "jobs" WHERE "started_at" >= $1 AND "started_at" <= $2
@@ -582,6 +584,7 @@ impl JobSpend {
       cache_write_tokens: kind("cache_write")?,
       unsplit_jobs: figure("unsplit_jobs")?,
       unsplit_tokens: figure("unsplit_tokens")?,
+      cost_micros: kind("cost")?,
     })
   }
 
@@ -599,6 +602,7 @@ impl JobSpend {
       cache_write_tokens: kinds_added(self.cache_write_tokens, other.cache_write_tokens),
       unsplit_jobs: self.unsplit_jobs + other.unsplit_jobs,
       unsplit_tokens: self.unsplit_tokens + other.unsplit_tokens,
+      cost_micros: kinds_added(self.cost_micros, other.cost_micros),
     }
   }
 
@@ -618,6 +622,7 @@ impl JobSpend {
       cache_write_tokens: self.cache_write_tokens,
       unsplit_jobs: self.unsplit_jobs,
       unsplit_tokens: self.unsplit_tokens,
+      cost_usd: self.cost_micros.map(crate::supply::reservations::usd),
     }
   }
 }
@@ -636,10 +641,14 @@ impl Route for UsageRoute {
     let word = call.query("groupBy").unwrap_or_else(|| "model".to_owned());
     let groups = if word == "round" {
       by_round(call.store(), after, before).await?
+    } else if let Some(key) = RunKey::named(&word) {
+      by_runs(call.store(), key, after, before).await?
     } else {
       Grouping::named(&word)
         .ok_or_else(|| {
-          bad(format!("groupBy is model, agent, repository, user, room or round, not {word}"))
+          bad(format!(
+            "groupBy is model, agent, repository, user, room, round, account or supply, not {word}"
+          ))
         })?
         .groups(call.ground(), after, before)
         .await?
@@ -684,9 +693,99 @@ async fn by_round(
         unsplit_jobs: 0,
         unsplit_tokens: 0,
         context_tokens: None,
+        cost_usd: (round.spent.cost_micros > 0)
+          .then(|| crate::supply::reservations::usd(round.spent.cost_micros)),
       })
       .collect(),
   )
+}
+
+/// What the ledger's runs are grouped by over a span (docs/supply.md, 「The ledger」): the person a run was for,
+/// `none` for the deployment's own, or the supply source it went out on.
+#[derive(Clone, Copy)]
+enum RunKey {
+  Account,
+  Supply,
+}
+
+impl RunKey {
+  fn named(word: &str) -> Option<Self> {
+    match word {
+      "account" => Some(Self::Account),
+      "supply" => Some(Self::Supply),
+      _ => None,
+    }
+  }
+
+  // The expression a run's key is, over the ledger joined to the supervisors and the role agents it ran for.
+  fn expression(self) -> &'static str {
+    match self {
+      Self::Account => {
+        r#"COALESCE(CAST("s"."owner_account" AS text), NULLIF("a"."owner_account", ''),
+             CAST("h"."owner_account" AS text), 'none')"#
+      }
+      Self::Supply => r#"COALESCE("r"."supply_source", 'platform')"#,
+    }
+  }
+}
+
+// What the runs started in a span spent and cost, a group to each value of the key.
+async fn by_runs(
+  db: &sea_orm::DatabaseConnection,
+  key: RunKey,
+  after: i64,
+  before: i64,
+) -> Result<Vec<UsageGroup>, Refused> {
+  let rows = store::all(
+    db,
+    &format!(
+      r#"SELECT {key} AS "key", COUNT(*) AS "turns",
+                COALESCE(SUM(COALESCE("r"."input_tokens", 0) + COALESCE("r"."output_tokens", 0)
+                  + COALESCE("r"."cache_read_tokens", 0) + COALESCE("r"."cache_write_tokens", 0)), 0)::bigint
+                  AS "tokens",
+                MIN("r"."started_at") AS "first", MAX(COALESCE("r"."finished_at", "r"."started_at")) AS "last",
+                SUM("r"."input_tokens")::bigint AS "input", SUM("r"."output_tokens")::bigint AS "output",
+                SUM("r"."cache_read_tokens")::bigint AS "cache_read",
+                SUM("r"."cache_write_tokens")::bigint AS "cache_write",
+                SUM("r"."cost_micros")::bigint AS "cost"
+         FROM "runs" AS "r"
+         LEFT JOIN "supervisors" AS "s" ON "s"."name" = "r"."agent"
+         LEFT JOIN "role_agents" AS "a" ON "a"."name" = "r"."agent"
+         LEFT JOIN "jobs" AS "j" ON "j"."run_id" = "r"."id"
+         LEFT JOIN "supervisors" AS "h" ON "h"."name" = "j"."holder_name"
+         WHERE "r"."started_at" >= $1 AND "r"."started_at" <= $2
+         GROUP BY 1 ORDER BY "tokens" DESC, 1"#,
+      key = key.expression()
+    ),
+    vec![after.into(), before.into()],
+  )
+  .await?;
+
+  rows
+    .iter()
+    .map(|row| {
+      let figure = |column: &str| row.try_get::<i64>("", column);
+      let kind = |column: &str| row.try_get::<Option<i64>>("", column);
+
+      Ok(UsageGroup {
+        key: row.try_get("", "key")?,
+        tokens: figure("tokens")?,
+        jobs: 0,
+        turns: Some(figure("turns")?),
+        first_at: figure("first")?,
+        last_at: figure("last")?,
+        input_tokens: kind("input")?,
+        output_tokens: kind("output")?,
+        cache_read_tokens: kind("cache_read")?,
+        cache_write_tokens: kind("cache_write")?,
+        unsplit_jobs: 0,
+        unsplit_tokens: 0,
+        context_tokens: None,
+        cost_usd: kind("cost")?.map(crate::supply::reservations::usd),
+      })
+    })
+    .collect::<Result<_, sea_orm::DbErr>>()
+    .map_err(Refused::from)
 }
 
 /// Why the rest that has just passed silenced the deployment, the passed rests cleared as they are read.

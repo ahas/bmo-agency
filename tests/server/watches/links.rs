@@ -254,17 +254,14 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub
   assert_eq!(jake.hub_env, trees.path().join("hub.env"));
   assert_eq!((jake.mirror_port, jake.herdr_port), (47201, 47202));
   // The tool host and the model gateway here are both reached from the PC's loopback, and a program on a gateway
-  // road takes its road's variables and the gateway's key there, never a login's key or token
+  // road takes its road's variables and its account's own call key there, never the gateway's own key and never
+  // a login's token; an API key goes only as a person's own `api-key` account hands it to their own run
   // (docs/work-nodes.md, 「The model gateway on a node」).
   assert_eq!(pc.ports, [3290, 18030]);
-  assert_eq!(pc.handed, std::slice::from_ref(&roots.gateway_key));
+  assert_eq!(pc.handed, [agency_server::call_keys::path(&roots.data, 7)]);
   assert!(pc.env_keep.iter().any(|kept| kept == "ANTHROPIC_BASE_URL"));
-  assert!(
-    !pc
-      .env_keep
-      .iter()
-      .any(|kept| kept.starts_with("ANTHROPIC_API") || kept.starts_with("ANTHROPIC_AUTH"))
-  );
+  assert!(pc.env_keep.iter().any(|kept| kept == "ANTHROPIC_API_KEY"));
+  assert!(!pc.env_keep.iter().any(|kept| kept.starts_with("ANTHROPIC_AUTH")));
   // An account's node asks its bridge for the policy's verbs alone (docs/person-nodes.md, 「Who reaches a node」).
   assert_eq!(pc.bridge_verbs.as_ref(), Some(&policy::person_nodes::PERSON_NODES.bridge_verbs));
   // The supervisor's place goes there: its program sent, its running record brought back.

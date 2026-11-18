@@ -39,10 +39,13 @@ impl Logins for StoreLogins {
   }
 }
 
-/// The logins the Claude account reader asks of, one each account that has usage windows.
+/// The logins the Claude account reader asks of, one each account that has usage windows and whose
+/// credential stands on this machine: a person's login signed in on their node is read off its turns'
+/// answers alone (docs/supply.md, 「Signing a person's login in」).
 pub fn window_logins(held: Vec<Account>) -> Vec<Login> {
   held
     .into_iter()
+    .filter(|account| !account.on_own_node())
     .filter_map(|account| {
       Some(Login {
         credential: account.credential.window_credential()?,

@@ -67,6 +67,10 @@ last_off = "Not every account can be turned off: keep at least one on."
 last_gone = "The last account cannot be removed."
 chosen_off = "An account that is off cannot be chosen. Turn it on first."
 base_prompt = "There is no base prompt {name} for the account to name."
+secret_needed = "An api-key account needs the name of the secret its key sits in."
+secret_name = "A secret is named by one plain file name in the secret store."
+not_lendable = "{name} is a person's own account, which is never lent."
+platform_only = "Ordering or choosing the platform's accounts is the owner's alone."
 
 # A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the console」):
 # what is refused, with `{name}`, `{path}`, `{login}` and `{said}` filled in.
@@ -80,6 +84,24 @@ code_needed = "Paste the code the sign-in page shows."
 refused = "The sign-in did not take the code: {said}"
 no_login = "The sign-in ended but left no login in {path}."
 silent = "the CLI said nothing"
+no_node = "There is no node to sign you in on yet."
+node_not_attached = "{node} is not attached now: sign in once its link is heard again."
+node_unready = "{node} has no ready workplace to sign in on yet."
+name_only = "Name the new account alone: a person signs in a login of their own, never another's."
+
+# A person's own keys for the gateway's roads (docs/supply.md, 「What a person brings」): a call naming no
+# person, a {road} no member serves, a key {id} not the caller's, a change naming nothing it takes, and the
+# off-boarding a person's own call asks.
+[personal_supply]
+no_person = "Only a signed-in person keeps keys of their own."
+unknown_road = "No member of the gateway serves the road {road}."
+road_needed = "Name the road the key serves."
+unknown = "There is no key {id} of yours."
+place = "A key's place is a whole number from 1."
+enabled = "A key's switch is true or false."
+nothing = "Give the key's place or its switch."
+off_boarding = "Off-boarding is the deployment's own call."
+taken = "That secret already stands as your key for {road}."
 
 # A worker brought back to this machine with no path of this machine, and a worker's own sampling: an
 # {agent} not known, one whose {label} is no worker's or a support worker's that follows its base, a save

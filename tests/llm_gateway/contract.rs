@@ -16,8 +16,9 @@ use hyper::body::{Bytes, Incoming};
 use hyper_util::rt::TokioIo;
 use sea_orm_migration::MigratorTrait;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use sqlx::postgres::PgConnection;
-use sqlx::{Connection, Executor};
+use sqlx::{Connection, Executor, Row};
 use store::migration::Migrator;
 use tokio::net::TcpStream;
 
@@ -219,6 +220,8 @@ struct World {
   /// Whether the gateway is started through the world's `live` link, as its unit starts it through the
   /// deploy link, and told no code root.
   linked: bool,
+  /// How often the gateway reads the store, in milliseconds.
+  beat_ms: u64,
 }
 
 impl World {
@@ -246,6 +249,7 @@ impl World {
       master: None,
       stall_ms: None,
       linked: false,
+      beat_ms: 100,
     };
     world.write(registry).await;
     world
@@ -270,6 +274,19 @@ impl World {
   /// The world with a gateway that cuts a streamed answer silent for `ms` milliseconds.
   fn stalling_after(mut self, ms: u64) -> World {
     self.stall_ms = Some(ms);
+    self
+  }
+
+  /// The world whose gateway reads the store once as it starts and not again within any test's span, so
+  /// what is written after that reading reaches it only by a lookup of its own.
+  fn reading_the_store_once(mut self) -> World {
+    self.beat_ms = 3_600_000;
+    self
+  }
+
+  /// The world whose gateway serves the members given, as the deployment's members file names them.
+  fn with_members(self, members: Value) -> World {
+    private(&self.folder().join("members.json"), &members.to_string(), 0o600);
     self
   }
 
@@ -346,7 +363,7 @@ impl World {
     if let Some(master) = &self.master {
       command.env("AGENCY_ARBITER_URL", master);
     }
-    command.env_remove("LLM_GATEWAY_STALL_MS");
+    command.env_remove("LLM_GATEWAY_STALL_MS").env_remove("BMO_LLM_GATEWAY_MEMBERS");
     if let Some(ms) = self.stall_ms {
       command.env("LLM_GATEWAY_STALL_MS", ms.to_string());
     }
@@ -355,7 +372,7 @@ impl World {
       .env("PATH", path)
       .env("BMO_DATA_DIR", self.root().join("data"))
       .env("BMO_ARCHIVE_URL", self.store.address())
-      .env("LLM_GATEWAY_REFRESH_MS", "100")
+      .env("LLM_GATEWAY_REFRESH_MS", self.beat_ms.to_string())
       .stdin(Stdio::null())
       .stdout(log.try_clone().unwrap())
       .stderr(log)
@@ -505,6 +522,50 @@ impl World {
     let (status, headers, body) = self.ask("GET", "/v1/models", &[], "").await;
     assert_eq!(status, 200, "{body}");
     headers["x-standin"].to_str().unwrap().to_owned()
+  }
+
+  /// The request records the store holds, in the order they were written.
+  async fn recorded(&self) -> Vec<Value> {
+    let mut store = PgConnection::connect(&self.store.address()).await.unwrap();
+    let rows = sqlx::query(
+      "SELECT account, model, run, session, input_tokens, output_tokens, cost_micros FROM gateway_requests \
+       ORDER BY id",
+    )
+    .fetch_all(&mut store)
+    .await
+    .unwrap();
+    store.close().await.unwrap();
+    rows
+      .iter()
+      .map(|row| {
+        json!({
+          "account": row.get::<Option<i64>, _>("account"),
+          "model": row.get::<String, _>("model"),
+          "run": row.get::<Option<String>, _>("run"),
+          "session": row.get::<Option<String>, _>("session"),
+          "inputTokens": row.get::<Option<i64>, _>("input_tokens"),
+          "outputTokens": row.get::<Option<i64>, _>("output_tokens"),
+          "costMicros": row.get::<i64, _>("cost_micros"),
+        })
+      })
+      .collect()
+  }
+
+  /// The request records once the store holds `count` of them.
+  async fn recorded_once(&self, count: usize) -> Vec<Value> {
+    let bound = Instant::now() + Duration::from_secs(30);
+    loop {
+      let recorded = self.recorded().await;
+      if recorded.len() >= count {
+        return recorded;
+      }
+      assert!(
+        Instant::now() < bound,
+        "waited in vain for {count} request records: {recorded:?}\n{}",
+        self.said()
+      );
+      tokio::time::sleep(Duration::from_millis(20)).await;
+    }
   }
 
   fn terminate(&self) {
@@ -686,7 +747,7 @@ async fn the_table_is_written_private_beside_its_hooks_and_the_keys_reach_the_ch
     config["model_list"][0]["litellm_params"]["api_key"],
     "os.environ/BMO_KEY_ALPHA_LLM_TOKEN"
   );
-  for hook in ["thinking.py", "sampling.py", "reminders.py", "long_tools.py", "roles.py"] {
+  for hook in ["thinking.py", "sampling.py", "reminders.py", "long_tools.py", "roles.py", "costs.py"] {
     assert!(world.folder().join(hook).exists(), "{hook} was not copied beside the table");
   }
 
@@ -707,6 +768,7 @@ async fn the_table_is_written_private_beside_its_hooks_and_the_keys_reach_the_ch
   assert_eq!(child["cwd"], world.folder().to_str().unwrap());
   assert_eq!(child["env"]["LLM_GATEWAY_KEY"], GATEWAY_KEY);
   assert_eq!(child["env"]["BMO_KEY_ALPHA_LLM_TOKEN"], "alpha-key");
+  assert_eq!(child["env"]["LLM_GATEWAY_FRONT"], format!("http://127.0.0.1:{}", world.port));
   for kept in ["BMO_DATA_DIR", "BMO_ARCHIVE_URL", "LLM_GATEWAY_REFRESH_MS"] {
     assert!(child["env"].get(kept).is_none(), "the child was handed {kept}");
   }
@@ -962,7 +1024,7 @@ async fn echo_backend() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<Value>>>) {
           "created": 1,
           "model": "echo-model",
           "choices": [{ "index": 0, "message": { "role": "assistant", "content": "done" }, "finish_reason": "stop" }],
-          "usage": { "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2 },
+          "usage": { "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2, "cost": 0.0123 },
         }))
       }
     }),
@@ -974,7 +1036,7 @@ async fn echo_backend() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<Value>>>) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_runs_long_tools_reach_the_backend_through_litellm_in_the_field_the_engines_read() {
+async fn through_litellm_a_runs_long_tools_reach_the_backend_and_each_requests_cost_reaches_the_store() {
   let (port, seen) = echo_backend().await;
   let echo = format!(
     "INSERT INTO registered_models VALUES ('echo', 'Echo', 'echo-model', 32768, 4096, 0, 0, 3, 0);
@@ -1002,9 +1064,9 @@ async fn a_runs_long_tools_reach_the_backend_through_litellm_in_the_field_the_en
     headers
   };
 
-  let (status, _, body) = world
-    .ask("POST", "/v1/messages", &asked(Some("Bash,Agent,Task,WebFetch,WebSearch")), &turn)
-    .await;
+  let mut named = asked(Some("Bash,Agent,Task,WebFetch,WebSearch"));
+  named.extend([("x-bmo-run", "run-a"), ("x-claude-code-session-id", "session-a")]);
+  let (status, _, body) = world.ask("POST", "/v1/messages", &named, &turn).await;
   assert_eq!(status, 200, "{body}\n{}", world.said());
   let (status, _, body) = world.ask("POST", "/v1/messages", &asked(None), &turn).await;
   assert_eq!(status, 200, "{body}");
@@ -1015,6 +1077,26 @@ async fn a_runs_long_tools_reach_the_backend_through_litellm_in_the_field_the_en
   let last = seen[0]["messages"].as_array().unwrap().last().unwrap();
   assert_eq!((&last["role"], &last["tool_call_id"]), (&json!("tool"), &json!("toolu_01")), "{last}");
   assert!(seen[1].get("bmo_long_tools").is_none(), "{}", seen[1]);
+
+  // The costs hook hands each request's cost to the front, which writes it down: the platform's, on the
+  // gateway's own key, under the run and the session the first request named, at the cost the provider's own
+  // answer named.
+  let recorded = world.recorded_once(2).await;
+  let named = recorded
+    .iter()
+    .find(|row| row["run"] == "run-a")
+    .unwrap_or_else(|| panic!("{recorded:?}"));
+  assert_eq!(
+    named,
+    &json!({
+      "account": null, "model": "echo", "run": "run-a", "session": "session-a",
+      "inputTokens": 1, "outputTokens": 1, "costMicros": 12_300,
+    })
+  );
+  assert!(
+    recorded.iter().any(|row| row["run"].is_null() && row["model"] == "echo"),
+    "{recorded:?}"
+  );
 }
 
 // A registration naming a card service, whose engine the master stands, beside the pair.
@@ -1514,4 +1596,227 @@ async fn a_stalled_stream_cut_at_the_front_lets_go_of_the_backend_through_litell
   assert!(read.is_err(), "the stalled stream ended as if whole");
   assert_eq!(cut_lines(&world).len(), 1, "{}", world.said());
   until("the backend's stream to be let go", || gone.load(std::sync::atomic::Ordering::SeqCst)).await;
+}
+
+// The digest the store keeps of a call key, as agency's server writes it: SHA-256 of the key, in lowercase hex.
+fn call_key_digest(key: &str) -> String {
+  hex::encode(Sha256::digest(key.trim().as_bytes()))
+}
+
+// A call key of the account's as the server issues one, revoked where `revoked` says.
+fn call_key(account: i64, key: &str, revoked: bool) -> String {
+  format!(
+    "INSERT INTO gateway_call_keys (account, key_hash, issued_at, revoked_at) VALUES ({account}, '{}', 1, {});",
+    call_key_digest(key),
+    if revoked { "2" } else { "NULL" }
+  )
+}
+
+// A registration of the supply hook, as the server keeps one.
+const SUPPLY_HOOK: &str =
+  r#"INSERT INTO settings (key, value) VALUES ('hook_kept:supply', '{"url":"http://127.0.0.1:9/hooks"}');"#;
+
+// A platform reservation of the account's, in the state given, expiring at the moment named, or never.
+fn reservation(account: i64, state: &str, expires_at: Option<i64>) -> String {
+  format!(
+    "INSERT INTO supply_reservations (run, opened_step, last_step, account, source, reservation, amount_micros, \
+     unit_micros, expires_at, state) VALUES ('run-{account}', 1, 1, {account}, 'plan', 'r-{account}-{state}', \
+     1000000, 1000000, {}, '{state}');",
+    expires_at.map_or("NULL".to_owned(), |at| at.to_string())
+  )
+}
+
+fn bearer(key: &str) -> String {
+  format!("Bearer {key}")
+}
+
+// A refusal in the OpenAI error shape, with its status and its code.
+fn assert_openai_error((status, _, body): (u16, hyper::HeaderMap, String), expected: u16, code: &str) {
+  assert_eq!(status, expected, "{body}");
+  let error: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(error["error"]["code"], code, "{body}");
+  assert!(error["error"]["type"].as_str().is_some_and(|kind| !kind.is_empty()), "{body}");
+  assert!(error["error"]["message"].as_str().is_some_and(|message| !message.is_empty()), "{body}");
+}
+
+#[tokio::test]
+async fn a_call_key_reaches_the_child_under_the_gateways_key_and_the_front_names_the_payer() {
+  let world = World::new(&format!("{PAIR}{}", call_key(7, "call-key-seven", false)))
+    .await
+    .start()
+    .await;
+  world.serving(None).await;
+
+  let seven = bearer("call-key-seven");
+  let (status, _, body) = world
+    .ask(
+      "POST",
+      "/v1/chat/completions",
+      &[("authorization", &seven), ("x-bmo-payer", "platform")],
+      r#"{"model":"pair-0-1"}"#,
+    )
+    .await;
+  assert_eq!(status, 200, "{body}");
+  let asked: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(asked["headers"]["authorization"], bearer(GATEWAY_KEY), "the call key goes no further");
+  assert_eq!(asked["headers"]["x-bmo-payer"], "7", "the payer a caller writes is the front's to name");
+
+  let (status, _, body) = world.ask("GET", "/v1/models", &[("x-bmo-payer", "7")], "").await;
+  assert_eq!(status, 200, "{body}");
+  let asked: Value = serde_json::from_str(&body).unwrap();
+  assert_eq!(asked["headers"]["x-bmo-payer"], "platform");
+}
+
+#[tokio::test]
+async fn a_revoked_or_unknown_call_key_is_refused_401() {
+  let world = World::new(&format!("{PAIR}{}", call_key(7, "call-key-revoked", true)))
+    .await
+    .start()
+    .await;
+  world.serving(None).await;
+
+  for key in ["call-key-revoked", "call-key-unknown"] {
+    assert_refused(world.ask("GET", "/v1/models", &[("authorization", &bearer(key))], "").await);
+  }
+}
+
+#[tokio::test]
+async fn a_call_key_issued_after_the_last_reading_is_looked_up_and_taken() {
+  let world = World::new(PAIR).await.reading_the_store_once().start().await;
+  world.serving(None).await;
+  world.write(&call_key(7, "call-key-fresh", false)).await;
+
+  let (status, _, body) = world
+    .ask("GET", "/v1/models", &[("authorization", &bearer("call-key-fresh"))], "")
+    .await;
+  assert_eq!(status, 200, "{body}");
+}
+
+#[tokio::test]
+async fn a_personal_member_answers_its_own_persons_call_key_alone() {
+  let person = "INSERT INTO personal_supply (user_id, road, secret, place, enabled, added_at, refused_at) \
+                VALUES (7, 'openrouter', 'router-own', 1, true, 1, NULL);";
+  let world = World::new(&format!(
+    "{PAIR}{}{}{person}{SUPPLY_HOOK}",
+    call_key(7, "call-key-seven", false),
+    call_key(8, "call-key-eight", false)
+  ))
+  .await
+  .with_members(json!([{
+    "name": "router-flash", "road": "openrouter", "label": "Router Flash", "provider": "openrouter",
+    "model": "vendor/flash-1", "api_base": "https://openrouter.ai/api/v1", "key_file": "openrouter.key",
+    "context_tokens": 131072, "answer_tokens": 8192, "thinking": false,
+  }]));
+  private(&world.root().join("data/env/openrouter.key"), "platform-key\n", 0o600);
+  private(&world.root().join("data/env/users/7/router-own"), "person-key\n", 0o600);
+  let world = world.start().await;
+  let table = world.serving_holding("router-flash@u7").await;
+
+  let started = world.events("started");
+  let child = started.iter().find(|entry| entry["table"] == table.as_str()).unwrap();
+  assert_eq!(
+    child["env"]["BMO_KEY_USERS_7_ROUTER_OWN"], "person-key",
+    "the person's key reaches the child"
+  );
+
+  let body = r#"{"model":"router-flash@u7"}"#;
+  for key in ["call-key-eight", GATEWAY_KEY] {
+    let refused = world
+      .ask("POST", "/v1/chat/completions", &[("authorization", &bearer(key))], body)
+      .await;
+    assert_openai_error(refused, 403, "not-your-member");
+  }
+
+  // The person's own member is their own supply, so no reservation is asked of it while the hook stands.
+  let (status, _, answer) = world
+    .ask("POST", "/v1/chat/completions", &[("authorization", &bearer("call-key-seven"))], body)
+    .await;
+  assert_eq!(status, 200, "{answer}");
+  let asked: Value = serde_json::from_str(&answer).unwrap();
+  assert_eq!(asked["headers"]["x-bmo-payer"], "7");
+}
+
+// A chat request on the pair under the authorization given.
+async fn chat_on_the_pair(world: &World, authorization: String) -> (u16, hyper::HeaderMap, String) {
+  world
+    .ask(
+      "POST",
+      "/v1/chat/completions",
+      &[("authorization", &authorization)],
+      r#"{"model":"pair-0-1"}"#,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn while_a_supply_hook_stands_a_person_reaches_platform_supply_only_on_an_open_reservation() {
+  let world = World::new(&format!(
+    "{PAIR}{}{}{SUPPLY_HOOK}{}{}",
+    call_key(7, "call-key-seven", false),
+    call_key(8, "call-key-eight", false),
+    reservation(7, "open", Some(1)),
+    reservation(7, "captured", None),
+  ))
+  .await
+  .reading_the_store_once()
+  .start()
+  .await;
+  world.serving(None).await;
+  let (seven, eight) = (bearer("call-key-seven"), bearer("call-key-eight"));
+  let chat = |key: &String| chat_on_the_pair(&world, key.clone());
+
+  // An expired reservation and a captured one open nothing.
+  assert_openai_error(chat(&seven).await, 402, "no-supply");
+  // A request naming no model, and the platform's own, are not the person's supply to refuse.
+  let (status, _, body) = world.ask("GET", "/v1/models", &[("authorization", &seven)], "").await;
+  assert_eq!(status, 200, "{body}");
+  let (status, _, body) = chat(&bearer(GATEWAY_KEY)).await;
+  assert_eq!(status, 200, "{body}");
+
+  // A reservation opened after the last reading is looked up before the refusal.
+  world.write(&reservation(7, "open", Some(i64::MAX))).await;
+  let (status, _, body) = chat(&seven).await;
+  assert_eq!(status, 200, "{body}");
+
+  // With no hook registered, no reservation is asked.
+  assert_openai_error(chat(&eight).await, 402, "no-supply");
+  world.write("DELETE FROM settings WHERE key = 'hook_kept:supply';").await;
+  let (status, _, body) = chat(&eight).await;
+  assert_eq!(status, 200, "{body}");
+}
+
+#[tokio::test]
+async fn the_costs_route_writes_one_request_record_each_and_takes_the_gateways_key_alone() {
+  let world = World::new(&call_key(7, "call-key-seven", false)).await.start().await;
+  let named = json!({
+    "payer": "7", "run": "run-a", "session": "session-a", "model": "pair-0-1",
+    "costUsd": 0.0123456, "inputTokens": 10, "outputTokens": 20,
+  })
+  .to_string();
+  let platform = json!({ "payer": "platform", "model": "pair-0-1", "costUsd": 0 }).to_string();
+
+  assert_refused(
+    world
+      .ask("POST", "/gateway/costs", &[("authorization", &bearer("call-key-seven"))], &named)
+      .await,
+  );
+  for cost in [&named, &platform] {
+    let (status, _, body) =
+      world.ask("POST", "/gateway/costs", &[("content-type", "application/json")], cost).await;
+    assert_eq!(status, 204, "{body}");
+  }
+
+  assert_eq!(
+    world.recorded().await,
+    [
+      json!({
+        "account": 7, "model": "pair-0-1", "run": "run-a", "session": "session-a",
+        "inputTokens": 10, "outputTokens": 20, "costMicros": 12346,
+      }),
+      json!({
+        "account": null, "model": "pair-0-1", "run": null, "session": null,
+        "inputTokens": null, "outputTokens": null, "costMicros": 0,
+      }),
+    ]
+  );
 }

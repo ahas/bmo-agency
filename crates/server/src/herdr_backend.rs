@@ -508,6 +508,137 @@ async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
   }))
 }
 
+// A supervisor's turn carried on the supply its road takes (docs/supply.md): a person's supervisor asks its
+// source first and fails with the one sentence where none is left; a reserved source is metered while the turn
+// goes, the turn cancelled once it ran out, and settled as it ends. The deployment's own supervisors go out as
+// they always went, their source kept on the ledger's run.
+async fn supplied_turn<F>(
+  ground: &Ground,
+  agent: &str,
+  room: Option<i64>,
+  run: &str,
+  ledger: Option<i64>,
+  turn: F,
+) -> Result<Came, Fault>
+where
+  F: std::future::Future<Output = Result<Came, Fault>> + Unpin,
+{
+  use crate::supply::meter::{self, Reading};
+
+  let supervisor = crate::supervisors::named(&ground.db, agent).await.ok().flatten();
+  let Some((supervisor, road)) =
+    supervisor.and_then(|supervisor| supervisor.road.clone().map(|road| (supervisor, road)))
+  else {
+    return turn.await;
+  };
+  let asked = crate::supply::Asked {
+    kind: crate::supply::Kind::Turn,
+    id: ledger.unwrap_or_else(now_ms),
+    agent,
+    account: supervisor.owner_account,
+    provider: &road.provider,
+    model: &road.model,
+    job: None,
+    supervisor: Some(agent),
+    room,
+  };
+  let chosen = match crate::supply::choose(ground, &asked).await {
+    Ok(crate::supply::Choice::Go(chosen)) => chosen,
+    Ok(crate::supply::Choice::Closed(closed)) => {
+      let told = crate::supply::told::Told {
+        supervisor: Some(agent.to_owned()),
+        room,
+      };
+
+      crate::supply::told::closed(
+        ground,
+        run,
+        supervisor.owner_account,
+        None,
+        &road.provider,
+        &road.model,
+        &told,
+        &closed,
+      )
+      .await;
+      return Ok(Came::Failed(closed.sentence, None));
+    }
+    Err(refused) => return Ok(Came::Failed(refused.detail, None)),
+  };
+
+  let told = crate::supply::told::Told {
+    supervisor: Some(agent.to_owned()),
+    room,
+  };
+
+  crate::supply::settle_choice(ground, agent, &chosen, None, &told).await;
+
+  if let Some(ledger) = ledger
+    && let Err(why) = run_ledger::mark_supply(&ground.db, ledger, chosen.source.word()).await
+  {
+    eprintln!("{run}: its supply source was not kept: {why}");
+  }
+
+  let since = now_ms();
+  let reading = if road.provider == "claude-code" {
+    Reading::StatusLine {
+      place: ground.roots.place(agent),
+      since,
+    }
+  } else {
+    Reading::Gateway {
+      run: agent.to_owned(),
+      since,
+    }
+  };
+  let Some(shared) = meter::metered(&chosen, reading, agent, None, room) else {
+    return turn.await;
+  };
+  let watch = meter::watch(ground, shared.clone());
+
+  let mut turn = turn;
+  let watch = Box::pin(watch);
+
+  tokio::pin!(watch);
+
+  let came = tokio::select! {
+    came = &mut turn => came,
+    closed = &mut watch => {
+      let _ = crate::queue::stops::Stops::of(ground, None).cancel(run).await;
+      let came = turn.await;
+
+      match Some(closed) {
+        Some(closed) => {
+          let told = crate::supply::told::Told {
+            supervisor: Some(agent.to_owned()),
+            room,
+          };
+
+          crate::supply::told::closed(
+            ground,
+            run,
+            supervisor.owner_account,
+            None,
+            &road.provider,
+            &road.model,
+            &told,
+            &closed,
+          )
+          .await;
+          came.map(|_| Came::Failed(closed.sentence, None))
+        }
+        None => came,
+      }
+    }
+  };
+
+  if let Err(why) = meter::finish(ground, &shared).await {
+    eprintln!("{run}: its supply reservation was not settled: {why}");
+  }
+
+  came
+}
+
 // The provider and model a supervisor's turn goes out on: its one road, where the road's provider has quota
 // above the share and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). A road that cannot
 // take the turn fails it with the sentence that says why: nothing stands in and nothing waits.
@@ -522,7 +653,13 @@ async fn choice_of(
   }
 
   let order = supervisor.order();
-  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &order);
+  let mut ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &order);
+
+  // A person's supervisor walks the logins its supply took: its own, or the lendable ones.
+  ask.user = crate::supply::carrying(
+    ground,
+    crate::supply::chosen_for(&ground.roots.data, &supervisor.name).as_ref(),
+  );
   let resolution = crate::road::resolve(ground, &ask).await?;
   let Some(road) = resolution.road() else {
     return Err(resolution.sentence());
@@ -649,6 +786,7 @@ pub fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
       output_tokens: sum.output_tokens + one.output_tokens,
       cache_read_tokens: sum.cache_read_tokens + one.cache_read_tokens,
       cache_write_tokens: sum.cache_write_tokens + one.cache_write_tokens,
+      cost_micros: sum.cost_micros + crate::supply::reservations::micros(one.cost),
     })
   })
 }
@@ -2595,10 +2733,19 @@ impl HerdrSessions {
       },
       (Scope::Worker, _) => Err(no_worker_scope(&turn.session)),
       (Scope::Room(room), _) => match room_number(room) {
-        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
+        Ok(chat_id) => {
+          let turn_of = self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown);
+
+          Box::pin(supplied_turn(self.ground(), &agent, Some(chat_id), &run, ledger, Box::pin(turn_of)))
+            .await
+        }
         Err(refused) => Err(refused),
       },
-      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown, lent).await,
+      (Scope::Agent, _) => {
+        let turn_of = self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown, lent);
+
+        Box::pin(supplied_turn(self.ground(), &agent, None, &run, ledger, Box::pin(turn_of))).await
+      }
     };
 
     self.ended(&turn.session, &run);
@@ -3791,6 +3938,7 @@ pub fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
       output_tokens: sum.output_tokens + one.output_tokens,
       cache_read_tokens: sum.cache_read_tokens + one.cache_read_tokens,
       cache_write_tokens: sum.cache_write_tokens + one.cache_write_tokens,
+      cost_micros: sum.cost_micros + crate::supply::reservations::micros(one.cost.unwrap_or_default()),
     })
   })
 }

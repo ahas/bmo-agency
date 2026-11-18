@@ -729,6 +729,36 @@ impl AgencyClient {
     Self::answered(self.request(Method::GET, &["accounts"]).query(query)).await
   }
 
+  /// `GET /personal-supply`: A person's own gateway keys, or each person's roads for the administrator.
+  pub async fn list_personal_supply(&self) -> Answer<PersonalSupplyPage> {
+    Self::answered(self.request(Method::GET, &["personal-supply"])).await
+  }
+
+  /// `POST /personal-supply`: Add a key of the signed-in person's for a gateway road.
+  pub async fn create_personal_supply(&self, body: &PersonalSupplyAsk) -> Answer<PersonalSupplyKey> {
+    Self::answered(self.request(Method::POST, &["personal-supply"]).json(body)).await
+  }
+
+  /// `PATCH /personal-supply/{supplyId}`: Change one of the person's keys: its place or its switch.
+  pub async fn change_personal_supply(
+    &self,
+    supply_id: i64,
+    body: &PersonalSupplyChange,
+  ) -> Answer<PersonalSupplyKey> {
+    Self::answered(self.request(Method::PATCH, &["personal-supply", &supply_id.to_string()]).json(body))
+      .await
+  }
+
+  /// `DELETE /personal-supply/{supplyId}`: Remove one of the person's keys.
+  pub async fn delete_personal_supply(&self, supply_id: i64) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["personal-supply", &supply_id.to_string()])).await
+  }
+
+  /// `POST /people/{user}/off-boarding`: Switch a person's supply off and revoke their call key.
+  pub async fn off_board_person(&self, user: i64) -> Answer<OffBoarded> {
+    Self::answered(self.request(Method::POST, &["people", &user.to_string(), "off-boarding"])).await
+  }
+
   /// `PATCH /accounts/{accountId}`: Record an account's usage and its rest.
   pub async fn change_account(&self, account_id: &str, body: &AccountUsage) -> Answer<Account> {
     Self::answered(self.request(Method::PATCH, &["accounts", account_id]).json(body)).await

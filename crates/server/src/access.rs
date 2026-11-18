@@ -58,6 +58,46 @@ pub fn asked(call: &Call, method: &Method, path: &str) -> Option<Check> {
   })
 }
 
+/// Whom a call on a person's own supply acts for (docs/api.md, 「Who a caller acts for」): a person the console
+/// names as a member, on their own accounts and keys alone, or the platform — the administrator, or the
+/// deployment's own caller carrying no key — on the platform's accounts and of each person's supply only the
+/// roads it serves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Acting {
+  Person(i64),
+  Platform,
+}
+
+impl Acting {
+  /// Whom the call acts for, or the refusal of a member's key that names no user id.
+  pub fn of(call: &Call) -> Result<Self, Refused> {
+    let Some(key) = call.header("owner-key").map(|key| key.trim().to_owned()).filter(|key| !key.is_empty())
+    else {
+      return Ok(Self::Platform);
+    };
+
+    if call
+      .header("owner-role")
+      .is_some_and(|role| role.trim().eq_ignore_ascii_case("administrator"))
+    {
+      return Ok(Self::Platform);
+    }
+
+    key.parse::<i64>().map(Self::Person).map_err(|_| {
+      Refused::new(StatusCode::FORBIDDEN, "The signed-in person is named by no user id agency reads")
+        .with_code("forbidden")
+    })
+  }
+
+  /// The person the call acts for, none for the platform.
+  pub fn person(self) -> Option<i64> {
+    match self {
+      Self::Person(user) => Some(user),
+      Self::Platform => None,
+    }
+  }
+}
+
 /// Whether a route is one of the five kinds agent management is read and changed through.
 fn managed(path: &str) -> bool {
   let under =

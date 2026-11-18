@@ -389,15 +389,24 @@ never the model's name.
 - **Where a key never goes:** the store, logs, API responses, the browser, a command line. The console
   and the command receive, for each address, only whether its key is usable; a key reaches the bot once,
   in the body of the save that gives it, and is never sent back.
-- **How Claude Code is handed one:** its settings name a key helper that prints the gateway's key file,
-  which the program runs for its requests, so the key is read out of the file each time and stands in no
-  command, environment or record of agency's.
+- **How Claude Code is handed one:** its settings name a key helper that prints a key file — the call key
+  of the account the run is for, or the gateway's own key for a run of no account or of the administrator's
+  account — which the program runs for its requests, so the key is read out of the file each time and stands
+  in no command, environment or record of agency's.
 - **How the gateway is handed the registrations' keys:** its launcher reads each file into its child's
   environment alone (「The gateway」 below).
-- **The gateway's own key is its only door:** `llm-gateway.key` under `env/`, which every caller of the
-  gateway presents as `Authorization: Bearer <key>`. The front checks it on every request before anything
-  reaches LiteLLM, so a reverse proxy standing a public door in front of the gateway adds no check of its
-  own and needs none (「The gateway」 below).
+- **The gateway's own key is the platform's door:** `llm-gateway.key` under `env/`, which the deployment's
+  own callers present as `Authorization: Bearer <key>`: its own runs here, its translations, its gates. It
+  never goes to a node that is a person's.
+- **Every other account holds a call key of its own,** issued by agency's server the first time a link or a
+  launch needs one for the account, and the only key that account's nodes are sent:
+  - its value is written once, at `0600`, as `llm-gateway-calls/<account>.key` under `env/`, and the store
+    keeps only its SHA-256 digest, with when it was issued and when it was revoked, in `gateway_call_keys`;
+  - a revoked key stays refused, and the account's next need issues a fresh one;
+  - the payer of a request is the account its call key is, so a header a caller writes moves no cost.
+- **The front checks one of the two on every request** before anything reaches LiteLLM, so a reverse proxy
+  standing a public door in front of the gateway adds no check of its own and needs none (「The gateway」
+  below).
 
 ## The gateway's members
 
@@ -438,6 +447,20 @@ never the model's name.
 - **Claude's subscription OAuth is no member.** A local endpoint is a registration or a member whose
   provider is `openai` and whose `api_base` is the endpoint's address.
 
+## Personal members
+
+- **A person's own key for a gateway road is a member of its own** (`docs/supply.md`, 「What a person
+  brings」): for the first open row of personal supply a person holds for a road, the launcher lays beside
+  each member of that road one more under `<member>@u<account>`, its `key_file` the person's secret,
+  `users/<account>/<name>` under `env/` — a secret that is not one plain file name lays none — and no road of its
+  own, so no road's model list names it. Its key
+  reaches the child's environment alone, as every member's does.
+- **The store's personal supply is read on each beat,** as the registry is, so a key added, turned off or
+  found refused reaches the gateway without a restart.
+- **Only that person's call key reaches it:** a request naming `<member>@u<account>` under any other key,
+  the gateway's own among them, is answered 403 with the code `not-your-member` and the type `permission_error`.
+- **A run of the person on personal supply** is sent under that name in place of the member's own.
+
 
 ## The gateway
 
@@ -469,7 +492,8 @@ never the model's name.
 - **Its table is written from the registry:** the unit's process is agency's gateway launcher, the
   `llm-gateway` binary. It reads the registry out of the store the server runs on, at the address found
   as every reader of the store finds it (`docs/store.md`, 「Connecting」), opened read-only for each
-  reading, so it never holds a lock the bot waits on. It writes the table under the data root, private
+  reading, so it never holds a lock the bot waits on; the request records alone it writes, one row a statement,
+  on a connection of their own. It writes the table under the data root, private
   and renamed into place, copies the hooks beside it from the gateway crate's `hooks/` folder in the tree it runs from,
   and starts LiteLLM on it as a child on a free loopback port. A port picked free stands open to any process
   until the child binds it, so the child is not taken where another process, outside the child and its
@@ -477,7 +501,8 @@ never the model's name.
   is started again on another free port, a few times at most. Where no listener's holder can be read, the
   answer is taken as the child's. The table names each key by a variable
   the launcher sets from the key's file in that child's environment alone, and never a key; the child's
-  environment holds nothing else but its `PATH` and `HOME`.
+  environment holds nothing else but its `PATH`, its `HOME` and the front's own address, `LLM_GATEWAY_FRONT`, which
+  the costs hook hands each request's cost to.
   - A registry not settled yet reads as nothing to serve for now, and is read again at the next beat.
     A launcher with no store address named at all does not start.
   - A child is ready once its readiness check answers, however long it takes to come up; one that ends
@@ -649,11 +674,31 @@ never the model's name.
   read then is the one the front checks and the one handed to each child it starts as LiteLLM's own key,
   so the two never disagree; a key given again reaches the gateway with its restart.
 - **The front checks the key on every request,** whatever its path, before the request reaches a child
-  or is told no table stands yet. A request must carry `Authorization: Bearer <key>`; one with no such
-  header, another scheme or another key is answered `401` with `WWW-Authenticate: Bearer` and an error in
-  the OpenAI shape — an `error` object holding a `message`, the `type` `authentication_error` and the
-  `code` `"401"` — and nothing of it is handed on. The key is compared in constant time. LiteLLM's own
-  check stays behind it, so a request a child is handed carries the key the child holds.
+  or is told no table stands yet. A request must carry `Authorization: Bearer <key>`, the gateway's own key
+  or a call key the store holds unrevoked; one with no such header, another scheme or another key is
+  answered `401` with `WWW-Authenticate: Bearer` and an error in the OpenAI shape — an `error` object
+  holding a `message`, the `type` `authentication_error` and the `code` `"401"` — and nothing of it is
+  handed on. The gateway's key is compared in constant time, and a call key by its digest. The call keys'
+  digests are read from the store on each beat, and a key the last reading does not hold is looked up in the
+  store once before it is refused, so a key issued a moment ago is taken. A request on a call key is handed
+  on under the gateway's own key, which LiteLLM's own check, standing behind, holds; one on the gateway's own
+  key is handed on as it came.
+- **The front names the payer to the child:** it sets `x-bmo-payer` to the account a call key is, or
+  `platform` for the gateway's own key, in place of any the caller sent.
+- **A person's call key reaches platform supply only on a reservation while a supply hook is registered.**
+  Where the store's settings hold a registration of the supply hook (`docs/supply.md`, 「The supply hook」), a
+  request on a call key naming a model that is not one of that person's personal members is answered `402`
+  with the code `no-supply` and the type `insufficient_quota` unless the account holds an open platform reservation in the store, read as the
+  call keys are: on the beat, and once more on a miss.
+- **What a request costs is recorded.** A hook of the gateway's own, `costs`, reads the cost of each request
+  that ends, answered or failed — the provider's own word where its answer's usage names one, as OpenRouter's
+  does, else LiteLLM's price of it — with its model, its tokens, its payer, the run name its `x-bmo-run`
+  header names and the program's session its `x-claude-code-session-id` header names, and hands it to the front at `POST /gateway/costs` under the child's own key, at the address
+  the launcher hands the child as `LLM_GATEWAY_FRONT`. The front writes one row of `gateway_requests` for it:
+  when, the account or none for the platform, the model, the run name and the session or none, the input and
+  output tokens, and the cost in millionths of a US dollar, and answers 204, or 400 to a body that does not
+  read. A route under `/gateway/` takes no caller's key but the gateway's own,
+  so no caller writes a record.
 - **How it stands:** the gateway's unit is linked into the user's systemd directory and enabled by
   the deployment, and carries the binary mark, so a deployment restarts it only where it placed a
   different `llm-gateway` binary; a deployment of agency that leaves the launcher as it stands leaves the

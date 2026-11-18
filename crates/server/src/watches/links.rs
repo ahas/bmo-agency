@@ -35,9 +35,10 @@ const PULLED_PLACE_FILES: [&str; 2] = ["running.json", "start-failed.json"];
 /// The variables a program on a node is started with, of those this machine's launch gave it: among them the
 /// console's public address and a supervisor's owner account, which its secret requests are written with, and a
 /// gateway road's own, its address, model names, headers, waits and tool search, so the program reaches the
-/// gateway the link carries (docs/work-nodes.md, 「The model gateway on a node」). An API key or an auth token is
-/// never among them.
-const NODE_ENV_KEEP: [&str; 24] = [
+/// gateway the link carries (docs/work-nodes.md, 「The model gateway on a node」). An auth token is never among them,
+/// and an API key only as a person's own `api-key` account hands it to a run of that person, whose node alone it
+/// goes to (docs/supply.md, 「What a person brings」).
+const NODE_ENV_KEEP: [&str; 25] = [
   "BMO_AGENT_PLACE",
   "BMO_CONSOLE_ADDRESS",
   "BMO_SOURCE_DIR",
@@ -51,6 +52,7 @@ const NODE_ENV_KEEP: [&str; 24] = [
   "CLAUDE_CODE_*",
   "CLAUDE_CONFIG_DIR",
   "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_API_KEY",
   "ANTHROPIC_MODEL",
   "ANTHROPIC_DEFAULT_*",
   "ANTHROPIC_CUSTOM_HEADERS",
@@ -705,8 +707,20 @@ pub async fn spec(
   });
   // A node an account's record names asks the bridge for the policy's verbs alone, so no session of a person's
   // runs here what reaches the hub as this machine's user (docs/person-nodes.md, 「Who reaches a node」).
-  let owned = !crate::person_nodes::owners_of(db, node).await?.is_empty();
+  let owners = crate::person_nodes::owners_of(db, node).await?;
+  let owned = !owners.is_empty();
   let bridge_verbs = owned.then(|| PERSON_NODES.bridge_verbs.clone());
+  // A person's node is sent the call keys of the accounts it is for and never the gateway's own key
+  // (docs/work-nodes.md, 「The model gateway on a node」).
+  let mut handed = Vec::new();
+
+  for owner in owners.iter().filter_map(|owner| owner.parse::<i64>().ok()) {
+    handed.push(crate::call_keys::ensure(db, &roots.data, owner).await?);
+  }
+
+  if !owned {
+    handed.push(roots.gateway_key.clone());
+  }
 
   Ok(Ok(Spec {
     node: node.to_owned(),
@@ -739,7 +753,7 @@ pub async fn spec(
     state: here.join("link-state.json"),
     follow: vec![shown(&roots.data), shown(&roots.agents)],
     withheld: vec![roots.data.join("env")],
-    handed: vec![roots.gateway_key.clone()],
+    handed,
     path_head: path_head(&home, &node_root),
     env_keep: NODE_ENV_KEEP.map(str::to_owned).to_vec(),
     env_add: vec![

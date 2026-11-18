@@ -751,7 +751,7 @@ pub async fn reported(ground: &Ground, id: i64, words: &str, spent: Option<Spent
 
   match written {
     Ok(0) => return,
-    Ok(_) => {}
+    Ok(_) => crate::control::work::add_job_cost(db, id, spent, None).await,
     Err(why) => {
       eprintln!("job {id}: its report was not written into its review: {}", why.detail);
       return;

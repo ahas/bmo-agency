@@ -83,8 +83,17 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
   );
   let accounts = columns("claude_accounts").await;
   assert_eq!(
-    accounts[accounts.len() - 6..],
-    ["rowid", "user_id", "endpoint_url", "key_file", "endpoint_models", "base_prompt"]
+    accounts[accounts.len() - 8..],
+    [
+      "rowid",
+      "user_id",
+      "endpoint_url",
+      "key_file",
+      "endpoint_models",
+      "base_prompt",
+      "node",
+      "lendable"
+    ]
   );
   let settings = columns("supervisor_settings").await;
   assert_eq!(settings[settings.len() - 3..], ["saved_settings", "brain_on", "tools_allowed"]);

@@ -65,7 +65,8 @@
       "reminders.handler",
       "long_tools.handler",
       "roles.handler",
-      "unclocked.handler"
+      "unclocked.handler",
+      "costs.handler"
     ],
     "num_retries": 0
   },

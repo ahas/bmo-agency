@@ -50,6 +50,7 @@ pub mod seeds;
 pub mod span_words;
 pub mod supervisor_runner;
 pub mod supervisors;
+pub mod supply;
 pub mod tiers;
 pub mod tool_clock;
 pub mod turn_keys;

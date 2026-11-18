@@ -57,7 +57,8 @@ pub struct Ask<'a> {
   pub row: Row<'a>,
   pub line: &'a str,
   pub order: &'a Order,
-  pub user: Option<i64>,
+  /// The logins a provider that holds logins is walked over: the platform's, a person's own, or the lendable ones.
+  pub user: claude_accounts::Carrying,
   pub left: &'a [Closed],
   pub fixed: Option<&'a Entry>,
 }
@@ -69,7 +70,7 @@ impl<'a> Ask<'a> {
       row,
       line,
       order,
-      user: None,
+      user: claude_accounts::Carrying::Platform,
       left: &[],
       fixed: None,
     }

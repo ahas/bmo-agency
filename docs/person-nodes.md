@@ -22,10 +22,11 @@ desktop coding agent whose models and tools are served from elsewhere.
     head, its room panes and every turn of it in the node's herdr session;
   - its role agents' runs: a run whose slot belongs to the account goes the place-based road whatever its
     provider, its place opened on the node, its folder read as the node reads this machine's roots. On Claude
-    Code the program in that place is Claude Code on the run's line, signed in by the token for the nodes of
-    the first login the Claude Code road's walk offers among those that run on a node (`docs/work-nodes.md`,
-    「The logins on a node」); the run goes out on that one login, and a run that fails on it ends failed
-    rather than walking on. On another provider it is that road's own program;
+    Code the program in that place is Claude Code on the run's line, on the login its supply source takes
+    (`docs/supply.md`, 「Choosing a source as a run starts」): the person's own login signed in on the node, their
+    own `api-key` account, or the token for the nodes of the first lendable login the walk offers among those
+    that run on a node (`docs/work-nodes.md`, 「The logins on a node」). On another provider it is that road's own
+    program, on the account's call key;
   - the link mirrors each of these places as it mirrors a worker's: its program and settings sent, its running
     record and its transcripts brought back;
   - the folder each of these programs works in, its supervisor's own or its run's, is named in the spec, and the
@@ -297,7 +298,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   the one whose wait had grown longest, as an agent's outage grows it, would stay down nearly all the time.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address,
-  its supervisor's owner account, and for a program on a gateway road the gateway's key file its key helper reads,
+  its supervisor's owner account, and for a program on a gateway road the account's call key file its key helper reads,
   written there readable by the PC's user alone as the tool token is (`docs/work-nodes.md`, 「The model gateway on a
   node」).
 

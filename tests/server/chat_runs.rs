@@ -285,6 +285,7 @@ fn spent(input_tokens: i64, output_tokens: i64) -> Option<run_ledger::Spent> {
     output_tokens,
     cache_read_tokens: 100,
     cache_write_tokens: 10,
+    cost_micros: 0,
   })
 }
 

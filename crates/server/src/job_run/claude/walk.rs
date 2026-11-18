@@ -23,7 +23,7 @@ use std::future::Future;
 use super::failure::{AccountFailure, Failure, names_model};
 use super::renewal::{Renewing, renewed};
 use crate::control::claude_accounts::{
-  self, Account, Judging, account_open, carried_for_user, full_window_until, hold_in_use, in_use,
+  self, Account, Carrying, Judging, account_open, carried_for_user, full_window_until, hold_in_use, in_use,
   next_reset, reopens_at, walk_for_user,
 };
 use crate::keepalive::logins;
@@ -86,10 +86,11 @@ pub trait Attempt<T>: Renewing {
 pub async fn on_accounts<T, A: Attempt<T>>(
   walking: &Walking<'_>,
   key: &str,
-  user: Option<i64>,
+  user: impl Into<Carrying>,
   attempt: &mut A,
 ) -> Result<T, Failure> {
   let db = &walking.ground.db;
+  let user: Carrying = user.into();
   let mut walk = walk_for_user(walking.judging(), user, Some(walking.model)).await.map_err(refused)?;
 
   walk.retain(|account| attempt.takes(account));
@@ -112,7 +113,7 @@ pub async fn on_accounts<T, A: Attempt<T>>(
       });
     }
 
-    if let Some(user) = user {
+    if let Carrying::Own(user) = user {
       return Err(Failure::error(format!(
         "claude {key}: no Claude account of user {user} is there to carry this run"
       )));

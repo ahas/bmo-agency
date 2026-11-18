@@ -165,14 +165,20 @@ pub(crate) async fn walked_login_for(
   agent: &str,
   on_node: bool,
 ) -> Result<Option<Account>, Refusal> {
-  let login = claude_accounts::walk_for(claude_accounts::Judging::of(ground))
+  // The logins the agent's supply takes: a person's own or the lendable ones, the platform's otherwise
+  // (docs/supply.md, 「Choosing a source as a run starts」).
+  let run_agent =
+    crate::apart_places::session_agent(&ground.roots.data, agent).unwrap_or_else(|| agent.to_owned());
+  let carrying =
+    crate::supply::carrying(ground, crate::supply::chosen_for(&ground.roots.data, &run_agent).as_ref());
+  let login = claude_accounts::walk_for_user(claude_accounts::Judging::of(ground), carrying, None)
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()
-    .find(|login| !on_node || login.credential.runs_on_nodes());
+    .find(|login| !on_node || login.runs_on_nodes());
 
   if login.is_none()
-    && !claude_accounts::carried_for_user(&ground.db, None)
+    && !claude_accounts::carried_for_user(&ground.db, carrying)
       .await
       .map_err(|refused| fault(refused.error))?
       .is_empty()

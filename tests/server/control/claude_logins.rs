@@ -1,10 +1,14 @@
 //! A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the
 //! console」): the sign-in's address read out of what the CLI prints, its hyperlink escapes and all; a refusal
-//! said in the CLI's last words with the code taken out; and a new account's directory named by its name.
+//! said in the CLI's last words with the code taken out; and a new account's directory named by its name. A
+//! person's sign-in on their node, as far as it is read without a node: the pane it runs in, the address read off
+//! a screen that wrapped it, and the CLI's words after the code judging whether the login took.
 
 use std::path::Path;
 
-use agency_server::control::claude_logins::{last_words, new_home, sign_in_address};
+use agency_server::control::claude_logins::{
+  NodeOutcome, last_words, new_home, node_launch, node_outcome, said_since, sign_in_address,
+};
 use policy::control_words::CONTROL_WORDS;
 
 // What `claude auth login` prints with no browser to open: the address as a terminal hyperlink, its escapes
@@ -40,4 +44,40 @@ fn a_new_account_s_directory_is_named_by_its_name_under_the_env_directory() {
   assert_eq!(new_home(root, "claude-03"), Path::new("/data/env/claude-03"));
   assert_eq!(new_home(root, " Work Login! "), Path::new("/data/env/work-login"));
   assert_eq!(new_home(root, "../.."), Path::new("/data/env/"));
+}
+
+#[test]
+fn a_person_s_sign_in_pane_runs_the_cli_s_own_words_under_the_node_s_workplace() {
+  let launch =
+    node_launch("/home/someone/bmo", "/home/someone", "/home/someone/bmo/data/env/theirs", "C.UTF-8");
+  let policy = &policy::providers::claude_code::CLAUDE_CODE.console_login.command;
+
+  // The CLI's words are the shell's arguments after its script, never spliced into it.
+  assert_eq!(&launch.command[..2], ["/bin/sh", "-c"]);
+  assert_eq!(&launch.command[4..], policy.as_slice());
+  assert!(launch.command[2].contains(r#""$@""#));
+  assert!(
+    launch.command[2].contains("unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN")
+  );
+  assert_eq!(launch.env["CLAUDE_CONFIG_DIR"], "/home/someone/bmo/data/env/theirs");
+  assert_eq!(launch.env["BROWSER"], "true");
+  assert_eq!(launch.env["HOME"], "/home/someone");
+  assert!(launch.env["PATH"].starts_with("/home/someone/bmo/bun/bin:"));
+  assert_eq!(launch.cwd, "/home/someone");
+}
+
+#[test]
+fn the_login_is_judged_by_the_cli_s_words_after_the_code() {
+  let before = "Paste code here if prompted > ";
+
+  assert_eq!(
+    said_since(before, &format!("{before}abc\nLogin successful.\n")),
+    "abc\nLogin successful.\n"
+  );
+  assert_eq!(
+    node_outcome(&said_since(before, &format!("{before}abc\nlogin successful."))),
+    NodeOutcome::Took
+  );
+  assert_eq!(node_outcome("abc\nOAuth error: invalid code"), NodeOutcome::Refused);
+  assert_eq!(node_outcome("abc\n"), NodeOutcome::Pending);
 }

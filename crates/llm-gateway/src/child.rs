@@ -1,5 +1,5 @@
-//! LiteLLM on one table: the table written beside the hooks it names, at `0600`, the keys in the
-//! child's environment alone, and the child ready once it answers its liveliness path.
+//! LiteLLM on one table: the table written beside the hooks it names, at `0600`, the keys and the front's
+//! own address in the child's environment alone, and the child ready once it answers its liveliness path.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::PermissionsExt;
@@ -33,7 +33,12 @@ pub struct Place {
   /// child as LiteLLM's own.
   pub gateway_key: String,
   pub hooks: Vec<PathBuf>,
+  /// The front's own address, which the costs hook hands each request's cost to.
+  pub front: String,
 }
+
+/// The variable the child is handed the front's own address in.
+pub const FRONT_VARIABLE: &str = "LLM_GATEWAY_FRONT";
 
 impl Place {
   pub fn table_path(&self, digest: &str) -> PathBuf {
@@ -193,6 +198,7 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
   let mut env = BTreeMap::new();
   env.insert("PATH".to_owned(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned()));
   env.insert("HOME".to_owned(), std::env::var("HOME").unwrap_or_default());
+  env.insert(FRONT_VARIABLE.to_owned(), place.front.clone());
   env.insert(GATEWAY_KEY_VARIABLE.to_owned(), place.gateway_key.clone());
   for (variable, key_file) in &table.key_files {
     let key = read_key(&place.env_dir, key_file);

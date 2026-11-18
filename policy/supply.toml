@@ -1,0 +1,43 @@
+# A person's supply: the sources a run of theirs takes inside its road, the reservations of the platform's, and
+# what is said when one runs out (docs/supply.md).
+
+# Whether the lendable rule holds while no supply hook is registered: on, a person's Claude run with no hook goes
+# out on their own login or a lendable platform account alone; off, it walks the platform's accounts as runs of
+# no account do (docs/supply.md, 「The lendable accounts」).
+lendable_without_hook = true
+
+# The meter's beat while a reserved run goes, in seconds: its running cost read and its reservation extended.
+meter_seconds = 30
+# The share of a reservation's amount the running cost reaches before it is extended.
+extend_at = 0.8
+# How often a job waiting for supply asks its order again, in seconds.
+wait_seconds = 60
+
+# The supply outbox's tries: the first wait and the ceiling it doubles to, in seconds.
+retry_first_seconds = 5
+retry_ceiling_seconds = 600
+
+[words]
+# Why personal supply is passed over at a run's start: no credential of the person's for the road's provider.
+no_personal = "no credential of the person's own answers {provider} now"
+# Why a run has no source at all: the order named none.
+no_order = "the supply order named no source for this run"
+# Why a platform source is passed over on Claude Code: no platform account lent to other people's runs answers.
+no_lendable = "no platform login lent to other people's runs answers {provider} now"
+# Why a platform source is passed over: the hook refused its reservation.
+refused = "{source} refused a reservation"
+# Why a person's run starts on another source than their last run took. With {source}.
+taken_first = "the order took {source} first as the run started"
+# Why a source left mid-run.
+ran_out = "{source} ran out"
+# The one sentence a supervisor's turn ends with, and a job waits with, where no source is left. With {source},
+# {reopens} and {settings}.
+closed = "No supply is left for this run: {source} ran out{reopens}. Top up or change the supply in your settings ({settings})."
+# Where the hook named a moment the source reopens. With {at}.
+reopens = ", and it reopens at {at}"
+# A person's key or login the provider refused, told to their own supervisor room once. With {source} and {why}.
+refused_told = "Your own supply {source} was refused by its provider ({why}); runs go on the next supply source until you renew it."
+# The order to the person's supervisor room as a run moves to another source. With {from}, {to} and {why}.
+moved_told = "A run moved from {from} to {to}: {why}."
+# The console section a person opens to change their supply.
+settings_section = "settings → supply"

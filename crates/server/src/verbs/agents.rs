@@ -95,7 +95,8 @@ pub struct AgentsArgs {
   /// An endpoint account's base URL.
   #[arg(long, allow_hyphen_values = true)]
   pub endpoint: Option<String>,
-  /// An endpoint account's key file.
+  /// An endpoint account's key file, or the secret an api-key account's key sits in under the data root's
+  /// env/.
   #[arg(long, allow_hyphen_values = true)]
   pub key_file: Option<String>,
   /// An endpoint account's model ids by family word, as opus=<id>,sonnet=<id>,haiku=<id>.
@@ -277,7 +278,7 @@ pub async fn agents(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, VerbEr
   }
 
   if args.account_add.is_some() || args.account_set.is_some() || args.account_remove.is_some() {
-    return account_change(&stand.ground.db, args).await;
+    return account_change(&stand.ground.db, &stand.ground.roots.data, args).await;
   }
 
   if args.support.is_some() {
@@ -629,7 +630,11 @@ fn account_line(account: &claude_accounts::Account) -> String {
 
 // Registering an account, renaming one, pointing it at another credential and removing one — the same
 // things the console's own panel does, for a hand that has a shell and no browser.
-async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Said, VerbError> {
+async fn account_change(
+  db: &DatabaseConnection,
+  data_root: &Path,
+  args: &AgentsArgs,
+) -> Result<Said, VerbError> {
   let mut said = Said::default();
   let kind = match args.kind.as_deref() {
     None => None,
@@ -680,7 +685,13 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       return Ok(said.misread(VERB_WORDS.agents.account_add.clone()));
     }
 
-    if let Err(refused) = changes::add(db, name, &credential(), base.clone()).await {
+    // An api-key account's key is named as the platform's secret, resolved under the data root's env/.
+    let given = match credential().with_secret_under(None, data_root, None) {
+      Ok(given) => given,
+      Err(why) => return Ok(said.misread(why)),
+    };
+
+    if let Err(refused) = changes::add(db, name, &given, base.clone()).await {
       return Ok(said.refused(refused.error));
     }
 
@@ -701,8 +712,15 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       return Ok(said.misread(VERB_WORDS.agents.account_set.clone()));
     }
 
-    // A credential given in part keeps the parts the account already holds; the id never moves.
-    let given = credential_given.then(credential);
+    // A credential given in part keeps the parts the account already holds; the id never moves. An api-key
+    // account's secret is resolved in its owner's space under the data root's env/.
+    let given = match credential_given
+      .then(|| credential().with_secret_under(Some(held.credential.kind()), data_root, held.user_id))
+      .transpose()
+    {
+      Ok(given) => given,
+      Err(why) => return Ok(said.misread(why)),
+    };
 
     if let Err(refused) =
       changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None, base).await

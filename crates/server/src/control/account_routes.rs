@@ -84,7 +84,10 @@ impl Route for UsageRest {
 
 crate::moved!(UsageRest);
 
-/// Whether a user holds a login that is on.
+/// Whether a user holds a login that is on. A person's call reads their own accounts alone; the platform's
+/// reads the platform's accounts and of each person's supply the roads it serves, save where it asks after
+/// one user's logins, as the job unit does, which it is answered over every account (docs/api.md, 「Who a
+/// caller acts for」).
 pub struct AccountHeld;
 
 impl Route for AccountHeld {
@@ -92,6 +95,7 @@ impl Route for AccountHeld {
   const PATH: &'static str = "/accounts";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let acting = crate::access::Acting::of(&call)?;
     let machine = call.machine();
     let user = call.query("userName").or_else(|| call.query("user"));
     let mut items = Vec::new();
@@ -104,15 +108,22 @@ impl Route for AccountHeld {
     };
 
     let judging = Judging::of(call.ground());
+    let administrator = super::claude_accounts::administrator(call.store()).await?;
+    let shown = |account: &super::claude_accounts::Account| match acting {
+      crate::access::Acting::Person(user) => account.user_id == Some(user),
+      crate::access::Acting::Platform => {
+        user.is_some() || super::claude_accounts::platform_owned(account, administrator)
+      }
+    };
 
-    for account in accounts(call.store()).await? {
+    for account in accounts(call.store()).await?.into_iter().filter(|one| shown(one)) {
       let (session, week) = account_headlines(judging.windows, &account).await?;
       let balance = account_balance(judging.windows, &account).await?;
       let held = match wanted {
         Some(user) => account.user_id == Some(user) && account.enabled,
         None => account.enabled,
       };
-      let (endpoint, key_file, models) = account.credential.endpoint_parts();
+      let (endpoint, _, models) = account.credential.endpoint_parts();
 
       items.push(json!({
         "id": account.id,
@@ -127,13 +138,22 @@ impl Route for AccountHeld {
         "restUntil": Value::Null,
         "credentialKind": account.credential.kind().word(),
         "endpointUrl": endpoint,
-        "keyFile": key_file.map(|file| file.to_string_lossy()),
+        "keyFile": account.credential.key_file().map(|file| file.to_string_lossy()),
         "models": models,
         "basePrompt": account.base_prompt,
+        "userId": account.user_id,
+        "node": account.node,
+        "lendable": account.lendable,
       }));
     }
 
-    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
+    let mut page = json!({ "items": items, "more": false });
+
+    if acting == crate::access::Acting::Platform {
+      page["personalSupply"] = json!(super::personal_supply::people(call.store()).await?);
+    }
+
+    Ok(answer(StatusCode::OK, page))
   }
 }
 

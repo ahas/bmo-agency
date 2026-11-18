@@ -148,8 +148,12 @@ gone_after = "Until then, this account's work on the nodes goes to the next acco
 # A directory account signed in from the console through the CLI's own sign-in (docs/cache-fallback.md,
 # 「Signing an account in from the console」): the CLI's command and its arguments, how long the CLI is given to
 # print the sign-in's address and to end once the code is handed over, in seconds, and how long a sign-in may
-# stand before it is ended, in minutes.
+# stand before it is ended, in minutes. A sign-in on a person's node is read off its pane, where the CLI's end
+# is not seen: the words it says once the login took, and once it refused the code, are what it is judged by,
+# each matched without regard to case.
 command = ["claude", "auth", "login", "--claudeai"]
 link_seconds = 30
 finish_seconds = 90
 keep_minutes = 20
+took = ["Login successful", "Logged in as", "Successfully logged in"]
+refused = ["Login failed", "Invalid code", "OAuth error", "Authentication failed"]

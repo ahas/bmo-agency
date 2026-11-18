@@ -3,8 +3,10 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use llm_gateway::supply::PersonalKey;
 use llm_gateway::table::{
-  HOOKS, Member, Table, gateway_table, gateway_table_with_members, laid_instances, table_digest,
+  HOOKS, Member, Table, gateway_table, gateway_table_with_members, gateway_table_with_personal,
+  laid_instances, personal_members, table_digest,
 };
 use serde_json::{Value, json};
 use store::registry::{RegisteredAddress, Registration};
@@ -120,7 +122,7 @@ fn each_address_is_asked_for_the_model_with_no_wait_and_thinking_off_and_keys_na
     json!({
       "drop_params": true,
       "use_chat_completions_url_for_anthropic_messages": true,
-      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler", "roles.handler", "unclocked.handler"],
+      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler", "roles.handler", "unclocked.handler", "costs.handler"],
       "num_retries": 0,
     })
   );
@@ -323,4 +325,102 @@ fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_insta
 
     assert!(laid[0].addresses.is_empty(), "with no picture of it, it is served nowhere");
   }
+}
+
+fn road_member(name: &str, road: Option<&str>) -> Member {
+  Member {
+    name: name.into(),
+    road: road.map(str::to_owned),
+    label: Some(format!("{name} label")),
+    provider: "openrouter".into(),
+    model: format!("{name}-model"),
+    api_base: Some("https://openrouter.ai/api/v1".into()),
+    key_file: format!("{name}.key"),
+    context_tokens: Some(131_072),
+    answer_tokens: Some(8_192),
+    thinking: Some(false),
+    free: None,
+  }
+}
+
+fn personal_key(id: i64, user_id: i64, road: &str, secret: &str, place: i64) -> PersonalKey {
+  PersonalKey {
+    id,
+    user_id,
+    road: road.into(),
+    secret: secret.into(),
+    place,
+    enabled: true,
+    refused_at: None,
+  }
+}
+
+#[test]
+fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_member_of_that_road() {
+  let members = [
+    road_member("router-a", Some("openrouter")),
+    road_member("router-b", Some("openrouter")),
+    road_member("flash", Some("deepseek")),
+    road_member("by-hand", None),
+  ];
+  let keys = [
+    personal_key(1, 7, "openrouter", "router-second", 2),
+    personal_key(2, 7, "openrouter", "router-first", 1),
+    PersonalKey {
+      enabled: false,
+      ..personal_key(3, 7, "openrouter", "router-off", 0)
+    },
+    PersonalKey {
+      refused_at: Some(1_000),
+      ..personal_key(4, 7, "deepseek", "flash-refused", 0)
+    },
+    personal_key(5, 7, "deepseek", "../outside", 1),
+    personal_key(6, 9, "deepseek", "flash-mine", 4),
+  ];
+  let personal = personal_members(&members, &keys);
+  let laid: Vec<(&str, &str, i64)> = personal
+    .iter()
+    .map(|one| (one.member.name.as_str(), one.member.key_file.as_str(), one.account))
+    .collect();
+
+  assert_eq!(
+    laid,
+    [
+      ("router-a@u7", "users/7/router-first", 7),
+      ("router-b@u7", "users/7/router-first", 7),
+      ("flash@u9", "users/9/flash-mine", 9),
+    ],
+    "a key turned off, found refused or outside the person's folder lays none"
+  );
+  assert_eq!(
+    personal[0].member,
+    Member {
+      name: "router-a@u7".into(),
+      road: None,
+      key_file: "users/7/router-first".into(),
+      ..members[0].clone()
+    },
+    "a personal member is its road member's copy on the person's key, of no road"
+  );
+
+  let table = gateway_table_with_personal(&[], &members, &personal).unwrap();
+  let config: Value = serde_json::from_str(&table.text).unwrap();
+
+  assert_eq!(config["model_list"][4]["model_name"], "router-a@u7");
+  assert_eq!(
+    config["model_list"][4]["litellm_params"]["api_key"],
+    "os.environ/BMO_KEY_USERS_7_ROUTER_FIRST"
+  );
+  assert_eq!(
+    table.key_files.get("BMO_KEY_USERS_7_ROUTER_FIRST").map(String::as_str),
+    Some("users/7/router-first")
+  );
+  assert_eq!(
+    table.owners,
+    BTreeMap::from([
+      ("flash@u9".to_owned(), 9),
+      ("router-a@u7".to_owned(), 7),
+      ("router-b@u7".to_owned(), 7),
+    ])
+  );
 }

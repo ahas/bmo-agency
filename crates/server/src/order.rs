@@ -331,9 +331,10 @@ pub async fn quota(
   ground: &Ground,
   provider: &dyn Provider,
   share: f64,
-  user: Option<i64>,
+  user: impl Into<claude_accounts::Carrying>,
   model: Option<&str>,
 ) -> Quota {
+  let user = user.into();
   let now = now_ms().div_euclid(1000);
 
   if provider.holds_logins() {
@@ -405,7 +406,7 @@ async fn logins_quota(
   ground: &Ground,
   provider: &dyn Provider,
   share: f64,
-  user: Option<i64>,
+  user: claude_accounts::Carrying,
   model: Option<&str>,
   now: i64,
 ) -> Quota {

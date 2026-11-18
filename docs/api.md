@@ -86,6 +86,15 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   403 `forbidden` with one sentence naming what was asked; a permission that could not be read because the
   account service did not answer is 503 `access-unchecked`, so no access is guessed. Agency keeps no
   permission of its own: the console's is the only one.
+- **A person's own supply is theirs alone** (`docs/supply.md`, 「What a person brings」). On `/fallback`,
+  `/accounts`, `/claude-logins` and `/personal-supply`, a call naming a person with `Owner-Key` and
+  `Owner-Role: member` acts on that person's own Claude accounts and keys alone: what it reads holds no other
+  account, an account it adds is pinned to that person, a change naming another's account is answered 404
+  `unknown-account` as if it stood nowhere, and the actions that order or choose the platform's accounts are
+  refused 403 `forbidden`. The administrator's and the deployment's own calls read the platform's accounts
+  alone in the lists, and of each person's supply only `personalSupply`: the person and the roads their
+  supply serves; `GET /accounts` asked by `userName` or `user` still answers whether that person holds a login,
+  as the job unit asks it. A key that is not a person's number is refused 403 `forbidden`.
 
 ## Routes by resource
 
@@ -150,7 +159,12 @@ reader narrows with `kinds`.
 | DELETE | `/hooks/{point}` | Take a registration away. |
 | GET | `/road-verbs` | The verbs a room's road performs, as the consumer answers them. |
 
-The hook point is `turn-submitting`, registered by the gate and the receiver. `road-verbs` is what the procedures tool asks a room's road.
+The hook points are `turn-submitting`, registered by the gate and the receiver, and `supply`, registered by the
+consumer that answers who pays for a person's run (「Hook points」). A registration takes `url` and, where the
+consumer checks a bearer, `token`. A point that declares it outlives a restart — `supply` — keeps its address in
+the store's settings and its token in a file under the data root's `env/`, `agency-hooks/<point>.token`, and is
+registered again from them as the server starts; taking it away removes both. `road-verbs` is what the
+procedures tool asks a room's road.
 
 ### supervisors
 
@@ -1117,11 +1131,20 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
-| GET | `/usage` | Usage by model, checkout, repository, holder, room or round over a span, with session contexts. |
+| GET | `/usage` | Usage by model, checkout, repository, holder, room, round, account or supply source over a span, with session contexts. |
+| GET | `/personal-supply` | A person's own gateway keys, or each person's roads for the administrator. |
+| POST | `/personal-supply` | Add a key of the signed-in person's for a gateway road. |
+| PATCH | `/personal-supply/{supplyId}` | Change one of the person's keys: its place or its switch. |
+| DELETE | `/personal-supply/{supplyId}` | Remove one of the person's keys. |
+| POST | `/people/{user}/off-boarding` | Switch a person's supply off and revoke their call key. |
 
-An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
+An account is reached one of four ways: a directory holding a login, a token file, an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
-family words to the endpoint's model ids. It may also name a base prompt that a worker-line run on it opens
+family words to the endpoint's model ids — or an Anthropic API key, `api-key`, its secret under the data
+root's `env/`. Each carries `userId`, the person it belongs to or null for the platform's, `node`, the node a
+person's login stands on or null, and `lendable`, whether the platform's account goes out for another person's
+run (`docs/supply.md`, 「The lendable accounts」); `update-account` takes `lendable` for a platform account and
+refuses it 422 `not-lendable` for a person's. It may also name a base prompt that a worker-line run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
@@ -1139,8 +1162,10 @@ and `--account-set`.
 
 Usage groups the jobs whose turns started in the span by the key `groupBy` names, `model` where it names
 none: the model the job's turn went out on (`model`), the checkout it ran in (`agent`), the repository that
-checkout belongs to (`repository`), the job's holder (`user`) or its room (`room`). Another word is refused
-400. A checkout belongs to the repository whose name it is, or whose name it carries before `-w<n>` for a
+checkout belongs to (`repository`), the job's holder (`user`), its room (`room`), or, over the runs of the
+ledger instead, the person a run was for, `none` for the deployment's own (`account`), or the supply source it
+went out on (`supply`). Another word is refused 400. Every group carries `costUsd`, what its jobs or runs cost,
+or null where none reported a cost. A checkout belongs to the repository whose name it is, or whose name it carries before `-w<n>` for a
 support checkout or before `@<node>` for a node checkout (`docs/worker-slots.md`), so a repository's group
 sums its base, support and node checkouts; a checkout no repository holds now is a group of its own under
 its own name. Each group carries `tokens`, what the jobs' models spent; `jobs`, how many jobs are behind the
@@ -1161,6 +1186,27 @@ round: each group's `tokens` is what its turns spent, `turns` how many there wer
 group carries, the four kinds the spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs`,
 `unsplitJobs` and `unsplitTokens` are 0 and its `contextTokens` null. Every group has the `UsageGroup` shape
 of `docs/openapi.json`. The span is two moments in epoch milliseconds, yesterday to now where none is given.
+
+**Personal supply** (`docs/supply.md`, 「What a person brings」) is a person's own keys for the gateway's roads.
+`GET /personal-supply` answers, for a person's call, `items`, each key's `id`, `road` (`codex`, `deepseek` or
+`openrouter`), `secret`, `place`, `enabled`, `refusedAt` and `addedAt`; and for the administrator's or the
+deployment's own, `people`, each person's `user` and the `roads` their keys serve, and no key's secret. `POST`
+takes `road` and `secret`, one plain file name under the person's `users/<user>/` space, and answers 201 with
+the key, last of that person's keys of the road; a key the person already holds for the road is refused 409
+`conflict`, a road no gateway member serves 422 `unknown-road`,
+a secret that is not one plain name 400 with `field`, and a call naming no person 403 `forbidden`. `PATCH`
+takes `place` or `enabled`; turning a refused key on clears `refusedAt`. `DELETE` answers 204. A key of another
+person is 404 `unknown-supply`.
+
+**Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it
+turns off each Claude account and key of the person, revokes their call key and answers `{accounts, keys}`, how
+many it turned off. A person's own call is refused 403 `forbidden`.
+
+**A person's sign-in** (`POST /claude-logins` from a person's call) starts on the person's node, named by its
+record (「person-nodes」): a person with no node record is signed in on their isolation node, and one whose node
+is not attached now is refused 409 `node-not-attached`. It takes `name` alone, never `account` of another's. A
+person's login that stands on a node is signed in again there alone: the owner's sign-in naming it by `account`
+is refused 422 `not-a-directory`, as an account that keeps no login here is.
 
 ### settings
 
@@ -1797,7 +1843,7 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `supervisor-reset.created`, `place.changed`, `assignment.created`,
-`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`.
+`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`, `supply.changed`.
 
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
@@ -1830,6 +1876,12 @@ notice to a reader resuming too late (「events」 above), never published as an
 
   Telling the owner is the consumer's: the moved road as what the system switched to, the closed road
   with its command passed over verbatim. No fact is the end of the matter, and none is said twice.
+- **`supply.changed`** carries one fact of a person's run and its supply (`docs/supply.md`, 「The facts
+  told」), published once, after agency has acted, named in its `fact`, with `run`, `account`, `job` or null,
+  `supervisor` or null, `provider` and `model`:
+  - `supply-moved`: `from` and `to`, each a source, and `reason`, why the source left could not go on;
+  - `supply-closed`: `source`, the last source that ran out, `reason`, `reopensAt`, the epoch millisecond the
+    hook named or null, and `sentence`, the one sentence the person is told.
 - **`road-walked`** carries the road a turn on a supervisor's line walked (`docs/run-records.md`, 「The roads a
   turn walked」), published once as the turn ends: `stage`, `chatId`, `run`, `provider`, `model`, `outcome`,
   `answered` or `error`, `ms`, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens`, each
@@ -1845,6 +1897,23 @@ notice to a reader resuming too late (「events」 above), never published as an
 ## Hook points
 
 - **`turn-submitting`**: asked before a turn goes out, its answer added to the line.
+- **`supply`**: asked as a person's run starts and as it spends (`docs/supply.md`, 「The supply hook」). Each ask
+  is `{ "point": "supply", "ask": { "op", … } }`, the answer read from `answer`; amounts are US dollars, times
+  epoch milliseconds, and `key` the idempotency key `<run>:<step>:<op>`.
+
+  | `op` | Ask | Answer |
+  |---|---|---|
+  | `order` | `run`, `account`, `provider`, `model`, `kind` (`job` or `turn`), `job`, `supervisor`, `room` | `sources`: in order, each `personal` or a platform source's name |
+  | `reserve` | `run`, `step`, `account`, `source`, `key` | `accepted`, `reservation`, `amountUsd`, `expiresAt`, and `reopensAt` where it refuses |
+  | `extend` | `run`, `step`, `account`, `source`, `reservation`, `spentUsd`, `key` | `accepted`, `amountUsd` (the whole), `expiresAt` |
+  | `capture` | `run`, `step`, `account`, `source`, `reservation`, `costUsd`, `key` | `taken` |
+  | `release` | `run`, `step`, `account`, `source`, `reservation`, `key` | `taken` |
+
+  Nobody registered: `order` answers no order, so a person's run takes personal supply and then the platform
+  unreserved, and nothing else is asked. Registered and not answering, or answering what does not read: `order`
+  answers personal supply alone, `reserve` and `extend` are refused, and `capture` and `release` stay owed in
+  the supply outbox until they are taken. A capture may exceed its reservation, and one whose reservation the
+  consumer let go at its expiry is taken as a charge of that amount.
 
 ## Tables a consumer shares
 
@@ -1980,7 +2049,10 @@ person's console sections with `GET /users/{user}/sections` (「Who a caller act
 `WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE` names, else from the web unit's `env/web.env`
 under the data root as the owner's gate reaches it (`docs/launch-lines.md`, 「The owner's gate」). Each is the
 documented route of the unit that holds what must reach it; agency keeps no client of these units and no
-store of their rows.
+store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
+at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none
+left, the receiver's `POST /instructions` is handed, through the outbox, one order for the supervisor in the
+room the run answers (`docs/supply.md`, 「The facts told」).
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

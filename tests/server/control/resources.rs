@@ -345,12 +345,12 @@ async fn usage_by_repository_folds_its_checkouts_and_sums_the_four_kinds_apart()
       {
         "key": "site", "tokens": 117, "jobs": 4, "firstAt": now - 3_000, "lastAt": now - 1_000,
         "inputTokens": 11, "outputTokens": 22, "cacheReadTokens": 33, "cacheWriteTokens": 44,
-        "unsplitJobs": 1, "unsplitTokens": 7, "contextTokens": 321,
+        "unsplitJobs": 1, "unsplitTokens": 7, "contextTokens": 321, "costUsd": null,
       },
       {
         "key": "gone-w3", "tokens": 5, "jobs": 1, "firstAt": now - 1_000, "lastAt": now - 1_000,
         "inputTokens": null, "outputTokens": null, "cacheReadTokens": null, "cacheWriteTokens": null,
-        "unsplitJobs": 1, "unsplitTokens": 5, "contextTokens": null,
+        "unsplitJobs": 1, "unsplitTokens": 5, "contextTokens": null, "costUsd": null,
       },
     ])
   );

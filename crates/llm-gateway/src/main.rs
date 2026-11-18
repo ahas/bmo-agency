@@ -15,10 +15,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use harness_machine::card_master::{Master, MasterAddress, entry_of};
 use harness_machine::members::{self, Member};
 use llm_gateway::child::{Place, start, write_private};
+use llm_gateway::costs::Records;
 use llm_gateway::door::Door;
 use llm_gateway::front::{Front, Status, router};
 use llm_gateway::keys::read_key;
-use llm_gateway::table::{HOOKS, Table, gateway_table_with_members, laid_instances, table_digest};
+use llm_gateway::supply::{self, Supply};
+use llm_gateway::table::{
+  HOOKS, Personal, Table, gateway_table_with_personal, laid_instances, personal_members, table_digest,
+};
 use sqlx::Connection;
 use store::open_read;
 use store::registry::registrations;
@@ -83,6 +87,7 @@ async fn registry_table(
   address: &str,
   master: Option<&Master>,
   members: &[Member],
+  personal: &[Personal],
 ) -> Option<Table> {
   let read = async {
     let mut store = open_read(address).await?;
@@ -114,7 +119,7 @@ async fn registry_table(
     _ => None,
   };
   let laid = laid_instances(registry, picture.as_ref());
-  match gateway_table_with_members(&laid, members) {
+  match gateway_table_with_personal(&laid, members, personal) {
     Ok(table) => Some(table),
     Err(why) => {
       eprintln!("llm-gateway: the table was refused: {why}");
@@ -149,11 +154,19 @@ async fn refresh(
       last.clone()
     }
   };
-  let Some(table) = registry_table(front, store, master, &current).await else {
+  // The call keys, the people's own keys and the reservations, read on the same beat; a reading that fails
+  // leaves the last good one standing.
+  match supply::read(store).await {
+    Ok(reading) => front.supply().know(reading),
+    Err(fault) => eprintln!("llm-gateway: the call keys and supply could not be read: {fault}"),
+  }
+  let personal = personal_members(&current, &front.supply().personal());
+  let Some(table) = registry_table(front, store, master, &current, &personal).await else {
     return;
   };
   let digest = table_digest(&table, |key_file| read_key(&place.env_dir, key_file), &place.hook_texts());
-  if let Err(fault) = front.take(&digest, table.names.clone(), start(place, &table, &digest)).await {
+  let started = start(place, &table, &digest);
+  if let Err(fault) = front.take(&digest, table.names.clone(), table.owners.clone(), started).await {
     eprintln!("llm-gateway: the table {digest} did not start: {fault}");
   }
 }
@@ -215,11 +228,20 @@ async fn main() -> ExitCode {
     );
     return ExitCode::FAILURE;
   };
+  let listener = match TcpListener::bind(("127.0.0.1", port)).await {
+    Ok(listener) => listener,
+    Err(fault) => {
+      eprintln!("llm-gateway: 127.0.0.1:{port} could not be listened on: {fault}");
+      return ExitCode::FAILURE;
+    }
+  };
+  let port = listener.local_addr().map_or(port, |at| at.port());
   let place = Arc::new(Place {
     folder: data_root.join("llm-gateway"),
     env_dir,
     gateway_key: gateway_key.clone(),
     hooks: HOOKS.iter().map(|hook| hooks_dir.join(format!("{hook}.py"))).collect(),
+    front: format!("http://127.0.0.1:{port}"),
   });
   if let Err(fault) = std::fs::DirBuilder::new().recursive(true).mode(0o700).create(&place.folder) {
     eprintln!("llm-gateway: {} could not be made: {fault}", place.folder.display());
@@ -231,18 +253,18 @@ async fn main() -> ExitCode {
   // The door asks the master for the cards of the requests on an engine standing nowhere; a demand a
   // launcher that ended left under its reference is given back first.
   let door = master.clone().map(Door::new);
-  let front = Front::new(gateway_key, door, stall, {
-    let path = status_path.clone();
-    move |status| write_status(&path, status)
-  });
-  let listener = match TcpListener::bind(("127.0.0.1", port)).await {
-    Ok(listener) => listener,
-    Err(fault) => {
-      eprintln!("llm-gateway: 127.0.0.1:{port} could not be listened on: {fault}");
+  // The request records are written on a connection of their own, the one write the launcher makes.
+  let records = match Records::new(&store) {
+    Ok(records) => records,
+    Err(why) => {
+      eprintln!("llm-gateway: {why}");
       return ExitCode::FAILURE;
     }
   };
-  let port = listener.local_addr().map_or(port, |at| at.port());
+  let front = Front::new(gateway_key, door, stall, Supply::new(store.clone()), records, {
+    let path = status_path.clone();
+    move |status| write_status(&path, status)
+  });
   println!("llm-gateway: a streamed answer silent for {}ms is cut", stall.as_millis());
   println!("llm-gateway: serving on http://127.0.0.1:{port}");
   write_status(&status_path, &front.status());

@@ -981,6 +981,59 @@ export interface paths {
         patch: operations["changeAccount"];
         trace?: never;
     };
+    "/personal-supply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A person's own gateway keys, or each person's roads for the administrator. */
+        get: operations["listPersonalSupply"];
+        put?: never;
+        /** Add a key of the signed-in person's for a gateway road. */
+        post: operations["createPersonalSupply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-supply/{supplyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one of the person's keys. */
+        delete: operations["deletePersonalSupply"];
+        options?: never;
+        head?: never;
+        /** Change one of the person's keys: its place or its switch. */
+        patch: operations["changePersonalSupply"];
+        trace?: never;
+    };
+    "/people/{user}/off-boarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch a person's supply off and revoke their call key. */
+        post: operations["offBoardPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rest": {
         parameters: {
             query?: never;
@@ -3016,17 +3069,21 @@ export interface components {
         };
         /** @description Fallback: */
         Fallback: {
+            /** @default [] */
             routes: unknown[];
             /**
-             * @description The agent serving the chat now and what it has used.
+             * @description The agent serving the chat now and what it has used; null on a person's call.
              * @default null
              */
             active: components["schemas"]["FallbackActive"] | null;
             /**
-             * @description Every Claude account as the road walks them.
+             * @description The Claude accounts the caller reads, as the road walks them: a person's own alone, and the platform's
+             *     on the administrator's and the deployment's own calls.
              * @default []
              */
             accounts: components["schemas"]["FallbackAccount"][];
+            /** @description Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone. */
+            personalSupply?: components["schemas"]["PersonSupply"][] | null;
         };
         /**
          * @description The agent serving the chat now: the provider its road answers on, the login it walks to where the
@@ -3093,14 +3150,30 @@ export interface components {
             /** Format: int64 */
             place: number;
             enabled: boolean;
-            /** @description One of `directory`, `token` or `endpoint`. */
+            /** @description One of `directory`, `token`, `endpoint` or `api-key`. */
             credentialKind: string;
             credentialPath: string;
             endpointUrl: string | null;
-            /** @description An endpoint account's key file. Its content is never reported. */
+            /** @description An endpoint account's key file or an `api-key` account's secret. Its content is never reported. */
             keyFile: string | null;
             models: components["schemas"]["EndpointModels"] | null;
             basePrompt: string | null;
+            /**
+             * Format: int64
+             * @description The person it belongs to, or null for the platform's.
+             * @default null
+             */
+            userId: number | null;
+            /**
+             * @description The node a person's login stands on, or null.
+             * @default null
+             */
+            node: string | null;
+            /**
+             * @description Whether the platform's account goes out for another person's run.
+             * @default false
+             */
+            lendable: boolean;
             /** @description One of `standing`, `ending` or `gone`. */
             login: string;
             /**
@@ -3131,6 +3204,13 @@ export interface components {
             sonnet?: string | null;
             haiku?: string | null;
         };
+        /** @description A person's supply as the platform reads it: the person and the roads their own credentials serve. */
+        PersonSupply: {
+            /** Format: int64 */
+            user: number;
+            /** @description `claude-code` where they hold a Claude account that is on, and the gateway roads of their keys that are on. */
+            roads: string[];
+        };
         /** @description The body that changes the fallback screen's routes, providers and accounts. */
         FallbackChange: {
             action?: string | null;
@@ -3143,12 +3223,17 @@ export interface components {
             path?: string | null;
             /** @description An endpoint account's base URL. */
             endpoint?: string | null;
-            /** @description An endpoint account's key file. */
+            /**
+             * @description An endpoint account's key file, or the secret an `api-key` account's key sits in: the person's own
+             *     `users/<user>/<name>` or a plain name, or the platform's plain name.
+             */
             keyFile?: string | null;
             /** @description An endpoint account's model ids by family word. */
             models?: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt the account names, `none` or null to let it go. */
             basePrompt?: string | null;
+            /** @description Whether the platform's account goes out for another person's run; refused for a person's account. */
+            lendable?: boolean | null;
             key?: string | null;
             mode?: string | null;
             /**
@@ -3427,12 +3512,18 @@ export interface components {
         AccountPage: {
             items: components["schemas"]["Account"][];
             more: boolean;
+            /** @description Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone. */
+            personalSupply?: components["schemas"]["PersonSupply"][] | null;
         };
         /** @description Account: */
         Account: {
             id: string;
             provider: string;
-            userName: string | null;
+            /**
+             * Format: int64
+             * @description The user it belongs to, as `userId` names it.
+             */
+            userName: number | null;
             held: boolean;
             home: string | null;
             /** @description The usage a report named, on the report's answer; null on the list. */
@@ -3457,21 +3548,92 @@ export interface components {
              * @description epoch milliseconds
              */
             restUntil: number | null;
-            /** @description One of `directory`, `token` or `endpoint`. */
+            /** @description One of `directory`, `token`, `endpoint` or `api-key`. */
             credentialKind: string | null;
             /** @description An endpoint account's base URL. */
             endpointUrl: string | null;
-            /** @description An endpoint account's key file. Its content is never reported. */
+            /** @description An endpoint account's key file or an `api-key` account's secret. Its content is never reported. */
             keyFile: string | null;
             /** @description An endpoint account's model ids by family word. */
             models: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt a worker's run on it opens with. */
             basePrompt: string | null;
+            /**
+             * Format: int64
+             * @description The person it belongs to, or null for the platform's.
+             * @default null
+             */
+            userId: number | null;
+            /**
+             * @description The node a person's login stands on, or null.
+             * @default null
+             */
+            node: string | null;
+            /**
+             * @description Whether the platform's account goes out for another person's run.
+             * @default false
+             */
+            lendable: boolean;
         };
         /** @description The body that reports a login's session usage. */
         AccountUsage: {
             usage?: unknown;
             window?: unknown;
+        };
+        /** @description The personal supply a caller reads: a person's own keys, or for the platform each person's roads. */
+        PersonalSupplyPage: {
+            items?: components["schemas"]["PersonalSupplyKey"][] | null;
+            people?: components["schemas"]["PersonSupply"][] | null;
+        };
+        /** @description One of a person's own keys for a gateway road (docs/supply.md, 「What a person brings」). */
+        PersonalSupplyKey: {
+            /** Format: int64 */
+            id: number;
+            /** @description `codex`, `deepseek` or `openrouter`. */
+            road: string;
+            /** @description The secret's name in the person's space of the secret store; its value is never reported. */
+            secret: string;
+            /**
+             * Format: int64
+             * @description Its place among the person's keys of the road, from 1.
+             */
+            place: number;
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            refusedAt: number | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            addedAt: number;
+        };
+        /** @description A key of the signed-in person's added for a gateway road. */
+        PersonalSupplyAsk: {
+            road: string;
+            /** @description One plain file name in the person's space of the secret store. */
+            secret: string;
+        };
+        /** @description A change of one of the person's keys: its place, its switch, or both. */
+        PersonalSupplyChange: {
+            /** Format: int64 */
+            place?: number | null;
+            enabled?: boolean | null;
+        };
+        /** @description What a person's off-boarding turned off. */
+        OffBoarded: {
+            /**
+             * Format: int64
+             * @description How many of their Claude accounts were turned off.
+             */
+            accounts: number;
+            /**
+             * Format: int64
+             * @description How many of their keys were turned off.
+             */
+            keys: number;
         };
         /** @description Rest: */
         Rest: {
@@ -3573,6 +3735,12 @@ export interface components {
              * @description The tokens the roles' sessions on the key carry; null where no session is matched to the key.
              */
             contextTokens: number | null;
+            /**
+             * Format: double
+             * @description What the group's jobs or runs cost in US dollars; null where none reported a cost.
+             * @default null
+             */
+            costUsd: number | null;
         };
         /** @description Settings: */
         Settings: {
@@ -5084,6 +5252,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description node-not-attached */
+        NodeNotAttached: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description node-taken */
         NodeTaken: {
             headers: {
@@ -5122,6 +5299,15 @@ export interface components {
         };
         /** @description not-found */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description not-lendable */
+        NotLendable: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5237,6 +5423,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description unknown-account */
+        UnknownAccount: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description unknown-agent */
         UnknownAgent: {
             headers: {
@@ -5255,8 +5450,26 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description unknown-road */
+        UnknownRoad: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description unknown-role */
         UnknownRole: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-supply */
+        UnknownSupply: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7059,6 +7272,9 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownAccount"];
+            422: components["responses"]["NotLendable"];
         };
     };
     startClaudeLogin: {
@@ -7085,6 +7301,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["NodeNotAttached"];
             422: components["responses"]["NotADirectory"];
         };
     };
@@ -7393,6 +7610,135 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPersonalSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSupplyPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createPersonalSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalSupplyAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSupplyKey"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnknownRoad"];
+        };
+    };
+    deletePersonalSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supplyId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownSupply"];
+        };
+    };
+    changePersonalSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supplyId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalSupplyChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSupplyKey"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownSupply"];
+        };
+    };
+    offBoardPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OffBoarded"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getRest: {

@@ -47,6 +47,25 @@ pub struct LoginsWords {
   pub refused: String,
   pub no_login: String,
   pub silent: String,
+  pub no_node: String,
+  pub node_not_attached: String,
+  pub node_unready: String,
+  pub name_only: String,
+}
+
+/// A person's own keys for the gateway's roads.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PersonalSupplyWords {
+  pub no_person: String,
+  pub unknown_road: String,
+  pub road_needed: String,
+  pub unknown: String,
+  pub place: String,
+  pub enabled: String,
+  pub nothing: String,
+  pub off_boarding: String,
+  pub taken: String,
 }
 
 /// The Claude accounts.
@@ -85,6 +104,10 @@ pub struct AccountsWords {
   pub last_gone: String,
   pub chosen_off: String,
   pub base_prompt: String,
+  pub secret_needed: String,
+  pub secret_name: String,
+  pub not_lendable: String,
+  pub platform_only: String,
 }
 
 /// A worker's own sampling.
@@ -324,6 +347,7 @@ pub struct ControlWords {
   pub fallback: FallbackWords,
   pub accounts: AccountsWords,
   pub logins: LoginsWords,
+  pub personal_supply: PersonalSupplyWords,
   pub workers: WorkersWords,
   pub agents: AgentsWords,
   pub agent_roles: AgentRolesWords,

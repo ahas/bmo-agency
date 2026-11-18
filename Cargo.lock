@@ -2018,6 +2018,7 @@ dependencies = [
  "libc",
  "policy",
  "procfs",
+ "sea-orm",
  "serde",
  "serde_json",
  "sha2",

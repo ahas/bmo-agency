@@ -1,9 +1,11 @@
 //! A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the
 //! console」): the CLI's own sign-in started with the account's configuration directory as its own, the address
 //! it prints handed back, and the code the owner pastes handed to it. The CLI makes the login; nothing of the
-//! exchange, and never the code, is kept, logged or answered.
+//! exchange, and never the code, is kept, logged or answered. A person's sign-in runs on their node, in the
+//! node's herdr session, its words read off the pane it runs in (docs/supply.md, 「Signing a person's login
+//! in」).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -21,10 +23,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::Mutex;
 
-use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven};
+use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, Owning};
 use super::claude_accounts::{CREDENTIAL_FILE, Credential, CredentialKind, Judging, accounts};
 use super::fallback::accounts_answer;
 use super::{Call, Refused, Route, answer};
+use crate::access::Acting;
 
 /// The variables a sign-in's CLI is never handed: a login the launching process carries would answer for the
 /// sign-in in place of the one being made.
@@ -68,7 +71,58 @@ struct SignIn {
   started: Instant,
 }
 
-static SIGN_INS: LazyLock<Mutex<HashMap<String, SignIn>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+/// One person's sign-in under way on their node: the pane its CLI runs in there, and the account it adds once
+/// the login took. Nothing is left of it here once its pane is closed.
+struct NodeSignIn {
+  pane: NodePane,
+  user: i64,
+  node: String,
+  name: String,
+  /// The configuration directory on the node the CLI writes the login into.
+  home: String,
+  started: Instant,
+}
+
+/// A sign-in held: the owner's, on this machine, or a person's, on their node.
+enum Held {
+  Here(SignIn),
+  OnNode(NodeSignIn),
+}
+
+impl Held {
+  fn started(&self) -> Instant {
+    match self {
+      Self::Here(sign_in) => sign_in.started,
+      Self::OnNode(sign_in) => sign_in.started,
+    }
+  }
+
+  /// Whether the caller may hand it its code or give it up: the platform's caller the owner's, and a person
+  /// their own alone.
+  fn held_by(&self, acting: Acting) -> bool {
+    match (self, acting) {
+      (Self::Here(_), Acting::Platform) => true,
+      (Self::OnNode(sign_in), Acting::Person(user)) => sign_in.user == user,
+      _ => false,
+    }
+  }
+
+  /// The sign-in ended where it stands: the CLI here ended and a new account's directory taken away, and the
+  /// pane on the node closed.
+  fn end(self) {
+    match self {
+      Self::Here(SignIn { cli, target, .. }) => {
+        drop(cli);
+        target.abandon();
+      }
+      Self::OnNode(sign_in) => {
+        tokio::spawn(async move { sign_in.pane.close().await });
+      }
+    }
+  }
+}
+
+static SIGN_INS: LazyLock<Mutex<HashMap<String, Held>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn words() -> &'static policy::control_words::LoginsWords {
   &CONTROL_WORDS.logins
@@ -133,15 +187,42 @@ pub fn new_home(data_root: &Path, name: &str) -> PathBuf {
 }
 
 // Every sign-in that has stood longer than the policy allows, ended.
-fn sweep(held: &mut HashMap<String, SignIn>) {
+fn sweep(held: &mut HashMap<String, Held>) {
   let keep = Duration::from_secs(CLAUDE_CODE.console_login.keep_minutes * 60);
-  held.retain(|_, sign_in| {
-    let standing = sign_in.started.elapsed() < keep;
-    if !standing {
-      sign_in.target.abandon();
+  let old: Vec<String> = held
+    .iter()
+    .filter(|(_, sign_in)| sign_in.started().elapsed() >= keep)
+    .map(|(id, _)| id.clone())
+    .collect();
+
+  for id in old {
+    if let Some(sign_in) = held.remove(&id) {
+      sign_in.end();
     }
-    standing
-  });
+  }
+}
+
+// The sign-in a call names taken out of those held, where the caller holds it.
+async fn take(login: &str, acting: Acting) -> Result<Held, Refused> {
+  let mut held = SIGN_INS.lock().await;
+
+  sweep(&mut held);
+
+  match held.get(login) {
+    Some(sign_in) if sign_in.held_by(acting) => Ok(held.remove(login).expect("the sign-in is held")),
+    _ => Err(no_sign_in(login)),
+  }
+}
+
+// A sign-in held under a new identifier, answered as the start answers it.
+async fn hold(sign_in: Held, address: String) -> Response {
+  let login = uuid::Uuid::new_v4().to_string();
+  let mut held = SIGN_INS.lock().await;
+
+  sweep(&mut held);
+  held.insert(login.clone(), sign_in);
+
+  answer(StatusCode::CREATED, json!({ "login": login, "url": address }))
 }
 
 fn text<'a>(body: &'a Value, field: &str) -> Option<&'a str> {
@@ -158,7 +239,10 @@ async fn target_of(db: &DatabaseConnection, data_root: &Path, body: &Value) -> R
         Refused::new(StatusCode::NOT_FOUND, fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)]))
       })?;
       match &account.credential {
-        Credential::Directory { home } => Ok(Target::Again { home: home.clone() }),
+        // A person's login stands on their node, where alone it is signed in again.
+        Credential::Directory { home } if account.node.is_none() => {
+          Ok(Target::Again { home: home.clone() })
+        }
         _ => Err(
           Refused::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -197,7 +281,13 @@ impl Route for StartClaudeLogin {
   const PATH: &'static str = "/claude-logins";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let acting = Acting::of(&call)?;
     let body = call.body().await?;
+
+    if let Acting::Person(user) = acting {
+      return start_on_node(call.ground(), user, &body).await;
+    }
+
     let target = target_of(call.store(), &call.data_root(), &body).await?;
     std::fs::DirBuilder::new()
       .recursive(true)
@@ -250,21 +340,15 @@ impl Route for StartClaudeLogin {
       tokio::time::sleep(Duration::from_millis(200)).await;
     };
 
-    let login = uuid::Uuid::new_v4().to_string();
-    let mut held = SIGN_INS.lock().await;
-    sweep(&mut held);
-    held.insert(
-      login.clone(),
-      SignIn {
-        cli,
-        input,
-        said,
-        target,
-        started: Instant::now(),
-      },
-    );
+    let sign_in = SignIn {
+      cli,
+      input,
+      said,
+      target,
+      started: Instant::now(),
+    };
 
-    Ok(answer(StatusCode::CREATED, json!({ "login": login, "url": address })))
+    Ok(hold(Held::Here(sign_in), address).await)
   }
 }
 
@@ -284,6 +368,7 @@ impl Route for ClaudeLoginCode {
   const PATH: &'static str = "/claude-logins/{login}/code";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let acting = Acting::of(&call)?;
     let login = call.param("login").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let code = text(&body, "code").map(str::to_owned).ok_or_else(|| {
@@ -291,10 +376,9 @@ impl Route for ClaudeLoginCode {
     })?;
 
     // The sign-in is taken out of the held ones: it ends here, whatever the CLI makes of the code.
-    let mut sign_in = {
-      let mut held = SIGN_INS.lock().await;
-      sweep(&mut held);
-      held.remove(&login).ok_or_else(|| no_sign_in(&login))?
+    let mut sign_in = match take(&login, acting).await? {
+      Held::Here(sign_in) => sign_in,
+      Held::OnNode(sign_in) => return code_on_node(call.ground(), sign_in, &code).await,
     };
     let refused = |said: &str| {
       sign_in.target.abandon();
@@ -345,7 +429,7 @@ impl Route for ClaudeLoginCode {
       changes::add(call.store(), name, &given, BasePromptGiven::Keep).await?;
     }
 
-    accounts_answer(Judging::of(call.ground())).await
+    accounts_answer(Judging::of(call.ground()), acting).await
   }
 }
 
@@ -360,15 +444,330 @@ impl Route for GiveUpClaudeLogin {
   const PATH: &'static str = "/claude-logins/{login}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let acting = Acting::of(&call)?;
     let login = call.param("login").unwrap_or_default().to_owned();
-    let sign_in = SIGN_INS.lock().await.remove(&login).ok_or_else(|| no_sign_in(&login))?;
-    let SignIn { cli, target, .. } = sign_in;
-    // The CLI is ended before its directory is taken away, so it writes nothing there after.
-    drop(cli);
-    target.abandon();
+
+    // The CLI is ended before its directory is taken away, so it writes nothing there after; a pane on a node
+    // is closed before the answer.
+    match take(&login, acting).await? {
+      Held::OnNode(sign_in) => sign_in.pane.close().await,
+      here => here.end(),
+    }
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
 
 crate::moved!(GiveUpClaudeLogin);
+
+/// The pane a person's sign-in runs in on their node, in that node's herdr session.
+struct NodePane {
+  herdr: herdr::Herdr,
+  workspace: String,
+  pane: String,
+}
+
+// How many of the pane's latest lines a look reads: the sign-in's whole exchange.
+const SCREEN_LINES: i64 = 200;
+
+impl NodePane {
+  /// The workspace made on the node's herdr and the launch laid out alone in its tab; a workspace whose pane
+  /// cannot be laid out is closed rather than left behind.
+  async fn open(herdr: herdr::Herdr, label: &str, launch: &NodeLaunch) -> Result<Self, Refused> {
+    let unopened = |why: String| Refused::new(StatusCode::BAD_GATEWAY, why);
+    let made = herdr
+      .call(
+        "workspace.create",
+        json!({ "label": label, "cwd": launch.cwd, "env": launch.env }),
+        None,
+      )
+      .await
+      .map_err(|fault| unopened(format!("The node's herdr made no workspace: {}", fault.message)))?;
+    let (Some(workspace), Some(tab)) = (
+      made.pointer("/workspace/workspace_id").and_then(Value::as_str).map(str::to_owned),
+      made.pointer("/tab/tab_id").and_then(Value::as_str),
+    ) else {
+      return Err(unopened("The node's herdr named no workspace and tab".to_owned()));
+    };
+    let root = json!({ "type": "pane", "command": launch.command, "cwd": launch.cwd, "env": launch.env });
+    let applied = herdr.call("layout.apply", json!({ "tab_id": tab, "root": root }), None).await;
+    let pane = applied
+      .as_ref()
+      .ok()
+      .and_then(|applied| applied.pointer("/layout/root/pane_id"))
+      .and_then(Value::as_str)
+      .map(str::to_owned);
+    let Some(pane) = pane else {
+      let _ = herdr.call("workspace.close", json!({ "workspace_id": workspace }), None).await;
+
+      return Err(unopened("The node's herdr laid out no pane for the sign-in".to_owned()));
+    };
+
+    Ok(Self {
+      herdr,
+      workspace,
+      pane,
+    })
+  }
+
+  /// What the pane has written lately, its soft-wrapped lines joined again by herdr itself.
+  async fn screen(&self) -> String {
+    self
+      .herdr
+      .call(
+        "pane.read",
+        json!({ "pane_id": self.pane, "source": "recent-unwrapped", "lines": SCREEN_LINES }),
+        None,
+      )
+      .await
+      .ok()
+      .and_then(|answer| answer.pointer("/read/text").and_then(Value::as_str).map(str::to_owned))
+      .unwrap_or_default()
+  }
+
+  /// The pane and its workspace closed, the CLI and the shell holding it ended with them.
+  async fn close(&self) {
+    let _ = self.herdr.call("pane.close", json!({ "pane_id": self.pane }), None).await;
+    let _ = self
+      .herdr
+      .call("workspace.close", json!({ "workspace_id": self.workspace }), None)
+      .await;
+  }
+}
+
+/// What a person's sign-in pane is started with on their node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeLaunch {
+  pub command: Vec<String>,
+  pub cwd: String,
+  pub env: BTreeMap<String, String>,
+}
+
+/// The variables a sign-in's shell takes away before the CLI starts, since a pane is handed variables by name
+/// and cannot be told to drop one: every login the node's session carries but the directory it is given.
+const NODE_CARRIED_LOGINS: [&str; 3] =
+  ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
+
+/// The launch of a person's sign-in on their node: the CLI's own sign-in, the same words as the owner's, run
+/// as the node's user under the node's workplace, its configuration directory `home`, no browser opened
+/// there, and every other login taken away first. A shell holds the pane after the CLI ends, so what it said
+/// last stays to be read; the CLI's words are handed to it as arguments, never spliced into its script.
+pub fn node_launch(node_root: &str, node_home: &str, home: &str, lang: &str) -> NodeLaunch {
+  let script = format!(
+    r#"unset {}; mkdir -p -m 700 "$CLAUDE_CONFIG_DIR" && "$@"; while :; do sleep 3600; done"#,
+    NODE_CARRIED_LOGINS.join(" ")
+  );
+  let mut command = vec!["/bin/sh".to_owned(), "-c".to_owned(), script, "claude-sign-in".to_owned()];
+
+  command.extend(CLAUDE_CODE.console_login.command.iter().cloned());
+
+  let path = crate::watches::links::path_head(node_home, node_root)
+    .into_iter()
+    .chain(["/usr/local/bin", "/usr/bin", "/bin"].map(str::to_owned))
+    .collect::<Vec<_>>()
+    .join(":");
+
+  NodeLaunch {
+    command,
+    cwd: node_home.to_owned(),
+    env: BTreeMap::from([
+      ("HOME".to_owned(), node_home.to_owned()),
+      ("PATH".to_owned(), path),
+      ("LANG".to_owned(), lang.to_owned()),
+      ("CLAUDE_CONFIG_DIR".to_owned(), home.to_owned()),
+      // The browser is the person's own, wherever they are: none is opened on the node.
+      ("BROWSER".to_owned(), "true".to_owned()),
+    ]),
+  }
+}
+
+/// What a sign-in's pane says of the login once its code was typed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeOutcome {
+  /// The CLI said the login took.
+  Took,
+  /// The CLI said it refused the code.
+  Refused,
+  /// It has said neither yet.
+  Pending,
+}
+
+/// What the pane's words after the code say, by the policy's words for a login that took and for a code
+/// refused, matched without regard to case; the words said before the code was typed are not read again.
+pub fn node_outcome(after_code: &str) -> NodeOutcome {
+  let said = plain(after_code).to_lowercase();
+  let says = |words: &[String]| words.iter().any(|word| said.contains(&word.to_lowercase()));
+  let policy = &CLAUDE_CODE.console_login;
+
+  if says(&policy.refused) {
+    NodeOutcome::Refused
+  } else if says(&policy.took) {
+    NodeOutcome::Took
+  } else {
+    NodeOutcome::Pending
+  }
+}
+
+/// The words a pane shows past what it showed before: the part of `now` after the longest head it shares
+/// with `before`, or the whole of it where the screen moved under it.
+pub fn said_since(before: &str, now: &str) -> String {
+  let shared = before.chars().zip(now.chars()).take_while(|(one, other)| one == other).count();
+
+  now.chars().skip(shared).collect()
+}
+
+fn not_attached(node: &str, words_of: &str) -> Refused {
+  Refused::new(StatusCode::CONFLICT, fill_marks(words_of, &[("node", node)])).with_code("node-not-attached")
+}
+
+// The node a person's sign-in runs on, its workplace's root and home as the node reads them, or the refusal of
+// one not attached now.
+async fn person_workplace(
+  ground: &crate::places::Ground,
+  user: i64,
+) -> Result<(String, String, String), Refused> {
+  let db = &ground.db;
+  let node = crate::person_nodes::node_of(db, &user.to_string()).await?.ok_or_else(|| {
+    Refused::new(StatusCode::CONFLICT, words().no_node.clone()).with_code("node-not-attached")
+  })?;
+
+  if !crate::watches::links::link_heard(&ground.roots.data, &node) {
+    return Err(not_attached(&node, &words().node_not_attached));
+  }
+
+  let workplace = store::one(
+    db,
+    r#"SELECT "root", "home" FROM "node_workplaces" WHERE "node" = $1 AND "state" = 'ready'"#,
+    vec![node.as_str().into()],
+  )
+  .await?;
+  let Some(workplace) = workplace else {
+    return Err(not_attached(&node, &words().node_unready));
+  };
+  let (root, home): (String, Option<String>) =
+    (workplace.try_get("", "root")?, workplace.try_get("", "home")?);
+  let Some(home) = home else { return Err(not_attached(&node, &words().node_unready)) };
+
+  Ok((node, crate::watches::links::node_path(&root, Some(&home)), home))
+}
+
+// A person's sign-in started on their node: a new account by name alone, its directory under the node's data
+// root, the address read off the pane the CLI runs in.
+async fn start_on_node(
+  ground: &crate::places::Ground,
+  user: i64,
+  body: &Value,
+) -> Result<Response, Refused> {
+  let (None, Some(name)) = (text(body, "account"), text(body, "name")) else {
+    return Err(Refused::new(StatusCode::BAD_REQUEST, words().name_only.clone()));
+  };
+  let held = accounts(&ground.db).await?;
+  let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
+
+  if let Some(fault) = changes::name_fault(name, &names) {
+    return Err(Refused::failed(fault).with_field("name"));
+  }
+
+  let (node, node_root, node_home) = person_workplace(ground, user).await?;
+  let home = new_home(&Path::new(&node_root).join("data"), name).to_string_lossy().into_owned();
+  let lang = ground.vars().get("LANG").cloned().unwrap_or_else(|| "C.UTF-8".to_owned());
+  let launch = node_launch(&node_root, &node_home, &home, &lang);
+  let herdr = herdr::Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
+    .within(crate::places::node_herdr_ceiling());
+  let pane = NodePane::open(herdr, &format!("sign-in · {name}"), &launch).await?;
+
+  let bound = Instant::now() + Duration::from_secs(CLAUDE_CODE.console_login.link_seconds);
+  let address = loop {
+    let screen = pane.screen().await;
+
+    if let Some(address) = sign_in_address(&screen) {
+      break address;
+    }
+
+    if Instant::now() >= bound {
+      pane.close().await;
+
+      return Err(Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        fill_marks(&words().no_link, &[("said", &last_words(&screen, None))]),
+      ));
+    }
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+  };
+  let sign_in = NodeSignIn {
+    pane,
+    user,
+    node,
+    name: name.to_owned(),
+    home,
+    started: Instant::now(),
+  };
+
+  Ok(hold(Held::OnNode(sign_in), address).await)
+}
+
+// The code typed into a person's sign-in on their node, the pane read until the CLI says the login took or
+// refused it, the pane closed, and the account added, pinned to the person and naming the node, once it took.
+async fn code_on_node(
+  ground: &crate::places::Ground,
+  sign_in: NodeSignIn,
+  code: &str,
+) -> Result<Response, Refused> {
+  let pane = &sign_in.pane;
+  let before = pane.screen().await;
+  let typed = pane
+    .herdr
+    .call("pane.send_text", json!({ "pane_id": pane.pane, "text": code }), None)
+    .await
+    .and(crate::door::looks::send_keys(&pane.herdr, &pane.pane, &["enter"]).await);
+  let refused = |said: &str| {
+    Refused::new(
+      StatusCode::UNPROCESSABLE_ENTITY,
+      fill_marks(&words().refused, &[("said", &last_words(said, Some(code)))]),
+    )
+    .with_code("sign-in-refused")
+  };
+
+  if typed.is_err() {
+    pane.close().await;
+
+    return Err(refused(&before));
+  }
+
+  let bound = Instant::now() + Duration::from_secs(CLAUDE_CODE.console_login.finish_seconds);
+  loop {
+    let said = said_since(&before, &pane.screen().await);
+
+    match node_outcome(&said) {
+      NodeOutcome::Took => break,
+      NodeOutcome::Refused => {
+        pane.close().await;
+
+        return Err(refused(&said));
+      }
+      NodeOutcome::Pending if Instant::now() >= bound => {
+        pane.close().await;
+
+        return Err(refused(&said));
+      }
+      NodeOutcome::Pending => tokio::time::sleep(Duration::from_millis(500)).await,
+    }
+  }
+
+  pane.close().await;
+
+  let given = CredentialGiven {
+    kind: Some(CredentialKind::Directory),
+    path: Some(sign_in.home.clone()),
+    ..CredentialGiven::default()
+  };
+  let owning = Owning {
+    user_id: Some(sign_in.user),
+    node: Some(sign_in.node.clone()),
+  };
+
+  changes::add_owned(&ground.db, &sign_in.name, &given, BasePromptGiven::Keep, &owning).await?;
+
+  accounts_answer(Judging::of(ground), Acting::Person(sign_in.user)).await
+}

@@ -22,6 +22,8 @@ fn account(kind: &str) -> Account {
     },
     needs_login_at: None,
     user_id: None,
+    node: None,
+    lendable: false,
     base_prompt: None,
     node_token_gone: None,
   }

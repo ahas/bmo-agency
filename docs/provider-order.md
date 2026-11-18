@@ -8,7 +8,17 @@ turn on such a road fails and says why, and a job waits for its agent's road. A 
 row (`docs/supervisors.md`), an agent's on the agent (`docs/role-agents.md`). There is no road shared by
 everything, no level of work standing between a role and its model, and no limit on how many runs go out on
 one provider at once. How the Claude Code provider walks its own accounts inside its road is
-`docs/cache-fallback.md`; how quota is read is `docs/usage-windows.md`.
+`docs/cache-fallback.md`; how quota is read is `docs/usage-windows.md`; on which credential and at whose cost a
+person's run goes out inside its road is `docs/supply.md`.
+
+## A supply source is an axis inside a road
+
+- **A run of a person other than the administrator takes a supply source as it starts:** the person's own
+  credential, a platform source the supply hook reserves, or none (`docs/supply.md`). The source never moves a
+  run to another provider or model: a source holding no credential for the road's provider is passed over, and
+  one that runs out hands the run to the next source on the same road.
+- **A source with nothing left is a road that cannot take the run:** a supervisor's turn fails with the
+  sentence naming the source, and a job waits for supply as it waits for its road.
 
 ## What a road is
 
@@ -112,7 +122,9 @@ one provider at once. How the Claude Code provider walks its own accounts inside
   take any free agent of its role passes a blocked agent's road over while another agent's road can answer; a
   road a run names alone — its agent's, a supervisor's, a pin, a named road — is never passed over for a block.
   A failure of the work itself blocks nothing, and a provider that holds logins is blocked by no failure: a
-  failure there is its login's, which its account walk rests. The harness blocks a road the same way through
+  failure there is its login's, which its account walk rests. A failure on a person's own key blocks nothing
+  either: the key waits for its person and the run takes its next source (`docs/supply.md`, 「Running out
+  mid-turn」). The harness blocks a road the same way through
   `POST /road-blocks` (`docs/api.md`, 「road-blocks and launch-room」). A registration blocked for an outage is
   asked for its health before it is passed over, and one whose engine answers is opened again at once.
 

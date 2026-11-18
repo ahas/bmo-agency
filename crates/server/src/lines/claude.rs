@@ -205,7 +205,10 @@ impl Runs {
 /// account hands the token read from its file; an endpoint account names its configuration home, its
 /// base URL, the key read from its file as the run's authorisation token and the model id its map names
 /// for each family, clearing every other credential the launching process carried, and never goes out
-/// from a work node, since its key stays on this machine.
+/// from a work node, since its key stays on this machine. An `api-key` account names its configuration
+/// home and hands the key read from its secret as `ANTHROPIC_API_KEY`, clearing every other credential; the
+/// platform's never goes out from a work node, and a person's goes out on theirs with the run's variables. A
+/// person's directory account signed in on their node names the directory there and is handed no token.
 pub fn account_env(
   account: Option<&Account>,
   runs: &Runs,
@@ -221,6 +224,7 @@ pub fn account_env(
     }
     Credential::Directory { home } => {
       let token = match runs {
+        _ if account.on_own_node() => None,
         Runs::OwnLogin => None,
         Runs::Here { data_root } => account.carrying_token(data_root, crate::now_ms()),
         Runs::OnNode { data_root } => account.node_token(data_root),
@@ -262,6 +266,28 @@ pub fn account_env(
       }
 
       Ok(env)
+    }
+    Credential::ApiKey { home, key_file } => {
+      if matches!(runs, Runs::OnNode { .. }) && account.user_id.is_none() {
+        return Err(fault(format!(
+          "Account {} is the platform's api-key account, whose key does not go out to a work node.",
+          account.id
+        )));
+      }
+
+      let key = std::fs::read_to_string(key_file)
+        .ok()
+        .map(|key| key.trim().to_owned())
+        .filter(|key| !key.is_empty())
+        .ok_or_else(|| fault(format!("The key of account {} cannot be read.", account.id)))?;
+
+      Ok(BTreeMap::from([
+        ("CLAUDE_CONFIG_DIR".to_owned(), Some(home.to_string_lossy().into_owned())),
+        ("ANTHROPIC_API_KEY".to_owned(), Some(key)),
+        ("ANTHROPIC_AUTH_TOKEN".to_owned(), None),
+        ("ANTHROPIC_BASE_URL".to_owned(), None),
+        ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), None),
+      ]))
     }
   }
 }

@@ -74,8 +74,10 @@ mod control {
   mod mcp;
   mod models;
   mod own_llm;
+  mod owned_accounts;
   mod pane_death;
   mod person_node_routes;
+  mod personal_supply;
   mod pickup_restart;
   mod preamble;
   mod registry;
@@ -207,6 +209,7 @@ mod session_questions;
 mod session_tools;
 mod slot_events;
 mod streaming;
+mod supply;
 mod translate;
 mod turn_keys;
 mod turn_pickup;

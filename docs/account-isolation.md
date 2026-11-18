@@ -76,7 +76,8 @@ every node shares are `docs/work-nodes.md`.
   the link's near end, the home bridge, which runs the policy's verbs alone for a node an account owns
   (「Who reaches a node」 in `docs/person-nodes.md`), the tool host, which the node reaches over this machine's
   loopback with the run's own tool token, and the model gateway, which a program of the node on a gateway road
-  reaches there with the gateway's key: the two ports there its network rule leaves it.
+  reaches there with the account's own call key (`docs/own-llm.md`, 「The keys」): the two ports there its network
+  rule leaves it.
 
 ## Standing it up
 
@@ -112,8 +113,8 @@ every node shares are `docs/work-nodes.md`.
   joins to the node's herdr socket here. No port is forwarded: the node reaches the tool host and the model
   gateway over this machine's loopback as they are.
 - **It carries what a PC's link carries and nothing more:** the run's own variables, its place and its tool token
-  go to the node, and for a program on a gateway road the road's variables and the gateway's key file its key helper
-  reads, written in the home readable by the account's user alone (`docs/work-nodes.md`, 「The model gateway on a
+  go to the node, and for a program on a gateway road the road's variables and the account's call key file its key
+  helper reads, written in the home readable by the account's user alone (`docs/work-nodes.md`, 「The model gateway on a
   node」); its running record and its transcripts come back. No other token of the deployment's goes, and nothing
   else of the data root's credential folder is sent.
 

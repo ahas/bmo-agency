@@ -1539,6 +1539,7 @@ pub(crate) async fn written_end(
     eprintln!("job {id}: its end was not written: {why}");
   }
 
+  add_job_cost(&ground.db, id, spent, None).await;
   crate::job_end::slot_given_back(&ground.db, &ground.events, id, &ending(state, outcome.as_deref())).await;
 
   if let Ok((member, _)) = job(&ground.db, id).await {
@@ -1562,6 +1563,34 @@ pub const SPENT_ADDED: &str = r#""token_count" = COALESCE("token_count", 0) + $4
     ELSE COALESCE("cache_read_tokens", 0) + $9 END,
   "cache_write_tokens" = CASE WHEN $10::bigint IS NULL THEN "cache_write_tokens"
     ELSE COALESCE("cache_write_tokens", 0) + $10 END"#;
+
+/// What a job's turns cost added to its row, in millionths of a dollar, and the supply source its last turn took
+/// (docs/run-records.md, 「The run ledger」); nothing where the turn reported no cost and took no source.
+pub async fn add_job_cost(
+  db: &sea_orm::DatabaseConnection,
+  id: i64,
+  spent: Option<Spent>,
+  source: Option<&str>,
+) {
+  let cost = spent.map(|spent| spent.cost_micros).filter(|cost| *cost > 0);
+
+  if cost.is_none() && source.is_none() {
+    return;
+  }
+
+  if let Err(why) = run(
+    db,
+    r#"UPDATE "jobs" SET
+         "cost_micros" = CASE WHEN $2::bigint IS NULL THEN "cost_micros" ELSE COALESCE("cost_micros", 0) + $2 END,
+         "supply_source" = COALESCE($3, "supply_source")
+       WHERE "id" = $1"#,
+    vec![id.into(), cost.into(), source.map(str::to_owned).into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: its cost was not written: {}", why.detail);
+  }
+}
 
 // The reason a job's end gives its slot back with: its state and, where it names one, its outcome.
 fn ending(state: &str, outcome: Option<&str>) -> String {
@@ -1921,6 +1950,7 @@ fn summed(spent: Option<Spent>, more: Option<Spent>) -> Option<Spent> {
       output_tokens: spent.output_tokens + more.output_tokens,
       cache_read_tokens: spent.cache_read_tokens + more.cache_read_tokens,
       cache_write_tokens: spent.cache_write_tokens + more.cache_write_tokens,
+      cost_micros: spent.cost_micros + more.cost_micros,
     }),
     (spent, more) => spent.or(more),
   }
@@ -2142,6 +2172,8 @@ pub async fn carry_job<C: Carrier>(
   let mut last: Option<Ended> = None;
   // Whether the last turn ended on every Claude account of its walk refusing it.
   let mut refused_everywhere = false;
+  // Whether the job waits for supply, told once for the wait (docs/supply.md, 「Running out mid-turn」).
+  let mut supply_waits = false;
 
   keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
 
@@ -2167,6 +2199,23 @@ pub async fn carry_job<C: Carrier>(
       left.clear();
       continue;
     };
+    // The supply the turn goes out on inside its road: a person's job waits, holding no slot, where none is
+    // left (docs/supply.md, 「Choosing a source as a run starts」).
+    let chosen = match supply_of_turn(ground, job, &taken).await? {
+      crate::supply::Choice::Go(chosen) => chosen,
+      crate::supply::Choice::Closed(closed) => {
+        if !wait_for_supply(ground, job, &taken, &closed, &mut supply_waits).await? {
+          return Ok(None);
+        }
+
+        continue;
+      }
+    };
+
+    if std::mem::take(&mut supply_waits) {
+      held_for(ground, job.id, None).await;
+    }
+
     let why = roads.last().and_then(|_| left.last().map(|left| left.reason.clone()));
 
     road::went(ground, &resolution, Some(&taken), &[]).await;
@@ -2174,7 +2223,32 @@ pub async fn carry_job<C: Carrier>(
     roads.push((taken.clone(), why));
     kept_roads(ground, job.id, &roads, &values, resolution.chosen_by).await;
 
-    let end = carrier.carry(&taken, &entry, &prompt).await?;
+    let carried = Box::pin(carrier.carry(&taken, &entry, &prompt));
+    let (end, ran_out) = Box::pin(metered_carry(ground, job, &taken, &chosen, carried)).await?;
+    let end = end?;
+
+    // A platform source with nothing left stopped the turn: the job waits for supply and carries on in the same
+    // checkout once a source takes it (docs/supply.md, 「Running out mid-turn」).
+    if let Some(closed) = ran_out {
+      spent = summed(spent, turn_spent(&end));
+      noted_line(ground, job.id, &closed.sentence).await;
+      prompt = crate::job_handoff::ahead(
+        &crate::job_handoff::road_stopped(ground, job.id).await.text,
+        &continued(&taken, &closed.reason, job.prompt),
+      );
+      keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
+
+      if !wait_for_supply(ground, job, &taken, &closed, &mut supply_waits).await? {
+        return Ok(Some((
+          "ended".to_owned(),
+          Some("stopped".to_owned()),
+          with_roads(Some(closed.sentence), &roads),
+          spent,
+        )));
+      }
+
+      continue;
+    }
 
     // The walk inside the turn keeps each Claude account it moved the turn to on the job's row as it moves.
     if let Some((kept, kept_values)) = roads_kept(ground, job.id).await
@@ -2196,6 +2270,31 @@ pub async fn carry_job<C: Carrier>(
 
     // The road the turn ended on: the Claude account its walk last moved it to, where it moved.
     let ended_on = roads.last().map_or_else(|| taken.clone(), |(road, _)| road.clone());
+
+    // A person's own credential the provider refused passes over to the next source on the same road, in a new
+    // session, and blocks no road (docs/supply.md, 「Running out mid-turn」).
+    if chosen.source == crate::supply::Source::Personal
+      && matches!(
+        road::BlockKind::of_words(&stopped),
+        Some(road::BlockKind::Access | road::BlockKind::Limit { .. })
+      )
+    {
+      personal_refused(ground, job, &chosen, &stopped).await;
+      noted_line(
+        ground,
+        job.id,
+        &format!("The job's own supply on {} was refused: {stopped}", ended_on.words()),
+      )
+      .await;
+
+      let handoff = crate::job_handoff::road_stopped(ground, job.id).await;
+
+      prompt = crate::job_handoff::ahead(&handoff.text, &continued(&ended_on, &stopped, job.prompt));
+      keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
+      refused_everywhere = false;
+      last = Some(("ended".to_owned(), outcome, report, None));
+      continue;
+    }
 
     noted_line(
       ground,
@@ -2222,6 +2321,177 @@ pub async fn carry_job<C: Carrier>(
     );
     last = Some(("ended".to_owned(), outcome, report, None));
   }
+}
+
+/// The supply a job's turn takes on the road it goes out on (docs/supply.md, 「Choosing a source as a run
+/// starts」): the source chosen, kept for its launch and its walk under its checkout and its job and written on its
+/// row; or, where none is left, why.
+async fn supply_of_turn(
+  ground: &Ground,
+  job: &Carried<'_>,
+  taken: &Road,
+) -> Result<crate::supply::Choice, String> {
+  let account = crate::supply::account_of(ground, job.holder).await.map_err(|why| why.detail)?;
+  let room = room_of_job(ground, job.id).await;
+  let asked = crate::supply::Asked {
+    kind: crate::supply::Kind::Job,
+    id: job.id,
+    agent: job.worker,
+    account,
+    provider: &taken.provider,
+    model: &taken.model,
+    job: Some(job.id),
+    supervisor: Some(job.holder).filter(|holder| !holder.is_empty()),
+    room,
+  };
+  let choice = crate::supply::choose(ground, &asked).await.map_err(|why| why.detail)?;
+
+  if let crate::supply::Choice::Go(chosen) = &choice {
+    let told = crate::supply::told::Told {
+      supervisor: Some(job.holder.to_owned()).filter(|holder| !holder.is_empty()),
+      room,
+    };
+
+    crate::supply::settle_choice(ground, job.worker, chosen, Some(job.id), &told).await;
+    crate::supply::remember(&ground.roots.data, &crate::supply::job_key(job.id), chosen);
+    add_job_cost(&ground.db, job.id, None, Some(chosen.source.word())).await;
+  }
+
+  Ok(choice)
+}
+
+/// The room a job answers in, where its row names one.
+async fn room_of_job(ground: &Ground, id: i64) -> Option<i64> {
+  one(&ground.db, r#"SELECT "room_id" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()?
+    .try_get::<Option<i64>>("", "room_id")
+    .ok()
+    .flatten()
+}
+
+/// A job with no supply left held with the sentence that says so, holding no slot, for one beat of the supply's
+/// wait, told once for the wait: answers whether it goes on to ask again, false where it was called off.
+async fn wait_for_supply(
+  ground: &Ground,
+  job: &Carried<'_>,
+  taken: &Road,
+  closed: &crate::supply::Closed,
+  waits: &mut bool,
+) -> Result<bool, String> {
+  if !std::mem::replace(waits, true) {
+    held_for(ground, job.id, Some(&closed.sentence)).await;
+    noted_line(ground, job.id, &closed.sentence).await;
+
+    let account = crate::supply::account_of(ground, job.holder).await.map_err(|why| why.detail)?;
+    let told = crate::supply::told::Told {
+      supervisor: Some(job.holder.to_owned()).filter(|holder| !holder.is_empty()),
+      room: room_of_job(ground, job.id).await,
+    };
+
+    crate::supply::told::closed(
+      ground,
+      &crate::supply::job_key(job.id),
+      account,
+      Some(job.id),
+      &taken.provider,
+      &taken.model,
+      &told,
+      closed,
+    )
+    .await;
+  }
+
+  tokio::time::sleep(std::time::Duration::from_secs(policy::supply::SUPPLY.wait_seconds.max(1))).await;
+
+  if called_off(ground, job.id).await {
+    held_for(ground, job.id, None).await;
+
+    return Ok(false);
+  }
+
+  Ok(true)
+}
+
+/// A job's turn carried with the meter on its reservation, where it went out on one: the turn's end, and where
+/// the meter found no source left, why, the turn cancelled as its program is asked to stop. The reservation is
+/// settled as the turn ends.
+async fn metered_carry<F>(
+  ground: &Ground,
+  job: &Carried<'_>,
+  taken: &Road,
+  chosen: &crate::supply::Chosen,
+  carry: F,
+) -> Result<(Result<TurnEnd, String>, Option<crate::supply::Closed>), String>
+where
+  F: std::future::Future<Output = Result<TurnEnd, String>>,
+{
+  use crate::supply::meter::{self, Reading};
+
+  let since = now_ms();
+  let reading = if taken.provider == "claude-code" {
+    Reading::JobStatusLine {
+      job: job.id,
+      worker: job.worker.to_owned(),
+      since,
+    }
+  } else {
+    Reading::Gateway {
+      run: job.worker.to_owned(),
+      since,
+    }
+  };
+  let Some(shared) =
+    meter::metered(chosen, reading, job.worker, Some(job.id), room_of_job(ground, job.id).await)
+  else {
+    return Ok((carry.await, None));
+  };
+  let watch = meter::watch(ground, shared.clone());
+
+  tokio::pin!(carry);
+  tokio::pin!(watch);
+
+  let (end, ran_out) = tokio::select! {
+    end = &mut carry => (end, None),
+    closed = &mut watch => {
+      let closed = Some(closed);
+
+      if let Ok((member, _)) = crate::control::work::job(&ground.db, job.id).await
+        && let Some(name) = member["runName"].as_str().filter(|name| !name.is_empty())
+      {
+        let _ = crate::queue::stops::Stops::of(ground, None).cancel(name).await;
+      }
+
+      (carry.await, closed)
+    }
+  };
+
+  if let Err(why) = meter::finish(ground, &shared).await {
+    eprintln!("job {}: its supply reservation was not settled: {why}", job.id);
+  }
+
+  Ok((end, ran_out))
+}
+
+/// A person's own credential refused under a job's turn: a gateway road's key waits for its person, told once
+/// to their own supervisor room; a Claude login's walk already marked it.
+async fn personal_refused(ground: &Ground, job: &Carried<'_>, chosen: &crate::supply::Chosen, why: &str) {
+  let Some(account) = chosen.account else { return };
+
+  if chosen.provider != "claude-code" {
+    match crate::supply::refuse_personal_key(ground, account, &chosen.provider).await {
+      Ok(_) => {}
+      Err(refused) => eprintln!("job {}: its refused key was not marked: {}", job.id, refused.detail),
+    }
+  }
+
+  let told = crate::supply::told::Told {
+    supervisor: Some(job.holder.to_owned()).filter(|holder| !holder.is_empty()),
+    room: room_of_job(ground, job.id).await,
+  };
+
+  crate::supply::told::refused(ground, &told, &chosen.run, &chosen.provider, why).await;
 }
 
 /// The agent a job's item names, as its row keeps it from the launch (docs/repositories.md, 「An agent an item
@@ -2852,6 +3122,12 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
     )
     .await
     .map_err(|why| why.detail)?;
+
+    // The supply source the turn went out on is kept on its run (docs/run-records.md, 「The run ledger」).
+    if let Some(chosen) = crate::supply::chosen_for(&ground.roots.data, self.worker) {
+      let _ = run_ledger::mark_supply(&ground.db, ledger, chosen.source.word()).await;
+    }
+
     let marked = run(
       &ground.db,
       r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5

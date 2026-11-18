@@ -151,7 +151,7 @@ side of a remote agent, the rotation, and what a dropped node does.
     each supervisor of an account whose record names the node shared to that folder under the account's root
     there (`docs/person-nodes.md`, 「Several accounts on one node」), every file
     the program names under the data root or the prompt tree sent along — never one under the data
-    root's credential directory but the model gateway's key (「The model gateway on a node」 below) — and of
+    root's credential directory but the call key of the gateway its programs go out on (「The model gateway on a node」 below) — and of
     the program's environment only the run's own variables, the CLI's (the account's token for the nodes
     among them), its place, its tool token, the console's public address, a supervisor's owner account and
     a gateway road's own variables: no other token of the bot's leaves this machine. The node's own search
@@ -205,13 +205,18 @@ side of a remote agent, the rotation, and what a dropped node does.
   gateway whose address is not on this machine's loopback is reached from the node as it stands, and the
   link carries nothing for it.
 - **The road's variables go with the program:** its base address, its model names, its headers, its waits
-  and its tool search, which the link's environment keeps beside the run's own. The variables a login of
-  Claude's road would stand in — an API key, an auth token — never go.
+  and its tool search, which the link's environment keeps beside the run's own, and the name of the run's program, its agent, in
+  the `x-bmo-run` header its requests carry. The variables a login of Claude's road would stand in — an auth token,
+  an API key — never go, but for a person's own `api-key` account on that person's own node
+  (`docs/supply.md`, 「What a person brings」).
 - **The key goes as a file beside the program that names it,** the one file under the data root's
-  credential directory a link sends: the gateway's key file, sent where a pushed program's settings name it
-  for their key helper, written at its path under the node's data root readable by the node's user alone,
-  as the run's tool token is written into the program's file there, and sent again when it changes. It is
-  never put in a command line or an environment, and a node none of whose programs names it holds none.
+  credential directory a link sends for it: the call key of the account the program runs for, or the
+  gateway's own key for a program of the deployment's, sent where a pushed program's settings name it for
+  their key helper, written at its path under the node's data root readable by the node's user alone, as the
+  run's tool token is written into the program's file there, and sent again when it changes. A node that is a
+  person's is sent the call keys of the accounts its record names and never the gateway's own key
+  (`docs/own-llm.md`, 「The keys」). A key is never put in a command line or an environment, and a node none of
+  whose programs names it holds none.
 
 ## The logins on a node
 

@@ -1316,7 +1316,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("FallbackChange"),
     answers: &[(200, Some("Fallback"), false)],
-    codes: &[],
+    codes: &["forbidden", "unknown-account", "not-lendable"],
   },
   Operation {
     method: "POST",
@@ -1327,7 +1327,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("ClaudeLoginStart"),
     answers: &[(201, Some("ClaudeLoginStarted"), false)],
-    codes: &["not-found", "not-a-directory", "directory-taken"],
+    codes: &["not-found", "not-a-directory", "directory-taken", "node-not-attached"],
   },
   Operation {
     method: "POST",
@@ -1531,6 +1531,79 @@ pub const OPERATIONS: &[Operation] = &[
     body: Some("AccountUsage"),
     answers: &[(200, Some("Account"), false)],
     codes: &["not-found"],
+  },
+  Operation {
+    method: "GET",
+    path: "/personal-supply",
+    id: "listPersonalSupply",
+    tag: "accounts",
+    summary: "A person's own gateway keys, or each person's roads for the administrator.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("PersonalSupplyPage"), false)],
+    codes: &["forbidden"],
+  },
+  Operation {
+    method: "POST",
+    path: "/personal-supply",
+    id: "createPersonalSupply",
+    tag: "accounts",
+    summary: "Add a key of the signed-in person's for a gateway road.",
+    params: &[],
+    body: Some("PersonalSupplyAsk"),
+    answers: &[(201, Some("PersonalSupplyKey"), false)],
+    codes: &["bad-request", "forbidden", "unknown-road", "conflict"],
+  },
+  Operation {
+    method: "PATCH",
+    path: "/personal-supply/{supplyId}",
+    id: "changePersonalSupply",
+    tag: "accounts",
+    summary: "Change one of the person's keys: its place or its switch.",
+    params: &[Param {
+      name: "supplyId",
+      place: "path",
+      required: true,
+      kind: "integer",
+      description: "",
+    }],
+    body: Some("PersonalSupplyChange"),
+    answers: &[(200, Some("PersonalSupplyKey"), false)],
+    codes: &["bad-request", "forbidden", "unknown-supply"],
+  },
+  Operation {
+    method: "DELETE",
+    path: "/personal-supply/{supplyId}",
+    id: "deletePersonalSupply",
+    tag: "accounts",
+    summary: "Remove one of the person's keys.",
+    params: &[Param {
+      name: "supplyId",
+      place: "path",
+      required: true,
+      kind: "integer",
+      description: "",
+    }],
+    body: None,
+    answers: &[(204, None, false)],
+    codes: &["forbidden", "unknown-supply"],
+  },
+  Operation {
+    method: "POST",
+    path: "/people/{user}/off-boarding",
+    id: "offBoardPerson",
+    tag: "accounts",
+    summary: "Switch a person's supply off and revoke their call key.",
+    params: &[Param {
+      name: "user",
+      place: "path",
+      required: true,
+      kind: "integer",
+      description: "the person's user id",
+    }],
+    body: None,
+    answers: &[(200, Some("OffBoarded"), false)],
+    codes: &["bad-request", "forbidden"],
   },
   Operation {
     method: "GET",
@@ -3038,6 +3111,9 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "FoldRatioPage" => g.subschema_for::<FoldRatioPage>(),
     "RoadBlockPage" => g.subschema_for::<RoadBlockPage>(),
     "AccountPage" => g.subschema_for::<AccountPage>(),
+    "PersonalSupplyPage" => g.subschema_for::<PersonalSupplyPage>(),
+    "PersonalSupplyKey" => g.subschema_for::<PersonalSupplyKey>(),
+    "OffBoarded" => g.subschema_for::<OffBoarded>(),
     "WorkerPage" => g.subschema_for::<WorkerPage>(),
     "Assignment" => g.subschema_for::<Assignment>(),
     "AssignmentPage" => g.subschema_for::<AssignmentPage>(),
@@ -3106,6 +3182,8 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "TierChange" => g.subschema_for::<TierChange>(),
     "FoldRatioWrite" => g.subschema_for::<FoldRatioWrite>(),
     "FallbackChange" => g.subschema_for::<FallbackChange>(),
+    "PersonalSupplyAsk" => g.subschema_for::<PersonalSupplyAsk>(),
+    "PersonalSupplyChange" => g.subschema_for::<PersonalSupplyChange>(),
     "RoadBlockAsk" => g.subschema_for::<RoadBlockAsk>(),
     "LaunchHeldAsk" => g.subschema_for::<LaunchHeldAsk>(),
     "AccountUsage" => g.subschema_for::<AccountUsage>(),
@@ -3126,7 +3204,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 36] = [
+pub const EVENTS: [&str; 37] = [
   "supervisor.changed",
   "role.changed",
   "session.created",
@@ -3163,6 +3241,7 @@ pub const EVENTS: [&str; 36] = [
   "job.changed",
   "job.ended",
   "road-walked",
+  "supply.changed",
 ];
 
 /// The upstreams this service reaches, through what each repository publishes.
@@ -3191,12 +3270,11 @@ fn status_of(code: &str) -> u16 {
     "bad-request" => 400,
     "unauthorized" => 401,
     "forbidden" => 403,
-    "no-route" | "not-found" | "no-job" | "unknown-session" | "unknown-repository" | "unknown-worker" => {
-      404
-    }
+    "no-route" | "not-found" | "no-job" | "unknown-session" | "unknown-repository" | "unknown-worker"
+    | "unknown-account" | "unknown-supply" => 404,
     "not-the-sender" => 403,
     "conflict" | "name-taken" | "node-taken" | "seeded" | "running" | "no-turn" | "not-owner"
-    | "worker-on-node" | "agent-busy" => 409,
+    | "worker-on-node" | "agent-busy" | "node-not-attached" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" | "checkout-not-made" => 500,

@@ -84,6 +84,9 @@ pub struct Spent {
   pub output_tokens: i64,
   pub cache_read_tokens: i64,
   pub cache_write_tokens: i64,
+  /// What it cost, in millionths of a US dollar, summed over the models that answered; nought where none said.
+  #[serde(default)]
+  pub cost_micros: i64,
 }
 
 impl Spent {
@@ -150,6 +153,7 @@ impl Run {
       output_tokens,
       cache_read_tokens,
       cache_write_tokens,
+      cost_micros: figure("cost_micros").ok().flatten().unwrap_or_default(),
     }))
   }
 }
@@ -205,6 +209,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
     db,
     r#"UPDATE "runs" SET "finished_at" = $2, "outcome" = $3, "context_tokens" = $4,
          "input_tokens" = $5, "output_tokens" = $6, "cache_read_tokens" = $7, "cache_write_tokens" = $8,
+         "cost_micros" = $9,
          "tool_count" = (SELECT COUNT(*) FROM "agent_log" l
                           WHERE l."agent" = "runs"."agent" AND l."run" = "runs"."unit" AND l."kind" = 'tool')
        WHERE "id" = $1 AND "finished_at" IS NULL"#,
@@ -217,6 +222,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
       closing.spent.map(|spent| spent.output_tokens).into(),
       closing.spent.map(|spent| spent.cache_read_tokens).into(),
       closing.spent.map(|spent| spent.cache_write_tokens).into(),
+      closing.spent.map(|spent| spent.cost_micros).filter(|cost| *cost > 0).into(),
     ],
   )
   .await
@@ -234,7 +240,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
 
 // What a run is read with.
 const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "title", "depth", "started_at", "finished_at", "outcome",
-  "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "round",
+  "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "cost_micros", "round",
   "message_id", "tool_count""#;
 
 /// A run by its id, or none where the ledger holds no row of it.
@@ -344,6 +350,18 @@ pub struct RoundSpend {
   pub last_at: i64,
 }
 
+/// The supply source a run went out on written on it (docs/run-records.md, 「The run ledger」).
+pub async fn mark_supply<C: ConnectionTrait>(db: &C, id: i64, source: &str) -> Result<(), Refusal> {
+  run(
+    db,
+    r#"UPDATE "runs" SET "supply_source" = $2 WHERE "id" = $1"#,
+    vec![id.into(), source.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
 /// The spend of the rounds whose runs started between two moments in epoch seconds, the costliest first.
 pub async fn spent_by_round<C: ConnectionTrait>(
   db: &C,
@@ -355,7 +373,7 @@ pub async fn spent_by_round<C: ConnectionTrait>(
     r#"SELECT "round", COUNT(*) AS "turns",
               SUM("input_tokens")::bigint AS "input_tokens", SUM("output_tokens")::bigint AS "output_tokens",
               SUM("cache_read_tokens")::bigint AS "cache_read_tokens",
-              SUM("cache_write_tokens")::bigint AS "cache_write_tokens",
+              SUM("cache_write_tokens")::bigint AS "cache_write_tokens", SUM("cost_micros")::bigint AS "cost_micros",
               MIN("started_at") AS "first_at", MAX("started_at") AS "last_at"
        FROM "runs"
        WHERE "round" IS NOT NULL AND "input_tokens" IS NOT NULL AND "started_at" >= $1 AND "started_at" <= $2
@@ -374,6 +392,7 @@ pub async fn spent_by_round<C: ConnectionTrait>(
         output_tokens: row.try_get("", "output_tokens")?,
         cache_read_tokens: row.try_get("", "cache_read_tokens")?,
         cache_write_tokens: row.try_get("", "cache_write_tokens")?,
+        cost_micros: row.try_get::<Option<i64>>("", "cost_micros")?.unwrap_or_default(),
       },
       first_at: row.try_get("", "first_at")?,
       last_at: row.try_get("", "last_at")?,

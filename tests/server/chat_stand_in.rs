@@ -172,7 +172,9 @@ async fn a_codex_step_with_no_kept_thread_opens_one() {
 #[tokio::test]
 async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   let home = tempfile::tempdir().unwrap();
-  let ground = ground_on(DatabaseConnection::Disconnected, home.path(), &[]);
+  // A launch on the gateway asks the store whose run it is, for the key its requests carry.
+  let scratch = Scratch::new().await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
   let home_dir = ground.roots.data.join("claude-roads/openrouter/vendor-model");
   let key = ground.roots.data.join("env/llm-gateway.key");
 
@@ -234,6 +236,8 @@ async fn a_claude_code_step_stands_claude_code_on_its_login_and_not_on_the_gatew
     },
     needs_login_at: None,
     user_id: None,
+    node: None,
+    lendable: false,
     base_prompt: None,
     node_token_gone: None,
   };

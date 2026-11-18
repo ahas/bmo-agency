@@ -69,10 +69,11 @@ pub enum CredentialKind {
   Directory,
   Token,
   Endpoint,
+  ApiKey,
 }
 
 impl CredentialKind {
-  pub const ALL: [Self; 3] = [Self::Directory, Self::Token, Self::Endpoint];
+  pub const ALL: [Self; 4] = [Self::Directory, Self::Token, Self::Endpoint, Self::ApiKey];
 
   /// The word the kind is stored and named by.
   pub fn word(self) -> &'static str {
@@ -80,6 +81,7 @@ impl CredentialKind {
       Self::Directory => "directory",
       Self::Token => "token",
       Self::Endpoint => "endpoint",
+      Self::ApiKey => "api-key",
     }
   }
 
@@ -156,8 +158,9 @@ impl EndpointModels {
 
 /// How a run reaches an account's login, read once from its row (docs/cache-fallback.md, 「The Claude Code
 /// road is a list of accounts」): a configuration directory holding the login, a file holding a long-lived
-/// token, or another provider's Anthropic-compatible endpoint, reached under a configuration home of the
-/// account's own with the key its file holds.
+/// token, another provider's Anthropic-compatible endpoint, reached under a configuration home of the
+/// account's own with the key its file holds, or Anthropic's own API on an API key, under a configuration
+/// home of its own with the key its secret under the data root's `env/` holds.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Credential {
   Directory {
@@ -171,6 +174,10 @@ pub enum Credential {
     url: String,
     key_file: PathBuf,
     models: EndpointModels,
+  },
+  ApiKey {
+    home: PathBuf,
+    key_file: PathBuf,
   },
 }
 
@@ -188,6 +195,13 @@ impl Credential {
     match CredentialKind::named(kind) {
       Some(CredentialKind::Directory) => Ok(Self::Directory { home: path }),
       Some(CredentialKind::Token) => Ok(Self::Token { file: path }),
+      Some(CredentialKind::ApiKey) => Ok(Self::ApiKey {
+        home: path,
+        key_file: key_file
+          .filter(|file| !file.is_empty())
+          .map(PathBuf::from)
+          .ok_or("an api-key account names no secret")?,
+      }),
       Some(CredentialKind::Endpoint) => Ok(Self::Endpoint {
         home: path,
         url: url.filter(|url| !url.is_empty()).ok_or("an endpoint account names no base URL")?,
@@ -209,12 +223,14 @@ impl Credential {
       Self::Directory { .. } => CredentialKind::Directory,
       Self::Token { .. } => CredentialKind::Token,
       Self::Endpoint { .. } => CredentialKind::Endpoint,
+      Self::ApiKey { .. } => CredentialKind::ApiKey,
     }
   }
 
   /// Every variable a run is handed this credential in, which a pane is given by name: the login's own
-  /// for a directory or token account, and an endpoint account's configuration home, base URL, key and
-  /// model ids (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」).
+  /// for a directory or token account, an endpoint account's configuration home, base URL, key and model
+  /// ids, and an `api-key` account's configuration home and key (docs/cache-fallback.md, 「The Claude Code
+  /// road is a list of accounts」).
   pub fn variables(&self) -> &'static [&'static str] {
     match self {
       Self::Directory { .. } => &["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN"],
@@ -227,14 +243,15 @@ impl Credential {
         "ANTHROPIC_DEFAULT_SONNET_MODEL",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL",
       ],
+      Self::ApiKey { .. } => &["CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY"],
     }
   }
 
   /// The path the row keeps as the credential's: the configuration directory, the token's file, or the
-  /// endpoint account's own configuration home.
+  /// endpoint or `api-key` account's own configuration home.
   pub fn path(&self) -> &Path {
     match self {
-      Self::Directory { home } | Self::Endpoint { home, .. } => home,
+      Self::Directory { home } | Self::Endpoint { home, .. } | Self::ApiKey { home, .. } => home,
       Self::Token { file } => file,
     }
   }
@@ -249,7 +266,16 @@ impl Credential {
         models,
         ..
       } => (Some(url), Some(key_file), Some(models)),
-      Self::Directory { .. } | Self::Token { .. } => (None, None, None),
+      Self::Directory { .. } | Self::Token { .. } | Self::ApiKey { .. } => (None, None, None),
+    }
+  }
+
+  /// The file its key sits in: an endpoint account's key file or an `api-key` account's secret, none on
+  /// another kind. The key's content is never read here.
+  pub fn key_file(&self) -> Option<&Path> {
+    match self {
+      Self::Endpoint { key_file, .. } | Self::ApiKey { key_file, .. } => Some(key_file),
+      Self::Directory { .. } | Self::Token { .. } => None,
     }
   }
 
@@ -257,17 +283,17 @@ impl Credential {
   /// account, which goes out under the machine's.
   pub fn own_home(&self) -> Option<&Path> {
     match self {
-      Self::Directory { home } | Self::Endpoint { home, .. } => Some(home),
+      Self::Directory { home } | Self::Endpoint { home, .. } | Self::ApiKey { home, .. } => Some(home),
       Self::Token { .. } => None,
     }
   }
 
-  /// The file its login sits in, none for an endpoint account, which holds no login.
+  /// The file its login sits in, none for an endpoint or `api-key` account, which holds no login.
   pub fn login_file(&self) -> Option<PathBuf> {
     match self {
       Self::Directory { home } => Some(home.join(CREDENTIAL_FILE)),
       Self::Token { file } => Some(file.clone()),
-      Self::Endpoint { .. } => None,
+      Self::Endpoint { .. } | Self::ApiKey { .. } => None,
     }
   }
 
@@ -275,17 +301,17 @@ impl Credential {
   pub fn token_file(&self) -> Option<&Path> {
     match self {
       Self::Token { file } => Some(file),
-      Self::Directory { .. } | Self::Endpoint { .. } => None,
+      Self::Directory { .. } | Self::Endpoint { .. } | Self::ApiKey { .. } => None,
     }
   }
 
-  /// The credential the Claude account reader asks the provider's usage of, none for an endpoint
-  /// account, which is paid by the request and has no windows (docs/usage-windows.md).
+  /// The credential the Claude account reader asks the provider's usage of, none for an endpoint or
+  /// `api-key` account, which is paid by the request and has no windows (docs/usage-windows.md).
   pub fn window_credential(&self) -> Option<WindowCredential> {
     match self {
       Self::Directory { home } => Some(WindowCredential::Directory(home.join(CREDENTIAL_FILE))),
       Self::Token { file } => Some(WindowCredential::Token(file.clone())),
-      Self::Endpoint { .. } => None,
+      Self::Endpoint { .. } | Self::ApiKey { .. } => None,
     }
   }
 
@@ -300,9 +326,11 @@ impl Credential {
   }
 
   /// Whether a run may go out on it from a work node (docs/work-nodes.md): a directory or token account
-  /// by its token for the nodes, never an endpoint account, whose key file stays on this machine.
+  /// by its token for the nodes, never an endpoint account, whose key file stays on this machine, nor an
+  /// `api-key` account as the credential alone says it, since the platform's key stays here too; a person's
+  /// `api-key` account goes out on their node all the same (`Account::runs_on_nodes`).
   pub fn runs_on_nodes(&self) -> bool {
-    !matches!(self, Self::Endpoint { .. })
+    !matches!(self, Self::Endpoint { .. } | Self::ApiKey { .. })
   }
 
   /// Whether its token for the work nodes is a login apart from its login here: a directory account's,
@@ -311,18 +339,17 @@ impl Credential {
     matches!(self, Self::Directory { .. })
   }
 
-  /// Whether a run is ever sent on it only to keep its cache warm: never on an endpoint account, which
-  /// keeps its own cache and is paid by the request (docs/cache-fallback.md, 「Warming only enabled
-  /// providers」).
+  /// Whether a run is ever sent on it only to keep its cache warm: never on an endpoint or `api-key`
+  /// account, which is paid by the request (docs/cache-fallback.md, 「Warming only enabled providers」).
   pub fn warmed(&self) -> bool {
-    !matches!(self, Self::Endpoint { .. })
+    !matches!(self, Self::Endpoint { .. } | Self::ApiKey { .. })
   }
 
-  /// Whether its key is there to be handed to a run: an endpoint account's key file present and not
-  /// empty, never opened; every other kind holds no key to judge.
+  /// Whether its key is there to be handed to a run: an endpoint account's key file or an `api-key`
+  /// account's secret present and not empty, never opened; every other kind holds no key to judge.
   pub fn key_held(&self) -> bool {
     match self {
-      Self::Endpoint { key_file, .. } => {
+      Self::Endpoint { key_file, .. } | Self::ApiKey { key_file, .. } => {
         std::fs::metadata(key_file).is_ok_and(|held| held.is_file() && held.len() > 0)
       }
       Self::Directory { .. } | Self::Token { .. } => true,
@@ -341,6 +368,12 @@ pub struct Account {
   pub needs_login_at: Option<i64>,
   /// The user whose account it is, where the multi-user model names one.
   pub user_id: Option<i64>,
+  /// The node a person's login was signed in on and stands on, none for an account of this machine's
+  /// (docs/supply.md, 「Signing a person's login in」).
+  pub node: Option<String>,
+  /// Whether the platform's account goes out for another person's run (docs/supply.md, 「The lendable
+  /// accounts」).
+  pub lendable: bool,
   /// The base prompt a worker's run on it opens on, where it names one (docs/base-prompts.md).
   pub base_prompt: Option<String>,
   /// The token for the work nodes its mark of one found gone names, as the token file's moment stood then;
@@ -366,8 +399,24 @@ impl Account {
       Credential::Endpoint { models, .. } => models
         .of_family(ClaudeCode::family(model))
         .map_or_else(|| model.to_owned(), str::to_owned),
-      Credential::Directory { .. } | Credential::Token { .. } => model.to_owned(),
+      Credential::Directory { .. } | Credential::Token { .. } | Credential::ApiKey { .. } => {
+        model.to_owned()
+      }
     }
+  }
+
+  /// Whether a run may go out on it from a work node: as its credential says, and a person's `api-key`
+  /// account besides, whose key is the person's own and goes out on their node with the run
+  /// (docs/supply.md, 「The lendable accounts」).
+  pub fn runs_on_nodes(&self) -> bool {
+    self.credential.runs_on_nodes()
+      || matches!(self.credential, Credential::ApiKey { .. }) && self.user_id.is_some()
+  }
+
+  /// Whether it is a person's login signed in on their node, whose configuration directory stands there
+  /// and nowhere here.
+  pub fn on_own_node(&self) -> bool {
+    self.user_id.is_some() && self.node.is_some()
   }
 
   /// The directory the CLI keeps this account's records under: its configuration home where it has
@@ -386,14 +435,14 @@ impl Account {
 
   /// Where this machine keeps its token for the work nodes (docs/work-nodes.md, 「The logins on a
   /// node」): a token account's own file, a file named by its id under the data root's env directory for
-  /// a directory account, and none for an endpoint account.
+  /// a directory account, and none for an endpoint or `api-key` account.
   pub fn node_token_file(&self, data_root: &Path) -> Option<PathBuf> {
     match &self.credential {
       Credential::Token { file } => Some(file.clone()),
       Credential::Directory { .. } => {
         Some(data_root.join("env").join(&CLAUDE_CODE.node_login.token_dir).join(&self.id))
       }
-      Credential::Endpoint { .. } => None,
+      Credential::Endpoint { .. } | Credential::ApiKey { .. } => None,
     }
   }
 
@@ -477,10 +526,10 @@ impl Account {
 
   /// Whether a login marked as waiting for a person stands again, read off its credential rather than
   /// anybody's word: a login whose credential states a moment after `now`, which somebody signed in to
-  /// since, or an endpoint account whose key file was written after the mark and is not empty.
+  /// since, or an endpoint or `api-key` account whose key file was written after the mark and is not empty.
   pub fn login_back(&self, now: i64) -> bool {
     match &self.credential {
-      Credential::Endpoint { key_file, .. } => {
+      Credential::Endpoint { key_file, .. } | Credential::ApiKey { key_file, .. } => {
         self.credential.key_held()
           && self.needs_login_at.is_some_and(|marked| {
             written_ms(key_file).is_some_and(|written| written > marked as f64 * 1000.0)
@@ -517,7 +566,7 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
   let rows = all(
     db,
     r#"SELECT a.id, a.name, a.place, a.enabled, a.credential_kind, a.credential_path, a.endpoint_url,
-       a.key_file, a.endpoint_models, a.needs_login_at, a.user_id, a.base_prompt,
+       a.key_file, a.endpoint_models, a.needs_login_at, a.user_id, a.node, a.lendable, a.base_prompt,
        s."value" AS node_token_gone
      FROM claude_accounts a
      LEFT JOIN "settings" s ON s."key" = $1 || a.id
@@ -546,6 +595,8 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
         credential,
         needs_login_at: row.try_get("", "needs_login_at")?,
         user_id: row.try_get("", "user_id")?,
+        node: row.try_get("", "node")?,
+        lendable: row.try_get("", "lendable")?,
         base_prompt: row.try_get("", "base_prompt")?,
         node_token_gone: row.try_get("", "node_token_gone")?,
       }),
@@ -940,27 +991,66 @@ pub async fn chosen_account(db: &DatabaseConnection) -> Result<Option<Account>, 
 }
 
 /// The user who administers the platform, where the multi-user model names one.
-async fn administrator(db: &DatabaseConnection) -> Result<Option<i64>, Refused> {
+pub async fn administrator(db: &DatabaseConnection) -> Result<Option<i64>, Refused> {
   Ok(setting(db, "users_administrator").await?.and_then(|value| leading_integer(&value)))
 }
 
-/// The logins a run may go out on for the user it is made for, whether or not they answer now, in the order
-/// the road takes them: that user's own logins alone, and for no user the platform's own work's.
-pub async fn carried_for_user(db: &DatabaseConnection, user: Option<i64>) -> Result<Vec<Account>, Refused> {
-  let administrator = if user.is_none() { administrator(db).await? } else { None };
-  let carries = |account: &Account| match user {
-    Some(user) => account.user_id == Some(user),
-    None => account.user_id.is_none() || administrator.is_none() || account.user_id == administrator,
+/// Whether an account is the platform's own, given the user who administers it: one of no person's, or of
+/// the administrator's, and every account while the multi-user model names no administrator.
+pub fn platform_owned(account: &Account, administrator: Option<i64>) -> bool {
+  account.user_id.is_none() || administrator.is_none() || account.user_id == administrator
+}
+
+/// The logins a run may go out on (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Carrying {
+  /// The platform's own work's: the platform's accounts and the administrator's, lent or not.
+  Platform,
+  /// One person's own accounts alone.
+  Own(i64),
+  /// The platform's accounts marked lendable alone, which another person's run on a platform source walks
+  /// (docs/supply.md, 「The lendable accounts」).
+  Lent,
+}
+
+impl From<Option<i64>> for Carrying {
+  fn from(user: Option<i64>) -> Self {
+    match user {
+      Some(user) => Self::Own(user),
+      None => Self::Platform,
+    }
+  }
+}
+
+/// The logins a run may go out on for whom it carries, whether or not they answer now, in the order the
+/// road takes them: one person's own logins alone, the platform's lendable ones, or for no person the
+/// platform's own work's.
+pub async fn carried_for_user(
+  db: &DatabaseConnection,
+  user: impl Into<Carrying>,
+) -> Result<Vec<Account>, Refused> {
+  let carrying = user.into();
+  let administrator = if carrying == Carrying::Platform { administrator(db).await? } else { None };
+  let carries = |account: &Account| match carrying {
+    Carrying::Own(user) => account.user_id == Some(user),
+    Carrying::Platform => platform_owned(account, administrator),
+    Carrying::Lent => account.user_id.is_none() && account.lendable,
   };
 
   Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
 }
 
-/// The logins a run on `model` is offered for the user it is made for: of the logins it may go out on, those
-/// that answer that model now, or any model where none is named.
+/// The platform's accounts marked lendable, on, in the order the road takes them: what another person's
+/// run on a platform source may go out on (docs/supply.md, 「The lendable accounts」).
+pub async fn lent_accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
+  carried_for_user(db, Carrying::Lent).await
+}
+
+/// The logins a run on `model` is offered for whom it carries: of the logins it may go out on, those that
+/// answer that model now, or any model where none is named.
 pub async fn walk_for_user(
   judging: Judging<'_>,
-  user: Option<i64>,
+  user: impl Into<Carrying>,
   model: Option<&str>,
 ) -> Result<Vec<Account>, Refused> {
   let now = now_ms();
@@ -1102,14 +1192,23 @@ pub fn login_standing(account: &Account, now: i64) -> &'static str {
 /// chose it, whether automatic runs go out on it now and how long a limit rest keeps it out of the
 /// walk. The path is the whole of what is shown of a credential.
 pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
+  views_of(judging, |_| true).await
+}
+
+/// The views of the accounts `shown` takes, in the road's order: what a caller acting for one person, or for
+/// the platform, reads of the list (docs/api.md, 「Who a caller acts for」).
+pub async fn views_of(
+  judging: Judging<'_>,
+  shown: impl Fn(&Account) -> bool,
+) -> Result<Vec<Value>, Refused> {
   let now = now_ms();
   let chosen = chosen_account(judging.db).await?.map(|one| one.id);
   let serving = open_accounts(judging).await?.first().map(|one| one.id.clone());
   let mut views = Vec::new();
 
-  for account in accounts(judging.db).await? {
+  for account in accounts(judging.db).await?.into_iter().filter(|one| shown(one)) {
     let rest = rest_until(judging, &account.id).await?.filter(|until| until * 1000 > now);
-    let (endpoint, key_file, models) = account.credential.endpoint_parts();
+    let (endpoint, _, models) = account.credential.endpoint_parts();
     let (session, week) = super::fallback::account_headlines(judging.windows, &account).await?;
     let balance = super::fallback::account_balance(judging.windows, &account).await?;
 
@@ -1121,9 +1220,12 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
       "credentialKind": account.credential.kind().word(),
       "credentialPath": account.credential.path().to_string_lossy(),
       "endpointUrl": endpoint,
-      "keyFile": key_file.map(|file| file.to_string_lossy()),
+      "keyFile": account.credential.key_file().map(|file| file.to_string_lossy()),
       "models": models,
       "basePrompt": account.base_prompt,
+      "userId": account.user_id,
+      "node": account.node,
+      "lendable": account.lendable,
       "login": login_standing(&account, now),
       "onToken": account.carrying_token(judging.data_root, now).is_some(),
       "loginEndsAt": login_end(&account).map(|end| (end / 1000.0).floor() as i64),

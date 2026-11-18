@@ -836,13 +836,84 @@ pub struct Tier {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Fallback {
+  #[serde(default)]
   pub routes: Vec<Value>,
-  /// The agent serving the chat now and what it has used.
+  /// The agent serving the chat now and what it has used; null on a person's call.
   #[serde(default)]
   pub active: Option<FallbackActive>,
-  /// Every Claude account as the road walks them.
+  /// The Claude accounts the caller reads, as the road walks them: a person's own alone, and the platform's
+  /// on the administrator's and the deployment's own calls.
   #[serde(default)]
   pub accounts: Vec<FallbackAccount>,
+  /// Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub personal_supply: Option<Vec<PersonSupply>>,
+}
+
+/// A person's supply as the platform reads it: the person and the roads their own credentials serve.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonSupply {
+  pub user: i64,
+  /// `claude-code` where they hold a Claude account that is on, and the gateway roads of their keys that are on.
+  pub roads: Vec<String>,
+}
+
+/// One of a person's own keys for a gateway road (docs/supply.md, 「What a person brings」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSupplyKey {
+  pub id: i64,
+  /// `codex`, `deepseek` or `openrouter`.
+  pub road: String,
+  /// The secret's name in the person's space of the secret store; its value is never reported.
+  pub secret: String,
+  /// Its place among the person's keys of the road, from 1.
+  pub place: i64,
+  pub enabled: bool,
+  /// epoch milliseconds
+  pub refused_at: Option<i64>,
+  /// epoch milliseconds
+  pub added_at: i64,
+}
+
+/// The personal supply a caller reads: a person's own keys, or for the platform each person's roads.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSupplyPage {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub items: Option<Vec<PersonalSupplyKey>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub people: Option<Vec<PersonSupply>>,
+}
+
+/// A key of the signed-in person's added for a gateway road.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSupplyAsk {
+  pub road: String,
+  /// One plain file name in the person's space of the secret store.
+  pub secret: String,
+}
+
+/// A change of one of the person's keys: its place, its switch, or both.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSupplyChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub place: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub enabled: Option<bool>,
+}
+
+/// What a person's off-boarding turned off.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OffBoarded {
+  /// How many of their Claude accounts were turned off.
+  pub accounts: i64,
+  /// How many of their keys were turned off.
+  pub keys: i64,
 }
 
 /// The agent serving the chat now: the provider its road answers on, the login it walks to where the
@@ -870,14 +941,23 @@ pub struct FallbackAccount {
   pub name: String,
   pub place: i64,
   pub enabled: bool,
-  /// One of `directory`, `token` or `endpoint`.
+  /// One of `directory`, `token`, `endpoint` or `api-key`.
   pub credential_kind: String,
   pub credential_path: String,
   pub endpoint_url: Option<String>,
-  /// An endpoint account's key file. Its content is never reported.
+  /// An endpoint account's key file or an `api-key` account's secret. Its content is never reported.
   pub key_file: Option<String>,
   pub models: Option<EndpointModels>,
   pub base_prompt: Option<String>,
+  /// The person it belongs to, or null for the platform's.
+  #[serde(default)]
+  pub user_id: Option<i64>,
+  /// The node a person's login stands on, or null.
+  #[serde(default)]
+  pub node: Option<String>,
+  /// Whether the platform's account goes out for another person's run.
+  #[serde(default)]
+  pub lendable: bool,
   /// One of `standing`, `ending` or `gone`.
   pub login: String,
   /// epoch seconds
@@ -1165,7 +1245,8 @@ pub struct UsageWindow {
 pub struct Account {
   pub id: String,
   pub provider: String,
-  pub user_name: Option<String>,
+  /// The user it belongs to, as `userId` names it.
+  pub user_name: Option<i64>,
   pub held: bool,
   pub home: Option<String>,
   /// The usage a report named, on the report's answer; null on the list.
@@ -1181,16 +1262,25 @@ pub struct Account {
   pub balance: Option<Balance>,
   /// epoch milliseconds
   pub rest_until: Option<i64>,
-  /// One of `directory`, `token` or `endpoint`.
+  /// One of `directory`, `token`, `endpoint` or `api-key`.
   pub credential_kind: Option<String>,
   /// An endpoint account's base URL.
   pub endpoint_url: Option<String>,
-  /// An endpoint account's key file. Its content is never reported.
+  /// An endpoint account's key file or an `api-key` account's secret. Its content is never reported.
   pub key_file: Option<String>,
   /// An endpoint account's model ids by family word.
   pub models: Option<EndpointModels>,
   /// The base prompt a worker's run on it opens with.
   pub base_prompt: Option<String>,
+  /// The person it belongs to, or null for the platform's.
+  #[serde(default)]
+  pub user_id: Option<i64>,
+  /// The node a person's login stands on, or null.
+  #[serde(default)]
+  pub node: Option<String>,
+  /// Whether the platform's account goes out for another person's run.
+  #[serde(default)]
+  pub lendable: bool,
 }
 
 /// Rest:
@@ -1269,6 +1359,9 @@ pub struct UsageGroup {
   pub unsplit_tokens: i64,
   /// The tokens the roles' sessions on the key carry; null where no session is matched to the key.
   pub context_tokens: Option<i64>,
+  /// What the group's jobs or runs cost in US dollars; null where none reported a cost.
+  #[serde(default)]
+  pub cost_usd: Option<f64>,
 }
 
 /// Settings:
@@ -1750,6 +1843,9 @@ pub struct RoadBlockPage {
 pub struct AccountPage {
   pub items: Vec<Account>,
   pub more: bool,
+  /// Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub personal_supply: Option<Vec<PersonSupply>>,
 }
 
 /// WorkerPage:
@@ -2781,7 +2877,8 @@ pub struct FallbackChange {
   /// An endpoint account's base URL.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub endpoint: Option<String>,
-  /// An endpoint account's key file.
+  /// An endpoint account's key file, or the secret an `api-key` account's key sits in: the person's own
+  /// `users/<user>/<name>` or a plain name, or the platform's plain name.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key_file: Option<String>,
   /// An endpoint account's model ids by family word.
@@ -2790,6 +2887,9 @@ pub struct FallbackChange {
   /// The base prompt the account names, `none` or null to let it go.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub base_prompt: Option<String>,
+  /// Whether the platform's account goes out for another person's run; refused for a person's account.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub lendable: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

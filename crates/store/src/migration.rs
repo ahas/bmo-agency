@@ -91,6 +91,11 @@ mod m20261230_000001_run_turns;
 mod m20261231_000001_double_gone;
 mod m20270101_000001_support_auto;
 mod m20270102_000001_lent_checkouts;
+mod m20270103_000001_gateway_call_keys;
+mod m20270104_000001_personal_supply;
+mod m20270105_000001_owned_accounts;
+mod m20270106_000001_supply_reservations;
+mod m20270107_000001_run_cost;
 
 use sea_orm_migration::prelude::*;
 
@@ -116,7 +121,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 57] = [
+pub const OWN_TABLES: [&str; 62] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -174,6 +179,11 @@ pub const OWN_TABLES: [&str; 57] = [
   "stream_events",
   "relays",
   "notices",
+  "gateway_call_keys",
+  "gateway_requests",
+  "personal_supply",
+  "supply_reservations",
+  "supply_settlements",
 ];
 
 pub struct Migrator;
@@ -271,6 +281,11 @@ impl MigratorTrait for Migrator {
       Box::new(m20261231_000001_double_gone::Migration),
       Box::new(m20270101_000001_support_auto::Migration),
       Box::new(m20270102_000001_lent_checkouts::Migration),
+      Box::new(m20270103_000001_gateway_call_keys::Migration),
+      Box::new(m20270104_000001_personal_supply::Migration),
+      Box::new(m20270105_000001_owned_accounts::Migration),
+      Box::new(m20270106_000001_supply_reservations::Migration),
+      Box::new(m20270107_000001_run_cost::Migration),
     ]
   }
 

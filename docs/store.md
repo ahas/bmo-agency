@@ -51,13 +51,26 @@ seeds. The other crates and the server reach the store only through it.
     「A supervisor of the window shape」);
   - the accounts: `claude_accounts`, one row an account of the Claude Code road — its id, name,
     place, on/off, when it was added and when its login was found gone; its `credential_kind`,
-    `directory`, `token` or `endpoint`, and its `credential_path`, the configuration directory, the
-    token file or the endpoint account's own configuration home; for an endpoint account its
+    `directory`, `token`, `endpoint` or `api-key`, and its `credential_path`, the configuration directory, the
+    token file or the endpoint or `api-key` account's own configuration home; for an endpoint account its
     `endpoint_url`, its `key_file` and its `endpoint_models`, a JSON object from the family words
-    `opus`, `sonnet` and `haiku` to the endpoint's model ids, empty on the other kinds; and its
+    `opus`, `sonnet` and `haiku` to the endpoint's model ids, empty on the other kinds; for an `api-key`
+    account its `key_file`, the secret's path under the data root's `env/`; its `node`, the node a person's
+    login was signed in on and stands on, or none; whether it is `lendable` to another person's run; and its
     `base_prompt`, the name of a kept base prompt or none, which a kept prompt cannot be removed
     from under (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」,
-    `docs/base-prompts.md`);
+    `docs/base-prompts.md`, `docs/supply.md`);
+  - what people bring and what they spend (`docs/supply.md`): `personal_supply`, one row a person's own key
+    for a gateway road — the person, the road, the secret's name, its place, on/off, when it was added and when
+    it was found refused; `gateway_call_keys`, one row an account's call key — the account, the key's SHA-256
+    digest, when it was issued and when it was revoked; `gateway_requests`, one row a request the gateway
+    carried — when, the account or none, the model, the run name and the program's session or none, its input
+    and output tokens and its cost in millionths of a US dollar; `supply_reservations`, one row a platform reservation of a run — the run, the
+    step it was opened at, the account, the source, the consumer's reservation, its amount and the amount it was opened at, what it has covered,
+    when it expires, the step last used on it and its state, `open`, `captured` or `released`; and
+    `supply_settlements`, the supply outbox, one row an ask owed to the supply hook keyed by its idempotency
+    key — the ask as JSON, when it was owed, when it is due next, how many tries it took and the last one's
+    failure;
   - the accounts' usage windows: `usage_windows`, one row a window of a slot — its `mode`, its
     `account` (empty on a provider that holds no logins of agency's) and its `name` together naming it,
     the fraction used, when it resets in epoch seconds or none, when it was seen, its length in minutes
@@ -112,7 +125,8 @@ seeds. The other crates and the server reach the store only through it.
     (`docs/job-review.md`) —, when the wait it has not yet told its orderer of began, whether the notice of its
     end is owed yet, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
-    input, output, cache-read and cache-write tokens) and their sum, the prompt it was launched with and the
+    input, output, cache-read and cache-write tokens) and their sum, its cost in millionths of a US dollar and
+    the supply source it last went out on, the prompt it was launched with and the
     newest of its item's notes that prompt carried, and the words of the turn it carries until that turn ends, which a server that starts launches a job whose turn had not gone out again from (`docs/sessions.md`, 「A restart hands the session over」);
     `job_sessions`, one row a session a turn of a job started, with the job and when; `job_words`, one row a word
     for a job that runs — said to it or a note added to its item — with who said it, the note it came from, when
@@ -120,7 +134,8 @@ seeds. The other crates and the server reach the store only through it.
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run — its supervisor or its role and path, its title, its room, its unit, how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
-    tokens its context held, what it spent (its input, output, cache-read and cache-write tokens), the
+    tokens its context held, what it spent (its input, output, cache-read and cache-write tokens, and its
+    cost in millionths of a US dollar) and the supply source it went out on, the
     search it carried, the round it belongs to, the message its answer went out as and whether agency carries its turn — opened and closed by the job unit, and a job turn's, a chat turn's and a role session's turn's by agency (`docs/api.md`,
     「runs」, `docs/run-records.md`, 「The run ledger」); a room forgotten takes its runs with it, and a
     supervisor's reset of its conversation takes the supervisor's and those of the rooms it answers alone
@@ -200,6 +215,10 @@ seeds. The other crates and the server reach the store only through it.
   - the supervisor a run of the search or browse line writes for, `research_supervisor` (`docs/api.md`, 「settings」);
   - the console secrets the DeepSeek top-up reads its card from and signs in with, `deepseek_card_secret` and
     `deepseek_login_secret` (`docs/api.md`, 「settings」);
+  - a hook registration that outlives a restart, `hook_kept:*` by its point, as JSON: its address and the name of
+    the token file under the data root's `env/`, never the token (`docs/api.md`, 「hooks」);
+  - a person's supply notice told once, `supply_told:*` by the key or login and the moment it was found refused
+    (`docs/supply.md`, 「Running out mid-turn」);
   - a supervisor's reset point, `reset_point:*` (`docs/supervisors.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
@@ -277,8 +296,9 @@ seeds. The other crates and the server reach the store only through it.
 - **The service opens a pool,** which never hands out a connection opened before the store's shape last
   moved under the process: a statement met with PostgreSQL's code for a plan whose table moved is run
   once more on a fresh connection.
-- **A tool or a host handed the store's address opens one read-only connection:** every transaction on
-  it is read-only, and an opening the server refuses while it restarts is tried again with a doubling
+- **A tool or a host handed the store's address opens one read-only connection,** but for the model
+  gateway's request records, which its launcher writes on a connection of their own, one row a statement:
+  every transaction on a read-only connection is read-only, and an opening the server refuses while it restarts is tried again with a doubling
   pause until the server answers, however long its restart takes.
 - **Every number is bound at its widest,** a whole number as a 64-bit integer and a fraction as a
   double, so a statement prepared once takes every later value.

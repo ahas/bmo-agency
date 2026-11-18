@@ -105,6 +105,11 @@ about a message is not agency's: the judgement records belong to the units that 
   its context carried as it ended, how many tool calls its log lines held under its unit as it closed, every
   `tool` line under that name, a branch's among them, and whether it is the run of a turn agency carries. A
   run keeps the first closing it was given (`docs/api.md`, 「runs」).
+- **A run's cost and its source are kept beside its tokens:** what it cost in millionths of a US dollar, summed
+  over the models that answered — a Claude Code turn's the status line's `total_cost_usd` the turn added, a
+  gateway road's the sum of the gateway's request records of the run's program while the run went — or none where its road reported none;
+  and the supply source it went out on, `personal`, a platform source the supply hook named, or `platform`
+  (`docs/supply.md`, 「The ledger」). A job keeps the sum over its turns and the source its last turn took.
 - **The job unit's runs** are opened and closed by the job unit across the boundary.
 - **A translation through the gateway is a run of the translator role,** opened by agency as the request goes
   out and closed as it is answered or fails: its unit is the name its log lines are written under, it names

@@ -204,6 +204,18 @@ async fn serve(args: Args) -> Result<(), String> {
   // Every notice owed to an orderer or the owner stands in the outbox: each standing one is told again as the
   // server starts, and each one still owed is tried at once (docs/agent-control.md, 「An item's change is told to
   // its orderer」).
+  // A registration a consumer made at a point that outlives a restart stands again before any run asks it
+  // (docs/api.md, 「hooks」).
+  match agency_server::hooks::restore(&ground.hooks, &ground.db).await {
+    Ok(0) => {}
+    Ok(restored) => println!("agency: {restored} kept hook registrations stand again"),
+    Err(why) => eprintln!("agency: the kept hook registrations: {why}"),
+  }
+
+  // What a person's runs owe the supply hook is sent until it is taken, the reservations that expired while the
+  // server was down captured first (docs/supply.md, 「Reservations」).
+  tokio::spawn(agency_server::supply::reservations::keep(ground.clone()));
+
   match agency_server::outbox::restarted(&ground.db).await {
     Ok(0) => {}
     Ok(due) => println!("agency: {due} notices owed to orderers are due again with this start"),

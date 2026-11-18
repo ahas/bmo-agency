@@ -69,7 +69,8 @@
     "job.created",
     "job.changed",
     "job.ended",
-    "road-walked"
+    "road-walked",
+    "supply.changed"
   ],
   "tags": [
     {
@@ -3349,10 +3350,22 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownAccount"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotLendable"
           }
         },
         "x-codes": [
-          "unauthorized"
+          "unauthorized",
+          "forbidden",
+          "unknown-account",
+          "not-lendable"
         ],
         "requestBody": {
           "required": true,
@@ -3392,13 +3405,17 @@
           },
           "422": {
             "$ref": "#/components/responses/NotADirectory"
+          },
+          "409": {
+            "$ref": "#/components/responses/NodeNotAttached"
           }
         },
         "x-codes": [
           "unauthorized",
           "not-found",
           "not-a-directory",
-          "directory-taken"
+          "directory-taken",
+          "node-not-attached"
         ],
         "requestBody": {
           "required": true,
@@ -3946,6 +3963,231 @@
             }
           }
         }
+      }
+    },
+    "/personal-supply": {
+      "get": {
+        "operationId": "listPersonalSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "A person's own gateway keys, or each person's roads for the administrator.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSupplyPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden"
+        ]
+      },
+      "post": {
+        "operationId": "createPersonalSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Add a key of the signed-in person's for a gateway road.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSupplyKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnknownRoad"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "unknown-road",
+          "conflict"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalSupplyAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/personal-supply/{supplyId}": {
+      "patch": {
+        "operationId": "changePersonalSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change one of the person's keys: its place or its switch.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSupplyKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownSupply"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "unknown-supply"
+        ],
+        "parameters": [
+          {
+            "name": "supplyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalSupplyChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePersonalSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Remove one of the person's keys.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownSupply"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "unknown-supply"
+        ],
+        "parameters": [
+          {
+            "name": "supplyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/people/{user}/off-boarding": {
+      "post": {
+        "operationId": "offBoardPerson",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Switch a person's supply off and revoke their call key.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OffBoarded"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "parameters": [
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the person's user id"
+            }
+          }
+        ]
       }
     },
     "/rest": {
@@ -10856,7 +11098,8 @@
         "properties": {
           "routes": {
             "type": "array",
-            "items": true
+            "items": true,
+            "default": []
           },
           "active": {
             "anyOf": [
@@ -10867,7 +11110,7 @@
                 "type": "null"
               }
             ],
-            "description": "The agent serving the chat now and what it has used.",
+            "description": "The agent serving the chat now and what it has used; null on a person's call.",
             "default": null
           },
           "accounts": {
@@ -10875,8 +11118,18 @@
             "items": {
               "$ref": "#/components/schemas/FallbackAccount"
             },
-            "description": "Every Claude account as the road walks them.",
+            "description": "The Claude accounts the caller reads, as the road walks them: a person's own alone, and the platform's\non the administrator's and the deployment's own calls.",
             "default": []
+          },
+          "personalSupply": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PersonSupply"
+            },
+            "description": "Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone."
           }
         },
         "required": [
@@ -11064,7 +11317,7 @@
           },
           "credentialKind": {
             "type": "string",
-            "description": "One of `directory`, `token` or `endpoint`."
+            "description": "One of `directory`, `token`, `endpoint` or `api-key`."
           },
           "credentialPath": {
             "type": "string"
@@ -11080,7 +11333,7 @@
               "string",
               "null"
             ],
-            "description": "An endpoint account's key file. Its content is never reported."
+            "description": "An endpoint account's key file or an `api-key` account's secret. Its content is never reported."
           },
           "models": {
             "anyOf": [
@@ -11097,6 +11350,28 @@
               "string",
               "null"
             ]
+          },
+          "userId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The person it belongs to, or null for the platform's.",
+            "default": null
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The node a person's login stands on, or null.",
+            "default": null
+          },
+          "lendable": {
+            "type": "boolean",
+            "description": "Whether the platform's account goes out for another person's run.",
+            "default": false
           },
           "login": {
             "type": "string",
@@ -11171,6 +11446,9 @@
           "keyFile",
           "models",
           "basePrompt",
+          "userId",
+          "node",
+          "lendable",
           "login",
           "loginEndsAt",
           "onToken",
@@ -11206,6 +11484,27 @@
           }
         },
         "description": "An endpoint's model ids by the family word Claude Code picks a model by:"
+      },
+      "PersonSupply": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "roads": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`claude-code` where they hold a Claude account that is on, and the gateway roads of their keys that are on."
+          }
+        },
+        "required": [
+          "user",
+          "roads"
+        ],
+        "description": "A person's supply as the platform reads it: the person and the roads their own credentials serve."
       },
       "FallbackChange": {
         "type": "object",
@@ -11265,7 +11564,7 @@
               "string",
               "null"
             ],
-            "description": "An endpoint account's key file."
+            "description": "An endpoint account's key file, or the secret an `api-key` account's key sits in: the person's own\n`users/<user>/<name>` or a plain name, or the platform's plain name."
           },
           "models": {
             "anyOf": [
@@ -11284,6 +11583,13 @@
               "null"
             ],
             "description": "The base prompt the account names, `none` or null to let it go."
+          },
+          "lendable": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the platform's account goes out for another person's run; refused for a person's account."
           },
           "key": {
             "type": [
@@ -11999,6 +12305,16 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "personalSupply": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PersonSupply"
+            },
+            "description": "Each person's supply as the roads it serves, on the administrator's and the deployment's own calls alone."
           }
         },
         "required": [
@@ -12018,9 +12334,11 @@
           },
           "userName": {
             "type": [
-              "string",
+              "integer",
               "null"
-            ]
+            ],
+            "format": "int64",
+            "description": "The user it belongs to, as `userId` names it."
           },
           "held": {
             "type": "boolean"
@@ -12083,7 +12401,7 @@
               "string",
               "null"
             ],
-            "description": "One of `directory`, `token` or `endpoint`."
+            "description": "One of `directory`, `token`, `endpoint` or `api-key`."
           },
           "endpointUrl": {
             "type": [
@@ -12097,7 +12415,7 @@
               "string",
               "null"
             ],
-            "description": "An endpoint account's key file. Its content is never reported."
+            "description": "An endpoint account's key file or an `api-key` account's secret. Its content is never reported."
           },
           "models": {
             "anyOf": [
@@ -12116,6 +12434,28 @@
               "null"
             ],
             "description": "The base prompt a worker's run on it opens with."
+          },
+          "userId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The person it belongs to, or null for the platform's.",
+            "default": null
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The node a person's login stands on, or null.",
+            "default": null
+          },
+          "lendable": {
+            "type": "boolean",
+            "description": "Whether the platform's account goes out for another person's run.",
+            "default": false
           }
         },
         "required": [
@@ -12133,7 +12473,10 @@
           "endpointUrl",
           "keyFile",
           "models",
-          "basePrompt"
+          "basePrompt",
+          "userId",
+          "node",
+          "lendable"
         ],
         "description": "Account:"
       },
@@ -12144,6 +12487,134 @@
           "window": true
         },
         "description": "The body that reports a login's session usage."
+      },
+      "PersonalSupplyPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PersonalSupplyKey"
+            }
+          },
+          "people": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PersonSupply"
+            }
+          }
+        },
+        "description": "The personal supply a caller reads: a person's own keys, or for the platform each person's roads."
+      },
+      "PersonalSupplyKey": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "road": {
+            "type": "string",
+            "description": "`codex`, `deepseek` or `openrouter`."
+          },
+          "secret": {
+            "type": "string",
+            "description": "The secret's name in the person's space of the secret store; its value is never reported."
+          },
+          "place": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its place among the person's keys of the road, from 1."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "refusedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "addedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          }
+        },
+        "required": [
+          "id",
+          "road",
+          "secret",
+          "place",
+          "enabled",
+          "refusedAt",
+          "addedAt"
+        ],
+        "description": "One of a person's own keys for a gateway road (docs/supply.md, 「What a person brings」)."
+      },
+      "PersonalSupplyAsk": {
+        "type": "object",
+        "properties": {
+          "road": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "One plain file name in the person's space of the secret store."
+          }
+        },
+        "required": [
+          "road",
+          "secret"
+        ],
+        "description": "A key of the signed-in person's added for a gateway road."
+      },
+      "PersonalSupplyChange": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "description": "A change of one of the person's keys: its place, its switch, or both."
+      },
+      "OffBoarded": {
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many of their Claude accounts were turned off."
+          },
+          "keys": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many of their keys were turned off."
+          }
+        },
+        "required": [
+          "accounts",
+          "keys"
+        ],
+        "description": "What a person's off-boarding turned off."
       },
       "Rest": {
         "type": "object",
@@ -12322,6 +12793,15 @@
             ],
             "format": "int64",
             "description": "The tokens the roles' sessions on the key carry; null where no session is matched to the key."
+          },
+          "costUsd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "What the group's jobs or runs cost in US dollars; null where none reported a cost.",
+            "default": null
           }
         },
         "required": [
@@ -12336,7 +12816,8 @@
           "cacheWriteTokens",
           "unsplitJobs",
           "unsplitTokens",
-          "contextTokens"
+          "contextTokens",
+          "costUsd"
         ],
         "description": "UsageGroup: what the jobs, or a round's turns, under one key of a usage query spent (docs/api.md,\n「accounts, rest and usage」)."
       },
@@ -16426,6 +16907,16 @@
           }
         }
       },
+      "NodeNotAttached": {
+        "description": "node-not-attached",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NodeTaken": {
         "description": "node-taken",
         "content": {
@@ -16468,6 +16959,16 @@
       },
       "NotFound": {
         "description": "not-found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotLendable": {
+        "description": "not-lendable",
         "content": {
           "application/json": {
             "schema": {
@@ -16596,6 +17097,16 @@
           }
         }
       },
+      "UnknownAccount": {
+        "description": "unknown-account",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "UnknownAgent": {
         "description": "unknown-agent",
         "content": {
@@ -16616,8 +17127,28 @@
           }
         }
       },
+      "UnknownRoad": {
+        "description": "unknown-road",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "UnknownRole": {
         "description": "unknown-role",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownSupply": {
+        "description": "unknown-supply",
         "content": {
           "application/json": {
             "schema": {

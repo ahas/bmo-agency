@@ -1,6 +1,7 @@
 //! A consumer's hooks registered across the boundary (docs/api.md, 「Hooks」): at a point named, an address
 //! agency posts each ask to, under a token where one is given; taken away again, the point answers its
-//! default. The points a consumer may register at are listed with whether one is registered.
+//! default. A point that outlives a restart keeps its registration in the store and its token in a file. The
+//! points a consumer may register at are listed with whether one is registered.
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -35,13 +36,18 @@ impl Route for HookRegister {
 
     let token = body.get("token").and_then(Value::as_str).filter(|token| !token.is_empty());
 
-    (point.register)(
-      &call.ground().hooks,
-      Remote {
-        url: url.to_owned(),
-        token: token.map(str::to_owned),
-      },
-    );
+    let remote = Remote {
+      url: url.to_owned(),
+      token: token.map(str::to_owned),
+    };
+
+    if point.kept {
+      let ground = call.ground();
+
+      crate::hooks::keep(&ground.db, &ground.roots.data, point.name, &remote).await?;
+    }
+
+    (point.register)(&call.ground().hooks, remote);
 
     Ok(answer(StatusCode::OK, json!({ "point": point.name, "url": url, "token": token })))
   }
@@ -58,7 +64,15 @@ impl Route for HookRemove {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let name = call.param("point").unwrap_or_default();
-    (point_named(name)?.unregister)(&call.ground().hooks);
+    let point = point_named(name)?;
+
+    if point.kept {
+      let ground = call.ground();
+
+      crate::hooks::forget(&ground.db, &ground.roots.data, point.name).await?;
+    }
+
+    (point.unregister)(&call.ground().hooks);
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { enabledClaudeAccounts, ENDPOINT_FAMILIES, machineConfigDir, recordedAccount, recordsDirOf } from "./claude-account";
 import { machineCatalogue } from "./provider-facts";
@@ -15,6 +15,8 @@ import { writePlaceSettings } from "./agent-place";
 import { registeredRoad } from "./claude-road";
 import { readClaudeOutput } from "./claude";
 import { handedPath } from "@agency/support/launch-paths";
+import { dataPath } from "@agency/support/roots";
+import { usableKeyFile } from "./members";
 import { levelReasoning, levelsIn } from "./reasoning";
 
 import type { AgentReply, SessionUsage, TurnAnswer, UsageWindowReading } from "./agent-reply";
@@ -844,6 +846,43 @@ export interface EndpointModel {
   home: string;
 }
 
+// The variable a run names the account it is for in, and the one it names its place in.
+const ownerAccountVariable = "BMO_OWNER_ACCOUNT";
+const placeVariable = "BMO_AGENT_PLACE";
+
+// The key file a run's requests are made with: the call key of the account the run is for, where agency issued
+// that account one — every account but the deployment's own — else the road's own key (docs/own-llm.md, 「The
+// keys」). A person's node holds no key but their call key, so a run of theirs never goes out on the platform's.
+export function runKeyPath(endpoint: Pick<ClaudeEndpoint, "keyPath">, env: Record<string, string | undefined> | undefined): string {
+  const account = env?.[ownerAccountVariable]?.trim() ?? "";
+  const callKey = /^\d+$/.test(account) ? dataPath("env", "llm-gateway-calls", `${account}.key`) : null;
+
+  return callKey !== null && usableKeyFile(callKey) ? callKey : endpoint.keyPath();
+}
+
+// The agent a place stands for: a thrown-away session's place read as its session's agent, as its record names
+// it, and any other place as its own name.
+function placeAgent(place: string): string {
+  try {
+    const record = JSON.parse(readFileSync(join(place, "apart-place.json"), "utf8")) as { place?: unknown; session?: unknown };
+    const agent = typeof record.session === "string" ? record.session.split("@")[0] : "";
+
+    if (record.place === basename(place) && agent) return agent;
+  } catch {
+    // A place with no record of a thrown-away session is its own agent's.
+  }
+
+  return basename(place);
+}
+
+// The headers every request of a run carries: the road's own, and the run's name, its place's agent, by which the
+// gateway's request records are read for what the run spent (docs/supply.md, 「Reservations」).
+export function runHeaders(headers: Record<string, string> | undefined, env: Record<string, string | undefined> | undefined): Record<string, string> | undefined {
+  const place = env?.[placeVariable]?.trim();
+
+  return place ? { ...headers, "x-bmo-run": placeAgent(place) } : headers;
+}
+
 // The longest wait the program's timers hold, about twenty-four days: the program gives a request up after a
 // wait of its own and its runtime drops a connection silent past one, and neither takes a value meaning none,
 // so both are told this one, which no request reaches.
@@ -905,7 +944,7 @@ async function endpointRun(endpoint: ClaudeEndpoint, run: HarnessRun): Promise<H
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
       API_TIMEOUT_MS: String(noWaitMs),
       BUN_CONFIG_HTTP_IDLE_TIMEOUT: String(Math.floor(noWaitMs / 1_000)),
-      ANTHROPIC_CUSTOM_HEADERS: customHeaders(held.headers),
+      ANTHROPIC_CUSTOM_HEADERS: customHeaders(runHeaders(held.headers, run.env)),
     },
   };
 }
@@ -916,12 +955,12 @@ function shellWord(word: string): string {
 }
 
 // The settings a run on the road is handed: the line's own, where it has any, with the helper that
-// prints the road's key beside them, and the warning a program started in bypass mode stands on
+// prints the run's key file beside them, and the warning a program started in bypass mode stands on
 // until a person accepts it passed over, as every login's own settings pass it (measured: the
 // acceptance a configuration file records does not hold it back). The program takes one settings
 // argument, so they are one file, written under the road's home by what it was made from and moved
 // into place whole.
-function keyedSettings(endpoint: ClaudeEndpoint, home: string, given: string | null): string {
+function keyedSettings(keyPath: string, home: string, given: string | null): string {
   const base: Record<string, unknown> = given === null
     ? {}
     : JSON.parse(given.trimStart().startsWith("{") ? given : readFileSync(given, "utf8"));
@@ -930,19 +969,19 @@ function keyedSettings(endpoint: ClaudeEndpoint, home: string, given: string | n
   const fresh = `${path}.${process.pid}`;
 
   mkdirSync(dir, { recursive: true });
-  writeFileSync(fresh, `${JSON.stringify({ ...base, apiKeyHelper: `cat ${shellWord(endpoint.keyPath())}`, skipDangerousModePermissionPrompt: true }, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(fresh, `${JSON.stringify({ ...base, apiKeyHelper: `cat ${shellWord(keyPath)}`, skipDangerousModePermissionPrompt: true }, null, 2)}\n`, { mode: 0o600 });
   renameSync(fresh, path);
 
   return path;
 }
 
-function withKeyedSettings(endpoint: ClaudeEndpoint, home: string, args: readonly string[]): string[] {
+function withKeyedSettings(keyPath: string, home: string, args: readonly string[]): string[] {
   const at = args.indexOf("--settings");
 
-  if (at !== -1) return args.map((word, index) => (index === at + 1 ? keyedSettings(endpoint, home, word) : word));
+  if (at !== -1) return args.map((word, index) => (index === at + 1 ? keyedSettings(keyPath, home, word) : word));
 
   // A flag and its value right behind the program's name come before anything a list could swallow.
-  return [args[0] as string, "--settings", keyedSettings(endpoint, home, null), ...args.slice(1)];
+  return [args[0] as string, "--settings", keyedSettings(keyPath, home, null), ...args.slice(1)];
 }
 
 // Whether a program's configuration folder is one of this road's homes.
@@ -973,7 +1012,7 @@ export function claudeCodeAt(endpoint: ClaudeEndpoint): AgentAdapter {
       const run = place === null ? given : { ...given, placement: place };
       const sent = await endpointRun(endpoint, run);
       return {
-        args: withKeyedSettings(endpoint, sent.env?.CLAUDE_CONFIG_DIR as string, argsFor(sent)),
+        args: withKeyedSettings(runKeyPath(endpoint, given.env), sent.env?.CLAUDE_CONFIG_DIR as string, argsFor(sent)),
         cwd: sent.cwd,
         env: envFor(sent),
         stdin: sent.promptDelivery === "input" ? sent.prompt : null,

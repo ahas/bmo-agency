@@ -13,6 +13,8 @@ fn account(id: &str, credential: Credential) -> Account {
     credential,
     needs_login_at: None,
     user_id: None,
+    node: None,
+    lendable: false,
     base_prompt: None,
     node_token_gone: None,
   }
@@ -376,4 +378,87 @@ fn a_subscription_login_ends_when_its_refresh_stops_being_taken() {
   )
   .unwrap();
   assert_eq!(agency_server::control::claude_accounts::login_end(&held), None);
+}
+
+#[test]
+fn an_api_key_login_hands_its_home_and_its_key_and_clears_every_other_credential() {
+  let dir = tempfile::tempdir().unwrap();
+  let key = dir.path().join("anthropic");
+
+  std::fs::write(&key, "  sk-ant-api-test\n").unwrap();
+
+  let keyed = Credential::ApiKey {
+    home: dir.path().join("home"),
+    key_file: key.clone(),
+  };
+  let platform = account("keyed", keyed.clone());
+  let process = BTreeMap::from([
+    ("ANTHROPIC_AUTH_TOKEN".to_owned(), "sk-process".to_owned()),
+    ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), "sk-ant-oat01-process".to_owned()),
+  ]);
+  let env = command_env(&process, Some(&platform), &Runs::OwnLogin, true).unwrap();
+
+  assert_eq!(env["CLAUDE_CONFIG_DIR"].as_deref(), dir.path().join("home").to_str());
+  assert_eq!(env["ANTHROPIC_API_KEY"].as_deref(), Some("sk-ant-api-test"));
+  assert_eq!(env["ANTHROPIC_AUTH_TOKEN"], None);
+  assert_eq!(env["CLAUDE_CODE_OAUTH_TOKEN"], None);
+
+  // A key that cannot be read is refused.
+  let gone = account(
+    "gone",
+    Credential::ApiKey {
+      home: dir.path().join("home"),
+      key_file: dir.path().join("missing"),
+    },
+  );
+
+  assert!(account_env(Some(&gone), &Runs::OwnLogin).is_err());
+
+  // The platform's key never goes out to a work node; a person's goes out on theirs.
+  let node = Runs::OnNode {
+    data_root: dir.path().into(),
+  };
+  let persons = Account {
+    user_id: Some(7),
+    ..account("persons", keyed)
+  };
+
+  assert!(account_env(Some(&platform), &node).is_err());
+  assert!(!platform.runs_on_nodes());
+  assert_eq!(
+    account_env(Some(&persons), &node).unwrap()["ANTHROPIC_API_KEY"].as_deref(),
+    Some("sk-ant-api-test")
+  );
+  assert!(persons.runs_on_nodes());
+}
+
+#[test]
+fn a_person_s_login_on_their_node_is_handed_its_directory_there_and_no_token() {
+  let data = tempfile::tempdir().unwrap();
+  let held = Account {
+    user_id: Some(7),
+    node: Some("pc-7".into()),
+    ..account(
+      "theirs",
+      Credential::Directory {
+        home: "/node/data/env/theirs".into(),
+      },
+    )
+  };
+  let token = held.node_token_file(data.path()).unwrap();
+
+  // A token for the nodes standing here is never handed to it.
+  std::fs::create_dir_all(token.parent().unwrap()).unwrap();
+  std::fs::write(&token, "sk-ant-oat01-node\n").unwrap();
+
+  let env = account_env(
+    Some(&held),
+    &Runs::OnNode {
+      data_root: data.path().into(),
+    },
+  )
+  .unwrap();
+
+  assert_eq!(env["CLAUDE_CONFIG_DIR"].as_deref(), Some("/node/data/env/theirs"));
+  assert_eq!(env["CLAUDE_CODE_OAUTH_TOKEN"], None);
 }

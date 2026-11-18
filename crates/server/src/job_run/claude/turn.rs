@@ -567,9 +567,20 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, 
     ));
   }
 
+  // A turn naming its user walks that user's own logins; any other walks the logins its supply takes: a
+  // person's own, the lendable ones for a person's platform source, the platform's for the deployment's own
+  // (docs/supply.md, 「Choosing a source as a run starts」).
   let user = match work.user.as_deref().map(str::trim).filter(|user| !user.is_empty()) {
-    None => None,
-    Some(user) => Some(
+    None => {
+      let data = &asked.ground.roots.data;
+      let chosen = asked
+        .job
+        .and_then(|job| crate::supply::chosen_for(data, &crate::supply::job_key(job.job)))
+        .or_else(|| crate::supply::chosen_for(data, asked.agent));
+
+      crate::supply::carrying(asked.ground, chosen.as_ref())
+    }
+    Some(user) => crate::control::claude_accounts::Carrying::Own(
       user
         .parse::<i64>()
         .map_err(|_| Fault::new(FaultKind::Refused, format!("{user} is not a user's id")))?,

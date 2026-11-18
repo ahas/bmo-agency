@@ -12,12 +12,13 @@ use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use serde_json::{Value, json};
 
-use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven};
+use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, Owning};
 use super::claude_accounts::{
   self, Account, CredentialKind, EndpointModels, Judging, SEED_ACCOUNT, accounts, walk_for,
 };
 use super::harness::{missing, named};
 use super::{Call, Refused, Route, answer};
+use crate::access::Acting;
 
 /// One slot's two headline windows, the session's and the week's, as the provider picks them out of every
 /// window agency keeps under the slot; null where the slot holds no such window. A slot with no login is
@@ -187,6 +188,7 @@ impl Route for FallbackView {
   const PATH: &'static str = "/fallback";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let acting = Acting::of(&call)?;
     let db = call.store();
     let judging = Judging::of(call.ground());
     let machine = call.machine();
@@ -205,17 +207,24 @@ impl Route for FallbackView {
       }
     }
 
-    let active = active_agent_usage(judging).await?;
-    Ok(answer(
-      StatusCode::OK,
-      json!({
-        "codexPresent": missing(db, machine, named("codex")?).await?.is_none(),
-        "keyPresent": missing(db, machine, named("openrouter")?).await?.is_none(),
-        "services": services,
-        "active": active,
-        "accounts": claude_accounts::views(judging).await?,
-      }),
-    ))
+    // What the supervisors stand on now is the platform's, and names its account: a person reads it not.
+    let active = match acting {
+      Acting::Platform => active_agent_usage(judging).await?,
+      Acting::Person(_) => Value::Null,
+    };
+    let mut view = json!({
+      "codexPresent": missing(db, machine, named("codex")?).await?.is_none(),
+      "keyPresent": missing(db, machine, named("openrouter")?).await?.is_none(),
+      "services": services,
+      "active": active,
+      "accounts": account_views(judging, acting).await?,
+    });
+
+    if acting == Acting::Platform {
+      view["personalSupply"] = json!(super::personal_supply::people(db).await?);
+    }
+
+    Ok(answer(StatusCode::OK, view))
   }
 }
 
@@ -225,11 +234,44 @@ fn bad(error: impl Into<String>) -> Refused {
   Refused::failed(error.into())
 }
 
-pub(super) async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
+/// The accounts a caller reads (docs/api.md, 「Who a caller acts for」): a person their own alone, and the
+/// platform its own.
+pub(super) async fn account_views(judging: Judging<'_>, acting: Acting) -> Result<Vec<Value>, Refused> {
+  match acting {
+    Acting::Person(user) => claude_accounts::views_of(judging, |one| one.user_id == Some(user)).await,
+    Acting::Platform => {
+      let administrator = claude_accounts::administrator(judging.db).await?;
+
+      claude_accounts::views_of(judging, |one| claude_accounts::platform_owned(one, administrator)).await
+    }
+  }
+}
+
+pub(super) async fn accounts_answer(judging: Judging<'_>, acting: Acting) -> Result<Response, Refused> {
   Ok(answer(
     StatusCode::OK,
-    json!({ "ok": true, "accounts": claude_accounts::views(judging).await? }),
+    json!({ "ok": true, "accounts": account_views(judging, acting).await? }),
   ))
+}
+
+/// The refusal of an account the caller does not hold, answered as if it stood nowhere.
+pub(super) fn unknown_account(id: &str) -> Refused {
+  Refused::new(StatusCode::NOT_FOUND, fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)]))
+    .with_code("unknown-account")
+}
+
+/// The account a change names, where the caller may change it: any for the platform's caller, and a person's
+/// own alone for a person; another's is answered as unknown.
+async fn changed_account(judging: Judging<'_>, acting: Acting, id: &str) -> Result<(), Refused> {
+  let Acting::Person(user) = acting else { return Ok(()) };
+  let theirs = accounts(judging.db).await?.iter().any(|one| one.id == id && one.user_id == Some(user));
+
+  if theirs { Ok(()) } else { Err(unknown_account(id)) }
+}
+
+/// The refusal of a person's call ordering or choosing the platform's accounts.
+fn platform_only() -> Refused {
+  Refused::new(StatusCode::FORBIDDEN, CONTROL_WORDS.accounts.platform_only.as_str()).with_code("forbidden")
 }
 
 /// What of an account's credential a change sends, whether the account is added or changed, or the
@@ -284,11 +326,24 @@ pub fn base_prompt_given(body: &Value) -> Result<BasePromptGiven, Refused> {
   }
 }
 
-/// A change of the Claude accounts answered, or nothing where the action is none of them.
-async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<Option<Response>, Refused> {
+/// A change of the Claude accounts answered, or nothing where the action is none of them. A person's call
+/// changes their own accounts alone and pins what it adds to them; ordering and choosing the accounts is the
+/// platform's (docs/api.md, 「Who a caller acts for」).
+async fn own_change(
+  judging: Judging<'_>,
+  acting: Acting,
+  action: &str,
+  body: &Value,
+) -> Result<Option<Response>, Refused> {
   let db = judging.db;
   let text = |field: &str| body.get(field).and_then(Value::as_str);
   let switch = body.get("enabled").and_then(Value::as_bool);
+
+  if matches!(acting, Acting::Person(_))
+    && matches!(action, "set-account-order" | "choose-account" | "clear-account-choice")
+  {
+    return Err(platform_only());
+  }
 
   match action {
     "set-account-order" => {
@@ -298,58 +353,84 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
 
       changes::set_order(db, &order).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "set-account-enabled" => {
       let (Some(id), Some(enabled)) = (text("account"), switch) else {
         return Err(bad(CONTROL_WORDS.accounts.switch.as_str()));
       };
 
+      changed_account(judging, acting, id).await?;
+
       changes::update(db, id, None, None, Some(enabled), BasePromptGiven::Keep).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "choose-account" => {
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.run_on.as_str()))?;
 
       changes::choose(db, Some(id)).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "clear-account-choice" => {
       changes::choose(db, None).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "add-account" => {
       let name = text("name").ok_or_else(|| bad(CONTROL_WORDS.accounts.name_needed.as_str()))?;
 
-      let given = credential_given(body)?;
+      let given = credential_given(body)?
+        .with_secret_under(None, judging.data_root, acting.person())
+        .map_err(bad)?;
 
       if given.path.as_deref().is_none_or(|path| path.trim().is_empty()) {
         return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str()));
       }
 
-      changes::add(db, name, &given, base_prompt_given(body)?).await?;
+      let owning = Owning {
+        user_id: acting.person(),
+        node: None,
+      };
 
-      return accounts_answer(judging).await.map(Some);
+      changes::add_owned(db, name, &given, base_prompt_given(body)?, &owning).await?;
+
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "update-account" => {
-      let given = credential_given(body)?;
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.which_to_change.as_str()))?;
+
+      changed_account(judging, acting, id).await?;
+
+      let held = accounts(db).await?.into_iter().find(|one| one.id == id);
+      let owner = held.as_ref().and_then(|one| one.user_id);
+      let given = credential_given(body)?
+        .with_secret_under(held.map(|one| one.credential.kind()), judging.data_root, owner)
+        .map_err(bad)?;
+      let lendable = match body.get("lendable") {
+        None | Some(Value::Null) => None,
+        Some(Value::Bool(lendable)) => Some(*lendable),
+        Some(_) => return Err(bad(CONTROL_WORDS.accounts.switch.as_str()).with_field("lendable")),
+      };
+
+      if let Some(lendable) = lendable {
+        changes::set_lendable(db, id, lendable).await?;
+      }
 
       // A change naming part of a credential keeps the rest of the one the account already holds, and
       // one naming no base prompt keeps the base it holds.
       changes::update(db, id, text("name"), Some(&given), None, base_prompt_given(body)?).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     "remove-account" => {
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.which_to_remove.as_str()))?;
 
+      changed_account(judging, acting, id).await?;
       changes::remove(db, id).await?;
 
-      return accounts_answer(judging).await.map(Some);
+      return accounts_answer(judging, acting).await.map(Some);
     }
     _ => Ok(None),
   }
@@ -373,11 +454,11 @@ impl Route for FallbackChange {
   const PATH: &'static str = "/fallback";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let acting = Acting::of(&call)?;
     let body = call.body().await?;
-    let _db = call.store();
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default();
 
-    if let Some(answered) = own_change(Judging::of(call.ground()), action, &body).await? {
+    if let Some(answered) = own_change(Judging::of(call.ground()), acting, action, &body).await? {
       return Ok(answered);
     }
 

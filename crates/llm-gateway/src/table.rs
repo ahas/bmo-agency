@@ -5,7 +5,8 @@
 //! the same way over the instances the arbiter's master reports standing, each under `<name>@<node>` even
 //! where one stands alone, since a run names the entry of the card its demand was granted. The table names
 //! each key by a variable and never a key; the launcher sets the variables from the key files in its
-//! child's environment.
+//! child's environment. A person's own key for a road is laid as a personal member beside each member of
+//! that road (docs/own-llm.md, 「Personal members」).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,6 +16,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use store::registry::{RegisteredAddress, Registration};
 
+use crate::supply::PersonalKey;
+
 pub use harness_machine::members::Member;
 
 /// The hooks LiteLLM loads, each from a file of its name beside the table: the one that carries a
@@ -22,8 +25,10 @@ pub use harness_machine::members::Member;
 /// from its header into the request, the one that folds a system turn inside the conversation into
 /// the person's turn beside it, the one that copies a run's long tools from their header into the
 /// field the engines read, the one that starts a request from its role's saved prefix on an instance
-/// that keeps role files, and the one that takes the wait off every request.
-pub const HOOKS: [&str; 6] = ["thinking", "sampling", "reminders", "long_tools", "roles", "unclocked"];
+/// that keeps role files, the one that takes the wait off every request, and the one that hands the front
+/// what each request cost.
+pub const HOOKS: [&str; 7] =
+  ["thinking", "sampling", "reminders", "long_tools", "roles", "unclocked", "costs"];
 
 /// The gateway's own key, as the variable the table names it by.
 pub const GATEWAY_KEY_VARIABLE: &str = "LLM_GATEWAY_KEY";
@@ -37,6 +42,54 @@ pub struct Table {
   pub key_files: BTreeMap<String, String>,
   /// Every model name the table holds an entry under.
   pub names: BTreeSet<String>,
+  /// Each personal member's name, with the account whose member it is.
+  pub owners: BTreeMap<String, i64>,
+}
+
+/// A member laid for one person on their own key (docs/own-llm.md, 「Personal members」).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Personal {
+  pub member: Member,
+  /// The account whose key it goes out on, the only one whose call key reaches it.
+  pub account: i64,
+}
+
+// Whether a secret's name names one file of the person's folder and nothing outside it.
+fn plain_name(secret: &str) -> bool {
+  !secret.is_empty() && secret != "." && secret != ".." && !secret.contains(['/', '\0'])
+}
+
+/// The personal members the rows of personal supply lay: for each person and road, the open row with the
+/// lowest place, and beside each member of that road one more, `<member>@u<account>`, on the person's
+/// secret `users/<account>/<secret>` under the data root's `env/`, of no road of its own, so no road's model
+/// list names it. A row turned off, found refused or naming a secret outside the person's folder lays none.
+pub fn personal_members(members: &[Member], keys: &[PersonalKey]) -> Vec<Personal> {
+  let mut first: BTreeMap<(i64, &str), &PersonalKey> = BTreeMap::new();
+
+  for key in keys.iter().filter(|key| key.open() && plain_name(&key.secret)) {
+    let held = first.entry((key.user_id, key.road.as_str())).or_insert(key);
+    if (key.place, key.id) < (held.place, held.id) {
+      *held = key;
+    }
+  }
+
+  first
+    .into_iter()
+    .flat_map(|((account, road), key)| {
+      members
+        .iter()
+        .filter(move |member| member.road.as_deref() == Some(road))
+        .map(move |member| Personal {
+          member: Member {
+            name: format!("{}@u{account}", member.name),
+            road: None,
+            key_file: format!("users/{account}/{}", key.secret),
+            ..member.clone()
+          },
+          account,
+        })
+    })
+    .collect()
 }
 
 /// The variable one key file is handed under.
@@ -158,6 +211,17 @@ pub fn gateway_table_with_members(
   registrations: &[Registration],
   members: &[Member],
 ) -> Result<Table, String> {
+  gateway_table_with_personal(registrations, members, &[])
+}
+
+/// The table of the registry, the members beside it and the personal members after them, each held to the
+/// same unique names.
+pub fn gateway_table_with_personal(
+  registrations: &[Registration],
+  members: &[Member],
+  personal: &[Personal],
+) -> Result<Table, String> {
+  let members: Vec<&Member> = members.iter().chain(personal.iter().map(|one| &one.member)).collect();
   let mut key_files = BTreeMap::new();
   let mut models = Vec::new();
   let mut names: BTreeSet<String> = BTreeSet::new();
@@ -254,6 +318,7 @@ pub fn gateway_table_with_members(
     text: format!("{text}\n"),
     key_files,
     names,
+    owners: personal.iter().map(|one| (one.member.name.clone(), one.account)).collect(),
   })
 }
 

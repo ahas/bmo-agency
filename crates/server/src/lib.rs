@@ -9,11 +9,13 @@ pub mod account_isolation;
 pub mod agent_roles;
 pub mod apart_places;
 pub mod apart_sessions;
+pub mod call_keys;
 pub mod cards;
 pub mod chat_stand_in;
 pub mod clock;
 pub mod command_reading;
 pub mod role_agents;
+pub mod supply;
 
 /// A supervisor's runs (docs/supervisors.md): its guard, its handoff, the point its reset cuts it off at, its
 /// runs going, its room sessions, and what its reset tells the units holding the rest of it.

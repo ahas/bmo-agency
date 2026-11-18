@@ -287,7 +287,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   account all name; the name is the owner's to rewrite at will, and rewriting it changes nothing the
   account already holds. Two accounts share neither, so a list never holds two that cannot be told
   apart.
-- **A credential is reached one of three ways, each a kind of account that answers for itself:**
+- **A credential is reached one of four ways, each a kind of account that answers for itself:**
   - **A directory account** names an absolute configuration directory, whose login the CLI keeps in
     that directory's own credentials file.
   - **A token account** names a file holding the long-lived token the CLI issues, which is handed to a
@@ -299,6 +299,10 @@ When a demotion first catches — when a healthy session first drops — two thi
     family words `opus`, `sonnet` and `haiku` to the endpoint's own model ids. An endpoint account is
     paid by the request rather than by a subscription window, so it has no usage windows, and its key
     neither expires nor renews.
+  - **An `api-key` account** is Claude Code on Anthropic's own API with an Anthropic API key: it names a
+    configuration home of its own and the secret holding the key under the data root's `env/`, a person's
+    `users/<user>/<name>` or a plain name for the platform's. It is paid by the request, so it has no usage
+    windows, and its key neither expires nor renews.
 - **What is kept is where a credential is, never a credential.** No token, no key and no file body
   enters the store, a log line, a document or a report; the reader that opens a credential file keeps
   only the moment it expires, and an endpoint account's key file is read only as a run is launched.
@@ -313,6 +317,12 @@ When a demotion first catches — when a healthy session first drops — two thi
   - An endpoint account is handed its configuration home, its base URL, its key as the run's
     authorisation token, and the model ids its map names for each family; every other credential the
     launching process carried goes with it.
+  - An `api-key` account is handed its configuration home and its key as `ANTHROPIC_API_KEY`, read from its
+    secret as the run is launched; every other credential the launching process carried goes. A person's goes
+    out here or on that person's own node, carried by the link with the run's variables; the platform's never
+    goes out on a node, since its key stays on this machine.
+  - A person's directory account signed in on their node is handed the configuration directory there, and no
+    token (`docs/supply.md`, 「Signing a person's login in」).
   - **The exception:** an account may name a base prompt (`docs/base-prompts.md`), and a run on the worker
     line on that account opens its system prompt on that base in place of the platform's harness opening, so
     on the worker line the file the system-prompt flag names is the account's (`docs/launch-lines.md`). An
@@ -351,6 +361,14 @@ When a demotion first catches — when a healthy session first drops — two thi
   walk carries them to the next account as above (「A login that is about to end」).
 - **A road names the provider; the Claude Code road holds the accounts.** The account order is one list for
   the deployment, and it is what every run on the Claude Code road walks.
+- **An account belongs to a person or to the platform:** its `user_id` names the person, or none for the
+  platform's. A person's run on personal supply walks that person's own accounts alone, in the list's order; a
+  person's run on a platform source walks the platform's accounts marked lendable alone, and none is marked
+  until the owner marks one (`docs/supply.md`, 「The lendable accounts」). A run of no account or of the
+  administrator's walks the platform's accounts, lent or not.
+- **A person's account is made by that person alone:** an account added with a signed-in person's headers is
+  pinned to that person, and a person reads and changes their own accounts alone (`docs/api.md`, 「Who a caller
+  acts for」).
 - **The account order is each account's own place and on/off, held together,** so the two cannot
   disagree and a turned-off account keeps its place. An account order is refused unless it holds every
   registered account once each with at least one on.
@@ -360,8 +378,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A fresh installation has one account,** standing for the login the machine already holds, so
   nothing answers differently until a second is added.
 - **Outside the console,** an account named by its id or its given name:
-  - `bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token|endpoint]` adds an
-    account at the end of the order, on; an endpoint account also takes `--endpoint <url>`,
+  - `bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token|endpoint|api-key]` adds an
+    account at the end of the order, on; an `api-key` account also takes `--key-file <secret>`, its path being
+    its configuration home; an endpoint account also takes `--endpoint <url>`,
     `--key-file <path>`, `--models opus=<id>,sonnet=<id>,haiku=<id>` and `--base-prompt <name>`, its
     path being its configuration home
   - `bmo-agency agent --account-set <account>` changes the same fields, `--base-prompt none` letting
@@ -567,6 +586,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   approves the sign-in in their own browser, signed in to the account it is for, and pastes the code; agency
   writes the code to the CLI, which ends once it has written the login into that directory. Nothing of the
   OAuth exchange is agency's: the CLI performs it, and no part of it is read.
+- **A person's sign-in runs on that person's node** (`docs/supply.md`, 「Signing a person's login in」): the
+  same CLI and the same exchange, started in the node's herdr session, its directory under the node's data
+  root, and the account added pinned to that person with that node named.
 - **It signs in an account that is there, or one that is not yet:**
   - an account that is there is a directory account, signed in again in its own directory, where its login
     has ended or is about to; a token or endpoint account keeps no login of its own and is refused;

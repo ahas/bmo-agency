@@ -3,7 +3,7 @@
 //! credential, turned on or off, put in order, removed, and chosen to run on now. What is kept is where
 //! a credential is reached, never a credential.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use policy::control_words::CONTROL_WORDS;
@@ -67,6 +67,10 @@ impl CredentialGiven {
       }) => (Some(url.clone()), Some(key_file.to_string_lossy().into_owned()), models.clone()),
       _ => (None, None, EndpointModels::default()),
     };
+    let held_secret = match held {
+      Some(Credential::ApiKey { key_file, .. }) => Some(key_file.to_string_lossy().into_owned()),
+      _ => None,
+    };
 
     Ok(match kind {
       CredentialKind::Directory => Credential::Directory { home: path.into() },
@@ -84,7 +88,67 @@ impl CredentialGiven {
           .into(),
         models: self.models.clone().unwrap_or(held_models),
       },
+      CredentialKind::ApiKey => Credential::ApiKey {
+        home: path.into(),
+        key_file: trimmed(&self.key_file)
+          .or(held_secret)
+          .filter(|file| !file.is_empty())
+          .ok_or_else(|| words.secret_needed.clone())?
+          .into(),
+      },
     })
+  }
+
+  /// The same parts with the secret an `api-key` account's key sits in resolved under the data root's
+  /// `env/`: a change names the secret, never a path, as the person's `users/<user>/<name>` for a person's
+  /// account or a plain name for the platform's (docs/cache-fallback.md, 「The Claude Code road is a list of
+  /// accounts」). A key file given for another kind is left as it was given; `held` is the kind of the
+  /// account changed, none for one added.
+  pub fn with_secret_under(
+    mut self,
+    held: Option<CredentialKind>,
+    data_root: &Path,
+    user: Option<i64>,
+  ) -> Result<Self, String> {
+    let kind = self.kind.or(held).unwrap_or(CredentialKind::Directory);
+
+    if kind != CredentialKind::ApiKey {
+      return Ok(self);
+    }
+
+    if let Some(named) = self.key_file.as_deref().map(str::trim).filter(|named| !named.is_empty()) {
+      let path =
+        secret_path(data_root, user, named).ok_or_else(|| CONTROL_WORDS.accounts.secret_name.clone())?;
+
+      self.key_file = Some(path.to_string_lossy().into_owned());
+    }
+
+    Ok(self)
+  }
+}
+
+/// A secret's name as one plain file name, none where it is empty, names a directory step or carries a
+/// separator: what a person's secret space and the platform's hold.
+pub fn plain_secret(name: &str) -> Option<&str> {
+  let name = name.trim();
+
+  (!name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])).then_some(name)
+}
+
+/// The path a secret named for an `api-key` account's key stands at under the data root's `env/`: a person's
+/// `users/<user>/<name>`, named by its plain name or by that whole path, and the platform's plain name;
+/// none for a name that is neither.
+pub fn secret_path(data_root: &Path, user: Option<i64>, named: &str) -> Option<PathBuf> {
+  let env = data_root.join("env");
+
+  match user {
+    None => plain_secret(named).map(|name| env.join(name)),
+    Some(user) => {
+      let space = format!("users/{user}/");
+      let name = named.trim().strip_prefix(&space).unwrap_or(named);
+
+      plain_secret(name).map(|name| env.join("users").join(user.to_string()).join(name))
+    }
   }
 }
 
@@ -209,8 +273,9 @@ fn path_fault(path: &Path, directory: bool, not_it: &str) -> Option<String> {
 }
 
 /// Why a credential cannot be reached, or nothing: a directory account needs a directory that is
-/// there, a token account the file its token sits in, and an endpoint account a configuration home
-/// that is there, an http or https base URL and the file its key sits in. No file is opened.
+/// there, a token account the file its token sits in, an endpoint account a configuration home that is
+/// there, an http or https base URL and the file its key sits in, and an `api-key` account a configuration
+/// home that is there and the secret its key sits in. No file is opened.
 pub fn credential_fault(credential: &Credential) -> Option<String> {
   let words = &CONTROL_WORDS.accounts;
 
@@ -231,11 +296,14 @@ pub fn credential_fault(credential: &Credential) -> Option<String> {
           .then(|| words.endpoint_url.clone())
       })
       .or_else(|| path_fault(key_file, false, &words.key_not_file)),
+    Credential::ApiKey { home, key_file } => path_fault(home, true, &words.path_not_directory)
+      .or_else(|| path_fault(key_file, false, &words.key_not_file)),
   }
 }
 
 // The columns a credential is kept in, each in the order the statements name them: its kind, its path,
-// and an endpoint account's base URL, key file and model map, none on the other kinds.
+// an endpoint account's base URL, key file and model map, and an `api-key` account's secret, none on the
+// other kinds.
 fn columns(credential: &Credential) -> [sea_orm::Value; 5] {
   let (url, key_file, models) = match credential {
     Credential::Endpoint {
@@ -248,6 +316,7 @@ fn columns(credential: &Credential) -> [sea_orm::Value; 5] {
       Some(key_file.to_string_lossy().into_owned()),
       Some(serde_json::to_string(models).unwrap_or_default()),
     ),
+    Credential::ApiKey { key_file, .. } => (None, Some(key_file.to_string_lossy().into_owned()), None),
     Credential::Directory { .. } | Credential::Token { .. } => (None, None, None),
   };
 
@@ -272,6 +341,15 @@ pub async fn account_named(db: &DatabaseConnection, named: &str) -> Result<Optio
   Ok(by_id.or_else(by_name).map(|at| held[at].clone()))
 }
 
+/// Whom an account added belongs to and where its login stands: a person's, pinned to them, and a login
+/// signed in on their node, whose directory stands there; none of either for the platform's (docs/supply.md,
+/// 「What a person brings」).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Owning {
+  pub user_id: Option<i64>,
+  pub node: Option<String>,
+}
+
 /// An account the owner named added at the end of the order, minted its own id, or the refusal. The
 /// name, the credential's parts and the base prompt it names are stored with their edges trimmed; a
 /// relative path is refused, never resolved.
@@ -281,13 +359,30 @@ pub async fn add(
   given: &CredentialGiven,
   base_prompt: BasePromptGiven,
 ) -> Result<(), Refused> {
+  add_owned(db, name, given, base_prompt, &Owning::default()).await.map(|_| ())
+}
+
+/// An account added as `add` adds one, belonging to whom `owning` names, answered with the id it was
+/// minted. A login on a person's node names a directory there, which this machine cannot look at: its path
+/// is held to being absolute alone.
+pub async fn add_owned(
+  db: &DatabaseConnection,
+  name: &str,
+  given: &CredentialGiven,
+  base_prompt: BasePromptGiven,
+  owning: &Owning,
+) -> Result<String, Refused> {
   let held = accounts(db).await?;
   let ids: Vec<&str> = held.iter().map(|one| one.id.as_str()).collect();
   let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
   let id = minted_id(name, &ids).map_err(Refused::failed)?;
   let asked = given.over(None).map_err(Refused::failed)?;
+  let reached = |credential: &Credential| match owning.node {
+    Some(_) => (!credential.path().is_absolute()).then(|| CONTROL_WORDS.accounts.path_relative.clone()),
+    None => credential_fault(credential),
+  };
 
-  if let Some(fault) = name_fault(name, &names).or_else(|| credential_fault(&asked)) {
+  if let Some(fault) = name_fault(name, &names).or_else(|| reached(&asked)) {
     return Err(Refused::failed(fault));
   }
   if let Some(fault) = base_prompt_fault(db, &base_prompt).await? {
@@ -302,7 +397,7 @@ pub async fn add(
     .flatten();
 
   let mut values: Vec<sea_orm::Value> = vec![
-    id.into(),
+    id.clone().into(),
     name.trim().into(),
     (last.unwrap_or(0) + 1).into(),
     now_ms().div_euclid(1000).into(),
@@ -310,17 +405,47 @@ pub async fn add(
 
   values.extend(columns(&asked));
   values.push(base_prompt.named_prompt().map(str::to_owned).into());
+  values.push(owning.user_id.into());
+  values.push(owning.node.clone().into());
   run(
     &written,
     &format!(
-      "INSERT INTO claude_accounts (id, name, place, enabled, added_at, {}, base_prompt)
-       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10)",
+      "INSERT INTO claude_accounts (id, name, place, enabled, added_at, {}, base_prompt, user_id, node)
+       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
       CREDENTIAL_COLUMNS.join(", ")
     ),
     values,
   )
   .await?;
   written.commit().await?;
+
+  Ok(id)
+}
+
+/// Whether the platform's account lends itself to another person's run, or the refusal: a person's own
+/// account is never lent (docs/supply.md, 「The lendable accounts」).
+pub async fn set_lendable(db: &DatabaseConnection, id: &str, lendable: bool) -> Result<(), Refused> {
+  let held = accounts(db).await?;
+  let Some(account) = held.iter().find(|one| one.id == id) else {
+    return Err(Refused::failed(no_such(id)));
+  };
+
+  if account.user_id.is_some() {
+    return Err(
+      Refused::new(
+        axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+        fill_marks(&CONTROL_WORDS.accounts.not_lendable, &[("name", &account.name)]),
+      )
+      .with_code("not-lendable"),
+    );
+  }
+
+  run(
+    db,
+    "UPDATE claude_accounts SET lendable = $1 WHERE id = $2",
+    vec![lendable.into(), id.into()],
+  )
+  .await?;
 
   Ok(())
 }
@@ -351,7 +476,10 @@ pub async fn update(
     .map(|given| given.over(Some(&account.credential)))
     .transpose()
     .map_err(Refused::failed)?;
-  let endpoint = |credential: &Credential| credential.kind() == CredentialKind::Endpoint;
+  // A key account's mark lifts by any change, as its key written again is all a person does to it.
+  let endpoint = |credential: &Credential| {
+    matches!(credential.kind(), CredentialKind::Endpoint | CredentialKind::ApiKey)
+  };
   let base = base_prompt.to_write();
   let lift_mark = account.needs_login_at.is_some()
     && (endpoint(&account.credential) || credential.as_ref().is_some_and(endpoint))
@@ -510,8 +638,8 @@ pub async fn choose(db: &DatabaseConnection, id: Option<&str>) -> Result<(), Ref
   set_setting(db, CHOSEN_KEY, id).await
 }
 
-// A choice naming an account that is no longer on is let go rather than left to wake again.
-async fn let_choice_go_if_off(db: &DatabaseConnection) -> Result<(), Refused> {
+/// A choice naming an account that is no longer on, let go rather than left to wake again.
+pub async fn let_choice_go_if_off(db: &DatabaseConnection) -> Result<(), Refused> {
   if setting(db, CHOSEN_KEY).await?.is_some() && chosen_account(db).await?.is_none() {
     run(db, r#"DELETE FROM "settings" WHERE "key" = $1"#, vec![CHOSEN_KEY.into()]).await?;
   }
