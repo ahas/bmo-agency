@@ -38,11 +38,17 @@ impl Drop for Listening {
   }
 }
 
-/// What the far end carries home: the ports it was asked for and how each stands, the mirror session that dials,
-/// and the connections waiting to be dialed, by the number each was given.
+/// A mirror session standing on the far end, and the ports it asked to be carried.
+struct Standing {
+  session: mpsc::UnboundedSender<Frame>,
+  ports: Vec<u16>,
+}
+
+/// What the far end carries home: the ports its standing sessions asked for and how each stands, the sessions
+/// standing, the newest of which dials, and the connections waiting to be dialed, by the number each was given.
 pub struct Carrier {
   host: String,
-  session: Mutex<Option<mpsc::UnboundedSender<Frame>>>,
+  sessions: Mutex<Vec<Standing>>,
   listens: Mutex<BTreeMap<u16, Listening>>,
   told: Mutex<Option<Vec<Refused>>>,
   held: Mutex<HashMap<u64, Box<dyn Stream>>>,
@@ -54,7 +60,7 @@ impl Carrier {
   pub fn new(host: &str) -> Arc<Self> {
     Arc::new(Self {
       host: host.to_owned(),
-      session: Mutex::new(None),
+      sessions: Mutex::new(Vec::new()),
       listens: Mutex::new(BTreeMap::new()),
       told: Mutex::new(None),
       held: Mutex::new(HashMap::new()),
@@ -62,41 +68,69 @@ impl Carrier {
     })
   }
 
-  /// The mirror session that dials from now on.
+  /// A mirror session standing from now on, the newest, which dials until a newer one stands.
   pub fn attach(&self, session: mpsc::UnboundedSender<Frame>) {
-    if let Ok(mut current) = self.session.lock() {
-      *current = Some(session);
+    if let Ok(mut sessions) = self.sessions.lock() {
+      sessions.push(Standing {
+        session,
+        ports: Vec::new(),
+      });
     }
   }
 
-  /// The mirror session ended: it dials no more, unless another has taken its place.
+  /// A mirror session ended: it dials no more, and the newest still standing dials in its place.
   pub fn detach(&self, session: &mpsc::UnboundedSender<Frame>) {
-    if let Ok(mut current) = self.session.lock()
-      && current.as_ref().is_some_and(|standing| standing.same_channel(session))
-    {
-      *current = None;
+    if let Ok(mut sessions) = self.sessions.lock() {
+      sessions.retain(|standing| !standing.session.same_channel(session));
     }
   }
 
-  fn say(&self, frame: Frame) {
-    if let Ok(current) = self.session.lock()
-      && let Some(session) = current.as_ref()
-    {
-      let _ = session.send(frame);
+  /// The session that dials: the newest standing.
+  fn dialing(&self) -> Option<mpsc::UnboundedSender<Frame>> {
+    self
+      .sessions
+      .lock()
+      .ok()
+      .and_then(|sessions| sessions.last().map(|newest| newest.session.clone()))
+  }
+
+  fn say_to_all(&self, frame: &Frame) {
+    if let Ok(sessions) = self.sessions.lock() {
+      for standing in sessions.iter() {
+        let _ = standing.session.send(frame.clone());
+      }
     }
   }
 
-  /// The ports asked for listened on, one already standing kept and one no longer asked let go, and which could
-  /// not be listened on told to the session: always where `tell` says, else only where it changed.
-  pub async fn carry(self: &Arc<Self>, ports: Option<&[u16]>, tell: bool) {
+  /// The ports a session asks for recorded as its own, where one asks; every port a standing session asks for
+  /// listened on, one already standing kept and one no session asks for any more let go; and which could not be
+  /// listened on told to the session that asked, and to every standing session where that changed.
+  pub async fn carry(self: &Arc<Self>, asked: Option<(&mpsc::UnboundedSender<Frame>, &[u16])>) {
     let wanted: Vec<u16> = {
+      let asking = match asked {
+        Some((session, ports)) => {
+          let Ok(mut sessions) = self.sessions.lock() else { return };
+
+          for standing in sessions.iter_mut().filter(|standing| standing.session.same_channel(session)) {
+            standing.ports = ports.to_vec();
+          }
+
+          Some(
+            sessions
+              .iter()
+              .flat_map(|standing| standing.ports.iter().copied())
+              .collect::<Vec<u16>>(),
+          )
+        }
+        None => None,
+      };
       let Ok(mut listens) = self.listens.lock() else { return };
 
-      if let Some(ports) = ports {
+      if let Some(ports) = asking {
         listens.retain(|port, _| ports.contains(port));
 
         for port in ports {
-          listens.entry(*port).or_insert_with(|| Listening::Refused(String::new()));
+          listens.entry(port).or_insert_with(|| Listening::Refused(String::new()));
         }
       }
 
@@ -143,8 +177,12 @@ impl Carrier {
       Err(_) => true,
     };
 
-    if tell || changed {
-      self.say(Frame::Carried { refused });
+    let told = Frame::Carried { refused };
+
+    if changed {
+      self.say_to_all(&told);
+    } else if let Some((session, _)) = asked {
+      let _ = session.send(told);
     }
   }
 
@@ -152,8 +190,7 @@ impl Carrier {
   /// where no session stands or nothing dials it in time.
   pub fn hold(self: &Arc<Self>, connection: Box<dyn Stream>, to: Home) {
     let id = self.next.fetch_add(1, Ordering::Relaxed);
-    let dialing = self.session.lock().ok().and_then(|current| current.clone());
-    let Some(dialing) = dialing else { return };
+    let Some(dialing) = self.dialing() else { return };
 
     if let Ok(mut held) = self.held.lock() {
       held.insert(id, connection);
@@ -196,6 +233,6 @@ pub async fn take_bridge(listener: tokio::net::UnixListener, carrier: Arc<Carrie
 pub async fn listen_again(carrier: Arc<Carrier>) {
   loop {
     tokio::time::sleep(LISTEN_AGAIN).await;
-    carrier.carry(None, false).await;
+    carrier.carry(None).await;
   }
 }

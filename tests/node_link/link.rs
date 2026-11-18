@@ -746,3 +746,156 @@ fn a_connect_program_that_does_not_stand_is_named_by_its_path() {
   wait_for("the reason it could not start", || !said().is_empty());
   assert!(said().contains(&missing.display().to_string()), "{}", said());
 }
+
+// A hub's connect program standing in for an agent on a person's PC: refused as the hub refuses a stream to an agent
+// that is not attached while the file `AGENT_AWAY` names stands, else joined to the port named on the PC's loopback
+// and ended once the far end closes it, as the hub's own ends.
+fn returning_connect(dir: &Path) -> std::path::PathBuf {
+  let connect = dir.join("jake-hub");
+
+  fs::write(
+    &connect,
+    "#!/bin/bash\nif [ -e \"$AGENT_AWAY\" ]; then\n  echo 'jake-hub connect: the hub \
+     refused the stream (HTTP 409): no agent attached' >&2\n  exit 1\nfi\nexec 3<>/dev/tcp/127.0.0.2/$3\nexec 4<&0\ncat \
+     <&4 >&3 &\ncat <&3\nkill $!\n",
+  )
+  .expect("connect");
+  fs::set_permissions(&connect, fs::Permissions::from_mode(0o755)).expect("runnable");
+  connect
+}
+
+// The spec of a link named `node` to the far end at `mirror_port` on the PC's loopback, its own sockets and state
+// under `dir` and the far end's root `there`, pushing the program in its folder `here` to the node's folder under
+// the far end's data root.
+fn pc_link_spec(
+  dir: &Path,
+  node: &str,
+  connect: &Path,
+  mirror_port: u16,
+  there: &Path,
+) -> std::path::PathBuf {
+  let own = dir.join(node);
+  let hub_env = dir.join("hub.env");
+  let spec = own.join("link.json");
+
+  fs::create_dir_all(own.join("here")).expect("the link's folder");
+  fs::write(&hub_env, "JAKE_CONTROL_PORT=1\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n")
+    .expect("hub settings");
+  fs::write(
+    &spec,
+    json!({
+      "node": node,
+      "ssh": [],
+      "root": there,
+      "binary": "node-link",
+      "herdr": { "local": own.join("h.sock"), "remote": own.join("rh.sock") },
+      "bridge": own.join("b.sock"),
+      "deploy": dir,
+      "control": own.join("c.sock"),
+      "proc": own.join("proc"),
+      "state": own.join("state.json"),
+      "rewrite": [[own.join("here"), there.join("data").join(node)]],
+      "push": [{ "local": own.join("here"), "files": ["program.json"] }],
+      "jake": {
+        "agent": node,
+        "connect": [connect, "connect"],
+        "hub_env": hub_env,
+        "mirror_port": mirror_port,
+        "herdr_port": 1
+      }
+    })
+    .to_string(),
+  )
+  .expect("spec");
+  spec
+}
+
+// A PC two agents reach the one far end on, as a Windows agent and a Linux one on the same PC both reach its loopback:
+// the link whose agent was away comes back to the far end while the other's stands, and stays up when the other link
+// is made again, its log saying the tries refused, the link up, and no link down.
+#[test]
+fn a_link_whose_agent_was_refused_comes_back_and_stays_beside_another_link_to_the_same_far_end() {
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().expect("dir");
+  let there = dir.path().join("there");
+
+  fs::create_dir_all(there.join("data").join("run")).expect("made");
+
+  let mirror = std::net::TcpListener::bind("127.0.0.2:0").expect("a port");
+  let mirror_port = mirror.local_addr().expect("its address").port();
+  drop(mirror);
+
+  let _far = Link(
+    Command::new(&binary)
+      .args(["serve", "--root"])
+      .arg(&there)
+      .args(["--listen", &format!("127.0.0.2:{mirror_port}")])
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("serve"),
+  );
+  let connect = returning_connect(dir.path());
+  let link = |node: &str, away: &Path| {
+    let spec = pc_link_spec(dir.path(), node, &connect, mirror_port, &there);
+    let log = fs::File::create(dir.path().join(node).join("log")).expect("the link's log");
+
+    Link(
+      Command::new(&binary)
+        .arg("connect")
+        .arg(&spec)
+        .env("NODE_LINK_FIRST_WAIT_MS", "50")
+        .env("AGENT_AWAY", away)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(log)
+        .spawn()
+        .expect("connect"),
+    )
+  };
+  let state = |node: &str| read_json(&dir.path().join(node).join("state.json")).unwrap_or(Value::Null);
+  let away = dir.path().join("away");
+
+  // The other agent's link holds the far end.
+  let never = dir.path().join("never");
+  let other = link("w7", &never);
+  wait_for("the other link", || state("w7")["state"] == "connected");
+
+  // The agent is away: the hub refuses its link's streams.
+  fs::write(&away, "").expect("away");
+  let _returning = link("u7", &away);
+  wait_for("a refused stream", || {
+    state("u7")["dropped"].as_str().is_some_and(|why| why.contains("409"))
+  });
+
+  // The agent attaches again, and its link is up.
+  fs::remove_file(&away).expect("back");
+  wait_for("the link back", || state("u7")["state"] == "connected");
+  let since = state("u7")["since"].clone();
+
+  // The other link is made again, its stream left standing on the PC, and the far end serves its new session.
+  drop(other);
+  fs::remove_dir_all(dir.path().join("w7").join("proc")).expect("the other link's node files");
+  let _other = link("w7", &never);
+  wait_for("the other link's new session served", || {
+    dir.path().join("w7").join("proc").join("loadavg").exists()
+  });
+
+  // The returning link's program still reaches the PC, over the session it came back on.
+  fs::write(dir.path().join("u7").join("here").join("program.json"), "{}").expect("program");
+  wait_for("the program on the PC", || there.join("data").join("u7").join("program.json").exists());
+  assert_eq!(state("u7")["state"], "connected", "{}", state("u7"));
+  assert_eq!(state("u7")["since"], since, "{}", state("u7"));
+
+  let log = fs::read_to_string(dir.path().join("u7").join("log")).expect("the link's log");
+
+  assert!(
+    log.contains(
+      "u7: link not made: the session ended: jake-hub connect: the hub refused the stream (HTTP 409)"
+    ),
+    "{log}"
+  );
+  assert!(log.contains("u7: link up\n"), "{log}");
+  assert!(!log.contains("link down"), "{log}");
+}

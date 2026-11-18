@@ -48,22 +48,25 @@ fn only_a_live_process_of_the_record_is_told_alive() {
   assert_eq!(alive_in(dir.path()), vec![Identity { pid: own, birth }]);
 }
 
-// "a newer mirror session ends the one before it, and is ended in turn by the next"
+// "a newer mirror session of a node ends the node's one before it, and is ended in turn by the next; another node's
+// stands beside them"
 #[test]
-fn a_newer_mirror_session_ends_the_one_before_it_and_is_ended_in_turn_by_the_next() {
+fn a_newer_mirror_session_ends_its_node_s_one_before_it_and_leaves_another_node_s_standing() {
   let mirror = Mirror::default();
-  let mut first = mirror.newest();
+  let mut first = mirror.newest("u7");
+  let mut other = mirror.newest("w7");
 
-  assert!(first.try_recv().is_err(), "a session alone is not told to end");
+  assert!(first.try_recv().is_err(), "another node's session ends no session of this node");
 
-  let mut second = mirror.newest();
+  let mut second = mirror.newest("u7");
 
   assert_eq!(first.try_recv(), Ok(()));
   assert!(second.try_recv().is_err());
 
-  let _third = mirror.newest();
+  let _third = mirror.newest("u7");
 
   assert_eq!(second.try_recv(), Ok(()));
+  assert!(other.try_recv().is_err(), "a node's sessions end no other node's");
 }
 
 // "on a person's PC a near end that connects closes the mirror an earlier near end left standing"

@@ -167,6 +167,10 @@ side of a remote agent, the rotation, and what a dropped node does.
   person's PC each port its far end could not listen on with why — is written beside the node's directory
   here. A link that drops is made again, waiting a doubling bound
   up to a minute between tries; one heard from in the last twenty seconds is up.
+- **The link's log says when it comes up and when it goes down:** `link up` once the far end greets a
+  connection; `link down` with how long it stood and why, when a connection that came up ends; and `link not
+  made` with why, when a try ends before the far end greeted it. A link that keeps failing reads apart from one
+  that keeps coming up and dropping.
 - **A connection the node has not been heard on for two minutes is dropped and made again.** The far end
   speaks every few seconds while it stands, so a connection with nothing coming through it is a dead one,
   as a hub's connect program left standing after the PC's agent was replaced is; the reason it dropped says

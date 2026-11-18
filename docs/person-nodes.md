@@ -240,10 +240,13 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   target of the hub's.
 - **The road home, connection by connection:**
   - once the mirror is up, the near end names the ports here a program reaches — the tool host's and the model
-    gateway's — and the far end listens on each at the same number on its loopback, keeping one it already
-    listens on, trying a refused one again every half minute, and answering which it could not listen on and why;
+    gateway's — and the far end listens on each port any standing session names at the same number on its
+    loopback, keeping one it already listens on, trying a refused one again every half minute, and answering
+    which it could not listen on and why: to the session that named them, and to every standing session whenever
+    that changes;
   - each connection the far end takes there, or on the node's bridge socket, is held while the far end asks the
-    near end over the mirror to dial it home, naming it by a number of its own and what it is for;
+    newest standing session's near end over the mirror to dial it home, naming it by a number of its own and what
+    it is for;
   - the near end opens a new byte stream to the mirror port, reads the far end's greeting, names the connection on
     it, and joins the stream to the port here, or to the bridge's socket here; the far end joins the stream to the
     connection it held, each side's close passed on to the other as it comes. A connection not dialed within
@@ -264,10 +267,16 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
   is not named has no spec, and the pass says why.
 - **A connection the PC has not been heard on is dropped and dialed again** (`docs/work-nodes.md`, 「The link」),
   since the hub's connect program can stand open with nothing coming through it after the PC's agent was replaced.
-- **The far end speaks the mirror with the newest near end alone:** a connection that opens a mirror session ends
-  the one an earlier connection holds. A near end that went away — its unit stopped, the connection it held
-  dropped — may leave its stream standing on the PC with nothing to close it, and a session waiting behind it
-  would greet each new near end and then say nothing, so the link would never be heard again.
+- **The far end speaks the mirror with each node's newest near end alone:** a near end names its node first on every
+  mirror session it opens, and a session that opens for a node ends the one an earlier connection of that node
+  holds. A near end that went away — its unit stopped, the connection it held dropped — may leave its stream
+  standing on the PC with nothing to close it, and a session waiting behind it would greet each new near end and
+  then say nothing, so the link would never be heard again. A session that names no node counts as one node of its
+  own.
+- **The sessions of different nodes stand side by side:** two agents on one PC, one on Windows and one inside its
+  Linux shell, reach the same far end at the same loopback, so two nodes' links can hold one far end. Were one to
+  end the other's session, each link would dial again and end the other's in turn for as long as both stand, and
+  the one whose wait had grown longest, as an agent's outage grows it, would stay down nearly all the time.
 - **Nothing of the deployment's credentials is sent to the PC** beyond what the SSH link sends a work node: the run's
   own variables, the CLI's account token for the nodes, its place, its tool token, the console's public address,
   its supervisor's owner account, and for a program on a gateway road the gateway's key file its key helper reads,

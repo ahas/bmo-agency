@@ -203,7 +203,8 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
   });
 
   match (&options.listen, &carrier) {
-    // Each connection a mirror session, the newest near end's alone, or a stream dialing a held connection home.
+    // Each connection a mirror session, each node's newest near end's alone, or a stream dialing a held connection
+    // home.
     (Some(address), Some(carrier)) => {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
       let mirror = Arc::new(Mirror::default());
@@ -249,7 +250,8 @@ fn hello() -> Frame {
 }
 
 // One connection on a person's PC, greeted, then told apart by the near end's first words: a stream dialing a held
-// connection home, joined to it, or a mirror session, which ends the one before it and takes its turn once it has.
+// connection home, joined to it, or a mirror session of the node it names, which ends that node's session before it
+// and takes its turn once it has. A session that names no node is the nameless node's.
 async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror: Arc<Mirror>) {
   let (reader, mut writer) = socket.into_split();
 
@@ -272,36 +274,57 @@ async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror
       }
     }
     first => {
-      let superseded = mirror.newest();
-      let _turn = mirror.turn.lock().await;
+      let (node, first) = match first {
+        Some(Frame::Near { node }) => (node, None),
+        first => (String::new(), first),
+      };
+      let superseded = mirror.newest(&node);
+      let _turn = mirror.turn(&node).lock_owned().await;
 
       session(reader, writer, Greeting::Said(first), Some(carrier), superseded).await;
     }
   }
 }
 
-/// The mirror sessions of one far end (docs/person-nodes.md, 「The link over jake」): one at a time, the newest near
-/// end's. A near end that went away may leave its stream standing here with nothing to close it, so the session
-/// behind it is ended by the next connection rather than waited for.
+/// The mirror sessions of one far end (docs/person-nodes.md, 「The link over jake」), by the node each names: one at a
+/// time of a node, its newest near end's, beside those of other nodes. A near end that went away may leave its stream
+/// standing here with nothing to close it, so the session behind it is ended by its node's next connection rather
+/// than waited for.
 #[derive(Default)]
 pub struct Mirror {
-  /// Held by the session speaking now.
-  turn: tokio::sync::Mutex<()>,
-  /// What ends the newest session, once a newer one comes.
-  newest: Mutex<Option<oneshot::Sender<()>>>,
+  nodes: Mutex<HashMap<String, Turns>>,
+}
+
+/// One node's mirror sessions.
+#[derive(Default)]
+struct Turns {
+  /// Held by the node's session speaking now.
+  turn: Arc<tokio::sync::Mutex<()>>,
+  /// What ends the node's newest session, once a newer one comes.
+  newest: Option<oneshot::Sender<()>>,
 }
 
 impl Mirror {
-  /// A new session made the newest: the one before it told to end, and what tells this one, in turn.
-  pub fn newest(&self) -> oneshot::Receiver<()> {
+  /// A new session of the node made its newest: the node's one before it told to end, and what tells this one, in
+  /// turn.
+  pub fn newest(&self, node: &str) -> oneshot::Receiver<()> {
     let (ends, superseded) = oneshot::channel();
-    let older = self.newest.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).replace(ends);
+    let older = self.nodes().entry(node.to_owned()).or_default().newest.replace(ends);
 
     if let Some(older) = older {
       let _ = older.send(());
     }
 
     superseded
+  }
+
+  /// What the node's session speaking now holds, and the next waits on.
+  pub fn turn(&self, node: &str) -> Arc<tokio::sync::Mutex<()>> {
+    self.nodes().entry(node.to_owned()).or_default().turn.clone()
+  }
+
+  fn nodes(&self) -> std::sync::MutexGuard<'_, HashMap<String, Turns>> {
+    self.nodes.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 }
 
@@ -376,7 +399,7 @@ async fn session(
 
     if let Frame::Carry { ports } = frame {
       if let Some(carrier) = &carrier {
-        carrier.carry(Some(&ports), true).await;
+        carrier.carry(Some((&send, &ports))).await;
       }
       continue;
     }

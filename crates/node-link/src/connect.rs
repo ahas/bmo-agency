@@ -637,8 +637,14 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
           let head = spec.path_head.join(":");
 
           node_path = Some(if head.is_empty() { path.clone() } else { format!("{head}:{path}") });
+
+          if state.connected_since.is_none() {
+            eprintln!("{}: link up", spec.node);
+          }
+
           state.connected_since = Some(now);
           state.dropped = None;
+          let _ = send.send(Frame::Near { node: spec.node.clone() });
           let _ = send.send(Frame::Watch { pulls: spec.pulls() });
           let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
           carry(spec, &send);
@@ -677,9 +683,14 @@ async fn run_once(spec_path: &Path, spec: &mut Spec, current: &Current, state: &
           match Spec::read(spec_path) {
             Ok(read) if same_transport(spec, &read) => {
               *spec = read;
-              let _ = send.send(Frame::Watch { pulls: spec.pulls() });
-              let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
-              carry(spec, &send);
+
+              // Before the far end greets, what it is asked waits for the greeting, which asks it whole and after
+              // the node's name.
+              if node_path.is_some() {
+                let _ = send.send(Frame::Watch { pulls: spec.pulls() });
+                let _ = send.send(Frame::Folders { paths: spec.folders.clone() });
+                carry(spec, &send);
+              }
             }
             Ok(read) => {
               *spec = read;
@@ -823,7 +834,14 @@ pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
     let began = std::time::Instant::now();
     let reason = run_once(&spec_path, &mut spec, &current, &mut state).await;
 
-    eprintln!("{}: link dropped: {reason}", spec.node);
+    match state.connected_since {
+      Some(since) => eprintln!(
+        "{}: link down after {} seconds: {reason}",
+        spec.node,
+        now_ms().saturating_sub(since) / 1000
+      ),
+      None => eprintln!("{}: link not made: {reason}", spec.node),
+    }
     state.connected_since = None;
     state.dropped = Some(reason);
     state.write(&spec);

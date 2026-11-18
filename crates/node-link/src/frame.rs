@@ -34,6 +34,9 @@ fn is_false(on: &bool) -> bool {
 pub enum Frame {
   /// The far end, up: the node's home, its own process and the search path its login carries.
   Hello { home: String, pid: u32, path: String },
+  /// The near end's first words on a mirror session: the node its link is for, whose newest session alone the far end
+  /// keeps, beside the sessions of other nodes (docs/person-nodes.md, 「The link over jake」).
+  Near { node: String },
   /// What the far end is to watch, replacing whatever it watched before.
   Watch { pulls: Vec<Pull> },
   /// A file written whole, at its path on the receiving end's side of the pull or push it belongs to.
@@ -67,7 +70,7 @@ pub enum Frame {
   /// The far end's answer to anything it could not do, said once.
   Trouble { said: String },
   /// The ports here a program on a person's PC reaches, which the far end listens on at its loopback and dials
-  /// home, replacing whatever it carried before (docs/person-nodes.md, 「The link over jake」).
+  /// home, replacing whatever this session asked for before (docs/person-nodes.md, 「The link over jake」).
   Carry { ports: Vec<u16> },
   /// The far end's answer to what it was asked to carry: each port it could not listen on, with why.
   Carried { refused: Vec<Refused> },
