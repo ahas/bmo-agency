@@ -8,7 +8,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use bmo_testbed_client::{Page, Queue};
-use policy::machine_turn::MACHINE_TURN;
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
 use serde_json::Value;
@@ -171,7 +170,7 @@ pub fn checkouts_by_name<'a>(
 
 /// The base checkouts of the repositories on this machine, by the name each goes by; none where the rows do not
 /// read.
-async fn local_checkouts(db: &DatabaseConnection) -> BTreeMap<String, PathBuf> {
+pub(crate) async fn local_checkouts(db: &DatabaseConnection) -> BTreeMap<String, PathBuf> {
   match crate::repositories::every(db).await {
     Ok(rows) => checkouts_by_name(
       rows
@@ -238,6 +237,18 @@ pub(crate) async fn held_by(checkout: &Path, commit: &str, deployed: &str) -> Op
     Some(0) => Some(true),
     Some(1) => Some(false),
     _ => None,
+  }
+}
+
+/// Whether `commit` is live, as the deployment record of the repository in `checkout` reads: the commit that runs
+/// is it or, as git answers in `checkout`, holds it; none where the record or git cannot tell.
+pub(crate) async fn live(checkout: &Path, commit: &str, home: &Path) -> Option<bool> {
+  let root = deploy_root(checkout, home)?;
+  let deployed = read_json(&root.join(DEPLOYED))?["commit"].as_str()?.to_owned();
+
+  match deployed == commit {
+    true => Some(true),
+    false => held_by(checkout, commit, &deployed).await,
   }
 }
 
@@ -312,25 +323,10 @@ async fn testing(folder: &Path) -> Result<BTreeSet<String>, String> {
 
 /// The items the job service holds under a close, each with where its closes stand.
 async fn closing(service: &JobService) -> Result<BTreeMap<i64, Vec<Close>>, String> {
-  let answer = reqwest::Client::new()
-    .get(format!("{}/items", service.url))
-    .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
-    .bearer_auth(&service.token)
-    .send()
-    .await
-    .map_err(|why| why.to_string())?;
-
-  if !answer.status().is_success() {
-    return Err(format!("the job service answered {} to /items", answer.status().as_u16()));
-  }
-
-  let page: serde_json::Value = answer.json().await.map_err(|why| why.to_string())?;
-
   Ok(
-    page["items"]
-      .as_array()
-      .into_iter()
-      .flatten()
+    closes::items(service)
+      .await?
+      .iter()
       .filter_map(|item| Some((item["id"].as_i64()?, closes::of(&item["labels"]))))
       .collect(),
   )

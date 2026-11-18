@@ -26,6 +26,16 @@ waited_item = "#{item} ({title}), {state}"
 # a semicolon.
 deploy_order = "Item #{item} ({title}): its job's close merged {merged}, and the item waits for each repository's batch deployment: put each live once no related work is left, and close the item once every one is live, as the todo procedure says."
 merged_commit = "commit {commit} into {repository}'s main"
+# A repository's batch deployment come due (docs/agent-control.md, 「A repository's batch deployment come due is
+# told」): how many minutes the oldest commit waiting for it waits before its orderer is told, unless the owner's
+# own settings row `deploy_due_minutes` names another; how often the items under a close are read for it; and its
+# order, `{repository}`, `{age}`, the oldest commit's wait, `{due}`, the due minutes as a wait, and `{commits}`,
+# each waiting commit as `deploy_due_commit` gives it with `{commit}`, `{item}`, `{title}` and `{age}`, joined by a
+# semicolon.
+deploy_due_minutes = 180
+deploy_due_read_seconds = 60
+deploy_due_order = "The oldest commit waiting for {repository}'s batch deployment has waited {age}, and a commit waits at most {due}. The commits waiting: {commits}"
+deploy_due_commit = "commit {commit} of item #{item} ({title}), waiting {age}"
 # A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 # told」): `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`, `{reason}`, `{items}`, the waiting items
 # it carries in the room, each as `deploy_failed_item` gives it with `{item}` and `{title}`, else

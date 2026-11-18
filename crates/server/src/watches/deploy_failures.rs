@@ -3,11 +3,10 @@
 //! a run seen running is remembered by its unit, and every run is judged once: from its record, or, where a later
 //! run of the same repository wrote over that record, from its unit's journal.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use policy::job_notices::JOB_NOTICES;
-use policy::machine_turn::MACHINE_TURN;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -217,29 +216,16 @@ async fn carried(
   checkout: &Path,
   commit: &str,
 ) -> Result<Vec<Value>, String> {
-  let answer = reqwest::Client::new()
-    .get(format!("{}/items", service.url))
-    .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
-    .bearer_auth(&service.token)
-    .send()
-    .await
-    .map_err(|why| why.to_string())?;
-
-  if !answer.status().is_success() {
-    return Err(format!("the job service answered {} to /items", answer.status().as_u16()));
-  }
-
-  let page: Value = answer.json().await.map_err(|why| why.to_string())?;
   let mut carried = vec![];
 
-  for item in page["items"].as_array().into_iter().flatten() {
+  for item in closes::items(service).await? {
     let closes = closes::of(&item["labels"]);
     let Some(handed) = closes::waiting_in(&closes, repository).filter(|_| item["state"] != "done") else {
       continue;
     };
 
     if held_by(checkout, handed, commit).await == Some(true) {
-      carried.push(item.clone());
+      carried.push(item);
     }
   }
 
@@ -312,17 +298,33 @@ async fn tell(
   Ok(())
 }
 
-/// One pass over `roots`, each run judged once and every failed one told; the first pass, with no state kept, tells
+// A run of `repository` judged ended: its batch deployment's due notice owed afresh (docs/agent-control.md, 「A
+// repository's batch deployment come due is told」), the repository kept among those `ended` names.
+async fn ended_run(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  repository: &str,
+  ended: &mut BTreeSet<String>,
+) -> Result<(), String> {
+  crate::watches::deploy_due::rearmed(db, vars, repository).await?;
+  ended.insert(repository.to_owned());
+
+  Ok(())
+}
+
+/// One pass over `roots`, each run judged once, every failed one told and every ended one owing its repository's
+/// due notice afresh; the repositories whose run ended are answered. The first pass, with no state kept, tells
 /// nothing of what has already ended. A notice the store would not take leaves its run unjudged for the next pass.
 pub async fn watched(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
   roots: &[Root],
   units: &impl Units,
-) -> Result<(), String> {
+) -> Result<BTreeSet<String>, String> {
   let kept = settings::get(db, STATE_KEY).await.map_err(|why| why.detail)?;
   let telling = kept.is_some();
   let mut state: State = kept.and_then(|kept| serde_json::from_str(&kept).ok()).unwrap_or_default();
+  let mut ended = BTreeSet::new();
 
   for root in roots {
     let key = root.path.to_string_lossy().into_owned();
@@ -335,20 +337,27 @@ pub async fn watched(
     }
 
     let gone = record["ending"].is_object() || units.active(&unit).await == Some(false);
+    let judgement = judged(&record, &root.repository, gone);
 
-    match judged(&record, &root.repository, gone) {
-      Judgement::Running => {
-        state.running.insert(unit, key);
+    if judgement == Judgement::Running {
+      state.running.insert(unit, key);
+      continue;
+    }
+
+    if telling {
+      let repository = text(&record["repository"]).unwrap_or_else(|| root.repository.clone());
+
+      if let Err(why) = ended_run(db, vars, &repository, &mut ended).await {
+        eprintln!("deploy watch: {unit}'s end was not owed, so it is read again: {why}");
         continue;
       }
-      Judgement::Fine => {}
-      Judgement::Failed(failure) if telling => {
-        if let Err(why) = tell(db, vars, root, &failure, units).await {
-          eprintln!("deploy watch: {unit} was not owed, so it is read again: {why}");
-          continue;
-        }
+
+      if let Judgement::Failed(failure) = judgement
+        && let Err(why) = tell(db, vars, root, &failure, units).await
+      {
+        eprintln!("deploy watch: {unit} was not owed, so it is read again: {why}");
+        continue;
       }
-      Judgement::Failed(_) => {}
     }
 
     state.running.remove(&unit);
@@ -362,6 +371,13 @@ pub async fn watched(
     }
 
     let root = roots.iter().find(|root| root.path.to_string_lossy() == key.as_str());
+
+    if let Some(root) = root.filter(|_| telling)
+      && let Err(why) = ended_run(db, vars, &root.repository, &mut ended).await
+    {
+      eprintln!("deploy watch: {unit}'s end was not owed, so it is read again: {why}");
+      continue;
+    }
 
     if let (Some(root), Some(payload)) = (root, units.failed_event(&unit).await) {
       let failure = from_event(&payload, &unit, &root.repository);
@@ -377,7 +393,9 @@ pub async fn watched(
 
   let written = serde_json::to_string(&state).map_err(|why| why.to_string())?;
 
-  settings::set(db, STATE_KEY, &written).await.map_err(|why| why.detail)
+  settings::set(db, STATE_KEY, &written).await.map_err(|why| why.detail)?;
+
+  Ok(ended)
 }
 
 /// The deploy roots of the repositories agency holds on this machine, each once, as the testbed declaration in the
@@ -406,7 +424,8 @@ async fn roots(db: &DatabaseConnection, home: &Path) -> Result<Vec<Root>, String
   Ok(roots.into_values().collect())
 }
 
-/// One pass of the deployment watch over this machine's deploy roots; a test's ground reads nothing.
+/// One pass of the deployment watch over this machine's deploy roots, the waiting commits read for a batch
+/// deployment come due again where a run ended; a test's ground reads nothing.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, home: &Path) {
   if crate::job_end::test_ground(vars) {
     return;
@@ -417,7 +436,9 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, home
     Err(why) => return eprintln!("deploy watch: the repositories were not read: {why}"),
   };
 
-  if let Err(why) = watched(db, vars, &roots, &Journal).await {
-    eprintln!("deploy watch: the pass did not end: {why}");
+  match watched(db, vars, &roots, &Journal).await {
+    Ok(ended) if !ended.is_empty() => crate::watches::deploy_due::pass(db, vars, home).await,
+    Ok(_) => {}
+    Err(why) => eprintln!("deploy watch: the pass did not end: {why}"),
   }
 }

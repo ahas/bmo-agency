@@ -233,6 +233,7 @@ mod verbs {
 mod watches {
   mod background_work;
   mod closes;
+  mod deploy_due;
   mod deploy_failures;
   mod job_events;
   mod links;

@@ -3340,9 +3340,10 @@ with the session.
   - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
     `DELETE /instructions/{id}`, and never told again while it is kept: a job's question, withdrawn once a
     settling reply comes; a job's commit waiting for its repository's batch deployment, withdrawn once the
-    item no longer waits for it; an item awaiting a launch on a free checkout and agent, withdrawn once it no
-    longer waits to go; and an ended job's item left leased, withdrawn once its lease ends or its commit waits
-    for its deployment;
+    item no longer waits for it; a repository's batch deployment come due, withdrawn once none of the commits it
+    named waits, and let go as a deployment of the repository ends, so that it is owed afresh; an item awaiting
+    a launch on a free checkout and agent, withdrawn once it no longer waits to go; and an ended job's item left
+    leased, withdrawn once its lease ends or its commit waits for its deployment;
   - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
     again at every start of agency and every `retell_seconds` after it was last told, under the same kind, so
     the receiver replaces the copy still pending rather than queueing a second one. This is a check of a job's
@@ -3354,7 +3355,8 @@ with the session.
   notice's row is its own mark. The mark is written with the notice's row, not when the receiver takes it,
   and let go once the item, the job or the question has moved on, so neither a restart nor the next pass
   owes a notice twice, and a transition that comes again is owed again. No clock decides whether a
-  notice is owed beyond the launch's own minute below: every one is keyed by the transition it tells.
+  notice is owed beyond the launch's own minute and a repository's batch deployment come due below: every
+  other one is keyed by the transition it tells.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
   (`GET /events` with `Accept: application/json`, `kinds` `item.changed`, `note.created`, `question.created`,
   `question.due` and `reply.created`, past its cursor), keeping the last event's number as the settings row
@@ -3385,6 +3387,7 @@ with the session.
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
 | An item moved to `done` by a caller other than its orderer | the orderer | instruction, from the events | `item-closed:<item>`, `item-closed:#<item>` |
 | A job's close that merged its commit, its item carrying a pair `close-phase:<repository>` `waiting-batch` with `close-commit:<repository>` for each repository whose commit waits for that repository's batch deployment (`docs/role-agents.md`, 「When an agent is busy」), or, on an item that carries no repository's pair, `close-phase` `waiting-batch` (or an older close's `waiting-live`) with `close-commit` — owed for each set of waiting commits, naming every repository and its commit | the orderer | instruction, from the events, told once for each set of waiting commits and kept until no pair of the item waits, then withdrawn, whether or not a job of agency's still runs on it; another item's change, a restart or a later event of the item naming the same commits tells it no more | `item-awaits-deploy:<item>`, `item-awaits-deploy:#<item>` |
+| A repository's oldest commit waiting for its batch deployment having waited the due minutes (`policy/job-notices.toml`, `deploy_due_minutes`, three hours; 「A repository's batch deployment come due is told」) | the orderer of the item whose commit has waited longest; the owner's private room where it cannot be read | instruction, from the deploy-due read, told once and kept for the set of waiting commits it names; owed afresh as a deployment of the repository ends or a commit joins the set, and told again at once where the oldest still waits past the due minutes; withdrawn once none of its commits waits | `repository-deploy-due:<repository>`, `repository-deploy-due:#<item>` for each item it names |
 | A deployment of any repository, whoever started it, that ended without going live — failed, rolled back, stopped by its own judgement other than a refusal, or cut off — (「A deployment that did not go live is told」) | the orderer of each item whose waiting commit it carries, one instruction to each room; the owner's private room where it carries none | instruction, from the deployment watch, told once for each deployment | `deploy-failed:<unit>`, `deploy-failed:#<item>` for each item it carries, `deploy-failed` where it carries none |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does: it hands every question to the supervisor as `question-for-supervisor`, and wakes the supervisor again on one it did not take up, never the owner; the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
 | A job's question past its due time while open; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the owner | owner notice, from the events | code `job-question-due` |
@@ -3500,6 +3503,38 @@ with the session.
   told before is let go. Any other item is owed to its orderer once, the notice marked with the lease, to close
   the item or give the lease back, and kept, never told again for the same lease. The mark and the notice are
   let go once the lease ends.
+- **A repository's batch deployment come due is told.** A repository's commits waiting for its batch deployment
+  go live together once no related work is left, and at the latest once the oldest of them has waited the due
+  minutes (`policy/job-notices.toml`, `deploy_due_minutes`, three hours, or the owner's own row
+  `deploy_due_minutes` of the settings table). When the oldest reaches that mark the related work is mostly still
+  open, so the notice of each commit told as it began to wait has long been judged; this notice tells the mark
+  itself.
+  - **What waits.** Every `deploy_due_read_seconds` (`policy/job-notices.toml`) agency reads the job service's
+    items under a close (`GET /items` with the label `close-phase`). A commit waits for a repository where an
+    item that is not `done`, `dropped` or `merged` carries that repository's pair `close-phase:<repository>`
+    `waiting-batch` with `close-commit:<repository>`; on an item that carries no repository's pair, the commit
+    of `close-commit` beside `close-phase` `waiting-batch` or an older close's `waiting-live` waits for the
+    repository its `assigneeName` names. A commit the repository's deployment record names as running, or holds
+    as git answers in the repository's checkout on this machine, is live and waits no longer, whatever its labels
+    still read; a commit whose deployment cannot be read waits as its labels say.
+  - **Since when.** A commit has waited since the item's `changedAt` as agency first reads it waiting, never
+    later than that read. Setting the close's label changed the item, so the age is never overstated, and a
+    commit that waited before agency first read it keeps its age. The moment is kept with the item and the
+    commit in the settings row `deploy_due_since` (`docs/store.md`) until the commit no longer waits.
+  - **What it says.** The instruction names the repository, every waiting commit with its item, the item's
+    title and how long it has waited, the age of the oldest and the due minutes. It goes to the orderer of the
+    item whose commit has waited longest, the lowest number first among those that began together; where that
+    orderer cannot be read, to the owner's private room.
+  - **Told once, owed afresh.** Told, the notice is kept, marked with the set of waiting commits it named, and is
+    not told again while no other commit joins that set. It is owed afresh when a deployment of the repository
+    ends, whatever its outcome — live, failed, rolled back, stopped, refused or cut off: the deployment watch
+    lets the notice go, withdrawing its copy, as it judges the run (「A deployment that did not go live is
+    told」) — and when a commit outside the set it named joins the waiting set. Owed afresh, it is told again at
+    once where the oldest waiting commit has waited the due minutes, naming the set as it stands, and else once
+    the oldest has.
+  - **Withdrawn once live.** Once none of the commits it named waits — each live, taken off its item, or its
+    item ended — the notice is let go and its copy withdrawn; commits that wait after it are told once their
+    own oldest has waited the due minutes.
 - **A deployment that did not go live is told.** A deployment is told whoever started it: the supervisor's
   own deploy tool, a script, the console or a shell. A supervisor's own call answers it as well, but that
   answer is lost where the call ends first, as a call whose session ended does, while the deployment goes on.
@@ -3531,6 +3566,10 @@ with the session.
     items of that room; one that carries none, or one read while the job service does not answer, goes to the
     owner's private room. The supervisor's manual says to send the breaking item back as the todo procedure's
     failed batch says.
+  - **A run's end owes the deploy-due notice afresh.** Every run judged ended, by its record or by its journal,
+    lets go the notice of its repository's batch deployment come due, and the same pass judges that repository's
+    waiting commits again (「A repository's batch deployment come due is told」). The first pass, which tells
+    nothing of what has already ended, lets nothing go.
   - **Once each.** What has been read is kept as the settings row `deploy_watch` (`docs/store.md`): the unit
     last judged for each deploy root and the units seen running and not yet judged. A run is judged once, by
     its record or by its journal, so neither a restart nor the next pass tells it twice. The first pass, with

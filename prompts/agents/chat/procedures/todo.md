@@ -304,7 +304,7 @@ and the agency's own:
   `close-phase:<repository>=waiting-batch`), and the older ones whose `close-phase` alone does, and, for each
   repository that holds such an item, what related work is still open or leased: an item of the same
   repository, one naming it in its `repositories` label, or one of the same `series` in another repository. While any is left, the waiting commits stay
-  waiting. When none is left — or the oldest waiting commit of the repository has waited three hours, or the owner says to put it live now — put that
+  waiting. When none is left — or the oldest waiting commit of the repository has waited as long as a commit may, which `repository-deploy-due` tells you with the repository, its waiting commits and their waits, or the owner says to put it live now — put that
   repository's main live once, with the deploy tool, the repository's declared name, main's commit and an
   English reason naming the items it carries, without asking anybody: every item that runs was approved, and
   that approval covers putting its commit live. A `series` that spans several repositories goes live

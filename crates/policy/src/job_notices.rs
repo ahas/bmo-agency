@@ -51,6 +51,15 @@ pub struct JobNotices {
   pub deploy_journal_lines: usize,
   /// One waiting commit, as `{merged}` lists it: `{commit}` and `{repository}`.
   pub merged_commit: String,
+  /// How long a repository's oldest commit waiting for its batch deployment waits before its orderer is told, in
+  /// minutes, unless the owner's own settings row names another.
+  pub deploy_due_minutes: i64,
+  /// How often the items under a close are read for a batch deployment come due, in seconds.
+  pub deploy_due_read_seconds: u64,
+  /// A repository's batch deployment come due: `{repository}`, `{age}`, `{due}` and `{commits}`.
+  pub deploy_due_order: String,
+  /// One commit waiting for it, as `{commits}` lists it: `{commit}`, `{item}`, `{title}` and `{age}`.
+  pub deploy_due_commit: String,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.

@@ -280,3 +280,59 @@ async fn a_run_whose_record_was_written_over_is_told_from_its_journal_in_the_own
 
   assert_eq!(kept.running.keys().collect::<Vec<_>>(), ["bmo-deploy-6"], "the second still runs");
 }
+
+#[tokio::test]
+async fn a_run_of_the_repository_ending_live_or_failed_owes_its_due_notice_afresh() {
+  use agency_server::watches::deploy_due::told;
+
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let place = tempfile::tempdir().unwrap();
+  let (handed, head) = checkout(place.path());
+  let roots = [Root {
+    path: place.path().to_path_buf(),
+    checkout: place.path().to_path_buf(),
+    repository: "web".to_owned(),
+  }];
+  let units = StandIn::default();
+  let none = BTreeMap::new();
+  let due = JOB_NOTICES.deploy_due_minutes * 60_000;
+  let due_told = || {
+    let held = peers.lock().unwrap();
+
+    held
+      .instructed()
+      .into_iter()
+      .filter(|told| told["kind"] == "repository-deploy-due:web")
+      .count()
+  };
+
+  settings::set(db, STATE_KEY, "{}").await.unwrap();
+  peers.lock().unwrap().items.insert(71, {
+    let mut waiting = waiting(71, "-700", &handed);
+
+    waiting["changedAt"] = json!(0);
+    waiting["labels"]["close-phase:web"] = json!("waiting-batch");
+    waiting["labels"]["close-commit:web"] = json!(handed);
+    waiting
+  });
+  told(db, &vars, &none, Path::new("/nonexistent"), due).await.unwrap();
+  told(db, &vars, &none, Path::new("/nonexistent"), due + 1).await.unwrap();
+  assert_eq!(due_told(), 1);
+
+  for (unit, outcome) in [("bmo-deploy-7", "live"), ("bmo-deploy-8", "failed")] {
+    write(
+      place.path(),
+      &record(unit, &head, json!({ "outcome": outcome, "why": "the gate failed" })),
+    );
+
+    let ended = watched(db, &vars, &roots, &units).await.unwrap();
+
+    assert_eq!(ended.into_iter().collect::<Vec<_>>(), ["web"], "{unit}");
+    told(db, &vars, &none, Path::new("/nonexistent"), due + 2).await.unwrap();
+  }
+
+  assert_eq!(due_told(), 3, "told again after each run's end, its commit still past the mark");
+  assert_eq!(peers.lock().unwrap().withdrawn(), ["1", "2"], "each copy withdrawn as its run ended");
+}

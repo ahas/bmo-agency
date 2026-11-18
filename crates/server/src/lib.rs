@@ -112,6 +112,7 @@ pub mod verbs;
 pub mod watches {
   pub mod background_work;
   pub mod closes;
+  pub mod deploy_due;
   pub mod deploy_failures;
   pub mod job_events;
   pub mod links;

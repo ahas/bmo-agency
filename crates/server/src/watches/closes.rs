@@ -5,6 +5,8 @@
 use policy::machine_turn::MACHINE_TURN;
 use serde_json::Value;
 
+use crate::queue::orderer::JobService;
+
 /// The phase of a close while it checks.
 pub const TESTING: &str = "testing";
 /// The phase of a close whose commit is merged and waits for its repository's batch deployment.
@@ -80,4 +82,23 @@ pub fn waiting_in<'a>(closes: &'a [Close], repository: &str) -> Option<&'a str> 
     .iter()
     .find(|close| close.repository.as_deref().is_none_or(|named| named == repository))?
     .waiting()
+}
+
+/// The job service's items under a close, the label naming a close's phase carried, whatever their state.
+pub async fn items(service: &JobService) -> Result<Vec<Value>, String> {
+  let answer = reqwest::Client::new()
+    .get(format!("{}/items", service.url))
+    .query(&[("label", MACHINE_TURN.close_label.as_str()), ("limit", "500")])
+    .bearer_auth(&service.token)
+    .send()
+    .await
+    .map_err(|why| why.to_string())?;
+
+  if !answer.status().is_success() {
+    return Err(format!("the job service answered {} to /items", answer.status().as_u16()));
+  }
+
+  let page: Value = answer.json().await.map_err(|why| why.to_string())?;
+
+  Ok(page["items"].as_array().cloned().unwrap_or_default())
 }

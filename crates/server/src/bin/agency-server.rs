@@ -369,6 +369,24 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  let due = ground.clone();
+
+  // Every repository's batch deployment come due, told to the orderer of the item whose commit has waited longest.
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::job_notices::JOB_NOTICES.deploy_due_read_seconds);
+
+    every("deploy due", period, period, move || {
+      let ground = due.clone();
+
+      async move {
+        agency_server::watches::deploy_due::pass(&ground.db, ground.vars(), &ground.roots.home).await;
+
+        Ok(())
+      }
+    })
+    .await
+  });
+
   let background = ground.clone();
   let background_watch =
     Arc::new(tokio::sync::Mutex::new(agency_server::watches::background_work::Watch::default()));
