@@ -1255,18 +1255,20 @@ it names a job.
 
 - **What a call owns.** A call's own processes are the part of the turn program's process tree that began
   with the call, less the processes that stood before it: a shell the program started for the call and
-  everything under it. A call's progress is the processor time its tree has burned since it was last read,
-  and a process newly begun under it. A call's output is what its own processes write to the files their
-  standard output and standard error stand on: the file the program hands a shell call, and a log a
-  command sends its own output to.
+  everything under it. A call's output is what its own processes write to the files their standard output
+  and standard error stand on: the file the program hands a shell call, and a log a command sends its own
+  output to. A call's progress is the processor time its tree has burned since it was last read, a process
+  newly begun under it, and its output grown since it was last read.
 - **Two rules hold a call that owns processes, read in this order:**
   1. **A call that has stopped making progress is stopped.** Past the call's minimum, a tree that burns no
-     processor time and begins no process for its stall is signalled: its processes get a polite end and
-     then the kill. The program's tool then answers the model with a failed result, and the turn goes on —
-     the call is cut, not the turn. A call that keeps burning processor time, a build or a test among
-     them, is never touched by this rule however long it runs, and neither is a call while the job's own
-     work it waits on still moves (below): a wait on the job's own question sits in a read its answer ends,
-     burning nothing until it comes.
+     processor time, begins no process and writes no output for its stall is signalled: its processes get
+     a polite end and then the kill. The program's tool then answers the model with a failed result, and
+     the turn goes on — the call is cut, not the turn. A call that keeps burning processor time, a build or
+     a test among them, is never touched by this rule however long it runs; neither is a call whose output
+     keeps growing, such as a check that waits on a step run on another machine or on a line for a seat and
+     says so in a waiting line every so often while its own processes here burn next to nothing; and
+     neither is a call while the job's own work it waits on still moves (below): a wait on the job's own
+     question sits in a read its answer ends, burning nothing until it comes.
   2. **A call that has gone silent and idle is asked about, not cut.** A wait that polls — a loop that
      sleeps and then runs a search or a process listing — begins a process on every pass, so the first
      rule reads it as work. Past the call's minimum, a call whose output has not grown for the silent

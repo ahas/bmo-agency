@@ -680,9 +680,9 @@ rule to.
 - **How a turn that runs long is noticed.** A prompt line does not keep a model from holding its one
   session on long work, so each tool call of a supervisor's turn is held to the call clock's first rule,
   as a job's and a role's run's are (`docs/agent-control.md`, 「A run's tool calls are held to a clock」):
-  a call whose processes burn no processor time and begin none past the call's minimum is stopped, a call
-  with no process of its own is cut past the clock's bound, and the program hands the model a failed
-  result and the turn goes on. No ask is opened on a supervisor's call, and its turn has no hard bound:
+  a call whose processes burn no processor time, begin none and write no output past the call's minimum
+  is stopped, a call with no process of its own is cut past the clock's bound, and the program hands the
+  model a failed result and the turn goes on. No ask is opened on a supervisor's call, and its turn has no hard bound:
   a turn that keeps working is bounded by the turn guard (「A turn that goes nowhere」 above), and its room
   reads it as thinking while it goes.
 

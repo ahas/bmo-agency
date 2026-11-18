@@ -244,6 +244,37 @@ async fn a_call_that_keeps_burning_processor_is_not_cut() {
   assert!(said.iter().any(|line| line.contains("still running")), "it is still reported: {said:?}");
 }
 
+// A check waiting on a step run on another machine: its processes here burn next to nothing and begin
+// none, but it writes a waiting line every so often. The shell's own `read` with a timeout on a fifo nothing
+// writes to stands in for the wait, so no pass begins a process.
+const SAYS_IT_WAITS: &str = "f=$(mktemp -u); mkfifo \"$f\"; exec 3<>\"$f\"; rm \"$f\"; \
+  while :; do echo still waiting for the placed step; read -t 0.15 -u 3; done";
+
+#[tokio::test]
+async fn a_call_whose_output_keeps_growing_is_not_cut_for_its_stall() {
+  let scratch = tempfile::tempdir().unwrap();
+  let program = Program::spawn_writing(SAYS_IT_WAITS, &scratch.path().join("call.output"));
+  let mut watch = ToolWatch::new(clock(200, 400, 100));
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", SAYS_IT_WAITS, began)];
+  let mut said = vec![];
+
+  for step in 0..15 {
+    said.extend(sentences(
+      watch
+        .look("job-41", &records, 0, program.pid, began + step * 100, &mut NoQuestion)
+        .await,
+    ));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
+
+  assert!(
+    !said.iter().any(|line| line.contains("cut after")),
+    "a call whose output grows is left to finish: {said:?}"
+  );
+  assert!(said.iter().any(|line| line.contains("still running")), "it is still reported: {said:?}");
+}
+
 // A call waiting inside the program with no process of its own: the program has no children, so its
 // call owns no tree. Past the call's own bound it is cut, and the words that end it are handed out.
 #[tokio::test]

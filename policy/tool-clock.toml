@@ -1,15 +1,17 @@
 # The clock a run's tool calls are held to (docs/agent-control.md, 「A run's tool calls are held to a
-# clock」), read by the door that carries the turn. A call that has burned no processor for its stall is
-# stopped, so a blocked read or write on a pipe or a socket cannot hold the turn for ever. A call that is
-# working is never stopped however long it runs: a build or a test that keeps burning processor time is left
-# to finish. A call that writes nothing and stands nearly idle, as a wait that polls does, is asked about
+# clock」), read by the door that carries the turn. A call that has burned no processor, begun no process and
+# written no output for its stall is stopped, so a blocked read or write on a pipe or a socket cannot hold
+# the turn for ever. A call that is working is never stopped however long it runs: a build or a test that
+# keeps burning processor time, and a check that keeps writing while it waits on a step run elsewhere, is
+# left to finish. A call that writes nothing and stands nearly idle, as a wait that polls does, is asked about
 # instead: the supervisor keeps it or cuts it.
 
 [call]
 # How long a call goes before the clock watches it at all. A call shorter than this is a short one.
 min_seconds = 180
 
-# How long a call's process tree may burn no processor time before the call is stopped.
+# How long a call's process tree may burn no processor time, begin no process and write no output before
+# the call is stopped.
 stall_seconds = 300
 
 # How often the call's process tree is read.

@@ -3,9 +3,10 @@
 //! process tree of the turn's program is read as the kernel names it, and what the call owns is the part of
 //! that tree that began with the call.
 //!
-//! A call that has burned no processor time for its stall is stopped: its process tree is signalled, the
-//! program's tool comes back to the model as a failed result, and the turn goes on. A call that keeps
-//! burning processor time — a build, a test, a search — is never touched, however long it runs. On a stop,
+//! A call that has burned no processor time, begun no process and written no output for its stall is
+//! stopped: its process tree is signalled, the program's tool comes back to the model as a failed result,
+//! and the turn goes on. A call that keeps burning processor time — a build, a test, a search — or whose
+//! output keeps growing is never touched, however long it runs. On a stop,
 //! a call with no processor time behind it is stopped the same way, so the stop's words can be read at the
 //! next boundary instead of waiting behind a blocked read.
 //!
@@ -559,13 +560,15 @@ impl Watch {
       }
 
       // A call with no process of its own has nothing in the tree to read, so it is held to a bound of its
-      // own; one that owns a tree is cut when that tree burns no processor time.
+      // own; one that owns a tree is cut when that tree burns no processor time, begins no process and
+      // writes no output, as a check waiting on a step run elsewhere still says it waits.
       let in_process = call.pids.is_empty();
       let due = if in_process {
         elapsed >= self.clock.in_process_ms.max(self.clock.min_ms)
       } else {
-        elapsed >= self.clock.min_ms
-          && now - call.last_progress_at.max(call.awaited_at) >= self.clock.stall_ms
+        let moved_at = call.last_progress_at.max(call.output_changed_at).max(call.awaited_at);
+
+        elapsed >= self.clock.min_ms && now - moved_at >= self.clock.stall_ms
       };
 
       // A call waiting on the job's own question is found waiting on it, as a silent call handed over would

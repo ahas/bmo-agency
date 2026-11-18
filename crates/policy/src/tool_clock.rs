@@ -15,7 +15,8 @@ pub struct ToolClock {
 pub struct CallClock {
   /// How long a call goes before the clock watches it at all.
   pub min_seconds: u64,
-  /// How long a call's process tree may burn no processor time before the call is stopped.
+  /// How long a call's process tree may burn no processor time, begin no process and write no output
+  /// before the call is stopped.
   pub stall_seconds: u64,
   /// How often the call's process tree is read.
   pub look_seconds: u64,
