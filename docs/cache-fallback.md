@@ -12,7 +12,7 @@ carries both.
   to find one that will. It never leaves the run's one road for another provider or model
   (`docs/provider-order.md`).
 
-No gate reads the words that cross a session boundary agency owns
+No sanitiser reads the words that cross a session boundary agency owns
 (「No sanitiser stands on a session's boundary」 below), so a passage the safeguard catches is answered
 after the fact, by the demotion detection and its heal (「Demotion detection and self-healing」).
 
@@ -26,10 +26,10 @@ model it launched, the account the run went out on, and the walk it runs when a 
 - **Words go in as handed.** A round's new messages, the past-record block a first turn reloads, the
   reference attached to a turn or to a job's first prompt, the instructions a search or browse run
   passes with someone else's page, and the prompt a job worker is handed enter the session context as
-  their caller handed them or agency composed them.
-- **Nobody on the way asks a gate to read them.** Agency runs no sanitising of its own, the job service
-  hands agency the item rather than a prompt, and the gate's order holds no sanitiser (the gate's
-  `docs/gates.md`, 「No gate stands」).
+  their caller handed them or agency composed them, translated where `docs/worker-language.md` says.
+- **Nobody on the way asks a sanitiser to read them.** Agency runs no sanitising of its own, the job
+  service hands agency the item rather than a prompt, and the gate's order holds no sanitiser (the
+  gate's `docs/gates.md`, 「No gate stands」).
 - **Words come out as written.** A session's answer, an alert, a caption and what a voice message speaks
   go back to their room as the session wrote them.
 - **No verdict travels with the words.** No memo of read texts is kept, and a text carries no mark of

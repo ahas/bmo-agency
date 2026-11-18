@@ -113,9 +113,9 @@ Each repository holds three things beside the work of its jobs:
 
 ### It is agency's own words
 
-- **The bundle is agency's header and the owner's setting,** not something someone sent, and it goes
-  into the prompt as composed, as every part of a job's prompt does: no gate reads a job's prompt
-  (`docs/cache-fallback.md`, 「No sanitiser stands on a session's boundary」).
+- **The bundle is agency's header and the owner's setting,** not something someone sent. No sanitiser
+  reads it, nor any other part of a job's prompt (`docs/cache-fallback.md`, 「No sanitiser stands on a
+  session's boundary」).
 
 ### The bundle is agency's header plus the owner's text
 
