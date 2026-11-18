@@ -663,7 +663,9 @@ never the model's name.
   a stream whose bytes stop is still cut at the stall span. Only then are the children stopped and the
   launcher ends, so a restart cuts no request in hand.
 - **A changed hook needs no restart:** the table's digest covers the hooks' contents, so the next
-  reading of the registry starts a new child on them and hands over the way a changed registry does.
+  reading of the registry starts a new child on them and hands over the way a changed registry does. The
+  launcher reads the hooks from the tree it was started by, which for its unit is the deploy link, so a
+  deployment that leaves the launcher running still brings it the hooks of the release it made live.
 
 ### Role files
 

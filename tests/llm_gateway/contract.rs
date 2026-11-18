@@ -216,6 +216,9 @@ struct World {
   master: Option<String>,
   /// The stall span the gateway is told in place of its policy's, in milliseconds, where the test names one.
   stall_ms: Option<u64>,
+  /// Whether the gateway is started through the world's `live` link, as its unit starts it through the
+  /// deploy link, and told no code root.
+  linked: bool,
 }
 
 impl World {
@@ -242,6 +245,7 @@ impl World {
       port: 0,
       master: None,
       stall_ms: None,
+      linked: false,
     };
     world.write(registry).await;
     world
@@ -267,6 +271,41 @@ impl World {
   fn stalling_after(mut self, ms: u64) -> World {
     self.stall_ms = Some(ms);
     self
+  }
+
+  /// The world whose gateway is started through its `live` link, which stands on the tree named.
+  fn started_through_the_link_at(mut self, tree: &str) -> World {
+    self.linked = true;
+    self.point_live_at(tree);
+    self
+  }
+
+  /// A tree as a release lays it: the launcher under `bin/` and the repository's hooks, with the role
+  /// hook ending in the line given, so two trees' hooks differ.
+  fn lay_tree(&self, tree: &str, last_line: &str) {
+    let at = self.root().join("trees").join(tree);
+    let hooks = at.join("crates/llm-gateway/hooks");
+    std::fs::create_dir_all(at.join("bin")).unwrap();
+    std::fs::create_dir_all(&hooks).unwrap();
+    std::os::unix::fs::symlink(crate::support::binary::path("llm-gateway"), at.join("bin/llm-gateway"))
+      .unwrap();
+    let own = Path::new(env!("CARGO_MANIFEST_DIR")).join("crates/llm-gateway/hooks");
+    for hook in std::fs::read_dir(own).unwrap() {
+      let hook = hook.unwrap();
+      if hook.path().extension().is_some_and(|extension| extension == "py") {
+        std::fs::copy(hook.path(), hooks.join(hook.file_name())).unwrap();
+      }
+    }
+    let role = hooks.join("roles.py");
+    let text = std::fs::read_to_string(&role).unwrap();
+    std::fs::write(role, format!("{text}\n{last_line}\n")).unwrap();
+  }
+
+  /// The `live` link put on the tree named, in one step as a deployment flips its link.
+  fn point_live_at(&self, tree: &str) {
+    let next = self.root().join("live.next");
+    std::os::unix::fs::symlink(self.root().join("trees").join(tree), &next).unwrap();
+    std::fs::rename(next, self.root().join("live")).unwrap();
   }
 
   fn root(&self) -> &Path {
@@ -295,7 +334,13 @@ impl World {
       std::env::var("PATH").unwrap_or_default()
     );
     let log = std::fs::File::create(self.root().join("gateway.log")).unwrap();
-    let mut command = command();
+    let mut command = if self.linked {
+      Command::new(self.root().join("live/bin/llm-gateway"))
+    } else {
+      let mut command = command();
+      command.env("BMO_CODE_ROOT", env!("CARGO_MANIFEST_DIR"));
+      command
+    };
     // No master but the test's own: the worker's environment names none to the gateway.
     command.env_remove("AGENCY_ARBITER_URL").env_remove("AGENCY_ARBITER_TOKEN_FILE");
     if let Some(master) = &self.master {
@@ -310,7 +355,6 @@ impl World {
       .env("PATH", path)
       .env("BMO_DATA_DIR", self.root().join("data"))
       .env("BMO_ARCHIVE_URL", self.store.address())
-      .env("BMO_CODE_ROOT", env!("CARGO_MANIFEST_DIR"))
       .env("LLM_GATEWAY_REFRESH_MS", "100")
       .stdin(Stdio::null())
       .stdout(log.try_clone().unwrap())
@@ -673,6 +717,23 @@ async fn the_table_is_written_private_beside_its_hooks_and_the_keys_reach_the_ch
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
   assert_eq!(world.events("started").len(), 1);
+}
+
+#[tokio::test]
+async fn a_launcher_left_running_serves_the_hooks_of_the_tree_its_link_is_moved_to() {
+  let world = World::new(PAIR).await;
+  world.lay_tree("first", "# the first tree's");
+  world.lay_tree("second", "# the second tree's");
+  let world = world.started_through_the_link_at("first").start().await;
+  let first = world.serving(None).await;
+  let laid = |world: &World| std::fs::read_to_string(world.folder().join("roles.py")).unwrap();
+  assert!(laid(&world).ends_with("# the first tree's\n"));
+
+  world.point_live_at("second");
+
+  let second = world.serving(Some(&first)).await;
+  assert_ne!(second, first, "the moved link's hooks are a new table");
+  assert!(laid(&world).ends_with("# the second tree's\n"));
 }
 
 #[tokio::test]

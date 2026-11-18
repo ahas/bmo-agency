@@ -36,14 +36,26 @@ fn named(variable: &str) -> Option<String> {
     .filter(|value| !value.is_empty())
 }
 
-// The tree a deployed binary stands in, `<tree>/bin/llm-gateway`, unless `BMO_CODE_ROOT` names one.
+// The tree a deployed binary stands in, `<tree>/bin/llm-gateway`, unless `BMO_CODE_ROOT` names one. The
+// tree is the one the launcher was started by, not the one that path leads to: its unit starts it
+// through the deploy link, and a deployment that leaves the launcher as it stands leaves it running, so
+// only through the link does it read the hooks of the release that is live.
 fn code_root() -> PathBuf {
   named("BMO_CODE_ROOT").map(PathBuf::from).unwrap_or_else(|| {
-    std::env::current_exe()
-      .ok()
+    started_by()
       .and_then(|exe| Some(exe.parent()?.parent()?.to_owned()))
       .unwrap_or_else(|| PathBuf::from("."))
   })
+}
+
+// The path the launcher was started by where it is a whole one, a link in it left as it is; else where
+// the running binary stands.
+fn started_by() -> Option<PathBuf> {
+  std::env::args_os()
+    .next()
+    .map(PathBuf::from)
+    .filter(|path| path.is_absolute())
+    .or_else(|| std::env::current_exe().ok())
 }
 
 /// The port named after `--port`, or 18030; anything else named is no port. A port of 0 is one the
