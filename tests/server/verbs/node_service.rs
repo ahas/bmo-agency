@@ -12,6 +12,13 @@ use crate::support::scratch::Scratch;
 // "a node verb whose environment names no node service asks the one the deployment's environment file names"
 #[tokio::test]
 async fn a_node_verb_whose_environment_names_no_node_service_asks_the_one_the_deployment_s_file_names() {
+  // The verb asks the process environment first, and a deployed machine hands its own node service's
+  // name to every process its service starts, a test run among them. A blank value is the verb's own
+  // word for no name, so the test blanks it rather than trusting the runner's environment to be clean.
+  // SAFETY: the standard library locks the environment around a write, and nothing in this binary
+  // reads it past the library, through a C `environ`.
+  unsafe { std::env::set_var(agency_server::peers::node::ADDRESS.url, "") };
+
   let scratch = Scratch::new().await;
   let variables: HashMap<String, String> = HashMap::new();
   let service =
