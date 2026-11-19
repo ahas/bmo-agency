@@ -6,8 +6,6 @@ use std::collections::BTreeMap;
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 
-use policy::roles::ROLES;
-
 use crate::order::{Entry, Order};
 use crate::rooms::Stays;
 
@@ -159,12 +157,10 @@ impl Supervisor {
     self.road.clone()
   }
 
-  /// Its road as the road judgement takes it: the one road, at the policy's quota share, nothing forced over it
-  /// and nothing after it (docs/provider-order.md, 「Whether a road can answer」).
+  /// Its road as the road judgement takes it: the one road, nothing forced over it and nothing after it (docs/provider-order.md, 「Whether a road can answer」).
   pub fn order(&self) -> Order {
     Order {
       entries: self.road.iter().cloned().collect(),
-      quota_share: ROLES.quota_share,
       forced: None,
     }
   }

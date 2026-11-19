@@ -1,6 +1,7 @@
 //! The provider order (docs/provider-order.md): a row's run goes out on the first provider of its own order
-//! that has quota above its share and can answer now, every provider it passes named with why, the share read
-//! against the window with the least left, a balance at or below zero closing its provider to every model
+//! that has any quota left and can answer now, every provider it passes named with why, the quota read
+//! against the window with the least left and none only where that window is full, a Claude login short of
+//! full offered and a full one passed over, a balance at or below zero closing its provider to every model
 //! that costs and to none its provider says costs nothing, and a road its caller fixed or the owner forced
 //! walked alone — waited for, never left; a job's road chosen by the first that stands of its item's model,
 //! its role's forced provider, its repository's pin and its role's order; and a road a walk left for its
@@ -26,10 +27,9 @@ fn entry(provider: &str, model: &str) -> Entry {
   }
 }
 
-fn order(entries: &[(&str, &str)], share: f64) -> Order {
+fn order(entries: &[(&str, &str)]) -> Order {
   Order {
     entries: entries.iter().map(|(provider, model)| entry(provider, model)).collect(),
-    quota_share: share,
     forced: None,
   }
 }
@@ -93,7 +93,7 @@ fn an_order_none_of_whose_providers_can_answer_is_closed_with_every_reason() {
       "claude-code",
       Answer::Cannot(Closed {
         reopens_at: Some(1_900_000_000),
-        ..Closed::plain("claude-code", "1% of its quota is left, at or below the share of 1%")
+        ..Closed::plain("claude-code", "its five_hour window is full")
       }),
     ),
   ]);
@@ -101,7 +101,7 @@ fn an_order_none_of_whose_providers_can_answer_is_closed_with_every_reason() {
   assert!(closed.road().is_none());
   assert_eq!(closed.reopens_at(), Some(1_900_000_000));
   assert!(closed.sentence().contains("deepseek: its balance is spent"));
-  assert!(closed.sentence().contains("claude-code: 1% of its quota is left"));
+  assert!(closed.sentence().contains("claude-code: its five_hour window is full"));
 }
 
 fn kept(name: &str, used: f64, resets_at: Option<i64>) -> KeptWindow {
@@ -124,7 +124,7 @@ fn a_provider_has_left_what_its_window_with_the_least_left_has_left() {
     fresh: std::time::Duration::from_secs(10_000),
     unread_at: None,
   };
-  let (left, window, resets_at) = least_left(&reading, 1_000, |_| 1.0).unwrap();
+  let (left, window, resets_at) = least_left(&reading, 1_000).unwrap();
 
   assert!((left - 0.1).abs() < 1e-9);
   assert_eq!(window, "seven_day");
@@ -132,14 +132,14 @@ fn a_provider_has_left_what_its_window_with_the_least_left_has_left() {
 }
 
 #[test]
-fn a_window_at_its_ceiling_has_nothing_left_and_one_reset_counts_for_nothing() {
-  assert_eq!(window_left(0.97, Some(5_000), 0.95, 1_000), Some(0.0), "at its ceiling: nothing left");
-  assert_eq!(window_left(0.97, Some(500), 0.95, 1_000), None, "reset by now: it counts for nothing");
-  assert_eq!(window_left(0.4, None, 1.0, 1_000), Some(0.6));
+fn a_full_window_has_nothing_left_and_one_reset_counts_for_nothing() {
+  assert_eq!(window_left(1.0, Some(5_000), 1_000), Some(0.0), "full: nothing left");
+  assert_eq!(window_left(1.0, Some(500), 1_000), None, "reset by now: it counts for nothing");
+  assert_eq!(window_left(0.4, None, 1_000), Some(0.6));
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_window_provider_has_quota_while_its_least_left_stands_above_the_share() {
+async fn a_window_provider_has_quota_while_anything_is_left_and_none_once_its_window_is_full() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
@@ -148,33 +148,96 @@ async fn a_window_provider_has_quota_while_its_least_left_stands_above_the_share
   // The test's machine runs no Codex reader, so a Codex reading stands for no span past the second it was
   // seen at: it is seen a minute ahead, so it still stands at whichever second the quota is read.
   let seen_at = now + 60;
+  let used = |utilization: f64| {
+    let ground = &ground;
 
-  ground
-    .windows
-    .replace(
-      Slot {
-        mode: "codex",
-        account: "",
-      },
-      &[Window {
-        name: "codex:primary".into(),
-        utilization: 0.98,
-        resets_at: Some(now + 3_600),
-        duration_minutes: None,
-        limit_name: None,
-      }],
-      seen_at,
-    )
-    .await
-    .unwrap();
+    async move {
+      ground
+        .windows
+        .replace(
+          Slot {
+            mode: "codex",
+            account: "",
+          },
+          &[Window {
+            name: "codex:primary".into(),
+            utilization,
+            resets_at: Some(now + 3_600),
+            duration_minutes: None,
+            limit_name: None,
+          }],
+          seen_at,
+        )
+        .await
+        .unwrap();
 
-  let spent = quota(&ground, codex, 0.05, None, None).await;
-  let enough = quota(&ground, codex, 0.01, None, None).await;
+      quota(ground, codex, None, None).await
+    }
+  };
 
-  assert!(!spent.has, "2% left stands at or below a 5% share: {spent:?}");
+  let enough = used(0.995).await;
+
+  assert!(enough.has, "half a percent left is quota, with no share held back: {enough:?}");
+
+  let spent = used(1.0).await;
+
+  assert!(!spent.has, "a full window leaves no quota: {spent:?}");
   assert_eq!(spent.window.as_deref(), Some("codex:primary"));
   assert_eq!(spent.resets_at, Some(now + 3_600));
-  assert!(enough.has, "2% left stands above a 1% share: {enough:?}");
+}
+
+// A Claude login takes runs until its window is full: one with half a percent left is offered, and the same
+// login read full is passed over (docs/usage-windows.md, 「What reads the windows」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_claude_login_short_of_full_is_offered_and_a_full_one_is_not() {
+  const OPUS: &str = "claude-opus-5-5";
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let now = agency_server::now_ms() / 1000;
+  let used = |utilization: f64| {
+    let ground = &ground;
+
+    async move {
+      ground
+        .windows
+        .replace(
+          Slot {
+            mode: "claude-code",
+            account: "default",
+          },
+          &[Window {
+            name: "five_hour".into(),
+            utilization,
+            resets_at: Some(now + 3_600),
+            duration_minutes: Some(300),
+            limit_name: None,
+          }],
+          now,
+        )
+        .await
+        .unwrap();
+
+      for_job(ground, None, None, Some(&pin("claude-code", OPUS)), &[], None).await.unwrap()
+    }
+  };
+
+  let short = used(0.995).await;
+
+  assert_eq!(
+    short.road(),
+    Some(&Road {
+      provider: "claude-code".into(),
+      model: OPUS.into(),
+      account: Some("default".into()),
+    }),
+    "{short:?}"
+  );
+
+  let full = used(1.0).await;
+
+  assert!(full.road().is_none(), "{full:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -182,7 +245,7 @@ async fn a_balance_at_zero_closes_its_provider_and_a_balance_topped_up_reopens_i
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = seeded(scratch.db(), home.path()).await;
-  let walked = order(&[("deepseek", "deepseek-flash")], 0.01);
+  let walked = order(&[("deepseek", "deepseek-flash")]);
   let ask = Ask::of(Row::Role("worker"), "worker", &walked);
 
   deepseek_balance(&ground, 0.0).await;
@@ -202,7 +265,7 @@ async fn a_balance_at_zero_closes_its_provider_and_a_balance_topped_up_reopens_i
 
 // Where a worker's run on one OpenRouter member goes out now.
 async fn on_openrouter(ground: &Ground, model: &str) -> Resolution {
-  let walked = order(&[("openrouter", model)], 0.01);
+  let walked = order(&[("openrouter", model)]);
 
   resolve(ground, &Ask::of(Row::Role("worker"), "worker", &walked)).await.unwrap()
 }
@@ -245,9 +308,9 @@ async fn a_spent_balance_closes_only_the_members_that_cost_and_a_balance_left_cl
   }
 
   // The provider as a whole, naming no model, has no quota on a spent balance; a free member has.
-  assert!(!quota(&ground, openrouter, 0.01, None, None).await.has);
-  assert!(quota(&ground, openrouter, 0.01, None, Some("free-by-suffix")).await.has);
-  assert!(!quota(&ground, openrouter, 0.01, None, Some("paid")).await.has);
+  assert!(!quota(&ground, openrouter, None, None).await.has);
+  assert!(quota(&ground, openrouter, None, Some("free-by-suffix")).await.has);
+  assert!(!quota(&ground, openrouter, None, Some("paid")).await.has);
 
   provider_balance(&ground, "openrouter", 5.0).await;
 
@@ -564,7 +627,6 @@ async fn walking(scratch: &Scratch, data: &std::path::Path) -> Order {
 
   Order::of_row(
     r#"[{"provider":"deepseek","model":"deepseek-flash"},{"provider":"registered","model":"a-registration"}]"#,
-    None,
   )
 }
 

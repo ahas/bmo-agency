@@ -18,7 +18,7 @@ pub struct Roads {
 pub struct Reasons {
   /// A provider the owner turned off.
   pub off: String,
-  /// A quota at or below the row's share, with `{left}` and `{share}`.
+  /// No quota left, with `{window}`, the window read full.
   pub quota: String,
   /// A balance at or below zero, with `{amount}` and `{currency}`.
   pub balance: String,

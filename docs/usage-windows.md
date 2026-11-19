@@ -104,7 +104,7 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
     its reason where it failed. Whether the login came back is the next pass's reading, which lifts the
     unread mark.
 - **A window that came back early is said:** a window the last reading held full, not yet reset, that a
-  new reading finds below its ceiling is logged as having come back before the reset its reading named.
+  new reading finds short of full is logged as having come back before the reset its reading named.
 
 ## The Codex reader
 
@@ -165,14 +165,17 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
 
 ## What reads the windows
 
-- **The account judgement** closes a login whose own window stands at its ceiling, not reset: one that
+- **A window is full only where all of it is used,** its used fraction at one. No share short of that
+  closes a login, rests it or reads as no quota left, so a login takes runs until its provider refuses it
+  or a reading finds one of its windows full.
+- **The account judgement** closes a login whose own window reads full, not reset: one that
   names its reset, until that reset whatever the reading's age, since only a newer reading can say it came
   back; one that names none, while its reading stands — younger than its reader's span and later than the
   account's unread mark (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no
   window for it to read, and the judgement asks it nothing here.
 - **The rest a run's limit begins** reads its login's windows where the answer names no reset
-  (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」): a login's own ceiling rests
-  the login only where a window of its own stands at its ceiling, until that window resets; one model's
+  (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」): a login's own limit rests
+  the login only where a window of its own reads full, until that window resets; one model's
   limit rests that model on the login until the soonest reset any of its windows names. Where no window
   names one, the next reading decides: a model's rest written then holds until a reading of its login is
   seen after it, no longer than a reading stands.
@@ -210,10 +213,11 @@ left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate,
   used fraction of that window, the five-hour and the weekly window weighed alike. Codex's windows are
   read under the empty account (「The Codex reader」).
 - **Claude Code's quota is read account by account:** each account open to the run's model, by its own
-  window with the least left, so the provider has quota while one of those accounts has quota above the
-  row's share, and the account walk offers that account first (`docs/cache-fallback.md`, 「The account
+  window with the least left, so the provider has quota while one of those accounts has any left, and
+  the account walk offers that account first (`docs/cache-fallback.md`, 「The account
   judgement」). An endpoint account has no window, and has quota while the account judgement holds it open.
-- **A window read at its ceiling and not reset is no quota left,** whatever the share.
+- **A window read full and not reset is no quota left;** anything short of full is quota, and no share
+  of it is held back.
 - **A provider whose member reads its quota from a balance — DeepSeek and OpenRouter —** has quota while
   the balance its reader last kept is above zero, and none once it is at or below zero; a balance never
   read reads as quota (「Balances」 above). A run on a model the provider says costs nothing has quota

@@ -21,8 +21,6 @@ use super::{Refused, set_setting, setting};
 use crate::now_ms;
 use crate::places::Ground;
 
-pub use cache_siren::claude::window_ceiling;
-
 /// What the account judgement reads: the store, the keeping of every account's windows, and the data root
 /// this machine keeps each account's token for the work nodes under.
 #[derive(Clone, Copy)]
@@ -627,7 +625,7 @@ pub fn leading_integer(text: &str) -> Option<i64> {
 
 /// How long one account answers nothing for its limit, in epoch seconds, or nothing: the later of the
 /// rest written under it — a rest written with no login named is the seeded account's, unless it is the
-/// service's outage — and a window of its own read at its ceiling, not yet reset, by a reading still fresh.
+/// service's outage — and a window of its own read full, not yet reset, by a reading still fresh.
 /// A window is read on its reader's clock and off every answer, so a login whose window filled is closed
 /// whether or not a run has met the refusal, and whatever became of the rest written for it; a reading
 /// nothing renewed closes nothing, so the next run renews the login's token or meets the refusal that rests
@@ -645,9 +643,9 @@ pub async fn rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i6
   Ok(own.max(full_window_until(judging.windows, account, now_ms().div_euclid(1000)).await))
 }
 
-/// The moment the latest of an account's windows read at its ceiling resets, where one is and has not reset
+/// The moment the latest of an account's windows read full resets, where one is and has not reset
 /// by `now`: what closes the login by its windows, and the windows' confirmation that a limit a run met is
-/// the login's own ceiling. A full window that names its reset closes the login until then however old its
+/// the login's own limit. A full window that names its reset closes the login until then however old its
 /// reading is, since only a newer reading, which replaces it, can say it came back early. A full window that
 /// named no reset closes it only where the reading stands — within the span its reader says a reading
 /// stands, and after the account's unread mark — for the policy's fallback after it was read. A keeping that
@@ -672,7 +670,7 @@ pub async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Op
   for kept in &reading.windows {
     let window = &kept.window;
 
-    if window.utilization < window_ceiling(&window.name) {
+    if !window.is_full() {
       continue;
     }
 

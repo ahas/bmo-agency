@@ -1,7 +1,7 @@
 //! The Claude logins as the job unit and the console ask after them, of a running server: whether a user
 //! holds a login that is on, each login's own two headline windows as the store keeps them, the record homes
-//! each once, and the rest a done job's usage calls for begun on its login where a window stands at its
-//! threshold and nothing begun where none does; and the fallback's view answering the active slot's balance
+//! each once, and the rest a done job's usage calls for begun on its login where a window reads full and
+//! nothing begun where every window has any left; and the fallback's view answering the active slot's balance
 //! and each account's windows and balance.
 
 use serde_json::{Value, json};
@@ -125,10 +125,10 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
   assert_eq!(of("login-c")["session"]["utilization"], 0.75);
   assert_eq!(of("login-c")["week"], Value::Null);
 
-  // A session window at its threshold rests its login until it resets; one below rests nothing.
+  // A full session window rests its login until it resets; windows with half a percent left rest nothing.
   let until = 4_102_444_800_i64;
   let full = json!({ "usage": { "utilization": 1.0, "resetsAt": until, "weeklyUtilization": 0.2, "weeklyResetsAt": null } });
-  let light = json!({ "usage": { "utilization": 0.4, "resetsAt": until, "weeklyUtilization": null, "weeklyResetsAt": null } });
+  let light = json!({ "usage": { "utilization": 0.995, "resetsAt": until, "weeklyUtilization": 0.995, "weeklyResetsAt": until } });
 
   assert_eq!(patch(port, token, "/accounts/login-a", full).await.0, 200);
   assert_eq!(patch(port, token, "/accounts/login-c", light).await.0, 200);

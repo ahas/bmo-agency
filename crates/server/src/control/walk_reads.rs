@@ -19,12 +19,12 @@ fn bad(error: impl Into<String>) -> Refused {
 }
 
 /// One provider as the routes answer it: its switch, its declaration, why it cannot answer now and what it has
-/// left as an order reads it at the default share.
+/// left as an order reads it.
 async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
   let provider = named(name)?;
   let declared = provider.declared();
   let missing = harness::missing(&ground.db, &ground.machine(), provider).await?;
-  let quota = crate::order::quota(ground, provider, policy::roles::ROLES.quota_share, None, None).await;
+  let quota = crate::order::quota(ground, provider, None, None).await;
 
   Ok(json!({
     "name": name,

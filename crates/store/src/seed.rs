@@ -42,7 +42,6 @@ pub struct RoleSeed {
   pub bundles: Vec<String>,
   pub line: String,
   pub order: String,
-  pub quota_share: f64,
   pub max_concurrent: i64,
   pub prompt: Option<String>,
   pub description: Option<String>,
@@ -254,8 +253,8 @@ async fn role_seed<C: ConnectionTrait>(
   run(
     db,
     r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-         "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING"#,
+         "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING"#,
     vec![
       role.name.clone().into(),
       role.label.clone().into(),
@@ -268,7 +267,6 @@ async fn role_seed<C: ConnectionTrait>(
       text(&role.description),
       role.line.clone().into(),
       role.order.clone().into(),
-      role.quota_share.into(),
       role.fold_ratio.into(),
     ],
   )

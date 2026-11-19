@@ -9,9 +9,9 @@
 off = "the owner turned it off"
 # A provider that offers a balance, its last reading at or below zero, on a model that costs.
 balance = "its balance is spent ({amount} {currency} left)"
-# A provider whose quota left stands at or below the row's share (docs/provider-order.md, 「Quota: what a
-# provider has left」).
-quota = "{left} of its quota is left, at or below the share of {share}"
+# A provider with no quota left, the window with the least left read full (docs/provider-order.md, 「Quota:
+# what a provider has left」).
+quota = "its {window} window is full"
 # A provider that holds logins, none of the logins the run may go out on open; each login's own reason
 # follows it.
 no_login = "no login of it is open"

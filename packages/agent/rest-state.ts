@@ -3,7 +3,6 @@ import declaredRest from "@agency/policy/rest.toml";
 import { enabledClaudeAccounts, recordedAccount, SEED_ACCOUNT_ID } from "./claude-account";
 
 import type { Archive } from "@agency/archive/archive";
-import type { SessionUsage } from "./agent-reply";
 import { mapInOrder } from "@agency/support/in-order";
 
 // A rest belongs to one Claude account or to the service, and never to the agent as a whole. A
@@ -28,20 +27,14 @@ const restKindKey = "rest_kind";
 
 export type RestKind = "limit" | "outage";
 
-// The ceilings a run's usage is read against, and how long a limit that named no reset moment
-// lasts. The deployment's configuration holds them.
+// How long a limit that named no reset moment lasts. The deployment's configuration holds it.
 export interface RestSettings {
   restFallbackMs: number;
-  restThreshold: number;
-  restWeeklyThreshold: number;
 }
 
 // How long a login is put aside when its limit named no reset moment and the caller holds no
-// configuration of its own, and the ceilings a usage window is read against: the shared policy's, which
-// agency's server reads too.
+// configuration of its own: the shared policy's, which agency's server reads too.
 export const restFallbackDefaultMs = declaredRest.fallback_seconds * 1000;
-export const restThresholdDefault = declaredRest.threshold;
-export const restWeeklyThresholdDefault = declaredRest.weekly_threshold;
 
 // What the rest standing now is about. An outage outranks a limit: while the service itself will
 // not answer, which login's window is full says nothing about why the rooms are quiet.
@@ -129,27 +122,6 @@ export async function isResting(archive: Archive, now: number = Date.now()): Pro
 
 export function restUntilFor(settings: Pick<RestSettings, "restFallbackMs">, resetsAt: number | null): number {
   return resetsAt ?? Math.floor((Date.now() + settings.restFallbackMs) / 1000);
-}
-
-// A run that leaves a usage window past its ceiling begins a rest lasting until that window
-// resets. The weekly window has its own ceiling: hitting it blocks for days, not hours.
-export function restUntilAfter(settings: RestSettings, usage: SessionUsage | null): number | null {
-  if (usage === null) {
-    return null;
-  }
-
-  if (usage.utilization >= settings.restThreshold) {
-    return usage.resetsAt;
-  }
-
-  if (
-    usage.weeklyUtilization !== null &&
-    usage.weeklyUtilization >= settings.restWeeklyThreshold
-  ) {
-    return restUntilFor(settings, usage.weeklyResetsAt);
-  }
-
-  return null;
 }
 
 /**

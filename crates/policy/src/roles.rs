@@ -1,6 +1,6 @@
 //! The roles and what is no role's own (docs/agent-roles.md): the roles themselves are the store's rows, which
 //! these declarations seed once; the bundles, the supervisor bundles, the role a job and an upkeep run hold
-//! where nothing names one, the sending bundle, the default quota share, the marks and the
+//! where nothing names one, the sending bundle, the marks and the
 //! shape of a role's name are the policy's.
 
 use std::collections::BTreeMap;
@@ -120,8 +120,6 @@ pub struct Roles {
   pub name_most: usize,
   /// The most characters a role's label holds.
   pub label_most: usize,
-  /// The remaining quota at or below which a road's provider is read as having none, one for every road.
-  pub quota_share: f64,
   /// The mark a screen shows beside every supervisor, role and repository.
   pub icons: BTreeMap<String, String>,
   pub bundles: Vec<Bundle>,

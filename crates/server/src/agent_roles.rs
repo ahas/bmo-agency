@@ -28,7 +28,7 @@ pub struct AgentRole {
   pub sessions: Sessions,
   /// The launch line its runs go out on.
   pub line: String,
-  /// Its provider order with its quota share.
+  /// Its provider order.
   pub order: Order,
   /// The share of its model's window a run's session may fill before it is folded.
   pub fold_ratio: f64,
@@ -74,7 +74,7 @@ impl AgentRole {
       description: row.try_get("", "description")?,
       sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
       line: row.try_get("", "line")?,
-      order: Order::of_row(&order, row.try_get("", "quota_share")?)
+      order: Order::of_row(&order)
         .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       fold_ratio: row.try_get("", "fold_ratio")?,
       position: row.try_get("", "position")?,
@@ -103,7 +103,6 @@ impl AgentRole {
       order: Order {
         entries,
         forced: None,
-        ..self.order
       },
       agents,
       ..self

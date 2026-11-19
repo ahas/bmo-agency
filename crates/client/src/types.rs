@@ -633,11 +633,11 @@ pub struct Place {
   pub last_write: Option<Value>,
 }
 
-/// ProviderQuota: what a provider has left as an order reads it at the default share.
+/// ProviderQuota: what a provider has left as an order reads it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderQuota {
-  /// Whether it stands above the share.
+  /// Whether anything of it is left.
   pub has: bool,
   /// A fraction from 0 to 1, or null where the provider reports none.
   pub left: Option<f64>,

@@ -2848,9 +2848,9 @@ export interface components {
              */
             keyFile: string | null;
         };
-        /** @description ProviderQuota: what a provider has left as an order reads it at the default share. */
+        /** @description ProviderQuota: what a provider has left as an order reads it. */
         ProviderQuota: {
-            /** @description Whether it stands above the share. */
+            /** @description Whether anything of it is left. */
             has: boolean;
             /**
              * Format: double

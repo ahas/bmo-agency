@@ -16,7 +16,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use policy::providers::claude_code::CLAUDE_CODE;
-use policy::rest::REST;
 use serde_json::Value;
 
 use crate::reader::{Passing, Reader, Said};
@@ -24,9 +23,6 @@ use crate::windows::{Keeping, Slot, Window};
 
 /// The provider the windows are kept under.
 pub const MODE: &str = "claude-code";
-
-/// The window held against the rest's own ceiling; every longer one is held against the weekly one.
-pub const FIVE_HOUR_WINDOW: &str = "five_hour";
 
 // The failures that say the login's token cannot be read with until a run renews it: one found expired in
 // its file, and one the endpoint refused as unauthorised.
@@ -71,12 +67,6 @@ type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
 
 fn locked<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
   held.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// The share past which a window of this name is full: the five-hour window against the rest's own
-/// ceiling and every longer one against the weekly one.
-pub fn window_ceiling(name: &str) -> f64 {
-  if name == FIVE_HOUR_WINDOW { REST.threshold } else { REST.weekly_threshold }
 }
 
 /// The windows an answer states, each as the fraction used and the moment it resets. A window with no
@@ -214,8 +204,8 @@ impl ClaudeAccounts {
     Ok(windows_of(&read))
   }
 
-  // The windows the account last read full, not yet reset at `now`, that this reading finds below their
-  // ceiling: a limit lifted early, by a quota reset or the provider itself.
+  // The windows the account last read full, not yet reset at `now`, that this reading finds short of full:
+  // a limit lifted early, by a quota reset or the provider itself.
   async fn came_back_early(
     keeping: &Keeping,
     account: &str,
@@ -235,13 +225,9 @@ impl ClaudeAccounts {
         .windows
         .iter()
         .filter(|kept| {
-          let ceiling = window_ceiling(&kept.window.name);
-
-          kept.window.utilization >= ceiling
+          kept.window.is_full()
             && kept.window.resets_at.is_some_and(|reset| reset > now)
-            && windows
-              .iter()
-              .any(|window| window.name == kept.window.name && window.utilization < ceiling)
+            && windows.iter().any(|window| window.name == kept.window.name && !window.is_full())
         })
         .map(|kept| kept.window.name.clone())
         .collect(),

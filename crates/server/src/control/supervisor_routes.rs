@@ -274,7 +274,7 @@ async fn road_of(ground: &Ground, body: &Value, held: Option<&Entry>) -> Result<
     "answerTokens": named("answerTokens").unwrap_or_else(|| json!(kept.and_then(|road| road.answer_tokens))),
   }]);
   let judged =
-    order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, &entry, None, order::Empty::Refused)
+    order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, &entry, order::Empty::Refused)
       .await
       .map_err(|refusal| bad("provider", refusal.error))?;
 

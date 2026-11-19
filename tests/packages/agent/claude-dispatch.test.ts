@@ -32,7 +32,7 @@ import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 // being down would fail on every login alike, and the work's own failure is the work's.
 
 const root = scratchDir("bmo-dispatch-");
-const config: RestSettings = { restThreshold: 0.99, restWeeklyThreshold: 0.99, restFallbackMs: 3_600_000 };
+const config: RestSettings = { restFallbackMs: 3_600_000 };
 const hour = Math.floor(Date.now() / 1000) + 3600;
 
 async function twoAccounts(): Promise<{ archive: Archive; second: string }> {

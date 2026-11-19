@@ -74,7 +74,7 @@ pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
     .collect()
 }
 
-// A seeded role's row: its order with the policy's share, and its compaction threshold its first provider's
+// A seeded role's row: its order, and its compaction threshold its first provider's
 // declared default.
 fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
   let order = Order {
@@ -89,7 +89,6 @@ fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
         answer_tokens: None,
       })
       .collect(),
-    quota_share: ROLES.quota_share,
     forced: None,
   };
 
@@ -99,7 +98,6 @@ fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
     bundles: role.bundles.clone(),
     line: role.line.clone(),
     order: order.entries_text(),
-    quota_share: order.quota_share,
     max_concurrent: role.max_concurrent,
     prompt: texts.prompt,
     description: role.description.clone(),

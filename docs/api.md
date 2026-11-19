@@ -1158,7 +1158,10 @@ endpoint account holds none. An endpoint account whose endpoint is a provider's 
 carries `balance`, what it has left as its balance reader last read it (`docs/usage-windows.md`,
 「Balances」): `amount`, `currency`, `seenAt` in epoch seconds and `requests`, the request allowance read
 with it or null, or null where none has been read; a directory or token account's is null. `window` is the usage a report named, answered by the report's
-change and null on the list. Accounts are added and changed through
+change and null on the list. A report's usage rests its login only where a window of it reads full,
+`utilization` or `weeklyUtilization` at 1: until the five-hour window's `resetsAt`, or the week's
+`weeklyResetsAt`, or the rest policy's fallback from now where the week names none; the answer's
+`restUntil` is that moment, or null where no window reads full. Accounts are added and changed through
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.
 

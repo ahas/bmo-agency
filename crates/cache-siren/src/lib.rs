@@ -16,4 +16,4 @@ pub mod windows;
 
 pub use balance::{Balance, KeptBalance};
 pub use reader::Reader;
-pub use windows::{Keeping, KeptWindow, Reading, Slot, Window};
+pub use windows::{FULL, Keeping, KeptWindow, Reading, Slot, Window};

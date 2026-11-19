@@ -32,8 +32,6 @@ person's run goes out inside its road is `docs/supply.md`.
   for a supervisor, the role's own line for an agent); a write naming another is refused with the provider and
   why. A supervisor always names a road. An agent may name none and follow the supervisor that asks it
   (「Runs on another's road」 below).
-- **The quota share is one for every road:** the remaining quota at or below which a road's provider is read
-  as having none, a fraction of its quota (`policy/roles.toml`, `quota_share`, 1%).
 
 ## Quota: what a provider has left
 
@@ -63,16 +61,17 @@ person's run goes out inside its road is `docs/supply.md`.
   check, a sign-in check no mail approved or the card issuer's confirmation, stops it there: it answers the
   sentence the person acts on and pays nothing it was not confirmed for. It answers the amount paid and the
   balance its reader kept after the payment. The quota stays closed until the balance reader reads a balance above zero.
-- **Claude Code's quota is its accounts':** the provider has quota while one of its open accounts has quota
-  above the share by its own least-left window, and its account walk offers that account first
+- **Claude Code's quota is its accounts':** the provider has quota while one of its open accounts has any
+  quota left by its own least-left window, and its account walk offers that account first
   (`docs/cache-fallback.md`, 「The account judgement」).
-- **A window read at its ceiling and not reset** is no quota left, whatever the share.
+- **A window read full and not reset,** all of it used, is no quota left; anything short of full is
+  quota, and no share of it is held back, so a road runs its provider to the end of its quota.
 - **What a provider has left is read afresh as each run starts,** never kept on the road.
 
 ## Whether a road can answer
 
 - **A road is judged as each run starts, and the judgement is kept for the run:** it can take the run while its
-  provider has quota above the share and can answer now. Can answer now is the provider's own answer
+  provider has quota left and can answer now. Can answer now is the provider's own answer
   (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」): the owner's switch on it is
   on; its credential stands on this machine; for a provider that offers a balance, the balance is not spent
   or the road's model costs nothing; and, for a provider that holds logins, one of them is open. A run

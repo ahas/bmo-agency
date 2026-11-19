@@ -1,13 +1,11 @@
 //! A list of roads the road judgement walks (docs/provider-order.md, 「What a road is」): a supervisor's one road,
 //! and the roads of a role's agents a run of the role may take, each provider once, with the model, the effort, the thinking and on the registry's
-//! provider the answer ceiling it runs on there, and the quota share at or below which a provider is
-//! passed over. This module reads an order off its row, judges one a write hands in, and reads what a
+//! provider the answer ceiling it runs on there. This module reads an order off its row, judges one a write hands in, and reads what a
 //! provider has left (「Quota: what a provider has left」), each provider answering out of its own member.
 
 use harness_providers::balance::OffersBalance;
 use harness_providers::{Machine, Provider};
 use policy::reasoning::REASONING;
-use policy::roles::ROLES;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -16,7 +14,7 @@ use crate::control::harness;
 use crate::now_ms;
 use crate::places::Ground;
 use crate::repositories::Pin;
-use cache_siren::Slot;
+use cache_siren::{FULL, Slot};
 
 /// One entry of an order: a provider and what the row runs on there.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -44,25 +42,22 @@ impl Entry {
   }
 }
 
-/// A row's order with its quota share, and the provider the owner forced as the row's active provider where
+/// A row's order, and the provider the owner forced as the row's active provider where
 /// one stands (docs/provider-order.md, 「What a road is」), which is kept beside the order rather
 /// than in it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Order {
   pub entries: Vec<Entry>,
-  pub quota_share: f64,
   #[serde(skip)]
   pub forced: Option<Pin>,
 }
 
 impl Order {
-  /// The order a row keeps: its entries as the JSON list it holds, a list that does not read being none, and
-  /// its share, the policy's where the row sets none.
-  pub fn of_row(entries: &str, share: Option<f64>) -> Self {
+  /// The order a row keeps: its entries as the JSON list it holds, a list that does not read being none.
+  pub fn of_row(entries: &str) -> Self {
     Self {
       entries: serde_json::from_str(entries).unwrap_or_default(),
-      quota_share: share.unwrap_or(ROLES.quota_share),
       forced: None,
     }
   }
@@ -161,14 +156,13 @@ pub enum Empty {
 
 /// An order a write hands in, judged for a row whose runs go out on `line` (docs/api.md, 「supervisors」): a
 /// list of providers agency carries, empty only where `empty` takes one, each once, whose program carries the line, each on a model it
-/// holds at an effort the model takes, and a share from 0 to 1. A catalogue that cannot be read refuses
+/// holds at an effort the model takes. A catalogue that cannot be read refuses
 /// nothing.
 pub async fn judge(
   judging: Judging<'_>,
   machine: &Machine,
   line: &str,
   entries: &Value,
-  share: Option<&Value>,
   empty: Empty,
 ) -> Result<Order, Refusal> {
   let read: Vec<Entry> = serde_json::from_value(entries.clone())
@@ -223,17 +217,8 @@ pub async fn judge(
     }
   }
 
-  let quota_share = match share {
-    None | Some(Value::Null) => ROLES.quota_share,
-    Some(value) => value
-      .as_f64()
-      .filter(|share| (0.0..=1.0).contains(share))
-      .ok_or_else(|| refused("quotaShare", "The quota share is a fraction from 0 to 1."))?,
-  };
-
   Ok(Order {
     entries: read,
-    quota_share,
     forced: None,
   })
 }
@@ -247,7 +232,7 @@ pub async fn judge_one(
   named: &Value,
 ) -> Result<Pin, String> {
   let entry = serde_json::json!([{ "provider": named["provider"], "model": named["model"] }]);
-  let judged = judge(judging, machine, line, &entry, None, Empty::Refused)
+  let judged = judge(judging, machine, line, &entry, Empty::Refused)
     .await
     .map_err(|refusal| refusal.error)?;
 
@@ -278,7 +263,7 @@ async fn unheld(
 
 /// What a provider has left as an order reads it (docs/provider-order.md, 「Quota: what a provider has
 /// left」): the fraction left by its window with the least left, where it reports windows; its balance,
-/// where it keeps one; and whether that stands above the row's share.
+/// where it keeps one; and whether anything of it is left.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Quota {
@@ -297,40 +282,35 @@ pub struct Quota {
   pub account: Option<String>,
 }
 
-/// One window's left: none where it has reset by now, else one less what it used, and nothing at its
-/// ceiling.
-pub fn window_left(used: f64, resets_at: Option<i64>, ceiling: f64, now: i64) -> Option<f64> {
+/// One window's left: none where it has reset by now, else what it has not used, nothing once it is full.
+pub fn window_left(used: f64, resets_at: Option<i64>, now: i64) -> Option<f64> {
   if resets_at.is_some_and(|at| at <= now) {
     return None;
   }
 
-  Some(if used >= ceiling { 0.0 } else { (1.0 - used).max(0.0) })
+  Some((FULL - used).max(0.0))
 }
 
 /// The window with the least left of a reading, standing at `now` in epoch seconds.
-pub fn least_left(
-  reading: &cache_siren::Reading,
-  now: i64,
-  ceiling: impl Fn(&str) -> f64,
-) -> Option<(f64, String, Option<i64>)> {
+pub fn least_left(reading: &cache_siren::Reading, now: i64) -> Option<(f64, String, Option<i64>)> {
   reading
     .standing(now)
     .filter_map(|kept| {
       let window = &kept.window;
 
-      window_left(window.utilization, window.resets_at, ceiling(&window.name), now)
+      window_left(window.utilization, window.resets_at, now)
         .map(|left| (left, window.name.clone(), window.resets_at))
     })
     .min_by(|one, other| one.0.total_cmp(&other.0))
 }
 
-/// What a provider has left now, against a share, read afresh out of what agency keeps; of a provider that
-/// holds logins, what the logins open to `model` have left, or every open login where none is named; of a
-/// provider that offers a balance, quota whatever the balance where `model` is one it says costs nothing.
+/// What a provider has left now, read afresh out of what agency keeps, quota while anything is left; of a
+/// provider that holds logins, what the logins open to `model` have left, or every open login where none is
+/// named; of a provider that offers a balance, quota whatever the balance where `model` is one it says costs
+/// nothing.
 pub async fn quota(
   ground: &Ground,
   provider: &dyn Provider,
-  share: f64,
   user: impl Into<claude_accounts::Carrying>,
   model: Option<&str>,
 ) -> Quota {
@@ -338,7 +318,7 @@ pub async fn quota(
   let now = now_ms().div_euclid(1000);
 
   if provider.holds_logins() {
-    return logins_quota(ground, provider, share, user, model, now).await;
+    return logins_quota(ground, provider, user, model, now).await;
   }
 
   if let Some(offers) = provider.balance() {
@@ -377,9 +357,9 @@ pub async fn quota(
     .await
     .unwrap_or_default();
 
-  match least_left(&reading, now, |_| 1.0) {
+  match least_left(&reading, now) {
     Some((left, window, resets_at)) => Quota {
-      has: left > share,
+      has: left > 0.0,
       left: Some(left),
       window: Some(window),
       resets_at,
@@ -399,13 +379,12 @@ pub fn balance_closes(ground: &Ground, offers: &dyn OffersBalance, model: Option
   model.is_none_or(|model| offers.spent_closes(&ground.machine(), model))
 }
 
-// A provider that holds logins has quota while one of its open logins has quota above the share by its own
-// window with the least left; that login counts first (docs/provider-order.md, 「Quota: what a provider has
+// A provider that holds logins has quota while one of its open logins has any left by its own window with the
+// least left; that login counts first (docs/provider-order.md, 「Quota: what a provider has
 // left」).
 async fn logins_quota(
   ground: &Ground,
   provider: &dyn Provider,
-  share: f64,
   user: claude_accounts::Carrying,
   model: Option<&str>,
   now: i64,
@@ -425,9 +404,9 @@ async fn logins_quota(
       })
       .await
       .unwrap_or_default();
-    let quota = match least_left(&reading, now, cache_siren::claude::window_ceiling) {
+    let quota = match least_left(&reading, now) {
       Some((left, window, resets_at)) => Quota {
-        has: left > share,
+        has: left > 0.0,
         left: Some(left),
         window: Some(window),
         resets_at,

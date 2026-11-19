@@ -354,7 +354,6 @@ pub async fn for_job(
           Some(Order {
             entries: vec![entry],
             forced: None,
-            ..held.order.clone()
           }),
           None,
         ),
@@ -488,20 +487,12 @@ async fn step(
     return cannot(closed);
   }
 
-  let quota = order::quota(ground, provider, ask.order.quota_share, ask.user, Some(&entry.model)).await;
+  let quota = order::quota(ground, provider, ask.user, Some(&entry.model)).await;
 
   if !quota.has && !provider.holds_logins() {
-    let reason = fill_marks(
-      &ROADS.reasons.quota,
-      &[
-        ("left", &quota.left.map_or_else(String::new, percent)),
-        ("share", &percent(ask.order.quota_share)),
-      ],
-    );
-
     return cannot(Closed {
       reopens_at: quota.resets_at,
-      ..Closed::plain(name, reason)
+      ..Closed::plain(name, no_quota(&quota))
     });
   }
 
@@ -668,9 +659,9 @@ pub async fn leave(ground: &Ground, road: &Road, why: &str) -> Option<BlockKind>
   }
 }
 
-// A share as a person reads it.
-fn percent(share: f64) -> String {
-  format!("{:.0}%", share * 100.0)
+// Why a provider with no quota left cannot answer: the window its reading found full.
+fn no_quota(quota: &order::Quota) -> String {
+  fill_marks(&ROADS.reasons.quota, &[("window", quota.window.as_deref().unwrap_or_default())])
 }
 
 // A provider that offers a balance and whose own road's last reading is at or below zero: closed to a run on
@@ -709,10 +700,10 @@ async fn balance_spent(ground: &Ground, provider: &dyn Provider, model: Option<&
 }
 
 // The login a provider that holds logins offers the run on `model` first: of the logins open to that model,
-// the one with quota above the share that the quota read counted first, else the account judgement's first.
+// the one with quota left that the quota read counted first, else the account judgement's first.
 // A login whose model rests is closed to this run and open to others. Where every login is closed, the
 // provider is, with every login's own reason, what a person does for the first a person can reopen, and the
-// moment the first that rests reopens; where logins are open but none has quota above the share, the
+// moment the first that rests reopens; where logins are open but none has quota left, the
 // provider is closed for its quota.
 async fn logins(
   ground: &Ground,
@@ -727,17 +718,9 @@ async fn logins(
 
   if !open.is_empty() {
     if !quota.has {
-      let reason = fill_marks(
-        &ROADS.reasons.quota,
-        &[
-          ("left", &quota.left.map_or_else(String::new, percent)),
-          ("share", &percent(ask.order.quota_share)),
-        ],
-      );
-
       return Ok(Err(Closed {
         reopens_at: quota.resets_at,
-        ..Closed::plain(name, reason)
+        ..Closed::plain(name, no_quota(quota))
       }));
     }
 

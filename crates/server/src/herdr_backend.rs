@@ -640,7 +640,7 @@ where
 }
 
 // The provider and model a supervisor's turn goes out on: its one road, where the road's provider has quota
-// above the share and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). A road that cannot
+// left and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). A road that cannot
 // take the turn fails it with the sentence that says why: nothing stands in and nothing waits.
 async fn choice_of(
   ground: &Ground,

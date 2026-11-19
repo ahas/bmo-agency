@@ -104,7 +104,6 @@ fn the_defaults_nothing_names_are_seeded_roles_and_each_bundle_a_role_gives_is_d
   assert!(!ROLES.default_role("producer"), "the producer is a role one names, and may go");
   assert_eq!(ROLES.supervisor, ["room.chat", "room.send", "web.read"]);
   assert!(ROLES.supervisor.contains(&ROLES.send));
-  assert_eq!(ROLES.quota_share, 0.01);
 
   for role in &ROLES.roles {
     for bundle in &role.bundles {

@@ -8,8 +8,8 @@
 //! never counts toward the deployment's rest.
 
 use axum::http::StatusCode;
-use cache_siren::Slot;
 use cache_siren::claude::MODE as CLAUDE_CODE_MODE;
+use cache_siren::{FULL, Slot};
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
@@ -35,14 +35,15 @@ async fn setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, R
 }
 
 /// The moment a login's own session usage rests it until, in epoch seconds: its session window's reset where
-/// that window stands at the threshold, its week's where the week does — the policy's fallback while from
-/// now where the week names none — and none otherwise.
+/// that window reads full, its week's where the week does — the policy's fallback while from now where the
+/// week names none — and none while every window has any left (docs/usage-windows.md, 「What reads the
+/// windows」).
 pub fn rest_until_after(usage: &SessionUsage, now: i64) -> Option<f64> {
-  if usage.utilization >= REST.threshold {
+  if usage.utilization >= FULL {
     return Some(usage.resets_at);
   }
 
-  if usage.weekly_utilization.is_some_and(|weekly| weekly >= REST.weekly_threshold) {
+  if usage.weekly_utilization.is_some_and(|weekly| weekly >= FULL) {
     return Some(usage.weekly_resets_at.unwrap_or((now + REST.fallback_seconds) as f64));
   }
 

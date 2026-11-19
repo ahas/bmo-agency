@@ -10404,7 +10404,7 @@
         "properties": {
           "has": {
             "type": "boolean",
-            "description": "Whether it stands above the share."
+            "description": "Whether anything of it is left."
           },
           "left": {
             "type": [
@@ -10474,7 +10474,7 @@
           "requests",
           "resetsAt"
         ],
-        "description": "ProviderQuota: what a provider has left as an order reads it at the default share."
+        "description": "ProviderQuota: what a provider has left as an order reads it."
       },
       "Requests": {
         "type": "object",

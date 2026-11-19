@@ -5,10 +5,6 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rest {
-  /// The share of the five-hour window past which a login rests.
-  pub threshold: f64,
-  /// The share of the weekly window past which a login rests.
-  pub weekly_threshold: f64,
   /// How long a login is put aside where its limit named no reset moment, in seconds.
   pub fallback_seconds: i64,
   /// What the owner is told as the rest that silenced the last open login begins.

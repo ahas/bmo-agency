@@ -12,7 +12,6 @@ fn role(name: &str, cap: i64, sessions: &str, prompt: Option<&str>) -> RoleSeed 
     bundles: vec!["room.send".into()],
     line: "worker".into(),
     order: r#"[{"provider":"deepseek","model":"deepseek-flash"}]"#.into(),
-    quota_share: 0.01,
     max_concurrent: cap,
     prompt: prompt.map(str::to_owned),
     description: Some(format!("What {name} is for.")),

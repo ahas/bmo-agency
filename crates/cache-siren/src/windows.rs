@@ -36,6 +36,16 @@ pub struct Window {
   pub limit_name: Option<String>,
 }
 
+/// The used fraction at which a window is full: all of it used, and no share short of it.
+pub const FULL: f64 = 1.0;
+
+impl Window {
+  /// Whether the reading finds the window full.
+  pub fn is_full(&self) -> bool {
+    self.utilization >= FULL
+  }
+}
+
 /// A window as the keeping holds it: the window, and when the reading it came in was seen.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

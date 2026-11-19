@@ -414,10 +414,9 @@ impl Route for RoleCreate {
     run(
       call.store(),
       r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio",
-           "skills")
+           "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio", "skills")
          VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "roles"), $6, $6, $7, $8, $9, $10,
-           $11, $12, $13)"#,
+           $11, $12)"#,
       vec![
         name.clone().into(),
         label.into(),
@@ -429,7 +428,6 @@ impl Route for RoleCreate {
         fields.description.flatten().into(),
         line.into(),
         "[]".into(),
-        ROLES.quota_share.into(),
         fields.fold_ratio.unwrap_or(order::DEFAULT_FOLD_RATIO).into(),
         listed(fields.skills.flatten().as_deref())?.into(),
       ],

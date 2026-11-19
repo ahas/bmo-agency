@@ -10,7 +10,7 @@ platform pays for takes it.
 ## The sources
 
 - **Personal supply:** the person's own credential, a Claude login or an API key of theirs, paid by them to the
-  provider directly. It runs out when the provider refuses it: a window at its ceiling, a key refused or a
+  provider directly. It runs out when the provider refuses it: a window full, a key refused or a
   balance spent.
 - **A platform source:** the platform's credential, its Claude logins lent for the purpose and its gateway
   members, paid as the consumer answers: the plan's included supply, an organisation's credits or the person's

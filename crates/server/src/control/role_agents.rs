@@ -181,7 +181,7 @@ async fn judged(
         "answerTokens": agent.answer_tokens,
       }]);
 
-      order::judge(Judging::of(ground), &ground.machine(), &role.line, &entry, None, Empty::Refused)
+      order::judge(Judging::of(ground), &ground.machine(), &role.line, &entry, Empty::Refused)
         .await
         .map_err(|refusal| unprocessable(refusal.error))?;
     }

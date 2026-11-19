@@ -260,7 +260,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 ## Where a supervisor's turn runs
 
-- **On its road, judged as the turn starts:** its provider must have quota above the share and be able to
+- **On its road, judged as the turn starts:** its provider must have quota left and be able to
   answer now (`docs/provider-order.md`, 「Whether a road can answer」). The turn goes out on the model, the
   effort and the thinking the road names.
 - **A road that cannot take the turn fails it plainly.** The turn ends failed at once with the sentence that

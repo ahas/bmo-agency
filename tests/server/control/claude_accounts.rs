@@ -106,9 +106,9 @@ async fn a_login_rests_until_a_full_window_s_reset_and_on_one_naming_none_only_w
 
   assert_eq!(rest(&read).await, None, "a stale full window naming no reset closes nothing");
 
-  read.replace(SPARE, &[five_hour(0.5, Some(resets_at))], now - 10).await.unwrap();
+  read.replace(SPARE, &[five_hour(0.995, Some(resets_at))], now - 10).await.unwrap();
 
-  assert_eq!(rest(&read).await, None, "a newer reading below its ceiling opens it");
+  assert_eq!(rest(&read).await, None, "a newer reading short of full, half a percent left, opens it");
 
   scratch.run(r#"DROP TABLE "usage_windows""#, vec![]).await;
 

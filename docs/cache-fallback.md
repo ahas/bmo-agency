@@ -531,7 +531,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **One place judges a run's road:** the road judgement (`docs/provider-order.md`, 「Whether a road can
   answer」). It is asked for a supervisor's turn or a role's run as the run starts, and answers whether that
   run goes out now on its road — the provider, the model, the effort and the thinking the road names and,
-  where the provider holds logins, the account — or why it cannot: no quota above the share, or unable to
+  where the provider holds logins, the account — or why it cannot: no quota left, or unable to
   answer now (「Availability: whether a provider can answer now」).
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
@@ -555,7 +555,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   every supervisor's turn, fold and warm ping, and every role's run, search and browse among them. No line
   keeps a judgement of its own, and none falls back to the machine's own login in place of one.
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a rest standing
-  under it, a limit's or a refusal's, nor a reading of its own windows showing one at its ceiling that has not reset —
+  under it, a limit's or a refusal's, nor a reading of its own windows showing one full that has not reset —
   `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」), or it carries on by
   its token for the work nodes (「A directory account carries on by its token」). A login that waits for a
   person and has no such token to carry on by is closed.
@@ -574,8 +574,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   read on a clock from the account's own login, so a login spent elsewhere is closed by the reading, and
   a rest removed by hand does not reopen a login whose window is still full.
 - **A full window that names its reset closes its login until that reset, however old its reading,**
-  since nothing but a newer reading can say it came back early: a newer reading that finds it below its
-  ceiling opens the login at once, and the reset opens it on time. A login spent until a day later
+  since nothing but a newer reading can say it came back early: a newer reading that finds it short of
+  full opens the login at once, and the reset opens it on time. A login spent until a day later
   therefore stays out of every walk until then, even where its token has lapsed and the reader can no
   longer ask for it.
 - **A full window that names no reset closes its login only while its reading is fresh,** a bounded
@@ -585,8 +585,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   meets the provider's refusal, which rests it as any refusal does.
 - **A rest written from a run's refusal or its own usage is not a reading:** it closes the login until
   its moment whatever the reader later finds, so a login a run found spent is never sent another run
-  before the refusal's own moment. A done job's usage is handed to agency by the job's runner, which
-  rests the login where a window stands at its threshold (`docs/api.md`, 「Accounts」).
+  before the refusal's own moment. A done run's usage reported to agency rests the
+  login only where a window of it reads full, all of it used (`docs/api.md`, 「accounts, rest and
+  usage」); a window short of full rests nothing, and the login takes runs until its provider refuses it.
 - **A closed login is never offered.** The walk offers the open logins in its order and none other.
 - **A run none of whose logins answers goes out on none.** It ends without launching anything, and
   whatever receives that failure reads it as it reads any limit or lost login, beginning no rest, since
@@ -613,8 +614,8 @@ When a demotion first catches — when a healthy session first drops — two thi
     of the model's id — rests that model on that login and nothing else: the login stays open to every
     other model, and the run moves to the next login that carries the model. The rest runs until the reset
     the answer names, else until the soonest reset the login's windows name, else until the next reading.
-  - **The login's own ceiling.** An answer that names its reset rests the login until then. One that names
-    none rests the login only where the windows confirm it, a window of the login's own read at its ceiling
+  - **The login's own limit.** An answer that names its reset rests the login until then. One that names
+    none rests the login only where the windows confirm it, a window of the login's own read full
     and not reset, until that window opens (「The account judgement」).
   - **Neither.** A limit the windows do not confirm, and that names no model of the run, never rests the
     login: the run's model rests on that login until the next reading decides, as one with no reset does.
@@ -645,7 +646,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   are each one process given the account their run is offered first, and a pieces-shaped turn on Claude
   Code takes the first open account the same way. Everything that can be launched again is carried
   account by account.
-- **Never walking off the road:** a run whose road has no quota above the share, cannot answer now, is not
+- **Never walking off the road:** a run whose road has no quota left, cannot answer now, is not
   run or ends with no answer goes out on no other provider or model (`docs/provider-order.md`, 「A road that
   fails」). With Claude Code off, a supervisor whose road is on it fails its turns and a job on it waits.
 - **Who receives that failure, each in its own place:**
