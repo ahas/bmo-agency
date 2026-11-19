@@ -68,6 +68,8 @@ pub struct JobNotices {
   pub close_order: String,
   /// The code of the owner's notice of a question past its due time.
   pub question_due_code: String,
+  /// The code of the owner's notice of a question settled on its recommendation once its due time passed.
+  pub question_settled_code: String,
   /// The code of the owner's notice of a job that failed in another room.
   pub failed_code: String,
   /// How often agency's sender sends the notices due, in seconds.

@@ -2,7 +2,8 @@
 //! change is told to its orderer」): read as a page past the cursor agency keeps, each event's notice owed in
 //! agency's outbox — a close that handed its commit over and waits on its deployment, told once for each commit
 //! and kept until it no longer waits, an item closed by somebody other than its orderer, a run's question asked,
-//! a question past its due time, and a settling reply that withdraws the question's instruction — and a note
+//! a question past its due time, a settling reply that withdraws the question's instruction, and one the job
+//! service gave on the question's recommendation, told to the owner — and a note
 //! added to the item of a job that runs, handed to that job (「Words for a running job」); and the title of an item
 //! raised or changed, asked of the gate so a worker reads it translated (docs/worker-language.md). The cursor advances
 //! only past events whose notices are owed and whose notes are kept. A pass with no cursor, or one whose cursor
@@ -298,9 +299,25 @@ async fn told(
         return Ok(());
       };
 
+      // A question settled on its recommendation went unanswered: its item is read before anything moves, so a
+      // read that fails leaves the event whole for the next pass, and the owner's notice is owed last, so taking
+      // the event again never tells it twice.
+      let settled = if data["source"] == "recommendation" {
+        Some(service.question(question).await?)
+      } else {
+        None
+      };
+
       crate::job_review::ruled(db, vars, data).await;
       outbox::let_go(db, vars, &format!("{QUESTION_OWED}{question}")).await?;
       println!("queue: question #{question} answered, its instruction let go");
+
+      if let Some(asked) = settled {
+        let notice = job_notices::question_settled(data, asked.as_ref());
+
+        outbox::owe(db, vars, Notice::owner(question, notice)).await?;
+        println!("queue: question #{question} settled on its recommendation, owed to the owner");
+      }
     }
     _ => {}
   }

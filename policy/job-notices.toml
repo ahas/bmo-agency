@@ -54,6 +54,8 @@ question_order = "A run asked question #{question} on item #{item}: {text}\nChoi
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."
 question_due_code = "job-question-due"
+# A question its due time passed on with no answer, settled by the job service on its recommendation.
+question_settled_code = "job-question-settled"
 failed_code = "job-failed"
 # Agency's outbox: how often its sender sends what is due; the wait after a failed try, doubled after each
 # failure up to the most; how long a standing notice waits after it was last told before it is told again; and

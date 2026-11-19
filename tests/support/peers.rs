@@ -252,6 +252,14 @@ async fn answer(
       axum::Json(json!({ "items": events, "more": false })).into_response()
     }
     ("POST", "/questions") => (StatusCode::CREATED, axum::Json(held.ask(&body))).into_response(),
+    ("GET", path) if path.starts_with("/questions/") => {
+      let id: i64 = path.trim_start_matches("/questions/").parse().unwrap_or_default();
+
+      match held.questions.iter().find(|asked| asked["id"] == id) {
+        Some(question) => axum::Json(question.clone()).into_response(),
+        None => (StatusCode::NOT_FOUND, axum::Json(json!({ "code": "not_found" }))).into_response(),
+      }
+    }
     ("GET", "/questions") => {
       let questions: Vec<Value> = held
         .questions

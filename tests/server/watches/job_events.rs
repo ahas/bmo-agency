@@ -1,6 +1,7 @@
 //! The job service's events told to an item's orderer and the owner (docs/agent-control.md, 「An item's change
 //! is told to its orderer」): an item closed by somebody other than its orderer, a run's question asked and
-//! withdrawn once a reply settles it, a question past its due time told to the owner, each once; and a pass
+//! withdrawn once a reply settles it, a question past its due time told to the owner, each once; a question
+//! settled on its recommendation told to the owner and one a person or the supervisor settled not; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
 //! live; a commit waiting for its deployment told once for each commit, never again on another change, a start or
 //! the sender's retelling; a question past its due time taken again owing its parked job's notice again; and a
@@ -200,6 +201,73 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
   assert_eq!(held.withdrawn(), ["1"], "the settled question's instruction withdrawn");
   assert_eq!(held.instructed().len(), 2, "nothing told twice");
   assert_eq!(held.noticed().len(), 1, "nothing told twice");
+}
+
+#[tokio::test]
+async fn a_question_settled_on_its_recommendation_owes_the_owner_one_notice_and_a_person_s_settle_none() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "90").await.unwrap();
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.questions.push(json!({ "id": 40, "itemId": 95, "state": "answered" }));
+    held.questions.push(json!({ "id": 41, "itemId": 96, "state": "answered" }));
+    held.events = vec![
+      event(
+        91,
+        "reply.created",
+        json!({
+          "id": 3, "questionId": 40, "settles": true, "choice": "b", "text": "b", "actorName": "due time",
+          "source": "recommendation", "why": "b keeps the contract"
+        }),
+      ),
+      event(
+        92,
+        "reply.created",
+        json!({
+          "id": 4, "questionId": 41, "settles": true, "choice": null, "text": "write it fresh",
+          "actorName": "due time", "source": "recommendation", "why": "nothing to keep"
+        }),
+      ),
+      event(
+        93,
+        "reply.created",
+        json!({ "id": 5, "questionId": 42, "settles": true, "choice": "a", "actorName": "tester", "source": "person" }),
+      ),
+      event(
+        94,
+        "reply.created",
+        json!({ "id": 6, "questionId": 43, "settles": true, "choice": "a", "actorName": "qa-admin", "source": "supervisor" }),
+      ),
+    ];
+  }
+
+  pass(db, &vars).await.unwrap();
+
+  let held = peers.lock().unwrap();
+  let notices = held.noticed();
+
+  assert_eq!(
+    notices.len(),
+    2,
+    "one for each settle on a recommendation, none for a person's or a supervisor's"
+  );
+  assert_eq!(
+    notices[0],
+    json!({
+      "code": JOB_NOTICES.question_settled_code, "questionId": 40, "itemId": 95, "answer": "b",
+      "why": "b keeps the contract"
+    })
+  );
+  assert_eq!(
+    (&notices[1]["questionId"], &notices[1]["itemId"], &notices[1]["answer"]),
+    (&json!(41), &json!(96), &json!("write it fresh")),
+    "a free answer told by its text"
+  );
 }
 
 #[tokio::test]

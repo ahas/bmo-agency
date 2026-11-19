@@ -407,6 +407,24 @@ pub fn question_due(question: &Value) -> Value {
   })
 }
 
+/// The owner notice of a question its due time passed on with no answer, settled on its recommendation: the
+/// settling reply's answer, its `choice` where it named one of the choices and its `text` otherwise, and the
+/// recommendation's reason; the item as the question names it, none where the service no longer holds it.
+pub fn question_settled(reply: &Value, question: Option<&Value>) -> Value {
+  let answer = match reply["choice"].as_str() {
+    Some(choice) if !choice.is_empty() => Value::String(choice.to_owned()),
+    _ => reply["text"].clone(),
+  };
+
+  json!({
+    "code": JOB_NOTICES.question_settled_code,
+    "questionId": reply["questionId"],
+    "itemId": question.map_or(Value::Null, |question| question["itemId"].clone()),
+    "answer": answer,
+    "why": reply["why"],
+  })
+}
+
 /// Whether a job's end is a failure the owner is told of as well: its outcome `failed` or `blocked`, its
 /// orderer a room other than the owner's private room.
 pub fn owner_hears_failure(member: &Value, orderer: &Orderer) -> bool {

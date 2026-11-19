@@ -3399,7 +3399,8 @@ with the session.
 | A repository's oldest commit waiting for its batch deployment having waited the due minutes (`policy/job-notices.toml`, `deploy_due_minutes`, three hours; 「A repository's batch deployment come due is told」) | the orderer of the item whose commit has waited longest; the owner's private room where it cannot be read | instruction, from the deploy-due read, told once and kept for the set of waiting commits it names; owed afresh as a deployment of the repository ends or a commit joins the set, and told again at once where the oldest still waits past the due minutes; withdrawn once none of its commits waits | `repository-deploy-due:<repository>`, `repository-deploy-due:#<item>` for each item it names |
 | A deployment of any repository, whoever started it, that ended without going live — failed, rolled back, stopped by its own judgement other than a refusal, or cut off — (「A deployment that did not go live is told」) | the orderer of each item whose waiting commit it carries, one instruction to each room; the owner's private room where it carries none | instruction, from the deployment watch, told once for each deployment | `deploy-failed:<unit>`, `deploy-failed:#<item>` for each item it carries, `deploy-failed` where it carries none |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does: it hands every question to the supervisor as `question-for-supervisor`, and wakes the supervisor again on one it did not take up, never the owner; the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
-| A job's question past its due time while open; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the owner | owner notice, from the events | code `job-question-due` |
+| A job's question past its due time while open, one with no recommendation; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the owner | owner notice, from the events | code `job-question-due` |
+| A job's question settled on its recommendation because its due time passed with no answer (a settling `reply.created` whose `source` is `recommendation`) | the owner | owner notice, from the events | code `job-question-settled` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
 | A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
@@ -3496,7 +3497,16 @@ with the session.
   `DELETE /instructions/{id}`, or, where the question was not told yet, telling it no more; a withdrawn
   instruction already handed is no refusal. A `question.due` event,
   the question still open past its due time, is an owner notice `job-question-due` with the question, its
-  item, its text and its choices, since only the owner can answer it; it is told once for the question.
+  item, its text and its choices, since only the owner can answer it; it is told once for the question. A
+  question put to a person that carries a recommendation is never told as due: the job service settles it on
+  the recommendation once its due time passes, a settling reply whose `source` is `recommendation`. That
+  reply lets the question's row go as any settling reply does, and is also an owner notice
+  `job-question-settled` with the question, its item, the answer it went with (the reply's `choice` where it
+  is one of the choices, else its `text`) and the recommendation's reason (`why`), so the owner hears that
+  his question went unanswered and was settled without him; the item is read with the job service's
+  `GET /questions/{questionId}`, since the reply names only its question, and a question the service no
+  longer holds is told with no item. The notice is owed last, after the ruling and the let-go, and told once
+  for the question. A settling reply whose `source` is `person` or `supervisor` tells the owner nothing.
 - **A job's wait is told as it begins.** A job held for a road (its `heldFor` written) or not let in at its
   first ask for a slot of its role is told to its orderer for that wait, with the reason it waits, so the
   asker hears why nothing has started; the kind replaces a wait told before that is still pending.

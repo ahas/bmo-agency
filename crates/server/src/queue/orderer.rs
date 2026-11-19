@@ -130,10 +130,10 @@ impl JobService {
     }
   }
 
-  /// One item by its number; none where the service answers that it holds no such item.
-  pub async fn item(&self, id: i64) -> Result<Option<Value>, String> {
+  // One member at `path`; none where the service answers that it holds no such member.
+  async fn member(&self, path: &str) -> Result<Option<Value>, String> {
     let answer = reqwest::Client::new()
-      .get(format!("{}/items/{id}", self.url))
+      .get(format!("{}{path}", self.url))
       .bearer_auth(&self.token)
       .send()
       .await
@@ -144,10 +144,20 @@ impl JobService {
     }
 
     if !answer.status().is_success() {
-      return Err(format!("the job service answered {} to /items/{id}", answer.status().as_u16()));
+      return Err(format!("the job service answered {} to {path}", answer.status().as_u16()));
     }
 
     answer.json().await.map(Some).map_err(|why| why.to_string())
+  }
+
+  /// One item by its number; none where the service answers that it holds no such item.
+  pub async fn item(&self, id: i64) -> Result<Option<Value>, String> {
+    self.member(&format!("/items/{id}")).await
+  }
+
+  /// One question by its number; none where the service answers that it holds no such question.
+  pub async fn question(&self, id: i64) -> Result<Option<Value>, String> {
+    self.member(&format!("/questions/{id}")).await
   }
 
   /// The orderer of an item as the job service answers it: its own room, else its parent's up the chain,

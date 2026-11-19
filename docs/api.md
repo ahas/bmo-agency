@@ -2046,11 +2046,12 @@ handed to that job (「assignments and
 jobs」, 「Words and notes for a running job」); an idle queue is told through the receiver's `POST /owner/notices`
 with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told to
 the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event
-of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due` and
-`job-failed`, each owed in agency's outbox and sent again until the receiver takes it, a standing one told
+of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due`,
+`job-question-settled` and `job-failed`, each owed in agency's outbox and sent again until the receiver takes it, a standing one told
 again under its kind while its condition holds; and an instruction for a question a settling reply answered,
 or for a standing notice whose condition ended, is withdrawn with `DELETE /instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
-kind, event and code); the items a held item waits on are read with `GET /items/{itemId}`; a job's shell hook reads the job's own item with `GET /items/{itemId}` where the job would write `STRUCTURE.md`, at the address and with the token the job's environment names (`docs/live-claude-guard.md`, 「The same hook keeps STRUCTURE.md the owner's」); the orderer is found by reading the item and the items it was raised from with `GET
+kind, event and code); the question a reply settled on its recommendation is read with `GET
+/questions/{questionId}` for its item; the items a held item waits on are read with `GET /items/{itemId}`; a job's shell hook reads the job's own item with `GET /items/{itemId}` where the job would write `STRUCTURE.md`, at the address and with the token the job's environment names (`docs/live-claude-guard.md`, 「The same hook keeps STRUCTURE.md the owner's」); the orderer is found by reading the item and the items it was raised from with `GET
 /items/{itemId}`, by their `raisedBy` field, else their `raised-by` label, up the chain; and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`; every few seconds, for the jobs standing
 in the machine's turn (`docs/role-agents.md`, 「When an agent is busy」), the job service's `GET /items` with
