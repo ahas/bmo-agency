@@ -194,13 +194,15 @@ pub(super) fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
 }
 
 /// The submodules the commit a checkout stands on pins, each cloned where it is missing and put on the
-/// pinned commit (docs/worker-slots.md, 「Names and places」). A folder an older commit tracked where a
-/// submodule now stands keeps only what git ignored in it, installs and builds, which would refuse the
-/// clone, so it is emptied first. `discard` throws away what is open inside a submodule, for a tree no
-/// one works in; without it git refuses to move a submodule over open work, and that refusal is the
-/// answer.
-pub(crate) fn bring_submodules(cwd: &Path, discard: bool) -> Result<(), String> {
-  let (declared, paths) =
+/// pinned commit (docs/worker-slots.md, 「Names and places」). A submodule that does not stand on its
+/// pin has its pinned commit fetched first, from the checkout the place is a worktree of and
+/// otherwise from the submodule's remote, and is moved again, so a pin standing on a branch outside
+/// the submodule's default, or one its remote never received, comes up as it does in the base. A folder an older commit tracked where a submodule now
+/// stands keeps only what git ignored in it, installs and builds, which would refuse the clone, so it
+/// is emptied first. `discard` throws away what is open inside a submodule, for a tree no one works in;
+/// without it git refuses to move a submodule over open work, and that refusal is the answer.
+pub fn bring_submodules(cwd: &Path, discard: bool) -> Result<(), String> {
+  let (declared, listed) =
     git_here(cwd, &["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"]);
 
   // No `.gitmodules`, or one declaring nothing: git answers no, and there is nothing to bring.
@@ -208,12 +210,24 @@ pub(crate) fn bring_submodules(cwd: &Path, discard: bool) -> Result<(), String> 
     return Ok(());
   }
 
-  for path in paths.lines().filter_map(|line| line.split_once(' ').map(|(_, path)| path)) {
-    let pinned = git_here(cwd, &["ls-files", "--stage", "--", path]).1.starts_with("160000 ");
+  if !git_here(cwd, &["submodule", "sync", "--quiet", "--recursive"]).0 {
+    return Err("could not read the submodules' addresses".to_owned());
+  }
+
+  // The checkout this place is a worktree of, whose own submodules stand: where a pin's commit waits
+  // when the submodule's remote carries no copy of it.
+  let base = owning_checkout(cwd);
+
+  for path in listed.lines().filter_map(|line| line.split_once(' ').map(|(_, path)| path)) {
+    let Some(pin) = pin_at(cwd, path) else {
+      continue;
+    };
+
     let at = cwd.join(path);
 
-    if pinned
-      && !at.join(".git").exists()
+    // A folder an older commit tracked where a submodule now stands would refuse the clone, so it is
+    // emptied first.
+    if !at.join(".git").exists()
       && let Ok(entries) = std::fs::read_dir(&at)
     {
       for entry in entries.flatten() {
@@ -228,23 +242,79 @@ pub(crate) fn bring_submodules(cwd: &Path, discard: bool) -> Result<(), String> 
         }
       }
     }
-  }
 
-  if !git_here(cwd, &["submodule", "sync", "--quiet", "--recursive"]).0 {
-    return Err("could not read the submodules' addresses".to_owned());
-  }
+    // Cloned where missing and put on the pin, git's own fetch of a pin its remote carries included.
+    let _ = bring_onto(cwd, path, discard);
 
-  let mut update = vec!["submodule", "update", "--quiet", "--init", "--recursive"];
+    if stands_on(&at, &pin) {
+      continue;
+    }
 
-  if discard {
-    update.push("--force");
-  }
+    // A fresh clone holds the branches standing at its remote's heads, and a pinned commit may wait on
+    // none of them, or on no remote at all: the checkout this place is a worktree of holds what its own
+    // submodules stood on, so its objects are taken from there first, and otherwise from the remote.
+    let base_copy = base.as_ref().map(|main| Path::new(main).join(path).to_string_lossy().into_owned());
 
-  if !git_here(cwd, &update).0 {
-    return Err(format!("could not bring the submodules of {} to their pins", cwd.display()));
+    if !base_copy.is_some_and(|from| fetch(&at, &from, &pin)) {
+      fetch(&at, "origin", &pin);
+    }
+
+    // The move tried again with the pin's objects in hand, its own submodules after it.
+    if !bring_onto(cwd, path, discard) || !stands_on(&at, &pin) {
+      return Err(format!("could not bring the submodule {} of {} to its pin", path, cwd.display()));
+    }
   }
 
   Ok(())
+}
+
+// The commit a checkout's index pins at a path, where a commit is pinned there.
+fn pin_at(cwd: &Path, path: &str) -> Option<String> {
+  let (_, staged) = git_here(cwd, &["ls-files", "--stage", "--", path]);
+
+  staged
+    .lines()
+    .find(|line| line.starts_with("160000 "))
+    .and_then(|line| line.split_whitespace().nth(1))
+    .map(str::to_owned)
+}
+
+// Whether a submodule's working tree stands on a commit.
+fn stands_on(at: &Path, commit: &str) -> bool {
+  git_here(at, &["rev-parse", "--verify", "--quiet", "HEAD"]).1 == commit
+}
+
+// A submodule asked for a commit from one source: another checkout's copy of it, by path, or the
+// remote's name. Whether the source answers.
+fn fetch(at: &Path, source: &str, commit: &str) -> bool {
+  git_here(at, &["fetch", "--quiet", source, commit]).0
+}
+
+// One submodule brought onto the commit its parent records: initialized and cloned where missing, its
+// own submodules after it, open work thrown away where `discard` says the tree is no one's.
+fn bring_onto(cwd: &Path, path: &str, discard: bool) -> bool {
+  let mut args = vec!["submodule", "update", "--quiet", "--init", "--recursive"];
+
+  if discard {
+    args.push("--force");
+  }
+
+  args.extend(["--", path]);
+
+  git_here(cwd, &args).0
+}
+
+/// The checkout a linked worktree belongs to; nothing for a directory that is no linked worktree. The
+/// setup asks it in its own blocking pass; `main_checkout_of` answers the same for the async roads.
+fn owning_checkout(cwd: &Path) -> Option<String> {
+  let (own_read, own) = git_here(cwd, &["rev-parse", "--path-format=absolute", "--git-dir"]);
+  let (common_read, common) = git_here(cwd, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+
+  if !own_read || !common_read || own == common {
+    return None;
+  }
+
+  common.strip_suffix("/.git").map(str::to_owned)
 }
 
 // Git in a place, asked nothing on its terminal and handed no editor: whether it worked, and what it said.

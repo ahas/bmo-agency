@@ -171,6 +171,7 @@ mod lines {
 mod places {
   mod base_mains;
   mod branch;
+  mod checkouts;
   mod claims;
   mod follow;
   mod gate_places;

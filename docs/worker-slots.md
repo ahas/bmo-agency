@@ -93,7 +93,11 @@
   its env files, the way the base checkout has them.
   - **The submodules come first,** in every repository and before its script: each submodule the
     commit pins is cloned where it is missing and put on the pinned commit, so a project kept in a
-    repository of its own stands in every checkout as it does in the base. A folder an older commit
+    repository of its own stands in every checkout as it does in the base. A submodule that does not
+    stand on its pin has that commit fetched first, from the checkout the place is a worktree of and
+    otherwise from the submodule's own remote, before the move is tried again, so a pin standing on a
+    branch outside the submodule's default, or one its remote never received, comes up as it does in
+    the base. A folder an older commit
     tracked where a submodule now stands keeps only what git ignored in it, installs and builds,
     which would refuse the clone, so it is emptied first. What is open inside a submodule is left
     as it stands, and a submodule git will not move over it fails the setup. A repository's own
