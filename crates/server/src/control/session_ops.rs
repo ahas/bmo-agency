@@ -443,7 +443,7 @@ fn retired(id: &str) -> Fault {
 const CONVERSATION_PROVIDER: &str = "claude-code";
 
 /// The labels keys agency writes into a record itself, which a start's labels may not name.
-const OWN_LABELS: [&str; 5] = ["line", "checkout", "archive", "role", "place"];
+const OWN_LABELS: [&str; 6] = ["line", "checkout", "archive", "role", "place", "reads"];
 
 // What a thrown-away session's start names of a runner line whose instructions its caller hands in whole:
 // the line, the instructions, the labels its record carries and the capabilities that record keeps.

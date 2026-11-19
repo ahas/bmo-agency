@@ -464,9 +464,17 @@ async fn run_on<W: Watch>(
     .and_then(|declared| declared.declared().resident.as_ref())
     .ok_or_else(|| "Claude Code stands no resident program".to_owned())?;
   let deadline = u64::try_from(now_ms()).unwrap_or_default() + TOKEN_BACKSTOP.as_millis() as u64;
-  let token = token::issue_for_run(ground, apart.line, apart.agent, &apart.command.cwd, &env, deadline)
-    .await
-    .map_err(|why| why.detail)?;
+  let token = token::issue_for_run(
+    ground,
+    apart.line,
+    apart.agent,
+    &apart.command.cwd,
+    &env,
+    Some((apart.provider, apart.model.as_str())),
+    deadline,
+  )
+  .await
+  .map_err(|why| why.detail)?;
 
   if let Some(token) = &token {
     env.insert(token::TOKEN_VARIABLE.to_owned(), token.clone());

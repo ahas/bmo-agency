@@ -103,3 +103,18 @@ top_up = "buy OpenRouter credits at https://openrouter.ai/settings/credits"
 requests_url = "https://openrouter.ai/api/v1/key"
 requests_url_env = "BMO_OPENROUTER_REQUESTS_URL"
 requests_scope = "free-models"
+
+[[reads]]
+# The media a model of this road reads natively (docs/provider-order.md, 「The media a model reads」):
+# what its answer carries to the model is a picture, whatever the model behind it, so no rule names a
+# document. A model no rule names reads nothing.
+model = "anthropic/claude"
+media = ["image"]
+
+[[reads]]
+model = "google/gemini"
+media = ["image"]
+
+[[reads]]
+model = "openai/gpt"
+media = ["image"]

@@ -141,16 +141,17 @@ pub async fn discipline(ground: &Ground) -> Result<String, String> {
     .map_err(|why| format!("mcp-host at {}: {why}", socket.display()))
 }
 
-/// The role and the capabilities of a record issued for `agent` on `line` (docs/agent-roles.md, 「Where the
-/// role is read」): the line's capabilities, then the bundles the run's role gives — or the supervisor bundles
-/// for a supervisor — each once.
+/// The role, the capabilities and the standing road of a record issued for `agent` on `line`
+/// (docs/agent-roles.md, 「Where the role is read」): the line's capabilities, then the bundles the run's role
+/// gives — or the supervisor bundles for a supervisor — each once, and the one road the supervisor's own row
+/// names where it is a supervisor's record.
 async fn capabilities(
   ground: &Ground,
   line: &str,
   agent: &str,
   checkout: &str,
   run_role: Option<&str>,
-) -> Result<(Option<String>, Vec<String>), Refusal> {
+) -> Result<(Option<String>, Vec<String>, Option<crate::order::Entry>), Refusal> {
   // The role a run names holds its own bundles; a thrown-away session's place holds its session's role; a
   // supervisor holds the supervisor bundles; a checkout's run and a branch place hold the job role's
   // (docs/agent-roles.md, 「Where the role is read」).
@@ -162,7 +163,11 @@ async fn capabilities(
     Some(role) => crate::agent_roles::holds(&ground.db, role).await?,
     None => false,
   };
-  let supervisor = !held && crate::supervisors::named(&ground.db, &named).await?.is_some();
+  let standing = match held {
+    true => None,
+    false => crate::supervisors::named(&ground.db, &named).await?,
+  };
+  let supervisor = standing.is_some();
   let role = if held {
     run_role.map(str::to_owned)
   } else if supervisor {
@@ -195,7 +200,30 @@ async fn capabilities(
     held = crate::supervisor_limits::Limits::of(&ground.db, &named).await?.narrowed(held);
   }
 
-  Ok((role, held))
+  Ok((role, held, standing.and_then(|one| one.road())))
+}
+
+// The record's `reads` label: the media the model the run goes out on reads natively, written under the
+// road its caller names, or under the one its standing supervisor's row names where it names none, and left
+// off the record entirely where the run reads nothing (docs/provider-order.md, 「The media a model reads」).
+async fn reads_label(
+  ground: &Ground,
+  road: Option<(&str, &str)>,
+  standing: Option<crate::order::Entry>,
+  labels: &mut Map<String, Value>,
+) {
+  let (provider, model) = match road {
+    Some((provider, model)) => (provider.to_owned(), model.to_owned()),
+    None => match standing {
+      Some(entry) => (entry.provider, entry.model),
+      None => return,
+    },
+  };
+  let media = crate::road::reads(ground, &provider, &model).await;
+
+  if !media.is_empty() {
+    labels.insert("reads".to_owned(), json!(media.iter().map(|media| media.word()).collect::<Vec<_>>()));
+  }
 }
 
 // A record for a run of `line`, held by `holder`, with the namespaces and shown entries that line declares,
@@ -226,15 +254,19 @@ fn record(
 
 /// A token for a resident program of `line` standing in `place` for `agent` and working in `checkout`, or
 /// none where the line needs none: one whose record holds no capability. A host that does not answer
-/// within its wait, or one that refuses the record, refuses the program.
+/// within its wait, or one that refuses the record, refuses the program. `road` names the provider and model
+/// its runs go out on where its caller holds one; none takes the supervisor's own row's road, and none takes
+/// no `reads` label at all.
 pub async fn issue(
   ground: &Ground,
   line: &str,
   agent: &str,
   place: &Path,
   checkout: &Path,
+  road: Option<(&str, &str)>,
 ) -> Result<Option<String>, Refusal> {
-  let (role, capabilities) = capabilities(ground, line, agent, &checkout.to_string_lossy(), None).await?;
+  let (role, capabilities, standing) =
+    capabilities(ground, line, agent, &checkout.to_string_lossy(), None).await?;
 
   if capabilities.is_empty() {
     return Ok(None);
@@ -280,6 +312,8 @@ pub async fn issue(
   if let Some(role) = role {
     labels.insert("role".to_owned(), json!(role));
   }
+
+  reads_label(ground, road, standing, &mut labels).await;
 
   let request = record(line, agent, capabilities, grants, variables, labels, None);
 
@@ -378,19 +412,23 @@ fn named_tools(env: &BTreeMap<String, String>) -> Option<Vec<String>> {
 /// A token for one run of `line` carried in `agent`'s host, working in `cwd` on `env`, standing until
 /// `deadline` at most; none where the line needs none. Its record carries its line's capabilities with its
 /// agent's role's bundles, narrowed to those the run's caller lets it keep, and the labels that caller
-/// named. The agent is the turn's where the run names one, and the one it is carried for otherwise.
+/// named. The agent is the turn's where the run names one, and the one it is carried for otherwise. `road`
+/// names the provider and model the run goes out on, for its record's `reads` label; none leaves that to the
+/// standing supervisor's row and then to nothing.
 pub async fn issue_for_run(
   ground: &Ground,
   line: &str,
   agent: &str,
   cwd: &str,
   env: &BTreeMap<String, String>,
+  road: Option<(&str, &str)>,
   deadline: u64,
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
   let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
   let run_role = given(RUN_ROLE);
-  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
+  let (role, mut capabilities, standing) =
+    capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
 
   if let Some(allowed) = named_tools(env) {
     capabilities.retain(|capability| allowed.contains(capability));
@@ -449,6 +487,8 @@ pub async fn issue_for_run(
     labels.entry(key).or_insert(value);
   }
 
+  reads_label(ground, road, standing, &mut labels).await;
+
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
   let request = record(
     line,
@@ -468,7 +508,8 @@ pub async fn issue_for_run(
 /// for that run, and otherwise the place's resident record. The run's variables of `run_env` are laid over
 /// the program's own environment first, since a program's environment holds no turn's variables and the role
 /// a run holds stands among them: a record issued from the program's environment alone would hold none of
-/// its role's bundles.
+/// its role's bundles. `road` names the provider and model the program's turns go out on, for the record's
+/// `reads` label.
 #[allow(clippy::too_many_arguments)]
 pub async fn issue_for_program(
   ground: &Ground,
@@ -478,6 +519,7 @@ pub async fn issue_for_program(
   checkout: &Path,
   program_env: &BTreeMap<String, String>,
   run_env: &BTreeMap<String, String>,
+  road: Option<(&str, &str)>,
   deadline: u64,
 ) -> Result<Option<String>, Refusal> {
   let mut env = program_env.clone();
@@ -490,9 +532,9 @@ pub async fn issue_for_program(
   );
 
   if names_record(&env) {
-    issue_for_run(ground, line, line, &checkout.to_string_lossy(), &env, deadline).await
+    issue_for_run(ground, line, line, &checkout.to_string_lossy(), &env, road, deadline).await
   } else {
-    issue(ground, line, agent, place, checkout).await
+    issue(ground, line, agent, place, checkout, road).await
   }
 }
 

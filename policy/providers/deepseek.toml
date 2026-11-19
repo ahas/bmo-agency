@@ -218,3 +218,6 @@ unconfirmed = "Nothing was paid that the platform confirmed within {seconds} sec
 outcome = "Paid: {paid} {currency}. Balance: {balance} {currency}, as the balance reader last read it at {seen}."
 # The balance reader has not read the balance since the payment.
 balance_stale = "The balance reader has not read the balance since the payment, so the balance above is the one before it."
+
+# The media its models read natively (docs/provider-order.md, 「The media a model reads」): none.
+# DeepSeek's models answer from words alone, so no rule stands here and its records carry no `reads`.

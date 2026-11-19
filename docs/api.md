@@ -525,7 +525,9 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   the supervisor that asked the session's slot, its `askedBy`, as `docs/own-llm.md` says, and there is no pool.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
-  `archive`, `role` and `place` — is refused 400.
+  `archive`, `role`, `place` and `reads` — is refused 400. The record's `reads` holds the media the run's
+  model reads natively, as `docs/provider-order.md` 「The media a model reads」 judges them from the road the
+  run goes out on.
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 

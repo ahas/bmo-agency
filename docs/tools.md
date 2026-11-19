@@ -46,7 +46,10 @@ belongs to no one service is a repository of its own, not a folder here.
   `node.admin` and `platform.payment`, on the record of a supervisor of no account or of the administrator's
   account, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or
   a job's (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's
-  `labels`: the line, the store's address and the agent's place where it is a resident program; an apart
+  `labels`: the line, the store's address, the agent's place where it is a resident program, and the media
+  the run's model reads natively under `reads` — each of `image`, `pdf` and `video` as
+  `docs/provider-order.md` 「The media a model reads」 judges them from the road the run goes out on, with no
+  `reads` at all where the model reads none; an apart
   session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do not read. The turn's own variables stand in `variables`, beside the
   deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
   them, each where the deployment sets it in agency's environment — the chat and worker lines'

@@ -87,6 +87,43 @@ pub struct Declared {
   /// The route its turns take through dsh, where it has one.
   #[serde(default)]
   pub dsh: Option<Dsh>,
+  /// The media its models read natively, one rule to a model start
+  /// (docs/provider-order.md, 「The media a model reads」); none declared for a provider whose models read
+  /// nothing.
+  #[serde(default)]
+  pub reads: Vec<Reads>,
+}
+
+/// One media rule of a provider's declaration: the start of a model name and the media the models it
+/// names read natively (docs/provider-order.md, 「The media a model reads」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Reads {
+  /// The start of the model name, as the run goes out with it; compared without case.
+  pub model: String,
+  /// The media the models behind that start read.
+  pub media: Vec<Media>,
+}
+
+/// One kind of media a run's model takes into its own request (docs/provider-order.md,
+/// 「The media a model reads」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Media {
+  Image,
+  Pdf,
+  Video,
+}
+
+impl Media {
+  /// The word the record's `reads` label and a tool's reading of it hold it by.
+  pub fn word(&self) -> &'static str {
+    match self {
+      Self::Image => "image",
+      Self::Pdf => "pdf",
+      Self::Video => "video",
+    }
+  }
 }
 
 /// The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named, where
@@ -191,6 +228,21 @@ impl Declared {
   /// Whether its program carries a line.
   pub fn carries(&self, line: &str) -> bool {
     self.lines.iter().any(|one| one == line)
+  }
+
+  /// The media a model of this provider reads natively: those of the longest rule whose `model` is a
+  /// case-free start of the name the run goes out with, none where no rule reaches it
+  /// (docs/provider-order.md, 「The media a model reads」).
+  pub fn media_of(&self, model: &str) -> &[Media] {
+    let model = model.to_lowercase();
+
+    self
+      .reads
+      .iter()
+      .filter(|rule| model.starts_with(&rule.model.to_lowercase()))
+      .max_by_key(|rule| rule.model.chars().count())
+      .map(|rule| rule.media.as_slice())
+      .unwrap_or(&[])
   }
 }
 

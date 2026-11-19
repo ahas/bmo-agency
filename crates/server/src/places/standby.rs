@@ -163,16 +163,24 @@ async fn pinned_program(
   }
 }
 
-// A worker's standing program handed its session token, where its line takes one.
+// The model a standing program's own words go out on, which its `--model` flag names.
+fn model_in(args: &[String]) -> Option<&str> {
+  args.windows(2).find_map(|pair| (pair[0] == "--model").then(|| pair[1].as_str()))
+}
+
+// A worker's standing program handed its session token, where its line takes one. `road` names the provider
+// and model it stands on, for the record's `reads` label.
 async fn tokened(
   ground: &Ground,
   worker: &str,
   place: &Place,
   cwd: &str,
+  road: Option<(&str, &str)>,
   mut program: Program,
 ) -> Result<(Program, Option<String>), Refusal> {
   let checkout = token::record_checkout(ground, &place.path, cwd);
-  let issued = token::issue(ground, crate::lines::worker::LINE, worker, &place.path, &checkout).await?;
+  let issued =
+    token::issue(ground, crate::lines::worker::LINE, worker, &place.path, &checkout, road).await?;
 
   if let Some(token) = &issued {
     for command in std::iter::once(&mut program.command).chain(program.restart.as_mut()) {
@@ -219,7 +227,15 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
     else {
       return Ok(());
     };
-    let (program, issued) = tokened(ground, &row.name, &place, &cwd, standing.program).await?;
+    let (program, issued) = tokened(
+      ground,
+      &row.name,
+      &place,
+      &cwd,
+      model.as_deref().map(|model| (pinned.as_str(), model)),
+      standing.program,
+    )
+    .await?;
 
     if place.offer(&program)? {
       println!(
@@ -250,7 +266,20 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
     return Ok(());
   };
   let standing = claude_program(ground, &machine, &row.name, &cwd).await?;
-  let (program, issued) = tokened(ground, &row.name, &place, &cwd, standing.program).await?;
+  // The record's road is the one the standing program's own words go out on.
+  let standing_road =
+    standing_provider(&machine, &standing.program.command.args, &standing.program.command.env)
+      .zip(model_in(&standing.program.command.args).map(str::to_owned))
+      .map(|(provider, model)| (provider.name().to_owned(), model));
+  let (program, issued) = tokened(
+    ground,
+    &row.name,
+    &place,
+    &cwd,
+    standing_road.as_ref().map(|(provider, model)| (provider.as_str(), model.as_str())),
+    standing.program,
+  )
+  .await?;
 
   if !place.offer(&program)? {
     if let Some(issued) = issued {
@@ -362,7 +391,9 @@ pub async fn restand_pinned(ground: &Ground, row: &AgentRow, wait: bool) -> Resu
   };
   let text = match replacement {
     Some(replacement) => {
-      let (program, _) = tokened(ground, &row.name, &place, &cwd, replacement.program).await?;
+      // The record's road is the pin's own, read from the standing program's words.
+      let road = model_in(&standing.command.args).map(|model| (pinned.as_str(), model));
+      let (program, _) = tokened(ground, &row.name, &place, &cwd, road, replacement.program).await?;
       let (before, _) = place.replace(&program).await?;
 
       if let Some(old) = before.as_ref().and_then(token_of)

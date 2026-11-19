@@ -177,6 +177,24 @@ person's run goes out inside its road is `docs/supply.md`.
   the Claude catalogue names, a catalogue that cannot be read letting the run go out. A run whose model its
   provider does not hold ends failed, naming the provider and the model.
 
+## The media a model reads
+
+- **What the run's model reads natively stands beside the road, not in it:** the media the model's own
+  request takes — `image`, `pdf`, `video` — judged from the provider and the model the run goes out on and
+  handed to the placed tools under the `reads` label of the run's session record (`docs/tools.md`,
+  「A tool's folder」).
+- **Each provider declares which of its models read which media,** in its own policy file beside its
+  harness, never in a table of providers: each rule names a model by the start of its name and lists the media
+  after it; where several name the start the run's model goes out under, the longest one takes it, and a model
+  no rule names reads nothing. A run that reads nothing is handed a record with no `reads` label at all, and
+  a tool reading the label takes no label for no media.
+- **The registry's provider judges a registration by the engine its row names** as well as by the name the
+  run goes out under, the name first: every registration standing on one engine then reads what that engine
+  reads, while the owner can still state the media of one registration apart from its engine.
+- **The label states what the model reads, not what its harness can make of a file.** A harness that turns a
+  document into pictures for a model that reads pictures reads the document through `image`, and a tool
+  decides from the media its own answer carries what a missing media costs the run.
+
 ## Effort and thinking
 
 - **The levels are one scale:** `low`, `medium`, `high`, `xhigh` and `max`. A road names a level once, and

@@ -83,6 +83,7 @@ async fn a_changed_program_is_not_ended_while_its_record_says_a_turn_works() {
     &program("new", home.path()),
     &std::collections::BTreeMap::new(),
     "chat",
+    None,
     Duration::from_millis(10),
     || async { false },
   )

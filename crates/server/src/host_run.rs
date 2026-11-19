@@ -406,6 +406,7 @@ pub async fn run_heard<H: Heard>(
     asked.agent,
     &asked.command.cwd,
     &asked.command.env,
+    asked.model.as_deref().map(|model| (asked.provider, model)),
     deadline,
   )
   .await

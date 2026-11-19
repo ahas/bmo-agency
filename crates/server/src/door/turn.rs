@@ -1569,11 +1569,13 @@ async fn stand<W: Watch>(door: &mut Door<'_, W>, home: &Home) -> Result<String, 
 
   let names = [turn.name.clone(), door.row.id().to_owned(), door.row.root().to_owned()];
   let every = Duration::from_millis(250);
-  let standing = stand_resident(ground, &place, home, &program, &turn.env, &turn.line, every, || async {
-    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+  let road = turn.identity.model.as_deref().map(|model| (turn.provider.as_str(), model));
+  let standing =
+    stand_resident(ground, &place, home, &program, &turn.env, &turn.line, road, every, || async {
+      let names: Vec<&str> = names.iter().map(String::as_str).collect();
 
-    cancelled(&ground.db, &names).await.unwrap_or(false)
-  });
+      cancelled(&ground.db, &names).await.unwrap_or(false)
+    });
   let mut standing = std::pin::pin!(standing);
 
   // A program on a node that does not come up is held to the bound it is held to until it takes the turn.

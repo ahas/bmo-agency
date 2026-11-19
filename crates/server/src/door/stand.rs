@@ -137,7 +137,8 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// anything is written. The token's record is issued from the program's own environment with the run's
 /// variables of `run_env` laid over it: a program's environment holds no turn's variables, and the role a run
 /// holds and the record its caller named stand among them, so a record
-/// issued from the program's environment alone would hold none of its role's bundles.
+/// issued from the program's environment alone would hold none of its role's bundles. `road` names the
+/// provider and model the turn goes out on, for the record's `reads` label.
 #[allow(clippy::too_many_arguments)]
 pub async fn stand_resident<F, Fut>(
   ground: &Ground,
@@ -146,6 +147,7 @@ pub async fn stand_resident<F, Fut>(
   program: &Program,
   run_env: &std::collections::BTreeMap<String, String>,
   line: &str,
+  road: Option<(&str, &str)>,
   poll: Duration,
   stop: F,
 ) -> Result<Stood, Fault>
@@ -187,6 +189,7 @@ where
       &checkout,
       &program.command.env,
       run_env,
+      road,
       deadline,
     )
     .await

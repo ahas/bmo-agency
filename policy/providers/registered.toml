@@ -67,3 +67,16 @@ turn_limits = true
 # A conversation's turn waits while an open job runs on its registration, since the engine serves one slot
 # (docs/supervisors.md, 「The engine it shares」).
 waits_for_engine = true
+
+[[reads]]
+# The media a registration's model reads natively (docs/provider-order.md, 「The media a model reads」),
+# named by the start of the model the registration's row keeps, so every registration standing on one
+# engine reads what that engine reads: the Qwen flash models take pictures, and a Claude model served as
+# a registration takes pictures and documents. An engine no rule names, the translators and the embedding
+# among them, reads nothing.
+model = "qwen3.8-flash"
+media = ["image"]
+
+[[reads]]
+model = "claude"
+media = ["image", "pdf"]

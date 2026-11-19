@@ -90,3 +90,9 @@ handover = "handoff"
 turn_limits = true
 # No engine of its own holds a slot; every request goes to the member's API.
 waits_for_engine = false
+
+[[reads]]
+# The media a model of this road reads natively (docs/provider-order.md, 「The media a model reads」):
+# the GPT models take pictures into the request their runs go out on; nothing else on this road does.
+model = "gpt"
+media = ["image"]

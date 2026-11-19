@@ -157,3 +157,9 @@ finish_seconds = 90
 keep_minutes = 20
 took = ["Login successful", "Logged in as", "Successfully logged in"]
 refused = ["Login failed", "Invalid code", "OAuth error", "Authentication failed"]
+
+[[reads]]
+# The media a model of this road reads natively (docs/provider-order.md, 「The media a model reads」):
+# the Claude models take pictures and PDF documents into the request their runs go out on.
+model = "claude"
+media = ["image", "pdf"]

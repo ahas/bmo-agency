@@ -96,6 +96,30 @@ impl Road {
   }
 }
 
+/// The media the model a run goes out on reads natively, for its record's `reads` label
+/// (docs/provider-order.md, 「The media a model reads」): the provider's own declaration for the name the
+/// run goes out with; on the registry's road, where that name reaches no rule, the declaration for the model
+/// the registration's row names, so every registration on one engine reads what that engine reads. Nothing
+/// for a model no rule reaches, a provider agency does not carry, or a road the store cannot be read for.
+pub async fn reads(ground: &Ground, provider: &str, model: &str) -> Vec<policy::providers::Media> {
+  let Some(declared) = harness_providers::provider(provider).map(|provider| provider.declared()) else {
+    return Vec::new();
+  };
+  let own = declared.media_of(model);
+
+  if !own.is_empty() {
+    return own.to_vec();
+  }
+
+  if provider == crate::control::registry::PROVIDER
+    && let Ok(Some(held)) = crate::control::registry::registration(&ground.db, model).await
+  {
+    return declared.media_of(&held.model).to_vec();
+  }
+
+  Vec::new()
+}
+
 /// Why one provider cannot answer now: its reason, what a person does to reopen it where a person can, and
 /// the epoch second it reopens on its own where it waits for one.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

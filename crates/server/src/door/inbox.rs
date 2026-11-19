@@ -375,20 +375,27 @@ async fn put<W: Watch>(
 ) -> Result<SurfaceEnding, String> {
   let every = turn.clocks.poll.unwrap_or(Duration::from_millis(RESIDENT_TURN.inbox_poll_ms));
   let shared: &Execution = execution;
-  let stood =
-    match stand_resident(ground, place, &turn.home, program, &turn.run.env, &turn.run.line, every, || {
-      shared.cancelled(ground, turn)
-    })
-    .await
-    {
-      Ok(stood) => stood,
-      Err(fault) => {
-        return Ok(SurfaceEnding::Error(format!(
-          "the pane program did not stand: {}: {}",
-          fault.code, fault.message
-        )));
-      }
-    };
+  let stood = match stand_resident(
+    ground,
+    place,
+    &turn.home,
+    program,
+    &turn.run.env,
+    &turn.run.line,
+    Some((provider, turn.run.model.as_str())),
+    every,
+    || shared.cancelled(ground, turn),
+  )
+  .await
+  {
+    Ok(stood) => stood,
+    Err(fault) => {
+      return Ok(SurfaceEnding::Error(format!(
+        "the pane program did not stand: {}: {}",
+        fault.code, fault.message
+      )));
+    }
+  };
   let pane = stood.pane;
   let started = place.running();
   let from = read_record(&place.path).len();

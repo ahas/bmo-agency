@@ -461,7 +461,7 @@ async fn a_run_of_a_session_naming_its_record_is_issued_with_its_labels_and_only
   assert!(agency_server::lines::token::names_record(&env));
 
   let token =
-    agency_server::lines::token::issue_for_run(&ground, "search", "search", "/tmp", &env, u64::MAX)
+    agency_server::lines::token::issue_for_run(&ground, "search", "search", "/tmp", &env, None, u64::MAX)
       .await
       .unwrap();
 
@@ -589,10 +589,18 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
   assert_eq!(env[agency_server::lines::token::RUN_ROLE], "producer");
   assert!(agency_server::lines::token::names_record(&env));
 
-  agency_server::lines::token::issue_for_run(&ground, "worker", "some-checkout", "/tmp", &env, u64::MAX)
-    .await
-    .unwrap()
-    .expect("a token");
+  agency_server::lines::token::issue_for_run(
+    &ground,
+    "worker",
+    "some-checkout",
+    "/tmp",
+    &env,
+    None,
+    u64::MAX,
+  )
+  .await
+  .unwrap()
+  .expect("a token");
 
   let record = issued.lock().unwrap().pop().expect("a record was issued");
   let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
@@ -611,6 +619,114 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
     !capabilities.contains(&"graph.read".to_owned()),
     "no bundle the role does not give: {capabilities:?}"
   );
+  assert!(record["labels"].get("reads").is_none(), "a text-only model reads no media: {record}");
+}
+
+// A run's record names the media its run model reads natively, so a placed tool hands its material only to
+// a run that can read it (docs/provider-order.md, 「The media a model reads」).
+#[tokio::test]
+async fn a_run_on_a_road_whose_model_reads_media_is_issued_with_its_reads_label() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let producer = Apart {
+    provider: "claude-code".into(),
+    model: "claude-sonnet-5".into(),
+    cwd: "/tmp".into(),
+    role: Some("producer".into()),
+    ..Apart::default()
+  };
+  let env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&producer).into_iter().collect();
+
+  agency_server::lines::token::issue_for_run(
+    &ground,
+    "worker",
+    "some-checkout",
+    "/tmp",
+    &env,
+    Some(("claude-code", "claude-sonnet-5")),
+    u64::MAX,
+  )
+  .await
+  .unwrap()
+  .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+  assert_eq!(record["labels"]["reads"], json!(["image", "pdf"]), "{record}");
+}
+
+// A record issued with no road of its own takes the one the standing supervisor's row names.
+#[tokio::test]
+async fn a_supervisor_s_record_reads_the_media_of_its_own_road() {
+  use crate::support::rows::supervisor;
+  use std::path::Path;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  supervisor(scratch.db(), "bmo", &[]).await;
+
+  let ground = ground(&scratch, &machine, None);
+
+  agency_server::lines::token::issue(
+    &ground,
+    "chat",
+    "bmo",
+    Path::new("/tmp/place"),
+    Path::new("/tmp"),
+    None,
+  )
+  .await
+  .unwrap()
+  .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+  assert_eq!(
+    record["labels"]["reads"],
+    json!(["image", "pdf"]),
+    "the supervisor's own row stands on Claude Code: {record}"
+  );
+}
+
+// The registered road judges a registration by the engine its row names, so every alias of one engine reads
+// the same media, and a model no rule reaches leaves the label off.
+#[tokio::test]
+async fn a_registration_takes_the_reads_of_the_engine_its_row_names() {
+  use policy::providers::Media;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models"
+           ("name", "label", "model", "context_tokens", "answer_tokens", "thinking", "walked", "added_at")
+         VALUES ('bong-q38fn', 'bong', 'qwen3.8-flash-next', 524288, 16000, 1, 1, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let ground = ground(&scratch, &machine, None);
+
+  assert_eq!(agency_server::road::reads(&ground, "registered", "bong-q38fn").await, [Media::Image]);
+  assert!(agency_server::road::reads(&ground, "registered", "hy-mt2-7b").await.is_empty());
+  assert!(agency_server::road::reads(&ground, "deepseek", "deepseek-chat").await.is_empty());
+  assert!(agency_server::road::reads(&ground, "nobody", "anything").await.is_empty());
 }
 
 // A run of the worker line works for the brain of the supervisor agency's research setting names, which its record names apart from the turn's agent, so its other tools act as the run itself
@@ -643,10 +759,18 @@ async fn a_worker_line_run_works_for_the_research_supervisor_s_brain_and_stays_i
   let env: BTreeMap<String, String> =
     agency_server::lines::token::record_variables(&coder).into_iter().collect();
 
-  agency_server::lines::token::issue_for_run(&ground, "worker", "some-checkout", "/tmp", &env, u64::MAX)
-    .await
-    .unwrap()
-    .expect("a token");
+  agency_server::lines::token::issue_for_run(
+    &ground,
+    "worker",
+    "some-checkout",
+    "/tmp",
+    &env,
+    None,
+    u64::MAX,
+  )
+  .await
+  .unwrap()
+  .expect("a token");
 
   let record = issued.lock().unwrap().pop().expect("a record was issued");
   let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
@@ -704,6 +828,7 @@ async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
     std::path::Path::new("/tmp"),
     &program_env,
     &run_env,
+    None,
     u64::MAX,
   )
   .await
