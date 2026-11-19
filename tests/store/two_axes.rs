@@ -161,7 +161,7 @@ async fn live(scratch: &Scratch) {
   .await;
 
   for (name, kind, role) in [
-    ("output-format", "gate", "gate"),
+    ("screen", "gate", "gate"),
     ("search", "runner", "searcher"),
     ("browse", "runner", "searcher"),
     ("translator", "runner", "translator"),
