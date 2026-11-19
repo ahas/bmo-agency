@@ -192,7 +192,7 @@ pub async fn typed_hook_output(text: &str, session: &str, port: u16, token: Opti
     None => missing(&format!("the program has no {CONTROL_TOKEN} to ask agency with")),
     Some(token) => {
       let asked = reqwest::Client::new()
-        .post(format!("http://127.0.0.1:{port}/typed-line"))
+        .post(format!("http://127.0.0.1:{port}/turn-contexts"))
         .bearer_auth(token)
         .json(&json!({ "text": text, "sessionId": session }))
         .send()

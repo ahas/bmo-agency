@@ -11,3 +11,4 @@ calls_look_seconds = 30
 lost = "the kept session is gone: the program no longer holds it"
 replaced = "a fresh session replaces the one the agent had"
 moved = "the documents the session's prompt is composed from changed"
+road = "the road its session went out on changed"

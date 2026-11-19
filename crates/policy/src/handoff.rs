@@ -23,6 +23,8 @@ pub struct Reasons {
   pub replaced: String,
   /// The documents the session's prompt is composed from changed.
   pub moved: String,
+  /// The road the session went out on changed.
+  pub road: String,
 }
 
 crate::part!(pub HANDOFF: Handoff = "handoff.toml");

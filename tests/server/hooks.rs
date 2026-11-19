@@ -1,8 +1,9 @@
 //! The hooks: a point answers its default until a consumer registers there, and again once it is let
 //! go; a consumer across the boundary registers by its address, and an address that fails answers the
-//! default.
+//! default; a point that outlives a restart keeps its address in the store and its token in a file, and
+//! stands again as the next server starts.
 
-use agency_server::hooks::{HookPoint, Hooks, Remote, register_remote, wired};
+use agency_server::hooks::{HookPoint, Hooks, Remote, kept_token_path, register_remote, wired};
 use axum::Json;
 use axum::http::StatusCode;
 use serde_json::{Value, json};
@@ -107,4 +108,55 @@ fn the_points_a_consumer_registers_at_are_each_named_once() {
   for wanted in ["pane-claims", "road-verbs", "room-title", "typed-line"] {
     assert!(names.contains(&wanted), "{wanted} is not a point a consumer registers at");
   }
+}
+
+#[tokio::test]
+async fn a_typed_line_registration_keeps_its_address_and_stands_again_as_the_server_starts() {
+  use crate::support::scratch::Scratch;
+
+  use agency_server::control::typed_line::{Typed, TypedLine};
+  use agency_server::hooks::{keep, restore};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data_root = home.path().to_path_buf();
+  let url = consumer(|_| (StatusCode::OK, json!({ "answer": "<round of the owner's chat>" }))).await;
+  let registered = Remote {
+    url,
+    token: Some("receiver-token".to_owned()),
+  };
+  let hooks = Hooks::default();
+
+  register_remote::<TypedLine>(&hooks, registered.clone());
+
+  assert_eq!(
+    hooks
+      .ask::<TypedLine>(Typed {
+        text: "sort it out".to_owned(),
+        session_id: "s-1".to_owned()
+      })
+      .await,
+    Some("<round of the owner's chat>".to_owned()),
+  );
+
+  keep(scratch.db(), &data_root, "typed-line", &registered).await.unwrap();
+  assert_eq!(
+    std::fs::read_to_string(kept_token_path(&data_root, "typed-line")).unwrap(),
+    "receiver-token"
+  );
+
+  // A fresh set of hooks, as the next server starts, is registered again from what the store keeps and
+  // asks under the kept token.
+  let fresh = Hooks::default();
+
+  assert_eq!(restore(&fresh, scratch.db()).await.unwrap(), 1, "the kept registration stands again");
+  assert_eq!(
+    fresh
+      .ask::<TypedLine>(Typed {
+        text: "sort it out".to_owned(),
+        session_id: "s-1".to_owned()
+      })
+      .await,
+    Some("<round of the owner's chat>".to_owned()),
+  );
 }

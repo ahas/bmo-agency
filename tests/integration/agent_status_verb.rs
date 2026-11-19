@@ -318,7 +318,7 @@ async fn a_failed_requests_end_is_a_turns_end_counted_and_never_held() {
   assert_eq!(read_hooks(hook.path(), 0).last().unwrap().kind, "failure");
 }
 
-// A service answering `/typed-line` with a composition, writing down what it was asked and with what token.
+// A service answering `/turn-contexts` with a composition, writing down what it was asked and with what token.
 async fn composing() -> (u16, Arc<Mutex<Vec<(Option<String>, Value)>>>) {
   let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
   let port = listener.local_addr().unwrap().port();
@@ -343,6 +343,67 @@ async fn composing() -> (u16, Arc<Mutex<Vec<(Option<String>, Value)>>>) {
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
   (port, asked)
+}
+
+// A service standing only where a composition is answered: an ask put anywhere else is 404, as a route that
+// is not there answers it, and its path is written down with the ask.
+async fn composing_only(at: &str) -> (u16, Arc<Mutex<Vec<(String, Value)>>>) {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let heard = Arc::new(Mutex::new(vec![]));
+  let seen = heard.clone();
+  let wanted = at.to_owned();
+
+  let app = Router::new().fallback(move |request: Request| {
+    let seen = seen.clone();
+    let wanted = wanted.clone();
+
+    async move {
+      let path = request.uri().path().to_string();
+      let body = request.into_body().collect().await.unwrap().to_bytes();
+      let answering = path == wanted;
+
+      seen.lock().unwrap().push((path, serde_json::from_slice(&body).unwrap()));
+
+      if answering {
+        (StatusCode::OK, axum::Json(json!({ "context": "<round of the owner's chat>" })))
+      } else {
+        (StatusCode::NOT_FOUND, axum::Json(json!({ "error": "not-found" })))
+      }
+    }
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  (port, heard)
+}
+
+/// the submit hook asks for a typed line at the route that answers compositions, not at the point's name
+#[tokio::test]
+async fn a_typed_line_asked_at_the_route_answers_with_the_composition_and_not_the_missing_note() {
+  let (port, heard) = composing_only("/turn-contexts").await;
+  let mut hook = Hook::new();
+
+  hook.env.insert("AGENCY_CONTROL_PORT".into(), port.to_string());
+  hook.env.insert("AGENCY_CONTROL_TOKEN".into(), "typed-token".into());
+
+  let line = json!({ "prompt": "sort out today's plan", "session_id": SESSION });
+
+  begin_run(hook.path(), "chat:9", "chat", now() - 1_000, BTreeMap::new()).unwrap();
+  assert!(hook.call("submit", &["--compose-typed"], &line).await.is_empty());
+  end_run(hook.path(), now()).unwrap();
+
+  let said = hook.call("submit", &["--compose-typed"], &line).await;
+
+  assert_eq!(
+    serde_json::from_str::<Value>(&said[0]).unwrap()["hookSpecificOutput"]["additionalContext"],
+    json!("<round of the owner's chat>")
+  );
+  assert_eq!(
+    heard.lock().unwrap().iter().map(|(path, _)| path.to_owned()).collect::<Vec<String>>(),
+    ["/turn-contexts".to_owned()],
+    "the ask reaches the route that answers compositions: nothing else was asked"
+  );
 }
 
 /// a line that composes typed lines hands a person's line the service's composition, and nothing else

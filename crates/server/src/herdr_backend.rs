@@ -909,8 +909,9 @@ impl HerdrSessions {
 
     let made = async {
       let held = agent_session(db, agent).await.map_err(store_fault)?;
+      let kept_session = held.is_some();
 
-      if held.is_some() {
+      if let Some(held_session) = held {
         let mut log = RunLog::new(Target {
           agent: agent.to_owned(),
           run: format!("replacement-{}", now_ms()),
@@ -920,7 +921,19 @@ impl HerdrSessions {
 
         self.handed_off(&mut log, agent, None, false, true, &why).await;
         keep_agent_session(db, agent, None).await.map_err(store_fault)?;
-        log.write(db, Line::note(SUPERVISOR_RUNNER.log.system_changed.clone())).await;
+        // The program stood on the session that just went, so it ends with it rather than waiting for the
+        // next turn to stand it again: the pane stops showing the road it went out on, the session token it
+        // carried goes back to the tool host, and the next turn stands the road the row names now
+        // (docs/supervisors.md, 「The program on an ended session」).
+        let_go(ground, agent, &[held_session]).await;
+        // The line the run log carries names what made the session go.
+        let note = if why == HANDOFF.reasons.moved {
+          &SUPERVISOR_RUNNER.log.system_changed
+        } else {
+          &SUPERVISOR_RUNNER.log.road_changed
+        };
+
+        log.write(db, Line::note(note.clone())).await;
 
         if let Some(session) = id_of(agent, &Scope::Agent) {
           ground.events.publish(SystemPromptChanged {
@@ -933,7 +946,7 @@ impl HerdrSessions {
       crate::supervisor_turn::replacement::settle(db, agent).await.map_err(store_fault)?;
       println!("{agent}: its session was replaced outside any turn ({why})");
 
-      Ok::<bool, Fault>(held.is_some())
+      Ok::<bool, Fault>(kept_session)
     }
     .await;
 
@@ -947,6 +960,47 @@ impl HerdrSessions {
 
         false
       }
+    }
+  }
+
+  /// The one session across rooms replaced because the owner moved the supervisor's road: the debt is
+  /// written first, so a supervisor carrying a turn keeps its session and its end makes the replacement,
+  /// and it is made at once where the agent is quiet.
+  pub async fn replaced_road(&self, agent: &str) {
+    let ground = self.ground();
+
+    if let Err(why) =
+      crate::supervisor_turn::replacement::owe(&ground.db, agent, &HANDOFF.reasons.road).await
+    {
+      eprintln!("{agent}: the replacement its moved road owes was not written down: {why}");
+    }
+
+    self.settle_owed(agent).await;
+  }
+
+  /// A room's own sessions replaced because the owner moved the supervisor's road: each row turns its next
+  /// generation on the road the row names now, at the turn that next goes out there, and the program
+  /// standing on one of those sessions ends with it here, so the pane stops showing the old road
+  /// (docs/supervisors.md, 「The program's model is the one the supervisor answers on」).
+  pub async fn let_go_room_sessions(&self, agent: &str) {
+    let ground = self.ground();
+    let db = &ground.db;
+    let held: Vec<String> = match all(
+      db,
+      r#"SELECT "harness_session" FROM "room_sessions" WHERE "agent" = $1 AND "harness_session" IS NOT NULL"#,
+      vec![agent.into()],
+    )
+    .await {
+      Ok(rows) => rows.iter().filter_map(|row| row.try_get::<String>("", "harness_session").ok()).collect(),
+      Err(why) => {
+        eprintln!("supervisor {agent}: the sessions its rooms held were not read: {}", why.detail);
+
+        [].into()
+      }
+    };
+
+    if !held.is_empty() {
+      let_go(ground, agent, &held).await;
     }
   }
 

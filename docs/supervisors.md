@@ -417,6 +417,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Ending a session takes its program down at once,** rather than leaving it to the next turn:
   - a turn its guard cut short, for the session the cut ended (「A turn that goes nowhere」 below);
   - a reset of a room's session asked, for the session that room holds (「Clearing it」 above);
+  - a session its road moved or its prompt's documents moved, replaced outside a turn (「Session replacement」
+    in `docs/sessions.md`): the handoff is asked first where one is had, then the session goes and its program
+    with it, and the next turn stands the road the row names now;
   - a reset of the supervisor's conversation, for whatever session it stands on, every one of them the
     conversation's (「Starting it afresh」 below), or, where an overtaken turn holds it, by that turn as
     it ends (「What the reset cuts off」 below).

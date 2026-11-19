@@ -25,6 +25,9 @@ impl HookPoint for TypedLine {
   type Ask = Typed;
   type Answer = Option<String>;
   const NAME: &'static str = "typed-line";
+  /// The consumer that owns the agent registers here once, at its own start, so the registration stands
+  /// again as agency starts: an unregistered point leaves every typed line uncomposed.
+  const KEPT: bool = true;
 
   fn default_answer(_typed: Typed) -> Option<String> {
     None

@@ -159,12 +159,14 @@ reader narrows with `kinds`.
 | DELETE | `/hooks/{point}` | Take a registration away. |
 | GET | `/road-verbs` | The verbs a room's road performs, as the consumer answers them. |
 
-The hook points are `turn-submitting`, registered by the gate and the receiver, and `supply`, registered by the
-consumer that answers who pays for a person's run (「Hook points」). A registration takes `url` and, where the
-consumer checks a bearer, `token`. A point that declares it outlives a restart — `supply` — keeps its address in
-the store's settings and its token in a file under the data root's `env/`, `agency-hooks/<point>.token`, and is
-registered again from them as the server starts; taking it away removes both. `road-verbs` is what the
-procedures tool asks a room's road.
+The hook points are `typed-line`, `room-title` and `road-verbs`, registered by the receiver, `open-items` and
+`pane-claims`, registered by the consumer that owns which items have a job open and which panes it keeps
+standing, and `supply`, registered by the consumer that answers who pays for a person's run (「Hook points」).
+A point nobody registers answers its default, which composes or claims nothing. A registration takes `url` and,
+where the consumer checks a bearer, `token`. A point that declares it outlives a restart — `typed-line` and
+`supply` — keeps its address in the store's settings and its token in a file under the data root's `env/`,
+`agency-hooks/<point>.token`, and is registered again from them as the server starts; taking it away removes
+both. `road-verbs` is what the procedures tool asks a room's road.
 
 ### supervisors
 
@@ -250,7 +252,11 @@ procedures tool asks a room's road.
   null or an empty list for none: at most ten, each one to forty characters once trimmed and holding no comma,
   else refused 400 `bad-request` with `field` `aliases`. A body naming `order`, `quotaShare` or `active` is
   refused 400 with that field. A changed road reaches
-  the supervisor's next turn; a turn already going finishes where it went out.
+  the supervisor's next turn, and what its sessions held is replaced on it: the one session across rooms is
+  asked for its handoff and let go, a room's own session turns its next generation on the new road, and the
+  program standing on one of them ends with them so the pane no longer shows the old road. The replacement is
+  owed, not made under a turn: a turn already going finishes where it went out, and its end makes the
+  replacement while the agent is quiet.
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
@@ -1903,7 +1909,11 @@ notice to a reader resuming too late (「events」 above), never published as an
 
 ## Hook points
 
-- **`turn-submitting`**: asked before a turn goes out, its answer added to the line.
+- **`typed-line`**: asked as the program's submit hook hands a person's line typed into its pane to agency
+  (「turn-contexts」), its answer the round context the line goes on with, or null to leave the line as typed.
+  Each ask is `{ "point": "typed-line", "ask": { "text", "sessionId" } }`, the answer read from `answer`.
+  The receiver owns it: its registration stands again as agency starts, since the line's round is the
+  receiver's.
 - **`supply`**: asked as a person's run starts and as it spends (`docs/supply.md`, 「The supply hook」). Each ask
   is `{ "point": "supply", "ask": { "op", … } }`, the answer read from `answer`; amounts are US dollars, times
   epoch milliseconds, and `key` the idempotency key `<run>:<step>:<op>`.
