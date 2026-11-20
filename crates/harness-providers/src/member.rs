@@ -134,17 +134,8 @@ pub fn forget_prompts(
   let Ok(homes) = std::fs::read_dir(homes(machine, road)) else {
     return Ok(0);
   };
-  let mut forgotten = 0;
-  let mut refused = vec![];
 
-  for home in homes.flatten() {
-    match ClaudeCode::forget_prompts_under(&home.path(), cwd, session) {
-      Ok(count) => forgotten += count,
-      Err(why) => refused.push(why),
-    }
-  }
-
-  if refused.is_empty() { Ok(forgotten) } else { Err(refused.join("; ")) }
+  ClaudeCode::forget_prompts_in_each(homes.flatten().map(|home| home.path()), cwd, session)
 }
 
 /// Whether the gateway's own key file is usable: a file of its own, private to its owner, not empty.

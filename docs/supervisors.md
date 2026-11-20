@@ -484,6 +484,11 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the person range is the brain's: agency asks the brain to let go of the supervisor's own brain whole,
     found by its key, so nothing it remembered comes back (`docs/api.md`, 「Calls agency makes」, the
     brain); agency takes the records its harnesses keep of the sessions run in its brain folder;
+  - a harness's records of a session are looked for in every configuration folder its program may have
+    run under, since the one a turn ran under is the login's or the road's it went out on: for Claude
+    Code the machine's own and the home of every Claude account agency holds, and for a road of
+    Claude Code every home under the road's folder; the prompts their histories kept are taken out of
+    each of those folders' histories alike;
   - what it keeps, whichever range — its supervisor row and road, its settings, its gate
     switches, the rooms themselves, the registry and the engine's placement, and whatever range was not
     named.
@@ -518,9 +523,10 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     writing as the reset begins writes whole before the point moves and the reset takes it after, and
     one reading the point after it moved finds itself overtaken and writes nothing.
   - The program it stood goes as it ends, where no room goes on in that session any more: killed where
-    it still stands there, and the records its harness keeps of the session, the prompts its history
-    kept of it and every line its place's records hold of the session removed after it, since the reset
-    left them to the turn holding them.
+    it still stands there, and the records its harness keeps of the session in every configuration
+    folder they may stand in (「Starting it afresh」), the prompts its history kept of it and every line
+    its place's records hold of the session removed after it, since the reset left them to the turn
+    holding them.
 - **What waited for its turns is let go unread,** in every room it answers: the words its rooms'
   queues were gathering, those its conversations held or waited on, and its quiet instructions, whose
   rows are settled as delivered so no turn takes them again. Those are the rooms' owner's, which lets

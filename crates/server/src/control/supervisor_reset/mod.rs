@@ -22,6 +22,7 @@ use serde_json::{Value, json};
 use store::one;
 
 use self::rows::{Counted, Range, Scope};
+use super::claude_accounts::login_homes;
 use super::sessions::asked_by;
 use super::supervisor_settings::roots;
 use super::{Call, Refused, Route, answer};
@@ -181,11 +182,17 @@ fn harness_folders(standing: &Standing, asked: &Asked, supervisor: &Supervisor) 
   folders
 }
 
-/// The records the harnesses keep of the sessions the ranges asked take.
-fn harness_records(standing: &Standing, asked: &Asked, supervisor: &Supervisor) -> Vec<PathBuf> {
+/// The records the harnesses keep of the sessions the ranges asked take, `logins` the homes of the logins
+/// agency holds.
+fn harness_records(
+  standing: &Standing,
+  asked: &Asked,
+  supervisor: &Supervisor,
+  logins: &[PathBuf],
+) -> Vec<PathBuf> {
   harness_folders(standing, asked, supervisor)
     .iter()
-    .flat_map(|folder| files::harness_records(&standing.machine, folder))
+    .flat_map(|folder| files::harness_records(&standing.machine, logins, folder))
     .collect()
 }
 
@@ -258,7 +265,8 @@ impl Route for SupervisorReset {
       let db = &standing.ground.db;
       let supervisor = supervisor(db, &asked.agent).await?;
       let rows = rows::count(db, &rows::picks(&scope(&asked), &asked.ranges)).await?;
-      let files = harness_records(&standing, &asked, &supervisor);
+      let logins = login_homes(db, &standing.machine).await?;
+      let files = harness_records(&standing, &asked, &supervisor, &logins);
       let brain = if asked.takes(Range::Person) {
         let preview =
           standing.ground.peers.brain.reset(&asked.agent, true).await.map_err(Refused::failed)?;
@@ -326,7 +334,8 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
   let db = &ground.db;
   let supervisor = supervisor(db, &asked.agent).await?;
   let picks = rows::picks(&scope(asked), &asked.ranges);
-  let mut files = harness_records(standing, asked, &supervisor);
+  let logins = login_homes(db, &standing.machine).await?;
+  let mut files = harness_records(standing, asked, &supervisor, &logins);
   let mut kept: Vec<String> = vec![];
   let cut_off = || cut::cut_off(db, &ground.events, &standing.hold, &standing.going, &asked.agent);
 
@@ -397,7 +406,7 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
     kept.push(format!("{}: {error}", place.display()));
   }
 
-  for path in harness_records(standing, asked, &supervisor) {
+  for path in harness_records(standing, asked, &supervisor, &logins) {
     if !files.contains(&path) {
       files.push(path);
     }
@@ -415,7 +424,7 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
 
   // The prompts the harnesses kept in their histories hold the words the records did.
   for folder in harness_folders(standing, asked, &supervisor) {
-    kept.extend(files::forget_prompts(&standing.machine, &folder));
+    kept.extend(files::forget_prompts(&standing.machine, &logins, &folder));
   }
 
   record::write(

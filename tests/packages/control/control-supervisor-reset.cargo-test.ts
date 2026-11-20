@@ -14,7 +14,8 @@ import type { ControlBase } from "./control-contract-base";
 // A supervisor's reset by range (docs/supervisors.md, 「Starting it afresh」; docs/api.md, 「Agents」), through
 // agency's own server on a store of the test's. Each test stands a supervisor of its own: a room it
 // answers alone and a room it shares, its room sessions with their kept turns, its run log lines, and
-// the records the registered harness keeps of the sessions run in its home and in its brain folder. What
+// the records Claude Code keeps of the sessions run in its home and in its brain folder: under the registered
+// road's home, and under the home of a login the store holds, as a turn gone out on that login writes them. What
 // it remembers is the brain's, the supervisor's own brain found by its key, so the brain is a stand-in that writes
 // down what it was asked.
 
@@ -22,6 +23,8 @@ const token = "secret";
 // The binary is read as the file loads, so no hook spends its own time on it.
 const binary = frontBinary();
 const brainRoot = join(dataRoot(), "brain");
+// The configuration home of the login the store holds, where a turn gone out on it keeps its records.
+const loginHome = join(dataRoot(), "env", "tester-login");
 const brainAsked: { method: string; path: string; query: string }[] = [];
 const counts = { brains: 1 };
 const BRAIN_ID = 7;
@@ -46,7 +49,7 @@ interface Stood {
   agent: string;
   alone: number;
   shared: number;
-  // The registered harness's records of the session run in its home, and of the one run in its brain folder.
+  // Claude Code's records of the sessions run in its home, and of those run in its brain folder.
   home: string[];
   brainFolder: string[];
 }
@@ -102,15 +105,21 @@ const count = async (sql: string, ...args: (string | number)[]): Promise<number>
 
 const rowsOf = (answer: ResetAnswer): Record<string, number> => Object.fromEntries(answer.rows.filter((one) => one.rows > 0).map((one) => [one.table, one.rows]));
 
-// The records the registered harness keeps of one session run in `cwd`: its transcript and its folder.
-function harnessRecords(cwd: string, session: string): string[] {
-  const project = join(dataRoot(), "claude-roads", "registered", "m", "projects", cwd.replace(/[^A-Za-z0-9]/g, "-"));
+// The records Claude Code keeps of one session run in `cwd` under a configuration home: its transcript and its
+// folder.
+function recordsUnder(config: string, cwd: string, session: string): string[] {
+  const project = join(config, "projects", cwd.replace(/[^A-Za-z0-9]/g, "-"));
   const records = [join(project, `${session}.jsonl`), join(project, session)];
 
   mkdirSync(records[1]!, { recursive: true });
   writeFileSync(records[0]!, "{}\n");
 
   return records;
+}
+
+// The records of a session run in `cwd` on the registered road, and of another run there on the login.
+function harnessRecords(cwd: string, session: string): string[] {
+  return [...recordsUnder(join(dataRoot(), "claude-roads", "registered", "m"), cwd, session), ...recordsUnder(loginHome, cwd, `${session}-login`)];
 }
 
 async function stand(agent: string, rooms: number): Promise<Stood> {
@@ -159,6 +168,7 @@ beforeAll(async () => {
   // The server migrates the store as it stands on it; the test writes its rows once it has.
   front = await frontAlone(binary, token, { BMO_ARCHIVE_URL: store, AGENCY_BRAIN_URL: `http://127.0.0.1:${brain.port}/` });
   archive = new Archive(store);
+  await archive.sql.run("INSERT INTO claude_accounts (id, name, place, enabled, credential_kind, credential_path, added_at) VALUES ('tester-login', 'tester-login', 9, 0, 'directory', ?, 1)", loginHome);
 });
 
 afterAll(async () => {

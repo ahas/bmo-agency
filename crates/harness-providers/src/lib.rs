@@ -340,28 +340,45 @@ pub trait Provider: Sync {
 
   /// The files and folders its program keeps of one session it ran in `cwd` on `model`, wherever they
   /// would stand, whether or not they do; none for a provider whose program keeps nothing of a
-  /// session on this machine (docs/supervisors.md, 「A session in each room」).
-  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
-    let _ = (machine, cwd, session, model);
+  /// session on this machine (docs/supervisors.md, 「A session in each room」). `logins` are the
+  /// configuration homes of the logins the caller holds, which a provider whose program runs under a
+  /// login looks in as well as the machine's own (docs/supervisors.md, 「Starting it afresh」).
+  fn session_records(
+    &self,
+    machine: &Machine,
+    logins: &[PathBuf],
+    cwd: &Path,
+    session: &str,
+    model: &str,
+  ) -> Vec<PathBuf> {
+    let _ = (machine, logins, cwd, session, model);
 
     vec![]
   }
 
-  /// The files and folders its program keeps of every session it ran in `cwd`, on any model, where they
-  /// stand, whether or not anything recorded the session; none for a provider whose program keeps nothing of
-  /// a session on this machine (docs/supervisors.md, 「A session in each room」).
-  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
-    let _ = (machine, cwd);
+  /// The files and folders its program keeps of every session it ran in `cwd`, on any model and under any
+  /// of `logins` as `session_records` reads them, where they stand, whether or not anything recorded the
+  /// session; none for a provider whose program keeps nothing of a session on this machine
+  /// (docs/supervisors.md, 「A session in each room」).
+  fn home_records(&self, machine: &Machine, logins: &[PathBuf], cwd: &Path) -> Vec<PathBuf> {
+    let _ = (machine, logins, cwd);
 
     vec![]
   }
 
   /// The prompts its program kept in a history of what was put in while it worked in `cwd`, of one session
-  /// where `session` names one, taken out of that history, as the reset of a supervisor takes the words they
-  /// hold (docs/supervisors.md, 「A session in each room」); how many. None for a provider whose program keeps no such
-  /// history on this machine.
-  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
-    let _ = (machine, cwd, session);
+  /// where `session` names one, taken out of that history and of the history under each of `logins` as
+  /// `session_records` reads them, as the reset of a supervisor takes the words they hold
+  /// (docs/supervisors.md, 「A session in each room」); how many. None for a provider whose program keeps
+  /// no such history on this machine.
+  fn forget_prompts(
+    &self,
+    machine: &Machine,
+    logins: &[PathBuf],
+    cwd: &Path,
+    session: Option<&str>,
+  ) -> Result<usize, String> {
+    let _ = (machine, logins, cwd, session);
 
     Ok(0)
   }

@@ -43,6 +43,20 @@ impl ClaudeCode {
       .map_or_else(|| Path::new(machine.var("HOME").unwrap_or_default()).join(".claude"), PathBuf::from)
   }
 
+  /// Every configuration directory a run of the program on this machine may have kept its records under: the
+  /// machine's own, then the home of each login the caller holds, each once.
+  pub fn config_dirs(machine: &Machine, logins: &[PathBuf]) -> Vec<PathBuf> {
+    let mut dirs = vec![Self::machine_config_dir(machine)];
+
+    for login in logins {
+      if !dirs.contains(login) {
+        dirs.push(login.clone());
+      }
+    }
+
+    dirs
+  }
+
   /// The folder the program keeps a working directory's sessions in under a configuration directory: named
   /// after the working directory's real path, every link followed as the program's own working directory is,
   /// with every character but a letter or a digit turned into a hyphen; the path as given where it does not
@@ -125,6 +139,27 @@ impl ClaudeCode {
     }
 
     Ok(forgotten)
+  }
+
+  /// The prompts taken out of the history under each of several configuration directories, as
+  /// `forget_prompts_under` takes them out of one; how many in all, or what every directory that refused
+  /// said.
+  pub fn forget_prompts_in_each(
+    config_dirs: impl IntoIterator<Item = PathBuf>,
+    cwd: &Path,
+    session: Option<&str>,
+  ) -> Result<usize, String> {
+    let mut forgotten = 0;
+    let mut refused = vec![];
+
+    for config_dir in config_dirs {
+      match Self::forget_prompts_under(&config_dir, cwd, session) {
+        Ok(count) => forgotten += count,
+        Err(why) => refused.push(why),
+      }
+    }
+
+    if refused.is_empty() { Ok(forgotten) } else { Err(refused.join("; ")) }
   }
 }
 
@@ -267,18 +302,37 @@ impl Provider for ClaudeCode {
     true
   }
 
-  // A session is read back from the machine's own configuration directory, as a run that names no
-  // login of its own writes it there.
-  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, _model: &str) -> Vec<PathBuf> {
-    Self::records_under(&Self::machine_config_dir(machine), cwd, session)
+  // A session is written under the configuration directory of the login it went out on, the machine's own
+  // where it names none, so it is looked for under each of them.
+  fn session_records(
+    &self,
+    machine: &Machine,
+    logins: &[PathBuf],
+    cwd: &Path,
+    session: &str,
+    _model: &str,
+  ) -> Vec<PathBuf> {
+    Self::config_dirs(machine, logins)
+      .iter()
+      .flat_map(|config_dir| Self::records_under(config_dir, cwd, session))
+      .collect()
   }
 
-  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
-    Self::every_record_under(&Self::machine_config_dir(machine), cwd)
+  fn home_records(&self, machine: &Machine, logins: &[PathBuf], cwd: &Path) -> Vec<PathBuf> {
+    Self::config_dirs(machine, logins)
+      .iter()
+      .flat_map(|config_dir| Self::every_record_under(config_dir, cwd))
+      .collect()
   }
 
-  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
-    Self::forget_prompts_under(&Self::machine_config_dir(machine), cwd, session)
+  fn forget_prompts(
+    &self,
+    machine: &Machine,
+    logins: &[PathBuf],
+    cwd: &Path,
+    session: Option<&str>,
+  ) -> Result<usize, String> {
+    Self::forget_prompts_in_each(Self::config_dirs(machine, logins), cwd, session)
   }
 
   // The words the model's own entry names; every word the harness takes where the entry names none,

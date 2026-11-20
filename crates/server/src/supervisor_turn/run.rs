@@ -268,7 +268,20 @@ pub async fn let_go_overtaken(
   let machine = harness_providers::Machine::of_process(ground.roots.data.clone());
   let cwd = harness_machine::supervisor_prompt::folder(&roots, agent);
 
-  for path in provider.session_records(&machine, &cwd, session, model) {
+  // The session may have gone out on any login, whose home keeps its records; where the logins cannot be
+  // read, the machine's own configuration is still looked in.
+  let logins =
+    crate::control::claude_accounts::login_homes(&ground.db, &machine)
+      .await
+      .unwrap_or_else(|why| {
+        eprintln!(
+          "supervisor {agent}: the logins its overtaken turn may have run under were not read: {}",
+          why.error
+        );
+        vec![]
+      });
+
+  for path in provider.session_records(&machine, &logins, &cwd, session, model) {
     let removed = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
 
     if let Err(why) = removed.or_else(|why| if path.exists() { Err(why) } else { Ok(()) }) {
@@ -280,7 +293,7 @@ pub async fn let_go_overtaken(
   }
 
   // Its prompt history holds what the turn was given, as the record did.
-  if let Err(why) = provider.forget_prompts(&machine, &cwd, Some(session)) {
+  if let Err(why) = provider.forget_prompts(&machine, &logins, &cwd, Some(session)) {
     eprintln!("supervisor {agent}: the prompts of its overtaken turn were not forgotten: {why}");
   }
 

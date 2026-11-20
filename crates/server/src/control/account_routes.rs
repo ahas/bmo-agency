@@ -12,11 +12,12 @@
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
+use harness_providers::claude_code::ClaudeCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use store::one;
 
-use super::claude_accounts::{Judging, accounts, machine_config_dir};
+use super::claude_accounts::{Judging, accounts, login_homes};
 use super::fallback::{account_balance, account_headlines};
 use super::{Call, Refused, Route, answer};
 use crate::door::record::SessionUsage;
@@ -168,15 +169,11 @@ impl Route for RecordHomes {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let machine = call.machine();
-    let mut homes = vec![machine_config_dir(machine).to_string_lossy().into_owned()];
-
-    for account in accounts(call.store()).await? {
-      let home = account.records_dir(machine).to_string_lossy().into_owned();
-
-      if !homes.contains(&home) {
-        homes.push(home);
-      }
-    }
+    let logins = login_homes(call.store(), machine).await?;
+    let homes: Vec<String> = ClaudeCode::config_dirs(machine, &logins)
+      .iter()
+      .map(|home| home.to_string_lossy().into_owned())
+      .collect();
 
     Ok(answer(StatusCode::OK, json!({ "homes": homes })))
   }

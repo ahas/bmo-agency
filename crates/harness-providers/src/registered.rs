@@ -149,13 +149,20 @@ impl Provider for Registered {
     if typed { ClaudeCode.progress_of(line) } else { Some(line.to_owned()) }
   }
 
-  // A run on a registration is Claude Code under the registration's own home.
-  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
+  // A run on a registration is Claude Code under the registration's own home, never a login's.
+  fn session_records(
+    &self,
+    machine: &Machine,
+    _logins: &[PathBuf],
+    cwd: &Path,
+    session: &str,
+    model: &str,
+  ) -> Vec<PathBuf> {
     ClaudeCode::records_under(&Self::home(machine, model), cwd, session)
   }
 
   // Every registration keeps a home of its own, and a session may have run on any of them.
-  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+  fn home_records(&self, machine: &Machine, _logins: &[PathBuf], cwd: &Path) -> Vec<PathBuf> {
     let Ok(homes) = std::fs::read_dir(Self::homes(machine)) else {
       return vec![];
     };
@@ -167,20 +174,17 @@ impl Provider for Registered {
   }
 
   // Every registration keeps a history of its own, as it keeps its records.
-  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
+  fn forget_prompts(
+    &self,
+    machine: &Machine,
+    _logins: &[PathBuf],
+    cwd: &Path,
+    session: Option<&str>,
+  ) -> Result<usize, String> {
     let Ok(homes) = std::fs::read_dir(Self::homes(machine)) else {
       return Ok(0);
     };
-    let mut forgotten = 0;
-    let mut refused = vec![];
 
-    for home in homes.flatten() {
-      match ClaudeCode::forget_prompts_under(&home.path(), cwd, session) {
-        Ok(count) => forgotten += count,
-        Err(why) => refused.push(why),
-      }
-    }
-
-    if refused.is_empty() { Ok(forgotten) } else { Err(refused.join("; ")) }
+    ClaudeCode::forget_prompts_in_each(homes.flatten().map(|home| home.path()), cwd, session)
   }
 }

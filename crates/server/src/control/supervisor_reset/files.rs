@@ -15,12 +15,13 @@ pub fn removable(machine: &Machine, path: &Path) -> bool {
   real(machine.data_root()) == real(&own) || path.starts_with(machine.data_root())
 }
 
-/// Every record the harnesses keep of the sessions run in `cwd`, each as its provider names them,
-/// where they stand: a session no room recorded, one a turn opened and never finished, among them.
-pub fn harness_records(machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+/// Every record the harnesses keep of the sessions run in `cwd`, each as its provider names them, in every
+/// configuration folder they may stand in, `logins` the homes of the logins agency holds, where they stand:
+/// a session no room recorded, one a turn opened and never finished, among them.
+pub fn harness_records(machine: &Machine, logins: &[PathBuf], cwd: &Path) -> Vec<PathBuf> {
   let mut records: Vec<PathBuf> = providers()
     .into_iter()
-    .flat_map(|provider| provider.home_records(machine, cwd))
+    .flat_map(|provider| provider.home_records(machine, logins, cwd))
     .collect();
 
   records.retain(|path| path.exists() && removable(machine, path));
@@ -31,12 +32,13 @@ pub fn harness_records(machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
 }
 
 /// Every prompt the harnesses kept in their histories of what was put in while they worked in `cwd` taken
-/// out of them, each as its provider keeps them: the words a turn or a writer was given stand there as they
-/// stand in its session's record. What could not be taken, said.
-pub fn forget_prompts(machine: &Machine, cwd: &Path) -> Vec<String> {
+/// out of them, each as its provider keeps them and under `logins` as `harness_records` reads them: the words
+/// a turn or a writer was given stand there as they stand in its session's record. What could not be taken,
+/// said.
+pub fn forget_prompts(machine: &Machine, logins: &[PathBuf], cwd: &Path) -> Vec<String> {
   providers()
     .into_iter()
-    .filter_map(|provider| provider.forget_prompts(machine, cwd, None).err())
+    .filter_map(|provider| provider.forget_prompts(machine, logins, cwd, None).err())
     .collect()
 }
 

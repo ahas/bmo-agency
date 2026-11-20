@@ -1,8 +1,10 @@
-//! Claude Code: its catalogue read off a login's directory, and its history's prompts forgotten.
+//! Claude Code: its catalogue read off a login's directory, where its sessions' records are looked for, and its
+//! history's prompts forgotten.
 
 use std::path::Path;
 
 use harness_providers::claude_code::*;
+use harness_providers::{Machine, Provider};
 use serde_json::{Value, json};
 
 // A configuration directory of the test's own, with a catalogue file written under it.
@@ -267,4 +269,38 @@ fn a_working_directory_that_is_a_link_keeps_its_sessions_under_its_real_path() {
     config.join("projects").join("-no-such-place"),
     "a path that does not stand is named as given"
   );
+}
+
+#[test]
+fn a_session_and_its_prompts_are_looked_for_under_the_machines_own_configuration_and_every_logins_home() {
+  let dir = tempfile::tempdir().unwrap();
+  let own = dir.path().join("own");
+  let login = dir.path().join("login");
+  let machine =
+    Machine::with_env([("CLAUDE_CONFIG_DIR".to_owned(), own.display().to_string())], dir.path());
+  let home = Path::new("/data/supervisor-homes/pal");
+  let logins = [login.clone(), own.clone()];
+
+  assert_eq!(ClaudeCode::config_dirs(&machine, &logins), [own.clone(), login.clone()]);
+  assert_eq!(
+    ClaudeCode.session_records(&machine, &logins, home, "s1", "m"),
+    [
+      ClaudeCode::records_under(&own, home, "s1"),
+      ClaudeCode::records_under(&login, home, "s1")
+    ]
+    .concat()
+  );
+
+  std::fs::create_dir_all(&login).unwrap();
+  std::fs::write(
+    login.join(HISTORY),
+    format!(
+      "{}\n",
+      json!({ "display": "words", "project": "/data/supervisor-homes/pal", "sessionId": "s1" })
+    ),
+  )
+  .unwrap();
+
+  assert_eq!(ClaudeCode.forget_prompts(&machine, &logins, home, Some("s1")).unwrap(), 1);
+  assert_eq!(std::fs::read_to_string(login.join(HISTORY)).unwrap(), "");
 }

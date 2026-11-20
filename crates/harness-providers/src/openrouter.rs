@@ -168,15 +168,28 @@ impl Provider for OpenRouter {
     ClaudeCode.progress_of(line)
   }
 
-  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
+  fn session_records(
+    &self,
+    machine: &Machine,
+    _logins: &[PathBuf],
+    cwd: &Path,
+    session: &str,
+    model: &str,
+  ) -> Vec<PathBuf> {
     member::session_records(machine, self.name(), cwd, session, model)
   }
 
-  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+  fn home_records(&self, machine: &Machine, _logins: &[PathBuf], cwd: &Path) -> Vec<PathBuf> {
     member::home_records(machine, self.name(), cwd)
   }
 
-  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
+  fn forget_prompts(
+    &self,
+    machine: &Machine,
+    _logins: &[PathBuf],
+    cwd: &Path,
+    session: Option<&str>,
+  ) -> Result<usize, String> {
     member::forget_prompts(machine, self.name(), cwd, session)
   }
 }

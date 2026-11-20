@@ -605,6 +605,23 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
   Ok(held)
 }
 
+/// The directory every account keeps its session records under on this machine, each once, in the owner's
+/// order: the logins a reader of a session's records looks in besides the machine's own
+/// (docs/supervisors.md, 「Starting it afresh」).
+pub async fn login_homes(db: &DatabaseConnection, machine: &Machine) -> Result<Vec<PathBuf>, Refused> {
+  let mut homes: Vec<PathBuf> = vec![];
+
+  for account in accounts(db).await? {
+    let home = account.records_dir(machine);
+
+    if !homes.contains(&home) {
+      homes.push(home);
+    }
+  }
+
+  Ok(homes)
+}
+
 /// A moment a setting holds, read as the whole number it was written as.
 async fn moment(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refused> {
   Ok(setting(db, key).await?.and_then(|value| leading_integer(&value)))
