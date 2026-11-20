@@ -20,8 +20,10 @@ use crate::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use crate::lines::claude::{ApartRun, Command, Runs, apart_args, command_env};
 use crate::lines::worker::{effort_of, rulebook, system_prompt_file};
 use crate::lines::{Trees, read_required, role_prompt};
+use crate::order::Entry;
 use crate::places::Ground;
 use crate::road::{self, Ask};
+use crate::role_agents::RoleAgent;
 use crate::run_ledger;
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
@@ -201,7 +203,9 @@ pub async fn translate(
   let answer = if taken.provider == crate::control::registry::PROVIDER {
     recorded(ground, purpose, language, &taken, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {
-    apart_on_claude(ground, &trees, purpose, &taken.model, &system, &input).await
+    let entry = held.agent_of_road(&taken.provider, &taken.model).and_then(RoleAgent::entry);
+
+    apart_on_claude(ground, &trees, purpose, (&taken.model, entry.as_ref()), &system, &input).await
   } else {
     Err(format!("{} carries no translation", taken.provider))
   }
@@ -473,21 +477,29 @@ impl Attempt<String> for OnLogin<'_> {
   }
 }
 
-// A run apart on Claude Code, on the logins the key's walk offers.
+// A run apart on Claude Code, on the logins the key's walk offers, at the effort and with the advisor of the
+// translator agent whose road it took. A translation holds no seat of its role (docs/role-agents.md, 「Which agent a
+// run takes」): it goes out as the agent its road was taken from.
 async fn apart_on_claude(
   ground: &Ground,
   trees: &Trees,
   purpose: Purpose,
-  model: &str,
+  (model, entry): (&str, Option<&Entry>),
   system: &str,
   input: &str,
 ) -> Result<String, String> {
   let provider = crate::lines::runner::PROVIDER;
-  let entry = crate::order::role_entry(&ground.db, &ROLES.translate, provider).await?;
-  let effort = effort_of(ground, &ground.machine(), provider, model, entry.effort.as_deref(), None)
-    .await
-    .map_err(|why| why.detail)?
-    .unwrap_or_default();
+  let effort = effort_of(
+    ground,
+    &ground.machine(),
+    provider,
+    model,
+    entry.and_then(|entry| entry.effort.as_deref()),
+    None,
+  )
+  .await
+  .map_err(|why| why.detail)?
+  .unwrap_or_default();
   let system =
     system_prompt_file(trees, &format!("{LINE}-{}", purpose.word()), system).map_err(|why| why.detail)?;
   let mut attempt = OnLogin {
@@ -496,7 +508,7 @@ async fn apart_on_claude(
     purpose,
     model,
     effort,
-    advisor: entry.advisor_taken(),
+    advisor: entry.and_then(Entry::advisor_taken),
     system,
     input,
   };

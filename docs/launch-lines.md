@@ -42,7 +42,8 @@
   road that names none is the line as written. The flag goes out only where the program would attach the
   advisor to the model the run really goes out on, judged by the provider's declared pairings, since the program
   refuses to start on one it cannot pair; one dropped so is said in the server's log (`docs/provider-order.md`,
-  「The advisor」). An agent's advisor is its seat's, or the asking supervisor's for a seat that follows it.
+  「The advisor」). A role's run takes its seat's advisor, or the asking supervisor's for a seat that follows it; a
+  translation, which holds no seat, takes the advisor of the agent its road was taken from (「Translate runner」).
   The CLI's own `/advisor` command, which writes the login's user settings every session on the login reads, is
   never used, and no line reads the user settings it would write.
 
@@ -405,8 +406,10 @@
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
     closes what a row contradicts.
 - **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
-  「translations」), on the road of the translator role's agent it is let in on (`docs/provider-order.md`,
-  「Whether a road can answer」): on the registry's provider, the registered translation model answers. Its system prompt is the translator role's prompt
+  「translations」), on the first road of the translator role's agents that can answer (`docs/provider-order.md`,
+  「Whether a road can answer」). A translation holds no seat of the role: it goes out with the effort and the
+  advisor of the agent that road was taken from, the first agent standing on it that carries no run, else the
+  first that does (`docs/role-agents.md`, 「Which agent a run takes」). On the registry's provider, the registered translation model answers. Its system prompt is the translator role's prompt
   as the store holds it (`docs/agent-roles.md`) and then the instructions of the purpose asked —
   `prompts/agents/translator/instructions.md` for a document's part, `worker.md` for a text a job reads,
   `record.md` for a job's record the owner reads, that one after the plain-writing rulebook, and the

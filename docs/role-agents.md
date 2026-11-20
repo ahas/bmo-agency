@@ -126,6 +126,11 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   model alone, is let in only on an agent whose road is that one, and waits for such an agent however long
   it takes; where no agent of the role stands on that road it is let in on an agent that names none, and
   where the role holds no such agent either it is refused with the roads the role's agents hold.
+- **A translation holds no seat.** It is asked of no slot and waits in no line: it goes out on the first road of
+  its role's agents that can answer, with the effort and advisor of the agent that road was taken from — the
+  first agent standing on it that carries no run, else the first that does (`docs/launch-lines.md`, 「Translate
+  runner」). A second agent of the translator role on the same road as an earlier one is never the one a
+  translation goes out as, so its effort and advisor reach no translation.
 - **A run waits where no agent of its role is free for it,** in its role's line, in the order asked
   (`docs/role-slots.md`, 「The line」). Where the only agents free are ones whose provider cannot answer, the
   request says why it waits, with the provider's own sentence.

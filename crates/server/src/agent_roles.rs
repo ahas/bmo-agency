@@ -35,6 +35,9 @@ pub struct AgentRole {
   pub position: i64,
   /// Its agents, in the order a run looks for a free one (docs/role-agents.md).
   pub agents: Vec<RoleAgent>,
+  /// The agent each road of its order is taken from, one a road in the order's own order: the first agent
+  /// standing on that road as a run looks for a free one.
+  pub road_agents: Vec<String>,
 }
 
 impl AgentRole {
@@ -79,6 +82,7 @@ impl AgentRole {
       fold_ratio: row.try_get("", "fold_ratio")?,
       position: row.try_get("", "position")?,
       agents: vec![],
+      road_agents: vec![],
     })
   }
 
@@ -91,10 +95,12 @@ impl AgentRole {
     let (free, busy): (Vec<&RoleAgent>, Vec<&RoleAgent>) =
       on.iter().copied().partition(|agent| !carrying.contains(&agent.name));
     let mut entries: Vec<Entry> = vec![];
+    let mut road_agents: Vec<String> = vec![];
 
-    for entry in free.iter().chain(busy.iter()).filter_map(|agent| agent.entry()) {
+    for (agent, entry) in free.iter().chain(busy.iter()).filter_map(|agent| Some((agent, agent.entry()?))) {
       if !entries.iter().any(|held| held.provider == entry.provider && held.model == entry.model) {
         entries.push(entry);
+        road_agents.push(agent.name.clone());
       }
     }
 
@@ -105,8 +111,22 @@ impl AgentRole {
         forced: None,
       },
       agents,
+      road_agents,
       ..self
     }
+  }
+
+  /// The agent a run that holds no seat of the role goes out as on a road its order took: the one the road was
+  /// taken from, the first free agent standing on it, else the first busy one; none for a road no agent of it
+  /// stands on.
+  pub fn agent_of_road(&self, provider: &str, model: &str) -> Option<&RoleAgent> {
+    let at = self
+      .order
+      .entries
+      .iter()
+      .position(|entry| entry.provider == provider && entry.model == model)?;
+
+    self.road_agents.get(at).and_then(|name| self.agent(name))
   }
 
   /// The agent of this name among the role's, where it holds one.
