@@ -1,8 +1,9 @@
 //! Deployments that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 //! told」): a progress record read as its run's judgement; a failed run told once, to the orderer of each waiting
 //! item whose commit it holds, one instruction a room, and to the owner's private room where it carries none; a
-//! first pass telling nothing of what had already ended; and a run whose record a later run wrote over judged by its
-//! unit's journal once its unit has ended.
+//! first pass telling nothing of what had already ended; a run whose record a later run wrote over judged by its
+//! unit's journal once its unit has ended; and a run the deploy queue's flush started that went live told to the
+//! rooms of the items it carries.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -114,12 +115,12 @@ fn a_progress_record_is_judged_by_its_outcome_and_a_journal_line_by_its_event() 
       reason: Some("the gate failed".to_owned()),
     })
   );
-  assert_eq!(judged(&record("u", "abc", json!({ "outcome": "live" })), "web", true), Judgement::Fine);
+  assert_eq!(judged(&record("u", "abc", json!({ "outcome": "live" })), "web", true), Judgement::Live);
 
   let mut refused = record("u", "abc", json!({ "outcome": "stopped" }));
 
   refused["refused"] = json!(true);
-  assert_eq!(judged(&refused, "web", true), Judgement::Fine, "a refusal broke nothing");
+  assert_eq!(judged(&refused, "web", true), Judgement::Refused, "a refusal broke nothing");
   assert_eq!(judged(&record("u", "abc", Value::Null), "web", false), Judgement::Running);
 
   let Judgement::Failed(cut) = judged(&record("u", "abc", Value::Null), "web", true) else {
@@ -282,8 +283,9 @@ async fn a_run_whose_record_was_written_over_is_told_from_its_journal_in_the_own
 }
 
 #[tokio::test]
-async fn a_run_of_the_repository_ending_live_or_failed_owes_its_due_notice_afresh() {
-  use agency_server::watches::deploy_due::told;
+async fn a_run_the_flush_started_that_went_live_is_told_to_the_rooms_of_the_items_it_carries_and_no_other_is()
+ {
+  use agency_server::watches::deploy_flush::why;
 
   let scratch = Scratch::new().await;
   let db = scratch.db();
@@ -296,43 +298,38 @@ async fn a_run_of_the_repository_ending_live_or_failed_owes_its_due_notice_afres
     repository: "web".to_owned(),
   }];
   let units = StandIn::default();
-  let none = BTreeMap::new();
-  let due = JOB_NOTICES.deploy_due_minutes * 60_000;
-  let due_told = || {
-    let held = peers.lock().unwrap();
-
-    held
-      .instructed()
-      .into_iter()
-      .filter(|told| told["kind"] == "repository-deploy-due:web")
-      .count()
+  let deployed = |message: &str| {
+    std::fs::write(
+      place.path().join("deployed.json"),
+      json!({ "commit": head, "message": message }).to_string(),
+    )
+    .unwrap();
   };
 
   settings::set(db, STATE_KEY, "{}").await.unwrap();
-  peers.lock().unwrap().items.insert(71, {
-    let mut waiting = waiting(71, "-700", &handed);
+  peers.lock().unwrap().items.insert(71, waiting(71, "-700", &handed));
+  peers.lock().unwrap().items.insert(72, waiting(72, "-800", &head));
 
-    waiting["changedAt"] = json!(0);
-    waiting["labels"]["close-phase:web"] = json!("waiting-batch");
-    waiting["labels"]["close-commit:web"] = json!(handed);
-    waiting
-  });
-  told(db, &vars, &none, Path::new("/nonexistent"), due).await.unwrap();
-  told(db, &vars, &none, Path::new("/nonexistent"), due + 1).await.unwrap();
-  assert_eq!(due_told(), 1);
+  deployed("Batch deploy of web main: #71, #72");
+  write(place.path(), &record("bmo-deploy-7", &head, json!({ "outcome": "live" })));
+  watched(db, &vars, &roots, &units).await.unwrap();
+  assert!(
+    peers.lock().unwrap().instructed().is_empty(),
+    "a supervisor's own deployment answers it"
+  );
 
-  for (unit, outcome) in [("bmo-deploy-7", "live"), ("bmo-deploy-8", "failed")] {
-    write(
-      place.path(),
-      &record(unit, &head, json!({ "outcome": outcome, "why": "the gate failed" })),
-    );
+  deployed(&why(&[71, 72]));
+  write(place.path(), &record("bmo-deploy-8", &head, json!({ "outcome": "live" })));
+  watched(db, &vars, &roots, &units).await.unwrap();
 
-    let ended = watched(db, &vars, &roots, &units).await.unwrap();
+  let told = peers.lock().unwrap().instructed();
+  let rooms: Vec<Value> = told.iter().map(|told| told["room"].clone()).collect();
 
-    assert_eq!(ended.into_iter().collect::<Vec<_>>(), ["web"], "{unit}");
-    told(db, &vars, &none, Path::new("/nonexistent"), due + 2).await.unwrap();
-  }
+  assert_eq!(rooms, [json!(-800), json!(-700)], "one instruction a room: {told:#?}");
+  assert_eq!(told[1]["kind"], "deploy-live:bmo-deploy-8");
+  assert_eq!(told[1]["events"], json!(["deploy-live:#71"]));
+  assert!(order(&told[1]).contains("put web live"), "{}", order(&told[1]));
 
-  assert_eq!(due_told(), 3, "told again after each run's end, its commit still past the mark");
-  assert_eq!(peers.lock().unwrap().withdrawn(), ["1", "2"], "each copy withdrawn as its run ended");
+  watched(db, &vars, &roots, &units).await.unwrap();
+  assert_eq!(peers.lock().unwrap().instructed().len(), 2, "a run is judged once");
 }

@@ -243,66 +243,6 @@ pub fn awaits_deploy(item: &Value, waiting: &[Close], orderer: &Orderer) -> Valu
   )
 }
 
-// A wait as an order names it, in hours and minutes.
-fn wait_of(ms: i64) -> String {
-  let minutes = ms.max(0) / 60_000;
-
-  format!("{} h {:02} min", minutes / 60, minutes % 60)
-}
-
-/// A repository's batch deployment come due (docs/agent-control.md, 「A repository's batch deployment come due is
-/// told」), its waiting `commits` oldest first, read at `now` against the due `due_ms`: an order under the sort
-/// `job` of its own kind for the repository, an event for each item it names.
-pub fn deploy_due(
-  repository: &str,
-  commits: &[crate::watches::deploy_due::Commit],
-  now: i64,
-  due_ms: i64,
-  orderer: &Orderer,
-) -> Value {
-  let event = "repository-deploy-due";
-  let oldest = commits.first().map_or(0, |commit| now - commit.waiting.since);
-  let listed = commits
-    .iter()
-    .map(|commit| {
-      let full = &commit.waiting.commit;
-
-      fill_marks(
-        &JOB_NOTICES.deploy_due_commit,
-        &[
-          ("commit", full.get(..12).unwrap_or(full)),
-          ("item", &id_of(&commit.item).to_string()),
-          ("title", title_of(&commit.item)),
-          ("age", &wait_of(now - commit.waiting.since)),
-        ],
-      )
-    })
-    .collect::<Vec<_>>()
-    .join("; ");
-  let order = fill_marks(
-    &JOB_NOTICES.deploy_due_order,
-    &[
-      ("repository", repository),
-      ("age", &wait_of(oldest)),
-      ("due", &wait_of(due_ms)),
-      ("commits", &listed),
-    ],
-  );
-  let events: Vec<String> =
-    commits.iter().map(|commit| format!("{event}:#{}", id_of(&commit.item))).collect();
-
-  json!({
-    "room": orderer.room,
-    "said": { "order": order },
-    "agentName": Value::Null,
-    "sort": "job",
-    "kind": format!("{event}:{repository}"),
-    "summary": format!("{repository}'s batch deployment is due: its oldest commit has waited {}", wait_of(oldest)),
-    "events": events,
-    "run": Value::Null,
-  })
-}
-
 /// A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 /// told」), for the orderer of the waiting `items` it carries, with the last lines of its unit's `journal`: an order
 /// under the sort `job` of its own kind for the run's unit, an event for each item it carries, or one naming none.
@@ -352,6 +292,46 @@ pub fn deploy_failed(
     "sort": "job",
     "kind": format!("{event}:{}", failure.unit),
     "summary": format!("The deployment of {} at {commit} did not go live", failure.repository),
+    "events": events,
+    "run": Value::Null,
+  })
+}
+
+/// A deployment the deploy queue's flush started that went live (docs/agent-control.md, 「The deploy queue is
+/// flushed every hour」), for the orderer of the waiting `items` it carries: an order under the sort `job` of its own
+/// kind for the run's unit, an event for each item it carries.
+pub fn deploy_live(
+  repository: &str,
+  commit: &str,
+  unit: &str,
+  items: &[Value],
+  orderer: &Orderer,
+) -> Value {
+  let event = "deploy-live";
+  let listed = items
+    .iter()
+    .map(|item| {
+      fill_marks(
+        &JOB_NOTICES.deploy_failed_item,
+        &[("item", &id_of(item).to_string()), ("title", title_of(item))],
+      )
+    })
+    .collect::<Vec<_>>()
+    .join("; ");
+  let commit = commit.get(..12).unwrap_or(commit);
+  let order = fill_marks(
+    &JOB_NOTICES.deploy_live_order,
+    &[("repository", repository), ("commit", commit), ("unit", unit), ("items", &listed)],
+  );
+  let events: Vec<String> = items.iter().map(|item| format!("{event}:#{}", id_of(item))).collect();
+
+  json!({
+    "room": orderer.room,
+    "said": { "order": order },
+    "agentName": Value::Null,
+    "sort": "job",
+    "kind": format!("{event}:{unit}"),
+    "summary": format!("The hourly flush put {repository} live at {commit}"),
     "events": events,
     "run": Value::Null,
   })

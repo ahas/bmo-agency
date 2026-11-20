@@ -94,6 +94,7 @@ async fn route(State(stand): State<Stand>, method: Method, uri: Uri) -> (StatusC
     let settings = json!({
       "researchSupervisor": null, "downgradeReturn": null,
       "deepseekCardSecret": stand.card_secret, "deepseekLoginSecret": stand.login_secret,
+      "deployFlushMinutes": 60,
     });
 
     return (StatusCode::OK, Json(settings));

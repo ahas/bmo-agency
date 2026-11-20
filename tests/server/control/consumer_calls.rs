@@ -148,6 +148,30 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     assert_eq!(switches[field], Value::Null);
   }
 
+  // The minutes between two flushes of the deploy queue: the policy's at first, the owner's once set, anything but
+  // a positive whole number refused by its field, and null returning to the policy's.
+  let policy = policy::job_notices::JOB_NOTICES.deploy_flush_minutes;
+
+  assert_eq!(get(port, token, "/settings").await.1["deployFlushMinutes"], policy);
+
+  let (status, switches) = patch(port, token, "/settings", json!({ "deployFlushMinutes": 15 })).await;
+
+  assert_eq!((status, &switches["deployFlushMinutes"]), (200, &json!(15)), "{switches}");
+
+  for wrong in [json!(0), json!(-5), json!(1.5), json!("15")] {
+    let (status, refused) = patch(port, token, "/settings", json!({ "deployFlushMinutes": wrong })).await;
+
+    assert_eq!(
+      (status, refused["field"].as_str()),
+      (400, Some("deployFlushMinutes")),
+      "{wrong}: {refused}"
+    );
+  }
+
+  let (_, switches) = patch(port, token, "/settings", json!({ "deployFlushMinutes": null })).await;
+
+  assert_eq!(switches["deployFlushMinutes"], policy);
+
   // A reset point is kept for it, which its removal takes with it.
   scratch
     .run(

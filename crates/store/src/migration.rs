@@ -100,6 +100,7 @@ mod m20270108_000001_gate_keys_retired;
 mod m20270109_000001_quota_share_gone;
 mod m20270110_000001_queue_notices_one_road;
 mod m20270111_000001_registration_owner;
+mod m20270112_000002_deploy_due_retired;
 
 use sea_orm_migration::prelude::*;
 
@@ -294,6 +295,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270109_000001_quota_share_gone::Migration),
       Box::new(m20270110_000001_queue_notices_one_road::Migration),
       Box::new(m20270111_000001_registration_owner::Migration),
+      Box::new(m20270112_000002_deploy_due_retired::Migration),
     ]
   }
 

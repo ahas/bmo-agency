@@ -756,3 +756,52 @@ async fn the_owner_road_s_notices_the_launch_notices_and_the_idle_queue_s_rows_g
   );
   assert_eq!(count(r#"SELECT count(*) FROM "settings" WHERE "key" = 'queue_draft_told:4'"#).await, 1);
 }
+
+#[tokio::test]
+async fn the_due_clocks_rows_go_and_a_due_notice_told_turns_into_its_withdrawal_and_others_stay() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one the deploy queue's hourly flush retires the due clock with.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20270112_000002_deploy_due_retired")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value")
+         VALUES ('deploy_due_since', '{}'), ('deploy_due_minutes', '90'), ('deploy_watch', '{}')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "notices" ("key", "route", "body", "keep", "mark", "instruction_id", "owed_at", "told_at", "due_at")
+         VALUES
+           ('repository-deploy-due:web', 'instruction', '{}', 'kept', '1=a', 41, 1, 2, NULL),
+           ('repository-deploy-due:drive', 'instruction', '{}', 'kept', '2=b', NULL, 1, NULL, 5),
+           ('item-awaits-deploy:3', 'instruction', '{}', 'kept', 'c', 42, 1, 2, NULL)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
+
+  let settings = scratch.count(r#"SELECT count(*) FROM "settings" WHERE "key" LIKE 'deploy_%'"#, vec![]);
+  let withdrawal = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "key" = 'repository-deploy-due:web' AND "route" = 'withdrawal'
+          AND "body"::jsonb = '{"id": 41}' AND "due_at" IS NOT NULL AND "instruction_id" IS NULL"#,
+    vec![],
+  );
+  let due =
+    scratch.count(r#"SELECT count(*) FROM "notices" WHERE "key" LIKE 'repository-deploy-due:%'"#, vec![]);
+  let other = scratch.count(
+    r#"SELECT count(*) FROM "notices" WHERE "key" = 'item-awaits-deploy:3' AND "instruction_id" = 42"#,
+    vec![],
+  );
+
+  assert_eq!(settings.await, 1, "the due clock's rows go and the deployment watch's stays");
+  assert_eq!(withdrawal.await, 1, "a due notice told turns into its copy's withdrawal");
+  assert_eq!(due.await, 1, "one never told goes");
+  assert_eq!(other.await, 1, "another notice stays as it was");
+}

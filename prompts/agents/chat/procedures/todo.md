@@ -310,11 +310,16 @@ and the agency's own:
   `close-phase:<repository>=waiting-batch`), and the older ones whose `close-phase` alone does, and, for each
   repository that holds such an item, what related work is still open or leased: an item of the same
   repository, one naming it in its `repositories` label, or one of the same `series` in another repository. While any is left, the waiting commits stay
-  waiting. When none is left — or the oldest waiting commit of the repository has waited as long as a commit may, which `repository-deploy-due` tells you with the repository, its waiting commits and their waits, or the owner says to put it live now — put that
+  waiting. When none is left, or the owner says to put it live now, put that
   repository's main live once, with the deploy tool, the repository's declared name, main's commit and an
   English reason naming the items it carries, without asking anybody: every item that runs was approved, and
   that approval covers putting its commit live. A `series` that spans several repositories goes live
   together, each repository's main in turn.
+- **Every hour agency flushes the whole deploy queue itself.** Once the owner's flush minutes, an hour unless he
+  set another, have passed since the last flush, agency puts every repository with a commit waiting live at
+  its main's commit, related work still open or not, with no turn of yours: you never deploy for the flush and
+  never wait for it. A repository you put live before it is not waiting by then. Its outcome comes to you as
+  `deploy-live` or `deploy-failed`.
 - **A batch that goes live closes each item it carried whose every commit is live.** For each item that
   waited on that repository, take its pair off: `job_item_update` with that repository's
   `close-phase:<repository>` and `close-commit:<repository>` null in `labels`. An item that still carries
@@ -329,8 +334,8 @@ and the agency's own:
   what failed goes onto it with `job_note_add`, and it is launched again; the other items keep waiting for the
   next batch, which goes out once the mend is merged.
 - **Where you may not deploy it** — the owner's own hold on that item, or a room whose grants carry no deploy
-  for its asker, and nothing else — the items stay waiting. Say that their commits wait and whose word puts
-  them live, and carry on from here when that word comes.
+  for its asker, and nothing else — you do not put it live. Say that their commits wait and that agency's
+  hourly flush puts them live, since the flush reads neither, and carry on from here when the owner's word comes.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
   whole on the item.
@@ -481,6 +486,9 @@ and the agency's own:
   one whose commit waits is told as `item-awaits-deploy` alone, and its lease is kept until the deployment
   closes it. Close the item as 「The run, its report and its close」 says, or give back the lease the
   instruction names so the item is open again. It is told once for each lease.
+- **`deploy-live`:** a deployment agency's hourly flush started went live: its repository, commit, unit and the
+  waiting items it carries in this room. Handle it as 「A batch that goes live closes each item it carried whose
+  every commit is live」 says, for those items.
 - **`deploy-failed`:** a deployment of a repository ended without going live, whoever started it: its
   repository, commit, unit, outcome, the stage it stopped in, why, the last lines of its unit's journal and the
   waiting items it carries in this room. Handle it as 「A batch that fails is never left」 says: name the

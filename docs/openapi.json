@@ -13171,13 +13171,19 @@
               "null"
             ],
             "description": "The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none."
+          },
+          "deployFlushMinutes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The minutes between two flushes of the deploy queue in force: the owner's, else the policy's."
           }
         },
         "required": [
           "researchSupervisor",
           "downgradeReturn",
           "deepseekCardSecret",
-          "deepseekLoginSecret"
+          "deepseekLoginSecret",
+          "deployFlushMinutes"
         ],
         "description": "Settings:"
       },
@@ -13192,6 +13198,9 @@
           },
           "deepseekLoginSecret": {
             "description": "A console secret's name, one plain file name, or null for none."
+          },
+          "deployFlushMinutes": {
+            "description": "The minutes between two flushes of the deploy queue, a positive whole number, or null for the policy's."
           }
         },
         "description": "The body that changes agency's own switches."

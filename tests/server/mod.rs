@@ -243,8 +243,8 @@ mod verbs {
 mod watches {
   mod background_work;
   mod closes;
-  mod deploy_due;
   mod deploy_failures;
+  mod deploy_flush;
   mod job_events;
   mod links;
   mod machine;

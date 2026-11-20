@@ -3865,6 +3865,11 @@ export interface components {
             deepseekCardSecret: string | null;
             /** @description The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none. */
             deepseekLoginSecret: string | null;
+            /**
+             * Format: int64
+             * @description The minutes between two flushes of the deploy queue in force: the owner's, else the policy's.
+             */
+            deployFlushMinutes: number;
         };
         /** @description The body that changes agency's own switches. */
         SettingsAsk: {
@@ -3874,6 +3879,8 @@ export interface components {
             deepseekCardSecret?: unknown;
             /** @description A console secret's name, one plain file name, or null for none. */
             deepseekLoginSecret?: unknown;
+            /** @description The minutes between two flushes of the deploy queue, a positive whole number, or null for the policy's. */
+            deployFlushMinutes?: unknown;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {

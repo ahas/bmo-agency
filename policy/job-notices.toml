@@ -27,18 +27,20 @@ waited_item = "#{item} ({title}), {state}"
 # An item whose closes merged commits that wait for their repositories' batch deployments: `{item}`, `{title}`
 # and `{merged}`, each waiting commit as `merged_commit` gives it with `{commit}` and `{repository}`, joined by
 # a semicolon.
-deploy_order = "Item #{item} ({title}): its job's close merged {merged}, and the item waits for each repository's batch deployment: put each live once no related work is left, and close the item once every one is live, as the todo procedure says."
+deploy_order = "Item #{item} ({title}): its job's close merged {merged}, and the item waits for each repository's batch deployment: put each live once no related work is left, else agency's hourly flush of the deploy queue puts it live; close the item once every one is live, as the todo procedure says."
 merged_commit = "commit {commit} into {repository}'s main"
-# A repository's batch deployment come due (docs/agent-control.md, 「A repository's batch deployment come due is
-# told」): how many minutes the oldest commit waiting for it waits before its orderer is told, unless the owner's
-# own settings row `deploy_due_minutes` names another; how often the items under a close are read for it; and its
-# order, `{repository}`, `{age}`, the oldest commit's wait, `{due}`, the due minutes as a wait, and `{commits}`,
-# each waiting commit as `deploy_due_commit` gives it with `{commit}`, `{item}`, `{title}` and `{age}`, joined by a
-# semicolon.
-deploy_due_minutes = 180
-deploy_due_read_seconds = 60
-deploy_due_order = "The oldest commit waiting for {repository}'s batch deployment has waited {age}, and a commit waits at most {due}. The commits waiting: {commits}"
-deploy_due_commit = "commit {commit} of item #{item} ({title}), waiting {age}"
+# The deploy queue's flush (docs/agent-control.md, 「The deploy queue is flushed every hour」): how many minutes pass
+# between two flushes, unless the owner's own settings row `deploy_flush_minutes` names another; how often the
+# clock is read for it; the reason each deployment it starts is made with, `{items}` the items whose commits wait
+# for the repository, each as `deploy_flush_item` gives it with `{item}`, joined by a comma, whose words before
+# `{items}` mark the deployment as the flush's in the repository's deployment record; and the order a flushed
+# deployment that went live is told with: `{repository}`, `{commit}`, `{unit}` and `{items}`, the waiting items it
+# carries in the room, each as `deploy_failed_item` gives it, joined by a semicolon.
+deploy_flush_minutes = 60
+deploy_flush_read_seconds = 60
+deploy_flush_why = "Hourly flush of the deploy queue, carrying {items}"
+deploy_flush_item = "#{item}"
+deploy_live_order = "The hourly flush of the deploy queue put {repository} live at commit {commit} (unit {unit}). The waiting items it carries: {items}\nTake each item's pair for this repository off and close every item whose every commit is now live, as the todo procedure's batch that goes live says."
 # A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 # told」): `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`, `{reason}`, `{items}`, the waiting items
 # it carries in the room, each as `deploy_failed_item` gives it with `{item}` and `{title}`, else

@@ -1382,6 +1382,8 @@ pub struct Settings {
   pub deepseek_card_secret: Option<String>,
   /// The console secret, of the kind `account-login`, the DeepSeek top-up signs in with, or null for none.
   pub deepseek_login_secret: Option<String>,
+  /// The minutes between two flushes of the deploy queue in force: the owner's, else the policy's.
+  pub deploy_flush_minutes: i64,
 }
 
 /// SupervisorSettings: a supervisor as its settings page shows it.
@@ -3019,6 +3021,9 @@ pub struct SettingsAsk {
   /// A console secret's name, one plain file name, or null for none.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub deepseek_login_secret: Option<Value>,
+  /// The minutes between two flushes of the deploy queue, a positive whole number, or null for the policy's.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub deploy_flush_minutes: Option<Value>,
 }
 
 /// The body that changes a supervisor's settings.

@@ -1,9 +1,10 @@
-//! Deployments that ended without going live, told to the orderers of the items they carry (docs/agent-control.md,
-//! 「A deployment that did not go live is told」). Every repository's progress record is read every few seconds;
-//! a run seen running is remembered by its unit, and every run is judged once: from its record, or, where a later
-//! run of the same repository wrote over that record, from its unit's journal.
+//! Deployments that ended without going live, and those of the deploy queue's flush that went live, told to the
+//! orderers of the items they carry (docs/agent-control.md, 「A deployment that did not go live is told」 and 「The
+//! deploy queue is flushed every hour」). Every repository's progress record is read every few seconds; a run seen
+//! running is remembered by its unit, and every run is judged once: from its record, or, where a later run of the
+//! same repository wrote over that record, from its unit's journal.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use policy::job_notices::JOB_NOTICES;
@@ -16,6 +17,7 @@ use crate::outbox::{self, Keep, Notice};
 use crate::queue::orderer::{JobService, Orderer};
 use crate::queue::settings;
 use crate::watches::closes;
+use crate::watches::deploy_flush;
 use crate::watches::machine_turn::{declared_name, deploy_root, held_by, read_json};
 
 /// The settings row what the watch has read stands in.
@@ -23,6 +25,8 @@ pub const STATE_KEY: &str = "deploy_watch";
 
 /// The progress record under a deploy root (the testbed's docs/deploy.md, 「The places」).
 const PROGRESS: &str = "deploy-progress.json";
+/// The deployment record under a deploy root, naming the commit that runs and the reason it was deployed.
+const DEPLOYED: &str = "deployed.json";
 /// The outcome of a run that put its commit live.
 const LIVE: &str = "live";
 /// The testbed's event a run that did not go live sends, rolled back or not.
@@ -63,8 +67,10 @@ pub struct Failure {
 pub enum Judgement {
   /// It runs still, or whether its unit ended cannot be told.
   Running,
-  /// It went live, or was refused.
-  Fine,
+  /// It went live.
+  Live,
+  /// It was refused, so it broke nothing.
+  Refused,
   /// It ended without going live.
   Failed(Failure),
 }
@@ -162,8 +168,9 @@ fn text(value: &Value) -> Option<String> {
 }
 
 /// What a progress record says of its run, `gone` whether its unit has ended where no outcome is written yet: a run
-/// that went live or was refused is fine; one that ended `failed`, `rolled-back` or `stopped` failed, in the last
-/// stage it entered; and one whose unit ended with no outcome written was cut off.
+/// refused broke nothing, whatever its outcome; one that ended `live` went live; one that ended `failed`,
+/// `rolled-back` or `stopped` failed, in the last stage it entered; and one whose unit ended with no outcome
+/// written was cut off.
 pub fn judged(record: &Value, repository: &str, gone: bool) -> Judgement {
   let ending = &record["ending"];
   let failure = |outcome: String, reason: Option<String>| Failure {
@@ -187,8 +194,12 @@ pub fn judged(record: &Value, repository: &str, gone: bool) -> Judgement {
 
   let outcome = text(&ending["outcome"]).unwrap_or_default();
 
-  if outcome == LIVE || record["refused"] == true {
-    return Judgement::Fine;
+  if record["refused"] == true {
+    return Judgement::Refused;
+  }
+
+  if outcome == LIVE {
+    return Judgement::Live;
   }
 
   Judgement::Failed(failure(outcome, text(&ending["why"])))
@@ -232,42 +243,40 @@ async fn carried(
   Ok(carried)
 }
 
-/// A failed run owed to the orderers of the items it carries, one instruction a room, the owner's private room
-/// where it carries none or the job service does not answer.
-async fn tell(
-  db: &DatabaseConnection,
-  vars: &BTreeMap<String, String>,
-  root: &Root,
-  failure: &Failure,
-  units: &impl Units,
-) -> Result<(), String> {
-  let service = JobService::of(vars);
-  let items = match &service {
-    Some(service) => carried(service, &failure.repository, &root.checkout, &failure.commit)
-      .await
-      .unwrap_or_else(|why| {
-        eprintln!("deploy watch: the items {} carries were not read: {why}", failure.unit);
-
-        vec![]
-      }),
-    None => vec![],
-  };
+/// The items a run of `repository` at `commit` carries, by the room of each one's orderer; none where the job
+/// service is not named or does not answer.
+async fn carried_by_room(
+  service: Option<&JobService>,
+  repository: &str,
+  checkout: &Path,
+  commit: &str,
+  unit: &str,
+) -> BTreeMap<Option<i64>, Vec<Value>> {
   let mut rooms: BTreeMap<Option<i64>, Vec<Value>> = BTreeMap::new();
+  let Some(service) = service else { return rooms };
+  let items = carried(service, repository, checkout, commit).await.unwrap_or_else(|why| {
+    eprintln!("deploy watch: the items {unit} carries were not read: {why}");
+
+    vec![]
+  });
 
   for item in items {
-    let room = match &service {
-      Some(service) => service.orderer_of(&item).await.map(|orderer| orderer.room).unwrap_or_default(),
-      None => None,
-    };
+    let room = service.orderer_of(&item).await.map(|orderer| orderer.room).unwrap_or_default();
 
     rooms.entry(room).or_default().push(item);
   }
 
-  if rooms.is_empty() {
-    rooms.insert(None, vec![]);
-  }
+  rooms
+}
 
-  let journal = units.last_lines(&failure.unit, JOB_NOTICES.deploy_journal_lines).await;
+/// One instruction a room owed, each built by `body` for its room's items, keyed by its room where there are
+/// several.
+async fn owe_by_room(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  rooms: BTreeMap<Option<i64>, Vec<Value>>,
+  body: impl Fn(&[Value], &Orderer) -> Value,
+) -> Result<(), String> {
   let several = rooms.len() > 1;
 
   for (room, items) in rooms {
@@ -275,8 +284,7 @@ async fn tell(
       room,
       requester: None,
     };
-    let notice =
-      Notice::instruction(job_notices::deploy_failed(failure, &items, &journal, &orderer), Keep::Once);
+    let notice = Notice::instruction(body(&items, &orderer), Keep::Once);
     let notice = match several {
       true => {
         let key =
@@ -290,6 +298,34 @@ async fn tell(
     outbox::owe(db, vars, notice).await?;
   }
 
+  Ok(())
+}
+
+/// A failed run owed to the orderers of the items it carries, one instruction a room, the owner's private room
+/// where it carries none or the job service does not answer.
+async fn tell(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  root: &Root,
+  failure: &Failure,
+  units: &impl Units,
+) -> Result<(), String> {
+  let service = JobService::of(vars);
+  let mut rooms =
+    carried_by_room(service.as_ref(), &failure.repository, &root.checkout, &failure.commit, &failure.unit)
+      .await;
+
+  if rooms.is_empty() {
+    rooms.insert(None, vec![]);
+  }
+
+  let journal = units.last_lines(&failure.unit, JOB_NOTICES.deploy_journal_lines).await;
+
+  owe_by_room(db, vars, rooms, |items, orderer| {
+    job_notices::deploy_failed(failure, items, &journal, orderer)
+  })
+  .await?;
+
   println!(
     "deploy watch: {} of {} ended {} without going live, owed",
     failure.unit, failure.repository, failure.outcome
@@ -298,33 +334,56 @@ async fn tell(
   Ok(())
 }
 
-// A run of `repository` judged ended: its batch deployment's due notice owed afresh (docs/agent-control.md, 「A
-// repository's batch deployment come due is told」), the repository kept among those `ended` names.
-async fn ended_run(
+/// A run that went live owed to the orderers of the items it carries where the deploy queue's flush started it:
+/// the deployment record under its root names its commit with the flush's reason. One instruction a room, and
+/// nothing where it carries no waiting item.
+async fn tell_live(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
-  repository: &str,
-  ended: &mut BTreeSet<String>,
+  root: &Root,
+  record: &Value,
+  unit: &str,
 ) -> Result<(), String> {
-  crate::watches::deploy_due::rearmed(db, vars, repository).await?;
-  ended.insert(repository.to_owned());
+  let Some(deployed) = read_json(&root.path.join(DEPLOYED)) else { return Ok(()) };
+  let commit = text(&record["commit"]).unwrap_or_default();
+  let reason = deployed["message"].as_str().unwrap_or_default();
+
+  if commit.is_empty()
+    || text(&deployed["commit"]).as_deref() != Some(commit.as_str())
+    || !deploy_flush::flushed(reason)
+  {
+    return Ok(());
+  }
+
+  let repository = text(&record["repository"]).unwrap_or_else(|| root.repository.clone());
+  let service = JobService::of(vars);
+  let rooms = carried_by_room(service.as_ref(), &repository, &root.checkout, &commit, unit).await;
+
+  if rooms.is_empty() {
+    return Ok(());
+  }
+
+  owe_by_room(db, vars, rooms, |items, orderer| {
+    job_notices::deploy_live(&repository, &commit, unit, items, orderer)
+  })
+  .await?;
+  println!("deploy watch: {unit} of {repository}, the flush's, went live, owed");
 
   Ok(())
 }
 
-/// One pass over `roots`, each run judged once, every failed one told and every ended one owing its repository's
-/// due notice afresh; the repositories whose run ended are answered. The first pass, with no state kept, tells
-/// nothing of what has already ended. A notice the store would not take leaves its run unjudged for the next pass.
+/// One pass over `roots`, each run judged once, every failed one told and every one of the flush's that went live
+/// told. The first pass, with no state kept, tells nothing of what has already ended. A notice the store would not
+/// take leaves its run unjudged for the next pass.
 pub async fn watched(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
   roots: &[Root],
   units: &impl Units,
-) -> Result<BTreeSet<String>, String> {
+) -> Result<(), String> {
   let kept = settings::get(db, STATE_KEY).await.map_err(|why| why.detail)?;
   let telling = kept.is_some();
   let mut state: State = kept.and_then(|kept| serde_json::from_str(&kept).ok()).unwrap_or_default();
-  let mut ended = BTreeSet::new();
 
   for root in roots {
     let key = root.path.to_string_lossy().into_owned();
@@ -344,20 +403,15 @@ pub async fn watched(
       continue;
     }
 
-    if telling {
-      let repository = text(&record["repository"]).unwrap_or_else(|| root.repository.clone());
+    let told = match (telling, judgement) {
+      (true, Judgement::Failed(failure)) => tell(db, vars, root, &failure, units).await,
+      (true, Judgement::Live) => tell_live(db, vars, root, &record, &unit).await,
+      _ => Ok(()),
+    };
 
-      if let Err(why) = ended_run(db, vars, &repository, &mut ended).await {
-        eprintln!("deploy watch: {unit}'s end was not owed, so it is read again: {why}");
-        continue;
-      }
-
-      if let Judgement::Failed(failure) = judgement
-        && let Err(why) = tell(db, vars, root, &failure, units).await
-      {
-        eprintln!("deploy watch: {unit} was not owed, so it is read again: {why}");
-        continue;
-      }
+    if let Err(why) = told {
+      eprintln!("deploy watch: {unit} was not owed, so it is read again: {why}");
+      continue;
     }
 
     state.running.remove(&unit);
@@ -371,13 +425,6 @@ pub async fn watched(
     }
 
     let root = roots.iter().find(|root| root.path.to_string_lossy() == key.as_str());
-
-    if let Some(root) = root.filter(|_| telling)
-      && let Err(why) = ended_run(db, vars, &root.repository, &mut ended).await
-    {
-      eprintln!("deploy watch: {unit}'s end was not owed, so it is read again: {why}");
-      continue;
-    }
 
     if let (Some(root), Some(payload)) = (root, units.failed_event(&unit).await) {
       let failure = from_event(&payload, &unit, &root.repository);
@@ -393,9 +440,7 @@ pub async fn watched(
 
   let written = serde_json::to_string(&state).map_err(|why| why.to_string())?;
 
-  settings::set(db, STATE_KEY, &written).await.map_err(|why| why.detail)?;
-
-  Ok(ended)
+  settings::set(db, STATE_KEY, &written).await.map_err(|why| why.detail)
 }
 
 /// The deploy roots of the repositories agency holds on this machine, each once, as the testbed declaration in the
@@ -424,8 +469,7 @@ async fn roots(db: &DatabaseConnection, home: &Path) -> Result<Vec<Root>, String
   Ok(roots.into_values().collect())
 }
 
-/// One pass of the deployment watch over this machine's deploy roots, the waiting commits read for a batch
-/// deployment come due again where a run ended; a test's ground reads nothing.
+/// One pass of the deployment watch over this machine's deploy roots; a test's ground reads nothing.
 pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, home: &Path) {
   if crate::job_end::test_ground(vars) {
     return;
@@ -436,9 +480,7 @@ pub async fn pass(db: &DatabaseConnection, vars: &BTreeMap<String, String>, home
     Err(why) => return eprintln!("deploy watch: the repositories were not read: {why}"),
   };
 
-  match watched(db, vars, &roots, &Journal).await {
-    Ok(ended) if !ended.is_empty() => crate::watches::deploy_due::pass(db, vars, home).await,
-    Ok(_) => {}
-    Err(why) => eprintln!("deploy watch: the pass did not end: {why}"),
+  if let Err(why) = watched(db, vars, &roots, &Journal).await {
+    eprintln!("deploy watch: the pass did not end: {why}");
   }
 }

@@ -381,17 +381,17 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
-  let due = ground.clone();
+  let flush = ground.clone();
 
-  // Every repository's batch deployment come due, told to the orderer of the item whose commit has waited longest.
+  // The whole deploy queue put live once the flush minutes have passed since the last flush.
   tokio::spawn(async move {
-    let period = Duration::from_secs(policy::job_notices::JOB_NOTICES.deploy_due_read_seconds);
+    let period = Duration::from_secs(policy::job_notices::JOB_NOTICES.deploy_flush_read_seconds);
 
-    every("deploy due", period, period, move || {
-      let ground = due.clone();
+    every("deploy flush", period, period, move || {
+      let ground = flush.clone();
 
       async move {
-        agency_server::watches::deploy_due::pass(&ground.db, ground.vars(), &ground.roots.home).await;
+        agency_server::watches::deploy_flush::pass(&ground.db, ground.vars(), &ground.roots.home).await;
 
         Ok(())
       }

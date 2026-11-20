@@ -1281,7 +1281,7 @@ is refused 422 `not-a-directory`, as an account that keeps no login here is.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/settings` | Agency's own switches: the research supervisor, the downgrade return and the DeepSeek top-up's card and login. |
+| GET | `/settings` | Agency's own switches: the research supervisor, the downgrade return, the DeepSeek top-up's card and login, and the deploy queue's flush minutes. |
 | PATCH | `/settings` | Change agency's switches. |
 
 - **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
@@ -1298,6 +1298,11 @@ is refused 422 `not-a-directory`, as an account that keeps no login here is.
   refuses every call. It is the
   owner's to change as `deepseekCardSecret` is, and `PATCH /settings` takes and refuses it the same way, with its
   own `field`. Agency keeps the name alone and never reads the secret.
+- **`deployFlushMinutes`** is the minutes between two flushes of the deploy queue in force
+  (`docs/agent-control.md`, 「The deploy queue is flushed every hour」): the owner's own, else the policy's,
+  sixty. It is the owner's to change at any time, with no code change and no deployment, and the next read of
+  the flush's clock takes it. `PATCH /settings` takes a positive whole number, or null to return to the
+  policy's; anything else is refused 400 with `field`.
 
 ### repositories, prefix-checks and room-holdings
 
@@ -2127,7 +2132,12 @@ the testbed declaration in its checkout names; every few seconds, for a deployme
 (`docs/agent-control.md`, 「A deployment that did not go live is told」), the progress record under the deploy
 root of every repository agency holds on this machine, the user manager's `systemctl --user is-active` for a
 run's unit, and that unit's journal through `journalctl --user`, its last lines and the testbed's event line
-for an event no hook took; and once an hour GitHub's search through
+for an event no hook took, and, for a run that went live, the deployment record `deployed.json` beside it; at
+each flush of the deploy queue (`docs/agent-control.md`, 「The deploy queue is flushed every hour」), the job
+service's `GET /items` with `label` `close-phase`, and, in the base checkout of each repository with a commit
+waiting, `git ls-remote` for its remote's `main` and the testbed's verb `bmo-testbed deploy --commit <commit>
+--message <why>` (the testbed's `docs/boundary.md`, 「`deploy`」), which starts the deployment in a unit of its
+own and returns; and once an hour GitHub's search through
 `gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). For a control call
 on agent management that carries a signed-in person's headers, the web's account service is asked for that
 person's console sections with `GET /users/{user}/sections` (「Who a caller acts for」 above), reached at
