@@ -33,9 +33,9 @@ stage_final = "its final report, every stage passed"
 # A job that gave its checkout up while the owner's question waits: `{job}`, `{item}`, `{question}` and `{worker}`.
 parked_order = "The job {job} of item #{item} waits on the owner's question #{question}, past its due time, so it gave its checkout {worker} up; the item stays leased. Launch the work that can go now."
 # The owner's question: `{words}`, `{job}`, `{item}`, `{stage}` and `{rejections}`.
-question_text = "{words}\n\nThe job {job} of item #{item} ({stage}) had its work sent back {rejections} times, and its review puts it to you."
-send_back = "Send the work back"
-take_it = "Take the work as it stands"
+question_text = "{words}\n\nWhat this asks: a job working on item #{item} (job {job}, {stage}) reports its work, and the supervisor examines each report before the job goes on. It sent this work back {rejections} times and another round would not settle it, so it asks you. Sending the work back hands the job the words above to work on, and it reports again. Taking it as it stands lets the job go on to its next stage, or finish, without what the words above find missing."
+send_back = "Send the work back: the job works on what the review found missing and reports again"
+take_it = "Take the work as it stands: the job goes on without those fixes"
 # The review opened as the job is launched: `{stages}`, how many, and `{plan}`, the steps a line each.
 opened = "The work runs in {stages} stage(s), each examined before the next:\n{plan}"
 # What the first turn of a job of several stages is told after its prompt: `{stages}`, `{plan}` and `{step}`.

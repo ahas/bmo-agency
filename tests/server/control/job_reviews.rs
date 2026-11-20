@@ -475,6 +475,7 @@ async fn an_escalation_made_again_asks_the_owner_once_and_waits_until_a_reply_se
       .expect("the question asked");
 
     assert_eq!(asked.body["addressee"], "person");
+    assert_eq!(asked.body["choices"].as_array().map(Vec::len), Some(2), "a person is offered a choice");
     assert_eq!(asked.bearer.as_deref(), Some("supervisors-token"));
   }
 

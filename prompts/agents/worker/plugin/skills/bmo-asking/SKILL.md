@@ -28,7 +28,13 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
 - **The command:**
   `bmo job ask --todo <id> --question '<무엇을 정하거나 해 달라는지>' --why '<왜 네가 못 하는지 한 줄>' [--option '<하나>' --option '<다른 하나>' --recommend <추천 번호>]`.
   - A choice puts two or more options, the one you would take named by its number; a request the supervisor
-    answers in its own words — a command's output, a deployment done — puts none, and no `--recommend`.
+    answers in its own words — a command's output, a deployment done — puts none, and no `--recommend`. A
+    question with no options is the supervisor's alone: it never reaches the owner until the supervisor writes
+    its choices.
+- **Write it for someone who knows nothing of the work.** The supervisor may hand your question to the owner as
+  you wrote it, so say what the work is, what each option does, how the options differ and what follows under
+  each, with no step number, internal name or term left unexplained. An option says what it does in words of
+  its own: `bmo job ask` refuses a bare label or a step number (`1`, `B`, `Option 2`, `Step 12`) as an option.
 - **The command does not return until it is answered: your own run is what waits,** holding its
   checkout's lock, and nothing else is named for that checkout, so nothing else is held up.
 - **Settled, it prints the answer on stdout and nothing else**, exit code 0. The supervisor's answer comes as
