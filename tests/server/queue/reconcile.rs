@@ -120,6 +120,19 @@ fn a_pane_turn_closes_on_its_collector_s_ending_or_its_collector_dying_before_it
 }
 
 #[test]
+fn a_pane_turn_s_collector_says_it_is_over_once_it_published_its_end_or_is_gone() {
+  let dir = tempfile::tempdir().unwrap();
+
+  assert!(!collector_ended(dir.path()), "no collector says nothing");
+  write(dir.path(), ENVELOPE, &json!({ "owner": ProcessIdentity::own() }));
+  assert!(!collector_ended(dir.path()), "a collector standing carries its turn");
+  write(dir.path(), ENVELOPE, &json!({ "owner": { "pid": NO_PID, "birth": "1" } }));
+  assert!(collector_ended(dir.path()));
+  write(dir.path(), ENVELOPE, &json!({ "owner": ProcessIdentity::own(), "cause": "exited" }));
+  assert!(collector_ended(dir.path()));
+}
+
+#[test]
 fn a_resident_turn_whose_collector_died_closes_on_its_program_s_hooks_or_its_program_gone() {
   let dir = tempfile::tempdir().unwrap();
   let place = dir.path().join("place");

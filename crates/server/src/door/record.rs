@@ -766,6 +766,23 @@ pub fn ended_on_error(records: &[Value], from: usize) -> bool {
       .is_some_and(|last| is_true(last, "isApiErrorMessage"))
 }
 
+/// Whether the turn begun at `from` stands on the program's own error with nothing after it: the last line of
+/// the conversation is an error the program wrote in the answer's place. A program at rest on such a line has
+/// ended the turn even where it writes no closing line, as on a full window, where it opens its own choice of
+/// what to do next instead.
+pub fn rests_on_error(records: &[Value], from: usize) -> bool {
+  records
+    .get(from..)
+    .unwrap_or_default()
+    .iter()
+    .rev()
+    .find(|record| {
+      matches!(kind(record), Some("user" | "assistant" | "queue-operation"))
+        && !is_true(record, "isSidechain")
+    })
+    .is_some_and(|last| kind(last) == Some("assistant") && is_true(last, "isApiErrorMessage"))
+}
+
 /// The error a turn come back to rest ended on, with its kind, out of its reading and the failure its place
 /// recorded for it (its words and kind): the program's own error in the answer's place, the kind the
 /// place's failure names where the record names none; else, where the record holds no answer yet, the

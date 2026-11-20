@@ -1,4 +1,5 @@
-//! The picture: what herdr holds, kept by applying its events, and the watch that keeps it attached.
+//! The picture: what herdr holds, kept by applying its events, the watch that keeps it attached, and what a
+//! snapshot says of a pane's folder.
 
 use std::collections::HashSet;
 use std::time::Duration;
@@ -94,6 +95,21 @@ fn a_snapshot_replaces_everything() {
   picture.apply(&json!({ "event": "pane_updated", "data": { "pane": pane("p1", "t1", Some("run-old")) } }));
   picture.install(&snapshot);
   assert_eq!(picture.names(), HashSet::from(["run-x".to_owned()]));
+}
+
+#[test]
+fn a_pane_whose_folder_was_removed_reads_as_gone() {
+  let snapshot: Snapshot = serde_json::from_value(json!({ "panes": [
+    { "pane_id": "p1", "cwd": "/srv/releases/one (deleted)" },
+    { "pane_id": "p2", "cwd": "/srv/releases/two" },
+    { "pane_id": "p3" },
+  ] }))
+  .unwrap();
+
+  assert_eq!(
+    snapshot.panes.iter().map(|pane| pane.cwd_gone()).collect::<Vec<_>>(),
+    [true, false, false]
+  );
 }
 
 #[tokio::test]

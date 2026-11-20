@@ -48,8 +48,8 @@ use super::place_run::{
 use super::record::{
   COST_STATE, ChildReader, ModelSpend, Notices, Reply, ReplyWindow, RoundState, Tail, answered_since,
   command_closing_since, command_words, compacted_since, ended_on_error, ends_on_turn_end, last_activity,
-  prompted_since, read_round, read_turn, status_figures, turn_closed_since, turn_error, turns_owed,
-  word_written_down,
+  prompted_since, read_round, read_turn, rests_on_error, status_figures, turn_closed_since, turn_error,
+  turns_owed, word_written_down,
 };
 use super::stand::{Interrupt, interrupt_program, person_turn_done, stand_resident, stood_again};
 use crate::control::claude_accounts;
@@ -2234,6 +2234,7 @@ async fn watch_turn<W: Watch>(
 
       turn_closed_since(records, answer_from)
         || ended_on_error(records, answer_from)
+        || rests_on_error(records, answer_from)
         || (command && command_words(records, answer_from).is_some())
     } || door.failure_since(failed_from).is_some();
 
@@ -2313,7 +2314,7 @@ async fn watch_turn<W: Watch>(
     // the program's own that hides it.
     if over_on_error(
       now.is("working"),
-      ended_on_error(door.lines(), answer_from),
+      ended_on_error(door.lines(), answer_from) || rests_on_error(door.lines(), answer_from),
       door.failure_since(failed_from).is_some(),
     ) {
       if now.is("blocked") {
@@ -2471,6 +2472,11 @@ async fn watch_turn<W: Watch>(
         break;
       }
 
+      // A program at rest on its own error writes no closing line after it.
+      if !now.is("working") && rests_on_error(door.lines(), answer_from) {
+        break;
+      }
+
       if let Some(lost) = door.judge.look(&peer, false, &now, &signals) {
         lost_after_rest = Some((lost, now.word().to_owned()));
         break;
@@ -2484,6 +2490,7 @@ async fn watch_turn<W: Watch>(
     && !answered_since(door.lines(), answer_from)
     && !turn_closed_since(door.lines(), answer_from)
     && !ended_on_error(door.lines(), answer_from)
+    && !rests_on_error(door.lines(), answer_from)
     && door.failure_since(failed_from).is_none()
   {
     *ending = if lost == Lost::Program { End::Exited } else { End::Cancelled };

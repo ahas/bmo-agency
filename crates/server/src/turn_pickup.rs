@@ -794,6 +794,12 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
     }
 
     let (now, pane) = found(ground, &place, &turn).await;
+    // The pane of its own the turn went out in, closed once its end is handed back, though the turn is read
+    // in its place: a job's turn has its hooks write into a place of its own and stands in a pane of its own.
+    let own = match &pane {
+      Some(pane) => Some(pane.clone()),
+      None => own_pane(&ground.db, &turn.run).await,
+    };
 
     match now {
       Standing::Ended(came) => {
@@ -801,7 +807,7 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 
         following.feed(ground, &turn, &place, pane.as_ref()).await;
         hand_back(ground, &place, &turn, came, true).await;
-        close_pane(ground, pane.as_ref()).await;
+        close_pane(ground, own.as_ref()).await;
       }
       // No program took a job's turn, so the job is launched again from the words it keeps; the pane of its
       // own that stands on nothing is closed with its rows.
@@ -830,14 +836,14 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
         }
 
         close_rows(ground, &turn.run, false).await;
-        close_pane(ground, pane.as_ref()).await;
+        close_pane(ground, own.as_ref()).await;
         forget(&ground.db, &turn.run, "no program took it; its job is launched again").await
       }
       Standing::Lost => {
         let why = lost_why(node_waited(&ground.db, &turn.run).await.as_deref());
 
         hand_back(ground, &place, &turn, Came::Failed(why), false).await;
-        close_pane(ground, pane.as_ref()).await;
+        close_pane(ground, own.as_ref()).await;
       }
       Standing::Going => {
         // The adopted turn stands as seen: the lease bound to its run is given back by its end, or by its
@@ -852,7 +858,7 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 
         let ground = ground.clone();
 
-        tokio::spawn(async move { attach(&ground, &name, place, pane, turn).await });
+        tokio::spawn(async move { attach(&ground, &name, place, pane, own, turn).await });
       }
     }
   }
@@ -919,16 +925,24 @@ async fn agent_stands(ground: &Ground, turn: &InFlight) -> bool {
 // goes into it meanwhile, and handed back once the record says it ended; a program gone is a turn gone. A
 // cancellation of its run cuts it short with its surface's interrupt, as the door carrying a live turn
 // does, and the record's end of it is handed back as any other. A thrown-away session's place it was
-// carried in is ended once the end is handed back, its session ending with its turn, and a pane of the
-// turn's own is closed, as the door closes it with its run.
-async fn attach(ground: &Ground, name: &str, place: Place, pane: Option<OwnPane>, turn: InFlight) {
+// carried in is ended once the end is handed back, its session ending with its turn, and the pane of the
+// turn's own, `own`, is closed, as the door closes it with its run, whether the turn was read in it (`pane`) or
+// in its place.
+async fn attach(
+  ground: &Ground,
+  name: &str,
+  place: Place,
+  pane: Option<OwnPane>,
+  own: Option<OwnPane>,
+  turn: InFlight,
+) {
   {
     let _held = hold(agent_lock_path(&ground.roots.data, name)).await;
 
     waited(ground, &place, pane.as_ref(), &turn, ToolClock::from(&TOOL_CLOCK.call)).await;
   }
 
-  close_pane(ground, pane.as_ref()).await;
+  close_pane(ground, own.as_ref()).await;
 
   if crate::apart_places::is_apart_place(&ground.roots.data, name) {
     crate::apart_places::end(ground, name).await;

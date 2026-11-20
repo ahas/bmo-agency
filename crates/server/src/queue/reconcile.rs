@@ -168,6 +168,43 @@ pub fn ending(body: &Map<String, Value>, parent_open: bool, directory: &Path, no
   })
 }
 
+/// What a turn in a pane of its own closes on once the leftover sweep closed its pane, the collector that
+/// watched it gone.
+pub const PANE_SWEPT: &str = "interrupted: its collector gone, its pane closed by the leftover sweep";
+
+/// Whether what collected a turn in a pane says it is over: its collector published how it ended, or the
+/// process that collected it is gone. A directory with no collector's envelope says nothing, and is not.
+pub fn collector_ended(directory: &Path) -> bool {
+  read_json(&directory.join(ENVELOPE))
+    .is_some_and(|collector| collector.get("cause").is_some() || gone(collector.get("owner")))
+}
+
+/// The open row of a turn whose pane the leftover sweep closed, its collector gone, closed as interrupted;
+/// whether it was open. A row its own writer closed meanwhile keeps that end.
+pub async fn close_swept(db: &DatabaseConnection, id: &str) -> Result<bool, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT "body" FROM "agent_executions" WHERE "id" = $1 AND ("body"::jsonb)->>'endedAt' IS NULL"#,
+    vec![id.into()],
+  )
+  .await?;
+  let Some(body) = rows
+    .first()
+    .and_then(|row| row.try_get::<String>("", "body").ok())
+    .and_then(|body| serde_json::from_str::<Map<String, Value>>(&body).ok())
+  else {
+    return Ok(false);
+  };
+  let mut row = Row { body };
+
+  row.set("state", json!("cancelled"));
+  row.set("endedAt", json!(now_ms()));
+  row.set("exitCode", json!(1));
+  row.set("reconciliationEvidence", json!(PANE_SWEPT));
+
+  row.save_while_open(db).await
+}
+
 /// One pass over every open row, each one that has ended closed as it ended; how many were closed. A row its own
 /// writer closed in the meantime keeps that end.
 pub async fn pass(db: &DatabaseConnection, data_root: &Path) -> Result<usize, Refusal> {

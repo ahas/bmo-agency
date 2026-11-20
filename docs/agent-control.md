@@ -194,15 +194,36 @@ The owner's words:
   its workspace and again to find the head in it; a workspace gone between the two readings is looked for
   again, and made where none stands, once, before a turn goes in. A thrown-away session's workspace is
   closed with the session, in the herdr of the node its place stands on, and no turn's end closes it.
-- **A job's end sweeps the whole of herdr the same way.** When a job ends, and on agency's own clock
-  every ten minutes, agency reads every workspace and every pane in it, on this machine and on each ready work node whose
-  link the node service reports up. Every supervisor standing and every run open counts, a pane a
-  consumer claims among them (`docs/api.md`, 「hooks」, the pane claims). A pane carrying a run, a head (`bmo-head-*`, the
-  head script), a node's pane (`bmo-node-*`), a dev server or a standing pane (`bmo-standing-*`) is kept whatever else is true, since what
-  it runs is a run's, a supervisor's or a node's standing process. In a workspace this system marked —
-  one carrying an agent's or a node's token — a pane carrying none of those is closed, and a workspace
-  of a supervisor that no longer stands, or of a run that has ended, left with nothing kept in it, is
-  closed whole. A standing supervisor's workspace is left to the standing pass.
+- **The whole of herdr is swept of what nothing stands for.** As agency's server starts, once the turns the
+  last process left in flight are picked up, when a job ends, and on agency's own clock every ten minutes,
+  agency reads every workspace and every pane in it, on this machine and on each ready work node whose
+  link the node service reports up, with the folder herdr reads each pane's process standing in.
+  - **What stands.** Every supervisor, every co-work place, every gate place, every thrown-away session's
+    place, every agent a consumer claims a pane for (`docs/api.md`, 「hooks」, the pane claims) and every
+    checkout a job has asked a dev server of stands.
+    A workspace is counted under the agent its token names, or, where herdr lost the token, under the name
+    its head carries in its mark. A standing agent's own workspace and a node's are left to the standing
+    passes, whatever else is true of them: only a pane carrying nothing beside a head is closed there.
+  - **A pane whose run is over is closed.** A pane carrying a run, a head (`bmo-head-*`, the head
+    script), a node's pane (`bmo-node-*`), a dev server or a standing pane (`bmo-standing-*`) is kept,
+    but for a run that is over: its execution this store holds has ended, or is open while its collector
+    has published how it ended or is gone, the process that carried it ended with a server's restart or a
+    verb's process stopped, and no pickup carried it on. Such a pane is closed, its workspace with it where
+    nothing else is in it, whatever the workspace is marked with, and an execution its collector left open
+    is closed with it, as interrupted, with what its run started (`docs/run-groups.md`). A run this store
+    holds no execution of — another data root's, or a consumer's — is never over here.
+  - **A workspace in a removed folder goes whole.** One with no run at work in it, every pane of which stands
+    in a folder that has since been removed — a head an earlier release stood, a run whose folder went — is
+    closed whole, marked or not.
+  - **A checkout's workspace stands for its dev server.** A workspace counted under a checkout's name, a
+    support worktree past its repository's present count among them, is closed whole once neither a dev
+    server nor a run at work is in it (`docs/worker-bench.md`, 「It stands in that checkout's fixed
+    workspace」); while one is, its other panes carrying nothing are closed.
+  - **A gone agent's workspace.** In a workspace this system marked, one carrying an agent's or a node's
+    token, a pane carrying nothing is closed, and a workspace of a name that no longer stands, left with
+    nothing kept in it, is closed whole.
+  - **Another root's workspace is judged by this store's runs alone.** A workspace whose data token names
+    another root, and for a copy every workspace carrying none, has only its panes of runs over closed.
   - **What the sweep will not close is told, not closed.** A workspace of an agent that no longer
     stands but still carries something, and a workspace no token marks whose panes carry nothing, are
     published as one `herdr-leftovers` event — how many panes, in which workspaces, and whether each is
@@ -2480,15 +2501,20 @@ The measured, fixed order.
    (「Telling that a turn's program is gone」 below). A command of the program's own is not read this way
    (「How a command of the program's own ends」 below).
    - **A turn the program ended on its own error is over by its record, whatever the pane shows.** A full
-     window comes back as an error the program writes in the answer's place, followed by the line a turn
-     ends with, and the program then stands `blocked` at its own choice of what to do next (measured:
-     「What do you want to do?」 with 「Stop and wait for limit to reset」 first, a wait that goes on by
-     itself second, and 「Switch to usage credits」 third). Nobody is coming to answer it, and one of its
-     answers spends money, so once the record holds that error and that end line and the pane is not
-     `working`, the turn is over: the choice is closed with the keys the provider declares for cutting a
-     turn, which on Claude Code is Escape and takes the first answer, the program stands at rest for the
-     next turn, and the turn ends on the error, which the walk reads as the full window it is. This is read
-     before any question the pane holds is put to anybody, since it is no question of the turn's.
+     window comes back as an error the program writes in the answer's place, and the program then stands at
+     its own choice of what to do next (measured: 「What do you want to do?」 with 「Stop and wait for limit
+     to reset」 first, a wait that goes on by itself second, and 「Switch to usage credits」 third). Claude
+     Code 2.1.327 and later writes no line a turn ends with after that error: the record ends on the error
+     and a `system` line of subtype `informational` saying `Unknown command: /rate-limit-options`, and herdr
+     reads the pane `idle` or `done` (measured on a login's renewal run on a week's full window). Nobody is
+     coming to answer the choice, and one of its answers spends money, so once the record holds that error,
+     followed by the line a turn ends with or by no further line of the conversation, and the pane is not
+     `working`, the turn is over: a choice the pane shows `blocked` is closed with the keys the provider
+     declares for cutting a turn, which on Claude Code is Escape and takes the first answer, the program
+     stands at rest for the next turn, and the turn ends on the error, which the walk reads as the full
+     window it is. This is read before any question the pane holds is put to anybody, since it is no
+     question of the turn's, and it holds on a line whose stops no hook holds, where no failure hook
+     reports the request either.
 5. A state back to rest is not the turn's end by itself. The CLI writes the last response's thinking block
    first and the text block after that text's stream ends, and for a long answer the two lines are over a
    minute apart (measured 64 seconds). The moment the pane reads as rest may be before the text line

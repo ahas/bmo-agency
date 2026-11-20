@@ -29,7 +29,7 @@ pub fn item_scratches(ground: &Ground, worker: &str) -> PathBuf {
 const DEV_SERVER_WANTED: &str = "dev-server.wanted";
 
 /// Whether a job's request for the worker's dev server stands.
-fn asked(ground: &Ground, worker: &str) -> bool {
+pub fn asked(ground: &Ground, worker: &str) -> bool {
   workbench(ground, worker).join(DEV_SERVER_WANTED).exists()
 }
 

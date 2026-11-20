@@ -10,7 +10,8 @@
 //! a thrown-away session is kept in flight while it goes, whatever run the worker's own place holds, so the
 //! start after its process went away adopts the job from the row its launch wrote; a job's turn in a pane
 //! of its own, which no place stands for, keeps its row through every periodic pass while its round goes
-//! on and is adopted at start through its execution's liveness row, ending with its round.
+//! on and is adopted at start through its execution's liveness row, ending with its round; and a job's turn
+//! read in its hooks' place has the pane of its own it went out in closed once its end is handed back.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -1812,4 +1813,67 @@ async fn a_hooks_place_of_a_turn_kept_in_flight_outlives_the_sweep_and_ends_with
   agency_server::apart_places::end_run_places(&ground, "job-51", "worker-a").await;
 
   assert!(!going_place.path.exists(), "the place ends with its turn");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_s_turn_read_in_its_hooks_place_has_its_pane_of_its_own_closed_once_its_end_is_handed_back() {
+  use crate::integration::common::herdr::HerdrModel;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let mut ground = seeded(scratch.db(), home.path()).await;
+  let herdr = HerdrModel::stand(home.path().join("herdr.sock"));
+
+  ground.herdr = Some(herdr::Herdr::there(herdr.socket.clone()));
+
+  let ground = Arc::new(ground);
+  let mut program = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+
+  deepseek_balance(&ground, 5.0).await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
+  running_job(&scratch, 44, now_ms() - 20 * 60 * 1000).await;
+
+  // The job's turn as the worker line sends it: its program in a pane of its own, its hooks writing into a place
+  // of the run's own, where the program wrote its end while no process carried the turn.
+  let (_, place) = apart_place(&ground, "worker-a@run:17");
+  let (transcript, payload) = claude_code_turn(&place, "job-44", now_ms() - 60_000, program.id());
+  let (_, pane) = herdr.workspace("a job", serde_json::Value::Null, Some(&["program"]));
+
+  scratch
+    .run(
+      r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('own-44', $1)"#,
+      vec![
+        json!({ "id": "own-44", "line": "worker", "provider": "claude-code", "state": "running",
+                "startedAt": now_ms() - 60_000, "endedAt": null, "paneId": pane })
+        .to_string()
+        .into(),
+      ],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "turn_liveness" ("execution", "run", "line", "session", "phase", "pane", "records",
+           "opened_at", "written_at")
+         VALUES ('own-44', 'job-44', 'worker', 's', 'working', $1, $2, $3, $3)"#,
+      vec![pane.clone().into(), json!([transcript]).to_string().into(), now_ms().into()],
+    )
+    .await;
+  keep(
+    scratch.db(),
+    &InFlight {
+      session: "worker-a@run:17".into(),
+      ..in_flight("job-44", "worker-a", 64, None, None, Some(44))
+    },
+  )
+  .await;
+  claude_code_answers(&place, &transcript, &payload, "The job's report.");
+
+  assert_eq!(at_start(&ground).await.unwrap(), 1);
+  assert!(
+    !herdr.panes().iter().any(|one| one.id == pane),
+    "the pane of its own is closed with the turn read in its place"
+  );
+
+  let _ = program.kill();
+  let _ = program.wait();
 }

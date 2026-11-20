@@ -103,7 +103,9 @@ statements below about either are kept for a rollback to the road a deployment l
       transcript's round from the row's start is still working, has ended once that round has, its answer
       or its error read from it, and ends failed where the program is gone with the round still open; a
       turn it never took is lost, whatever the program is doing. The pane is closed once the turn's end is
-      handed back, or once the turn is found lost;
+      handed back, or once the turn is found lost, and so is the pane of its own of a turn read in a place
+      of its run's own — a job's turn, whose hooks write into such a place while its program stands in a
+      pane of its own — found through the same liveness row;
   - a turn whose end its program has written is handed back through the path a live turn's end takes:
     what of its record the run log lacks is filed there with its end, its execution row and the place's
     run are closed, a chat turn's road, spend and ledger run are written, its end is published as

@@ -510,6 +510,21 @@ fn a_turn_the_program_ended_on_a_full_window_is_over_by_its_record() {
   assert!(!ended_on_error(&[prompt, assistant(Some("hi"), "m", false, [1, 1, 0, 0]), end()], 0));
 }
 
+// On a full window Claude Code writes its error in the answer's place and opens its own choice of what to do
+// next, writing no closing line: a turn whose conversation ends on that error has ended on it.
+#[test]
+fn a_turn_whose_conversation_ends_on_the_program_s_error_rests_on_it() {
+  let full = json!({ "type": "assistant", "isApiErrorMessage": true, "error": "rate_limit", "message": { "id": "r", "model": "<synthetic>", "content": [{ "type": "text", "text": "You've hit your weekly limit" }] } });
+  let prompt = json!({ "type": "user", "message": { "content": "say hi" } });
+  let notice = json!({ "type": "system", "subtype": "informational", "content": "Unknown command: /rate-limit-options" });
+
+  assert!(rests_on_error(&[prompt.clone(), full.clone(), notice.clone()], 0));
+  // Not where the turn went on past it, nor for an error before the turn began.
+  assert!(!rests_on_error(&[prompt.clone(), full.clone(), said("hi")], 0));
+  assert!(!rests_on_error(&[full.clone(), prompt.clone()], 0));
+  assert!(!rests_on_error(&[full, notice, prompt], 2));
+}
+
 // A failed request's end the place recorded names the turn's error where the record holds no answer yet,
 // and lends its kind to an error the record names none for; an answered turn is no error whatever the place
 // recorded.

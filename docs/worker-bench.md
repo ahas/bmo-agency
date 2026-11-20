@@ -284,6 +284,10 @@ Each repository holds three things beside the work of its jobs:
 - **Why apart from the run's pane:** a job's run stands in a pane of its own that closes with the run
   (`docs/agents.md`, 「A run in a pane of its own」), while the dev server's life is the job hold's, so it
   stands in a workspace that outlives every run.
+- **Only while the dev server does:** the sweep of herdr closes a checkout's workspace whole once neither a
+  dev-server pane nor a run at work is in it, a support worktree's past its repository's present count
+  among them (`docs/agent-control.md`, 「The whole of herdr is swept of what nothing stands for」); the
+  next setup makes it again.
 
 ### What the script in the pane does
 

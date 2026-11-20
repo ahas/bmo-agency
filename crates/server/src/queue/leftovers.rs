@@ -1,22 +1,25 @@
-//! What a job's end leaves standing in herdr, swept (docs/agent-control.md, 「One standing pane per
-//! agent」), on agency's server. It reads the whole of herdr — this machine's, and each work node's whose
-//! link the node service reports up — because what outlives a job is as often a workspace no standing
-//! agent owns any more as a shell beside a head.
+//! What runs and places leave standing in herdr, swept (docs/agent-control.md, 「The whole of herdr is swept of
+//! what nothing stands for」), on agency's server: as a server starts, when a job ends and every ten minutes.
+//! It reads the whole of herdr — this machine's, and each work node's whose link the node service reports up — because what
+//! outlives a run is as often a pane of its own nothing closed, or a workspace no standing agent owns any more,
+//! as a shell beside a head.
 //!
-//! A pane carrying a run, a head, a node's pane or a dev server is kept, whatever else is true of it.
-//! Only in a workspace this system marked — an agent's or a node's token on it — is a pane carrying
-//! nothing closed, and a gone agent's workspace left with nothing kept closed whole. What the sweep
-//! will not close is published as `herdr-leftovers` rather than closed, since an unmarked workspace may
-//! be a person's own (docs/api.md, 「Events」).
+//! A pane whose run is over — its execution ended, or open with nothing left to carry it — is closed, and a
+//! workspace left with no run at work in it whose every pane stands in a removed folder is closed whole. A
+//! standing agent's and a node's own workspace are left to the standing passes, a checkout's stands while its
+//! dev server does, and only in a workspace this system marked is a pane carrying nothing closed. What the
+//! sweep will not close is published as `herdr-leftovers` rather than closed, since an unmarked workspace may
+//! be a person's own (docs/api.md, 「Events」). A workspace of another data root's is judged by this store's
+//! runs alone.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use herdr::Herdr;
 use policy::fill_marks;
 use policy::queue_words::QUEUE_WORDS;
 use serde::Serialize;
 use serde_json::{Value, json};
-use store::all;
+use store::{all, one};
 
 use super::settings;
 use crate::Refusal;
@@ -24,7 +27,7 @@ use crate::events::Event;
 use crate::places::Ground;
 use crate::places::branch::place_agent;
 use crate::places::claims::PaneClaims;
-use crate::places::home::{AGENT_TOKEN, DEV_VERB, HEAD_MARK, STANDING_MARK};
+use crate::places::home::{AGENT_TOKEN, DATA_TOKEN, DEV_VERB, HEAD_MARK, STANDING_MARK};
 
 // The token a node's workspace is reported under, and the mark its pane's loop runs under.
 const NODE_TOKEN: &str = "node";
@@ -33,22 +36,40 @@ const NODE_MARK: &str = "bmo-node-";
 // Where the survivors last told were written, so the same picture is told once.
 const TOLD_KEY: &str = "herdr_leftovers_told";
 
-/// One pane as the sweep reads it: its run, or what herdr started it with.
-#[derive(Clone, Debug, PartialEq)]
+/// One pane as the sweep reads it: its run, what herdr started it with, and whether the folder its process
+/// stands in has been removed.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PaneView {
   pub pane: String,
   pub run: Option<String>,
   pub command: Vec<String>,
+  pub cwd_gone: bool,
 }
 
-/// One workspace as the sweep reads it.
-#[derive(Clone, Debug, PartialEq)]
+/// One workspace as the sweep reads it, with the data root its token names where it names one.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct WorkspaceView {
   pub workspace: String,
   pub label: String,
   pub agent: Option<String>,
   pub node: Option<String>,
+  pub data: Option<String>,
   pub panes: Vec<PaneView>,
+}
+
+/// What the sweep judges herdr's picture against.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Standing {
+  /// The names whose own workspace stands: the supervisors, the co-work places, the gate places, the
+  /// thrown-away sessions' places and every agent a consumer claims a pane for.
+  pub homes: HashSet<String>,
+  /// The repositories, whose checkouts' workspaces stand for their dev servers alone: a checkout past its
+  /// repository's present count among them, since its name still says whose it is.
+  pub repositories: HashSet<String>,
+  /// The runs whose panes stand for nothing any more.
+  pub over: HashSet<String>,
+  /// The data root this root's workspaces name, none for the machine's own.
+  pub data: Option<String>,
 }
 
 /// A workspace the sweep would not close, told rather than closed.
@@ -60,11 +81,12 @@ pub struct Survivor {
   pub marked: bool,
 }
 
-/// What to close and what to tell.
+/// What to close, the runs over whose panes go with it, and what to tell.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Plan {
   pub close_panes: Vec<String>,
   pub close_workspaces: Vec<String>,
+  pub closed_runs: Vec<String>,
   pub survivors: Vec<Survivor>,
 }
 
@@ -78,16 +100,29 @@ pub fn carries_standing(command: &[String]) -> bool {
   })
 }
 
-/// What to close and what to tell, out of the workspaces as they stand, the agents that stand and the
-/// workers resting.
-pub fn plan(workspaces: &[WorkspaceView], standing: &HashSet<String>, resting: &HashSet<String>) -> Plan {
+// The agent a head in the workspace names in its mark, which counts for a workspace whose token herdr lost.
+fn head_agent(workspace: &WorkspaceView) -> Option<String> {
+  workspace
+    .panes
+    .iter()
+    .flat_map(|pane| &pane.command)
+    .find_map(|part| part.strip_prefix(HEAD_MARK))
+    .filter(|agent| !agent.is_empty())
+    .map(str::to_owned)
+}
+
+/// What to close and what to tell, out of the workspaces as they stand and what stands beside them.
+pub fn plan(workspaces: &[WorkspaceView], standing: &Standing) -> Plan {
   let mut plan = Plan::default();
 
   for workspace in workspaces {
+    let is_over = |pane: &PaneView| pane.run.as_ref().is_some_and(|run| standing.over.contains(run));
+    let at_work = workspace.panes.iter().any(|pane| pane.run.is_some() && !is_over(pane));
+    let over: Vec<&PaneView> = workspace.panes.iter().filter(|pane| is_over(pane)).collect();
     let kept: Vec<&PaneView> = workspace
       .panes
       .iter()
-      .filter(|pane| pane.run.is_some() || !pane.command.is_empty())
+      .filter(|pane| !is_over(pane) && (pane.run.is_some() || !pane.command.is_empty()))
       .collect();
     let empty: Vec<&PaneView> = workspace
       .panes
@@ -95,9 +130,70 @@ pub fn plan(workspaces: &[WorkspaceView], standing: &HashSet<String>, resting: &
       .filter(|pane| pane.run.is_none() && pane.command.is_empty())
       .collect();
     let marked = workspace.agent.is_some() || workspace.node.is_some();
+    let agent = workspace.agent.clone().or_else(|| head_agent(workspace));
+    let runs_of =
+      |panes: &[&PaneView]| -> Vec<String> { panes.iter().filter_map(|pane| pane.run.clone()).collect() };
+    let close_whole = |plan: &mut Plan| {
+      plan.close_workspaces.push(workspace.workspace.clone());
+      plan.closed_runs.extend(runs_of(&over));
+    };
 
-    if !marked {
-      // Nothing of this system's is known to be here: one carrying nothing may be a person's own shell.
+    // Another root's workspace, or for a copy the machine's own, is judged by this store's runs alone, which
+    // no other root's run is among.
+    if workspace.data != standing.data {
+      if !over.is_empty() && over.len() == workspace.panes.len() {
+        close_whole(&mut plan);
+      } else {
+        plan.close_panes.extend(over.iter().map(|pane| pane.pane.clone()));
+        plan.closed_runs.extend(runs_of(&over));
+      }
+
+      continue;
+    }
+
+    // A standing agent's own workspace, and a node's, are the standing passes' to tidy: one with no head yet
+    // is about to be given one.
+    if workspace.node.is_some() || agent.as_ref().is_some_and(|agent| standing.homes.contains(agent)) {
+      if kept.iter().any(|pane| carries_standing(&pane.command)) {
+        plan.close_panes.extend(empty.iter().map(|pane| pane.pane.clone()));
+      }
+
+      continue;
+    }
+
+    // Nothing at work stands in a removed folder: an earlier release's head, or a run whose folder went.
+    if !at_work && !workspace.panes.is_empty() && workspace.panes.iter().all(|pane| pane.cwd_gone) {
+      close_whole(&mut plan);
+      continue;
+    }
+
+    // A checkout's workspace stands for its dev server, and goes whole once neither it nor a run is in it.
+    let checkout = agent.as_deref().and_then(|agent| {
+      crate::queue::workers::repository_named_by(agent, |name| standing.repositories.contains(name))
+    });
+
+    if checkout.is_some() {
+      if !at_work && !kept.iter().any(|pane| pane.command.iter().any(|part| part == DEV_VERB)) {
+        close_whole(&mut plan);
+      } else {
+        plan.close_panes.extend(empty.iter().chain(&over).map(|pane| pane.pane.clone()));
+        plan.closed_runs.extend(runs_of(&over));
+      }
+
+      continue;
+    }
+
+    // A workspace no name of this system's marks may be a person's own: only the panes of runs over in it
+    // close, and the whole only where nothing else was ever in it.
+    if !marked && agent.is_none() {
+      if kept.is_empty() && empty.is_empty() && !over.is_empty() {
+        close_whole(&mut plan);
+        continue;
+      }
+
+      plan.close_panes.extend(over.iter().map(|pane| pane.pane.clone()));
+      plan.closed_runs.extend(runs_of(&over));
+
       if kept.is_empty() && !empty.is_empty() {
         plan.survivors.push(Survivor {
           workspace: workspace.workspace.clone(),
@@ -110,42 +206,22 @@ pub fn plan(workspaces: &[WorkspaceView], standing: &HashSet<String>, resting: &
       continue;
     }
 
-    // A resting worker's workspace goes whole, its head and its program with it, once no run is in it.
-    if workspace.agent.as_ref().is_some_and(|agent| resting.contains(agent)) {
-      if workspace.panes.iter().all(|pane| pane.run.is_none()) {
-        plan.close_workspaces.push(workspace.workspace.clone());
-      }
-
-      continue;
-    }
-
-    // A standing agent's own workspace, and a node's, are the standing passes' to tidy: one with no
-    // head yet is about to be given one.
-    let standing_home =
-      workspace.agent.as_ref().is_some_and(|agent| standing.contains(agent)) || workspace.node.is_some();
-
-    if standing_home {
-      if kept.iter().any(|pane| carries_standing(&pane.command)) {
-        plan.close_panes.extend(empty.iter().map(|pane| pane.pane.clone()));
-      }
-
-      continue;
-    }
-
+    // A gone agent's workspace goes whole once nothing is kept in it.
     if kept.is_empty() {
-      plan.close_workspaces.push(workspace.workspace.clone());
+      close_whole(&mut plan);
       continue;
     }
 
-    plan.close_panes.extend(empty.iter().map(|pane| pane.pane.clone()));
+    plan.close_panes.extend(empty.iter().chain(&over).map(|pane| pane.pane.clone()));
+    plan.closed_runs.extend(runs_of(&over));
 
     // A run in it is still at work and says nothing about leftovers.
-    if kept.iter().all(|pane| pane.run.is_none()) {
+    if !at_work {
       plan.survivors.push(Survivor {
         workspace: workspace.workspace.clone(),
         label: workspace.label.clone(),
         panes: kept.len(),
-        marked: true,
+        marked,
       });
     }
   }
@@ -153,8 +229,8 @@ pub fn plan(workspaces: &[WorkspaceView], standing: &HashSet<String>, resting: &
   plan
 }
 
-/// The workspaces as a herdr holds them now, each pane with its command; none where herdr did not
-/// answer.
+/// The workspaces as a herdr holds them now, each pane with its command and whether its folder is gone; none
+/// where herdr did not answer.
 pub async fn read_workspaces(herdr: &Herdr) -> Option<Vec<WorkspaceView>> {
   let snapshot = herdr.snapshot().await.ok()?;
   let mut views = vec![];
@@ -166,13 +242,14 @@ pub async fn read_workspaces(herdr: &Herdr) -> Option<Vec<WorkspaceView>> {
     for pane in snapshot.panes.iter().filter(|pane| pane.workspace_id.as_ref() == Some(id)) {
       let Some(pane_id) = &pane.pane_id else { continue };
       let run = pane.run().map(str::to_owned);
-      // A pane carrying a run is kept on that alone, so its command is not asked for.
+      // A pane carrying a run is judged by its run alone, so its command is not asked for.
       let command = if run.is_some() { vec![] } else { herdr.command_of(pane_id).await };
 
       panes.push(PaneView {
         pane: pane_id.clone(),
         run,
         command,
+        cwd_gone: pane.cwd_gone(),
       });
     }
 
@@ -181,6 +258,7 @@ pub async fn read_workspaces(herdr: &Herdr) -> Option<Vec<WorkspaceView>> {
       label: workspace.label.clone().unwrap_or_default(),
       agent: workspace.token(AGENT_TOKEN).map(str::to_owned),
       node: workspace.token(NODE_TOKEN).map(str::to_owned),
+      data: workspace.token(DATA_TOKEN).map(str::to_owned),
       panes,
     });
   }
@@ -188,9 +266,14 @@ pub async fn read_workspaces(herdr: &Herdr) -> Option<Vec<WorkspaceView>> {
   Some(views)
 }
 
-/// The agents that stand: the store's own, awake, and each place of the co-work pools.
-pub async fn standing_agents(db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
-  let mut names: HashSet<String> = crate::queue::workers::taken_names(db).await?.into_iter().collect();
+/// The names whose own workspace stands, of the store's own: every supervisor and each place of the co-work
+/// pools.
+pub async fn standing_homes(db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
+  let mut names = HashSet::new();
+
+  for row in all(db, r#"SELECT "name" FROM "supervisors""#, vec![]).await? {
+    names.insert(row.try_get("", "name")?);
+  }
 
   for row in all(db, r#"SELECT DISTINCT "pool", "slot" FROM "branch_agents""#, vec![]).await? {
     let pool: String = row.try_get("", "pool")?;
@@ -202,9 +285,38 @@ pub async fn standing_agents(db: &sea_orm::DatabaseConnection) -> Result<HashSet
   Ok(names)
 }
 
-/// The checkouts resting: none, since a repository's checkouts rest only between its jobs.
-pub async fn resting_workers(_db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
-  Ok(HashSet::new())
+/// Of the runs named, those over: an execution of this store's ended, or open while what carried it has gone,
+/// as its execution directory says (docs/agent-control.md, 「Completion, cancellation and loss」); the second
+/// apart, whose rows close once their panes do. A run this store holds no execution of — another root's, or
+/// a consumer's — is never over here.
+pub async fn runs_over(
+  ground: &Ground,
+  runs: &BTreeSet<String>,
+) -> Result<(HashSet<String>, HashSet<String>), Refusal> {
+  let executions = ground.roots.data.join("executions");
+  let mut over = HashSet::new();
+  let mut orphaned = HashSet::new();
+
+  for run in runs {
+    let Some(row) = one(
+      &ground.db,
+      r#"SELECT ("body"::jsonb)->>'endedAt' AS "ended" FROM "agent_executions" WHERE "id" = $1"#,
+      vec![run.as_str().into()],
+    )
+    .await?
+    else {
+      continue;
+    };
+
+    if row.try_get::<Option<String>>("", "ended")?.is_some() {
+      over.insert(run.clone());
+    } else if super::reconcile::collector_ended(&executions.join(run)) {
+      over.insert(run.clone());
+      orphaned.insert(run.clone());
+    }
+  }
+
+  Ok((over, orphaned))
 }
 
 /// One workspace the sweep would not close, as the leftovers event names it.
@@ -267,19 +379,27 @@ impl HerdrLeftovers {
   }
 }
 
-/// One sweep of one herdr: what it may close, closed, and what it would not close published once for each
-/// picture; none where herdr could not be asked, which closes and publishes nothing.
-pub async fn sweep(
-  ground: &Ground,
-  herdr: &Herdr,
-  standing: &HashSet<String>,
-  resting: &HashSet<String>,
-) -> Result<Option<Plan>, Refusal> {
+/// One sweep of one herdr: what it may close, closed, the open rows of the runs over whose panes it closed
+/// closed with them, and what it would not close published once for each picture; none where herdr could not
+/// be asked, which closes and publishes nothing.
+pub async fn sweep(ground: &Ground, herdr: &Herdr, standing: &Standing) -> Result<Option<Plan>, Refusal> {
   let db = &ground.db;
   let Some(workspaces) = read_workspaces(herdr).await else {
     return Ok(None);
   };
-  let plan = plan(&workspaces, standing, resting);
+  let runs: BTreeSet<String> = workspaces
+    .iter()
+    .flat_map(|workspace| &workspace.panes)
+    .filter_map(|pane| pane.run.clone())
+    .collect();
+  let (over, orphaned) = runs_over(ground, &runs).await?;
+  let plan = plan(
+    &workspaces,
+    &Standing {
+      over,
+      ..standing.clone()
+    },
+  );
 
   for pane in &plan.close_panes {
     let _ = herdr.call("pane.close", json!({ "pane_id": pane }), None).await;
@@ -287,6 +407,15 @@ pub async fn sweep(
 
   for workspace in &plan.close_workspaces {
     let _ = herdr.call("workspace.close", json!({ "workspace_id": workspace }), None).await;
+  }
+
+  for run in plan.closed_runs.iter().filter(|run| orphaned.contains(*run)) {
+    super::reconcile::close_swept(db, run).await?;
+
+    // Whatever the run started ends with it (docs/run-groups.md).
+    if let Some(line) = crate::run_groups::end_of_run(&ground.roots.data, run).await {
+      println!("{line}");
+    }
   }
 
   let told =
@@ -313,21 +442,48 @@ pub async fn after_job_end(ground: &Ground) {
   crate::places::standby::restand_all(ground, true).await;
 }
 
-/// What a job's end leaves in herdr swept on this machine's herdr, where one stands, and on each ready work
-/// node's whose link the node service reports up. Every agent standing counts, a pane a consumer claims, a
-/// gate place and a thrown-away session's place among them (docs/api.md, 「Hooks」, the pane claims, and
-/// 「sessions」; docs/agent-control.md, 「A gate's places」).
+/// What stands beside herdr's picture as this root sees it: every name whose own workspace stands, a pane a
+/// consumer claims, a gate place and a thrown-away session's place among them (docs/api.md, 「Hooks」, the pane
+/// claims, and 「sessions」; docs/agent-control.md, 「A gate's places」) and a checkout a job asked a dev server
+/// of, every repository, and the data root this
+/// root's workspaces name. Which runs are over is read per herdr, off the runs its panes carry.
+pub async fn standing(ground: &Ground) -> Result<Standing, Refusal> {
+  let db = &ground.db;
+  let mut homes = standing_homes(db).await?;
+  let mut repositories = HashSet::new();
+
+  for row in all(db, r#"SELECT "name" FROM "repositories""#, vec![]).await? {
+    repositories.insert(row.try_get("", "name")?);
+  }
+
+  // A checkout a job asked a dev server of is the dev server's setup to tidy, which may be making its
+  // workspace now.
+  for checkout in crate::queue::workers::workers_in(db).await? {
+    if crate::places::dev::asked(ground, &checkout) {
+      homes.insert(checkout);
+    }
+  }
+
+  homes.extend(ground.hooks.ask::<PaneClaims>(()).await.into_iter().map(|claim| claim.agent));
+  homes.extend(crate::places::gate_places::recorded(&ground.roots.data).into_keys());
+  homes.extend(crate::apart_places::apart_places(&ground.roots.data));
+
+  Ok(Standing {
+    homes,
+    repositories,
+    over: HashSet::new(),
+    data: ground.copy().map(|_| ground.roots.data.to_string_lossy().into_owned()),
+  })
+}
+
+/// What runs and places leave in herdr swept on this machine's herdr, where one stands, and on each ready work
+/// node's whose link the node service reports up.
 pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
   let db = &ground.db;
-  let mut standing = standing_agents(db).await?;
-  let resting = resting_workers(db).await?;
-
-  standing.extend(ground.hooks.ask::<PaneClaims>(()).await.into_iter().map(|claim| claim.agent));
-  standing.extend(crate::places::gate_places::recorded(&ground.roots.data).into_keys());
-  standing.extend(crate::apart_places::apart_places(&ground.roots.data));
+  let standing = standing(ground).await?;
 
   if let Some(herdr) = &ground.herdr {
-    sweep(ground, herdr, &standing, &resting).await?;
+    sweep(ground, herdr, &standing).await?;
   }
 
   for row in all(
@@ -344,7 +500,7 @@ pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
       let herdr = Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
         .within(crate::places::node_herdr_ceiling());
 
-      sweep(ground, &herdr, &standing, &resting).await?;
+      sweep(ground, &herdr, &standing).await?;
     }
   }
 

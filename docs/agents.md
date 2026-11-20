@@ -139,7 +139,11 @@ flowchart TD
 - **Its stop is the door's:** a run carries no clock and lasts until it ends, and a stop — a cancellation
   over the run's names, or its caller told to stop — is put to the run as its door words it
   (`docs/agent-control.md`, 「Stopping, falling back and standing up again」); once the run has ended its
-  pane is closed, its record standing for what it wrote, and its slot is freed.
+  pane is closed, its record standing for what it wrote, and its slot is freed. A run whose process went
+  away before closing it — a server's restart, a verb's process stopped — has its pane closed by the pickup
+  that carries its turn on, or, where nothing carries it, by the sweep of herdr as the next server starts
+  and every ten minutes after (`docs/agent-control.md`, 「The whole of herdr is swept of what nothing
+  stands for」).
 - **Its life is its program's:** the program is the process whose command line carries the run's
   session, and the run ends `program-lost` once that process is gone with its record not closing the
   turn, `vanished` once herdr says its pane is gone, and `silent-peer` where no such process can be found

@@ -328,12 +328,23 @@ pub struct Pane {
   pub tab_id: Option<String>,
   pub label: Option<String>,
   pub tokens: Option<serde_json::Map<String, Value>>,
+  /// The folder the pane's process stands in, as herdr reads it off the process.
+  pub cwd: Option<String>,
 }
+
+// What the kernel appends to a process's folder once that folder has been removed, which herdr hands on as
+// it reads it.
+const REMOVED_MARK: &str = " (deleted)";
 
 impl Pane {
   /// The run the pane carries, or nothing for a pane that is not one.
   pub fn run(&self) -> Option<&str> {
     self.tokens.as_ref()?.get(RUN_TOKEN)?.as_str().filter(|name| !name.is_empty())
+  }
+
+  /// Whether the folder the pane's process stands in has been removed.
+  pub fn cwd_gone(&self) -> bool {
+    self.cwd.as_deref().is_some_and(|cwd| cwd.ends_with(REMOVED_MARK))
   }
 }
 

@@ -27,7 +27,7 @@ A run ends in one of three ways, and each passes the same point: the run's progr
 - **It is stopped:** the stop's words end the turn, or the stop closes the pane (`docs/agent-control.md`,
   「Stopping」); either way the program ends.
 - **It is cut or lost:** the program dies, herdr loses the pane, agency's server restarts and the turn's
-  pickup closes the pane, or the leftover sweep closes a pane nobody holds.
+  pickup closes the pane, or the leftover sweep closes the pane of a run nothing carries any more.
 
 So what is taken down is keyed on the program ending, never on which of the ways got there.
 

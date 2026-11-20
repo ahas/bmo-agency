@@ -2,8 +2,8 @@
 //! raised into room another process gave back; every minute from
 //! the start the leases bound to a launched child read against what stands, one whose child was seen standing
 //! and stands no longer given back, and the
-//! demand a lease no longer active held on the arbiter's master given back with it; every ten
-//! minutes what a job's end left in herdr swept. Beside them, each reader of the accounts' usage windows
+//! demand a lease no longer active held on the arbiter's master given back with it; from the start
+//! and every ten minutes what runs and places left in herdr swept. Beside them, each reader of the accounts' usage windows
 //! passes on the cadence it declares (docs/usage-windows.md). Each runs for as long as the process stands,
 //! never beside itself.
 
@@ -27,7 +27,7 @@ pub const POOL_PASS: Duration = Duration::from_secs(5);
 /// a bound on any lease: a lease is given back only once its child was seen standing and then is not.
 pub const BOUND_PASS: Duration = Duration::from_secs(60);
 
-/// How often what a job's end left in herdr is swept beside the sweep each job's end asks for.
+/// How often what runs and places left in herdr is swept beside the sweep each job's end asks for.
 pub const LEFTOVERS_PASS: Duration = Duration::from_secs(10 * 60);
 
 /// The line's clock: a reservation's slot at the head of its role's line let into room given back.
@@ -92,9 +92,11 @@ pub async fn keep_card_demands(ground: Arc<Ground>) {
   .await;
 }
 
-/// The leftovers' clock: what a job's end left in herdr swept on this machine and every ready node.
+/// The leftovers' clock, from the process's start: what runs and places left in herdr swept on this machine and
+/// every ready node. It is started once the turns the last process left in flight are picked up, so a run
+/// adopted is carried by this process before the first pass reads what carries it.
 pub async fn keep_leftovers(ground: Arc<Ground>) {
-  every("leftover sweep", LEFTOVERS_PASS, LEFTOVERS_PASS, move || {
+  every("leftover sweep", Duration::ZERO, LEFTOVERS_PASS, move || {
     let ground = ground.clone();
 
     async move { sweep_everywhere(&ground).await.map_err(|refusal| refusal.detail) }
