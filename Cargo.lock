@@ -432,7 +432,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-brain-client"
-version = "0.1.0-rev.40"
+version = "0.1.0-rev.41"
 dependencies = [
  "reqwest",
  "schemars",
