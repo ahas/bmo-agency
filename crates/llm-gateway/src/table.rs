@@ -6,7 +6,9 @@
 //! where one stands alone, since a run names the entry of the card its demand was granted. The table names
 //! each key by a variable and never a key; the launcher sets the variables from the key files in its
 //! child's environment. A person's own key for a road is laid as a personal member beside each member of
-//! that road (docs/own-llm.md, 「Personal members」).
+//! that road (docs/own-llm.md, 「Personal members」), and every name a person's member or registration is
+//! served under is known with its owner, whom alone it answers beside the gateway's own key (「The gateway's
+//! members」).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,7 +18,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use store::registry::{RegisteredAddress, Registration};
 
-use crate::supply::PersonalKey;
+use crate::supply::{Payer, PersonalKey};
 
 pub use harness_machine::members::Member;
 
@@ -42,8 +44,34 @@ pub struct Table {
   pub key_files: BTreeMap<String, String>,
   /// Every model name the table holds an entry under.
   pub names: BTreeSet<String>,
-  /// Each personal member's name, with the account whose member it is.
-  pub owners: BTreeMap<String, i64>,
+}
+
+/// Whom a model name answers where it is not the platform's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Owner {
+  /// A personal member, laid on the account's own key: that account's call key alone.
+  Personal(i64),
+  /// A member or a registration the account owns: its call key, and the gateway's own key where the account
+  /// is the administrator, whose supply the deployment's own runs go out on.
+  Owned(i64),
+}
+
+impl Owner {
+  /// Whether a request its payer sends reaches the name, the platform administered by `administrator`.
+  pub fn admits(self, payer: Payer, administrator: Option<i64>) -> bool {
+    match (self, payer) {
+      (_, Payer::Account(paying)) => paying == self.account(),
+      (Owner::Personal(_), Payer::Platform) => false,
+      (Owner::Owned(account), Payer::Platform) => administrator == Some(account),
+    }
+  }
+
+  /// The account the name belongs to.
+  pub fn account(self) -> i64 {
+    match self {
+      Owner::Personal(account) | Owner::Owned(account) => account,
+    }
+  }
 }
 
 /// A member laid for one person on their own key (docs/own-llm.md, 「Personal members」).
@@ -84,12 +112,42 @@ pub fn personal_members(members: &[Member], keys: &[PersonalKey]) -> Vec<Persona
             name: format!("{}@u{account}", member.name),
             road: None,
             key_file: format!("users/{account}/{}", key.secret),
+            account: Some(account),
             ..member.clone()
           },
           account,
         })
     })
     .collect()
+}
+
+/// Each name a person's own member or registration is served under, with whom it answers: a registration
+/// and each `<name>@<node>` of it, and a member, by the account each names; a personal member by its person.
+pub fn owners(
+  registrations: &[Registration],
+  members: &[Member],
+  personal: &[Personal],
+) -> BTreeMap<String, Owner> {
+  let mut owners: BTreeMap<String, Owner> = BTreeMap::new();
+
+  for registration in registrations {
+    if let Some(account) = registration.account {
+      owners.insert(registration.name.clone(), Owner::Owned(account));
+      for address in &registration.addresses {
+        owners.insert(format!("{}@{}", registration.name, address.node), Owner::Owned(account));
+      }
+    }
+  }
+  for member in members {
+    if let Some(account) = member.account {
+      owners.insert(member.name.clone(), Owner::Owned(account));
+    }
+  }
+  for one in personal {
+    owners.insert(one.member.name.clone(), Owner::Personal(one.account));
+  }
+
+  owners
 }
 
 /// The variable one key file is handed under.
@@ -318,7 +376,6 @@ pub fn gateway_table_with_personal(
     text: format!("{text}\n"),
     key_files,
     names,
-    owners: personal.iter().map(|one| (one.member.name.clone(), one.account)).collect(),
   })
 }
 

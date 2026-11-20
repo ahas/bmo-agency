@@ -204,14 +204,7 @@ pub fn metered(
   job: Option<i64>,
   room: Option<i64>,
 ) -> Option<Shared> {
-  matches!(
-    chosen.source,
-    Source::Platform {
-      reservation: Some(_),
-      ..
-    }
-  )
-  .then(|| {
+  matches!(chosen.source, Source::Platform { .. }).then(|| {
     Arc::new(Mutex::new(Metered {
       chosen: chosen.clone(),
       reading,

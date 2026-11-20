@@ -2016,6 +2016,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "libc",
+ "percent-encoding",
  "policy",
  "procfs",
  "sea-orm",

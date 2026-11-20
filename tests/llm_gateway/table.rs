@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use llm_gateway::supply::PersonalKey;
 use llm_gateway::table::{
-  HOOKS, Member, Table, gateway_table, gateway_table_with_members, gateway_table_with_personal,
-  laid_instances, personal_members, table_digest,
+  HOOKS, Member, Owner, Table, gateway_table, gateway_table_with_members, gateway_table_with_personal,
+  laid_instances, owners, personal_members, table_digest,
 };
 use serde_json::{Value, json};
 use store::registry::{RegisteredAddress, Registration};
@@ -23,6 +23,7 @@ fn registration(name: &str, addresses: Vec<RegisteredAddress>) -> Registration {
     keeps_research: false,
     card_service: None,
     role_files: false,
+    account: None,
     addresses,
   }
 }
@@ -221,6 +222,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       answer_tokens: Some(32_768),
       thinking: Some(true),
       free: None,
+      account: None,
     },
     Member {
       name: "openrouter-deepseek-flash".into(),
@@ -234,6 +236,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       answer_tokens: Some(32_768),
       thinking: Some(true),
       free: None,
+      account: None,
     },
   ];
   let table = gateway_table_with_members(&[], &members).unwrap();
@@ -266,6 +269,7 @@ fn a_member_naming_a_registration_refuses_the_table() {
     answer_tokens: None,
     thinking: None,
     free: None,
+    account: None,
   };
   let refused = gateway_table_with_members(&[registration("taken", vec![])], &[member]);
 
@@ -340,6 +344,7 @@ fn road_member(name: &str, road: Option<&str>) -> Member {
     answer_tokens: Some(8_192),
     thinking: Some(false),
     free: None,
+    account: None,
   }
 }
 
@@ -398,6 +403,7 @@ fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_memb
       name: "router-a@u7".into(),
       road: None,
       key_file: "users/7/router-first".into(),
+      account: Some(7),
       ..members[0].clone()
     },
     "a personal member is its road member's copy on the person's key, of no road"
@@ -416,11 +422,11 @@ fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_memb
     Some("users/7/router-first")
   );
   assert_eq!(
-    table.owners,
+    owners(&[], &members, &personal),
     BTreeMap::from([
-      ("flash@u9".to_owned(), 9),
-      ("router-a@u7".to_owned(), 7),
-      ("router-b@u7".to_owned(), 7),
+      ("flash@u9".to_owned(), Owner::Personal(9)),
+      ("router-a@u7".to_owned(), Owner::Personal(7)),
+      ("router-b@u7".to_owned(), Owner::Personal(7)),
     ])
   );
 }

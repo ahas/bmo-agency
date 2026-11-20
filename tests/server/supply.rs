@@ -85,10 +85,7 @@ pub async fn reserved(ground: &Ground, consumer: &Consumer, sources: &[(&str, f6
 /// The row of a reservation a run's source holds.
 pub fn row_of(chosen: &Chosen) -> i64 {
   match chosen.source {
-    Source::Platform {
-      reservation: Some(row),
-      ..
-    } => row,
+    Source::Platform { reservation, .. } => reservation,
     ref other => panic!("a reserved platform source was due: {other:?}"),
   }
 }

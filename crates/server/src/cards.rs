@@ -19,6 +19,7 @@ use harness_machine::card_master::{
 use harness_machine::engine_health;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
+use policy::gateway::GATEWAY;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use store::{all, one, run};
 use tokio::sync::watch;
@@ -895,7 +896,7 @@ async fn unreached(service: &str, waiting: &mut (dyn FnMut(&CardWait) + Send)) {
 // The gateway the run sends to read until it serves the entry of the card granted, `<registration>@<node>`:
 // the launcher lays a standing instance into its table on its beat, so an engine the grant started is
 // served a moment after it stands, and a run sent before then would name an entry the gateway does not
-// hold.
+// hold. A gateway that takes no such entry within the policy's span is given up on, saying so.
 async fn served(
   ground: &Ground,
   registration: &str,
@@ -924,6 +925,7 @@ async fn served_at(
   service.base_url = gateway.url.clone();
 
   let mut said = false;
+  let bound = std::time::Instant::now() + Duration::from_secs(GATEWAY.serve_seconds);
 
   loop {
     let listed = match crate::control::own_llm::credential(&gateway.key_file) {
@@ -938,6 +940,15 @@ async fn served_at(
     if !said {
       waiting(&CardWait::of(card_service, format!("the gateway is taking {entry} into its table.")));
       said = true;
+    }
+
+    if std::time::Instant::now() >= bound {
+      let seconds = GATEWAY.serve_seconds.to_string();
+
+      return Err(fault(fill_marks(
+        &CONTROL_WORDS.cards.unserved,
+        &[("entry", &entry), ("seconds", &seconds)],
+      )));
     }
 
     tokio::time::sleep(AGAIN).await;

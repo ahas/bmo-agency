@@ -645,6 +645,20 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["providers", provider_name]).json(body)).await
   }
 
+  /// `GET /gateway-members`: The gateway's members, each with its road, label and owner.
+  pub async fn list_gateway_members(&self) -> Answer<GatewayMemberPage> {
+    Self::answered(self.request(Method::GET, &["gateway-members"])).await
+  }
+
+  /// `PATCH /gateway-members/{memberName}`: Set or take away a member's owner.
+  pub async fn change_gateway_member(
+    &self,
+    member_name: &str,
+    body: &GatewayMemberChange,
+  ) -> Answer<GatewayMember> {
+    Self::answered(self.request(Method::PATCH, &["gateway-members", member_name]).json(body)).await
+  }
+
   /// `GET /models`: Registered models, by provider or tier.
   pub async fn list_models(&self, query: &ListModelsQuery) -> Answer<ModelPage> {
     Self::answered(self.request(Method::GET, &["models"]).query(query)).await

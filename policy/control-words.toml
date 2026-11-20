@@ -235,10 +235,12 @@ mapping = "Choose a provider, a model and an effort."
 answer_tokens = "An answer ceiling is set only on {providers}, as one of {choices}."
 
 # The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {supervisor}'s pin, a
-# work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
-# its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
-# {node}, {what} cannot be removed while the {names} name it, an address refused to a {name} naming a
-# card {service}, and languages past their {most} or out of their shape.
+# work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its
+# shape, a field's {label} out of its {min} to {max}, a label past its {most} characters, a {name} not
+# registered or with no address on a {node}, {what} cannot be removed while the {names} name it, an address
+# refused to a {name} naming a card {service}, languages past their {most} or out of their shape, an owner
+# that is no user's id or set by another than the owner, a gateway member {name} the members file holds none
+# of, and that file unread for {why}.
 [registry]
 tier = "the {tier} tier"
 worker_pin = "worker {worker}'s pin"
@@ -269,6 +271,10 @@ card_service = "A card service starts with a lowercase letter and holds only low
 card_role_files = "Whether a card service's instances keep role files is on or off."
 card_service_address = "{name} names the card service {service}: where it stands is the arbiter's to say, so it holds no address."
 languages = "Languages are a list of at most {most} names, each a language's English name of letters, spaces and hyphens, at most 40 characters, or none."
+account = "An owner is a user's id, a whole number, or none for the platform's."
+owner_only = "Who owns a model or a member of the gateway is the owner's alone to set."
+unknown_member = "Not a member of the gateway: {name}"
+members_unread = "The gateway's members file could not be read: {why}"
 
 # The model catalogue: a source, a {what}'s word, a field's {label} out of its {min} and {max}, a label
 # or a note past its {most} characters, a {name} not catalogued or being switched to, an {engine} serving
@@ -321,8 +327,9 @@ reason = "supervisor reset"
 
 # The cards the arbiter's master grants a run on a registration naming a card {service}: a master named
 # nowhere, a run waiting on its grant and {why}, a master that could not be reached, a {demand} handed in
-# that the master no longer holds, what an ask hands back where its run's own model stood down for it, and a
-# {run} stopped while it waited, its demand given back.
+# that the master no longer holds, what an ask hands back where its run's own model stood down for it, a
+# {run} stopped while it waited, its demand given back, and a card's {entry} the gateway did not serve within
+# its {seconds}.
 [cards]
 no_master = "{name} names the card service {service}, and no arbiter master is named (AGENCY_ARBITER_URL)."
 waiting = "Waiting for a card of {service}: {why}"
@@ -330,3 +337,4 @@ unreachable = "The arbiter's master could not be reached; asked again."
 gone = "The demand {demand} handed in is one the arbiter's master no longer holds."
 stood_down = "Your own model stood down while this work ran on its card, and it has come back."
 stopped = "{run} was stopped while it waited for a card of {service}; its demand was given back."
+unserved = "The gateway did not take {entry} into its table within {seconds} seconds."

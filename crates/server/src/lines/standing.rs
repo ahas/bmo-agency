@@ -165,8 +165,7 @@ pub async fn claude_program(
   let trees = Trees::of(ground);
   // The logins its supply takes: a person's job's own or the lendable ones, the platform's otherwise
   // (docs/supply.md, 「Choosing a source as a run starts」).
-  let carrying =
-    crate::supply::carrying(ground, crate::supply::chosen_for(&ground.roots.data, worker).as_ref());
+  let carrying = crate::supply::carrying(crate::supply::chosen_for(&ground.roots.data, worker).as_ref());
   let walked = claude_accounts::walk_for_user(claude_accounts::Judging::of(ground), carrying, None)
     .await
     .map_err(|refused| fault(refused.error))?
@@ -631,7 +630,8 @@ pub async fn gateway_command(
   };
   let placed = held.placed(&placement);
   // A person's run goes out under their own call key, and on their own key's member where its supply is
-  // personal (docs/own-llm.md, 「The keys」 and 「Personal members」).
+  // personal and its member is not theirs already (docs/own-llm.md, 「The keys」 and 「Personal members」;
+  // docs/supply.md, 「Owned supply」).
   // The run is its agent's, a thrown-away session's place read as its session's agent — a job's checkout — and its
   // account the one the run's supply was chosen for — a job's is its holder's, whose checkout names no account —
   // else the one the agent itself is for.

@@ -358,10 +358,7 @@ pub async fn keep(ground: std::sync::Arc<Ground>) {
 /// The reservation a run's source holds now, where it holds one.
 pub async fn of_source(ground: &Ground, source: &Source) -> Result<Option<Held>, Refusal> {
   match source {
-    Source::Platform {
-      reservation: Some(id),
-      ..
-    } => held(&ground.db, *id).await,
+    Source::Platform { reservation, .. } => held(&ground.db, *reservation).await,
     _ => Ok(None),
   }
 }

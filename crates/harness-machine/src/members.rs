@@ -47,6 +47,10 @@ pub struct Member {
   /// Whether a run on the member costs nothing; none where the member leaves it to its road's provider.
   #[serde(default)]
   pub free: Option<bool>,
+  /// The account the member belongs to, which alone reaches it beside the deployment's own runs; none for
+  /// the platform's (docs/supply.md, 「Owned supply」).
+  #[serde(default)]
+  pub account: Option<i64>,
 }
 
 /// A member of a road, with the three values a run on it is sized to.

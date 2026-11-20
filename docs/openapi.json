@@ -3038,6 +3038,109 @@
         }
       }
     },
+    "/gateway-members": {
+      "get": {
+        "operationId": "listGatewayMembers",
+        "tags": [
+          "providers"
+        ],
+        "summary": "The gateway's members, each with its road, label and owner.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayMemberPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/MembersUnread"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "members-unread"
+        ]
+      }
+    },
+    "/gateway-members/{memberName}": {
+      "patch": {
+        "operationId": "changeGatewayMember",
+        "tags": [
+          "providers"
+        ],
+        "summary": "Set or take away a member's owner.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayMember"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownMember"
+          },
+          "503": {
+            "$ref": "#/components/responses/MembersUnread"
+          },
+          "500": {
+            "$ref": "#/components/responses/MembersUnwritten"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "unknown-member",
+          "members-unread",
+          "members-unwritten"
+        ],
+        "parameters": [
+          {
+            "name": "memberName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GatewayMemberChange"
+              }
+            }
+          }
+        }
+      }
+    },
     "/models": {
       "get": {
         "operationId": "listModels",
@@ -3185,12 +3288,20 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
         },
         "x-codes": [
           "unauthorized",
+          "bad-request",
+          "forbidden",
           "not-found"
         ],
         "parameters": [
@@ -10642,6 +10753,80 @@
         },
         "description": "The body that throws a provider's switch."
       },
+      "GatewayMemberPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GatewayMember"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The gateway's members, in the members file's order."
+      },
+      "GatewayMember": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "road": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent provider it belongs to; null for a member the gateway serves alone."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What a screen shows in place of the name; null where the file names none."
+          },
+          "provider": {
+            "type": "string",
+            "description": "The LiteLLM provider it goes out on."
+          },
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The user id it belongs to; null for the platform's."
+          }
+        },
+        "required": [
+          "name",
+          "road",
+          "label",
+          "provider",
+          "account"
+        ],
+        "description": "One member of the gateway's members file; its key file is never reported."
+      },
+      "GatewayMemberChange": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The user id the member belongs to, or null to give it back to the platform."
+          }
+        },
+        "required": [
+          "account"
+        ],
+        "description": "A change of a gateway member's owner."
+      },
       "ModelPage": {
         "type": "object",
         "properties": {
@@ -10742,6 +10927,15 @@
             },
             "description": "The languages a run on it writes a result for a person in, each by its English name; empty for every\nlanguage.",
             "default": []
+          },
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The user id the registration belongs to; null for the platform's.",
+            "default": null
           }
         },
         "required": [
@@ -10757,7 +10951,8 @@
           "contextTokens",
           "answerTokens",
           "thinking",
-          "languages"
+          "languages",
+          "account"
         ],
         "description": "Model: one registration of the registry's provider and its health."
       },
@@ -10861,6 +11056,14 @@
               "type": "string"
             },
             "description": "The languages a run on the registration writes a result for a person in, each by its English name; an\nempty list or null names none, which means every language. Left as they stand where none is named."
+          },
+          "account": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The user id the registration belongs to, or null to give it back to the platform; the owner's alone to\nset. Left as it stands where none is named."
           }
         },
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."
@@ -16920,6 +17123,26 @@
           }
         }
       },
+      "MembersUnread": {
+        "description": "members-unread",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "MembersUnwritten": {
+        "description": "members-unwritten",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NameTaken": {
         "description": "name-taken",
         "content": {
@@ -17232,6 +17455,16 @@
       },
       "UnknownAgent": {
         "description": "unknown-agent",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownMember": {
+        "description": "unknown-member",
         "content": {
           "application/json": {
             "schema": {

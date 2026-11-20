@@ -109,7 +109,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   account, an account it adds is pinned to that person, a change naming another's account is answered 404
   `unknown-account` as if it stood nowhere, and the actions that order or choose the platform's accounts are
   refused 403 `forbidden`. The administrator's and the deployment's own calls read the platform's accounts
-  alone in the lists, and of each person's supply only `personalSupply`: the person and the roads their
+  and the administrator's own alone in the lists, each carrying its `userId`, and of each person's supply only `personalSupply`: the person and the roads their
   supply serves; `GET /accounts` asked by `userName` or `user` still answers whether that person holds a login,
   as the job unit asks it. A key that is not a person's number is refused 403 `forbidden`.
 
@@ -1000,6 +1000,8 @@ node's link keeps of that checkout instead.
 | POST | `/claude-logins` | Start a Claude account's sign-in through the CLI: an account there by `account`, or a new one by `name`; answers the sign-in's `login` and the `url` to approve it at. |
 | POST | `/claude-logins/{login}/code` | Hand the sign-in the code its page showed; answers the accounts as the fallback's change does once the login is written. |
 | DELETE | `/claude-logins/{login}` | Give a sign-in up, ending the CLI it holds. |
+| GET | `/gateway-members` | The gateway's members, each with its road, label and owner. |
+| PATCH | `/gateway-members/{memberName}` | Set or take away a member's owner. |
 
 Each provider answers `name`, `code` (its name, the kebab-case word a screen words it by), `label`,
 `enabled`, `registered`, `gateway`, its `lines`, and `quota`: what it has left as the order reads it
@@ -1027,6 +1029,16 @@ where its add names none — the provider's own declaration, 0.85 where it decla
 A provider that reads its own key from a file answers `keyFile`, that file's name under the data root's `env/`
 (`docs/provider-presence.md`): OpenRouter's and DeepSeek's, null on every other, so a console that writes the
 deployment's secrets there sets the key where the provider reads it. Its content is never reported.
+
+The gateway's members are the members file's (`docs/own-llm.md`, 「The gateway's members」): each `name`, `road`
+or null, `label`, `provider` and `account`, the account it belongs to or null for the platform's; no key file and no
+key is answered. A member's change takes `account`, a user id or null, and writes it into the file, every other
+field and member left as it stands; it answers the member as it now stands, 404 `unknown-member` for a name the file
+holds none of, 400 with `field` for an account that is not a whole number, 503 `members-unread` where the file
+cannot be read and 500 `members-unwritten` where it cannot be written. Both are the administrator's and the
+deployment's own: a member's call is refused 403 `forbidden`. A registration's owner is its `account` the same way,
+a user id or null, answered with the registration and changed with `PATCH /models/{modelKey}` (`docs/supply.md`,
+「Owned supply」).
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer. A provider that is off answers on no road (`docs/provider-order.md`, 「The owner's
@@ -1198,7 +1210,7 @@ family words to the endpoint's model ids — or an Anthropic API key, `api-key`,
 root's `env/`. Each carries `userId`, the person it belongs to or null for the platform's, `node`, the node a
 person's login stands on or null, and `lendable`, whether the platform's account goes out for another person's
 run (`docs/supply.md`, 「The lendable accounts」); `update-account` takes `lendable` for a platform account and
-refuses it 422 `not-lendable` for a person's. It may also name a base prompt that a worker-line run on it opens
+refuses it 422 `not-lendable` for a person's, the administrator's among them. It may also name a base prompt that a worker-line run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
@@ -1980,8 +1992,8 @@ notice to a reader resuming too late (「events」 above), never published as an
   | `capture` | `run`, `step`, `account`, `source`, `reservation`, `costUsd`, `key` | `taken` |
   | `release` | `run`, `step`, `account`, `source`, `reservation`, `key` | `taken` |
 
-  Nobody registered: `order` answers no order, so a person's run takes personal supply and then the platform
-  unreserved, and nothing else is asked. Registered and not answering, or answering what does not read: `order`
+  Nobody registered: `order` answers no order, so a person's run takes personal supply alone, and nothing else
+  is asked. Registered and not answering, or answering what does not read: `order`
   answers personal supply alone, `reserve` and `extend` are refused, and `capture` and `release` stay owed in
   the supply outbox until they are taken. A capture may exceed its reservation, and one whose reservation the
   consumer let go at its expiry is taken as a charge of that amount.

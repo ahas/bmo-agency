@@ -18,6 +18,7 @@ pub mod events_stream;
 mod executions;
 pub mod fallback;
 pub mod fault;
+mod gateway_members;
 pub mod github_deliveries;
 pub mod harness;
 mod health;

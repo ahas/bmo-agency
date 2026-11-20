@@ -627,18 +627,7 @@ async fn moment(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refus
   Ok(setting(db, key).await?.and_then(|value| leading_integer(&value)))
 }
 
-/// A whole number at the head of a text, as `parseInt` reads one.
-pub fn leading_integer(text: &str) -> Option<i64> {
-  let text = text.trim_start();
-  let digits = text.strip_prefix(['-', '+']).unwrap_or(text);
-  let length = digits.bytes().take_while(u8::is_ascii_digit).count();
-
-  if length == 0 {
-    return None;
-  }
-
-  text[..text.len() - digits.len() + length].parse().ok()
-}
+pub use store::settings::leading_integer;
 
 /// How long one account answers nothing for its limit, in epoch seconds, or nothing: the later of the
 /// rest written under it — a rest written with no login named is the seeded account's, unless it is the
@@ -1007,7 +996,11 @@ pub async fn chosen_account(db: &DatabaseConnection) -> Result<Option<Account>, 
 
 /// The user who administers the platform, where the multi-user model names one.
 pub async fn administrator(db: &DatabaseConnection) -> Result<Option<i64>, Refused> {
-  Ok(setting(db, "users_administrator").await?.and_then(|value| leading_integer(&value)))
+  Ok(
+    setting(db, store::settings::ADMINISTRATOR)
+      .await?
+      .and_then(|value| leading_integer(&value)),
+  )
 }
 
 /// Whether an account is the platform's own, given the user who administers it: one of no person's, or of

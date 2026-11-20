@@ -719,6 +719,40 @@ export interface paths {
         patch: operations["changeProvider"];
         trace?: never;
     };
+    "/gateway-members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The gateway's members, each with its road, label and owner. */
+        get: operations["listGatewayMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway-members/{memberName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set or take away a member's owner. */
+        patch: operations["changeGatewayMember"];
+        trace?: never;
+    };
     "/models": {
         parameters: {
             query?: never;
@@ -2938,6 +2972,33 @@ export interface components {
         ProviderChange: {
             enabled?: boolean | null;
         };
+        /** @description The gateway's members, in the members file's order. */
+        GatewayMemberPage: {
+            items: components["schemas"]["GatewayMember"][];
+        };
+        /** @description One member of the gateway's members file; its key file is never reported. */
+        GatewayMember: {
+            name: string;
+            /** @description The agent provider it belongs to; null for a member the gateway serves alone. */
+            road: string | null;
+            /** @description What a screen shows in place of the name; null where the file names none. */
+            label: string | null;
+            /** @description The LiteLLM provider it goes out on. */
+            provider: string;
+            /**
+             * Format: int64
+             * @description The user id it belongs to; null for the platform's.
+             */
+            account: number | null;
+        };
+        /** @description A change of a gateway member's owner. */
+        GatewayMemberChange: {
+            /**
+             * Format: int64
+             * @description The user id the member belongs to, or null to give it back to the platform.
+             */
+            account: number | null;
+        };
         /** @description ModelPage: */
         ModelPage: {
             items: components["schemas"]["Model"][];
@@ -2993,6 +3054,12 @@ export interface components {
              * @default []
              */
             languages: string[];
+            /**
+             * Format: int64
+             * @description The user id the registration belongs to; null for the platform's.
+             * @default null
+             */
+            account: number | null;
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
@@ -3022,6 +3089,12 @@ export interface components {
              *     empty list or null names none, which means every language. Left as they stand where none is named.
              */
             languages?: string[] | null;
+            /**
+             * Format: int64
+             * @description The user id the registration belongs to, or null to give it back to the platform; the owner's alone to
+             *     set. Left as it stands where none is named.
+             */
+            account?: number | null;
         };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {
@@ -5194,6 +5267,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description members-unread */
+        MembersUnread: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description members-unwritten */
+        MembersUnwritten: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description name-taken */
         NameTaken: {
             headers: {
@@ -5475,6 +5566,15 @@ export interface components {
         };
         /** @description unknown-agent */
         UnknownAgent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-member */
+        UnknownMember: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7097,6 +7197,61 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listGatewayMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayMemberPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["MembersUnread"];
+        };
+    };
+    changeGatewayMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                memberName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GatewayMemberChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownMember"];
+            500: components["responses"]["MembersUnwritten"];
+            503: components["responses"]["MembersUnread"];
+        };
+    };
     listModels: {
         parameters: {
             query?: {
@@ -7217,7 +7372,9 @@ export interface operations {
                     "application/json": components["schemas"]["Model"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

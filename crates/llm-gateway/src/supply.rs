@@ -1,6 +1,7 @@
 //! Who a request is for and what it may reach, as the store says (docs/own-llm.md, 「The keys」, 「Personal
 //! members」 and 「The gateway」): the call keys by their digests, the people's own keys for a gateway road,
-//! whether a supply hook is registered and which accounts hold an open platform reservation. All of it is
+//! the administrator, whose owned supply the gateway's own key reaches, and which accounts hold an open
+//! platform reservation, without which a call key reaches nothing of the platform's. All of it is
 //! read on the launcher's beat, on a connection opened read-only for each reading, and what a request finds
 //! missing from the last reading is looked up in the store once more before it is refused, so a key issued
 //! or a reservation opened a moment ago is taken.
@@ -12,9 +13,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 use sqlx::{AnyConnection, Connection, Row};
 use store::open_read;
-
-/// The settings key a registration of the supply hook is kept under (docs/supply.md, 「The supply hook」).
-pub const SUPPLY_HOOK: &str = "hook_kept:supply";
 
 /// Who pays for a request: the platform, on the gateway's own key, or the account a call key is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,8 +60,8 @@ pub struct Reading {
   pub call_keys: HashMap<String, i64>,
   /// Every row of personal supply, open or not.
   pub personal: Vec<PersonalKey>,
-  /// Whether a supply hook is registered.
-  pub hook: bool,
+  /// The account that administers the platform, where the settings name one.
+  pub administrator: Option<i64>,
   /// Each account holding an open platform reservation, with the latest moment one of them expires, none
   /// where one never does.
   pub reservations: HashMap<i64, Option<i64>>,
@@ -117,7 +115,7 @@ async fn read_on(store: &mut AnyConnection) -> Result<Reading, sqlx::Error> {
     })
   })
   .collect::<Result<Vec<_>, sqlx::Error>>()?;
-  let hook = hook_registered(store).await?;
+  let administrator = store::settings::administrator(store).await?;
   let mut reservations: HashMap<i64, Option<i64>> = HashMap::new();
   for row in sqlx::query("SELECT account, expires_at FROM supply_reservations WHERE state = 'open'")
     .fetch_all(&mut *store)
@@ -135,19 +133,9 @@ async fn read_on(store: &mut AnyConnection) -> Result<Reading, sqlx::Error> {
   Ok(Reading {
     call_keys,
     personal,
-    hook,
+    administrator,
     reservations,
   })
-}
-
-async fn hook_registered(store: &mut AnyConnection) -> Result<bool, sqlx::Error> {
-  Ok(
-    sqlx::query("SELECT 1 AS held FROM settings WHERE key = $1")
-      .bind(SUPPLY_HOOK)
-      .fetch_optional(&mut *store)
-      .await?
-      .is_some(),
-  )
 }
 
 /// The account whose unrevoked call key has the digest, as the store says now.
@@ -163,13 +151,12 @@ async fn account_of_digest(address: &str, digest: &str) -> Result<Option<i64>, s
   read
 }
 
-/// Whether the account may reach platform supply as the store says now: no supply hook registered, or an
-/// open reservation of the account's that has not expired.
-async fn supplied_now(address: &str, account: i64) -> Result<(bool, Option<Option<i64>>), sqlx::Error> {
+/// The latest expiry of the account's open platform reservations that have not expired, as the store says
+/// now, none expiring where one never does; none where the account holds none.
+async fn supplied_now(address: &str, account: i64) -> Result<Option<Option<i64>>, sqlx::Error> {
   let mut store = open_read(address).await?;
   let read = async {
-    let hook = hook_registered(&mut store).await?;
-    let open = sqlx::query(
+    sqlx::query(
       "SELECT expires_at FROM supply_reservations WHERE account = $1 AND state = 'open' \
        AND (expires_at IS NULL OR expires_at > $2) ORDER BY expires_at DESC NULLS FIRST LIMIT 1",
     )
@@ -178,8 +165,7 @@ async fn supplied_now(address: &str, account: i64) -> Result<(bool, Option<Optio
     .fetch_optional(&mut store)
     .await?
     .map(|row| row.try_get::<Option<i64>, _>("expires_at"))
-    .transpose()?;
-    Ok::<_, sqlx::Error>((hook, open))
+    .transpose()
   }
   .await;
   let _ = store.close().await;
@@ -230,26 +216,30 @@ impl Supply {
     }
   }
 
-  /// Whether the account may reach platform supply: where no supply hook is registered, always; where one
-  /// is, only on an open reservation, looked up in the store once more where the last reading holds none.
+  /// The account that administers the platform, as the last reading names it.
+  pub fn administrator(&self) -> Option<i64> {
+    self.held.lock().unwrap().administrator
+  }
+
+  /// Whether the account may reach platform supply: only on an open reservation, looked up in the store once
+  /// more where the last reading holds none.
   pub async fn supplied(&self, account: i64) -> bool {
+    if self
+      .held
+      .lock()
+      .unwrap()
+      .reservations
+      .get(&account)
+      .is_some_and(|expires| unexpired(*expires, now_ms()))
     {
-      let held = self.held.lock().unwrap();
-      if !held.hook || held.reservations.get(&account).is_some_and(|expires| unexpired(*expires, now_ms()))
-      {
-        return true;
-      }
+      return true;
     }
     match supplied_now(&self.address, account).await {
-      Ok((false, _)) => {
-        self.held.lock().unwrap().hook = false;
-        true
-      }
-      Ok((true, Some(expires_at))) => {
+      Ok(Some(expires_at)) => {
         self.held.lock().unwrap().reservations.insert(account, expires_at);
         true
       }
-      Ok((true, None)) => false,
+      Ok(None) => false,
       Err(fault) => {
         eprintln!(
           "llm-gateway: the supply of account {account} could not be looked up: {fault}; it is refused"

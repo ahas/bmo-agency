@@ -1,8 +1,9 @@
 //! The Claude accounts a person owns (docs/api.md, 「Who a caller acts for」; docs/supply.md, 「What a person
-//! brings」, 「The lendable accounts」), through the agency's own client: a member's call reads and changes their
-//! own accounts alone, pins what it adds to them and is refused the platform's order and choice; the platform's
-//! calls read the platform's accounts and each person's roads; a platform account is lent where it is marked,
-//! a person's never; and a person's sign-in waits for their node's link.
+//! brings」, 「The lendable accounts」), through the agency's own client: a member's call reads and changes
+//! their own accounts alone, pins what it adds to them and is refused the platform's order and choice; the
+//! platform's calls read the platform's accounts and each person's roads; a platform account is lent where
+//! it is marked, a person's, the administrator's among them, never; and a person's sign-in waits for their
+//! node's link.
 
 use std::sync::Arc;
 
@@ -192,7 +193,7 @@ async fn a_member_changes_their_own_accounts_alone_and_a_platform_account_alone_
     assert_eq!(refused(member.change_fallback(&change(asked)).await), (403, "forbidden".to_owned()));
   }
 
-  // A platform account is lent once marked; a person's own is never.
+  // A platform account is lent once marked; a person's own is never, the administrator's among them.
   let lent = deployment
     .change_fallback(&change(json!({ "action": "update-account", "account": "main", "lendable": true })))
     .await
@@ -204,6 +205,16 @@ async fn a_member_changes_their_own_accounts_alone_and_a_platform_account_alone_
       member
         .change_fallback(&change(
           json!({ "action": "update-account", "account": "seven", "lendable": true })
+        ))
+        .await
+    ),
+    (422, "not-lendable".to_owned())
+  );
+  assert_eq!(
+    refused(
+      deployment
+        .change_fallback(&change(
+          json!({ "action": "update-account", "account": "owner", "lendable": true })
         ))
         .await
     ),

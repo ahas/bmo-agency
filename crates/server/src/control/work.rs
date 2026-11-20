@@ -2196,6 +2196,9 @@ pub async fn carry_job<C: Carrier>(
   let mut refused_everywhere = false;
   // Whether the job waits for supply, told once for the wait (docs/supply.md, 「Running out mid-turn」).
   let mut supply_waits = false;
+  // The provider and model of a model the person owns that refused the job's last turn, which marks no key of
+  // theirs, so the job's next choice on it passes their personal supply over (docs/supply.md, 「Owned supply」).
+  let mut owned_refused: Option<(String, String)> = None;
 
   keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
 
@@ -2223,13 +2226,19 @@ pub async fn carry_job<C: Carrier>(
     };
     // The supply the turn goes out on inside its road: a person's job waits, holding no slot, where none is
     // left (docs/supply.md, 「Choosing a source as a run starts」).
-    let chosen = match supply_of_turn(ground, job, &taken).await? {
+    let passed = owned_refused
+      .as_ref()
+      .is_some_and(|(provider, model)| *provider == taken.provider && *model == taken.model);
+    let chosen = match supply_of_turn(ground, job, &taken, passed).await? {
       crate::supply::Choice::Go(chosen) => chosen,
       crate::supply::Choice::Closed(closed) => {
         if !wait_for_supply(ground, job, &taken, &closed, &mut supply_waits).await? {
           return Ok(None);
         }
 
+        // A beat of the wait past, the model the person owns is asked again, as a refused key is once its
+        // person sets it again.
+        owned_refused = None;
         continue;
       }
     };
@@ -2295,13 +2304,16 @@ pub async fn carry_job<C: Carrier>(
 
     // A person's own credential the provider refused passes over to the next source on the same road, in a new
     // session, and blocks no road (docs/supply.md, 「Running out mid-turn」).
-    if chosen.source == crate::supply::Source::Personal
+    if matches!(chosen.source, crate::supply::Source::Personal | crate::supply::Source::Owned)
       && matches!(
         road::BlockKind::of_words(&stopped),
         Some(road::BlockKind::Access | road::BlockKind::Limit { .. })
       )
     {
       personal_refused(ground, job, &chosen, &stopped).await;
+      if matches!(chosen.source, crate::supply::Source::Owned) {
+        owned_refused = Some((chosen.provider.clone(), chosen.model.clone()));
+      }
       noted_line(
         ground,
         job.id,
@@ -2348,10 +2360,13 @@ pub async fn carry_job<C: Carrier>(
 /// The supply a job's turn takes on the road it goes out on (docs/supply.md, 「Choosing a source as a run
 /// starts」): the source chosen, kept for its launch and its walk under its checkout and its job and written on its
 /// row; or, where none is left, why.
+/// The supply a job's turn goes out on; where `owned_passed`, a model the person owns refused the job on this
+/// road, and its personal supply is passed over to the rest of its order.
 async fn supply_of_turn(
   ground: &Ground,
   job: &Carried<'_>,
   taken: &Road,
+  owned_passed: bool,
 ) -> Result<crate::supply::Choice, String> {
   let account = crate::supply::account_of(ground, job.holder).await.map_err(|why| why.detail)?;
   let room = room_of_job(ground, job.id).await;
@@ -2366,7 +2381,14 @@ async fn supply_of_turn(
     supervisor: Some(job.holder).filter(|holder| !holder.is_empty()),
     room,
   };
-  let choice = crate::supply::choose(ground, &asked).await.map_err(|why| why.detail)?;
+  let mut choice = crate::supply::choose(ground, &asked).await.map_err(|why| why.detail)?;
+
+  if owned_passed
+    && let crate::supply::Choice::Go(chosen) = &choice
+    && matches!(chosen.source, crate::supply::Source::Owned)
+  {
+    choice = crate::supply::pass_owned(ground, chosen).await.map_err(|why| why.detail)?;
+  }
 
   if let crate::supply::Choice::Go(chosen) = &choice {
     let told = crate::supply::told::Told {
@@ -2497,15 +2519,15 @@ where
 }
 
 /// A person's own credential refused under a job's turn: a gateway road's key waits for its person, told once
-/// to their own supervisor room; a Claude login's walk already marked it.
+/// to their own supervisor room; a Claude login's walk already marked it, and a model they own marks no key,
+/// since none was used (docs/supply.md, 「Owned supply」).
 async fn personal_refused(ground: &Ground, job: &Carried<'_>, chosen: &crate::supply::Chosen, why: &str) {
-  let Some(account) = chosen.account else { return };
+  if chosen.account.is_none() {
+    return;
+  }
 
-  if chosen.provider != "claude-code" {
-    match crate::supply::refuse_personal_key(ground, account, &chosen.provider).await {
-      Ok(_) => {}
-      Err(refused) => eprintln!("job {}: its refused key was not marked: {}", job.id, refused.detail),
-    }
+  if let Err(refused) = crate::supply::refuse_personal_key(ground, chosen).await {
+    eprintln!("job {}: its refused key was not marked: {}", job.id, refused.detail);
   }
 
   let told = crate::supply::told::Told {

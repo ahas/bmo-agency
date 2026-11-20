@@ -9,11 +9,15 @@
 //! the granted card's entry is served. A streamed answer whose request names its program's session has its
 //! open block counted as it passes (`streams`).
 //!
-//! The front takes the gateway's own key, the platform's, or a call key the store holds unrevoked, and names
-//! the request's payer to the child; a request on a call key goes on under the gateway's own key. A personal
-//! member answers its own person alone, and while a supply hook is registered a person reaches the platform's
-//! supply only on an open reservation (`supply`). What each request cost comes back from the child's costs
-//! hook and is written down (`costs`).
+//! The front takes the gateway's own key, the platform's, or a call key the store holds unrevoked, and
+//! names the request's payer to the child; a call key reaches the request routes and the model lists alone,
+//! a request of its whose model cannot be read is refused, and its request goes on under the gateway's own
+//! key. A personal member answers its own person alone, a member or registration a person owns answers its
+//! owner alone and the gateway's own key only where that owner is the administrator, whose own call key
+//! is asked for no reservation, and every listing or description of models leaves out what a
+//! call key does not reach while the gateway's own key lists the whole table; a person reaches the
+//! platform's supply only on an open reservation (`supply`). What each request cost comes back from the
+//! child's costs hook and is written down (`costs`).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
@@ -29,8 +33,9 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
 use harness_machine::card_master::{CardTerms, POOL_HEADER, RANK_HEADER};
-use http_body_util::BodyDataStream;
+use http_body_util::{BodyDataStream, BodyExt};
 use hyper_util::rt::TokioIo;
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -42,6 +47,7 @@ use crate::costs::{Cost, Records};
 use crate::door::{Door, Seat};
 use crate::streams::{SESSION_HEADER, Streams};
 use crate::supply::{Payer, Supply};
+use crate::table::Owner;
 
 /// The header the front names a request's payer to the child in, in place of any the caller sent.
 pub const PAYER_HEADER: &str = "x-bmo-payer";
@@ -67,8 +73,6 @@ struct Serving {
   table: String,
   /// Every model name the table holds an entry under.
   names: BTreeSet<String>,
-  /// Each personal member the table serves, with the account whose it is.
-  owners: BTreeMap<String, i64>,
   child: Box<dyn Child>,
   in_hand: AtomicUsize,
   retired: AtomicBool,
@@ -89,6 +93,8 @@ pub struct Front {
   taken: watch::Sender<u64>,
   /// Where cards are asked, where the arbiter's master is named.
   door: Option<Arc<Door>>,
+  /// Each name of a person's own member or registration, with whom it answers, as the last beat read them.
+  owners: Mutex<BTreeMap<String, Owner>>,
   /// Each registration naming a card service, with the service, as the registry last read says.
   card_services: Mutex<HashMap<String, String>>,
   /// How long a streamed answer may send no byte before it is cut.
@@ -111,6 +117,38 @@ const MODEL_PATHS: [&str; 5] = [
   "/embeddings",
   "/v1/messages",
 ];
+
+// The path Claude Code counts a request's tokens on, which names its model as a request does and asks no card.
+const COUNT_PATH: &str = "/v1/messages/count_tokens";
+
+// The paths that list or describe models, whose answer a key reads without the models it does not reach: the
+// model list and LiteLLM's model information routes.
+const LIST_PATHS: [&str; 6] = [
+  "/v1/models",
+  "/models",
+  "/model/info",
+  "/v1/model/info",
+  "/v2/model/info",
+  "/model_group/info",
+];
+
+// The paths that describe one model, the name after them, which a key it does not reach is refused.
+const ONE_MODEL_PATHS: [&str; 2] = ["/v1/models/", "/models/"];
+
+// The fields a listed model is named by, as the list and the information routes write it.
+const LISTED_NAMES: [&str; 3] = ["id", "model_name", "model_group"];
+
+// Whether a call key may ask the route: the request routes and the model lists alone; every other route of
+// LiteLLM's, its writes and its spend and health reads, is the gateway's own key's.
+fn call_key_route(method: &Method, path: &str) -> bool {
+  match *method {
+    Method::POST => MODEL_PATHS.contains(&path) || path == COUNT_PATH,
+    Method::GET => {
+      LIST_PATHS.contains(&path) || ONE_MODEL_PATHS.iter().any(|prefix| path.starts_with(prefix))
+    }
+    _ => false,
+  }
+}
 
 // What the front reads of a model request: the model it names.
 #[derive(Deserialize)]
@@ -195,17 +233,38 @@ fn openai_error(status: StatusCode, message: &str, kind: &str, code: &str) -> Re
   (status, [(header::CONTENT_TYPE, "application/json")], body.to_string()).into_response()
 }
 
-// A request naming a person's own member under another's key.
+// A request naming a person's own member or registration under a key it does not answer.
 fn not_yours() -> Response {
   openai_error(
     StatusCode::FORBIDDEN,
-    "This model is a person's own key and answers only that person's call key.",
+    "This model is an account's own and answers only that account's call key.",
     "permission_error",
     "not-your-member",
   )
 }
 
-// A request of a person's on the platform's supply with no reservation open while a supply hook stands.
+// A call key's request to a route that is the gateway's own key's.
+fn gateway_key_only() -> Response {
+  openai_error(
+    StatusCode::FORBIDDEN,
+    "This route answers the gateway's own key alone; a call key reaches the request routes and the model lists.",
+    "permission_error",
+    "gateway-key-only",
+  )
+}
+
+// A call key's request on a route that names a model whose model cannot be read, so neither its owner nor its
+// supply can be judged.
+fn model_unread() -> Response {
+  openai_error(
+    StatusCode::BAD_REQUEST,
+    "The request's model could not be read, so it was not sent.",
+    "invalid_request_error",
+    "model-unread",
+  )
+}
+
+// A request of a person's on the platform's supply with no reservation open.
 fn no_supply() -> Response {
   openai_error(
     StatusCode::PAYMENT_REQUIRED,
@@ -256,6 +315,7 @@ impl Front {
       held: Mutex::new(Held::default()),
       taken: watch::channel(0).0,
       door,
+      owners: Mutex::new(BTreeMap::new()),
       card_services: Mutex::new(HashMap::new()),
       stall,
       streams: Streams::default(),
@@ -297,14 +357,19 @@ impl Front {
     (self.on_status)(&status);
   }
 
-  /// The table the front is to serve, with the names it holds entries under and the personal members among
-  /// them with their accounts. A table already served, or a start already under way, starts nothing; a new
-  /// one starts its child, waits for it, and takes over from the old one, which drains.
+  /// The names of the people's own members and registrations with whom each answers, which hold from now
+  /// whatever table is served.
+  pub fn own(&self, owners: BTreeMap<String, Owner>) {
+    *self.owners.lock().unwrap() = owners;
+  }
+
+  /// The table the front is to serve, with the names it holds entries under. A table already served, or a
+  /// start already under way, starts nothing; a new one starts its child, waits for it, and takes over from
+  /// the old one, which drains.
   pub async fn take(
     &self,
     table: &str,
     names: BTreeSet<String>,
-    owners: BTreeMap<String, i64>,
     start: impl Future<Output = Result<Box<dyn Child>, String>>,
   ) -> Result<(), String> {
     {
@@ -326,7 +391,6 @@ impl Front {
       let old = held.current.replace(Arc::new(Serving {
         table: table.to_owned(),
         names,
-        owners,
         child,
         in_hand: AtomicUsize::new(0),
         retired: AtomicBool::new(false),
@@ -355,17 +419,15 @@ impl Front {
     self.supply.account_of(given).await.map(Payer::Account)
   }
 
-  // Why a request naming `model` is not sent, where it is not: a person's own member under another's key,
-  // or a person on the platform's supply with no reservation open while a supply hook stands.
+  // Why a request naming `model` is not sent, where it is not: a person's own member or registration under
+  // a key it does not answer, or a person on the platform's supply with no reservation open while a supply
+  // hook stands.
   async fn withheld(&self, payer: Payer, model: &str) -> Option<Response> {
-    let owner = {
-      let held = self.held.lock().unwrap();
-      held.current.as_ref().and_then(|serving| serving.owners.get(model).copied())
-    };
-    if owner.is_some_and(|owner| payer != Payer::Account(owner)) {
+    let owner = self.owner_of(model);
+    if owner.is_some_and(|owner| !owner.admits(payer, self.supply.administrator())) {
       return Some(not_yours());
     }
-    match payer {
+    match self.judged(payer) {
       Payer::Account(account) if owner.is_none() && !self.supply.supplied(account).await => {
         Some(no_supply())
       }
@@ -451,7 +513,19 @@ impl Front {
       .get(SESSION_HEADER)
       .and_then(|named| named.to_str().ok())
       .map(str::to_owned);
-    let naming = parts.method == Method::POST && MODEL_PATHS.contains(&parts.uri.path());
+    if payer != Payer::Platform && !call_key_route(&parts.method, parts.uri.path()) {
+      return gateway_key_only();
+    }
+    let carding = parts.method == Method::POST && MODEL_PATHS.contains(&parts.uri.path());
+    let naming = carding || parts.method == Method::POST && parts.uri.path() == COUNT_PATH;
+    let listing = parts.method == Method::GET && LIST_PATHS.contains(&parts.uri.path());
+    let described = (parts.method == Method::GET)
+      .then(|| ONE_MODEL_PATHS.iter().find_map(|path| parts.uri.path().strip_prefix(path)))
+      .flatten()
+      .map(|named| percent_decode_str(named).decode_utf8_lossy().into_owned());
+    if payer != Payer::Platform && described.is_some_and(|model| !self.reaches(payer, &model)) {
+      return not_yours();
+    }
     // A model request's body is read whole for the model it names, which a card is asked by and a cut
     // stream is told by.
     let (body, model, seat) = if naming {
@@ -464,12 +538,13 @@ impl Front {
       let model = serde_json::from_slice::<Named>(&bytes).ok().and_then(|named| named.model);
       let withheld = match model.as_deref() {
         Some(named) => self.withheld(payer, named).await,
+        None if payer != Payer::Platform => Some(model_unread()),
         None => None,
       };
       if let Some(refusal) = withheld {
         return refusal;
       }
-      let door = self.door.as_ref().filter(|_| self.stands());
+      let door = self.door.as_ref().filter(|_| carding && self.stands());
       match (door, model.as_deref()) {
         (Some(door), Some(named)) => match self.carded(door, bytes, named, &terms_of(&parts.headers)).await
         {
@@ -549,6 +624,14 @@ impl Front {
     for name in UNPASSED.iter().chain(&["content-encoding"]) {
       parts.headers.remove(*name);
     }
+    if listing && payer != Payer::Platform {
+      let listed = self.listed(payer, body).await;
+      drop((in_hand, connection, seat));
+      return match listed {
+        Ok(listed) => Response::from_parts(parts, listed),
+        Err(fault) => text(StatusCode::BAD_GATEWAY, format!("the model list could not be read: {fault}")),
+      };
+    }
     // The request stays in hand, and its connection to the child open, until its answer has been
     // carried whole or its caller has gone, or, streamed, has gone silent for the stall span.
     let kept = (in_hand, connection, seat);
@@ -598,6 +681,51 @@ impl Front {
     }
     serving.child.stop().await;
     self.report();
+  }
+}
+
+impl Front {
+  // The payer a request's supply is judged as: the administrator's call key as the gateway's own key, asked
+  // for no reservation, since the administrator's runs are the deployment's own; every other as it is. Whose
+  // a model is stays judged by the key itself, which reaches the administrator's own names.
+  fn judged(&self, payer: Payer) -> Payer {
+    match payer {
+      Payer::Account(account) if self.supply.administrator() == Some(account) => Payer::Platform,
+      _ => payer,
+    }
+  }
+
+  // Whom a model name answers where it is a person's own: the name's own entry, else, for `<name>@<node>`
+  // not served yet, its registration's.
+  fn owner_of(&self, model: &str) -> Option<Owner> {
+    let owners = self.owners.lock().unwrap();
+    owners.get(model).or_else(|| owners.get(model.rsplit_once('@')?.0)).copied()
+  }
+
+  // Whether a request its payer sends reaches the model name: one no person owns always does.
+  fn reaches(&self, payer: Payer, model: &str) -> bool {
+    self
+      .owner_of(model)
+      .is_none_or(|owner| owner.admits(payer, self.supply.administrator()))
+  }
+
+  // A listing or description of models as the child answered it, read whole, without the models the payer
+  // does not reach; an answer that holds no list goes back as it came.
+  async fn listed(&self, payer: Payer, body: hyper::body::Incoming) -> Result<Body, hyper::Error> {
+    let bytes = body.collect().await?.to_bytes();
+    let Ok(mut listed) = serde_json::from_slice::<Value>(&bytes) else {
+      return Ok(Body::from(bytes));
+    };
+    let Some(models) = listed.get_mut("data").and_then(Value::as_array_mut) else {
+      return Ok(Body::from(bytes));
+    };
+    models.retain(|model| {
+      LISTED_NAMES
+        .iter()
+        .find_map(|field| model.get(*field).and_then(Value::as_str))
+        .is_none_or(|name| self.reaches(payer, name))
+    });
+    Ok(Body::from(serde_json::to_vec(&listed).expect("a list read is written")))
   }
 }
 

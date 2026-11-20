@@ -58,6 +58,7 @@ mod control {
   mod fallback;
   mod front;
   mod gate_kinds;
+  mod gateway_members;
   mod harness;
   mod item_filings;
   mod job_cut;

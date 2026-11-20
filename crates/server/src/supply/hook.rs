@@ -114,7 +114,7 @@ impl HookPoint for SupplyHook {
   const NAME: &'static str = "supply";
   const KEPT: bool = true;
 
-  // Nobody registered: no order, so a person's run takes personal supply and then the platform unreserved.
+  // Nobody registered: no order, so a person's run takes personal supply alone.
   fn default_answer(_ask: SupplyAsk) -> SupplyAnswer {
     SupplyAnswer::refused()
   }

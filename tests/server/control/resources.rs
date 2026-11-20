@@ -627,6 +627,7 @@ async fn the_model_resource_is_one_record() {
       "answerTokens": 4000,
       "thinking": false,
       "languages": [],
+      "account": Value::Null,
     }])
   );
 
@@ -742,6 +743,29 @@ async fn the_model_resource_is_one_record() {
   .await;
 
   assert_eq!((status, &widened["languages"]), (200, &json!([])), "{widened}");
+
+  // A change may name the account the registration belongs to, a whole number, and null gives it back to
+  // the platform.
+  let owned = |account: Value| {
+    send(
+      port,
+      token,
+      reqwest::Method::PATCH,
+      "/models/registered::made",
+      json!({ "account": account }),
+    )
+  };
+  let (status, mine) = owned(json!(7)).await;
+
+  assert_eq!((status, &mine["account"]), (200, &json!(7)), "{mine}");
+  assert_eq!(get(port, token, "/models/registered::made").await.1["account"], json!(7));
+  let (status, refused) = owned(json!("seven")).await;
+
+  assert_eq!((status, &refused["field"]), (400, &json!("account")), "{refused}");
+
+  let (status, given_back) = owned(Value::Null).await;
+
+  assert_eq!((status, &given_back["account"]), (200, &Value::Null), "{given_back}");
   assert_eq!(
     send(port, token, reqwest::Method::PATCH, "/models/registered::made", json!({})).await.0,
     400

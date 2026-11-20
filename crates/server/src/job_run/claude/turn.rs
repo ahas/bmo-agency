@@ -581,7 +581,7 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, 
         .and_then(|job| crate::supply::chosen_for(data, &crate::supply::job_key(job.job)))
         .or_else(|| crate::supply::chosen_for(data, asked.agent));
 
-      crate::supply::carrying(asked.ground, chosen.as_ref())
+      crate::supply::carrying(chosen.as_ref())
     }
     Some(user) => crate::control::claude_accounts::Carrying::Own(
       user

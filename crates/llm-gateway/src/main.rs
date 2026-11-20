@@ -21,11 +21,12 @@ use llm_gateway::front::{Front, Status, router};
 use llm_gateway::keys::read_key;
 use llm_gateway::supply::{self, Supply};
 use llm_gateway::table::{
-  HOOKS, Personal, Table, gateway_table_with_personal, laid_instances, personal_members, table_digest,
+  HOOKS, Personal, Table, gateway_table_with_personal, laid_instances, owners, personal_members,
+  table_digest,
 };
 use sqlx::Connection;
 use store::open_read;
-use store::registry::registrations;
+use store::registry::{Registration, registrations};
 use tokio::net::TcpListener;
 use tokio::signal::unix::{SignalKind, signal};
 
@@ -77,31 +78,25 @@ fn store_address(data_root: &Path) -> Option<String> {
 }
 
 /// The registry as it stands, read without a write: the store is opened read-only each time, so the
-/// gateway never holds a lock the bot waits on. A registry not settled yet — the gateway coming up
-/// before the bot — reads as nothing to serve for now. A registration naming a card service is served by
-/// the instances the arbiter's master reports standing, its picture read on the same beat; a picture that
+/// gateway never holds a lock the bot waits on.
+async fn registry(address: &str) -> Result<Vec<Registration>, sqlx::Error> {
+  let mut store = open_read(address).await?;
+  let read = registrations(&mut store).await;
+  let _ = store.close().await;
+  read
+}
+
+/// The table of the registry and the members. A registration naming a card service is served by the
+/// instances the arbiter's master reports standing, its picture read on the same beat; a picture that
 /// cannot be read leaves the last good table standing (docs/own-llm.md, 「An engine the arbiter stands」).
 /// The front is told each registration naming a card service as the registry reads, whatever the table.
 async fn registry_table(
   front: &Front,
-  address: &str,
+  registry: Vec<Registration>,
   master: Option<&Master>,
   members: &[Member],
   personal: &[Personal],
 ) -> Option<Table> {
-  let read = async {
-    let mut store = open_read(address).await?;
-    let read = registrations(&mut store).await;
-    let _ = store.close().await;
-    read
-  };
-  let registry = match read.await {
-    Ok(registry) => registry,
-    Err(fault) => {
-      eprintln!("llm-gateway: the registry could not be read: {fault}");
-      return None;
-    }
-  };
   front.know(
     registry
       .iter()
@@ -136,22 +131,30 @@ fn write_status(path: &Path, status: &Status) {
   let _ = write_private(path, &format!("{written}\n"));
 }
 
+/// What the last good readings of the members file and the registry held, which stand where a beat's
+/// reading fails.
+#[derive(Default)]
+struct Last {
+  members: Vec<Member>,
+  registry: Vec<Registration>,
+}
+
 async fn refresh(
   front: &Front,
   place: &Place,
   store: &str,
   master: Option<&Master>,
   members_path: &Path,
-  last: &mut Vec<Member>,
+  last: &mut Last,
 ) {
   let current = match members::read(members_path) {
     Ok(current) => {
-      last.clone_from(&current);
+      last.members.clone_from(&current);
       current
     }
     Err(why) => {
       eprintln!("llm-gateway: the members file does not read: {why}; the last good members stand");
-      last.clone()
+      last.members.clone()
     }
   };
   // The call keys, the people's own keys and the reservations, read on the same beat; a reading that fails
@@ -161,12 +164,28 @@ async fn refresh(
     Err(fault) => eprintln!("llm-gateway: the call keys and supply could not be read: {fault}"),
   }
   let personal = personal_members(&current, &front.supply().personal());
-  let Some(table) = registry_table(front, store, master, &current, &personal).await else {
+  // A registry not settled yet — the gateway coming up before the bot — reads as nothing to serve for now,
+  // and one that cannot be read leaves the last good one standing for the owners and no new table.
+  let read = registry(store).await;
+  if let Ok(registry) = &read {
+    last.registry.clone_from(registry);
+  }
+  // Who owns what is read on every beat, whatever becomes of the table (docs/own-llm.md, 「The gateway's
+  // members」).
+  front.own(owners(&last.registry, &current, &personal));
+  let registry = match read {
+    Ok(registry) => registry,
+    Err(fault) => {
+      eprintln!("llm-gateway: the registry could not be read: {fault}");
+      return;
+    }
+  };
+  let Some(table) = registry_table(front, registry, master, &current, &personal).await else {
     return;
   };
   let digest = table_digest(&table, |key_file| read_key(&place.env_dir, key_file), &place.hook_texts());
   let started = start(place, &table, &digest);
-  if let Err(fault) = front.take(&digest, table.names.clone(), table.owners.clone(), started).await {
+  if let Err(fault) = front.take(&digest, table.names.clone(), started).await {
     eprintln!("llm-gateway: the table {digest} did not start: {fault}");
   }
 }
@@ -275,7 +294,7 @@ async fn main() -> ExitCode {
     let (front, place) = (Arc::clone(&front), Arc::clone(&place));
     let members_path = members_path.clone();
     async move {
-      let mut last = Vec::new();
+      let mut last = Last::default();
       let mut beat = tokio::time::interval(refresh_every);
       beat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
       loop {

@@ -28,10 +28,11 @@ const GATEWAY_KEY: &str = "gateway-key-0123456789";
 
 // LiteLLM, standing in: started as the gateway starts it, it writes down its table, port, arguments
 // and environment; answers its liveliness path; answers a request for chat or vectors naming a model its
-// table holds no entry for 400, as LiteLLM does; streams a chat request carrying `x-standin-stream` back as events,
-// `x-standin-count` of them `x-standin-gap` milliseconds apart, ending the stream where it names `whole` and
-// holding it open with nothing more where it names `stall`, and writes down its caller going; echoes every
-// other request; holds `/held` open until the test lets it go; ends at `/die`; and writes down its stop. A
+// table holds no entry for 400, as LiteLLM does; streams a chat request carrying `x-standin-stream` back as
+// events, `x-standin-count` of them `x-standin-gap` milliseconds apart, ending the stream where it names
+// `whole` and holding it open with nothing more where it names `stall`, and writes down its caller going;
+// echoes every other request, the model list's and the model information routes' with each name its table
+// holds as a model of the list's `data`, named as LiteLLM names it there; holds `/held` open until the test lets it go; ends at `/die`; and writes down its stop. A
 // `fail-start` file beside it makes it end before it answers.
 const STANDIN: &str = r#"
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
@@ -125,8 +126,10 @@ Bun.serve({
         cancel: gone,
       }), { headers: { "content-type": "text/event-stream; charset=utf-8", "x-standin": table } });
     }
+    const named = { "/v1/models": "id", "/model/info": "model_name", "/model_group/info": "model_group" }[url.pathname];
+    const listed = named ? { data: [...new Set(models)].map((name) => ({ [named]: name })) } : {};
     return Response.json(
-      { table, method: request.method, path: url.pathname, search: url.search, headers: Object.fromEntries(request.headers), body },
+      { table, method: request.method, path: url.pathname, search: url.search, headers: Object.fromEntries(request.headers), body, ...listed },
       { status: Number(request.headers.get("x-standin-status") ?? 200), headers: { "x-standin": table, "content-encoding": "identity" } },
     );
   },
@@ -1641,10 +1644,14 @@ fn assert_openai_error((status, _, body): (u16, hyper::HeaderMap, String), expec
 
 #[tokio::test]
 async fn a_call_key_reaches_the_child_under_the_gateways_key_and_the_front_names_the_payer() {
-  let world = World::new(&format!("{PAIR}{}", call_key(7, "call-key-seven", false)))
-    .await
-    .start()
-    .await;
+  let world = World::new(&format!(
+    "{PAIR}{}{}",
+    call_key(7, "call-key-seven", false),
+    reservation(7, "open", None)
+  ))
+  .await
+  .start()
+  .await;
   world.serving(None).await;
 
   let seven = bearer("call-key-seven");
@@ -1736,6 +1743,246 @@ async fn a_personal_member_answers_its_own_persons_call_key_alone() {
   assert_eq!(asked["headers"]["x-bmo-payer"], "7");
 }
 
+#[tokio::test]
+async fn the_administrators_personal_member_answers_the_administrators_call_key_and_not_the_gateways() {
+  let person = "INSERT INTO personal_supply (user_id, road, secret, place, enabled, added_at, refused_at) \
+                VALUES (1, 'openrouter', 'router-own', 1, true, 1, NULL);";
+  let world = World::new(&format!(
+    "{PAIR}{ADMINISTRATOR}{}{person}{SUPPLY_HOOK}",
+    call_key(1, "call-key-one", false)
+  ))
+  .await
+  .with_members(json!([{
+    "name": "router-flash", "road": "openrouter", "label": "Router Flash", "provider": "openrouter",
+    "model": "vendor/flash-1", "api_base": "https://openrouter.ai/api/v1", "key_file": "openrouter.key",
+    "context_tokens": 131072, "answer_tokens": 8192, "thinking": false,
+  }]));
+  private(&world.root().join("data/env/openrouter.key"), "platform-key\n", 0o600);
+  private(&world.root().join("data/env/users/1/router-own"), "person-key\n", 0o600);
+  let world = world.start().await;
+  world.serving_holding("router-flash@u1").await;
+
+  let (status, _, answer) = chat_on(&world, "call-key-one", "router-flash@u1").await;
+  assert_eq!(status, 200, "{answer}");
+  assert_openai_error(chat_on(&world, GATEWAY_KEY, "router-flash@u1").await, 403, "not-your-member");
+  assert_eq!(
+    listed_models(&world, "/v1/models", "call-key-one").await,
+    ["pair-0-1", "pair-0-1@alpha", "pair-0-1@bravo", "router-flash", "router-flash@u1"]
+  );
+}
+
+// The members of OpenRouter's road the owned-supply tests serve: `router-flash` owned by account 7,
+// `router-own` by the administrator, account 1, and `router-free` by nobody.
+fn owned_members() -> Value {
+  let member = |name: &str, account: Option<i64>| {
+    let mut member = json!({
+      "name": name, "road": "openrouter", "provider": "openrouter", "model": format!("vendor/{name}"),
+      "key_file": "openrouter.key", "context_tokens": 131072, "answer_tokens": 8192, "thinking": false,
+    });
+    if let Some(account) = account {
+      member["account"] = account.into();
+    }
+    member
+  };
+  json!([
+    member("router-flash", Some(7)),
+    member("router-own", Some(1)),
+    member("router-free", None)
+  ])
+}
+
+// The administrator named in the settings, as the console writes it.
+const ADMINISTRATOR: &str = "INSERT INTO settings (key, value) VALUES ('users_administrator', '1');";
+
+// A chat request naming the model under the key given.
+async fn chat_on(world: &World, key: &str, model: &str) -> (u16, hyper::HeaderMap, String) {
+  let body = json!({ "model": model }).to_string();
+  world
+    .ask("POST", "/v1/chat/completions", &[("authorization", &bearer(key))], &body)
+    .await
+}
+
+#[tokio::test]
+async fn an_owned_member_or_registration_answers_its_owner_alone_and_the_gateways_key_the_administrators() {
+  let owned = "UPDATE registered_models SET account = 7 WHERE name = 'pair-0-1';";
+  let world = World::new(&format!(
+    "{PAIR}{owned}{ADMINISTRATOR}{}{}{}",
+    call_key(1, "call-key-one", false),
+    call_key(7, "call-key-seven", false),
+    call_key(8, "call-key-eight", false)
+  ))
+  .await
+  .with_members(owned_members());
+  private(&world.root().join("data/env/openrouter.key"), "platform-key\n", 0o600);
+  let world = world.start().await;
+  world.serving_holding("router-flash").await;
+
+  for model in ["pair-0-1", "pair-0-1@alpha", "router-flash"] {
+    for key in ["call-key-eight", GATEWAY_KEY, "call-key-one"] {
+      assert_openai_error(chat_on(&world, key, model).await, 403, "not-your-member");
+    }
+    let (status, _, answer) = chat_on(&world, "call-key-seven", model).await;
+    assert_eq!(status, 200, "{model} under its owner's key: {answer}");
+  }
+  // The administrator's member answers the gateway's own key, and the administrator's call key as it, which
+  // reaches the platform's member with no reservation asked.
+  for (key, model) in [
+    (GATEWAY_KEY, "router-own"),
+    ("call-key-one", "router-own"),
+    ("call-key-one", "router-free"),
+  ] {
+    let (status, _, answer) = chat_on(&world, key, model).await;
+    assert_eq!(status, 200, "{model} under {key}: {answer}");
+  }
+  for key in ["call-key-seven", "call-key-eight"] {
+    assert_openai_error(chat_on(&world, key, "router-own").await, 403, "not-your-member");
+  }
+  // The platform's member is no person's own, so a call key reaches it only on a reservation.
+  assert_openai_error(chat_on(&world, "call-key-eight", "router-free").await, 402, "no-supply");
+
+  // Every listing and description of models leaves out what a call key does not reach; the gateway's own key
+  // lists the whole table, which the deployment's reads of what stands go by, a person's own registration
+  // among it.
+  for path in ["/v1/models", "/model/info", "/model_group/info"] {
+    assert_eq!(listed_models(&world, path, "call-key-eight").await, ["router-free"], "{path}");
+    assert_eq!(
+      listed_models(&world, path, "call-key-seven").await,
+      ["pair-0-1", "pair-0-1@alpha", "pair-0-1@bravo", "router-flash", "router-free"],
+      "{path}"
+    );
+    assert_eq!(
+      listed_models(&world, path, "call-key-one").await,
+      ["router-free", "router-own"],
+      "{path}"
+    );
+    assert_eq!(
+      listed_models(&world, path, GATEWAY_KEY).await,
+      [
+        "pair-0-1",
+        "pair-0-1@alpha",
+        "pair-0-1@bravo",
+        "router-flash",
+        "router-free",
+        "router-own"
+      ],
+      "{path}"
+    );
+  }
+  for (key, status) in [("call-key-eight", 403), ("call-key-seven", 200), (GATEWAY_KEY, 200)] {
+    for path in ["/v1/models/router-flash", "/v1/models/pair-0-1%40alpha"] {
+      let (answered, _, body) = world.ask("GET", path, &[("authorization", &bearer(key))], "").await;
+      assert_eq!(answered, status, "{path} under {key}: {body}");
+    }
+  }
+
+  // A request whose model cannot be read is refused to a call key, LiteLLM never asked which one it reads.
+  let doubled = r#"{"model":"router-free","model":"router-flash"}"#;
+  let refused = world
+    .ask("POST", "/v1/chat/completions", &[("authorization", &bearer("call-key-eight"))], doubled)
+    .await;
+  assert_openai_error(refused, 400, "model-unread");
+}
+
+#[tokio::test]
+async fn a_call_key_reaches_the_request_routes_and_the_model_lists_alone() {
+  let world = World::new(&format!(
+    "{PAIR}{}{}",
+    call_key(7, "call-key-seven", false),
+    call_key(8, "call-key-eight", false)
+  ))
+  .await
+  .with_members(owned_members());
+  private(&world.root().join("data/env/openrouter.key"), "platform-key\n", 0o600);
+  let world = world.start().await;
+  world.serving_holding("router-flash").await;
+
+  // LiteLLM's writes and its spend and health reads are the gateway's own key's.
+  let asks = [
+    ("POST", "/model/new"),
+    ("POST", "/key/generate"),
+    ("POST", "/team/new"),
+    ("GET", "/spend/logs"),
+    ("GET", "/health"),
+    ("DELETE", "/v1/models/router-flash"),
+  ];
+  for (method, path) in asks {
+    let refused = world.ask(method, path, &[("authorization", &bearer("call-key-seven"))], "{}").await;
+    assert_openai_error(refused, 403, "gateway-key-only");
+    let (status, _, body) = world.ask(method, path, &[("authorization", &bearer(GATEWAY_KEY))], "{}").await;
+    assert_eq!(status, 200, "{method} {path} under the gateway's key: {body}");
+  }
+
+  // The request routes and the model lists answer a call key, a token count held to the model's owner as a
+  // request is.
+  let count = r#"{"model":"router-flash"}"#;
+  let counted = |key: &str| {
+    let key = bearer(key);
+    let world = &world;
+    async move { world.ask("POST", "/v1/messages/count_tokens", &[("authorization", &key)], count).await }
+  };
+  let (status, _, body) = counted("call-key-seven").await;
+  assert_eq!(status, 200, "{body}");
+  assert_openai_error(counted("call-key-eight").await, 403, "not-your-member");
+  let (status, _, body) = chat_on(&world, "call-key-seven", "router-flash").await;
+  assert_eq!(status, 200, "{body}");
+  assert!(
+    listed_models(&world, "/v1/models", "call-key-seven")
+      .await
+      .contains(&"router-flash".to_owned())
+  );
+}
+
+#[tokio::test]
+async fn an_owner_set_while_the_gateway_runs_holds_from_the_next_beat() {
+  let world = World::new(&format!(
+    "{PAIR}{}{}",
+    call_key(8, "call-key-eight", false),
+    reservation(8, "open", None)
+  ))
+  .await
+  .with_members(owned_members());
+  private(&world.root().join("data/env/openrouter.key"), "platform-key\n", 0o600);
+  let world = world.start().await;
+  world.serving_holding("router-free").await;
+  let (status, _, answer) = chat_on(&world, "call-key-eight", "router-free").await;
+  assert_eq!(status, 200, "{answer}");
+
+  // The owner is set in a file whose members the table refuses, one of them named as the registration is; the
+  // last good table stands, and the owner holds all the same.
+  let mut members = owned_members();
+  members[2]["account"] = json!(7);
+  members.as_array_mut().unwrap().push(json!({
+    "name": "pair-0-1", "provider": "openai", "model": "taken", "key_file": "openrouter.key",
+  }));
+  let world = world.with_members(members);
+
+  // The beat, every 100 milliseconds, reads the file again; the owner holds once one has read it.
+  let bound = Instant::now() + Duration::from_secs(30);
+  while chat_on(&world, "call-key-eight", "router-free").await.0 != 403 {
+    assert!(Instant::now() < bound, "the owner set never held");
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+  assert_openai_error(chat_on(&world, "call-key-eight", "router-free").await, 403, "not-your-member");
+}
+
+// The names a listing or description of models answers under a key, in order.
+async fn listed_models(world: &World, path: &str, key: &str) -> Vec<String> {
+  let (status, _, body) = world.ask("GET", path, &[("authorization", &bearer(key))], "").await;
+  assert_eq!(status, 200, "{body}");
+  let listed: Value = serde_json::from_str(&body).unwrap();
+  let mut ids: Vec<String> = listed["data"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|model| {
+      let named = ["id", "model_name", "model_group"].iter().find_map(|field| model[*field].as_str());
+      named.unwrap().to_owned()
+    })
+    .collect();
+  ids.sort();
+  ids
+}
+
 // A chat request on the pair under the authorization given.
 async fn chat_on_the_pair(world: &World, authorization: String) -> (u16, hyper::HeaderMap, String) {
   world
@@ -1749,7 +1996,7 @@ async fn chat_on_the_pair(world: &World, authorization: String) -> (u16, hyper::
 }
 
 #[tokio::test]
-async fn while_a_supply_hook_stands_a_person_reaches_platform_supply_only_on_an_open_reservation() {
+async fn a_person_reaches_platform_supply_only_on_an_open_reservation_hook_or_none() {
   let world = World::new(&format!(
     "{PAIR}{}{}{SUPPLY_HOOK}{}{}",
     call_key(7, "call-key-seven", false),
@@ -1778,11 +2025,10 @@ async fn while_a_supply_hook_stands_a_person_reaches_platform_supply_only_on_an_
   let (status, _, body) = chat(&seven).await;
   assert_eq!(status, 200, "{body}");
 
-  // With no hook registered, no reservation is asked.
+  // With no hook registered no reservation is opened, so the platform's supply stays out of reach.
   assert_openai_error(chat(&eight).await, 402, "no-supply");
   world.write("DELETE FROM settings WHERE key = 'hook_kept:supply';").await;
-  let (status, _, body) = chat(&eight).await;
-  assert_eq!(status, 200, "{body}");
+  assert_openai_error(chat(&eight).await, 402, "no-supply");
 }
 
 #[tokio::test]

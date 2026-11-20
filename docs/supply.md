@@ -12,10 +12,10 @@ platform pays for takes it.
 - **Personal supply:** the person's own credential, a Claude login or an API key of theirs, paid by them to the
   provider directly. It runs out when the provider refuses it: a window full, a key refused or a
   balance spent.
-- **A platform source:** the platform's credential, its Claude logins lent for the purpose and its gateway
-  members, paid as the consumer answers: the plan's included supply, an organisation's credits or the person's
-  own credits are each a platform source of the consumer's naming. Every platform source goes out on the same
-  credentials, so moving between them changes only who pays.
+- **A platform source:** the platform's credential, its Claude logins lent for the purpose and the gateway
+  members and registrations no person owns (「Owned supply」), paid as the consumer answers: the plan's included
+  supply, an organisation's credits or the person's own credits are each a platform source of the consumer's
+  naming. Every platform source goes out on the same credentials, so moving between them changes only who pays.
 - **Stop:** nothing left. A run waits or ends saying so (「Running out mid-turn」).
 - **The owner's and the deployment's own runs** — a run of no account or of the administrator's account
   (`docs/account-isolation.md`, 「The scope」) — go out as every run went before there were sources: on the
@@ -30,7 +30,7 @@ platform pays for takes it.
 | Codex | none | an OpenAI key, a personal member of the gateway |
 | DeepSeek | none | a DeepSeek key, a personal member of the gateway |
 | OpenRouter | none | an OpenRouter key, a personal member of the gateway |
-| The registry's provider | none | none: a registration is the platform's |
+| The registry's provider | none | none: a registration is the platform's, or its owner's (「Owned supply」) |
 
 - **A key is the person's secret in the console's secret store,** the file `users/<user>/<name>` under the data
   root's `env/`; agency is handed the name alone and reads the file only where a run or the gateway hands its key
@@ -70,30 +70,53 @@ platform pays for takes it.
 ## The lendable accounts
 
 - **A platform Claude account goes out for another person's run only where it is marked lendable.** None is
-  marked by default; the owner marks one. An account of a person is never lent.
-- **Whether the rule holds while no supply hook is registered** is the switch `lendable_without_hook` in
-  `policy/supply.toml`. On, a person's Claude run with no hook registered goes out on their own login or a
-  lendable account, and on no other; off, it walks the platform's accounts as every run did before the rule.
+  marked by default; the owner marks one. An account of a person, the administrator's among them, is never
+  lent, and marking one lendable is refused.
 - **An `api-key` account of the platform is never sent to a person's node,** as an endpoint account is not: its
   key stays on this machine.
+
+## Owned supply
+
+- **Each credential a road goes out on belongs to a person or to no one,** and the record of the credential
+  says which:
+  - a Claude account by its `userId` (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」);
+  - a gateway member by the `account` the members file names for it (`docs/own-llm.md`, 「The gateway's
+    members」);
+  - a registration by its own `account` (`docs/own-llm.md`, 「What a registration holds」).
+- **What no person owns is the platform's,** and is the only supply a platform source goes out on.
+- **What a person owns is that person's personal supply:** their run takes it as personal supply, and nobody
+  else's run goes out on it, as a platform source or any other. The gateway holds to the same line on every
+  request (`docs/own-llm.md`, 「The gateway」).
+- **What the administrator owns is the owner's own supply,** and the deployment's own runs go out on it as on
+  the platform's: a run of no account or of the administrator's walks the administrator's Claude accounts with
+  the platform's, and is sent on the gateway's own key, which reaches the administrator's members and
+  registrations. Another person's run never does, and a deployment run naming a model another person owns is
+  refused by the gateway as any stranger's request is.
+- **A model a person owns that refuses their run** is passed over as a refused personal key is (「Running out
+  mid-turn」): the run goes out on the next source of its order after personal supply, and no key of theirs is
+  marked refused for it, since none was used. A job that finds no source left waits for supply, and on the next
+  beat of its wait asks the model it owns again.
+- **Who owns a member or a registration is set by the owner** through its route (`docs/api.md`, 「providers,
+  models and model files」), and taken away with null, which gives it back to the platform.
 
 ## Choosing a source as a run starts
 
 - **A run whose account is a person other than the administrator** asks the supply hook for its order as it
   starts (「The supply hook」), then walks the order within its road:
   - **personal supply** is taken where the person holds an open credential for the road's provider: a Claude
-    login or `api-key` account that can answer now for a Claude Code road, an open key of the road for a gateway
-    road, none for the registry's provider. It goes out on that credential.
+    login or `api-key` account that can answer now for a Claude Code road, an open key of the road or a member
+    of the road they own for a gateway road, a registration they own for the registry's provider. It goes out
+    on that credential.
   - **a platform source** is taken where the hook accepts a reservation for it first (「Reservations」). It goes
-    out on the platform's credential: a lendable Claude account, or the gateway's platform member under the
-    person's call key.
+    out on the platform's credential: a lendable Claude account, the gateway's member no person owns, or a
+    registration no person owns, under the person's call key. A model another person owns offers no platform
+    source.
   - **with nothing left,** the run is stopped (「Running out mid-turn」, the same sentence).
 - **The order is asked afresh for every run,** so a personal login that reopens is taken again from the next
   run, and the platform's rule of using the login in use to its end does not hold for a person's run.
-- **With no hook registered,** the order is personal supply, then the platform unreserved: the run's cost is
-  recorded, and nothing is reserved.
-- **With a hook registered that does not answer,** the order is personal supply alone: a person's run never goes
-  out on the platform's supply without a reservation.
+- **With no hook registered, or one that does not answer,** the order is personal supply alone: the platform's
+  supply is off for other people until the consumer answers for it, and a person's run never goes out on it
+  without a reservation.
 - **What the run went out on is its source:** `personal`, the platform source the hook named, or `platform` for
   a run that reserved nothing. It is kept on the run and its job (「The ledger」).
 
@@ -177,5 +200,6 @@ platform pays for takes it.
 |---|---|---|
 | call keys and request records | a call key per account on its nodes, the platform key here alone, each request recorded with its account, model, run and cost | — |
 | personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, the off-boarding switch | — |
+| owned supply | a Claude account's, a gateway member's and a registration's owner, the walk and the gateway holding to it, the administrator's owned supply carrying the deployment's own runs | — |
 | sources and reservations | the hook, the walk at a run's start, reservations, extension, the settlement outbox, the capture after a restart | — |
 | running out | the personal pass-over, the platform hand-over, the grace unit, the job's wait and the supervisor's sentence | — |

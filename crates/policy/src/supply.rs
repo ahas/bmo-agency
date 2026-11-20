@@ -1,12 +1,10 @@
-//! A person's supply: the lendable rule's switch, the meter's numbers and the words said (docs/supply.md).
+//! A person's supply: the meter's numbers and the words said (docs/supply.md).
 
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Supply {
-  /// Whether the lendable rule holds while no supply hook is registered.
-  pub lendable_without_hook: bool,
   /// The meter's beat while a reserved run goes, in seconds.
   pub meter_seconds: u64,
   /// The share of a reservation's amount the running cost reaches before it is extended.
@@ -28,6 +26,8 @@ pub struct Words {
   pub no_order: String,
   /// With `{provider}`.
   pub no_lendable: String,
+  /// With `{model}`.
+  pub owned: String,
   /// With `{source}`.
   pub refused: String,
   /// With `{source}`.

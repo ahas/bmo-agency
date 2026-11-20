@@ -726,6 +726,9 @@ pub struct Model {
   /// language.
   #[serde(default)]
   pub languages: Vec<String>,
+  /// The user id the registration belongs to; null for the platform's.
+  #[serde(default)]
+  pub account: Option<i64>,
 }
 
 /// ModelCatalogueEntry:
@@ -2855,6 +2858,40 @@ pub struct ModelChange {
   /// empty list or null names none, which means every language. Left as they stand where none is named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub languages: Option<Vec<String>>,
+  /// The user id the registration belongs to, or null to give it back to the platform; the owner's alone to
+  /// set. Left as it stands where none is named.
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub account: Option<Option<i64>>,
+}
+
+/// One member of the gateway's members file; its key file is never reported.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayMember {
+  pub name: String,
+  /// The agent provider it belongs to; null for a member the gateway serves alone.
+  pub road: Option<String>,
+  /// What a screen shows in place of the name; null where the file names none.
+  pub label: Option<String>,
+  /// The LiteLLM provider it goes out on.
+  pub provider: String,
+  /// The user id it belongs to; null for the platform's.
+  pub account: Option<i64>,
+}
+
+/// The gateway's members, in the members file's order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayMemberPage {
+  pub items: Vec<GatewayMember>,
+}
+
+/// A change of a gateway member's owner.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GatewayMemberChange {
+  /// The user id the member belongs to, or null to give it back to the platform.
+  pub account: Option<i64>,
 }
 
 /// The body that assigns a tier to a work key or sets a tier's mapping on a provider.

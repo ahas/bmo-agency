@@ -10,9 +10,6 @@ use sea_orm::ConnectionTrait;
 
 use crate::Refusal;
 
-/// The setting naming the user who administers the platform (docs/store.md, 「The settings table」).
-const ADMINISTRATOR_SETTING: &str = "users_administrator";
-
 /// The name of the bridge socket and of the herdr socket in the link's folder.
 const BRIDGE_SOCKET: &str = "bridge.sock";
 const HERDR_SOCKET: &str = "herdr.sock";
@@ -20,7 +17,7 @@ const HERDR_SOCKET: &str = "herdr.sock";
 /// The account the store names as administering the platform, the owner's own login account, or none where it
 /// names none.
 pub async fn administrator<C: ConnectionTrait>(db: &C) -> Result<Option<String>, Refusal> {
-  let held = crate::queue::settings::get(db, ADMINISTRATOR_SETTING).await?;
+  let held = crate::queue::settings::get(db, store::settings::ADMINISTRATOR).await?;
 
   Ok(
     held

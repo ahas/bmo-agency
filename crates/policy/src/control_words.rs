@@ -285,6 +285,12 @@ pub struct RegistryWords {
   pub card_role_files: String,
   pub card_service_address: String,
   pub languages: String,
+  pub account: String,
+  pub owner_only: String,
+  /// With `{name}`.
+  pub unknown_member: String,
+  /// With `{why}`.
+  pub members_unread: String,
 }
 
 /// The model catalogue.
@@ -373,6 +379,8 @@ pub struct CardWords {
   pub gone: String,
   pub stood_down: String,
   pub stopped: String,
+  /// With `{entry}` and `{seconds}`.
+  pub unserved: String,
 }
 
 crate::part!(pub CONTROL_WORDS: ControlWords = "control-words.toml");

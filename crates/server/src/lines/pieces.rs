@@ -170,7 +170,7 @@ pub(crate) async fn walked_login_for(
   let run_agent =
     crate::apart_places::session_agent(&ground.roots.data, agent).unwrap_or_else(|| agent.to_owned());
   let carrying =
-    crate::supply::carrying(ground, crate::supply::chosen_for(&ground.roots.data, &run_agent).as_ref());
+    crate::supply::carrying(crate::supply::chosen_for(&ground.roots.data, &run_agent).as_ref());
   let login = claude_accounts::walk_for_user(claude_accounts::Judging::of(ground), carrying, None)
     .await
     .map_err(|refused| fault(refused.error))?

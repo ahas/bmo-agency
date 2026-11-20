@@ -664,10 +664,8 @@ async fn choice_of(
   let mut ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &order);
 
   // A person's supervisor walks the logins its supply took: its own, or the lendable ones.
-  ask.user = crate::supply::carrying(
-    ground,
-    crate::supply::chosen_for(&ground.roots.data, &supervisor.name).as_ref(),
-  );
+  ask.user =
+    crate::supply::carrying(crate::supply::chosen_for(&ground.roots.data, &supervisor.name).as_ref());
   let resolution = crate::road::resolve(ground, &ask).await?;
   let Some(road) = resolution.road() else {
     return Err(resolution.sentence());

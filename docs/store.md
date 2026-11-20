@@ -99,7 +99,8 @@ seeds. The other crates and the server reach the store only through it.
     was set — and `role_provider_prompt_seeded`, the role and provider of each one the policy gave
     (`docs/agent-roles.md`, 「A role's provider prompts」);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
-    card service, its instances' role files and its languages, a JSON list or none, among its columns —,
+    card service, its instances' role files, its languages, a JSON list or none, and its owner's `account` or none
+    among its columns —,
     `registered_model_addresses`, `card_demands`, one row a demand agency asked of the arbiter's master and
     has not yet given back — its id, the service, the registration, its holder, the slot's lease and the
     demand it was asked within where they stand, and when it was asked (`docs/own-llm.md`, 「An engine the
@@ -172,7 +173,7 @@ seeds. The other crates and the server reach the store only through it.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
   kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
   shares」).
-- **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
+- **An account's `user_id`** names the user it belongs to, or none for the platform's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
 - **A supervisor's and a repository's `owner_account`** names the id of the user it belongs to, the same id an account's
   `user_id` names, or none for the administrator's; agency writes the one its registration is handed and

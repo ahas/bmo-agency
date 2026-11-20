@@ -34,6 +34,7 @@ use super::fault::{Fault, refused};
 use super::registry::registration_health;
 use super::sessions::asked_by;
 use super::{Call, Refused, Route, answer};
+use crate::access::Acting;
 use crate::now_ms;
 use crate::text::length;
 use store::{all, one, run};
@@ -964,9 +965,13 @@ impl Route for CreateModel {
 crate::moved!(CreateModel);
 
 /// A model's registration changed: the model name it is registered under, the card service its engine is,
-/// whether that service's instances keep role files and the languages it writes results in, each where the
-/// body names it.
+/// whether that service's instances keep role files, the languages it writes results in and the account it
+/// belongs to, each where the body names it. Who owns a registration is the owner's to set: a member's call
+/// naming it is refused (docs/supply.md, 「Owned supply」).
 pub struct ChangeModel;
+
+// The fields of a registration a change hands to the registry beside its model name.
+const CHANGED_FIELDS: [&str; 4] = ["cardService", "roleFiles", "languages", "account"];
 
 impl Route for ChangeModel {
   const METHOD: Method = Method::PATCH;
@@ -995,15 +1000,25 @@ impl Route for ChangeModel {
           .to_owned(),
       ),
     };
-    let fields = ["cardService", "roleFiles", "languages"]
-      .into_iter()
-      .any(|field| body.get(field).is_some());
+    let fields = CHANGED_FIELDS.into_iter().any(|field| body.get(field).is_some());
 
     if model.is_none() && !fields {
       return Err(Refused::new(
         StatusCode::BAD_REQUEST,
-        "model, cardService, roleFiles or languages is required",
+        "model, cardService, roleFiles, languages or account is required",
       ));
+    }
+
+    if let Some(account) = body.get("account") {
+      if Acting::of(&call)? != Acting::Platform {
+        return Err(
+          Refused::new(StatusCode::FORBIDDEN, CONTROL_WORDS.registry.owner_only.as_str())
+            .with_code("forbidden"),
+        );
+      }
+
+      super::registry::checked_account(account)
+        .map_err(|_| Refused::failed(&CONTROL_WORDS.registry.account).with_field("account"))?;
     }
 
     let db = call.store();
@@ -1020,7 +1035,7 @@ impl Route for ChangeModel {
     if fields {
       let mut change = json!({ "action": "save", "name": name });
 
-      for field in ["cardService", "roleFiles", "languages"] {
+      for field in CHANGED_FIELDS {
         if let Some(value) = body.get(field) {
           change[field] = value.clone();
         }

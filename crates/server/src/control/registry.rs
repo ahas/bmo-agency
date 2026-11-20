@@ -67,6 +67,8 @@ pub struct Registration {
   /// The languages a run on it writes a result for a person in, each by its English name; empty for every
   /// language (docs/own-llm.md, 「What a registration holds」).
   pub languages: Vec<String>,
+  /// The account it belongs to, none for the platform's (docs/supply.md, 「Owned supply」).
+  pub account: Option<i64>,
   pub addresses: Vec<Address>,
 }
 
@@ -136,6 +138,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       card_service: row.try_get("", "card_service")?,
       role_files: flag(&row, "role_files")?,
       languages: languages(&row)?,
+      account: row.try_get("", "account")?,
       addresses: held,
       name,
     });
@@ -236,7 +239,7 @@ pub async fn registered_model<C: ConnectionTrait>(
   let Some(row) = one(
     db,
     r#"SELECT "model", "card_service", "role_files", "context_tokens", "answer_tokens", "thinking",
-         "languages" FROM "registered_models" WHERE "name" = $1"#,
+         "languages", "account" FROM "registered_models" WHERE "name" = $1"#,
     vec![name.into()],
   )
   .await?
@@ -272,6 +275,7 @@ pub async fn registered_model<C: ConnectionTrait>(
     "answerTokens": row.try_get::<i64>("", "answer_tokens")?,
     "thinking": flag(&row, "thinking")?,
     "languages": languages(&row)?,
+    "account": row.try_get::<Option<i64>>("", "account")?,
   })))
 }
 
@@ -315,6 +319,16 @@ pub fn checked_languages(named: &[Value]) -> Result<Vec<String>, Fault> {
   }
 
   Ok(kept)
+}
+
+/// The owner a change names for a registration or a member: a user's id, a whole number, or null for the
+/// platform's (docs/supply.md, 「Owned supply」).
+pub fn checked_account(named: &Value) -> Result<Option<i64>, Fault> {
+  match named {
+    Value::Null => Ok(None),
+    Value::Number(number) if number.as_i64().is_some() => Ok(number.as_i64()),
+    _ => refused("account", CONTROL_WORDS.registry.account.as_str()),
+  }
 }
 
 /// A card service as a registration names it: none, or a name held to the registry's rule.
@@ -559,6 +573,7 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
       "cardService": one.card_service,
       "roleFiles": one.role_files,
       "languages": one.languages,
+      "account": one.account,
       "addresses": addresses,
       "referrers": referrers(db, &one.name).await?,
     }));
@@ -790,7 +805,26 @@ impl<C: ConnectionTrait> Change<'_, C> {
     }
 
     self.card_service(body, name, held.as_ref()).await?;
-    self.languages(body, name).await
+    self.languages(body, name).await?;
+    self.account(body, name).await
+  }
+
+  // The account the registration belongs to, where the change names it: a user's id, or null for the
+  // platform's. A change that names none leaves it as it stands, none on a new registration.
+  async fn account(&self, body: &Value, name: &str) -> Result<(), Fault> {
+    let account = match body.get("account") {
+      None => return Ok(()),
+      Some(named) => checked_account(named)?,
+    };
+
+    run(
+      self.db,
+      "UPDATE registered_models SET account = $1 WHERE name = $2",
+      vec![account.into(), name.into()],
+    )
+    .await?;
+
+    Ok(())
   }
 
   // The languages, where the change names them: a list, or an empty list or null for every language. A change

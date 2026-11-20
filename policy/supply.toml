@@ -1,11 +1,6 @@
 # A person's supply: the sources a run of theirs takes inside its road, the reservations of the platform's, and
 # what is said when one runs out (docs/supply.md).
 
-# Whether the lendable rule holds while no supply hook is registered: on, a person's Claude run with no hook goes
-# out on their own login or a lendable platform account alone; off, it walks the platform's accounts as runs of
-# no account do (docs/supply.md, 「The lendable accounts」).
-lendable_without_hook = true
-
 # The meter's beat while a reserved run goes, in seconds: its running cost read and its reservation extended.
 meter_seconds = 30
 # The share of a reservation's amount the running cost reaches before it is extended.
@@ -24,6 +19,9 @@ no_personal = "no credential of the person's own answers {provider} now"
 no_order = "the supply order named no source for this run"
 # Why a platform source is passed over on Claude Code: no platform account lent to other people's runs answers.
 no_lendable = "no platform login lent to other people's runs answers {provider} now"
+# Why a platform source is passed over on a gateway road or the registry: the run's model is a person's own.
+# With {model}.
+owned = "{model} is a person's own, which no platform source carries"
 # Why a platform source is passed over: the hook refused its reservation.
 refused = "{source} refused a reservation"
 # Why a person's run starts on another source than their last run took. With {source}.

@@ -146,6 +146,9 @@ never the model's name.
   them, and writes its results in English where its brief names a language outside them (「A run on the
   worker line is composed as on Claude」 below; `docs/worker-language.md`, 「A model that writes only some
   languages」).
+- **Its owner:** the account it belongs to, or none for the platform's (`docs/supply.md`, 「Owned supply」). An
+  owned registration is served to its owner's call key and the gateway's own key alone; none is owned until the
+  owner names one.
 - **Nothing else of a run's prompt:** what a run on it is told is its line's, and an agent's base prompt is
   the agent's own choice (`docs/base-prompts.md`); the gateway passes every prompt as it stands.
 
@@ -424,6 +427,9 @@ never the model's name.
   - `context_tokens`, `answer_tokens`, `thinking`: the window, the answer ceiling and the default
     thinking of a run on the member. A member of a road holds all three; a member of no road may
     leave them out.
+  - `account`: the account the member belongs to, or none for the platform's (`docs/supply.md`, 「Owned
+    supply」). The owner sets it with `PATCH /gateway-members/{name}` (`docs/api.md`, 「providers, models and
+    model files」), which writes the file and leaves every other field as it stands; the next beat serves it.
   - `free`: whether a run on the member costs nothing, so its road's spent balance leaves it answering
     (`docs/provider-order.md`, 「Quota: what a provider has left」). Where the member leaves it out, its
     road's provider reads it off the member: OpenRouter reads a member whose `model` ends in `:free`, its
@@ -446,12 +452,26 @@ never the model's name.
   provider refuses its key is named by its provider's error, never answered by another member.
 - **Claude's subscription OAuth is no member.** A local endpoint is a registration or a member whose
   provider is `openai` and whose `api_base` is the endpoint's address.
+- **An owned member or registration answers its owner alone:** a request naming it, or `<name>@<node>` of
+  it, under its owner's call key goes on, and under the gateway's own key where its owner is the administrator,
+  whose supply the deployment's own runs go out on (`docs/supply.md`, 「Owned supply」); under any other key it is
+  answered 403 with the code `not-your-member` and the type `permission_error`, as a personal member is
+  (「Personal members」). Every route that lists or describes models — `/v1/models`, `/models` and LiteLLM's
+  model information routes — leaves it out under a call key it does not answer; the gateway's own key lists the
+  whole table, since the deployment's own reads of it name what stands, not what they may run. An owner set or
+  taken away reaches the front on the next beat, read from the members file and the registry whether or not the
+  table itself was built again.
+- **The administrator's call key is asked for no reservation,** where one is issued: the administrator's runs
+  are the deployment's own. It is otherwise a call key like any other: it reaches the request routes and the
+  model lists alone, and the platform's names with the administrator's own, personal members among them.
+- **A call key's request whose model cannot be read is refused** 400 before it reaches LiteLLM, on every route
+  that names a model, since its owner and its supply cannot be judged.
 
 ## Personal members
 
 - **A person's own key for a gateway road is a member of its own** (`docs/supply.md`, 「What a person
   brings」): for the first open row of personal supply a person holds for a road, the launcher lays beside
-  each member of that road one more under `<member>@u<account>`, its `key_file` the person's secret,
+  each member of that road, whoever owns it, one more under `<member>@u<account>`, its `key_file` the person's secret,
   `users/<account>/<name>` under `env/` — a secret that is not one plain file name lays none — and no road of its
   own, so no road's model list names it. Its key
   reaches the child's environment alone, as every member's does.
@@ -683,13 +703,17 @@ never the model's name.
   store once before it is refused, so a key issued a moment ago is taken. A request on a call key is handed
   on under the gateway's own key, which LiteLLM's own check, standing behind, holds; one on the gateway's own
   key is handed on as it came.
+- **A call key reaches the request routes and the model lists alone:** a request to any other route of
+  LiteLLM's — making, changing or removing a model, a key, a team or a setting, its spend and its health
+  reads — is refused 403 to a call key before it reaches the child, and stays the gateway's own key's.
 - **The front names the payer to the child:** it sets `x-bmo-payer` to the account a call key is, or
   `platform` for the gateway's own key, in place of any the caller sent.
-- **A person's call key reaches platform supply only on a reservation while a supply hook is registered.**
-  Where the store's settings hold a registration of the supply hook (`docs/supply.md`, 「The supply hook」), a
-  request on a call key naming a model that is not one of that person's personal members is answered `402`
-  with the code `no-supply` and the type `insufficient_quota` unless the account holds an open platform reservation in the store, read as the
-  call keys are: on the beat, and once more on a miss.
+- **A person's call key reaches platform supply only on a reservation.** A request on a call key naming a
+  model that is neither one of that person's personal members nor a member or registration they own is
+  answered `402` with the code `no-supply` and the type `insufficient_quota` unless the account holds an open
+  platform reservation in the store, read as the call keys are: on the beat, and once more on a miss. With no
+  supply hook registered no reservation is ever opened (`docs/supply.md`, 「Choosing a source as a run
+  starts」), so a call key reaches nothing of the platform's.
 - **What a request costs is recorded.** A hook of the gateway's own, `costs`, reads the cost of each request
   that ends, answered or failed — the provider's own word where its answer's usage names one, as OpenRouter's
   does, else LiteLLM's price of it — with its model, its tokens, its payer, the run name its `x-bmo-run`
