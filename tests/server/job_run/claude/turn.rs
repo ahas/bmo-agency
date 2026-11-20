@@ -255,7 +255,7 @@ fn beside() -> Beside {
     }],
     compacted: true,
     engine_error: None,
-    prefix: None,
+    prefix: Some("the key of the command it went out under".into()),
   }
 }
 
@@ -300,6 +300,12 @@ fn an_answered_turn_ends_with_its_whole_reply_what_it_went_out_on_its_spans_and_
   let end = ended("bmo-job-41", Ok(Settled::Answered(Box::new(reply))), beside());
 
   assert_eq!(
+    serde_json::to_value(&end).unwrap().get("prefix"),
+    None,
+    "the key stays in agency's own process, off the turn's event"
+  );
+
+  assert_eq!(
     (end.outcome, end.answer.as_deref(), end.reason),
     (Outcome::Answered, Some("done"), None)
   );
@@ -307,6 +313,7 @@ fn an_answered_turn_ends_with_its_whole_reply_what_it_went_out_on_its_spans_and_
   assert_eq!(end.went_out, beside().went_out);
   assert_eq!(end.spans, beside().spans);
   assert!(end.compacted);
+  assert_eq!(end.prefix, beside().prefix, "the next turn tells a moved prefix by it");
 
   let carried = end.reply.unwrap();
 
