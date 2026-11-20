@@ -309,3 +309,27 @@ async fn an_ask_sooner_than_the_pace_after_the_last_waits_out_the_rest_and_is_ma
   );
   assert_eq!(replacement::owed(scratch.db(), agent).await.unwrap(), None, "the debt is settled");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lost_handoff_is_told_until_a_turn_begun_after_it_answers_and_survives_the_turn_it_was_lost_under()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let session = sessions::room_session_id(AGENT, CHAT);
+  let under = agency_server::now_ms() - 1;
+
+  // A turn that began before the handover at its head lost the note: the receiver composed it without the
+  // transcript, so its answer leaves the word for the next turn.
+  replacement::lose(db, &session).await.unwrap();
+  replacement::answered_since(db, &session, under).await.unwrap();
+  assert!(
+    replacement::lost(db, &session).await.unwrap(),
+    "the turn it was lost under keeps it told"
+  );
+
+  // The next turn, begun after, opened on the transcript: its answer lets the word go.
+  let after = agency_server::now_ms() + 1;
+
+  replacement::answered_since(db, &session, after).await.unwrap();
+  assert!(!replacement::lost(db, &session).await.unwrap());
+}
