@@ -2134,6 +2134,12 @@ export interface components {
              * @default null
              */
             role: string | null;
+            /**
+             * @description Whether a supervisor's or a room's session was opened without the handoff it was owed, until a turn begun
+             *     after that has answered on it.
+             * @default false
+             */
+            handoffLost: boolean;
         };
         /**
          * @description One of the values the API accepts.

@@ -168,8 +168,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   chat template reads under the template's own field.
 - **A setting it leaves out is the engine's own default,** which agency neither sets nor reads.
 - **A save that changes how its answers are generated starts every room afresh:** it asks a reset of every
-  room session the supervisor holds (「Clearing it」 below), so no conversation goes on under settings it was
-  not begun with.
+  room session the supervisor holds, each carried out by its handover (「Clearing it」 below), so no
+  conversation goes on under settings it was not begun with and none goes without its note.
 
 ## The bundles a supervisor holds
 
@@ -271,9 +271,18 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   「A road that fails」). On Claude Code the accounts are still walked inside the road
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). The next turn judges the road
   again.
-- **A road the owner changes changes the program's command,** so the next turn stands the program again on
-  the new road's session for its scope; a fresh session of a supervisor is never opened without the handoff
-  (`docs/sessions.md`, 「A restart hands the session over」).
+- **A road the owner changes replaces the supervisor's sessions through their handoff,** whatever its scope:
+  - what moves a road: its provider, model, effort, thinking or answer ceiling changed on the row's route or
+    the settings route, a registration pinned anew, and a change of the registered models that leaves the
+    program standing on a model its road no longer names or on an address its registration no longer holds;
+  - the replacement is owed as the change is written and made while the agent is quiet: the one session
+    across rooms is asked through the receiver, each room's own session writes its note in one more turn
+    on the road it was opened on (「A session in each room」 below), and only then is the session let go and
+    the program standing on it taken down, so the next turn stands the road the row names now;
+  - a turn running as the road moves finishes where it went out, and its end makes the replacement; no
+    change of a road signals a program a turn holds;
+  - a fresh session of a supervisor is never opened without the handoff (`docs/sessions.md`, 「A restart
+    hands the session over」).
 - **No supervisor holds a slot.** A supervisor is not a role and has no cap: its turns are bounded by its
   one program.
 - **Its home is its own folder under the data root, `supervisor-homes/<name>`,** kept across deployments:
@@ -316,16 +325,30 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - a supervisor whose documents did not change keeps its session, its hash still matching;
   - a session whose prompt was never recorded hands over once, since what it read cannot be known;
   - the turn's log carries a line saying the system prompt changed, which the console shows.
+- **A road moved or a reset asked hands a room's session over the same way:**
+  - the session writes its note in one more turn on the provider, model and place it was opened on, sent
+    the system prompt composed for that road, and the generation that opens holds the note ahead of the
+    next turn's words;
+  - the handover is owed for every room whose session holds a harness session as the change is written,
+    with why — the documents, the road or a reset — and made at once in a room that carries no turn, and
+    otherwise as that room's turn ends;
+  - a turn that finds a handover still owed on the session it holds makes it first and opens on the note,
+    and so does a turn that finds that session on another road than its own with nothing owed, so no
+    road move opens a generation without asking.
 - **A new generation is a new harness session,** opened by the turn that finds:
   - no session held in the room yet;
-  - a reset of the session asked for in the room and not yet carried out (「Clearing it」 below);
+  - a reset of the session asked for in the room and not yet carried out, after the handover that carries
+    it out (「Clearing it」 below);
   - a prompt whose documents moved since its last turn (「A changed system prompt」 above);
   - the held one opened on another provider or model than its road names now, or on a place
-    its registration no longer has;
+    its registration no longer has, after its handover;
   - the held one no longer there to resume: its program keeps no record of it, which the turn says in
     the program's own words before anything is stood. That turn is asked again once on a fresh session.
 - **A generation that opens holds nothing read,** and one that opens because the session it had is gone
-  holds no note either: the session it replaced cannot be asked. The documents the ended session had
+  holds no note either: the session it replaced cannot be asked. One whose handoff turn failed or wrote no
+  note opens all the same, and its session's state says the handoff was lost until a turn begun after it
+  has answered, so the receiver opens that turn on what it keeps of the room's answers (`docs/sessions.md`, 「A
+  restart hands the session over」). The documents the ended session had
   loaded are forgotten as the new generation opens, before its first turn is composed. They stand under the session
   id the receiver names the session by: the agent's name where one session serves every room, and
   `<agent>@<room>` where the room keeps its own. A session that goes on in the one it held keeps what it
@@ -388,9 +411,11 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 ### Clearing it
 
-- **A reset of a room's session is an ask, carried out by the next turn there**
-  (`docs/session-resets.md`): the turn opens a new generation before anything else, so a turn running
-  when the ask comes ends on the session it began on.
+- **A reset of a room's session is an ask, carried out by the session's handover**
+  (`docs/session-resets.md`): the session writes its note in one more turn and the new generation opens on
+  it, at once where the room carries no turn and otherwise once its turn ends, so a turn running when the
+  ask comes ends on the session it began on. A room whose session holds no harness session has nothing to
+  hand over, and its next turn opens the new generation before anything else.
 - **The session cleared is kept:** the harness keeps the old session's record under the supervisor's
   home, and the room session turns table keeps its turns under their generation. The new generation
   starts from the last message the old one took, so nothing said before it is replayed.
@@ -398,16 +423,15 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   - the owner, with the reset control of a room session on the supervisor's settings;
   - a save of the supervisor's generation settings, which asks it of every room it holds a session in
     (「Its generation settings」 above).
-- **The program on the session is taken down as the ask is written** (「The program on an ended
-  session」 below), so nothing shows or keeps the cleared session while the ask waits; the ask itself,
-  the new generation, is still carried out by the next turn.
-- **The turn that carries it out** settles the ask and says so in its log.
+- **The program on the session is taken down once the handover is made** (「The program on an ended
+  session」 below), so nothing shows or keeps the cleared session after it.
+- **The handover that carries it out** settles the ask, and its run's log says why it handed over.
 - **The program's model is the one the supervisor answers on:** the model its road names
   (`docs/provider-order.md`, 「Whether a road can answer」) — on the registry's provider resolved to the
   registration its road names and an address that registration holds now — never the row's
   `last_model`. A road changed or a registration that lost the
-  address the program stood on lets the old program go; the next turn stands the model the supervisor
-  answers on now.
+  address the program stood on hands the session over and then lets the old program go (「Where a
+  supervisor's turn runs」 above); the next turn stands the model the supervisor answers on now.
 
 ### The program on an ended session
 
@@ -416,7 +440,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   conversation.
 - **Ending a session takes its program down at once,** rather than leaving it to the next turn:
   - a turn its guard cut short, for the session the cut ended (「A turn that goes nowhere」 below);
-  - a reset of a room's session asked, for the session that room holds (「Clearing it」 above);
+  - a reset of a room's session carried out, for the session that room held, once its handover is made
+    (「Clearing it」 above);
   - a session its road moved or its prompt's documents moved, replaced outside a turn (「Session replacement」
     in `docs/sessions.md`): the handoff is asked first where one is had, then the session goes and its program
     with it, and the next turn stands the road the row names now;

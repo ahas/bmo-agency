@@ -83,6 +83,10 @@ pub struct Apart {
   /// The words the turn goes out with instead where the session `resume` names cannot be resumed, so a new
   /// session opens on what that one held.
   pub resume_else: Option<String>,
+  /// The command key the session `resume` names last went out under, where its caller kept it: a turn whose own
+  /// command stands under another key is put back to its caller before anything goes in, its prefix having moved
+  /// under the session (docs/sessions.md, 「The handoff a job's session leaves」).
+  pub resume_prefix: Option<String>,
 }
 
 impl Apart {
@@ -480,6 +484,11 @@ pub struct TurnEnd {
   pub compacted: bool,
   /// The session a turn put back to its caller would continue, none for a fresh one.
   pub continues: Option<String>,
+  /// The key of the command the turn went out under, where its line reads one: every word of it but its
+  /// session's, the system prompt's text standing for its file, so a later turn tells a moved prefix by it.
+  /// The caller in agency's own process reads it; it is no part of the end a turn's event carries.
+  #[serde(skip_serializing)]
+  pub prefix: Option<String>,
 }
 
 impl TurnEnd {
@@ -501,6 +510,7 @@ impl TurnEnd {
       spans: Vec::new(),
       compacted: false,
       continues: None,
+      prefix: None,
     }
   }
 

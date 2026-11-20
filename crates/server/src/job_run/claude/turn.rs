@@ -515,6 +515,8 @@ pub struct Beside {
   pub spans: Vec<contract::Span>,
   pub compacted: bool,
   pub engine_error: Option<EngineError>,
+  /// The key of the command the turn went out under, where its line reads one.
+  pub prefix: Option<String>,
 }
 
 /// A carried turn's end under its run: an answer, a turn back to its runner, a person waited on, a stop,
@@ -547,6 +549,7 @@ pub fn ended(run: &str, walked: Result<Settled, Failure>, beside: Beside) -> Tur
     went_out: beside.went_out,
     spans: beside.spans,
     compacted: beside.compacted,
+    prefix: beside.prefix,
     ..end
   }
 }
@@ -1007,6 +1010,16 @@ impl Attempting<'_, '_> {
       role_command(ground, agent, apart, role, work, account.as_ref(), &session, job.is_some())
         .await
         .map_err(refused)?;
+    let prefix = crate::apart_sessions::key(LINE, &command, &apart::records_home(ground, &command));
+
+    // The session its caller names, opened under another command than this turn's, is put back to the caller
+    // before anything goes in: its prefix moved, and the caller asks it for its handoff first (docs/sessions.md,
+    // 「The handoff a job's session leaves」).
+    if apart.resume.is_some() && apart.resume_prefix.as_ref().is_some_and(|held| *held != prefix) {
+      return Ok(Settled::Back(None));
+    }
+
+    self.beside.prefix = Some(prefix);
 
     if !provider_enabled(&ground.db, PROVIDER).await.map_err(|why| Failure::error(why.error))? {
       return Err(Failure::Unavailable {

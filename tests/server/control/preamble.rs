@@ -304,6 +304,8 @@ async fn a_review_turn_carried_into_a_fresh_session_opens_it_on_the_bundle_while
     provider: taken.provider.clone(),
     model: taken.model.clone(),
     session: "gone-1".to_owned(),
+    effort: None,
+    prefix: None,
   };
   let sessions = StandIn::answering(&[("Stage two is done.", "fresh-2")]);
 

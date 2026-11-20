@@ -621,19 +621,29 @@ async fn checked<C: ConnectionTrait>(
   })
 }
 
+/// What a save asks of agency once it is written: the resets it asked to carry out, and whether it moved the
+/// supervisor's road, whose sessions are then replaced through their handoff.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Saved {
+  pub resets: bool,
+  pub road_moved: bool,
+}
+
 /// A checked save written in one transaction: the pin, the thinking, and the settings, each overwriting the
 /// value it held with the names of those it changed marked as saved, and a reset of every room where it
-/// changed how answers are generated. Answers whether agency is to carry out the resets.
+/// changed how answers are generated. A pin or a thinking it moves moves the road, as the row's route moves it
+/// (docs/supervisors.md, 「Where a supervisor's turn runs」).
 async fn write(
   db: &DatabaseTransaction,
   row: &QueryResult,
   agent: &str,
   saved: Checked,
   by: &str,
-) -> Result<bool, Fault> {
+) -> Result<Saved, Fault> {
   let at = now_ms() / 1000;
   let mut fields_changed = vec![];
   let mut road = road_of(row)?;
+  let held_road = road.clone();
   let held_registration = pinned_registration(row)?;
 
   // A registration named moves the supervisor's road to it on the registry's provider; none leaves the road as it
@@ -650,13 +660,13 @@ async fn write(
     });
   }
 
-  if saved.thinking != thinking_of(row)? {
-    if let Some(road) = road.as_mut() {
-      road.thinking = saved.thinking.map(|on| if on { "on" } else { "off" }.to_owned());
-    }
-
-    fields_changed.push("thinking".to_owned());
+  if saved.thinking != thinking_of(row)?
+    && let Some(road) = road.as_mut()
+  {
+    road.thinking = saved.thinking.map(|on| if on { "on" } else { "off" }.to_owned());
   }
+
+  let road_moved = road != held_road;
 
   run(
     db,
@@ -741,11 +751,10 @@ async fn write(
 
   // A change to how its answers are generated starts every room afresh, so no conversation goes on
   // under settings it was not begun with.
-  if fields_changed.is_empty() {
-    return Ok(false);
-  }
+  let resets = !fields_changed.is_empty()
+    && ask_agent_resets(db, agent, by, &CONTROL_WORDS.supervisors.reset_reason).await?;
 
-  Ok(ask_agent_resets(db, agent, by, &CONTROL_WORDS.supervisors.reset_reason).await?)
+  Ok(Saved { resets, road_moved })
 }
 
 /// The roots a supervisor's settings are read under in a process on agency's ground: the assets of the
@@ -793,7 +802,7 @@ pub async fn saved(db: &DatabaseConnection, body: &Value, by: &str) -> Result<bo
 
   written.commit().await.map_err(|why| why.to_string())?;
 
-  Ok(made)
+  Ok(made.resets)
 }
 
 /// The word a save that asked resets is told to the server by.
@@ -847,18 +856,23 @@ impl Route for SupervisorSettingsChange {
       write(&written, &row, &agent, saved, &by).await
     }
     .await;
-    let tell = match made {
-      Ok(tell) => tell,
+    let made = match made {
+      Ok(made) => made,
       Err(fault) => return fault.answer(),
     };
 
     written.commit().await?;
 
-    // A pin moved under a standing program lets it go, so the next turn stands the pin's own model and
-    // address (docs/supervisors.md, 「The program on an ended session」).
-    crate::places::standby::release_stale_supervisor(call.ground(), &agent).await;
+    // A pin or a thinking moved replaces what the supervisor's sessions held through their handoff, made while
+    // it is quiet, so the next turn stands the road the row names now (docs/supervisors.md, 「Where a
+    // supervisor's turn runs」).
+    if made.road_moved
+      && let Some(sessions) = call.sessions()
+    {
+      sessions.road_moved(&agent).await;
+    }
 
-    if tell {
+    if made.resets {
       carry_out_waiting(&call).await;
     }
 

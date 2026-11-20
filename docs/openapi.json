@@ -8334,6 +8334,11 @@
             ],
             "description": "The role the session runs for, or none.",
             "default": null
+          },
+          "handoffLost": {
+            "type": "boolean",
+            "description": "Whether a supervisor's or a room's session was opened without the handoff it was owed, until a turn begun\nafter that has answered on it.",
+            "default": false
           }
         },
         "required": [
@@ -8351,7 +8356,8 @@
           "context",
           "foldsItself",
           "supervisor",
-          "role"
+          "role",
+          "handoffLost"
         ],
         "description": "Session:"
       },

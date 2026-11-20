@@ -3,6 +3,9 @@
 # one is under way, and the reasons it names, each by what makes the session go. The ask itself waits for
 # the receiver's answer however long it takes.
 retry_seconds = 5
+# The least time between two asks for the same session's handoff: an ask sooner waits out the rest of it and is
+# then made, never skipped, so a turn that keeps failing does not ask in a loop.
+again_seconds = 60
 # How often agency looks again whether an asynchronous call asked under a replaced supervisor program's tool
 # record still runs, before it takes that record back.
 calls_look_seconds = 30
@@ -12,3 +15,4 @@ lost = "the kept session is gone: the program no longer holds it"
 replaced = "a fresh session replaces the one the agent had"
 moved = "the documents the session's prompt is composed from changed"
 road = "the road its session went out on changed"
+reset = "a reset of its session was asked"

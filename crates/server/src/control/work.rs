@@ -3020,35 +3020,27 @@ impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
     let Some(_seat) = self.slot(id, taken, &parts).await? else {
       return Err(format!("job {id} was stopped while it waited for a slot of the {} role", self.role));
     };
-    // A turn of the review continues the job's own session on the road that session stands on; on another road
-    // it opens a new one, carrying the job's prompt and its review so far, opened on the handoff the session it
-    // leaves wrote (docs/sessions.md, 「The handoff a job's session leaves」).
+    // A turn of the review continues the job's own session on the road and the effort that session stands on;
+    // on another, or where the turn's line puts it back for a prefix moved under the session, the session is
+    // asked for its handoff first, noted on the item, and the turn opens a new one carrying the job's prompt and
+    // its review so far, opened on that handoff (docs/sessions.md, 「The handoff a job's session leaves」).
+    let effort = parts.mapping.effort.as_deref();
     let resume = self
       .resume
       .as_ref()
-      .filter(|resumed| resumed.on(taken))
+      .filter(|resumed| resumed.on(taken, effort))
       .map(|resumed| resumed.session.clone());
-    let moved = match (&self.resume, &resume) {
-      (Some(left), None) => {
-        let handoff = asked_handoff(ground, self.sessions.as_ref(), member, left).await;
 
-        self.noted(id, &handoff).await;
-        Some(handoff)
-      }
-      _ => None,
-    };
-    let opened = match (&moved, &self.carried) {
-      (Some(handoff), Some(carried)) => Some(crate::job_handoff::ahead(&handoff.text, carried)),
-      _ => None,
-    };
+    if let (Some(left), None) = (&self.resume, &resume) {
+      return self.opened_on_handoff(id, taken, &parts, prompt, left).await;
+    }
+
     // A fresh session opens on the job's prompt, so it carries the checkout's bundle read now, under the title
     // and above the handoff (docs/worker-bench.md, 「Preamble」).
     let item = member["itemId"].as_i64().unwrap_or_default();
     let fresh = match (&resume, &self.carried) {
       (None, Some(carried)) => {
-        let opening = opened.as_deref().unwrap_or(carried.as_str());
-
-        Some(crate::control::preamble::bundled(ground, self.worker, item, opening).await)
+        Some(crate::control::preamble::bundled(ground, self.worker, item, carried).await)
       }
       _ => None,
     };
@@ -3069,7 +3061,19 @@ impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
       }
       _ => None,
     };
-    let carried = self.on_session(id, taken, &parts, prompt, resume.clone(), instead).await;
+    let continued = Continued {
+      session: resume.clone(),
+      instead,
+      prefix: self.resume.as_ref().and_then(|resumed| resumed.prefix.clone()),
+    };
+    let carried = self.on_session(id, taken, &parts, prompt, continued).await;
+
+    // The turn's line put it back before anything went in: the prefix the session was opened under moved.
+    if let (Ok(end), Some(left)) = (&carried, &self.resume)
+      && end.outcome == agent_session::Outcome::Reprepared
+    {
+      return self.opened_on_handoff(id, taken, &parts, prompt, left).await;
+    }
 
     if let Ok(end) = &carried {
       crate::job_review::session_left(&ground.db, id, taken, end).await;
@@ -3087,12 +3091,59 @@ impl<S: Sessions + Send + Sync> Carrier for OnSession<'_, S> {
 }
 
 impl<S: Sessions + Send + Sync> OnSession<'_, S> {
+  // The turn on a fresh session where the job's own cannot be continued: the session it leaves asked for its
+  // handoff and the handoff noted on the item before anything else, then the turn opened on it ahead of what it
+  // carries.
+  async fn opened_on_handoff(
+    &self,
+    id: i64,
+    taken: &Road,
+    parts: &WorkParts,
+    prompt: &str,
+    left: &crate::job_review::Resumed,
+  ) -> Result<TurnEnd, String> {
+    let ground = self.ground;
+    let handoff = asked_handoff(ground, self.sessions.as_ref(), self.member, left).await;
+
+    self.noted(id, &handoff).await;
+
+    let item = self.member["itemId"].as_i64().unwrap_or_default();
+    let fresh = match &self.carried {
+      Some(carried) => {
+        let opening = crate::job_handoff::ahead(&handoff.text, carried);
+
+        Some(crate::control::preamble::bundled(ground, self.worker, item, &opening).await)
+      }
+      None => None,
+    };
+    let carried = self
+      .on_session(id, taken, parts, fresh.as_deref().unwrap_or(prompt), Continued::default())
+      .await;
+
+    if let Ok(end) = &carried {
+      crate::job_review::session_left(&ground.db, id, taken, end).await;
+    }
+
+    carried
+  }
+}
+
+impl<S: Sessions + Send + Sync> OnSession<'_, S> {
   // A handoff noted on the job's item.
   async fn noted(&self, id: i64, handoff: &crate::job_handoff::Handoff) {
     if let Some(item) = self.member["itemId"].as_i64() {
       crate::job_handoff::noted(self.ground, id, item, handoff).await;
     }
   }
+}
+
+// The job's session a turn continues, where it names one: the harness session, the words the turn goes out with
+// instead where its record is gone, and the key of the command it was opened under.
+#[derive(Default)]
+struct Continued {
+  session: Option<String>,
+  instead: Option<String>,
+  prefix: Option<String>,
 }
 
 impl<S: Sessions + Send + Sync> OnSession<'_, S> {
@@ -3104,8 +3155,7 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
     taken: &Road,
     parts: &WorkParts,
     prompt: &str,
-    resume: Option<String>,
-    resume_else: Option<String>,
+    continued: Continued,
   ) -> Result<TurnEnd, String> {
     let ground = self.ground;
     let member = self.member;
@@ -3119,8 +3169,9 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
           effort: parts.mapping.effort.clone(),
           cwd: parts.cwd.clone(),
           role: Some(self.role.to_owned()),
-          resume,
-          resume_else,
+          resume: continued.session,
+          resume_else: continued.instead,
+          resume_prefix: continued.prefix,
           ..Apart::default()
         }),
       })
@@ -3279,7 +3330,8 @@ pub(crate) async fn asked_handoff<S: Sessions>(
       scope: Scope::Apart(Apart {
         provider: left.provider.clone(),
         model: left.model.clone(),
-        effort: parts.mapping.effort.clone(),
+        // The session is asked at the effort it answered on, where its last turn named one.
+        effort: left.effort.clone().or(parts.mapping.effort.clone()),
         cwd: parts.cwd.clone(),
         role: Some(role.to_owned()),
         resume: Some(left.session.clone()),

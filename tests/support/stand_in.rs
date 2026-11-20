@@ -5,16 +5,19 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use agent_session::{
-  Fault, FaultKind, Reply, Scope, Session, SessionId, Sessions, Start, State, Turn, TurnEnd,
+  Fault, FaultKind, Outcome, Reply, Scope, Session, SessionId, Sessions, Start, State, Turn, TurnEnd,
 };
 
 /// A backend of the test's own over the session contract: it keeps every session it was asked to start and
-/// every turn it was handed, and answers each turn, in order, with the words and the harness session given.
+/// every turn it was handed, and answers each turn, in order, with the words and the harness session given. Where
+/// it is given the key every command stands under now, a turn naming a session opened under another key is put
+/// back before anything goes in, as a line puts back a turn whose prefix moved.
 #[derive(Default)]
 pub struct StandIn {
   pub started: Mutex<Vec<Start>>,
   pub sent: Mutex<Vec<Turn>>,
   pub answers: Mutex<VecDeque<(String, String)>>,
+  pub prefix: Mutex<Option<String>>,
 }
 
 impl StandIn {
@@ -70,7 +73,23 @@ impl Sessions for StandIn {
   }
 
   async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
+    let prefix = self.prefix.lock().unwrap().clone();
+    let number: usize = turn.session.0.trim_start_matches("stand-in-").parse().unwrap_or(usize::MAX);
+    let moved = self.started.lock().unwrap().get(number).is_some_and(|start| match &start.scope {
+      Scope::Apart(apart) => {
+        apart.resume.is_some()
+          && apart.resume_prefix.is_some()
+          && prefix.is_some()
+          && apart.resume_prefix != prefix
+      }
+      _ => false,
+    });
+
     self.sent.lock().unwrap().push(turn);
+
+    if moved {
+      return Ok(TurnEnd::of("job-run", Outcome::Reprepared));
+    }
 
     let (words, session) = self
       .answers
@@ -97,6 +116,7 @@ impl Sessions for StandIn {
 
     Ok(TurnEnd {
       reply: Some(Box::new(reply)),
+      prefix,
       ..TurnEnd::answered("job-run", words)
     })
   }

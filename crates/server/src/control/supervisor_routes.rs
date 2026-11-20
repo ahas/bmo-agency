@@ -465,15 +465,10 @@ impl Route for SupervisorChange {
     retired(&body)?;
 
     let road = road_of(call.ground(), &body, held.road.as_ref()).await?.or(held.road.clone());
-    // A road the body moves — another provider, model or effort — is what makes the supervisor's sessions go
-    // (docs/sessions.md, 「Session replacement」).
-    let moved = match (&held.road.as_ref(), &road.as_ref()) {
-      (Some(older), Some(newer)) => {
-        older.provider != newer.provider || older.model != newer.model || older.effort != newer.effort
-      }
-      (None, None) => false,
-      _ => true,
-    };
+    // A road the body moves — another provider, model, effort, thinking or answer ceiling — is what makes the
+    // supervisor's sessions go, as the settings route's moved thinking does (docs/supervisors.md, 「Where a
+    // supervisor's turn runs」).
+    let moved = held.road != road;
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or(held.fold_ratio);
     let repository = repository_of(call.store(), &body).await?.unwrap_or(held.repository.clone());
     let label = match body.get("label") {
@@ -560,14 +555,9 @@ impl Route for SupervisorChange {
     // A road moved under a standing program reaches the supervisor's next turn: what its sessions held is
     // handed over and let go, and the program ends with them, so the next turn stands the model the row
     // names now; a supervisor carrying a turn keeps its session and its end makes the replacement
-    // (docs/api.md, 「supervisors」; docs/supervisors.md, 「The program's model is the one the supervisor
-    // answers on」; docs/supervisors.md, 「The program on an ended session」).
+    // (docs/api.md, 「supervisors」; docs/supervisors.md, 「Where a supervisor's turn runs」).
     if moved && let Some(sessions) = call.sessions() {
-      if held.session_scope == crate::conversational::Scope::Agent.word() {
-        sessions.replaced_road(&name).await;
-      } else {
-        sessions.let_go_room_sessions(&name).await;
-      }
+      sessions.road_moved(&name).await;
     }
 
     let supervisor = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;

@@ -238,6 +238,7 @@ async fn what_a_killed_process_left_in_flight_is_ended_cut_launched_again_or_let
       generation: indexmap::IndexMap::new(),
       session: "s-gone".into(),
       placement: None,
+      why: agency_server::supervisor_turn::handoff::Why::Documents,
     },
   )
   .await

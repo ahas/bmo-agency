@@ -251,12 +251,13 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   not name, since they were the old model's. `aliases` is the whole list of the supervisor's call names, or
   null or an empty list for none: at most ten, each one to forty characters once trimmed and holding no comma,
   else refused 400 `bad-request` with `field` `aliases`. A body naming `order`, `quotaShare` or `active` is
-  refused 400 with that field. A changed road reaches
-  the supervisor's next turn, and what its sessions held is replaced on it: the one session across rooms is
-  asked for its handoff and let go, a room's own session turns its next generation on the new road, and the
+  refused 400 with that field. A changed road — its provider, model, effort, thinking or answer ceiling —
+  reaches the supervisor's next turn, and what its sessions held is replaced on it through their handoff: the
+  one session across rooms is asked for its handoff through the receiver and let go, each room's own session
+  writes its note in one more turn on the road it was opened on and its next generation opens on it, and the
   program standing on one of them ends with them so the pane no longer shows the old road. The replacement is
   owed, not made under a turn: a turn already going finishes where it went out, and its end makes the
-  replacement while the agent is quiet.
+  replacement while the agent is quiet (`docs/supervisors.md`, 「Where a supervisor's turn runs」).
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
@@ -291,8 +292,10 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   since a supervisor always names a road,
   `thinking` and `by`, who saves, each judged before anything is written; a field it does not name is
   refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
-  changes its generation settings, its thinking, its reference switch, its brain switch or its tool limit asks a
-  reset of every room session it holds. The answer is the settings read as it then stands; a program standing on a model its road no longer names is let go.
+  changes its generation settings, its reference switch, its brain switch or its tool limit asks a reset of
+  every room session it holds, each carried out by its handover. One that moves its thinking or its
+  registration moves its road, which replaces its sessions through their handoff as the row's route does
+  (「`PATCH /supervisors/{supervisorName}`」 above). The answer is the settings read as it then stands.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
   `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list
@@ -584,6 +587,12 @@ path on that provider and model and drops its record, and the holder the body na
 state. A supervisor's and a room's session go out on the supervisor's one road, and its row is where that
 road is changed. `holder` and `prefixChangeReason` are read back on the session wherever
 it is listed or read.
+
+A supervisor's and a room's session carry `handoffLost`, true from the moment agency opened the session or its
+generation in place of one whose handoff was not had — the receiver's ask failed, or a room's handoff turn
+failed or wrote no note — until a turn of that session begun after it has answered, false otherwise. The receiver opens
+that first turn on what it keeps of the session's answers (`docs/sessions.md`, 「A restart hands the session
+over」).
 
 A session's state carries `foldRatio`: the share of its model's window its context may fill before the
 session is folded once the turn that crossed it is over, the compaction threshold of its supervisor or its

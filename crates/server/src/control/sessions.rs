@@ -267,29 +267,11 @@ impl SessionHolder for Supervisor {
     Box::pin(async { Ok(Clearing::AtOnce) })
   }
 
-  // The program standing on a session a waiting ask clears taken down, where no turn of the supervisor holds
-  // it (docs/supervisors.md, 「The program on an ended session」); the ask waits for the room's next turn.
-  fn carry_out<'a>(&'a self, places: &'a crate::places::Places, _running: &'a Running) -> Holding<'a, ()> {
-    Box::pin(async move {
-      let waiting = all(
-        &places.ground.db,
-        r#"SELECT DISTINCT "s"."agent", "s"."harness_session" FROM "session_resets" "r"
-           JOIN "room_sessions" "s" ON "s"."agent" = "r"."agent" AND "s"."chat_id" = "r"."chat_id"
-           WHERE "r"."done_at" IS NULL AND "s"."harness_session" IS NOT NULL
-           ORDER BY "s"."agent""#,
-        vec![],
-      )
-      .await?;
-
-      for row in waiting {
-        let agent: String = row.try_get("", "agent")?;
-        let session: String = row.try_get("", "harness_session")?;
-
-        crate::supervisor_turn::run::let_go(&places.ground, &agent, &[session]).await;
-      }
-
-      Ok(())
-    })
+  // A waiting ask is carried out by the session's handover, which the session carrier makes once the asks are
+  // written (`carry_out_waiting`), and the program goes with it (docs/supervisors.md, 「Clearing it」); nothing is
+  // taken down ahead of it, since the handoff turn goes on in that very session.
+  fn carry_out<'a>(&'a self, _places: &'a crate::places::Places, _running: &'a Running) -> Holding<'a, ()> {
+    Box::pin(async { Ok(()) })
   }
 }
 
@@ -491,6 +473,7 @@ async fn ask(
 /// it stands on is taken off the call before anything is awaited, so no route holds the call across a wait.
 pub fn carry_out_waiting(call: &Call) -> impl Future<Output = ()> + Send + use<> {
   let places = call.places().cloned();
+  let sessions = call.sessions();
   let reader = Running::reader(call);
 
   async move {
@@ -499,6 +482,12 @@ pub fn carry_out_waiting(call: &Call) -> impl Future<Output = ()> + Send + use<>
     };
 
     carry_out_on(&places, Running::read(reader).await).await;
+
+    // A room's session a waiting ask clears is handed over by the session carrier (docs/session-resets.md, 「Who
+    // holds a session」).
+    if let Some(sessions) = sessions {
+      sessions.replace_reset_rooms().await;
+    }
   }
 }
 

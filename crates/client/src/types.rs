@@ -321,6 +321,10 @@ pub struct Session {
   /// The role the session runs for, or none.
   #[serde(default)]
   pub role: Option<String>,
+  /// Whether a supervisor's or a room's session was opened without the handoff it was owed, until a turn begun
+  /// after that has answered on it.
+  #[serde(default)]
+  pub handoff_lost: bool,
 }
 
 /// Turn:

@@ -30,18 +30,29 @@ const WORK: &str = "work";
 const QUESTION: &str = "question";
 const FINAL: &str = "final";
 
-/// The session a job's last turn answered on, and the road it stands on.
+/// The session a job's last turn answered on, the road it stands on, the effort it answered at and the key of
+/// the command it went out under, where its line read one.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Resumed {
   pub provider: String,
   pub model: String,
   pub session: String,
+  #[serde(default)]
+  pub effort: Option<String>,
+  #[serde(default)]
+  pub prefix: Option<String>,
 }
 
 impl Resumed {
-  /// Whether a turn going out on `taken` can continue it.
-  pub fn on(&self, taken: &Road) -> bool {
-    self.provider == taken.provider && self.model == taken.model
+  /// Whether a turn going out on `taken` at `effort` can continue it: the same provider and model, and the same
+  /// effort where both name one. A moved prefix is told by the turn's own line, which puts the turn back.
+  pub fn on(&self, taken: &Road, effort: Option<&str>) -> bool {
+    let same_effort = match (self.effort.as_deref(), effort) {
+      (Some(held), Some(asked)) => held == asked,
+      _ => true,
+    };
+
+    self.provider == taken.provider && self.model == taken.model && same_effort
   }
 }
 
@@ -413,6 +424,8 @@ pub async fn session_left(db: &DatabaseConnection, id: i64, taken: &Road, end: &
     provider: taken.provider.clone(),
     model: taken.model.clone(),
     session,
+    effort: end.went_out.as_ref().and_then(|went| went.effort.clone()),
+    prefix: end.prefix.clone(),
   };
 
   if let Err(why) = run(
