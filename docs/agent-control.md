@@ -3417,7 +3417,10 @@ view and a person's room may not mend it alone.
   for a row of an item or a question, one event of its row, `<event>:#<number>`. The data of every order
   stands in `policy/job-notices.toml`, beside the idle agent's and the draft's orders of
   `policy/queue-idle.toml`: an order carries that data and a short marker, never an instruction, and what each
-  kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」).
+  kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」). The one order
+  that says how it is acted on is a job review's, whose words stand in `policy/job-review.toml`: it closes by
+  saying that its verdict is the `review_job` call alone and that nothing is written in the room's reply for it
+  (`docs/job-review.md`, 「What the orderer may do」).
 - **Every notice is owed before it is told.** A notice is first written as a row of agency's outbox, the
   store's `notices` table (`docs/store.md`), keyed by its kind, or by its kind and its room where one kind is
   told to several rooms. The row carries the body it is told with, and a

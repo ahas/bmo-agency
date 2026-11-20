@@ -362,8 +362,8 @@ and the agency's own:
 - **A report in the language the instruction names is in the right language.** A run on a model that writes only
   some languages writes its results in English where the brief names a language outside them, and the person
   reads them through a translation shown beside them: such a report is never sent back for being English.
-- **Examine the words against the check, and answer with `review_job`** on the job the instruction names, one
-  action per call:
+- **Examine the words against the check, and give your verdict by calling `review_job`** on the job the
+  instruction names, one action per call:
   - `ask` with a question, written by you from what the report says, where the words leave the check open: the
     question goes to the worker in its own session, and its answer comes back to you on the same check;
   - `reject` with why the work goes back and what is to be done, where anything falls short of the check. Where
@@ -371,6 +371,9 @@ and the agency's own:
     stage with `stage`: its step is handed over again with your words as what is to be done, and the stages
     after it follow again once it passes. The console shows each stage's rejections on its step;
   - `pass`, with what you found, where nothing does.
+- **The call alone is the verdict.** Write nothing in the room's reply for it, neither the action's name nor an
+  account of it: writing nothing keeps whatever reply the round already stands on, and words the round carries
+  from the room are answered as they would be without the review.
 - **`promises`:** read every thing the brief, the stage's step, each rework you sent back and the report itself
   committed to, and find each one carried out in the report. Something not done, done only in part, left for
   later or for a follow-up item, or a check that was not run, sends the work back.

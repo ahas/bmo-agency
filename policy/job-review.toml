@@ -15,14 +15,14 @@ work_order_longest_ms = 60000
 work_order_wait = "it waits for item #{item}'s work order, which could not be read: {why}"
 # What the orderer is told: `{job}`, `{item}`, `{worker}`, `{stage}`, `{round}`, `{rejections}`, `{language}`,
 # `{check}`, `{requirement}`, `{heading}`, `{words}` and `{moves}`.
-review_order = "The job {job} of item #{item} on {worker} is under review: {stage}, round {round}, its work sent back {rejections} times so far. {language}\n\nThe check due now is {check}: {requirement}\n\n{heading}\n\n{words}\n\nAnswer with review_job on job {job}: {moves}."
+review_order = "The job {job} of item #{item} on {worker} is under review: {stage}, round {round}, its work sent back {rejections} times so far. {language}\n\nThe check due now is {check}: {requirement}\n\n{heading}\n\n{words}\n\nGive the verdict by calling review_job on job {job} with one of its actions: {moves}. The call alone is the verdict. Write nothing in the room's reply for it, neither an action's name nor an account of the verdict: writing nothing keeps whatever reply the round already stands on, and words the round carries from the room are answered as they would be without this instruction."
 # The language the run writes its results for a person in, as the order names it (docs/job-review.md, 「The
 # checks」): on a registration that names the languages it writes, `{model}` the registration and `{languages}`
 # its languages; on every other road, the brief's language.
 result_language_listed = "It ran on {model}, which writes a result for a person in {languages} alone: where the brief names a language outside these, its results for a person are written in English and the person reads them through a translation, so an English report is no reason to send the work back."
 result_language_brief = "Its results for a person are written in the language its brief names."
-moves_early = "ask, reject or pass"
-moves_open = "ask, reject, pass or escalate"
+moves_early = "`ask`, `reject` or `pass`"
+moves_open = "`ask`, `reject`, `pass` or `escalate`"
 report_heading = "The worker's report:"
 answer_heading = "The worker's answer to your question:"
 ruling_heading = "The owner's word on it:"

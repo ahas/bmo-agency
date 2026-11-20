@@ -736,4 +736,13 @@ async fn a_check_owed_across_a_cut_receiver_and_a_restart_names_the_run_s_result
     order.contains("The worker's report:\n\nThe work is done, reported in English."),
     "{order}"
   );
+  // The verdict is the call alone, so the order asks nothing to be written in the room's reply for it.
+  assert!(
+    order.contains(
+      "Give the verdict by calling review_job on job 27 with one of its actions: `ask`, `reject` or `pass`. \
+       The call alone is the verdict. Write nothing in the room's reply for it,"
+    ),
+    "{order}"
+  );
+  assert!(!order.contains("<<SKIP>>"), "{order}");
 }

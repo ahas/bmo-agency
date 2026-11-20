@@ -99,7 +99,9 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 - **The orderer is told one check at a time:** an instruction naming the job, the item, the stage and its step,
   the round, the rejections so far, the check due now and what it requires, the language the run writes its
   results for a person in, and the words to examine — the report, the answer to its last question, or the
-  owner's word. The supervisor writes its own questions from what it read; nothing composes them for it.
+  owner's word. It closes by naming the actions open on the check and saying that the verdict is the
+  `review_job` call alone, so nothing is written in the room's reply for it (「What the orderer may do」). The
+  supervisor writes its own questions from what it read; nothing composes them for it.
 - **The result language is the run's road's:** read off the road the job's last turn answered on. A run on a
   registration that names the languages it writes (`docs/own-llm.md`, 「What a registration holds」) writes its
   results in the brief's language where that is one of them and in English otherwise, and the instruction says
@@ -121,8 +123,8 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 
 ## What the orderer may do
 
-The orderer answers each instruction with `review_job` (`POST /job-reviews`, `docs/api.md`, 「assignments and
-jobs」), naming the job, one action and its words.
+The orderer gives its verdict on each instruction by calling `review_job` (`POST /job-reviews`, `docs/api.md`,
+「assignments and jobs」), naming the job, one action and its words, and by nothing else.
 
 | Action | Words | What follows |
 |---|---|---|
@@ -131,6 +133,12 @@ jobs」), naming the job, one action and its words.
 | `pass` | Optional: what the check found | The check passes; the next check is told, or the stage passes and the next stage, the final report or the job's end follows |
 | `escalate` | What the owner is asked, and why | The work is put to the owner (「The owner's word」 below) |
 
+- **The call is the verdict, and the room's reply carries nothing for it:** no action's name and no account of
+  the verdict. The instruction may come into a round that is already writing a reply to the room, as words
+  pushed into a working turn (`docs/agent-control.md`, 「Words that arrive while a turn is working」), and the
+  receiver keeps the reply that round stands on where nothing is written after the push. So the instruction
+  tells the supervisor to write nothing for the verdict, and never to answer with a mark that sends nothing,
+  which would drop that reply.
 - **Any reason to send the work back sends it back.** While the job's work has been sent back fewer times than
   the review policy's ceiling, ten (`policy/job-review.toml`, `escalate_after`), `escalate` is refused 409
   `escalation-early`: the supervisor's only moves are to ask, to send it back or to pass it, and the manual
