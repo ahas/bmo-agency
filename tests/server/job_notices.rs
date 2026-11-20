@@ -108,7 +108,6 @@ async fn a_job_s_end_on_a_derived_item_is_told_to_the_orderer_of_its_parent_s_pa
     (&told[0]["kind"], &told[0]["room"], &told[0]["agentName"]),
     (&json!("job-ended:52"), &json!(-500), &json!("agent-a"))
   );
-  assert!(held.noticed().is_empty(), "an end that is no failure is no owner notice");
 }
 
 #[tokio::test]
@@ -138,7 +137,6 @@ async fn a_failed_job_in_another_room_is_told_in_the_owner_s_room_as_well_and_no
     ],
     "each end told to its orderer, a failure in another room told in the owner's private room once"
   );
-  assert!(held.noticed().is_empty(), "no owner notice");
 }
 
 #[test]

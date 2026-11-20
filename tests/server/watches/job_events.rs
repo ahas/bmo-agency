@@ -182,7 +182,6 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_it
       ),
       "a question past its due time: an instruction to the question's orderer"
     );
-    assert!(held.noticed().is_empty(), "no owner notice");
     assert!(held.withdrawn().is_empty(), "a word that settles nothing withdraws nothing");
   }
 
@@ -259,7 +258,6 @@ async fn a_question_settled_on_its_recommendation_owes_its_orderer_one_instructi
     2,
     "one for each settle on a recommendation, none for a person's or a supervisor's"
   );
-  assert!(held.noticed().is_empty(), "no owner notice");
   assert_eq!(
     (&told[0]["kind"], &told[0]["events"], &told[0]["room"], &told[0]["sort"]),
     (

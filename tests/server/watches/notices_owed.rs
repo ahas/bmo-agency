@@ -226,7 +226,6 @@ async fn a_job_s_end_whose_notice_a_stop_cut_off_is_owed_by_the_sender_once_and_
     BTreeMap::from([("job-ended:12".to_owned(), json!(-120)), ("job-failed:12".to_owned(), Value::Null)]),
     "only the end past its grace, and its failure in the owner's private room"
   );
-  assert!(peers.lock().unwrap().noticed().is_empty(), "no owner notice");
   assert_eq!(
     scratch.count(r#"SELECT COUNT(*) FROM "jobs" WHERE "end_owed""#, vec![]).await,
     1,
@@ -435,7 +434,6 @@ async fn a_job_s_end_cut_off_by_a_restart_before_its_row_is_told_once_the_next_p
     rooms(&peers),
     BTreeMap::from([("job-ended:12".to_owned(), json!(-120)), ("job-failed:12".to_owned(), Value::Null)])
   );
-  assert!(peers.lock().unwrap().noticed().is_empty(), "no owner notice");
   restarted(db).await.unwrap();
   assert_eq!(pass(db, &vars).await.unwrap(), 0, "told once");
 }

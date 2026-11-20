@@ -57,11 +57,6 @@ impl Held {
     self.posted("/instructions")
   }
 
-  /// The bodies of the owner notices queued, in order.
-  pub fn noticed(&self) -> Vec<Value> {
-    self.posted("/owner/notices")
-  }
-
   fn posted(&self, path: &str) -> Vec<Value> {
     self
       .calls
@@ -184,7 +179,6 @@ async fn answer(
       (StatusCode::CREATED, axum::Json(json!({ "id": held.instructions }))).into_response()
     }
     ("DELETE", path) if path.starts_with("/instructions/") => StatusCode::NO_CONTENT.into_response(),
-    ("POST", "/owner/notices") => (StatusCode::CREATED, axum::Json(json!({ "id": 1 }))).into_response(),
     ("PUT", path) if path.starts_with("/label-values/") => axum::Json(body.clone()).into_response(),
     ("GET", "/queues") => {
       axum::Json(json!({ "items": held.queues.clone(), "more": false })).into_response()
