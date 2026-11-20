@@ -173,7 +173,7 @@ fn setup_script(at: &Path) -> bool {
 
 // Git in a directory, asked nothing on its terminal and handed no editor: what it printed, or why it
 // failed.
-pub(super) fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
   let done = std::process::Command::new("git")
     .arg("-C")
     .arg(cwd)

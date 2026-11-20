@@ -1,11 +1,12 @@
 //! The preamble bundle a job's prompt carries under its title (docs/worker-bench.md, 「Preamble」, 「The bundle is
 //! agency's header plus the owner's text」): carried only where something is to be told, the header's lines each
 //! said where it holds, the owner's text below it, and a launch reading it afresh from the row and the checkout
-//! without keeping it on the job's row.
+//! without keeping it on the job's row; a git checkout, a clone or a worktree alike, told with where it stands
+//! and its origin.
 
 use std::path::{Path, PathBuf};
 
-use agency_server::control::preamble::{Bench, Here};
+use agency_server::control::preamble::{Bench, Head, Here, Tree};
 use agency_server::control::work::launched;
 use agency_server::now_ms;
 use policy::fill_marks;
@@ -17,6 +18,14 @@ use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::stand_in::StandIn;
 
+// A git checkout standing on the branch, its origin the example address.
+fn on(branch: &str) -> Tree {
+  Tree::Git {
+    head: Head::Branch(branch.to_owned()),
+    origin: Some("https://example.com/shop.git".to_owned()),
+  }
+}
+
 // A base checkout on this machine, a git checkout on main, with no preamble and no dev server.
 fn plain() -> Bench {
   Bench {
@@ -25,8 +34,7 @@ fn plain() -> Bench {
     path: "/checkouts/shop".to_owned(),
     item: 42,
     support: None,
-    branch: None,
-    git: true,
+    tree: on("main"),
     here: Some(Here {
       workbench: PathBuf::from("/data/workbench/shop"),
       dev: None,
@@ -46,7 +54,7 @@ fn a_support_checkout_on_the_item_s_branch_is_told_each_line_in_order_and_the_ow
     checkout: "shop-w2".to_owned(),
     path: "/checkouts/shop-w2".to_owned(),
     support: Some(2),
-    branch: Some("work/42".to_owned()),
+    tree: on("work/42"),
     here: Some(Here {
       workbench: PathBuf::from("/data/workbench/shop-w2"),
       dev: Some(PathBuf::from("/deploy/bin/bmo-agency")),
@@ -59,7 +67,9 @@ fn a_support_checkout_on_the_item_s_branch_is_told_each_line_in_order_and_the_ow
     JOB_PROMPT.bench.heading.clone(),
     "This job runs in `shop-w2`".to_owned(),
     "support checkout 2 of `shop`".to_owned(),
-    "`work/42`".to_owned(),
+    "`/checkouts/shop-w2` is a git checkout on the branch `work/42`; its origin is `https://example.com/shop.git`"
+      .to_owned(),
+    "the item's branch `work/42`".to_owned(),
     "`/data/workbench/shop-w2/items/42/`".to_owned(),
     "`bmo_item_42_`".to_owned(),
     "`/deploy/bin/bmo-agency dev-server start shop-w2`".to_owned(),
@@ -82,7 +92,7 @@ fn a_support_checkout_on_the_item_s_branch_is_told_each_line_in_order_and_the_ow
 #[test]
 fn a_directory_that_is_no_git_checkout_is_told_so_and_where_its_workbench_is() {
   let bench = Bench {
-    git: false,
+    tree: Tree::Plain,
     ..plain()
   };
   let words = bench.words();
@@ -92,13 +102,34 @@ fn a_directory_that_is_no_git_checkout_is_told_so_and_where_its_workbench_is() {
     "{words}"
   );
   assert!(words.contains("`/data/workbench/shop`"), "{words}");
+  assert!(!words.contains("is a git checkout"), "{words}");
   assert!(!words.contains(&JOB_PROMPT.bench.preamble_heading), "{words}");
+}
+
+#[test]
+fn a_detached_git_checkout_with_no_origin_is_told_its_commit_and_that_it_has_none() {
+  let bench = Bench {
+    tree: Tree::Git {
+      head: Head::Detached("abc1234".to_owned()),
+      origin: None,
+    },
+    support: Some(2),
+    ..plain()
+  };
+  let words = bench.words();
+
+  assert!(
+    words.contains("`/checkouts/shop` is a git checkout detached at commit `abc1234`; it has no origin."),
+    "{words}"
+  );
+  assert!(!words.contains("the item's branch"), "{words}");
 }
 
 #[test]
 fn a_checkout_on_a_work_node_is_told_no_workbench_and_no_dev_server() {
   let bench = Bench {
     checkout: "shop-on-node".to_owned(),
+    tree: Tree::OnNode,
     here: None,
     preamble: Some("Ask before migrating.".to_owned()),
     ..plain()
@@ -132,6 +163,11 @@ fn checkout_on(path: &Path, branch: &str) {
   git(&["-C", &here, "checkout", "--quiet", "-b", branch]);
 }
 
+// The address the checkout's origin remote is set to.
+fn with_origin(path: &Path, address: &str) {
+  git(&["-C", &at(path), "remote", "add", "origin", address]);
+}
+
 // A job of the item working in the checkout `shop`, starting.
 async fn job(scratch: &Scratch, id: i64, item: i64) {
   job_titled(scratch, id, item, &format!("item {item}")).await;
@@ -139,27 +175,33 @@ async fn job(scratch: &Scratch, id: i64, item: i64) {
 
 // A job of the item under its title working in the checkout `shop`, starting.
 async fn job_titled(scratch: &Scratch, id: i64, item: i64, title: &str) {
+  job_in(scratch, "shop", id, item, title).await;
+}
+
+// A job of the item under its title working in the checkout named, starting.
+async fn job_in(scratch: &Scratch, checkout: &str, id: i64, item: i64, title: &str) {
   let now = now_ms();
 
   scratch
     .run(
       r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
            "changed_at")
-         VALUES ($1, $2, 'harness', 'shop', 'running', $3, $3)"#,
-      vec![id.into(), item.into(), now.into()],
+         VALUES ($1, $2, 'harness', $4, 'running', $3, $3)"#,
+      vec![id.into(), item.into(), now.into(), checkout.into()],
     )
     .await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
            "run_name", "started_at", "prompt", "item_agent")
-         VALUES ($1, $2, 1, 'harness', $1, 'shop', 'starting', $3, $4, $5, 'worker-01')"#,
+         VALUES ($1, $2, 1, 'harness', $1, $6, 'starting', $3, $4, $5, 'worker-01')"#,
       vec![
         id.into(),
         item.into(),
         format!("job-{id}").into(),
         now.into(),
         format!("# {title}\n\nDo the work.").into(),
+        checkout.into(),
       ],
     )
     .await;
@@ -218,8 +260,10 @@ async fn a_launch_carries_the_bundle_read_now_under_the_title_and_keeps_it_off_t
   assert!(!kept.contains(&JOB_PROMPT.bench.heading), "{kept}");
 }
 
+// A support worktree's `.git` is a file naming the base's own, and git reads it as a checkout like any other: on
+// its branch, with the base's origin, and the address's user and password kept out of the prompt.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_support_worktree_is_read_with_its_number_its_own_workbench_and_its_base_s_preamble() {
+async fn a_support_worktree_is_read_as_a_git_checkout_with_its_number_workbench_and_base_preamble() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (_peers, vars) = crate::support::peers::stand().await;
@@ -228,7 +272,9 @@ async fn a_support_worktree_is_read_with_its_number_its_own_workbench_and_its_ba
   let worktree = home.path().join("shop-w2");
 
   checkout_on(&shop, "main-copy");
-  checkout_on(&worktree, "work/42");
+  with_origin(&shop, "https://tester:secret@example.com/shop.git");
+  git(&["-C", &at(&shop), "worktree", "add", "--quiet", "-b", "work/42", &at(&worktree)]);
+  assert!(worktree.join(".git").is_file(), "a worktree's .git is a file");
   repository(
     scratch.db(),
     "shop",
@@ -241,9 +287,20 @@ async fn a_support_worktree_is_read_with_its_number_its_own_workbench_and_its_ba
 
   assert_eq!((bench.checkout.as_str(), bench.repository.as_str()), ("shop-w2", "shop"));
   assert_eq!(bench.support, Some(2));
-  assert_eq!(bench.branch.as_deref(), Some("work/42"));
-  assert!(bench.git);
+  assert_eq!(bench.tree, on("work/42"));
+  assert_eq!(bench.item_branch(), Some("work/42"));
   assert_eq!(bench.preamble.as_deref(), Some("Ask before migrating."));
+
+  let words = bench.words();
+
+  assert!(
+    words.contains(&format!(
+      "`{}` is a git checkout on the branch `work/42`; its origin is `https://example.com/shop.git`.",
+      at(&worktree)
+    )),
+    "{words}"
+  );
+  assert!(!words.contains("secret"), "{words}");
 
   let here = bench.here.expect("a worktree on this machine");
 
@@ -272,9 +329,82 @@ async fn a_checkout_on_a_work_node_is_read_as_a_git_checkout_with_nothing_of_thi
   let bench = Bench::of_job(&ground, "shop@n1", 42).await.expect("the node checkout's bench");
 
   assert_eq!(bench.path, "/remote/shop");
-  assert!(bench.git && bench.support.is_none() && bench.branch.is_none());
+  assert!(bench.tree == Tree::OnNode && bench.support.is_none());
   assert!(bench.here.is_none());
   assert_eq!(bench.words(), "", "nothing is to be told of a plain checkout on a node");
+}
+
+// A base checkout cloned from its remote is read with the branch the clone stands on and the remote it came from.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_plain_clone_is_read_as_a_git_checkout_on_its_branch_with_the_origin_it_was_cloned_from() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (_peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let upstream = home.path().join("upstream");
+  let shop = home.path().join("shop");
+
+  checkout_on(&upstream, "main-copy");
+  git(&["clone", "--quiet", &at(&upstream), &at(&shop)]);
+  assert!(shop.join(".git").is_dir(), "a clone's .git is a directory");
+  repository(scratch.db(), "shop", &at(&shop), &[("preamble", "Ask before migrating.".into())]).await;
+
+  let bench = Bench::of_job(&ground, "shop", 42).await.expect("the clone's bench");
+  let words = bench.words();
+
+  assert_eq!(
+    bench.tree,
+    Tree::Git {
+      head: Head::Branch("main-copy".to_owned()),
+      origin: Some(at(&upstream)),
+    }
+  );
+  assert!(
+    words.contains(&format!(
+      "`{}` is a git checkout on the branch `main-copy`; its origin is `{}`.",
+      at(&shop),
+      at(&upstream)
+    )),
+    "{words}"
+  );
+  assert!(!words.contains("is not a git checkout"), "{words}");
+}
+
+// A support checkout whose worktree is not made yet has it made before the prompt's header reads it, so the
+// header tells the worktree the job works in, detached at the base's head, never a directory that is none.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_on_a_support_not_made_yet_tells_the_worktree_it_makes_as_a_git_checkout() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (_peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let shop = home.path().join("shop");
+  let worktree = home.path().join("shop-w2");
+
+  checkout_on(&shop, "main-copy");
+  with_origin(&shop, "https://example.com/shop.git");
+  repository(scratch.db(), "shop", &at(&shop), &[("support_count", 1i64.into())]).await;
+  job_in(&scratch, "shop-w2", 35, 350, "item 350").await;
+  assert!(!worktree.exists(), "the worktree waits for the launch");
+
+  let sessions = StandIn::answering(&[("Done.", "s-5")]);
+
+  launched(&ground, Some(sessions.clone()), 35, None)
+    .await
+    .unwrap()
+    .expect("the turn's end");
+
+  let prompt = &sessions.turns()[0].2;
+  let commit = git(&["-C", &at(&shop), "rev-parse", "--short", "HEAD"]);
+
+  assert!(
+    prompt.contains(&format!(
+      "`{}` is a git checkout detached at commit `{commit}`; its origin is `https://example.com/shop.git`.",
+      at(&worktree)
+    )),
+    "{prompt}"
+  );
+  assert!(!prompt.contains("is not a git checkout"), "{prompt}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

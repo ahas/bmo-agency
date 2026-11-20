@@ -85,8 +85,10 @@
   own: the directory is part of every Claude session's prefix, and a session is kept under its
   directory's name, so a path that moved per job would cold-start every session and could resume
   none of them.
-- **The worktree is made at the launch, before the run's program is stood, the first time a job
-  lands on it** — on whichever road the launch takes. It is detached at the base's main branch, read
+- **The worktree is made at the launch, before the job's prompt is composed and the run's program is
+  stood, the first time a job lands on it** — on whichever road the launch takes. The prompt's header
+  reads the checkout's directory (`docs/worker-bench.md`, 「Preamble」), so it reads the worktree as it
+  stands for the job. It is detached at the base's main branch, read
   off the base checkout, and the repository's own setup is then run in it: the script named
   `worktree:setup` in its `package.json`, where there is one. What it installs and links is that
   repository's own; the operations repository's installs its workspace from its lockfiles and links

@@ -70,7 +70,9 @@ Each repository holds three things beside the work of its jobs:
 ### It opens the prompt a job's session is handed
 
 - **Read fresh:** whenever agency hands a job's prompt to a session that does not hold it yet, it reads
-  the repository row and the checkout at that moment and composes the bundle anew:
+  the repository row and the checkout at that moment and composes the bundle anew. A support worktree
+  not made yet is made before it is read (`docs/worker-slots.md`, 「Names and places」), so the header
+  tells the checkout the job's program is stood in. It is read for:
   - the job's first turn;
   - a turn of the job's review carried into a fresh session, because the session it answered on cannot
     be continued (`docs/job-review.md`), which opens on the job's prompt again.
@@ -131,11 +133,15 @@ Each repository holds three things beside the work of its jobs:
   - for a support checkout, that it is support checkout `n` of the repository in a worktree of its own,
     and that where the owner's text names the base checkout's workbench, console or ports, it means this
     checkout's own (`docs/worker-slots.md`, 「Dev servers」);
+  - for a git checkout on this machine, a base clone and a worktree alike, that it is one, the branch it
+    stands on or the commit it is detached at, and the address of its `origin` remote with any user and
+    password taken out, or that it has no `origin`; and that the job commits in it and closes as the
+    closing steps say;
+  - for a directory that is not a git checkout, that there is nothing to commit, push or deploy, so the
+    closing steps that need git are skipped and no repository is made;
   - for a checkout on the item's branch, the branch, and that the close lands it, so it is never pushed;
   - for a checkout on this machine, the path of its workbench folder, and where in it what one item
     alone needs goes, the item's folder and its database's name (「An item's scratch」 below);
-  - for a directory that is not a git checkout, that there is nothing to commit, push or deploy, so the
-    closing steps that need git are skipped and no repository is made;
   - for a dev-server command on a checkout on this machine, that the dev server stands in a pane outside
     the job only once the job starts it, the path of its log file and the three lines that start,
     restart and stop it (「A job starts, restarts and stops it」) — with the rule that a job restarts a
@@ -148,8 +154,9 @@ Each repository holds three things beside the work of its jobs:
 - **Language:** the header, like the report trailer, is the deployment speaking to the job's run, so it is
   written in English; its lines stand in agency's policy, beside the lent checkouts' heading.
 - **What it is composed from:** the repository's preamble and dev-server command on its row, the
-  checkout's own row — its support number, its node and its path — the branch the checkout stands on,
-  and the checkout's workbench folder (「Workbench folder」 below).
+  checkout's own row — its support number, its node and its path — what git says of the checkout's
+  directory, the branch or commit it stands on and its `origin`, and the checkout's workbench folder
+  (「Workbench folder」 below).
 
 ## Workbench folder
 

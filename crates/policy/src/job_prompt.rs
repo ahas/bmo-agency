@@ -43,12 +43,22 @@ pub struct Bench {
   /// A support checkout's number and what the preamble's words for the base mean in it, with `{slot}` and
   /// `{repository}`.
   pub support: String,
+  /// A git checkout, with `{path}`, `{head}` and `{origin}`.
+  pub git: String,
+  /// Where a git checkout stands on a branch, with `{branch}`: its `{head}`.
+  pub on_branch: String,
+  /// Where a git checkout stands on no branch, with `{commit}`: its `{head}`.
+  pub detached: String,
+  /// A git checkout's origin, with `{origin}`.
+  pub origin: String,
+  /// A git checkout with no origin.
+  pub no_origin: String,
+  /// A directory that is not a git checkout, with `{path}`.
+  pub not_checkout: String,
   /// A checkout standing on the item's branch, with `{branch}`.
   pub branch: String,
   /// The workbench folder and the item's scratch in it, with `{workbench}`, `{scratch}` and `{database}`.
   pub workbench: String,
-  /// A directory that is not a git checkout, with `{path}`.
-  pub not_checkout: String,
   /// The dev server and its lines, with `{start}`, `{restart}`, `{stop}` and `{log}`.
   pub dev: String,
   /// The heading the repository's preamble stands under.

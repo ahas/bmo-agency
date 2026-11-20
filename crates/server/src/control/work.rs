@@ -3497,6 +3497,10 @@ pub async fn launched<S: Sessions + Send + Sync>(
   let lent_section =
     crate::control::loans::lent_words(&lent, &crate::places::loan_branch::job_branch(item));
 
+  // The job's own support worktree is made before its prompt is composed, since the prompt's header reads the
+  // checkout's directory (docs/worker-slots.md, 「Names and places」).
+  crate::places::checkouts::ensure_support_checkout(ground, &worker_name).await?;
+
   // The gate picks the reference a job's instruction calls for, and the run carries it in its first
   // prompt; a job with no instruction stands as it was. The first prompt closes with what the review opens
   // with; a turn the review asks for goes out with its own words instead.
