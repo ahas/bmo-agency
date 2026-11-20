@@ -331,6 +331,8 @@ async fn a_running_job_whose_model_changed_opens_its_next_session_on_the_handoff
     provider: "claude-code".to_owned(),
     model: "claude-sonnet-5".to_owned(),
     session: "left-1".to_owned(),
+    effort: None,
+    prefix: None,
   };
   let ended = launched(
     &ground,
@@ -516,6 +518,8 @@ async fn a_review_turn_whose_session_record_is_gone_opens_on_the_run_log_and_not
     provider: taken.provider.clone(),
     model: taken.model.clone(),
     session: "gone-1".to_owned(),
+    effort: None,
+    prefix: None,
   };
   let sessions = StandIn::answering(&[("Stage two is done.", "fresh-2")]);
 
@@ -594,4 +598,88 @@ async fn a_session_handed_over_as_its_job_ends_is_asked_for_its_handoff_first() 
 
   assert_eq!(notes.len(), 1, "{notes:?}");
   assert_eq!((notes[0]["text"].as_str(), &notes[0]["labels"]["job"]), (Some(handoff), &json!("14")));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_review_turn_whose_prefix_moved_mid_job_asks_its_session_for_the_handoff_before_a_fresh_one_opens()
+ {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  let handoff = "Done: stage one. Found: the fixture lacks the field. Left: stage two, in tests/area.rs.";
+
+  // The job's last turn answered on the road its next turn takes, but under a command whose prefix has moved
+  // since: the role's prompt, its tools or its thinking changed mid-job.
+  job_on(&scratch, home.path(), 15, 150, "# item 150\n\nDo the work.").await;
+
+  let road =
+    agency_server::road::for_job(&ground, Some("worker"), Some("helper"), None, &[], Some("harness"))
+      .await
+      .unwrap();
+  let (taken, _) = road.going().expect("a road");
+  let left = Resumed {
+    provider: taken.provider.clone(),
+    model: taken.model.clone(),
+    session: "left-1".to_owned(),
+    effort: None,
+    prefix: Some("the prefix it was opened under".to_owned()),
+  };
+  let sessions = StandIn::answering(&[(handoff, "left-1"), ("Stage two is done.", "fresh-1")]);
+
+  *sessions.prefix.lock().unwrap() = Some("the prefix every command stands under now".to_owned());
+
+  launched(
+    &ground,
+    Some(sessions.clone()),
+    15,
+    Some(ReviewTurn {
+      words: "Do stage two now.".to_owned(),
+      resume: Some(left),
+    }),
+  )
+  .await
+  .unwrap()
+  .expect("the turn's end");
+
+  // The turn named its session and was put back before anything went in; the session it leaves is then asked for
+  // its handoff, resumed by its id, and the turn goes out on a fresh session opening on that handoff.
+  let turns = sessions.turns();
+
+  assert_eq!(turns.len(), 3, "{turns:?}");
+  assert_eq!(turns[0].1.as_deref(), Some("left-1"), "the turn first names the job's own session");
+  assert_eq!(
+    (turns[1].1.as_deref(), turns[1].2.as_str()),
+    (Some("left-1"), JOB_HANDOFF.instruction.as_str())
+  );
+  assert_eq!(turns[2].1, None, "the turn then opens a fresh session");
+  assert!(
+    turns[2].2.starts_with("# item 150\n\n## The last session's handoff\n"),
+    "{}",
+    turns[2].2
+  );
+  assert!(
+    turns[2].2.find(handoff).unwrap() < turns[2].2.find("Do stage two now.").unwrap(),
+    "{}",
+    turns[2].2
+  );
+
+  // The handoff stands on the item before the fresh turn went out, written by the session itself.
+  let notes = peers.lock().unwrap().notes.get(&150).cloned().unwrap_or_default();
+
+  assert_eq!(notes.len(), 1, "{notes:?}");
+  assert_eq!(
+    (notes[0]["text"].as_str(), &notes[0]["labels"]["source"]),
+    (Some(handoff), &json!("session"))
+  );
+
+  // The session the fresh turn answered on is kept with the prefix it went out under.
+  let row = store::one(scratch.db(), r#"SELECT "review_session" FROM "jobs" WHERE "id" = 15"#, vec![])
+    .await
+    .unwrap()
+    .expect("the job's row");
+  let kept: Value = serde_json::from_str(&row.try_get::<String>("", "review_session").unwrap()).unwrap();
+
+  assert_eq!(kept["session"], "fresh-1");
+  assert_eq!(kept["prefix"], "the prefix every command stands under now");
 }

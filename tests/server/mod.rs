@@ -26,6 +26,7 @@ mod command_reading {
   mod writes;
 }
 
+mod setting_handovers;
 mod supervisor_homes;
 mod supervisor_limits;
 mod supervisor_prompt_change;

@@ -639,6 +639,8 @@ async fn the_review_names_the_language_the_run_writes_its_results_in() {
     provider: provider.to_owned(),
     model: model.to_owned(),
     session: "s".to_owned(),
+    effort: None,
+    prefix: None,
   };
   let db = scratch.db();
   let brief = "Its results for a person are written in the language its brief names.";

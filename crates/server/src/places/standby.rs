@@ -449,53 +449,50 @@ pub async fn compose(ground: &Ground, worker: &str) -> Result<Option<Standing>, 
   }
 }
 
-/// A supervisor's program let go where its registered model or its registration moved under it: a program on
-/// another model than its order names on the registry's provider now, or on an address its registration no longer holds, is taken down so the
-/// next turn stands the pin's own (docs/supervisors.md, 「The program on an ended session」). A program on
-/// the pin's model and an address it holds is left as it stands.
-pub async fn release_stale_supervisor(ground: &Ground, agent: &str) {
+/// Whether a supervisor's standing program went stale under its registered model or its registration: a program
+/// on another model than its order names on the registry's provider now, or on an address its registration no
+/// longer holds. Such a supervisor's road moved, and its sessions are replaced through their handoff, never by
+/// signalling the program (docs/supervisors.md, 「Where a supervisor's turn runs」). A program on the pin's model
+/// and an address it holds is left as it stands.
+pub async fn stale_supervisor(ground: &Ground, agent: &str) -> bool {
   let place = Place::of(&ground.roots.data, agent);
-  let Some(program) = place.program() else { return };
+  let Some(program) = place.program() else { return false };
   let Some(model) = program
     .command
     .args
     .windows(2)
     .find_map(|pair| (pair[0] == "--model").then(|| pair[1].clone()))
   else {
-    return;
+    return false;
   };
   let pin: Option<String> = crate::order::supervisor_entry(&ground.db, agent, "registered")
     .await
     .ok()
     .map(|entry| entry.model)
     .filter(|pin| !pin.trim().is_empty());
-  let Some(pin) = pin else { return };
+  let Some(pin) = pin else { return false };
   let (name, node) =
     model.split_once('@').map_or((model.as_str(), None), |(name, node)| (name, Some(node)));
   let held = registry::registration(&ground.db, &pin).await.ok().flatten();
   let address_held = node.is_none_or(|node| held.as_ref().is_some_and(|held| held.holds_node(node)));
 
-  if name != pin || !address_held {
-    let before = place.release().await;
-
-    if before.is_some() {
-      println!("supervisor {agent}: its program stood on {model}, not its pin {pin}; it was let go");
-    }
-  }
+  name != pin || !address_held
 }
 
-/// Every supervisor's standing program checked against its pin, as a pin or a registration changes: one on
-/// another model, or on an address its registration lost, is let go.
-pub async fn release_stale_supervisors(ground: &Ground) {
+/// Every supervisor whose standing program went stale under its pin, as a registration changes.
+pub async fn stale_supervisors(ground: &Ground) -> Vec<String> {
   let Ok(rows) = all(&ground.db, r#"SELECT "name" FROM "supervisors""#, vec![]).await else {
-    return;
+    return vec![];
   };
+  let mut stale = vec![];
 
-  for row in rows {
-    if let Ok(name) = row.try_get::<String>("", "name") {
-      release_stale_supervisor(ground, &name).await;
+  for name in rows.iter().filter_map(|row| row.try_get::<String>("", "name").ok()) {
+    if stale_supervisor(ground, &name).await {
+      stale.push(name);
     }
   }
+
+  stale
 }
 
 /// Every worker's pane checked against its pin, as a pin change or a job's end asks; the job's end waits

@@ -8,6 +8,8 @@ use serde::Deserialize;
 pub struct Handoff {
   /// How long agency waits before asking again while a handoff is under way, in seconds.
   pub retry_seconds: u64,
+  /// The least time between two asks for the same session's handoff, in seconds; an ask sooner waits for it.
+  pub again_seconds: u64,
   /// How often a replaced program's tool record is looked at for asynchronous calls still running, in seconds.
   pub calls_look_seconds: u64,
   pub reasons: Reasons,
@@ -25,6 +27,8 @@ pub struct Reasons {
   pub moved: String,
   /// The road the session went out on changed.
   pub road: String,
+  /// A reset of the session asked.
+  pub reset: String,
 }
 
 crate::part!(pub HANDOFF: Handoff = "handoff.toml");

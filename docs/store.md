@@ -197,8 +197,12 @@ seeds. The other crates and the server reach the store only through it.
   - a supervisor's session record, `agent_session:*`;
   - the replacements supervisors' sessions owe, kept until they are made: `handoff_owed:*` by the agent, why
     its one session across rooms owes one, and `room_handoff_owed:*` by the agent and the room, as JSON, the
-    handover a room's own session owes and what its handoff turn goes out on (`docs/sessions.md`, 「Session
-    replacement」);
+    handover a room's own session owes, why, and what its handoff turn goes out on (`docs/sessions.md`,
+    「Session replacement」);
+  - when a supervisor's session was last asked for its handoff, `handoff_asked:*` by the agent and the room,
+    which paces the asks to one a minute (`docs/sessions.md`, 「A restart hands the session over」);
+  - a supervisor's session opened without the handoff it was owed, `handoff_lost:*` by the session's id, kept
+    with the moment, until a turn begun after it has answered, and read back on its state as `handoffLost`;
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the caller's
     key, the agent, the room, the turn's run in the ledger, the job and when it began, kept while the
     turn goes and read by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);

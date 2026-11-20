@@ -255,6 +255,7 @@ fn beside() -> Beside {
     }],
     compacted: true,
     engine_error: None,
+    prefix: None,
   }
 }
 

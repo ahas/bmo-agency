@@ -8,6 +8,7 @@ use std::time::Instant;
 use indexmap::IndexMap;
 use policy::fill_marks;
 use policy::supervisor_runner::SUPERVISOR_RUNNER;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::going::going;
@@ -39,17 +40,23 @@ impl Speaker {
 }
 
 /// Why a session hands over.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum Why {
   /// The turn's context reached the session's handoff mark.
   Limit,
   /// The documents the session's prompt is composed from changed.
+  #[default]
   Documents,
+  /// The road the session was opened on is no longer the one its supervisor answers on.
+  Road,
+  /// A reset of the session was asked.
+  Reset,
 }
 
-/// A turn that ended at or past the handoff mark, or a session whose prompt documents moved: the session it
-/// answered in and what its runs are built from, so the handoff turn after it goes out on the very session
-/// and prompt.
+/// A turn that ended at or past the handoff mark, or a session whose prompt documents moved, whose road moved
+/// or whose reset was asked: the session it answered in and what its runs are built from, so the handoff turn
+/// after it goes out on the very session and prompt.
 pub struct Due {
   pub provider: &'static dyn harness_providers::Provider,
   /// The model the turn it hands over ran on, which the handoff turn goes out on.
@@ -168,6 +175,8 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, supervisor: &Speaker, 
       fill_marks(&SUPERVISOR_RUNNER.log.handoff_start, &[("name", name), ("percent", &percent)])
     }
     Why::Documents => fill_marks(&SUPERVISOR_RUNNER.log.handoff_documents, &[("name", name)]),
+    Why::Road => fill_marks(&SUPERVISOR_RUNNER.log.handoff_road, &[("name", name)]),
+    Why::Reset => fill_marks(&SUPERVISOR_RUNNER.log.handoff_reset, &[("name", name)]),
   };
 
   log

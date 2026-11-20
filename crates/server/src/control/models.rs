@@ -828,12 +828,21 @@ impl Route for CatalogueChange {
 crate::moved!(CatalogueChange);
 
 // A model changed, so every program standing on a pin that names it is checked against the pin and the
-// registration's addresses now.
+// registration's addresses now: a worker's is stood again between its turns, and a supervisor's stale one has its
+// sessions replaced through their handoff while it is quiet (docs/supervisors.md, 「Where a supervisor's turn
+// runs」).
 fn restand(call: &crate::control::Call) {
   if let Some(places) = call.places().cloned() {
+    let sessions = call.sessions();
+
     tokio::spawn(async move {
       crate::places::standby::restand_all(&places.ground, false).await;
-      crate::places::standby::release_stale_supervisors(&places.ground).await;
+
+      for agent in crate::places::standby::stale_supervisors(&places.ground).await {
+        if let Some(sessions) = &sessions {
+          sessions.road_moved(&agent).await;
+        }
+      }
     });
   }
 }

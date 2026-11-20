@@ -26,8 +26,10 @@
   Claude Code road is a list of accounts」) runs Claude Code against a model that is not Anthropic's,
   for which the platform's opening is the wrong one, so the account names the prompt its endpoint's own
   harness runs on. Any account may name one.
-- **No supervisor and no role chooses one.** Where the account a run goes out on names none, the run
-  opens on the platform's harness opening.
+- **An agent may choose one:** a worker of its own, whose support workers run on its choice, and a
+  supervisor whose turns are of the pieces shape. A chosen base stands in the harness opening's place for
+  that agent's runs; where neither the agent nor the account a run goes out on names one, the run opens on
+  the platform's harness opening.
 
 ## What each run is sent
 
@@ -36,8 +38,8 @@
   the owner's standing rules, the rulebook against destroying the system and the repository's own rules
   where it has them — joined by a blank line (`docs/launch-lines.md`). On an account that names none it
   is handed the platform's harness opening in the base's place, with the same layers after it.
-- **A turn of the pieces shape** is sent the platform's harness opening as its harness, then the pieces
-  role whole, then its persona (`docs/supervisors.md`, 「What a turn is given」).
+- **A turn of the pieces shape** is sent the base its supervisor chooses, or the platform's harness opening
+  where it chooses none, as its harness, then the pieces role whole, then its persona (`docs/supervisors.md`, 「What a turn is given」).
 - **The other lines read no base prompt:** the supervisor's harness is the platform's opening, which its
   role and persona follow (`docs/agent-documents.md`, 「A supervisor of the window shape」); the search and browse runners
   and a search's branches open on it before their instructions; the translator and batch runs are
@@ -143,8 +145,13 @@ flowchart TD
   - a prompt an account names is not removed, and the refusal names the accounts;
   - an account's base names a prompt that is kept, or none, set where the account is added or changed
     (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
-- **A save resets nothing.** Neither an account's base changed nor the text of a base an account names
-  saved writes a reset. A run's system-prompt file is named by what it holds, so the next run on that
-  account is handed another file, its prefix differs from the one a kept session began on, and the run
-  opens a fresh session rather than going on in the old one (`docs/sessions.md`, 「A role's session」). A
-  label alone changes nothing a run is sent.
+- **A save reaches the agents that choose the prompt by a reset, and the accounts by nothing.**
+  - The text of a base an agent chooses saved, and an agent's change of choice, ask a reset of every
+    session of that agent and of a worker's support workers (`docs/session-resets.md`, 「Where it is
+    asked」). Each is carried out as that holder clears a session: a supervisor's through its session's
+    handoff, a role's at its next run.
+  - Neither an account's base changed nor the text of a base an account names saved writes a reset. A
+    run's system-prompt file is named by what it holds, so the next run on that account is handed another
+    file, its prefix differs from the one a kept session began on, and the run opens a fresh session
+    rather than going on in the old one (`docs/sessions.md`, 「A role's session」).
+  - A label alone changes nothing a run is sent.

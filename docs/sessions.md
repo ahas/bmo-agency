@@ -172,8 +172,9 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A fresh session of a supervisor opened in place of one it still holds is never opened without the
   handoff.** Where a chat-line turn — one of the `agent` scope across rooms, or one of the `room` scope
   in a room — is about to open a fresh session for an agent that had one, the session going away writes
-  what the next one needs before anything replaces it. A room's own session whose documents moved or
-  whose window filled writes it in one more turn agency runs on it (`docs/supervisors.md`, 「Its limit」).
+  what the next one needs before anything replaces it. A room's own session whose documents moved, whose
+  window filled, whose road moved or whose reset was asked writes it in one more turn agency runs on it
+  (`docs/supervisors.md`, 「Its limit」, 「A session in each room」).
   The one session across rooms is asked through the receiver's `POST /handoffs/{agentName}`, and the ask
   is waited on:
   - **what counts as replacing a session:** a session the turn does not resume — its prompt documents
@@ -191,15 +192,25 @@ statements below about either are kept for a rollback to the road a deployment l
     receiver's turns. The old
     program usually outlives agency's own restart, so a turn after a restart that opens a fresh session
     asks as any other does;
+  - **once a minute at most, and never skipped:** an ask for the same session within a minute of the last
+    one (`policy/handoff.toml`, `again_seconds`) waits out the rest of that minute and is then made, so a
+    turn that keeps failing does not ask in a loop and no replacement lets a session go without asking.
+    While an owed replacement waits so, the turn that comes waits for it as for any replacement being made;
   - **the answer:** 200 with the handoff file's path and its byte count where the old session wrote one,
     204 where there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited
     on and asked again a few seconds later (`policy/handoff.toml`); the ask waits for the receiver's
     answer however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
     connection lets the turn go on — the fresh session is opened all the same, and the run log says the
     handoff was not had and why. A deployment that names no receiver asks nothing.
+- **A handoff that was not had is said on the session's state.** Where the ask for the one session across
+  rooms failed, or a room's own handoff turn failed or wrote no note, the fresh session or generation opens
+  all the same and its state answers `handoffLost` until a turn begun after it has answered (`docs/api.md`,
+  「sessions」). The receiver opens that turn on its transcript of what the session answered — the room's
+  own answers for a room's session — and, where it keeps none, on the word that memory could not be
+  recovered, telling the owner once (the receiver's `docs/unified-bmo.md`, 「Replacing the session」).
 - **A room's session opened because the session it had is gone carries nothing:** there is no session
-  left to ask. So does a room's session cleared by the owner's reset, whose program is taken down with
-  it (`docs/session-resets.md`, 「Who holds a session」).
+  left to ask. A room's session cleared by the owner's reset is handed over as any replacement is
+  (`docs/supervisors.md`, 「Clearing it」).
 - **A supervisor's asynchronous calls go on into its next session.** A call a session started with
   `bmo use --async` — a deployment, a wait, a worker ask — runs under the tool host's record of the session
   token its program carried, and the tool host cancels it the moment that record is taken back. Its wake is
@@ -446,8 +457,8 @@ statements below about either are kept for a rollback to the road a deployment l
   for what that session has read.
 - **A turn a job's review asks for continues the job's own session** (`docs/job-review.md`, 「The turns the
   review asks for」): the session the job's last turn answered on, named by the job and resumed whatever its
-  agent's `sessions` setting and its cache's age, while its record stands and the road is the one it was opened
-  on.
+  agent's `sessions` setting and its cache's age, while its record stands and the road and the prefix are the
+  ones it was opened on.
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
   instructions and the tool declaration at a checkout's head, the platform's harness opening, the role's
   prompt and its provider prompts, the worker line's settings, standing rules, report trailer, plugin, the self-preservation rulebook, and the repository's own rules and prefix
@@ -484,11 +495,16 @@ statements below about either are kept for a rollback to the road a deployment l
   onto the job's item in the job service as a note of its own kind, labelled `kind` `handoff` with the job's
   id and where its words came from (`docs/api.md`, 「assignments and jobs」), and the next session opens on it.
 - **Where the work moves, and how the handoff is had:**
-  - **a turn of the job's review goes out on another road** — its agent's provider or model changed, or the
-    road the job's session stands on cannot answer it — or the session's record is gone: the session the job's
-    last turn answered on is asked one more turn on its own road, resumed by its id and never in its place a
-    session of another run, with the handoff instruction (`policy/job-handoff.toml`); the turn of the review
-    then opens on the new road with the handoff ahead of what it carries;
+  - **a turn of the job's review goes out on another road or another prefix** — its agent's provider, model
+    or effort changed, the road the job's session stands on cannot answer it, or the prefix the session was
+    opened on moved: the role's prompt, its bundles, its skills, its tools and MCP servers, its thinking or
+    any other word of its command, read off the command key its last turn went out under, which the turn's
+    line puts back to the runner before anything goes in — or the session's record is gone, as it is under a
+    login whose records home does not hold it: the session the job's last turn answered on is asked one more
+    turn on its own road, at the effort it answered on, resumed by its id and never in its place a session of
+    another run, with the handoff instruction (`policy/job-handoff.toml`), and the handoff is noted before
+    the turn goes on; the turn of the review then opens a fresh session with the handoff ahead of what it
+    carries;
   - **the job's road stops answering in the middle of a turn** and the turn goes out again on the next road
     (`docs/cache-fallback.md`): a road that stopped answering cannot be asked, so the handoff is written from
     the last lines of the job's run log, and the turn on the next road opens with it ahead of its words;
@@ -537,24 +553,27 @@ statements below about either are kept for a rollback to the road a deployment l
   - **What is owed is written down, never held in memory alone,** since the session already records the
     new prompt's hash and a restart would otherwise forget the debt. The one session across rooms owes
     its replacement under the agent (`handoff_owed:<agent>`); a room's own session owes its handover under
-    the agent and the room (`room_handoff_owed:<agent>:<room>`, `docs/store.md`), with what its handoff
-    turn goes out on: the supervisor, the provider, model and system prompt the finding turn was sent, the
-    generation's settings, the session and its place. A room's handover is made once the turn that found it
-    ends, and otherwise at the server's start and on the keepalive clock while the room carries no turn,
-    one picked up across a restart included; one whose room no longer holds the session it was owed on is
-    let go, since that session was replaced already.
+    the agent and the room (`room_handoff_owed:<agent>:<room>`, `docs/store.md`), with why — its
+    documents, its road or a reset — and what its handoff turn goes out on: the supervisor, the provider,
+    model and system prompt the session was last sent, the generation's settings, the session and its
+    place. A room's handover is made at once where the room carries no turn, once the turn running there
+    ends, at the head of the room's next turn, and otherwise at the server's start and on the keepalive
+    clock, one picked up across a restart included; one whose room no longer holds the session it was
+    owed on is let go, since that session was replaced already.
 - **A session going away is asked for its handoff before it is let go.** No summary of a session's
   conversation is made or kept for its successor: the successor opens on the note the old session
-  wrote as it closed. A room's own session whose prompt moved or whose window filled writes that note
-  in one more turn agency asks of it before the new generation opens. The one session across rooms is
+  wrote as it closed. A room's own session whose prompt moved, whose window filled, whose road moved or
+  whose reset was asked writes that note in one more turn agency asks of it before the new generation
+  opens. The one session across rooms is
   asked through the receiver's `POST /handoffs/{agentName}`, while agency still names the session and
   the standing program can answer; the receiver asks that session for its file, and the next session's
   first turn opens on the receiver's note (`docs/supervisors.md`, 「Its limit」; the receiver's
   `docs/unified-bmo.md`, 「Replacing the session」). A room's session opened because the session it had is
   gone carries nothing: there is no session left to ask.
-- Where the receiver's old session wrote nothing, the next session opens on the receiver's transcript of
-  what the session answered, or, where neither stands, on a word that memory could not be recovered.
-  That fallback is the receiver's.
+- Where the old session wrote nothing, or its handoff could not be asked, the next session opens on the
+  receiver's transcript of what the session answered, or, where neither stands, on a word that memory
+  could not be recovered, and the owner is told. That fallback is the receiver's, which agency's
+  `handoffLost` on the session's state tells of where agency made the replacement.
 - The session id is cleared and a new session opens on the next run; the room hears nothing.
 - Who the people are reaches the new session by the brain's index, whose people group its first turn
   walks, and the person books, as on every turn.

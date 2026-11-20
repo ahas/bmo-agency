@@ -193,10 +193,11 @@ jobs」), naming the job, one action and its words.
 
 - **Each goes on in the job's own session:** the harness session the job's last turn answered on, named by the
   job, resumed whatever the role's own setting for keeping sessions and however long the review took, since
-  the conversation is the job's work. Where it cannot be resumed — the road moved to another provider or model,
-  or, on a program whose session record agency reads, that record is gone — a new session opens, and the turn's
-  prompt opens with the item's prompt and the job's review so far, read from the job service, before the turn's
-  own words.
+  the conversation is the job's work. Where it cannot be resumed — the road moved to another provider, model
+  or effort, the prefix it was opened on moved, or, on a program whose session record agency reads, that
+  record is gone — the session is asked for its handoff first and noted on the item (`docs/sessions.md`, 「The
+  handoff a job's session leaves」), a new session opens, and the turn's prompt opens with the item's prompt, the
+  handoff and the job's review so far, read from the job service, before the turn's own words.
 - **Each goes out on the seat the job holds,** asking for no slot of its own, so the job's next stage, question
   or rework runs on its agent before any other job waiting for that agent starts; it goes out on the job's road
   as `docs/cache-fallback.md` resolves it. Only a job its review paused, its seat given back

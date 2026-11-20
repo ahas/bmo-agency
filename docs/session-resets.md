@@ -46,14 +46,16 @@ flowchart TD
   - Agency carries a role's reset out, since it holds the records and knows which runs go: once an ask
     is written, every waiting ask none of whose sessions a run holds is carried out before the route
     answers, and so is it on a script's `session-resets` word (`docs/api.md`, 「Events」).
-- **A supervisor of the `room` scope in a room:** that room's session, cleared by the next turn there
+- **A supervisor of the `room` scope in a room:** that room's session, cleared by its handover
   (`docs/supervisors.md`, 「Clearing it」).
-  - Its resident program standing on that session is taken down as the ask is written, where no
-    turn of the supervisor holds it, so the cleared session is not what its pane holds while the ask
-    waits (`docs/supervisors.md`, 「The program on an ended session」).
-  - Agency does this too, as it holds the supervisor's program: once an ask is written,
-    and on a script's `session-resets` word, every waiting ask of a room session has
-    the program on that session taken down.
+  - Once an ask is written, every waiting ask of a room session that holds a harness session owes
+    that session's handover: the session writes its note in one more turn, the new generation opens
+    on it and the ask is settled, at once where the room carries no turn and otherwise once its turn
+    ends or at the head of its next one.
+  - The resident program standing on the cleared session is taken down once the handover is made
+    (`docs/supervisors.md`, 「The program on an ended session」).
+  - A room whose session holds no harness session has nothing to hand over, and its next turn opens
+    the new generation and settles the ask.
 
 ## A session boundary is what applies a new chat tool
 

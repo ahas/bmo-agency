@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
@@ -335,6 +335,11 @@ pub struct HerdrSessions {
   // The room sessions whose owed handover is being made now, by the agent and the room, so two passes never
   // make one twice. What is owed is written down (docs/sessions.md, 「Session replacement」).
   settling_rooms: Mutex<HashSet<(String, i64)>>,
+  // The least time between two asks for the same session's handoff, in milliseconds: the policy's, unless a
+  // caller paces the asks otherwise (docs/sessions.md, 「A restart hands the session over」).
+  handoff_pace: AtomicU64,
+  // The key of the command each role session's turn going now went out under, read into its end.
+  prefixes: Mutex<HashMap<SessionId, String>>,
   // This backend as the server shares it, for the work a turn's end leaves to run apart from the answer.
   me: std::sync::OnceLock<std::sync::Weak<HerdrSessions>>,
 }
@@ -670,6 +675,24 @@ async fn choice_of(
   Ok((provider, road.model.clone()))
 }
 
+// Whether a room's harness session stands on another road than the one its supervisor answers on now: another
+// provider or model, or a place its registration no longer holds.
+async fn harness_moved(
+  ground: &Ground,
+  harness: &Harness,
+  provider: &dyn harness_providers::Provider,
+  model: &str,
+) -> bool {
+  harness.road != harness_road(provider.name(), model)
+    || match (&harness.placement, provider.not_registered()) {
+      (Some(node), Some(_)) => registration_named(ground, model)
+        .await
+        .map(|held| !held.holds_node(node))
+        .unwrap_or(false),
+      _ => false,
+    }
+}
+
 // The system prompt a supervisor's settings compose, out of the documents of the tree the process runs, for
 // the provider and model it answers on.
 async fn system_of(
@@ -738,6 +761,9 @@ enum Came {
   Failed(String, Option<EngineError>),
   /// A job's turn, whose end is read whole where it is carried.
   Ended(Box<TurnEnd>),
+  /// A turn put back to its caller before anything went in: the session it names was opened under another
+  /// command than the turn's.
+  Back,
 }
 
 impl Came {
@@ -748,6 +774,7 @@ impl Came {
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
       Self::Ended(end) => *end,
+      Self::Back => TurnEnd::of(run, Outcome::Reprepared),
     }
   }
 
@@ -852,6 +879,8 @@ impl HerdrSessions {
       replacing: Mutex::default(),
       replaced: tokio::sync::Notify::new(),
       settling_rooms: Mutex::default(),
+      handoff_pace: AtomicU64::new(HANDOFF.again_seconds * 1000),
+      prefixes: Mutex::default(),
       me: std::sync::OnceLock::new(),
     }
   }
@@ -860,6 +889,13 @@ impl HerdrSessions {
   pub fn shared_as(self: Arc<Self>) -> Arc<Self> {
     let _ = self.me.set(Arc::downgrade(&self));
     self
+  }
+
+  /// The least time between two asks for the same session's handoff set to `every` in place of the policy's.
+  pub fn pace_handoffs(&self, every: Duration) {
+    self
+      .handoff_pace
+      .store(u64::try_from(every.as_millis()).unwrap_or(u64::MAX), Ordering::Relaxed);
   }
 
   // The shared handle, where the server holds one; a backend held by nothing else runs such work inline.
@@ -978,29 +1014,198 @@ impl HerdrSessions {
     self.settle_owed(agent).await;
   }
 
-  /// A room's own sessions replaced because the owner moved the supervisor's road: each row turns its next
-  /// generation on the road the row names now, at the turn that next goes out there, and the program
-  /// standing on one of those sessions ends with it here, so the pane stops showing the old road
-  /// (docs/supervisors.md, 「The program's model is the one the supervisor answers on」).
-  pub async fn let_go_room_sessions(&self, agent: &str) {
-    let ground = self.ground();
-    let db = &ground.db;
-    let held: Vec<String> = match all(
-      db,
-      r#"SELECT "harness_session" FROM "room_sessions" WHERE "agent" = $1 AND "harness_session" IS NOT NULL"#,
-      vec![agent.into()],
-    )
-    .await {
-      Ok(rows) => rows.iter().filter_map(|row| row.try_get::<String>("", "harness_session").ok()).collect(),
-      Err(why) => {
-        eprintln!("supervisor {agent}: the sessions its rooms held were not read: {}", why.detail);
+  /// What a supervisor's sessions held replaced because its road moved — its provider, model, effort, thinking or
+  /// answer ceiling, a registration pinned anew, or a registration that lost the address its program stood on —
+  /// each through its handoff while the agent is quiet: the one session across rooms owes its replacement, and
+  /// every room's own session owes its handover (docs/supervisors.md, 「Where a supervisor's turn runs」).
+  pub async fn road_moved(&self, agent: &str) {
+    let scope = crate::supervisors::named(&self.ground().db, agent)
+      .await
+      .ok()
+      .flatten()
+      .map(|held| held.session_scope);
 
-        [].into()
+    match scope.as_deref() {
+      Some(scope) if scope == crate::conversational::Scope::Agent.word() => self.replaced_road(agent).await,
+      Some(_) => self.replace_rooms(agent, Why::Road).await,
+      None => {}
+    }
+  }
+
+  /// Every room session of `agent` that holds a harness session owes its handover for `why`, each made at once
+  /// in a room that carries no turn and otherwise as that room's turn ends (docs/supervisors.md, 「A session in
+  /// each room」).
+  pub async fn replace_rooms(&self, agent: &str, why: Why) {
+    let held = match sessions::sessions_of(&self.ground().db, agent).await {
+      Ok(held) => held,
+      Err(why) => {
+        return eprintln!("supervisor {agent}: the sessions its rooms hold were not read: {}", why.detail);
       }
     };
 
-    if !held.is_empty() {
-      let_go(ground, agent, &held).await;
+    for session in held.iter().filter(|session| session.harness.is_some()) {
+      self.owe_room_handover(session, why).await;
+    }
+
+    self.settled_apart().await;
+  }
+
+  /// Every room session a waiting reset asks to clear, where it holds a harness session, owes its handover for
+  /// the reset, each made as `replace_rooms` makes it (docs/session-resets.md, 「Who holds a session」).
+  pub async fn replace_reset_rooms(&self) {
+    let db = &self.ground().db;
+    let waiting = match all(
+      db,
+      r#"SELECT DISTINCT "s"."agent", "s"."chat_id" FROM "session_resets" "r"
+         JOIN "room_sessions" "s" ON "s"."agent" = "r"."agent" AND "s"."chat_id" = "r"."chat_id"
+         WHERE "r"."done_at" IS NULL AND "s"."harness_session" IS NOT NULL"#,
+      vec![],
+    )
+    .await
+    {
+      Ok(rows) => rows,
+      Err(why) => {
+        return eprintln!("agency: the room sessions a reset waits for were not read: {}", why.detail);
+      }
+    };
+
+    for row in waiting {
+      let (Ok(agent), Ok(chat_id)) =
+        (row.try_get::<String>("", "agent"), row.try_get::<i64>("", "chat_id"))
+      else {
+        continue;
+      };
+
+      if let Ok(Some(session)) = sessions::session(db, &agent, chat_id).await {
+        self.owe_room_handover(&session, Why::Reset).await;
+      }
+    }
+
+    self.settled_apart().await;
+  }
+
+  // The handovers the rooms owe made apart from the caller where the server shares this backend, since each is
+  // a turn of its own; inline otherwise.
+  async fn settled_apart(&self) {
+    match self.shared() {
+      Some(backend) => {
+        tokio::spawn(async move { backend.settle_rooms().await });
+      }
+      None => self.settle_rooms().await,
+    }
+  }
+
+  // The handover a room's session owes for `why` written down, composed for the road the session was opened on,
+  // so its handoff turn goes out on that road and the prompt composed for it. One owed already on the same
+  // session stands as it was written. Answers whether one is owed.
+  async fn owe_room_handover(&self, session: &RoomSession, why: Why) -> bool {
+    let ground = self.ground();
+    let db = &ground.db;
+    let (agent, chat_id) = (session.agent.as_str(), session.chat_id);
+    let Some(harness) = &session.harness else { return false };
+    let said = |what: String| {
+      eprintln!("supervisor {agent} in chat {chat_id}: the handover owed was not written down: {what}");
+      false
+    };
+
+    match crate::supervisor_turn::replacement::room_owed(db, agent, chat_id).await {
+      Ok(Some(owed)) if owed.session == harness.id => return true,
+      Ok(_) => {}
+      Err(why) => return said(why.detail),
+    }
+
+    let Some((name, model)) = harness.road.split_once("::") else {
+      return said(format!("its session's road {} names no provider", harness.road));
+    };
+    let Some(provider) = harness_providers::provider(name) else {
+      return said(format!("its session stands on {name}, which this build does not hold"));
+    };
+    let pinned = match pinned(ground, agent).await {
+      Ok(Some(pinned)) => pinned,
+      Ok(None) => return said(format!("no agent is named {agent}")),
+      Err(fault) => return said(fault.message),
+    };
+    let settings = match Settings::of(db, agent).await {
+      Ok(settings) => settings,
+      Err(refused) => return said(refused.error),
+    };
+    let system = match system_of(ground, &pinned, &settings, provider, model).await {
+      Ok(system) => system,
+      Err(why) => return said(why),
+    };
+    let due = Due {
+      provider,
+      model: model.to_owned(),
+      system,
+      generation: generation_of(&settings),
+      session: harness.id.clone(),
+      placement: harness.placement.clone(),
+      ratio: 1.0,
+      why,
+    };
+    let owed = crate::supervisor_turn::replacement::RoomOwed::of(&pinned.speaker, &due);
+
+    match crate::supervisor_turn::replacement::owe_room(db, agent, chat_id, &owed).await {
+      Ok(()) => true,
+      Err(why) => said(why.detail),
+    }
+  }
+
+  // Ahead of a room's turn: a handover its session still owes, or one a waiting reset or a road moved under the
+  // session calls for, made before the turn opens anything, so the turn opens on its note (docs/supervisors.md,
+  // 「A session in each room」). One under way is waited for.
+  async fn room_replaced_ahead(
+    &self,
+    agent: &str,
+    chat_id: i64,
+    provider: &'static dyn harness_providers::Provider,
+    model: &str,
+  ) {
+    let ground = self.ground();
+    let db = &ground.db;
+    let Ok(Some(held)) = sessions::session(db, agent, chat_id).await else { return };
+    let Some(harness) = held.harness.clone() else { return };
+    let owed = crate::supervisor_turn::replacement::room_owed(db, agent, chat_id)
+      .await
+      .ok()
+      .flatten()
+      .is_some_and(|owed| owed.session == harness.id);
+
+    if !owed {
+      let why = if sessions::reset_waiting(db, agent, chat_id).await.unwrap_or(false) {
+        Why::Reset
+      } else if harness_moved(ground, &harness, provider, model).await {
+        Why::Road
+      } else {
+        return;
+      };
+
+      if !self.owe_room_handover(&held, why).await {
+        return;
+      }
+    }
+
+    self.wait_room_settled(agent, chat_id).await;
+    self.settle_room(agent, chat_id).await;
+  }
+
+  // Held while a room's owed handover is being made by another pass.
+  async fn wait_room_settled(&self, agent: &str, chat_id: i64) {
+    let key = (agent.to_owned(), chat_id);
+
+    loop {
+      let notified = self.replaced.notified();
+
+      if !self
+        .settling_rooms
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .contains(&key)
+      {
+        return;
+      }
+
+      notified.await;
     }
   }
 
@@ -1088,11 +1293,12 @@ impl HerdrSessions {
     }
   }
 
-  /// A room session's handover a turn deferred, made now that the turn has ended, read from where it was
-  /// written down: the session writes its note in one more turn and the next generation opens on it; one that
-  /// writes no note opens the next generation all the same, so it reads the documents that moved. One owed on a
-  /// session the room no longer holds is let go, that session replaced already. The debt is let go once the
-  /// handover is made, so a restart under it leaves it owed.
+  /// A room session's owed handover made, read from where it was written down: the session writes its note in
+  /// one more turn and the next generation opens on it; one that writes no note opens the next generation all the
+  /// same, so it reads what moved, and is marked as having lost its handoff. The program stood on the session
+  /// that went is taken down, and a reset waiting for the room is settled by it. One owed on a session the room
+  /// no longer holds is let go, that session replaced already. The debt is let go once the handover is made, so a
+  /// restart under it leaves it owed.
   async fn settle_room(&self, agent: &str, chat_id: i64) {
     let ground = self.places.ground.clone();
     let db = ground.db.clone();
@@ -1119,6 +1325,7 @@ impl HerdrSessions {
 
     self.room_handed_over(agent, chat_id, owed).await;
     self.settling_rooms.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&key);
+    self.replaced.notify_waiters();
   }
 
   // The handover a room's session owed made and let go.
@@ -1160,14 +1367,37 @@ impl HerdrSessions {
     hand_over(&ground, &hold, &speaker, chat_id, due).await;
 
     let after = sessions::session(&db, agent, chat_id).await.ok().flatten();
+    let unwritten = after.is_some_and(|session| session.harness.map(|harness| harness.id) == before);
 
-    if let Some(session) = after
-      && session.harness.as_ref().map(|harness| harness.id.clone()) == before
-      && before.is_some()
-      && let Err(why) = sessions::open_generation(&db, agent, chat_id).await
+    if unwritten {
+      if let Err(why) = sessions::open_generation(&db, agent, chat_id).await {
+        eprintln!(
+          "supervisor {agent} in chat {chat_id}: the next generation did not open after the handover: {}",
+          why.detail
+        );
+      }
+
+      // The generation opened without the note it was owed: the receiver opens its first turn on what it
+      // keeps of the room's answers (docs/sessions.md, 「A restart hands the session over」).
+      if let Err(why) =
+        crate::supervisor_turn::replacement::lose(&db, &sessions::room_session_id(agent, chat_id)).await
+      {
+        eprintln!(
+          "supervisor {agent} in chat {chat_id}: the handoff it lost was not written down: {}",
+          why.detail
+        );
+      }
+    }
+
+    // The program stood on the session that went, so it ends with it (docs/supervisors.md, 「The program on an
+    // ended session」), and a reset the room waited for is what the handover carried out.
+    let_go(&ground, agent, std::slice::from_ref(&owed.session)).await;
+
+    if sessions::reset_waiting(&db, agent, chat_id).await.unwrap_or(false)
+      && let Err(why) = sessions::settle_reset(&db, agent, chat_id).await
     {
       eprintln!(
-        "supervisor {agent} in chat {chat_id}: the next generation did not open after the deferred handover: {}",
+        "supervisor {agent} in chat {chat_id}: the reset its handover carried out was not settled: {}",
         why.detail
       );
     }
@@ -1517,16 +1747,7 @@ impl HerdrSessions {
     };
     let moved = match &held.harness {
       None => false,
-      Some(harness) => {
-        harness.road != harness_road(provider.name(), model)
-          || match (&harness.placement, provider.not_registered()) {
-            (Some(node), Some(_)) => registration_named(ground, model)
-              .await
-              .map(|held| !held.holds_node(node))
-              .unwrap_or(false),
-            _ => false,
-          }
-      }
+      Some(harness) => harness_moved(ground, harness, provider, model).await,
     };
     let unresumable =
       held.harness.is_none() && sessions::keeps_turns(db, agent, chat_id, held.generation).await?;
@@ -1540,7 +1761,8 @@ impl HerdrSessions {
 
   // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent
   // had, and what came of it said in the turn's run log (docs/sessions.md, 「A restart hands the session
-  // over」); a turn that resumes its session asks nothing.
+  // over」); a turn that resumes its session asks nothing. One whose ask was not had leaves its session marked
+  // so, for the receiver to open the fresh one on its transcript.
   async fn handed_off(
     &self,
     log: &mut RunLog,
@@ -1552,9 +1774,9 @@ impl HerdrSessions {
   ) {
     let ground = self.ground();
 
-    // A room's own session is not asked through the receiver. When its prompt moved or its window filled,
-    // agency asks it for its own handoff note; a generation that opens because the session it had is gone
-    // has no session left to ask, so it carries nothing and the receiver is not asked.
+    // A room's own session is not asked through the receiver. When its prompt or its road moved, a reset of it
+    // was asked or its window filled, agency asks it for its own handoff note; a generation that opens because
+    // the session it had is gone has no session left to ask, so it carries nothing and the receiver is not asked.
     if room.is_some() {
       return;
     }
@@ -1565,22 +1787,31 @@ impl HerdrSessions {
       return;
     }
 
-    // A failed run asks for a fresh session no more than once a minute: a turn that keeps failing must not
-    // leave the room in a handoff loop of a row every ten seconds (docs/supervisors.md, 「A turn that goes
-    // nowhere」).
+    // Asks for the same session are paced, never skipped: one sooner than the pace after the last waits out the
+    // rest of it and is then made, so a turn that keeps failing does not leave the room in a handoff loop and no
+    // replacement lets a session go without asking (docs/sessions.md, 「A restart hands the session over」).
     let key = format!("handoff_asked:{agent}:{}", room.unwrap_or(0));
-    let now = now_ms();
+    let pace = i64::try_from(self.handoff_pace.load(Ordering::Relaxed)).unwrap_or(i64::MAX);
     let asked_at = crate::queue::settings::get(&ground.db, &key)
       .await
       .ok()
       .flatten()
       .and_then(|at| at.parse::<i64>().ok());
 
-    if asked_at.is_some_and(|at| now - at < 60_000) {
-      return;
+    if let Some(left) = asked_at.map(|at| at.saturating_add(pace) - now_ms()).filter(|left| *left > 0) {
+      log
+        .write(
+          &ground.db,
+          Line::note(fill_marks(
+            &SUPERVISOR_RUNNER.log.handoff_paced,
+            &[("seconds", &(left / 1000 + 1).to_string())],
+          )),
+        )
+        .await;
+      tokio::time::sleep(Duration::from_millis(left.unsigned_abs())).await;
     }
 
-    let _ = crate::queue::settings::set(&ground.db, &key, &now.to_string()).await;
+    let _ = crate::queue::settings::set(&ground.db, &key, &now_ms().to_string()).await;
 
     // The handoff a supervisor's one session across rooms is asked for is one more turn of that same session,
     // so the session is lent to it while this turn waits: the receiver finds the session by the state agency
@@ -1594,6 +1825,12 @@ impl HerdrSessions {
     self.lent_back(&session);
 
     log.write(&ground.db, Line::note(handed.said())).await;
+
+    if matches!(handed, crate::handoff::Handed::Failed(_))
+      && let Err(why) = crate::supervisor_turn::replacement::lose(&ground.db, agent).await
+    {
+      eprintln!("{agent}: the handoff it lost was not written down: {}", why.detail);
+    }
   }
 
   // One turn of a supervisor in a room, carried by its resident program on its room's session.
@@ -1618,6 +1855,11 @@ impl HerdrSessions {
       Err(why) => return failed(why),
     };
     let began = context.began.unwrap_or_else(now_ms);
+
+    // A handover the room's session owes, or one a reset or a road moved under it calls for, is made before
+    // anything is opened, so the turn opens on its note (docs/supervisors.md, 「A session in each room」).
+    self.room_replaced_ahead(agent, chat_id, provider, &model).await;
+
     let hold = &self.places.kept.reset;
     let keeping = hold.keeping().await;
 
@@ -2816,6 +3058,15 @@ impl HerdrSessions {
     self.ended(&turn.session, &run);
     crate::turn_marks::ended(&agent, &run);
 
+    // A session opened without its handoff is told so until a turn begun after it has answered.
+    if matches!(came, Ok(Came::Answered(..)))
+      && matches!(scope, Scope::Agent | Scope::Room(_))
+      && let Err(why) =
+        crate::supervisor_turn::replacement::answered_since(&self.ground().db, &turn.session.0, at).await
+    {
+      eprintln!("{}: the handoff it lost was not let go: {}", turn.session.0, why.detail);
+    }
+
     // A replacement this turn found owed is made now that the turn has ended, apart from the answer going
     // back (docs/sessions.md, 「Session replacement」).
     match (&scope, self.shared()) {
@@ -2866,6 +3117,14 @@ impl HerdrSessions {
         let mut end = came.end(&run);
 
         end.turn = turn_id;
+
+        let prefix = self
+          .prefixes
+          .lock()
+          .unwrap_or_else(|poisoned| poisoned.into_inner())
+          .remove(&turn.session);
+
+        end.prefix = end.prefix.take().or(prefix);
 
         if end.outcome != Outcome::Answered && end.reason.is_none() {
           end.reason = cut;
@@ -3069,6 +3328,27 @@ impl HerdrSessions {
     if job.is_some() {
       env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
     }
+
+    // The key of the command the turn goes out under: a session its caller names, opened under another, is put
+    // back to the caller before anything goes in, its prefix having moved (docs/sessions.md, 「The handoff a job's
+    // session leaves」).
+    let prefix = crate::apart_sessions::key_of(
+      composed.line,
+      &composed.cwd,
+      &composed.system_path,
+      &composed.mcp_config,
+      &composed.tools_allowed,
+    );
+
+    if apart.resume.is_some() && apart.resume_prefix.as_ref().is_some_and(|held| *held != prefix) {
+      return Ok(Came::Back);
+    }
+
+    self
+      .prefixes
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner())
+      .insert(session.clone(), prefix);
 
     // The session the role keeps at this folder on this provider and model, where it keeps sessions.
     let key = if crate::apart_sessions::setting(&ground.db, role, &composed.cwd).await.keeps() {

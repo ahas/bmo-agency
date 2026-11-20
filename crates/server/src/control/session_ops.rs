@@ -583,7 +583,8 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
 }
 
 // The member with the share of its model's window its session is folded at, its supervisor's or its role's
-// compaction threshold read afresh (docs/sessions.md, 「Session compaction」), and the row it runs for.
+// compaction threshold read afresh (docs/sessions.md, 「Session compaction」), the row it runs for, and whether it
+// was opened without the handoff it was owed.
 async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<Value, Refused> {
   let provider = member["provider"].as_str().unwrap_or_default().to_owned();
   let agent = member["agentName"].as_str().unwrap_or_default().to_owned();
@@ -600,10 +601,15 @@ async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<V
   member["foldRatio"] = json!(ratio);
   member["supervisor"] = json!(supervisor.map(|held| held.name));
   member["role"] = json!(role.map(|held| held.name));
+  let conversational = matches!(member["scope"].as_str(), Some("agent" | "room"));
+
   // A room's or an agent's session on a program that carries its own turns compacts itself at that share.
-  member["foldsItself"] = json!(
-    matches!(member["scope"].as_str(), Some("agent" | "room"))
-      && crate::chat_stand_in::inbox_declared(&provider)
+  member["foldsItself"] = json!(conversational && crate::chat_stand_in::inbox_declared(&provider));
+  // A room's or an agent's session opened without the handoff it was owed says so until a turn has answered on it
+  // (docs/sessions.md, 「A restart hands the session over」).
+  member["handoffLost"] = json!(
+    conversational
+      && crate::supervisor_turn::replacement::lost(db, member["id"].as_str().unwrap_or_default()).await?
   );
 
   Ok(member)

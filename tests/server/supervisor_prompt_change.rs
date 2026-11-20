@@ -377,6 +377,7 @@ fn room_owed(session: &str, system: &str) -> agency_server::supervisor_turn::rep
     generation: indexmap::IndexMap::from([("effort".to_owned(), json!("high"))]),
     session: session.into(),
     placement: None,
+    why: agency_server::supervisor_turn::handoff::Why::Documents,
   }
 }
 
