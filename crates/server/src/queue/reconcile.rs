@@ -172,6 +172,10 @@ pub fn ending(body: &Map<String, Value>, parent_open: bool, directory: &Path, no
 /// watched it gone.
 pub const PANE_SWEPT: &str = "interrupted: its collector gone, its pane closed by the leftover sweep";
 
+/// What a turn in a pane of its own closes on once the leftover sweep finds its pane gone from herdr, the
+/// collector that watched it gone.
+pub const PANE_GONE: &str = "interrupted: its collector gone, its pane gone from herdr";
+
 /// Whether what collected a turn in a pane says it is over: its collector published how it ended, or the
 /// process that collected it is gone. A directory with no collector's envelope says nothing, and is not.
 pub fn collector_ended(directory: &Path) -> bool {
@@ -179,9 +183,13 @@ pub fn collector_ended(directory: &Path) -> bool {
     .is_some_and(|collector| collector.get("cause").is_some() || gone(collector.get("owner")))
 }
 
-/// The open row of a turn whose pane the leftover sweep closed, its collector gone, closed as interrupted;
-/// whether it was open. A row its own writer closed meanwhile keeps that end.
-pub async fn close_swept(db: &DatabaseConnection, id: &str) -> Result<bool, Refusal> {
+/// The open row of a turn in a pane of its own whose collector is gone closed as interrupted, on the evidence
+/// the leftover sweep found; whether it was open. A row its own writer closed meanwhile keeps that end.
+pub async fn close_swept(
+  db: &DatabaseConnection,
+  id: &str,
+  evidence: &'static str,
+) -> Result<bool, Refusal> {
   let rows = all(
     db,
     r#"SELECT "body" FROM "agent_executions" WHERE "id" = $1 AND ("body"::jsonb)->>'endedAt' IS NULL"#,
@@ -200,9 +208,41 @@ pub async fn close_swept(db: &DatabaseConnection, id: &str) -> Result<bool, Refu
   row.set("state", json!("cancelled"));
   row.set("endedAt", json!(now_ms()));
   row.set("exitCode", json!(1));
-  row.set("reconciliationEvidence", json!(PANE_SWEPT));
+  row.set("reconciliationEvidence", json!(evidence));
 
   row.save_while_open(db).await
+}
+
+/// The open rows of turns in a pane of its own whose pane is none of those herdr holds and whose collector is
+/// gone, by their ids: what a server's restart left of a run whose pane went before anything closed its row.
+/// A resident turn's row and a native child's are another pass's.
+pub async fn paneless(
+  db: &DatabaseConnection,
+  data_root: &Path,
+  panes: &HashSet<String>,
+) -> Result<Vec<String>, Refusal> {
+  let rows = all(
+    db,
+    r#"SELECT "id", ("body"::jsonb)->>'paneId' AS "pane" FROM "agent_executions"
+       WHERE ("body"::jsonb)->>'endedAt' IS NULL AND ("body"::jsonb)->>'paneId' IS NOT NULL
+         AND COALESCE(("body"::jsonb)->'resident', 'null'::jsonb) = 'null'::jsonb
+         AND COALESCE(("body"::jsonb)->>'sharedPane', 'false') <> 'true'"#,
+    vec![],
+  )
+  .await?;
+  let executions = data_root.join("executions");
+  let mut gone = vec![];
+
+  for row in rows {
+    let id: String = row.try_get("", "id")?;
+    let pane: String = row.try_get("", "pane")?;
+
+    if plain(&id) && !panes.contains(&pane) && collector_ended(&executions.join(&id)) {
+      gone.push(id);
+    }
+  }
+
+  Ok(gone)
 }
 
 /// One pass over every open row, each one that has ended closed as it ended; how many were closed. A row its own

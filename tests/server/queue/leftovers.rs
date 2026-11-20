@@ -1,18 +1,18 @@
 //! What runs and places leave in herdr: a pane whose run is over closes, a workspace nothing at work stands
 //! in whose folder is gone closes whole, a checkout's stands only for its dev server, a standing agent's and a
 //! node's are left to the standing passes, another root's is judged by this store's runs alone, only a marked
-//! workspace's empty panes
-//! close, and what the sweep will not close is published once in the policy's words; the sweep closes the
-//! pane of a run nothing carries any more with its row, and keeps one whose collector stands.
+//! workspace's empty panes close, and what the sweep will not close is published once in the policy's words;
+//! the sweep closes the pane of a run nothing carries any more with its row, keeps one whose collector stands,
+//! and closes the row of such a run whose pane is already gone.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use agency_server::door::execution::ENVELOPE;
 use agency_server::queue::leftovers::{
-  HerdrLeftovers, PaneView, Standing, Survivor, WorkspaceView, plan, sweep,
+  HerdrLeftovers, PaneView, Standing, Survivor, WorkspaceView, close_paneless, plan, sweep,
 };
-use agency_server::queue::reconcile::PANE_SWEPT;
+use agency_server::queue::reconcile::{PANE_GONE, PANE_SWEPT};
 use agent_host::identity::ProcessIdentity;
 use policy::fill_marks;
 use policy::queue_words::QUEUE_WORDS;
@@ -274,4 +274,18 @@ async fn the_sweep_closes_the_pane_of_a_run_nothing_carries_with_its_row_and_kee
 
   assert!(row("run-orphan").await.contains(PANE_SWEPT), "its row closes with its pane");
   assert!(row("run-carried").await.contains("\"endedAt\":null"), "a carried run's row stays open");
+
+  // A run whose pane went before anything closed its row has that row closed once its collector is gone, and
+  // kept while its collector stands.
+  let lost =
+    run_pane(&scratch, &herdr, &data, "run-lost", json!({ "pid": 999_999_999, "birth": "1" })).await;
+  let going = run_pane(&scratch, &herdr, &data, "run-going", json!(ProcessIdentity::own())).await;
+
+  for pane in [&lost, &going] {
+    herdr.call("pane.close", json!({ "pane_id": pane }));
+  }
+
+  assert_eq!(close_paneless(&ground, ground.herdr.as_ref().unwrap()).await.unwrap(), 1);
+  assert!(row("run-lost").await.contains(PANE_GONE));
+  assert!(row("run-going").await.contains("\"endedAt\":null"));
 }

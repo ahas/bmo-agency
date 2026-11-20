@@ -211,7 +211,9 @@ The owner's words:
     verb's process stopped, and no pickup carried it on. Such a pane is closed, its workspace with it where
     nothing else is in it, whatever the workspace is marked with, and an execution its collector left open
     is closed with it, as interrupted, with what its run started (`docs/run-groups.md`). A run this store
-    holds no execution of — another data root's, or a consumer's — is never over here.
+    holds no execution of — another data root's, or a consumer's — is never over here. An open execution
+    of a run in a pane of its own whose collector is gone and whose pane this machine's herdr no longer
+    holds is closed the same way, since a run opens its pane on this machine's herdr alone.
   - **A workspace in a removed folder goes whole.** One with no run at work in it, every pane of which stands
     in a folder that has since been removed — a head an earlier release stood, a run whose folder went — is
     closed whole, marked or not.

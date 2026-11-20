@@ -410,7 +410,7 @@ pub async fn sweep(ground: &Ground, herdr: &Herdr, standing: &Standing) -> Resul
   }
 
   for run in plan.closed_runs.iter().filter(|run| orphaned.contains(*run)) {
-    super::reconcile::close_swept(db, run).await?;
+    super::reconcile::close_swept(db, run, super::reconcile::PANE_SWEPT).await?;
 
     // Whatever the run started ends with it (docs/run-groups.md).
     if let Some(line) = crate::run_groups::end_of_run(&ground.roots.data, run).await {
@@ -476,6 +476,27 @@ pub async fn standing(ground: &Ground) -> Result<Standing, Refusal> {
   })
 }
 
+/// The open rows of runs in a pane of their own that this machine's herdr no longer holds, their collector gone,
+/// closed with what their runs started: a run opens its pane of its own on this machine's herdr alone. Nothing
+/// where herdr did not answer.
+pub async fn close_paneless(ground: &Ground, herdr: &Herdr) -> Result<usize, Refusal> {
+  let Ok(snapshot) = herdr.snapshot().await else { return Ok(0) };
+  let panes: HashSet<String> = snapshot.panes.into_iter().filter_map(|pane| pane.pane_id).collect();
+  let mut closed = 0;
+
+  for run in super::reconcile::paneless(&ground.db, &ground.roots.data, &panes).await? {
+    if super::reconcile::close_swept(&ground.db, &run, super::reconcile::PANE_GONE).await? {
+      closed += 1;
+    }
+
+    if let Some(line) = crate::run_groups::end_of_run(&ground.roots.data, &run).await {
+      println!("{line}");
+    }
+  }
+
+  Ok(closed)
+}
+
 /// What runs and places leave in herdr swept on this machine's herdr, where one stands, and on each ready work
 /// node's whose link the node service reports up.
 pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
@@ -484,6 +505,7 @@ pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
 
   if let Some(herdr) = &ground.herdr {
     sweep(ground, herdr, &standing).await?;
+    close_paneless(ground, herdr).await?;
   }
 
   for row in all(
