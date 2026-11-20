@@ -1,7 +1,7 @@
 //! A slot given back under a running turn (docs/role-slots.md, 「The line」): the owner's release gives back the
 //! lease at once, puts the stop to the turn running in the role session the lease was bound to, and ends that
-//! session only once its turn has ended — never under it — the turn ending `stopped` with the reason
-//! `released`, and the stop taken back once it has.
+//! session only once its turn has ended — never under it — the turn ending `stopped`, never failed, with the reason
+//! `released`, and the stop taken back once it has, so a later turn under the same name is never refused for it.
 
 use crate::integration::common;
 
@@ -20,6 +20,23 @@ use common::herdr::HerdrModel;
 use harness_providers::Machine;
 
 use crate::support::grounds::{deepseek_balance, seeded};
+
+// A tool host that issues every program's token it is asked for, so a turn goes on to stand its program.
+fn issuing_host(socket: &std::path::Path) {
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new().route(
+    "/tool-sessions",
+    axum::routing::post(|axum::Json(mut record): axum::Json<serde_json::Value>| async move {
+      record["token"] = serde_json::json!("a-token");
+      record["createdAt"] = serde_json::json!(1);
+      record["expiresAt"] = serde_json::Value::Null;
+
+      (axum::http::StatusCode::CREATED, axum::Json(record))
+    }),
+  );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+}
 
 // A role's turn's work parts, under the run name given.
 fn work(cwd: &str, run: &str) -> WorkParts {
@@ -76,6 +93,10 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
   std::fs::create_dir_all(config.join("herdr")).unwrap();
 
   let herdr = HerdrModel::stand(config.join("herdr").join("herdr.sock"));
+  let socket = home.path().join("mcp-host.sock");
+
+  issuing_host(&socket);
+
   let at = |path: &std::path::Path| path.to_string_lossy().into_owned();
   let machine = Machine::with_env(
     [
@@ -83,6 +104,8 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
       ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
       ("XDG_CONFIG_HOME".to_owned(), at(&config)),
       ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+      ("BMO_MCP_HOST_SOCKET".to_owned(), at(&socket)),
+      ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
     ],
     home.path().join("data"),
   );
@@ -121,8 +144,9 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
   let sending = sessions.clone();
   let going = tokio::spawn(async move { sending.send_turn(turn).await });
 
-  for _ in 0..100 {
-    if sessions.turn_run(&started.id).is_some() || going.is_finished() {
+  // Its program's pane standing: from here the turn reads a stop put to it.
+  for _ in 0..250 {
+    if !herdr.panes().is_empty() || going.is_finished() {
       break;
     }
 
@@ -132,6 +156,8 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
   if going.is_finished() {
     panic!("the turn ended before it could be cut: {:?}", going.await);
   }
+
+  assert!(!herdr.panes().is_empty(), "the turn stands its program's pane");
 
   assert_eq!(
     sessions.turn_run(&started.id).as_deref(),
@@ -153,45 +179,31 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
   let cutting = sessions.clone();
   let session = started.id.clone();
   let cut = tokio::spawn(async move { cutting.end_under_turns(&session, "released").await });
+  let marker = format!("{EXECUTION_CANCEL_PREFIX}research-9-round");
 
-  for _ in 0..100 {
+  for _ in 0..250 {
     if going.is_finished() {
       break;
     }
 
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    tokio::time::sleep(Duration::from_millis(20)).await;
   }
 
-  if going.is_finished() {
-    let end = going.await.unwrap().unwrap();
+  assert!(going.is_finished(), "the turn reads the stop and ends");
 
-    assert_eq!(
-      (end.ending.as_deref(), end.reason.as_deref()),
-      (Some("stopped"), Some("released")),
-      "{end:?}"
-    );
-    cut.await.unwrap().unwrap();
-    assert_eq!(ends.ready().map(|ended| ended.end.reason), Some(Some("released".to_owned())));
+  let end = going.await.unwrap().unwrap();
 
-    let marker =
-      agency_server::queue::settings::get(&line.db, &format!("{EXECUTION_CANCEL_PREFIX}research-9-round"))
-        .await
-        .unwrap();
-
-    assert_eq!(marker, None, "the stop is taken back once its turn has ended, refusing no later turn");
-    assert_eq!(sessions.read_state(&started.id, None).await.unwrap_err().kind, FaultKind::Unknown);
-  } else {
-    // A turn not yet at its program reads the stop as it gets there; until then its session stands.
-    let marker =
-      agency_server::queue::settings::get(&line.db, &format!("{EXECUTION_CANCEL_PREFIX}research-9-round"))
-        .await
-        .unwrap();
-
-    assert!(marker.is_some(), "the stop is put to the running turn");
-    assert!(!cut.is_finished(), "the session is not ended under its turn");
-    assert!(
-      sessions.read_state(&started.id, None).await.is_ok(),
-      "the session stands while its turn runs"
-    );
-  }
+  assert_eq!(
+    (end.ending.as_deref(), end.reason.as_deref(), &end.failure),
+    (Some("stopped"), Some("released"), &None),
+    "a stop, never a failure: {end:?}"
+  );
+  cut.await.unwrap().unwrap();
+  assert_eq!(ends.ready().map(|ended| ended.end.reason), Some(Some("released".to_owned())));
+  assert_eq!(sessions.read_state(&started.id, None).await.unwrap_err().kind, FaultKind::Unknown);
+  assert_eq!(
+    agency_server::queue::settings::get(&line.db, &marker).await.unwrap(),
+    None,
+    "the stop is taken back once its turn has ended, refusing no later turn"
+  );
 }

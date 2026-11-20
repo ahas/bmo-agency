@@ -2871,8 +2871,15 @@ impl HerdrSessions {
 
         end.turn = turn_id;
 
-        if end.outcome != Outcome::Answered && end.reason.is_none() {
-          end.reason = cut;
+        // Ended by that stop, whatever its program made of it: a stop is never a failure.
+        if let Some(reason) = cut
+          && end.outcome != Outcome::Answered
+        {
+          end.outcome = Outcome::Stopped;
+          end.ending = Some("stopped".to_owned());
+          end.reason = Some(reason);
+          end.failure = None;
+          end.engine_error = None;
         }
 
         close_turn_run(&self.ground().db, ledger, &end, spent, context).await;
