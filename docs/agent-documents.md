@@ -110,7 +110,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
-  approval, the worker's run and its close, host work, the fast track, a secret asked for and used by its
+  approval, the worker's run and its close, the work tree's notices and the day's collection, host work,
+  the fast track, a secret asked for and used by its
   name, images read and drawn, a document
   filed for a person and the pictures that stand in its body, a line for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
@@ -120,6 +121,25 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   the supervisor works at all, and it says when to act.
   It names no tool of the program the session runs on, since one manual serves every program the chat
   stands on.
+- **The day's collection is the supervisor's own reading, told by the manual.** The work service only
+  says when a person's day is to be asked, with its `day.end` notice (bmo-work `docs/design.md`, 「The
+  end-of-day question」); the person's supervisor does the rest with its own tools, reaching nothing the
+  person may not read:
+  - it reads the day's traces by the day's date — the calendar, the Outlook day on the person's own PC,
+    the mail they sent, the files they changed, the approvals, the Teams talks they stand in, the TODO
+    items closed or reported for them — and keeps of each a reference alone, never its content;
+  - it drafts the day's entries from them, finding each one's work, and shows them all in one
+    confirmation card, with the drafts already standing and one question of what was finished and how
+    much is left;
+  - nothing becomes a record but what the person confirms: a confirmed draft is confirmed as corrected,
+    a rejected one withdrawn, and an unanswered one stays a draft and comes back with the next day's
+    question;
+  - days missed while the person's PC was off are asked once together when it comes back, each day's
+    traces read and each entry dated by the day they belong to;
+  - a progress the person tells it in chat is drafted on the spot and checked with one short question,
+    and is not asked again at the day's end;
+  - what the person said to it alone reaches the tree only as an entry line they confirmed; the rest of
+    the talk stays in their room.
 - **A line that goes to the voice is two texts,** and every prompt of an agent that hands words to the
   voice says so where it does: the manual for the supervisor, the producer role for its narration, the
   worker plugin's skills for a document's narration. The written words are what people read — a caption,
