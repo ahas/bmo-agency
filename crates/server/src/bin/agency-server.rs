@@ -449,7 +449,7 @@ fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(async move {
     let period = Duration::from_secs(policy::queue_idle::QUEUE_IDLE.check_seconds);
 
-    every("idle queue's alarm", period, period, move || {
+    every("queue's minute pass", period, period, move || {
       let ground = idle.clone();
 
       async move {

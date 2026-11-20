@@ -1,5 +1,5 @@
 //! Agency's outbox (docs/agent-control.md, 「An item's change is told to its orderer」): every notice owed to an
-//! orderer or the owner is written as a row of the store's `notices` table before it is told, and sent until the
+//! orderer is written as a row of the store's `notices` table before it is told, and sent until the
 //! receiver takes it — tried as it is written, then by the sender every few seconds, the wait between tries
 //! doubling. A row told is let go, kept with its instruction's id until what it tells of moves on, or kept
 //! standing and told again while its condition holds; a kept or standing row let go withdraws the copy told last.
@@ -47,7 +47,6 @@ impl Receiver {
     };
     let asked = match route {
       Route::Instruction => client.post(format!("{}/instructions", self.url)).json(body),
-      Route::Owner => client.post(format!("{}/owner/notices", self.url)).json(body),
       Route::Withdrawal => client.delete(format!("{}/instructions/{}", self.url, body["id"])),
     };
     let answer = match asked.bearer_auth(&self.token).send().await {
@@ -103,8 +102,6 @@ enum Answer {
 pub enum Route {
   /// `POST /instructions`, answered with the instruction's id.
   Instruction,
-  /// `POST /owner/notices`.
-  Owner,
   /// `DELETE /instructions/{id}`, the id standing in the body's `id`.
   Withdrawal,
 }
@@ -113,14 +110,12 @@ impl Route {
   fn word(self) -> &'static str {
     match self {
       Self::Instruction => "instruction",
-      Self::Owner => "owner",
       Self::Withdrawal => "withdrawal",
     }
   }
 
   fn read(word: &str) -> Self {
     match word {
-      "owner" => Self::Owner,
       "withdrawal" => Self::Withdrawal,
       _ => Self::Instruction,
     }
@@ -175,17 +170,6 @@ impl Notice {
       route: Route::Instruction,
       body,
       keep,
-      mark: String::new(),
-    }
-  }
-
-  /// An owner notice, keyed by its code and the job, the question or the moment it tells of; told once.
-  pub fn owner(subject: impl std::fmt::Display, body: Value) -> Self {
-    Self {
-      key: format!("{}:{subject}", body["code"].as_str().unwrap_or_default()),
-      route: Route::Owner,
-      body,
-      keep: Keep::Once,
       mark: String::new(),
     }
   }

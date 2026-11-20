@@ -98,6 +98,7 @@ mod m20270106_000001_supply_reservations;
 mod m20270107_000001_run_cost;
 mod m20270108_000001_gate_keys_retired;
 mod m20270109_000001_quota_share_gone;
+mod m20270110_000001_queue_notices_one_road;
 
 use sea_orm_migration::prelude::*;
 
@@ -290,6 +291,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270107_000001_run_cost::Migration),
       Box::new(m20270108_000001_gate_keys_retired::Migration),
       Box::new(m20270109_000001_quota_share_gone::Migration),
+      Box::new(m20270110_000001_queue_notices_one_road::Migration),
     ]
   }
 

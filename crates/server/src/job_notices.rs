@@ -1,7 +1,6 @@
-//! What an item's orderer and the owner are told of a change in the queue (docs/agent-control.md, 「An item's
-//! change is told to its orderer」): each instruction an order under the sort `job` in the orderer's room, with
-//! a kind and an event of its row and the item's or the question's number; and each owner notice a code with
-//! its fields. Each is owed in agency's outbox (`crate::outbox`), which tells the receiver.
+//! What an item's orderer is told of a change in the queue (docs/agent-control.md, 「An item's change is told to
+//! its orderer」): each an order under the sort `job` in the orderer's room, with a kind and an event of its row
+//! and the item's or the question's number, owed in agency's outbox (`crate::outbox`), which tells the receiver.
 
 use std::collections::BTreeMap;
 
@@ -63,7 +62,8 @@ pub fn unlaunchable(item: i64, title: &str, assignee: &str, orderer: &Orderer) -
   instruction("item-unlaunchable", item, orderer, format!("Item #{item} names no repository"), order)
 }
 
-/// An item whose launch was refused for its `agent` label: none named, or one no job can run on.
+/// An item whose `agent` label no launch takes: none named, one the agency does not register, one switched off,
+/// or one no job can run on.
 pub fn agent_refused(item: i64, title: &str, label: &str, why: &str, orderer: &Orderer) -> Value {
   let number = item.to_string();
   let order = fill_marks(
@@ -72,10 +72,28 @@ pub fn agent_refused(item: i64, title: &str, label: &str, why: &str, orderer: &O
   );
 
   instruction(
-    "item-unlaunchable",
+    "item-agent-refused",
     item,
     orderer,
     format!("Item #{item} names no agent a job can run on"),
+    order,
+  )
+}
+
+/// An open item whose `role` label names no role agency holds, with the roles it holds.
+pub fn role_unknown(item: i64, title: &str, label: &str, roles: &[String], orderer: &Orderer) -> Value {
+  let number = item.to_string();
+  let roles = roles.join(", ");
+  let order = fill_marks(
+    &JOB_NOTICES.role_order,
+    &[("item", &number), ("title", title), ("label", label), ("roles", &roles)],
+  );
+
+  instruction(
+    "item-role-unknown",
+    item,
+    orderer,
+    format!("Item #{item} names no role agency holds"),
     order,
   )
 }
@@ -394,53 +412,87 @@ pub fn awaits_close(item: i64, lease: i64, orderer: &Orderer) -> Value {
   instruction("job-awaits-close", item, orderer, format!("Item #{item} awaits its close"), order)
 }
 
-/// The owner notice of a question still open past its due time.
-pub fn question_due(question: &Value) -> Value {
-  json!({
-    "code": JOB_NOTICES.question_due_code,
-    "questionId": question["id"],
-    "itemId": question["itemId"],
-    "text": question["text"],
-    "choices": question["choices"],
-    "askerName": question["askerName"],
-    "dueAt": question["dueAt"],
-  })
+/// A person's question still open past its due time, told to the orderer of the item it was asked on.
+pub fn question_due(question: &Value, orderer: &Orderer) -> Value {
+  let id = id_of(question);
+  let number = id.to_string();
+  let item = question["itemId"].as_i64().map_or_else(|| "none".to_owned(), |item| item.to_string());
+  let choices = choices_of(question);
+  let order = fill_marks(
+    &JOB_NOTICES.question_due_order,
+    &[
+      ("question", &number),
+      ("item", &item),
+      ("asker", question["askerName"].as_str().unwrap_or("a run")),
+      ("text", question["text"].as_str().unwrap_or_default()),
+      ("choices", if choices.is_empty() { "an open answer" } else { &choices }),
+    ],
+  );
+
+  instruction("job-question-due", id, orderer, format!("Question #{id} is past its due time"), order)
 }
 
-/// The owner notice of a question its due time passed on with no answer, settled on its recommendation: the
-/// settling reply's answer, its `choice` where it named one of the choices and its `text` otherwise, and the
-/// recommendation's reason; the item as the question names it, none where the service no longer holds it.
-pub fn question_settled(reply: &Value, question: Option<&Value>) -> Value {
+/// A question its due time passed on with no answer, settled on its recommendation, told to the orderer of the
+/// item it was asked on: the settling reply's answer, its `choice` where it named one of the choices and its
+/// `text` otherwise, and the recommendation's reason; the item as the question names it, none where the service
+/// no longer holds it.
+pub fn question_settled(reply: &Value, question: Option<&Value>, orderer: &Orderer) -> Value {
+  let id = reply["questionId"].as_i64().unwrap_or_default();
+  let number = id.to_string();
   let answer = match reply["choice"].as_str() {
-    Some(choice) if !choice.is_empty() => Value::String(choice.to_owned()),
-    _ => reply["text"].clone(),
+    Some(choice) if !choice.is_empty() => choice.to_owned(),
+    _ => reply["text"].as_str().unwrap_or_default().to_owned(),
   };
+  let item = question
+    .and_then(|question| question["itemId"].as_i64())
+    .map(|item| fill_marks(&JOB_NOTICES.question_settled_item, &[("item", &item.to_string())]))
+    .unwrap_or_default();
+  let order = fill_marks(
+    &JOB_NOTICES.question_settled_order,
+    &[
+      ("question", &number),
+      ("item", &item),
+      ("answer", &answer),
+      ("why", reply["why"].as_str().unwrap_or_default()),
+    ],
+  );
 
-  json!({
-    "code": JOB_NOTICES.question_settled_code,
-    "questionId": reply["questionId"],
-    "itemId": question.map_or(Value::Null, |question| question["itemId"].clone()),
-    "answer": answer,
-    "why": reply["why"],
-  })
+  instruction(
+    "job-question-settled",
+    id,
+    orderer,
+    format!("Question #{id} was settled on its recommendation"),
+    order,
+  )
 }
 
-/// Whether a job's end is a failure the owner is told of as well: its outcome `failed` or `blocked`, its
-/// orderer a room other than the owner's private room.
+/// Whether a job's end is a failure the owner's private room is told of as well: its outcome `failed` or
+/// `blocked`, its orderer a room other than the owner's private room.
 pub fn owner_hears_failure(member: &Value, orderer: &Orderer) -> bool {
   orderer.room.is_some() && matches!(member["outcome"].as_str(), Some("failed" | "blocked"))
 }
 
-/// The owner notice of a job that failed in a room other than his own.
+/// A job that failed in a room other than the owner's, told in the owner's private room.
 pub fn failed(member: &Value, room: Option<i64>) -> Value {
-  json!({
-    "code": JOB_NOTICES.failed_code,
-    "jobId": member["id"],
-    "itemId": member["itemId"],
-    "worker": member["workerName"],
-    "outcome": member["outcome"],
-    "room": room,
-  })
+  let item = member["itemId"].as_i64().unwrap_or_default();
+  let order = fill_marks(
+    &JOB_NOTICES.failed_order,
+    &[
+      ("job", &member["id"].as_i64().unwrap_or_default().to_string()),
+      ("item", &item.to_string()),
+      ("worker", member["workerName"].as_str().unwrap_or_default()),
+      ("outcome", member["outcome"].as_str().unwrap_or_default()),
+      ("room", &room.map_or_else(|| "none".to_owned(), |room| room.to_string())),
+    ],
+  );
+
+  instruction(
+    "job-failed",
+    item,
+    &Orderer::default(),
+    format!("The job of item #{item} failed"),
+    order,
+  )
 }
 
 /// A job's wait owed to its item's orderer as it begins (「A job's wait is told as it begins」), the orderer read as

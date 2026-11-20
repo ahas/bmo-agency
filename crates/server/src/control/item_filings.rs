@@ -304,6 +304,18 @@ impl Route for FileItem {
     if !status.is_success() {
       let said = body["error"].as_str().map_or_else(|| status.to_string(), str::to_owned);
 
+      // A refusal of the item itself, a label naming what agency does not hold among them (docs/agent-control.md,
+      // 「A label agency does not hold is refused as it is set」), is the caller's to mend, and keeps its status
+      // and its code.
+      if status.is_client_error() {
+        let refused = Refused::new(status, format!("the job service refused the item: {said}"));
+
+        return Err(match body["code"].as_str() {
+          Some(code) => refused.with_code(code),
+          None => refused,
+        });
+      }
+
       return Err(upstream(format!("the job service refused the item: {said}")));
     }
 

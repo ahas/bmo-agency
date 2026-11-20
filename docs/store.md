@@ -163,7 +163,7 @@ seeds. The other crates and the server reach the store only through it.
     the line, the kind, `relay` or `chat`, the state it came to, the answer or the reason, and when it was
     sent in epoch milliseconds (`docs/relays.md`, 「The record」);
   - the notices owed to an orderer or the owner: `notices`, agency's outbox, one row a notice keyed by its kind
-    — the receiver's route it goes by (an instruction, an owner notice or a withdrawal), the body it is told
+    — the receiver's route it goes by (an instruction or a withdrawal), the body it is told
     with as JSON, how it is kept once told (let go, kept or standing), the mark it was owed for, the
     receiver's id of the copy told last, when it was owed, when it was last told, when it is due next, how
     many tries it took and the last one's failure — written as a notice is owed and sent until the receiver
@@ -227,11 +227,12 @@ seeds. The other crates and the server reach the store only through it.
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
-  - the queue's notices (`docs/agent-control.md`, 「An idle queue is told to the owner」 and 「An item's change
-    is told to its orderer」): the idle alarm's `queue_idle_alarm`, `queue_idle_told` and
-    `queue_idle_minutes`; the moment an item was first seen awaiting a launch, `queue_item_waiting:*`; the
-    marks of a notice owed once, by the item or the job it tells of, `queue_paused_told:*`,
-    `queue_unlaunchable_told:*`, `queue_agent_told:*` (the item's refused `agent` label),
+  - the queue's notices (`docs/agent-control.md`, 「An idle agent is told to the orderers of the items it could
+    take」 and 「An item's change is told to its orderer」): the moment an agent was first seen idle,
+    `queue_agent_idle:*` by the agent; the label values last published to the job service, `label_values:*`
+    by the label (「A label agency does not hold is refused as it is set」); the marks of a notice owed once, by
+    the item or the job it tells of, `queue_paused_told:*`, `queue_unlaunchable_told:*`, `queue_agent_told:*`
+    (the item's refused `agent` label), `queue_role_told:*` (the item's unknown `role` label),
     `queue_no_candidate_told:*` (the role and model told as having no candidate), `queue_draft_told:*`,
     `queue_wait_told:*`, `job_moved_told:*` and `job_close_mark:*`; the job service's event cursor,
     `job_events_after`, past which no event's notice is left unwritten; and the deployment watch's

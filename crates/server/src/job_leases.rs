@@ -398,7 +398,12 @@ impl Tells<'_> {
       let owed = outbox::owed(self.db, &owed_key).await?.remove("");
       let read = self.service.item(item).await?;
 
-      if read.as_ref().is_some_and(merged_awaiting_deploy) {
+      // An item whose notices are switched off is told no more of its close (docs/agent-control.md, 「An item's
+      // notices switched off」), as one whose commit waits for its deployment is not.
+      if read
+        .as_ref()
+        .is_some_and(|read| merged_awaiting_deploy(read) || crate::watches::queue_idle::notices_off(read))
+      {
         if let Some(owed) = owed {
           outbox::let_go_as_read(self.db, self.vars, &owed_key, &owed).await?;
         }

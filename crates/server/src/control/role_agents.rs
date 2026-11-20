@@ -280,6 +280,7 @@ impl Route for RoleAgentCreate {
 
     role_agents::write(db, &agent).await?;
     seats_changed(db, call.events(), &agent.role).await?;
+    queue_told(&call);
 
     Ok(answer(StatusCode::CREATED, view(&agent, &[])))
   }
@@ -306,6 +307,7 @@ impl Route for RoleAgentChange {
 
     role_agents::write(db, &agent).await?;
     seats_changed(db, call.events(), &agent.role).await?;
+    queue_told(&call);
 
     let carrying = role_agents::carrying(db, &agent.role).await?;
 
@@ -332,9 +334,18 @@ impl Route for RoleAgentDelete {
     }
 
     role_agents::remove(db, &name).await?;
+    queue_told(&call);
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
 
 crate::moved!(RoleAgentDelete);
+
+/// The queue told, apart from the request, of what an agent's or a role's change leaves no launch to take, and the
+/// label values published (docs/agent-control.md, 「A label agency does not hold is refused as it is set」).
+pub fn queue_told(call: &Call) {
+  let ground = call.shared_ground();
+
+  tokio::spawn(async move { crate::watches::queue_idle::agents_changed(&ground.db, ground.vars()).await });
+}

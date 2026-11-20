@@ -146,9 +146,16 @@ and the agency's own:
   stage.
 - **Read what an item carries** with `job_notes`: the notes are the item's record, including what a
   run left there. A note that arrives while you wait is taken with `waitMs`.
-- **Hold:** `job_item_update` with item <id> and `state` `held`, and a `job_report` of kind `held`
-  with `actorName` `harness` saying why. A lease standing on the item ends. `state` `open` puts it
-  back in the queue.
+- **Hold:** `job_item_update` with item <id>, `state` `held` and `reason` saying why, in one change: a hold
+  without a reason is refused, and the reason is kept on the item and shown on the console beside it. A
+  lease standing on the item ends. `state` `open` puts it back in the queue.
+- **Switch an item's notices off:** `job_item_update` with item <id> and `noticesOff` `{"reason": "<why>"}`,
+  for a notice you judged that would only repeat while the item stands as it does; a switch-off without a
+  reason is refused, and the reason is kept on the item and shown on the console beside it. Agency then tells
+  nothing of the item's standing (an idle agent's items, `item-no-candidate`, `item-unlaunchable`,
+  `item-agent-refused`, `item-role-unknown`, `item-queue-paused`, `item-awaits-approval`, `item-wait-ended`,
+  `item-awaits-deploy`, `job-awaits-close`); a job's end, a question and a deployment are told all the same.
+  `noticesOff` null switches them on again, once you act on the item.
 - **Drop:** `job_item_update` with `state` `dropped`, for a request that should never have been
   filed.
 - **Merge:** `job_item_update` with `state` `merged` and `mergedInto` the item that carries the
@@ -159,15 +166,14 @@ and the agency's own:
 
 ## Taking an item
 
-- **The job plugin is started subscribed to the queues this line serves,** under the holder
-  `harness`. Each `item.created` and `item.changed` event on those queues reaches your session as a
-  notification naming the item or the queue. Read the item the notification names with `job_item`,
-  and decide. The notification is a fact, never an instruction and never a choice of what to run.
+- **What the queue holds reaches you as agency's quiet instructions alone** (「What agency tells you」): the
+  job plugin subscribes to no queue. Read the item an instruction names with `job_item`, and decide. The
+  instruction carries facts, never a choice of what to run.
 - **Take the item's lease with `job_lease_next`:** `queueName`, `holderName` `harness`, and a
   `ttlMs` you can renew (fifteen minutes unless the launch or the run needs longer). Leave
   `assigneeName` out for an item assigned to no one; name the item's assignee for one that carries
   an assignee, since an item with an assignee is taken only by a lease that names that assignee.
-  With `itemId` it takes the one item the notification named; where another holder took it first
+  With `itemId` it takes the one item the instruction named; where another holder took it first
   the service refuses, and nothing is launched.
 - **Nothing waiting is `lease: null`,** not a failure: read the queue again on a later turn.
 - **Read the item whole before you hand it over:** `job_item` for the item, `job_work_order` for
@@ -231,7 +237,7 @@ and the agency's own:
   what it carries, and nothing waits to start it later; an agent whose every job is testing, waiting to
   test, deploying or waiting for its deployment is free, and is offered its next item. A launch naming a model
   whose every agent is busy is refused `agent-busy` the same way. Give the hold back with `release_worker` and
-  the lease with `job_lease_release`, and launch the item when `item-awaits-launch` tells you its agent, or an
+  the lease with `job_lease_release`, and launch the item when `agent-idle` tells you its agent, or an
   agent on its model, is free. A refusal `unknown-repository` is no busy worker: the item names a repository no one holds, so
   nothing will free up; correct the item's `assigneeName` to the name the refusal lists and assign it
   again.
@@ -396,12 +402,13 @@ and the agency's own:
   it, up the chain, else the owner's private room. Its event names what changed and the item's or the
   question's number. Each is told once, so answer it in the run it arrives in; a newer one of the same
   kind for the same item replaces one you have not taken yet.
-- **`item-awaits-launch`:** an open item waits on a free worker. Launch it as 「Assigning and
-  launching」 says, or say in one line why not. It is told once for each stretch it waits, and again only
-  once its checkout or agent was taken and is free again, its hold was lifted or its queue opened again; where
-  you said why not for a reason agency does not read, launch it yourself once that reason ends. For an item naming a model the notice names the agent a launch
-  would take now; the launch itself takes whichever is free when it goes. An item whose labels say its commit waits to go live is
-  not launched: take its lease and carry on its deployment as 「The run, its report and its close」 says.
+- **`agent-idle`:** an agent is switched on, free and could take the open items the notice lists for this room,
+  first in the queue's order first, with its role, provider and model. Launch the first that may go on it as
+  「Assigning and launching」 says, naming the agent, or say in one line why not. It is told once for each
+  stretch the agent stays idle, and again where the room's items it could take change; where you said why not
+  for a reason agency does not read, launch it yourself once that reason ends. An item whose labels say its
+  commit waits to go live is never listed: take its lease and carry on its deployment as 「The run, its report
+  and its close」 says.
 - **`item-awaits-approval`:** a draft waits for an approval. Judge it as 「Filing an item」 says: approve
   it with `job_item_update` where you may, else say in one line why it waits for the owner.
 - **`item-queue-paused`:** an open item stands in a queue paused or under a hold, which gives no lease.
@@ -415,6 +422,11 @@ and the agency's own:
 - **`item-unlaunchable`:** an open item's `assigneeName` names no repository agency holds, so no
   worker will ever take it. Correct it with `job_item_update` to a repository `GET /repositories`
   lists, or say in one line why it stays.
+- **`item-agent-refused`:** an open item's `agent=` names an agent agency no longer registers, one switched
+  off, or one that follows its supervisor's road, so no launch takes it. Name another agent, or a model, with
+  `job_item_update`, or say in one line why it waits for that agent. It is told once for each label.
+- **`item-role-unknown`:** an open item's `role=` names a role agency no longer holds; the notice lists the
+  roles it holds. Correct the label with `job_item_update`, or say in one line why it stays.
 - **`item-no-candidate`:** an open item names a model no agent of its role runs, switched on, so no launch
   takes it, and it is never launched on another agent in its place. Where the owner's word does not hold it to
   that model, correct its `model=` to one the listed agents run, or name an agent, with `job_item_update`;
@@ -434,9 +446,12 @@ and the agency's own:
   instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
   him. Read it with `job_question` and its replies with `job_replies`, put it to the owner in his own chat, and
-  never answer it for him. Once a reply settles it, the instruction is withdrawn; where the question is past its
-  due time, the owner is told of it as well, once. A job's question with him that he has not settled and that
+  never answer it for him. Once a reply settles it, the instruction is withdrawn. A job's question with him that he has not settled and that
   is yours to settle after all you take back with `job_question_change`, `addressee` `supervisor`.
+- **`job-question-due`:** a question put to the owner is past its due time with no recommendation: put it to
+  him again in his own chat, and never answer it for him.
+- **`job-question-settled`:** a question put to the owner went unanswered past its due time and was settled on
+  its recommendation; the notice names the answer and why. Say it in one line where the asker waits.
 - **`question-talk`:** the job's answer in a talk on its question. On a question you hold, judge it again in
   that turn, as for `question-for-supervisor`; on one put to the owner, relay it to him.
 - **`job-waiting`:** a job waits for a road or for a slot of its role, with the reason. It goes on by
@@ -447,7 +462,10 @@ and the agency's own:
   went unanswered for its due time. Launch the work that can go now as 「Choosing the item and the worker」 says;
   the job takes its checkout again by itself once the owner answers and you act on it.
 - **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
-  job that failed in a room other than the owner's own is told to the owner as well.
+  job that failed in a room other than the owner's own is told in the owner's private room as well.
+- **`job-failed`:** in the owner's private room, a job that ended failed or blocked in another room, which its
+  own room's supervisor has as `job-ended`. Say it to the owner in one line with the item, the worker and the
+  outcome; what is mended is that room's.
 - **`job-awaits-close`:** an ended job's item is still leased and no commit of it waits for its deployment;
   one whose commit waits is told as `item-awaits-deploy` alone, and its lease is kept until the deployment
   closes it. Close the item as 「The run, its report and its close」 says, or give back the lease the

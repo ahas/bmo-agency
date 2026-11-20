@@ -376,16 +376,8 @@ fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
       args.push(Ordered::text(without.join(",")));
     }
 
-    for queue in env
-      .get("BMO_JOB_QUEUES")
-      .into_iter()
-      .flat_map(|queues| queues.split(','))
-      .map(str::trim)
-      .filter(|queue| !queue.is_empty())
-    {
-      args.push(Ordered::text("--queue"));
-      args.push(Ordered::text(queue));
-    }
+    // No queue is subscribed to: what the queue tells a supervisor reaches it as agency's quiet instructions alone
+    // (docs/agent-control.md, 「An item's change is told to its orderer」).
 
     // The chat's own caller token where the deployment names one, so the job service records what the
     // chat does under the chat's name; the shared token otherwise. Each is handed as the file it stands in,

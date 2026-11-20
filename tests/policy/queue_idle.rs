@@ -2,25 +2,29 @@ use crate::support::wording::assert_no_instruction;
 use policy::queue_idle::*;
 
 #[test]
-fn the_idle_queue_is_looked_at_well_inside_its_minutes_and_its_notice_names_a_code() {
-  assert!(QUEUE_IDLE.idle_minutes > 0);
-  assert!(QUEUE_IDLE.check_seconds > 0 && (QUEUE_IDLE.check_seconds as i64) < QUEUE_IDLE.idle_minutes * 60);
-  assert!(!QUEUE_IDLE.code.is_empty() && !QUEUE_IDLE.ask.is_empty());
-  assert_no_instruction(&QUEUE_IDLE.ask);
+fn the_queue_is_looked_at_each_minute_and_an_agent_is_told_idle_after_its_launch_seconds() {
+  assert!(QUEUE_IDLE.check_seconds > 0 && QUEUE_IDLE.launch_seconds > 0);
 }
 
 #[test]
-fn a_launch_order_carries_its_data_and_a_draft_s_carries_its_marks_and_a_bounded_brief() {
+fn an_idle_agent_s_order_and_a_draft_s_carry_their_marks_and_a_bounded_brief() {
   assert!(QUEUE_IDLE.draft_brief_lines > 0 && QUEUE_IDLE.draft_brief_chars > 0);
 
-  for mark in ["{item}", "{title}", "{worker}"] {
-    assert!(QUEUE_IDLE.launch_order.contains(mark), "{mark}");
-  }
+  for (order, marks) in [
+    (
+      &QUEUE_IDLE.agent_idle_order,
+      &["{agent}", "{role}", "{provider}", "{model}", "{items}"][..],
+    ),
+    (&QUEUE_IDLE.agent_idle_item, &["{item}", "{title}"][..]),
+    (
+      &QUEUE_IDLE.draft_order,
+      &["{item}", "{title}", "{raised_by}", "{repository}", "{brief}"][..],
+    ),
+  ] {
+    for mark in marks {
+      assert!(order.contains(mark), "{mark} in {order}");
+    }
 
-  for mark in ["{item}", "{title}", "{raised_by}", "{repository}", "{brief}"] {
-    assert!(QUEUE_IDLE.draft_order.contains(mark), "{mark}");
+    assert_no_instruction(order);
   }
-
-  assert_no_instruction(&QUEUE_IDLE.launch_order);
-  assert_no_instruction(&QUEUE_IDLE.draft_order);
 }

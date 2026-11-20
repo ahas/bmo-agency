@@ -142,6 +142,7 @@ mod job_run {
   mod openrouter_tap;
 }
 mod job_words;
+mod label_values;
 mod keepalive {
   mod logins;
 }

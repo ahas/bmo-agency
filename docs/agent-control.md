@@ -3334,45 +3334,69 @@ them run a browser, and whose a place is.
 - **The start of a work order is held the same way;** the stages its runner launches after it are
   the runner's own.
 
-### An idle queue is told to the owner
+### An idle agent is told to the orderers of the items it could take
 
-- **Open work that could go, with no job started, is an idle queue.** Every minute agency reads the job
-  service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues (`GET /queues`),
-  beside its own jobs. An item stands open only once an approver approved it or it was raised with one of
-  the job service's unattended labels — a pull request's review among them — so its state is the whole of
-  whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, a
-  checkout it may go to is free — any checkout of its repository where it names one, the checkout named
-  `worker` where it names none, free as `POST /assignments` reads it: no `held` or `running` assignment and
-  no job at work holds it (`docs/api.md`, 「assignments and jobs」) —, the agent its `agent` label names, where
-  it names one, carries no run, or, where it names a model and no agent, one agent of its role on that model
-  carries none
-  (`docs/repositories.md`, 「An agent an item names」), and its role has a free slot. An item a job of agency's is still at work
-  on — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody. Nor
-  does an open item whose close merged its commit, its label `close-phase` reading `waiting-batch` or an older
-  close's `waiting-live`: its work stands on main and only its repository's deployment remains, so it is no
-  open work, is told for no launch, queue or checkout, and is told only as waiting to go live (「An item's
-  change is told to its orderer」). Where one item waits so and no job has started on this machine for the idle minutes
-  (`policy/queue-idle.toml`, five, or the owner's own row `queue_idle_minutes` of the settings table), the
-  queue is idle.
-- **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
-  of the receiver with the code `queue-idle`: the waiting items by number, title, repository and role,
-  the idle minutes, when the last job started, and the short marker `The queue is idle.`; the
-  supervisor's manual says to launch the next item or say why none can. The receiver hands it to the
-  supervisor in the owner's private chat, which voices it (the receiver's `docs/voiced-notices.md`). It is
-  told once for each idle stretch: the moment it was told is kept, and nothing more is said until a job
-  starts again.
-- **A switch silences the idle stretch's notice and the launch notice,** the settings row `queue_idle_alarm`
-  set to `off`; the next job that starts turns it on again. Every other notice of 「An item's change is told
-  to its orderer」 is told whatever the switch says, since each waits on a judgement rather than on a launch.
-  A deployment that names no job service or no receiver tells nothing.
+- **An agent is idle where it could be given an item now and is given none.** Every minute agency reads the
+  job service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues (`GET /queues`),
+  beside its own jobs and agents. An item stands open only once an approver approved it or it was raised with
+  one of the job service's unattended labels, a pull request's review among them, so its state is the whole of
+  whether it may be launched. An agent is idle where all of these hold:
+  - it is switched on, of the deployment's own account, and its road names a provider and a model;
+  - it is free: no job naming it stands `starting`, `running` or `reviewing` unpaused and no slot request is
+    let in on it, a job standing in the machine's turn aside (`docs/role-agents.md`, 「When an agent is busy」);
+    a role's cap is the number of its agents switched on, so a free agent always finds a slot of its role;
+  - one open item at least could go on it: its queue is open and holds nothing, a checkout it may go to is free
+    or its repository may grow one (any checkout of its repository where it names one, the checkout named
+    `worker` where it names none, free as `POST /assignments` reads it: no `held` or `running` assignment and
+    no job at work holds it, `docs/api.md`, 「assignments and jobs」), and its `agent` label names this agent,
+    whatever its role, since the job runs as its agent's; or it names no agent, its role is the agent's, and its
+    `model` label names a model the agent's road runs or none (`docs/repositories.md`, 「An agent an item
+    names」).
+  An item a job of agency's is still at work on, an item whose close merged its commit (its label
+  `close-phase` reading `waiting-batch` or an older close's `waiting-live`), and an item whose notices are
+  switched off (「An item's notices switched off」) is no item an agent could take here.
+- **Each idle agent is told to the orderer of every item it could take, once for each stretch.** Agency keeps
+  when it first saw the agent idle; once it has stayed idle for the launch seconds (`policy/queue-idle.toml`,
+  `launch_seconds`, a minute), it queues one instruction for each room the orderers of those items stand in,
+  under the kind `agent-idle:<agent>`: the agent's name, role, provider and model, and the items of that room
+  it could take, each by number and title in the queue's order (the highest priority, then the earliest place,
+  then the lowest number). The supervisor's manual says to launch the first of them on the agent or say in one
+  line why not. The notice is kept while the agent stays idle and withdrawn once it is not; it is owed again
+  where the items of that room it could take change, so a room hears of an item that came to wait, and once a
+  later stretch begins. A deployment that names no job service or no receiver tells nothing.
+- **The idle agent's notice is how a job starts.** Agency never starts an item by itself: the orderer launches
+  it once this notice tells it an agent is free to take it. A launch while the agent is busy is refused
+  `agent-busy` (`docs/repositories.md`, 「An agent an item names」).
+
+### A label agency does not hold is refused as it is set
+
+- **Agency publishes what an item's `model`, `role` and `agent` labels may name to the job service,** which
+  refuses an item filed, or a label changed, naming anything else, with a sentence naming the value and the
+  values it may take (the job service's API document, 「Label values」). So the supervisor, the owner on the
+  console and every tool that files or changes an item hear of a name agency does not hold as they set it.
+- **The values are agency's own:** for `role` every role the store holds; for `agent` every agent the store
+  holds, switched on or off; for `model` every model an agent's road names, by its model's name and as
+  `<provider>/<model>`; and `auto` under each, which names none (`docs/repositories.md`, 「An agent an item
+  names」). An empty label is never refused.
+- **They are published as they change.** Agency publishes them at once after the owner adds, changes or removes
+  a role or an agent, and in every minute pass, the first a minute after its server starts, where they differ
+  from what it last published, so a job service that did not answer is brought up to date at the next pass. A deployment that
+  names no job service publishes nothing.
+- **What cannot be refused as it is set is told at once.** A label that named something agency held when it
+  was set and names nothing it can launch on now, an agent switched off or removed, a role removed, or a model
+  no agent of the item's role runs any more, is told to the item's orderer as the owner makes the change
+  (「An item's change is told to its orderer」, `item-agent-refused`, `item-role-unknown` and
+  `item-no-candidate`). A pair the values cannot hold, a role and a model each held but no agent of that role
+  on that model, is told as `item-no-candidate` from the next minute pass after the item is filed.
 
 ### An item's change is told to its orderer
 
-Every change of an item or of a job that calls for a judgement or an action is told: to the supervisor that
-ordered the work, as an instruction, where its own judgement or action is called for, and to the owner, as an
-owner notice, where only the owner can act. The job plugin's live `item.created` and `item.changed` facts in a
-supervisor's session are no telling of this kind: they are not routed to the orderer, not queued, and lost
-with the session.
+Every change of an item or of a job that calls for a judgement or an action is told to the supervisor that
+ordered the work, as a quiet instruction in the orderer's room, and by no other road: the job plugin a
+supervisor's session holds subscribes to no queue, so nothing of the queue reaches a session as the plugin's
+facts. One notice is told in the owner's private room as well: a job that ended `failed` or `blocked` in another
+room, beside the instruction its orderer has, since the owner's supervisor keeps every room's broken work in
+view and a person's room may not mend it alone.
 
 - **The orderer of an item** is the supervisor of the room the item was asked in, found in this order: the
   item's `roomId`, else the room its `scope` names; else, where the item was raised from another, that item's
@@ -3385,21 +3409,21 @@ with the session.
   this for every notice below; nothing else finds an orderer. A notice of a job's own — its end, its wait, its
   review — whose orderer cannot be read because the job service does not answer goes to the room the job was
   launched for, so none waits on that answer or is lost for it.
-- **Through the receiver.** An instruction is `POST /instructions` of the receiver: an order under the sort
-  `job` in the orderer's room (null for the owner's private room), with a `kind` of its row and the item's or
-  the question's number, so a newer notice of the same kind replaces one still pending there, and one event
-  of its row, `<event>:#<number>`. An owner notice is `POST /owner/notices` with its code and its fields
-  beside it. The data of every order stands in `policy/job-notices.toml`, beside the launch and draft orders
-  of `policy/queue-idle.toml`: an order carries that data and a short marker, never an instruction, and
-  what each kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」).
+- **Through the receiver.** A notice is `POST /instructions` of the receiver: an order under the sort `job` in
+  the orderer's room (null for the owner's private room), with a `kind` of its row and the item's, the
+  question's or the agent's name, so a newer notice of the same kind replaces one still pending there, and,
+  for a row of an item or a question, one event of its row, `<event>:#<number>`. The data of every order
+  stands in `policy/job-notices.toml`, beside the idle agent's and the draft's orders of
+  `policy/queue-idle.toml`: an order carries that data and a short marker, never an instruction, and what each
+  kind asks stands in the supervisor's manual (`prompts/agents/chat/manual.md`, 「THE QUEUE」).
 - **Every notice is owed before it is told.** A notice is first written as a row of agency's outbox, the
-  store's `notices` table (`docs/store.md`), keyed by its kind: an instruction's `kind`, or an owner notice's
-  code with the job, the question or the moment it tells of. The row carries the body it is told with, and a
+  store's `notices` table (`docs/store.md`), keyed by its kind, or by its kind and its room where one kind is
+  told to several rooms. The row carries the body it is told with, and a
   newer notice of the same kind replaces the row, as the receiver replaces the pending copy of the same kind.
   The row is sent as it is written, and then by agency's sender every `send_seconds`
   (`policy/job-notices.toml`), again and again, the wait between tries doubling from `retry_first_seconds` to
   at most `retry_most_seconds`, until the receiver takes it: an instruction once the receiver answers its
-  instruction id, an owner notice once it answers success, a withdrawal once it answers success or that the
+  instruction id, a withdrawal once it answers success or that the
   instruction is gone. A transport error, a 5xx, a 401, 403, 408 or 429 is never a notice's end; any other
   answer refusing the notice is said in agency's log and ends that copy. A restart of agency or of the receiver
   loses no notice: the rows stand in the store, and the sender's first pass after agency starts sends every
@@ -3417,15 +3441,16 @@ with the session.
   worst, never not at all.
 - **A row told is let go, kept, or kept standing.** How each kind is kept once the receiver took it:
   - **let go**, the notice told at least once and done: a job's end and failure, a job's wait, a checkout
-    given up, an item moved under its job, closed by another, waiting on a paused queue, unlaunchable, without
-    a candidate, a draft awaiting approval, a wait ended, a question past its due time, an idle queue, a
-    deployment that did not go live, and a chat session's absent server;
+    given up, an item moved under its job, closed by another, waiting on a paused queue, unlaunchable, naming an
+    agent or a role no launch takes, without a candidate, a draft awaiting approval, a wait ended, a question
+    past its due time or settled on its recommendation, a deployment that did not go live, and a chat session's
+    absent server;
   - **kept** with the instruction's id until what it tells of has moved on, then withdrawn with the receiver's
     `DELETE /instructions/{id}`, and never told again while it is kept: a job's question, withdrawn once a
     settling reply comes; a job's commit waiting for its repository's batch deployment, withdrawn once the
     item no longer waits for it; a repository's batch deployment come due, withdrawn once none of the commits it
-    named waits, and let go as a deployment of the repository ends, so that it is owed afresh; an item awaiting
-    a launch on a free checkout and agent, withdrawn once it no longer waits to go; and an ended job's item left
+    named waits, and let go as a deployment of the repository ends, so that it is owed afresh; an idle agent,
+    withdrawn once it is no longer idle or a room has no item left it could take; and an ended job's item left
     leased, withdrawn once its lease ends or its commit waits for its deployment;
   - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
     again at every start of agency and every `retell_seconds` after it was last told, under the same kind, so
@@ -3438,7 +3463,7 @@ with the session.
   notice's row is its own mark. The mark is written with the notice's row, not when the receiver takes it,
   and let go once the item, the job or the question has moved on, so neither a restart nor the next pass
   owes a notice twice, and a transition that comes again is owed again. No clock decides whether a
-  notice is owed beyond the launch's own minute and a repository's batch deployment come due below: every
+  notice is owed beyond the idle agent's own minute and a repository's batch deployment come due below: every
   other one is keyed by the transition it tells.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
   (`GET /events` with `Accept: application/json`, `kinds` `item.created`, `item.changed`, `note.created`,
@@ -3463,10 +3488,12 @@ with the session.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An item open to go — approved, opened unattended, its lease run out or given back, opened again from `held` — on a free checkout of its repository or one its repository may grow (`docs/worker-slots.md`, 「The queue with support checkouts」), or naming none while the checkout named `worker` is free, and on a free agent where its `agent` label names one, or on a free agent of its role on its model where its `model` label names one | the orderer | instruction, a minute after it was first seen so (`policy/queue-idle.toml`, `launch_seconds`), told once for each stretch it waits so and kept until the stretch ends; the switch above silences it | `item-awaits-launch:<item>`, `item-awaits-launch:#<item>` |
-| An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
+| An agent idle a minute: switched on, free, and able to take one open item at least (「An idle agent is told to the orderers of the items it could take」) | the orderer of each item it could take, one instruction to each room | instruction, kept while it stays idle, owed again where the room's items it could take change; withdrawn once it is busy or no item is left | `agent-idle:<agent>` |
+| An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, from the minute pass, at once as the owner changes an agent, and as a launch is refused; once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
-| An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it; or whose launch was refused for a `model` label naming a provider or model agency does not hold | the orderer | instruction; for the label, as the launch is refused | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
+| An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it | the orderer | instruction | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |
+| An open item whose `agent` label names no agent agency registers, one switched off, or one that names no road | the orderer | instruction, from the minute pass, at once as the owner changes an agent, and as a launch is refused; once for each label | `item-agent-refused:<item>`, `item-agent-refused:#<item>` |
+| An open item whose `role` label names no role agency holds | the orderer | instruction, from the minute pass, at once as the owner changes a role, and as a launch is refused; once for each label | `item-role-unknown:<item>`, `item-role-unknown:#<item>` |
 | A draft awaiting approval | the orderer | instruction | `item-awaits-approval:<item>`, `item-awaits-approval:#<item>` |
 | A held item whose `follows` or `waiting-on` label names items that are all `done` now, none with its commit still waiting to go live | the orderer | instruction | `item-wait-ended:<item>`, `item-wait-ended:#<item>` |
 | An item held, dropped or merged, or its lease taken by another holder, while a job of agency's runs on it | the orderer; for a merge, the carrying item's orderer too where that is another room | instruction, from the lease pass | `item-moved-under-job:<item>`, `item-moved-under-job:#<item>` |
@@ -3475,60 +3502,50 @@ with the session.
 | A repository's oldest commit waiting for its batch deployment having waited the due minutes (`policy/job-notices.toml`, `deploy_due_minutes`, three hours; 「A repository's batch deployment come due is told」) | the orderer of the item whose commit has waited longest; the owner's private room where it cannot be read | instruction, from the deploy-due read, told once and kept for the set of waiting commits it names; owed afresh as a deployment of the repository ends or a commit joins the set, and told again at once where the oldest still waits past the due minutes; withdrawn once none of its commits waits | `repository-deploy-due:<repository>`, `repository-deploy-due:#<item>` for each item it names |
 | A deployment of any repository, whoever started it, that ended without going live — failed, rolled back, stopped by its own judgement other than a refusal, or cut off — (「A deployment that did not go live is told」) | the orderer of each item whose waiting commit it carries, one instruction to each room; the owner's private room where it carries none | instruction, from the deployment watch, told once for each deployment | `deploy-failed:<unit>`, `deploy-failed:#<item>` for each item it carries, `deploy-failed` where it carries none |
 | A job's question asked, one that does not say its asker tells of it itself (`bmo job ask` does: it hands every question to the supervisor as `question-for-supervisor`, and wakes the supervisor again on one it did not take up, never the owner; the job service's `docs/cli.md`) | the orderer | instruction, from the events; withdrawn once a settling reply comes | `question-awaits-answer:<question>`, `question-awaits-answer:#<question>` |
-| A job's question past its due time while open, one with no recommendation; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the owner | owner notice, from the events | code `job-question-due` |
-| A job's question settled on its recommendation because its due time passed with no answer (a settling `reply.created` whose `source` is `recommendation`) | the owner | owner notice, from the events | code `job-question-settled` |
+| A job's question past its due time while open, one with no recommendation; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the orderer | instruction, from the events | `job-question-due:<question>`, `job-question-due:#<question>` |
+| A job's question settled on its recommendation because its due time passed with no answer (a settling `reply.created` whose `source` is `recommendation`) | the orderer | instruction, from the events | `job-question-settled:<question>`, `job-question-settled:#<question>` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
 | A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |
-| A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner | owner notice, beside the orderer's instruction | code `job-failed` |
+| A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner's private room, beside the orderer's `job-ended` | instruction | `job-failed:<item>`, `job-failed:#<item>` |
 | An ended job's item still leased at the lease pass after the one that first found it so, unless its commit waits for its repository's batch deployment | the orderer | instruction, from the lease pass, told once for each lease and kept until the lease ends or the commit waits for its deployment | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |
-| An idle queue | the owner | owner notice (「An idle queue is told to the owner」) | code `queue-idle` |
 
-- **An item that could go is told to its orderer on its own.** Where an open item waits to go, and it is
-  still waiting a minute after agency first saw it so, agency queues one instruction for its orderer
-  naming the item, its title and its worker, and, for an item naming a model, the agent it would take; the
-  supervisor's manual says to launch it or say in one line
-  why not. The moment it was first seen waiting is kept by the item's number and the notice's row by its kind,
-  the row kept and told once for the stretch the item waits to go, whatever the orderer answers; both are let
-  go once the item no longer waits to go, so it is told again only once the reason it waits changes: its
-  checkout or its agent took another run and is free again, its hold was lifted, or its queue opened again.
-  A reason agency does not read, such as the machine's memory or a deployment the orderer chose to wait for,
-  starts no new stretch; the orderer launches the item once that reason ends. An item naming a model waits to go on one agent
-  of its candidates: going through the waiting items in the queue's order, it is set on the first of its free
-  candidates by name that no item before it is set on, else on the first of its free candidates, so free agents
-  of one model are offered different items at once. Of the items that wait to go on one agent,
-  one is told at a time, the first in the queue's order not yet told — the highest priority, then the earliest
-  place, then the lowest number: a free agent is offered its next item, and another once the next-offer seconds
-  (`policy/queue-idle.toml`, `next_offer_seconds`, a minute) have passed while it stays free, never all
-  of them at once. An item others wait on is put first by raising its priority. It stands beside the idle stretch's
-  notice and does not wait for the idle minutes.
-- **The notice is how a busy agent's next job starts.** An agent is busy while a job naming it stands
-  `starting`, `running` or `reviewing` unpaused, or while a slot request is let in on it, unless every such
-  job stands in the machine's turn — testing, waiting to test, deploying or waiting for its deployment
-  (`docs/role-agents.md`, 「When an agent is busy」) — and an item naming it is not told until it is free, an
-  item naming a model not until one of its candidates is; an
-  agent whose only jobs stand in the machine's turn is offered its next item whose checkout is free. A launch
-  while it is busy is refused `agent-busy`
-  (`docs/repositories.md`, 「An agent an item names」), and agency never starts the item by itself: the
-  orderer launches it once this notice tells it the agent is free.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository
   agency holds never awaits a launch and would sit for good: its orderer is told once what it names, the
-  mark let go once the item is no longer open or names a checkout agency holds. An item whose launch is
-  refused for its `agent` label — none named, one the agency does not register, or one that names no road
-  (`docs/repositories.md`, 「An agent an item names」) — is told to its orderer once for that label, with the
-  refusal's reason, which lists the agents it may name; the mark keeps the label told, so the same label refused again is not told again and
-  another one is, and it is let go once a job of the item is launched. The supervisor's manual says what
-  to correct, and when to say in one line why it stays.
+  mark let go once the item is no longer open or names a checkout agency holds.
+- **An item naming an agent or a role no launch takes is told to its orderer.** The job service refuses a
+  label agency does not hold as it is set (「A label agency does not hold is refused as it is set」), so this
+  is told of what changed after it was set: an open item whose `agent` label names an agent the agency no
+  longer registers, one switched off, or one that names no road, and an open item whose `role` label names a
+  role agency no longer holds. Its orderer is told once for that label (`item-agent-refused`, with the
+  reason and the agents the item may name, or `item-role-unknown`, with the roles agency holds), from the
+  minute pass, at once as the owner adds, changes, switches or removes an agent or a role, and as a launch is
+  refused for it (`docs/repositories.md`, 「An agent an item names」); the mark keeps the label told, so the
+  same label is not told again and another one is, and it is let go once a job of the item is launched or the
+  item no longer names it. The supervisor's manual says what to correct, and when to say in one line why it
+  stays.
 - **An item no agent can take for its model is told to its orderer.** An open item whose `model` label names a
   model, with no `agent` label, whose role holds no agent switched on whose road runs that model — none ever,
   or the last one removed, switched off or moved to another road — never awaits a launch and is never launched
   on another agent in its place. Its orderer is told once, naming the role, the model and the agents of the
   role with their roads; the mark keeps the role and the model told, so a change to either is told again, and
-  it is let go once the item gains a candidate or is no longer open. A launch refused `no-candidate` tells the
-  same notice under the same mark.
+  it is let go once the item gains a candidate or is no longer open. It is told from the minute pass, at once as
+  the owner adds, changes, switches or removes an agent, and as a launch is refused `no-candidate`, under the
+  same mark.
+- **An item's notices switched off.** The orderer, or the owner, switches the notices of one item off with the
+  job service's notice switch on that item, which takes a written reason and keeps it on the item with who
+  switched it and when (the job service's API document, 「Items」); a switch-off without a reason is refused
+  there, and the console shows the reason beside the item. While an item's notices are off, agency tells
+  nothing of the item's standing: it is left out of every idle agent's items, and its `item-no-candidate`,
+  `item-unlaunchable`, `item-agent-refused`, `item-role-unknown`, `item-queue-paused`, `item-awaits-approval`,
+  `item-wait-ended`, `item-awaits-deploy` and `job-awaits-close` are neither owed nor kept, a copy kept being
+  withdrawn. What happens once, a job's end, failure, wait and review, a question, an item moved under its
+  job or closed by another, and a deployment, is told whatever the switch says, since it is the one telling
+  of that event. Switched on again, the item is read afresh at the next pass and told as its standing calls
+  for. No other switch silences a notice of the queue.
 - **A draft awaiting approval is told to its orderer.** In the same minute pass agency reads the job
   service's items with `state` `draft`: an item a worker raised, or one anybody but the owner asked for. One
   the owner asked for opens at once and is never a draft, so nothing of his is judged twice. For each draft

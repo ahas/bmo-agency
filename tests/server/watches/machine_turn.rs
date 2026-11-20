@@ -6,7 +6,7 @@ use agency_server::order_run::dispatch::{self, Asked, Wanted};
 use agency_server::watches::machine_turn::{
   Reading, any_waiting_live, checkouts_by_name, mark, waits_live,
 };
-use agency_server::watches::queue_idle::{Open, awaiting_launch, held};
+use agency_server::watches::queue_idle::{Open, held, idle_agents};
 
 use crate::support::grounds::{deepseek_balance, seeded};
 use crate::support::rows::repository;
@@ -115,7 +115,11 @@ async fn an_agent_whose_only_job_waits_in_the_testbed_s_line_is_offered_its_next
   let offered = async || {
     let standing = held(db, vec![item_for(52, "second", agent)]).await.unwrap();
 
-    awaiting_launch(&standing).iter().map(|item| item.id).collect::<Vec<_>>()
+    idle_agents(&standing)
+      .iter()
+      .filter(|idle| idle.agent.name == agent)
+      .flat_map(|idle| idle.items.iter().map(|item| item.id))
+      .collect::<Vec<_>>()
   };
 
   // The agent's only job runs in its checkout, let in on the agent.
@@ -136,7 +140,7 @@ async fn an_agent_whose_only_job_waits_in_the_testbed_s_line_is_offered_its_next
   assert_eq!(first.seat.as_deref(), Some(agent));
 
   // While it writes, the agent is busy: its next item is not offered, and a job asking for it waits.
-  assert!(offered().await.is_empty(), "a busy agent's next item is not offered");
+  assert!(offered().await.is_empty(), "a busy agent is not idle, its next item not offered");
 
   let second = dispatch::enqueue(
     db,
@@ -157,7 +161,7 @@ async fn an_agent_whose_only_job_waits_in_the_testbed_s_line_is_offered_its_next
   };
 
   assert_eq!(mark(db, &waiting_to_test).await.unwrap(), vec![41]);
-  assert_eq!(offered().await, vec![52], "the free agent's next item is offered");
+  assert_eq!(offered().await, vec![52], "the agent is idle, its next item offered");
 
   let asked_again = dispatch::request(db, &second.token).await.unwrap().unwrap();
   let let_in = dispatch::acquire(&ground, &asked_again).await.unwrap().unwrap();

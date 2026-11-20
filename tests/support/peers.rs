@@ -2,7 +2,7 @@
 //! number, the queues, the leases that stand, the events past a cursor and the window's oldest, and every call
 //! heard; the questions asked, each told as `question.created` and settled by a reply as the service writes it;
 //! the receiver answers each instruction with an id of its own; and the paths that fail while a test holds them
-//! failing, and the calls whose answer is lost after they landed.
+//! failing, and the calls whose answer is lost after they landed; and the label values put to it, each key's taken.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
@@ -118,6 +118,16 @@ impl Held {
     );
   }
 
+  /// The label values put, each as its key and the values put, in order.
+  pub fn label_values(&self) -> Vec<(String, Value)> {
+    self
+      .calls
+      .iter()
+      .filter(|call| call.method == Method::PUT && call.path.starts_with("/label-values/"))
+      .map(|call| (call.path.trim_start_matches("/label-values/").to_owned(), call.body["values"].clone()))
+      .collect()
+  }
+
   /// The instructions withdrawn, by their id.
   pub fn withdrawn(&self) -> Vec<String> {
     self
@@ -175,6 +185,7 @@ async fn answer(
     }
     ("DELETE", path) if path.starts_with("/instructions/") => StatusCode::NO_CONTENT.into_response(),
     ("POST", "/owner/notices") => (StatusCode::CREATED, axum::Json(json!({ "id": 1 }))).into_response(),
+    ("PUT", path) if path.starts_with("/label-values/") => axum::Json(body.clone()).into_response(),
     ("GET", "/queues") => {
       axum::Json(json!({ "items": held.queues.clone(), "more": false })).into_response()
     }

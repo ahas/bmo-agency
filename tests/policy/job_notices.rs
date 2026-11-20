@@ -11,6 +11,7 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
     (&JOB_NOTICES.paused_order, &["{item}", "{title}", "{queue}"][..]),
     (&JOB_NOTICES.unlaunchable_order, &["{item}", "{title}", "{assignee}"][..]),
     (&JOB_NOTICES.agent_order, &["{item}", "{title}", "{label}", "{why}"][..]),
+    (&JOB_NOTICES.role_order, &["{item}", "{title}", "{label}", "{roles}"][..]),
     (
       &JOB_NOTICES.moved_order,
       &["{item}", "{title}", "{state}", "{merged}", "{job}", "{worker}"][..],
@@ -21,6 +22,13 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
     (&JOB_NOTICES.question_order, &["{question}", "{item}", "{text}", "{choices}"][..]),
     (&JOB_NOTICES.waiting_order, &["{item}", "{worker}", "{why}"][..]),
     (&JOB_NOTICES.close_order, &["{item}", "{lease}"][..]),
+    (
+      &JOB_NOTICES.question_due_order,
+      &["{question}", "{item}", "{asker}", "{text}", "{choices}"][..],
+    ),
+    (&JOB_NOTICES.question_settled_order, &["{question}", "{item}", "{answer}", "{why}"][..]),
+    (&JOB_NOTICES.question_settled_item, &["{item}"][..]),
+    (&JOB_NOTICES.failed_order, &["{job}", "{item}", "{worker}", "{outcome}", "{room}"][..]),
   ] {
     for mark in marks {
       assert!(order.contains(mark), "{mark} in {order}");
@@ -28,8 +36,6 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
 
     assert_no_instruction(order);
   }
-
-  assert!(!JOB_NOTICES.question_due_code.is_empty() && !JOB_NOTICES.failed_code.is_empty());
 }
 
 #[test]

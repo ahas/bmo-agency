@@ -1487,7 +1487,7 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   item's `agent` or `model` label is left free, and 422 `no-worker-free` where the machine has no room, its
   sentence naming each reason. A checkout is held now while an assignment of it is `held` or `running` or a job is at work in
   it, `starting`, `running` or `reviewing` unparked; the queue's notices count a checkout free by the same
-  reading (`docs/agent-control.md`, 「An idle queue is told to the owner」).
+  reading (`docs/agent-control.md`, 「An idle agent is told to the orderers of the items it could take」).
 - **An assignment naming no `assigneeName` goes where its item goes,** never to a checkout of another
   repository: the `assigneeName` of the `item` it hands over, else the item's `assigneeName` as the job
   service answers it by `itemId`, and the checkout named `worker` for an item naming no repository. A job
@@ -1620,8 +1620,11 @@ service.
     its brief as its directive and these steps, `saved` (`PUT /items/{itemId}/work-order`); a work order the
     job service refuses leaves the item raised, and the answer's `workOrderRefused` carries the job service's
     sentence, null where the work order was saved or no step was named.
-  It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
-  refusal of the job service's is 502 `upstream-failed` with its sentence.
+  It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them. The
+  job service's refusal of the item itself, a 4xx, keeps its status and its code with its sentence, a label
+  naming what agency does not hold among them (422 `label_value_unknown`, `docs/agent-control.md`, 「A label
+  agency does not hold is refused as it is set」); any other refusal of the job service's is 502
+  `upstream-failed` with its sentence.
 
 - **A supervisor stops a job on the owner's word,** `POST /job-stops`. It takes the `agentName` its harness
   plugin was started for, never one the model names; exactly one of `jobId`, the job, and `itemId`, the item
@@ -1700,8 +1703,8 @@ service.
   told to its orderer」); where the job service cannot be read or the chain finds no room, the job's own
   `roomId` from the launch, which the harness hands over as the item's `scope`; and where none is found, the
   owner's private room, which is the room the receiver gives an instruction that names none. A job that ends
-  `failed` or `blocked` in a room other than the owner's private room is also queued as an owner notice,
-  `POST /owner/notices` with the code `job-failed`.
+  `failed` or `blocked` in a room other than the owner's private room is also queued as an instruction in the
+  owner's private room, under the kind `job-failed:<item>`.
 
 - **A job whose turn goes on across agency's restart ends as its turn does.** Its turn is kept in flight
   while it goes, and the server that starts next picks it up (「sessions」 above): a turn whose program's
@@ -2094,11 +2097,10 @@ application/json` past the cursor agency keeps, narrowed to `item.created`, `ite
 `question.created`, `question.due` and `reply.created`, an item's title asked of the gate as the item is raised or
 changed (`docs/worker-language.md`, 「What agency translates on the way in」), a note on the item of a job that runs
 handed to that job (「assignments and
-jobs」, 「Words and notes for a running job」); an idle queue is told through the receiver's `POST /owner/notices`
-with the code `queue-idle`, and every change of an item or a job that calls for a judgement is told to
-the item's orderer through `POST /instructions`, as an order under the sort `job` with a kind and an event
-of its own, or to the owner through `POST /owner/notices` with the codes `job-question-due`,
-`job-question-settled` and `job-failed`, each owed in agency's outbox and sent again until the receiver takes it, a standing one told
+jobs」, 「Words and notes for a running job」); an idle agent, and every change of an item or a job that calls
+for a judgement, is told to the item's orderer through the receiver's `POST /instructions`, as an order under
+the sort `job` with a kind of its own, and a job failed in another room to the owner's private room the same
+way, each owed in agency's outbox and sent again until the receiver takes it, a standing one told
 again under its kind while its condition holds; and an instruction for a question a settling reply answered,
 or for a standing notice whose condition ended, is withdrawn with `DELETE /instructions/{id}` (`docs/agent-control.md`, 「An item's change is told to its orderer」, which tables every
 kind, event and code); the question a reply settled on its recommendation is read with `GET

@@ -183,7 +183,9 @@ async fn deploy_told(
   let Some(id) = data["id"].as_i64() else { return Ok(()) };
   let key = format!("{DEPLOY_OWED}{id}");
   let owed = outbox::owed(db, &key).await?.remove("");
-  let waiting: Vec<Close> = if data["state"] == "done" {
+  // An item whose notices are switched off is told of no commit waiting (docs/agent-control.md, 「An item's notices
+  // switched off」): its kept copy is withdrawn, and it is owed afresh by the event that switches them on again.
+  let waiting: Vec<Close> = if data["state"] == "done" || crate::watches::queue_idle::notices_off(data) {
     vec![]
   } else {
     closes::of(&data["labels"])
@@ -271,17 +273,7 @@ async fn told(
         return Ok(());
       }
 
-      let orderer = match data["itemId"].as_i64() {
-        Some(item) => service.orderer_of_id(item).await?.1,
-        None => Orderer {
-          room: crate::queue::orderer::room_of(data),
-          requester: None,
-        },
-      };
-      let orderer = Orderer {
-        room: orderer.room.or_else(|| crate::queue::orderer::room_of(data)),
-        ..orderer
-      };
+      let orderer = question_orderer(service, data).await?;
 
       outbox::owe(db, vars, Notice::instruction(job_notices::question(data, &orderer), Keep::Kept)).await?;
       println!("queue: question #{id} owed to its orderer");
@@ -289,9 +281,12 @@ async fn told(
     "question.due" => {
       let Some(question) = data["id"].as_i64() else { return Ok(()) };
 
+      let orderer = question_orderer(service, data).await?;
+
       crate::job_review::question_due(db, vars, question).await?;
-      outbox::owe(db, vars, Notice::owner(question, job_notices::question_due(data))).await?;
-      println!("queue: question #{question} past its due time, owed to the owner");
+      outbox::owe(db, vars, Notice::instruction(job_notices::question_due(data, &orderer), Keep::Once))
+        .await?;
+      println!("queue: question #{question} past its due time, owed to its orderer");
     }
     "reply.created" => {
       let settles = data["settles"].as_bool().unwrap_or(false);
@@ -299,11 +294,17 @@ async fn told(
         return Ok(());
       };
 
-      // A question settled on its recommendation went unanswered: its item is read before anything moves, so a
-      // read that fails leaves the event whole for the next pass, and the owner's notice is owed last, so taking
-      // the event again never tells it twice.
+      // A question settled on its recommendation went unanswered: its item and its orderer are read before
+      // anything moves, so a read that fails leaves the event whole for the next pass, and the orderer's notice is
+      // owed last, so taking the event again never tells it twice.
       let settled = if data["source"] == "recommendation" {
-        Some(service.question(question).await?)
+        let asked = service.question(question).await?;
+        let orderer = match &asked {
+          Some(asked) => question_orderer(service, asked).await?,
+          None => Orderer::default(),
+        };
+
+        Some((asked, orderer))
       } else {
         None
       };
@@ -312,15 +313,32 @@ async fn told(
       outbox::let_go(db, vars, &format!("{QUESTION_OWED}{question}")).await?;
       println!("queue: question #{question} answered, its instruction let go");
 
-      if let Some(asked) = settled {
-        let notice = job_notices::question_settled(data, asked.as_ref());
+      if let Some((asked, orderer)) = settled {
+        let notice = job_notices::question_settled(data, asked.as_ref(), &orderer);
 
-        outbox::owe(db, vars, Notice::owner(question, notice)).await?;
-        println!("queue: question #{question} settled on its recommendation, owed to the owner");
+        outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
+        println!("queue: question #{question} settled on its recommendation, owed to its orderer");
       }
     }
     _ => {}
   }
 
   Ok(())
+}
+
+/// The orderer of the item a question was asked on, the room the question names itself where the item names
+/// none, and the owner's private room where neither does.
+async fn question_orderer(service: &JobService, question: &Value) -> Result<Orderer, String> {
+  let orderer = match question["itemId"].as_i64() {
+    Some(item) => service.orderer_of_id(item).await?.1,
+    None => Orderer {
+      room: crate::queue::orderer::room_of(question),
+      requester: None,
+    },
+  };
+
+  Ok(Orderer {
+    room: orderer.room.or_else(|| crate::queue::orderer::room_of(question)),
+    ..orderer
+  })
 }

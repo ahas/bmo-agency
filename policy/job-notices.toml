@@ -1,14 +1,17 @@
-# What an item's orderer and the owner are told of a change in the queue (docs/agent-control.md, 「An item's
-# change is told to its orderer」): how deep the chain of items an item was raised from is followed to find its
-# orderer; the data each order carries, its marks naming what it is filled with; the word a launch notice
-# names where the item goes to any free checkout; and the codes of the owner's notices. An order carries the
+# What an item's orderer is told of a change in the queue (docs/agent-control.md, 「An item's change is told to
+# its orderer」): how deep the chain of items an item was raised from is followed to find its orderer; the data
+# each order carries, its marks naming what it is filled with; and the word a notice names where the item goes
+# to any free checkout. An order carries the
 # change's data and a short marker, never an instruction: what to do with each kind stands in the
 # supervisor's manual (prompts/agents/chat/manual.md, 「THE QUEUE」).
 orderer_depth = 16
 any_worker = "any free checkout"
 paused_order = "Item #{item} ({title}) is open in the queue {queue}, which is paused or under a hold and gives no lease."
 unlaunchable_order = "Item #{item} ({title}) names {assignee} as its repository, which no checkout agency holds is of."
-agent_order = "Item #{item} ({title}) carries the label agent={label}, and its launch was refused: {why}"
+agent_order = "Item #{item} ({title}) carries the label agent={label}, and no launch takes it: {why}"
+# An open item whose `role` label names no role agency holds: `{item}`, `{title}`, `{label}` and `{roles}`, the
+# roles agency holds, joined by a comma.
+role_order = "Item #{item} ({title}) carries the label role={label}, which names no role agency holds. The roles it holds: {roles}."
 # An open item whose model no agent of its role that is switched on runs: `{item}`, `{title}`, `{model}`,
 # `{role}` and `{agents}`, the role's agents with their roads a line each.
 no_candidate_order = "Item #{item} ({title}) names model={model} for the {role} role, and no agent of that role that is switched on runs that model. The agents of the {role} role:\n{agents}"
@@ -53,10 +56,16 @@ deploy_journal_lines = 20
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."
-question_due_code = "job-question-due"
-# A question its due time passed on with no answer, settled by the job service on its recommendation.
-question_settled_code = "job-question-settled"
-failed_code = "job-failed"
+# A person's question still open past its due time: `{question}`, `{item}`, `{asker}`, `{text}` and `{choices}`.
+question_due_order = "Question #{question} on item #{item}, asked by {asker}, is still open past its due time: {text}\nChoices: {choices}"
+# A question its due time passed on with no answer, settled by the job service on its recommendation:
+# `{question}`, `{item}`, the item worded by `question_settled_item` where the question names one and nothing
+# where it does not, `{answer}` and `{why}`, the recommendation's reason.
+question_settled_order = "Question #{question}{item} was not answered by its due time, so it was settled on its recommendation, with the answer: {answer}. The recommendation's reason: {why}"
+question_settled_item = " on item #{item}"
+# A job ended failed or blocked in a room other than the owner's private room, told in his room as well:
+# `{job}`, `{item}`, `{worker}`, `{outcome}` and `{room}`.
+failed_order = "The job {job} of item #{item} on {worker} ended {outcome} in room {room}."
 # Agency's outbox: how often its sender sends what is due; the wait after a failed try, doubled after each
 # failure up to the most; how long a standing notice waits after it was last told before it is told again; and
 # how long one try waits for the receiver's answer.

@@ -1,11 +1,11 @@
-//! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): open work in the
-//! job service that a free checkout could take, and no job started for the idle minutes, told to the owner once
-//! for each idle stretch through the receiver's owner notice. The same minute pass owes each item's orderer
-//! what calls for its judgement (「An item's change is told to its orderer」), each in agency's outbox: an open
-//! item waiting a minute on a free checkout, once for each stretch it waits so, and, each once, an open item its
-//! paused queue holds, an open item whose assignee no checkout is of, a draft awaiting approval, and a held item
-//! every item it waits on has ended; and it reads the job service's events for the rest. The owner's switch
-//! silences the idle notice and the launch notice until the next job starts.
+//! The queue's minute pass (docs/agent-control.md, 「An idle agent is told to the orderers of the items it could
+//! take」): an agent switched on, free and able to take an open item, told to the orderer of every item it could
+//! take once for each stretch it stays so. The same pass owes each item's orderer what calls for its judgement
+//! (「An item's change is told to its orderer」), each in agency's outbox and each once: an open item its paused
+//! queue holds, one whose assignee no checkout is of, one whose `agent` or `role` label no launch takes, one whose
+//! model no agent of its role runs, a draft awaiting approval, and a held item every item it waits on has ended;
+//! and it reads the job service's events for the rest. An item whose notices are switched off is told of by none
+//! of these (「An item's notices switched off」).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use policy::job_notices::JOB_NOTICES;
 use policy::queue_idle::QUEUE_IDLE;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
-use store::{all, one};
+use store::all;
 
 use crate::Refusal;
 use crate::job_notices;
@@ -28,16 +28,13 @@ use crate::role_agents::RoleAgent;
 
 pub use crate::queue::orderer::{RAISED_BY, parent_of, room_of};
 
-/// The settings row the owner silences the alarm with, `off`, until the next job starts.
-pub const SWITCH_KEY: &str = "queue_idle_alarm";
-/// The settings row the moment the owner was last told stands in.
-pub const TOLD_KEY: &str = "queue_idle_told";
-/// The settings row the owner's own idle minutes stand in.
-pub const MINUTES_KEY: &str = "queue_idle_minutes";
-/// The settings rows, one an item by its number, of when an item was first seen waiting on a free checkout.
-pub const SEEN_PREFIX: &str = "queue_item_waiting:";
-/// The prefix of the key an item awaiting a launch is owed under, its number after it.
-pub const LAUNCH_OWED: &str = "item-awaits-launch:";
+/// The settings rows, one an agent by its name, of when an agent was first seen idle.
+pub const IDLE_SEEN_PREFIX: &str = "queue_agent_idle:";
+/// The prefix of the key an idle agent's notice is owed under, `<agent>@<room>` after it, `owner` standing for
+/// the owner's private room.
+pub const IDLE_OWED: &str = "agent-idle:";
+/// The settings rows, one an item by its number, of the `role` label the orderer was told names no role.
+pub const ROLE_TOLD_PREFIX: &str = "queue_role_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the item waits on its paused
 /// queue.
 pub const PAUSED_TOLD_PREFIX: &str = "queue_paused_told:";
@@ -126,14 +123,8 @@ pub struct Standing {
   pub carrying: Vec<String>,
   /// Every agent the store holds, by role and then by name.
   pub agents: Vec<RoleAgent>,
-  /// When the last job started, in epoch milliseconds, where one has.
-  pub last_start: Option<i64>,
-  /// When the owner was last told, in epoch milliseconds, where he was.
-  pub told: Option<i64>,
-  /// Whether the owner's switch silences the alarm.
-  pub silenced: bool,
-  /// The idle minutes that hold.
-  pub minutes: i64,
+  /// Every role the store holds, by name.
+  pub roles: Vec<String>,
 }
 
 impl Standing {
@@ -162,69 +153,52 @@ impl Standing {
       .filter(move |agent| agent.enabled && agent.role == role && agent.runs(model))
   }
 
-  /// The candidates of a role for a model that carry no run now.
-  pub fn free_candidates<'a>(&'a self, role: &'a str, model: &'a str) -> impl Iterator<Item = &'a str> {
-    self
-      .candidates(role, model)
-      .map(|agent| agent.name.as_str())
-      .filter(|name| !self.carrying.iter().any(|busy| busy == name))
-  }
-}
-
-/// The open items a free checkout could take: those whose repository has a free checkout, and those naming none
-/// while the checkout named `worker` is free.
-pub fn waiting(standing: &Standing) -> Vec<&Open> {
-  awaiting_launch(standing)
-}
-
-/// The open items awaiting a launch: those whose repository has a free checkout or grows one, and those naming
-/// none while the checkout named `worker` is free; an item whose `agent` label names an agent carrying a run waits
-/// on that agent instead, and one naming a model and no agent waits until one agent of its role on that model is
-/// free.
-pub fn awaiting_launch(standing: &Standing) -> Vec<&Open> {
-  standing
-    .open
-    .iter()
-    .filter(|item| standing.free_for(item.assignee.as_deref()))
-    .filter(|item| match (&item.agent, item.asked_model()) {
-      (Some(agent), _) => !standing.carrying.contains(agent),
-      (None, Some(model)) => standing.free_candidates(item.role(), model).next().is_some(),
-      (None, None) => true,
-    })
-    .collect()
-}
-
-/// The agent each item awaiting a launch waits to go on, by the item's number: the agent its `agent` label names;
-/// for an item naming a model, going through the items in the queue's order, the first of its free candidates by
-/// name that no item before it is set on, else the first of them, so free agents of one model are offered
-/// different items at once. An item naming neither waits on no agent.
-pub fn seats(standing: &Standing) -> BTreeMap<i64, String> {
-  let mut awaiting = awaiting_launch(standing);
-  let mut set: BTreeMap<i64, String> = BTreeMap::new();
-
-  awaiting.sort_by_key(|item| item.place());
-
-  for item in awaiting {
-    let seat = match (&item.agent, item.asked_model()) {
-      (Some(agent), _) => Some(agent.as_str()),
-      (None, Some(model)) => {
-        let free: Vec<&str> = standing.free_candidates(item.role(), model).collect();
-
-        free
-          .iter()
-          .find(|name| !set.values().any(|taken| taken == *name))
-          .or(free.first())
-          .copied()
-      }
-      (None, None) => None,
+  /// Whether `agent` could be given `item` now, as an idle agent is read (docs/agent-control.md, 「An idle agent
+  /// is told to the orderers of the items it could take」): a checkout the item may go to is free or grows, and its
+  /// `agent` label names this agent, whatever its role, since the job runs as its agent's; or, naming none, its role
+  /// is the agent's and its `model` label names a model the agent's road runs or none.
+  pub fn could_take(&self, agent: &RoleAgent, item: &Open) -> bool {
+    let named = match &item.agent {
+      Some(name) => name == &agent.name,
+      None => item.role() == agent.role && item.model.as_deref().is_none_or(|model| agent.runs(model)),
     };
 
-    if let Some(seat) = seat {
-      set.insert(item.id, seat.to_owned());
-    }
+    named && self.free_for(item.assignee.as_deref())
   }
 
-  set
+  /// Whether an agent is idle here but for the items it could take: switched on, of the deployment's own account,
+  /// on a road naming a provider and a model, and carrying no run.
+  pub fn free_agent(&self, agent: &RoleAgent) -> bool {
+    agent.enabled
+      && agent.owner_account.is_none()
+      && agent.provider.is_some()
+      && agent.model.is_some()
+      && !self.carrying.contains(&agent.name)
+  }
+}
+
+/// An idle agent and the open items it could take, in the queue's order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Idle<'a> {
+  pub agent: &'a RoleAgent,
+  pub items: Vec<&'a Open>,
+}
+
+/// Every idle agent: free, and able to take one open item at least (docs/agent-control.md, 「An idle agent is told
+/// to the orderers of the items it could take」), by role and then by name.
+pub fn idle_agents(standing: &Standing) -> Vec<Idle<'_>> {
+  standing
+    .agents
+    .iter()
+    .filter(|agent| standing.free_agent(agent))
+    .filter_map(|agent| {
+      let mut items: Vec<&Open> =
+        standing.open.iter().filter(|item| standing.could_take(agent, item)).collect();
+
+      items.sort_by_key(|item| item.place());
+      (!items.is_empty()).then_some(Idle { agent, items })
+    })
+    .collect()
 }
 
 /// The open items naming a model, and no agent, that no agent of their role switched on runs, so no launch
@@ -251,67 +225,68 @@ pub fn unlaunchable(standing: &Standing) -> Vec<&Open> {
     .collect()
 }
 
-/// The items the orderer is to be told of at `now`: each awaiting a launch since `seen` names it for the launch
-/// seconds and more, not told yet (`told` naming when each told one was), and the switch on; of the items naming
-/// one agent, only the first in the queue's order — the highest priority, then the earliest place, then the
-/// lowest number — and only once the next-offer seconds have passed since another of that agent's waiting items
-/// was told, so a free agent is offered its next item rather than its whole series.
-pub fn launches_due<'a>(
-  standing: &'a Standing,
-  seen: &BTreeMap<i64, i64>,
-  told: &BTreeMap<i64, i64>,
-  now: i64,
-) -> Vec<&'a Open> {
-  if standing.silenced {
-    return vec![];
+/// Why an open item's `agent` label takes no launch now, where it does not: an agent the agency does not register,
+/// one switched off, or one whose road follows its supervisor (docs/repositories.md, 「An agent an item names」).
+pub fn agent_refusal(standing: &Standing, item: &Open) -> Option<String> {
+  let label = item.agent.as_deref()?;
+
+  match standing.agents.iter().find(|agent| agent.name == label) {
+    None => Some(format!(
+      "the agency registers no agent {label}. The agents it may name:\n{}",
+      crate::role_agents::roads_held(item.role(), &standing.agents)
+    )),
+    Some(agent) if !agent.enabled => Some(format!("the agent {label} is switched off")),
+    Some(agent) if agent.provider.is_none() || agent.model.is_none() => {
+      Some(format!("the agent {label} follows its supervisor's road, which no job asks"))
+    }
+    Some(_) => None,
   }
-
-  let awaiting = awaiting_launch(standing);
-  let seats = seats(standing);
-  let mut offered: BTreeSet<&String> = awaiting
-    .iter()
-    .filter_map(|item| Some((seats.get(&item.id)?, told.get(&item.id)?)))
-    .filter(|(_, at)| now - **at < QUEUE_IDLE.next_offer_seconds * 1000)
-    .map(|(agent, _)| agent)
-    .collect();
-  let mut due: Vec<&Open> = awaiting
-    .into_iter()
-    .filter(|item| !told.contains_key(&item.id))
-    .filter(|item| seen.get(&item.id).is_some_and(|since| now - since >= QUEUE_IDLE.launch_seconds * 1000))
-    .collect();
-
-  due.sort_by_key(|item| item.place());
-  due.retain(|item| seats.get(&item.id).is_none_or(|agent| offered.insert(agent)));
-  due
 }
 
-/// The instruction an item awaiting a launch is queued with for its orderer: for an item naming a model, with
-/// the agent `seat` names, the one a launch would take.
-pub fn launch_instruction(item: &Open, seat: Option<&str>, orderer: &Orderer) -> Value {
-  let number = item.id.to_string();
-  let mut order = fill_marks(
-    &QUEUE_IDLE.launch_order,
+/// The open items whose `role` label names no role the store holds.
+pub fn role_unknown(standing: &Standing) -> Vec<&Open> {
+  standing
+    .open
+    .iter()
+    .chain(&standing.paused)
+    .filter(|item| item.role.as_ref().is_some_and(|role| !standing.roles.contains(role)))
+    .collect()
+}
+
+/// The instruction an idle agent is told with to the orderer of `items`, the room `orderer` names.
+pub fn idle_instruction(agent: &RoleAgent, items: &[&Open], orderer: &Orderer) -> Value {
+  let listed: Vec<String> = items
+    .iter()
+    .map(|item| {
+      fill_marks(&QUEUE_IDLE.agent_idle_item, &[("item", &item.id.to_string()), ("title", &item.title)])
+    })
+    .collect();
+  let order = fill_marks(
+    &QUEUE_IDLE.agent_idle_order,
     &[
-      ("item", &number),
-      ("title", &item.title),
-      ("worker", item.assignee.as_deref().unwrap_or(&JOB_NOTICES.any_worker)),
+      ("agent", &agent.name),
+      ("role", &agent.role),
+      ("provider", agent.provider.as_deref().unwrap_or_default()),
+      ("model", agent.model.as_deref().unwrap_or_default()),
+      ("items", &listed.join("\n")),
     ],
   );
 
-  if let (Some(model), Some(agent)) = (item.asked_model(), seat) {
-    order.push_str(&fill_marks(
-      &QUEUE_IDLE.launch_seat,
-      &[("agent", agent), ("role", item.role()), ("model", model)],
-    ));
-  }
+  json!({
+    "room": orderer.room,
+    "said": { "order": order },
+    "agentName": Value::Null,
+    "sort": "job",
+    "kind": format!("agent-idle:{}", agent.name),
+    "summary": format!("The agent {} is idle", agent.name),
+    "run": Value::Null,
+  })
+}
 
-  job_notices::instruction(
-    "item-awaits-launch",
-    item.id,
-    orderer,
-    format!("Item #{} awaits a launch", item.id),
-    order,
-  )
+/// Whether an item's notices are switched off (docs/agent-control.md, 「An item's notices switched off」): the job
+/// service answers its switch-off, with its reason, as `noticesOff`.
+pub fn notices_off(item: &Value) -> bool {
+  item["noticesOff"].is_object()
 }
 
 /// A draft as the pass reads it.
@@ -507,11 +482,11 @@ async fn orderer(service: Option<&JobService>, item: &Value) -> Result<Orderer, 
   }
 }
 
-/// The items awaiting a launch owed to their orderer once for each stretch they wait, and the rows kept for them
-/// brought up to date: a waiting item first seen now marked, and both the mark and the kept notice of an item no
-/// longer waiting, or of every item while the switch is off, let go, so it is told again only once the reason it
-/// waits changes — its checkout and its agent free again, its hold lifted, its queue opened again.
-pub async fn tell_launches(
+/// Each idle agent owed to the orderers of the items it could take, once for each stretch it stays idle and
+/// again where a room's items change, and the rows kept for it brought up to date: an agent first seen idle now
+/// marked, and both the mark and the kept notices of an agent no longer idle, or of a room left with no item it
+/// could take, let go, so it is told again only once a new stretch begins.
+pub async fn tell_idle(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
   standing: &Standing,
@@ -524,46 +499,74 @@ pub async fn tell_launches(
 
   let service = JobService::of(vars);
   let fault = |why: Refusal| why.detail;
-  let mut seen = marks(db, SEEN_PREFIX).await.map_err(fault)?;
-  let awaiting: BTreeSet<i64> = awaiting_launch(standing).iter().map(|item| item.id).collect();
+  let idle = idle_agents(standing);
+  let names: BTreeSet<&str> = idle.iter().map(|one| one.agent.name.as_str()).collect();
+  let mut seen: BTreeMap<String, i64> = BTreeMap::new();
 
-  for id in &awaiting {
-    if !seen.contains_key(id) {
-      settings::set(db, &format!("{SEEN_PREFIX}{id}"), &now.to_string())
+  for name in settings::named(db, IDLE_SEEN_PREFIX).await.map_err(fault)? {
+    let key = format!("{IDLE_SEEN_PREFIX}{name}");
+
+    if names.contains(name.as_str()) {
+      seen.insert(name, setting_number(db, &key).await.map_err(fault)?.unwrap_or(now));
+    } else {
+      settings::forget(db, &key).await.map_err(fault)?;
+    }
+  }
+
+  for name in &names {
+    if !seen.contains_key(*name) {
+      settings::set(db, &format!("{IDLE_SEEN_PREFIX}{name}"), &now.to_string())
         .await
         .map_err(fault)?;
-      seen.insert(*id, now);
+      seen.insert((*name).to_owned(), now);
     }
   }
 
-  for id in seen.keys().filter(|id| !awaiting.contains(id)) {
-    settings::forget(db, &format!("{SEEN_PREFIX}{id}")).await.map_err(fault)?;
-  }
+  // Each due agent's items grouped by the room their orderer stands in, `owner` for the owner's private room.
+  let mut due: BTreeMap<String, (&RoleAgent, Orderer, Vec<&Open>)> = BTreeMap::new();
 
-  let mut told = BTreeMap::new();
+  for one in &idle {
+    if seen
+      .get(&one.agent.name)
+      .is_none_or(|since| now - since < QUEUE_IDLE.launch_seconds * 1000)
+    {
+      continue;
+    }
 
-  for (item, owed) in outbox::owed(db, LAUNCH_OWED).await? {
-    match item.parse::<i64>() {
-      Ok(id) if awaiting.contains(&id) && !standing.silenced => {
-        told.insert(id, owed.owed_at);
-      }
-      _ => outbox::let_go_as_read(db, vars, &format!("{LAUNCH_OWED}{item}"), &owed).await?,
+    for item in &one.items {
+      let orderer = orderer(service.as_ref(), &item.as_item()).await?;
+      let room = orderer.room.map_or_else(|| "owner".to_owned(), |room| room.to_string());
+
+      due
+        .entry(format!("{}@{room}", one.agent.name))
+        .or_insert_with(|| (one.agent, orderer, vec![]))
+        .2
+        .push(item);
     }
   }
 
-  let seats = seats(standing);
+  let owed = outbox::owed(db, IDLE_OWED).await?;
 
-  for item in launches_due(standing, &seen, &told, now) {
-    let orderer = orderer(service.as_ref(), &item.as_item()).await?;
-    let seat = seats.get(&item.id).map(String::as_str);
-    let notice = Notice::instruction(launch_instruction(item, seat, &orderer), Keep::Kept);
+  for (key, row) in &owed {
+    if !due.contains_key(key) {
+      outbox::let_go_as_read(db, vars, &format!("{IDLE_OWED}{key}"), row).await?;
+    }
+  }
+
+  for (key, (agent, orderer, items)) in &due {
+    let mark: Vec<String> = items.iter().map(|item| item.id.to_string()).collect();
+    let mark = mark.join(",");
+
+    if owed.get(key).is_some_and(|row| row.mark == mark) {
+      continue;
+    }
+
+    let notice = Notice::instruction(idle_instruction(agent, items, orderer), Keep::Kept)
+      .keyed(format!("{IDLE_OWED}{key}"))
+      .marked(mark.clone());
 
     outbox::owe(db, vars, notice).await?;
-    println!(
-      "queue: item #{} waited on {} for a launch, owed to its orderer",
-      item.id,
-      item.assignee.as_deref().unwrap_or(&JOB_NOTICES.any_worker)
-    );
+    println!("queue: the agent {} is idle and could take {mark}, owed to their orderer", agent.name);
   }
 
   Ok(())
@@ -618,14 +621,37 @@ pub async fn tell_stuck(
     );
   }
 
+  let refused: Vec<(&Open, String)> = standing
+    .open
+    .iter()
+    .chain(&standing.paused)
+    .filter_map(|item| Some((item, agent_refusal(standing, item)?)))
+    .collect();
+  let refused_ids: BTreeSet<i64> = refused.iter().map(|(item, _)| item.id).collect();
+
+  let_go_marks(db, AGENT_TOLD_PREFIX, &refused_ids).await?;
+
+  for (item, why) in refused {
+    let label = item.agent.as_deref().unwrap_or_default();
+
+    tell_agent_refused(db, vars, item.id, &item.as_item(), label, &why).await?;
+  }
+
+  let unknown = role_unknown(standing);
+  let unknown_ids: BTreeSet<i64> = unknown.iter().map(|item| item.id).collect();
+
+  let_go_marks(db, ROLE_TOLD_PREFIX, &unknown_ids).await?;
+
+  for item in unknown {
+    let label = item.role.as_deref().unwrap_or_default();
+
+    tell_role_unknown(db, vars, item.id, &item.as_item(), label, &standing.roles).await?;
+  }
+
   let lacking = without_candidate(standing);
   let lacking_ids: BTreeSet<i64> = lacking.iter().map(|item| item.id).collect();
 
-  for id in settings::named(db, NO_CANDIDATE_TOLD_PREFIX).await.map_err(fault)? {
-    if id.parse::<i64>().is_ok_and(|id| !lacking_ids.contains(&id)) {
-      settings::forget(db, &format!("{NO_CANDIDATE_TOLD_PREFIX}{id}")).await.map_err(fault)?;
-    }
-  }
+  let_go_marks(db, NO_CANDIDATE_TOLD_PREFIX, &lacking_ids).await?;
 
   for item in lacking {
     let (role, model) = (item.role(), item.asked_model().unwrap_or_default());
@@ -718,6 +744,60 @@ pub async fn tell_agent_refused(
   Ok(true)
 }
 
+/// An item whose `role` label names no role agency holds told to its orderer, once for that label, with the roles it
+/// holds. Answers whether it was told now.
+pub async fn tell_role_unknown(
+  db: &DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  id: i64,
+  item: &Value,
+  label: &str,
+  roles: &[String],
+) -> Result<bool, String> {
+  if Receiver::of(vars).is_none() {
+    return Ok(false);
+  }
+
+  let fault = |why: Refusal| why.detail;
+  let key = format!("{ROLE_TOLD_PREFIX}{id}");
+
+  if settings::get(db, &key).await.map_err(fault)?.as_deref() == Some(label) {
+    return Ok(false);
+  }
+
+  let mut item = item.clone();
+
+  item["id"] = json!(id);
+
+  let orderer = orderer(JobService::of(vars).as_ref(), &item).await?;
+  let title = item["title"].as_str().unwrap_or_default();
+  let notice = job_notices::role_unknown(id, title, label, roles, &orderer);
+
+  outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await?;
+  settings::set(db, &key, label).await.map_err(fault)?;
+  println!("queue: item #{id} names role={label}, which agency does not hold, owed to its orderer");
+
+  Ok(true)
+}
+
+// The marks of a family kept by an item's number let go for every item no longer among `standing`, so an item that
+// comes to stand so again is told again.
+async fn let_go_marks(
+  db: &DatabaseConnection,
+  prefix: &str,
+  standing: &BTreeSet<i64>,
+) -> Result<(), String> {
+  let fault = |why: Refusal| why.detail;
+
+  for id in settings::named(db, prefix).await.map_err(fault)? {
+    if id.parse::<i64>().is_ok_and(|id| !standing.contains(&id)) {
+      settings::forget(db, &format!("{prefix}{id}")).await.map_err(fault)?;
+    }
+  }
+
+  Ok(())
+}
+
 /// The mark of an item's refused `agent` label let go, as a job of the item is launched.
 pub async fn agent_told_let_go(db: &DatabaseConnection, id: i64) {
   if let Err(why) = settings::forget(db, &format!("{AGENT_TOLD_PREFIX}{id}")).await {
@@ -730,34 +810,6 @@ pub async fn no_candidate_told_let_go(db: &DatabaseConnection, id: i64) {
   if let Err(why) = settings::forget(db, &format!("{NO_CANDIDATE_TOLD_PREFIX}{id}")).await {
     eprintln!("queue: the told mark of item #{id}'s model was not let go: {}", why.detail);
   }
-}
-
-/// Whether the queue is idle at `now` and not yet told for this stretch: work a free checkout could take, no
-/// job started for the idle minutes, no telling since the last job started, and the switch on.
-pub fn idle(standing: &Standing, now: i64) -> bool {
-  let quiet_since = standing.last_start.unwrap_or(0);
-
-  !standing.silenced
-    && !waiting(standing).is_empty()
-    && now - quiet_since >= standing.minutes * 60_000
-    && standing.told.is_none_or(|told| told < quiet_since)
-}
-
-/// The owner notice an idle queue is told with.
-pub fn notice(standing: &Standing) -> Value {
-  let items: Vec<Value> = waiting(standing)
-    .iter()
-    .map(|item| json!({ "id": item.id, "title": item.title, "assignee": item.assignee }))
-    .collect();
-
-  json!({
-    "code": QUEUE_IDLE.code,
-    "openItems": items,
-    "freeWorkers": standing.free,
-    "idleMinutes": standing.minutes,
-    "lastJobStartedAt": standing.last_start,
-    "ask": QUEUE_IDLE.ask,
-  })
 }
 
 async fn setting_number(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refusal> {
@@ -806,6 +858,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
   carrying.extend(crate::role_agents::busy_any(db).await?);
 
   let agents = crate::role_agents::every(db).await?;
+  let roles = crate::agent_roles::names(db).await?;
 
   let workers = crate::queue::workers::workers(db, std::path::Path::new("")).await?;
   let known = workers.iter().map(|worker| worker.name.clone()).collect();
@@ -829,10 +882,6 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
       .map(|repository| repository.name)
       .collect(),
   };
-  let last_start = one(db, r#"SELECT MAX("started_at") AS "at" FROM "jobs""#, vec![])
-    .await?
-    .and_then(|row| row.try_get::<Option<i64>>("", "at").ok().flatten());
-
   Ok(Standing {
     open,
     paused,
@@ -842,10 +891,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     known,
     carrying,
     agents,
-    last_start,
-    told: setting_number(db, TOLD_KEY).await?,
-    silenced: settings::get(db, SWITCH_KEY).await?.is_some_and(|value| value.trim() == "off"),
-    minutes: setting_number(db, MINUTES_KEY).await?.unwrap_or(QUEUE_IDLE.idle_minutes),
+    roles,
   })
 }
 
@@ -878,7 +924,7 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
       .every_page("/items", &[("state", "open")])
       .await?
       .iter()
-      .filter(|item| !merged_awaiting_deploy(item))
+      .filter(|item| !merged_awaiting_deploy(item) && !notices_off(item))
       .filter_map(|item| {
         let queue = item["queueName"].as_str().unwrap_or_default().to_owned();
 
@@ -912,6 +958,7 @@ pub async fn tell_drafts(db: &DatabaseConnection, vars: &BTreeMap<String, String
     .every_page("/items", &[("state", "draft")])
     .await?
     .iter()
+    .filter(|item| !notices_off(item))
     .filter_map(draft_of)
     .collect();
   let standing: BTreeSet<i64> = drafts.iter().map(|draft| draft.id).collect();
@@ -942,6 +989,7 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
     .every_page("/items", &[("state", "held")])
     .await?
     .iter()
+    .filter(|item| !notices_off(item))
     .filter_map(follower_of)
     .collect();
   let standing: BTreeSet<i64> = followers.iter().map(|follower| follower.id).collect();
@@ -979,21 +1027,26 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
   Ok(())
 }
 
-/// One pass of the alarm: the queue read; each item awaiting a launch, each open item that cannot go, each
-/// draft awaiting approval and each held item whose wait has ended told to its orderer once; the job service's
-/// events told; and an idle queue told to the owner once, the moments kept.
+/// One pass: the label values published where they changed; the queue read; each idle agent, each open item that
+/// cannot go, each draft awaiting approval and each held item whose wait has ended told to its orderer; and the job
+/// service's events told.
 pub async fn pass(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
   gate: &Arc<dyn Gate>,
 ) -> Result<(), String> {
   let Some(service) = JobService::of(vars) else { return Ok(()) };
+
+  if let Err(why) = crate::label_values::publish(db, &service).await {
+    eprintln!("queue: the label values were not published: {why}");
+  }
+
   let open = open_items(&service).await?;
   let standing = held(db, open).await.map_err(|why| why.detail)?;
   let now = crate::now_ms();
 
-  if let Err(why) = tell_launches(db, vars, &standing, now).await {
-    eprintln!("queue: an item awaiting a launch was not told: {why}");
+  if let Err(why) = tell_idle(db, vars, &standing, now).await {
+    eprintln!("queue: an idle agent was not told: {why}");
   }
 
   if let Err(why) = tell_stuck(db, vars, &standing, now).await {
@@ -1015,28 +1068,31 @@ pub async fn pass(
   // Words kept for a running job while its turn could not take them are offered to that turn again.
   crate::job_words::offer_kept(db, gate).await;
 
-  if !idle(&standing, now) {
-    return Ok(());
-  }
-
-  if Receiver::of(vars).is_none() {
-    return Ok(());
-  }
-
-  outbox::owe(db, vars, Notice::owner(now, notice(&standing))).await?;
-  settings::set(db, TOLD_KEY, &now.to_string()).await.map_err(|why| why.detail)?;
-  println!(
-    "queue: idle for {} minutes with {} items a free checkout could take, owed to the owner",
-    standing.minutes,
-    waiting(&standing).len()
-  );
-
   Ok(())
 }
 
-/// A job started: the owner's switch on again.
-pub async fn job_started(db: &DatabaseConnection) {
-  if let Err(why) = settings::forget(db, SWITCH_KEY).await {
-    eprintln!("queue: the idle alarm's switch was not turned on again: {}", why.detail);
+/// What cannot go told at once, as the owner adds, changes, switches or removes an agent or a role
+/// (docs/agent-control.md, 「A label agency does not hold is refused as it is set」): the label values published
+/// and the open items read and told as the minute pass tells them. A deployment naming no job service tells
+/// nothing.
+pub async fn agents_changed(db: &DatabaseConnection, vars: &BTreeMap<String, String>) {
+  let Some(service) = JobService::of(vars) else { return };
+
+  if let Err(why) = crate::label_values::publish(db, &service).await {
+    eprintln!("queue: the label values were not published: {why}");
+  }
+
+  let standing = match open_items(&service).await {
+    Ok(open) => held(db, open).await.map_err(|why| why.detail),
+    Err(why) => Err(why),
+  };
+
+  match standing {
+    Ok(standing) => {
+      if let Err(why) = tell_stuck(db, vars, &standing, crate::now_ms()).await {
+        eprintln!("queue: an item no launch takes after an agent's change was not told: {why}");
+      }
+    }
+    Err(why) => eprintln!("queue: the queue was not read after an agent's change: {why}"),
   }
 }

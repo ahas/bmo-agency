@@ -924,7 +924,7 @@ impl Route for CreateJob {
     let lent_named = to_lend(call.ground(), &item, &worker_name).await?;
     // Every job names its agent, or the model and the role whose free agent it takes, and that agent carries its
     // role and its road (docs/repositories.md, 「An agent an item names」).
-    let asked_role = item_role(db, item_id, &item).await?.unwrap_or_else(|| {
+    let asked_role = item_role(&call.shared_ground(), item_id, &item).await?.unwrap_or_else(|| {
       held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned()
     });
     let account = crate::supervisors::named(db, &holder)
@@ -1020,7 +1020,6 @@ impl Route for CreateJob {
     )
     .await?;
     let (member, _) = job(db, id).await?;
-    crate::watches::queue_idle::job_started(db).await;
     publish(call.ground(), "job.created", member.clone());
 
     // What the launch read of the item stands fixed while the job runs (docs/repositories.md, 「An agent an item
@@ -2728,11 +2727,8 @@ async fn item_seat(
 /// The role the item `POST /jobs` is handed names with its `role` label (docs/repositories.md, 「A role an item
 /// names」): none for `auto` or no label, and 422 `unknown-role` with the label's text for one the store does not
 /// hold.
-async fn item_role(
-  db: &sea_orm::DatabaseConnection,
-  item_id: i64,
-  item: &Value,
-) -> Result<Option<String>, Refused> {
+async fn item_role(ground: &Arc<Ground>, item_id: i64, item: &Value) -> Result<Option<String>, Refused> {
+  let db = &ground.db;
   let label = item["labels"][ROLE_LABEL].as_str().map(str::trim).unwrap_or_default();
 
   if label.is_empty() || label == crate::repositories::AUTO {
@@ -2741,13 +2737,37 @@ async fn item_role(
 
   match crate::agent_roles::named(db, label).await {
     Ok(Some(_)) => Ok(Some(label.to_owned())),
-    Ok(None) => Err(
-      Refused::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        format!("Item #{item_id} names {ROLE_LABEL}={label}, which is no role the store holds"),
+    Ok(None) => {
+      if !ground.testing() {
+        let ground = ground.clone();
+        let item = item.clone();
+        let label = label.to_owned();
+        let roles = crate::agent_roles::names(db).await?;
+
+        tokio::spawn(async move {
+          let told = crate::watches::queue_idle::tell_role_unknown(
+            &ground.db,
+            ground.vars(),
+            item_id,
+            &item,
+            &label,
+            &roles,
+          );
+
+          if let Err(fault) = told.await {
+            eprintln!("job of item #{item_id}: its unknown role was not told: {fault}");
+          }
+        });
+      }
+
+      Err(
+        Refused::new(
+          StatusCode::UNPROCESSABLE_ENTITY,
+          format!("Item #{item_id} names {ROLE_LABEL}={label}, which is no role the store holds"),
+        )
+        .with_code("unknown-role"),
       )
-      .with_code("unknown-role"),
-    ),
+    }
     Err(why) => Err(Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.to_string())),
   }
 }

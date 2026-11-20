@@ -1,7 +1,7 @@
-//! The job service's events told to an item's orderer and the owner (docs/agent-control.md, 「An item's change
-//! is told to its orderer」): an item closed by somebody other than its orderer, a run's question asked and
-//! withdrawn once a reply settles it, a question past its due time told to the owner, each once; a question
-//! settled on its recommendation told to the owner and one a person or the supervisor settled not; and a pass
+//! The job service's events told to an item's orderer (docs/agent-control.md, 「An item's change is told to its
+//! orderer」): an item closed by somebody other than its orderer, a run's question asked and withdrawn once a
+//! reply settles it, a question past its due time told to the question's orderer, each once; a question settled
+//! on its recommendation told to its orderer and one a person or the supervisor settled not; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
 //! live; a commit waiting for its deployment told once for each commit, never again on another change, a start or
 //! the sender's retelling; a question past its due time taken again owing its parked job's notice again; and a
@@ -11,7 +11,6 @@
 use agency_server::outbox::owed;
 use agency_server::queue::settings;
 use agency_server::watches::job_events::{CURSOR_KEY, DEPLOY_OWED, QUESTION_OWED};
-use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
 use crate::support::peers::{item, stand};
@@ -118,7 +117,7 @@ async fn an_item_closed_by_somebody_else_is_told_once_to_its_orderer_and_its_own
 }
 
 #[tokio::test]
-async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_the_owner_when_due() {
+async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_its_orderer_again_when_due() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let (peers, vars) = stand().await;
@@ -165,7 +164,7 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
     let held = peers.lock().unwrap();
     let told = held.instructed();
 
-    assert_eq!(told.len(), 2, "{told:?}");
+    assert_eq!(told.len(), 3, "{told:?}");
     assert_eq!(
       (&told[0]["kind"], &told[0]["events"], &told[0]["room"]),
       (&json!("question-awaits-answer:5"), &json!(["question-awaits-answer:#5"]), &json!(-800)),
@@ -173,14 +172,17 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
     );
     assert!(told[0]["said"]["order"].as_str().unwrap().contains("which one?"));
     assert_eq!(told[1]["room"], json!(-900), "a question on its own: the room its scope names");
-
-    let notices = held.noticed();
-
-    assert_eq!(notices.len(), 1);
     assert_eq!(
-      (&notices[0]["code"], &notices[0]["questionId"]),
-      (&json!(JOB_NOTICES.question_due_code), &json!(6))
+      (&told[2]["kind"], &told[2]["events"], &told[2]["room"], &told[2]["sort"]),
+      (
+        &json!("job-question-due:6"),
+        &json!(["job-question-due:#6"]),
+        &json!(-900),
+        &json!("job")
+      ),
+      "a question past its due time: an instruction to the question's orderer"
     );
+    assert!(held.noticed().is_empty(), "no owner notice");
     assert!(held.withdrawn().is_empty(), "a word that settles nothing withdraws nothing");
   }
 
@@ -199,12 +201,12 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_th
   let held = peers.lock().unwrap();
 
   assert_eq!(held.withdrawn(), ["1"], "the settled question's instruction withdrawn");
-  assert_eq!(held.instructed().len(), 2, "nothing told twice");
-  assert_eq!(held.noticed().len(), 1, "nothing told twice");
+  assert_eq!(held.instructed().len(), 3, "nothing told twice");
 }
 
 #[tokio::test]
-async fn a_question_settled_on_its_recommendation_owes_the_owner_one_notice_and_a_person_s_settle_none() {
+async fn a_question_settled_on_its_recommendation_owes_its_orderer_one_instruction_and_a_person_s_settle_none()
+ {
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let (peers, vars) = stand().await;
@@ -214,6 +216,7 @@ async fn a_question_settled_on_its_recommendation_owes_the_owner_one_notice_and_
   {
     let mut held = peers.lock().unwrap();
 
+    held.items.insert(95, item(95, "leased", json!({ "scope": "-950" })));
     held.questions.push(json!({ "id": 40, "itemId": 95, "state": "answered" }));
     held.questions.push(json!({ "id": 41, "itemId": 96, "state": "answered" }));
     held.events = vec![
@@ -249,24 +252,28 @@ async fn a_question_settled_on_its_recommendation_owes_the_owner_one_notice_and_
   pass(db, &vars).await.unwrap();
 
   let held = peers.lock().unwrap();
-  let notices = held.noticed();
+  let told = held.instructed();
 
   assert_eq!(
-    notices.len(),
+    told.len(),
     2,
     "one for each settle on a recommendation, none for a person's or a supervisor's"
   );
+  assert!(held.noticed().is_empty(), "no owner notice");
   assert_eq!(
-    notices[0],
-    json!({
-      "code": JOB_NOTICES.question_settled_code, "questionId": 40, "itemId": 95, "answer": "b",
-      "why": "b keeps the contract"
-    })
+    (&told[0]["kind"], &told[0]["events"], &told[0]["room"], &told[0]["sort"]),
+    (
+      &json!("job-question-settled:40"),
+      &json!(["job-question-settled:#40"]),
+      &json!(-950),
+      &json!("job")
+    ),
+    "in the room of the question's item's orderer"
   );
   assert_eq!(
-    (&notices[1]["questionId"], &notices[1]["itemId"], &notices[1]["answer"]),
-    (&json!(41), &json!(96), &json!("write it fresh")),
-    "a free answer told by its text"
+    (&told[1]["kind"], &told[1]["room"]),
+    (&json!("job-question-settled:41"), &Value::Null),
+    "an item the job service does not answer for: the owner's private room"
   );
 }
 
@@ -525,10 +532,22 @@ async fn a_question_past_its_due_time_taken_again_owes_its_parked_job_s_notice_a
 
   pass(db, &vars).await.unwrap();
 
-  let told = peers.lock().unwrap().instructed();
+  let told: Vec<(Value, Value)> = peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .map(|told| (told["kind"].clone(), told["room"].clone()))
+    .collect();
 
-  assert_eq!(told.len(), 1, "{told:?}");
-  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-review-parked:95"), &json!(-950)));
+  assert_eq!(
+    told,
+    [
+      (json!("job-review-parked:95"), json!(-950)),
+      (json!("job-question-due:31"), json!(-950))
+    ],
+    "the parked job's notice owed again, beside the question's own"
+  );
 }
 
 #[tokio::test]

@@ -1,14 +1,14 @@
-//! What a job's orderer and the owner are told of the job (docs/agent-control.md, 「An item's change is told to
-//! its orderer」): a job's wait as it begins, a job's end told to the orderer of a derived item up the chain,
-//! and a failed job told to the owner as well where its orderer is another room.
+//! What a job's orderer is told of the job (docs/agent-control.md, 「An item's change is told to its orderer」): a
+//! job's wait as it begins, a job's end told to the orderer of a derived item up the chain, a failed job told in
+//! the owner's private room as well where its orderer is another room, and a question past its due time or
+//! settled on its recommendation told to the question's orderer.
 
 use agency_server::job_end::delivered_with;
 use agency_server::job_notices::{
   agent_refused, awaits_close, closed, failed, moved, owner_hears_failure, paused, question, question_due,
-  tell_waiting, unlaunchable, waiting,
+  question_settled, role_unknown, tell_waiting, unlaunchable, waiting,
 };
 use agency_server::queue::orderer::Orderer;
-use policy::job_notices::JOB_NOTICES;
 use serde_json::{Value, json};
 
 use crate::support::peers::{item, stand};
@@ -112,7 +112,7 @@ async fn a_job_s_end_on_a_derived_item_is_told_to_the_orderer_of_its_parent_s_pa
 }
 
 #[tokio::test]
-async fn a_failed_job_in_another_room_is_told_to_the_owner_as_well_and_not_in_his_own() {
+async fn a_failed_job_in_another_room_is_told_in_the_owner_s_room_as_well_and_not_twice_in_his_own() {
   let scratch = Scratch::new().await;
   let (peers, vars) = stand().await;
 
@@ -123,14 +123,22 @@ async fn a_failed_job_in_another_room_is_told_to_the_owner_as_well_and_not_in_hi
   delivered_with(scratch.db(), &vars, &member(61, Some("blocked"), None)).await;
 
   let held = peers.lock().unwrap();
-  let notices = held.noticed();
+  let told: Vec<(Value, Value)> = held
+    .instructed()
+    .iter()
+    .map(|body| (body["kind"].clone(), body["room"].clone()))
+    .collect();
 
-  assert_eq!(held.instructed().len(), 2, "each end told to its orderer");
-  assert_eq!(notices.len(), 1, "the owner's own room hears it once: {notices:?}");
   assert_eq!(
-    (&notices[0]["code"], &notices[0]["itemId"], &notices[0]["room"], &notices[0]["outcome"]),
-    (&json!(JOB_NOTICES.failed_code), &json!(60), &json!(-600), &json!("failed"))
+    told,
+    [
+      (json!("job-ended:60"), json!(-600)),
+      (json!("job-failed:60"), Value::Null),
+      (json!("job-ended:61"), Value::Null),
+    ],
+    "each end told to its orderer, a failure in another room told in the owner's private room once"
   );
+  assert!(held.noticed().is_empty(), "no owner notice");
 }
 
 #[test]
@@ -145,7 +153,23 @@ fn a_failure_is_the_owner_s_only_for_failed_or_blocked_in_another_room() {
   assert!(!owner_hears_failure(&member(1, Some("stopped"), None), &room));
   assert!(!owner_hears_failure(&member(1, None, None), &room));
   assert!(!owner_hears_failure(&member(1, Some("failed"), None), &Orderer::default()));
-  assert_eq!(failed(&member(1, Some("failed"), None), Some(-1))["jobId"], 77);
+}
+
+#[test]
+fn a_failed_job_is_an_instruction_in_the_owner_s_private_room_naming_the_job_its_worker_outcome_and_room() {
+  let told = failed(&member(1, Some("failed"), None), Some(-1));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(
+    (&told["kind"], &told["events"], &told["room"], &told["sort"]),
+    (&json!("job-failed:1"), &json!(["job-failed:#1"]), &Value::Null, &json!("job"))
+  );
+
+  for word in ["77", "#1", "w1", "failed", "-1"] {
+    assert!(order.contains(word), "{word} in {order}");
+  }
+
+  assert_no_instruction(order);
 }
 
 #[test]
@@ -162,6 +186,10 @@ fn every_queue_order_carries_its_data_and_no_instruction() {
     (
       agent_refused(12, "Fix it", "nobody-07", "no agent the agency registers", &orderer),
       &["#12", "Fix it", "agent=nobody-07", "no agent the agency registers"][..],
+    ),
+    (
+      role_unknown(12, "Fix it", "nobody", &["coder".to_owned(), "worker".to_owned()], &orderer),
+      &["#12", "Fix it", "role=nobody", "coder, worker"][..],
     ),
     (moved(&item, 34, "w1", &orderer), &["#12", "Fix it", "held", "34", "w1"][..]),
     (closed(&item, "member", &orderer), &["#12", "Fix it", "member"][..]),
@@ -188,15 +216,63 @@ fn every_queue_order_carries_its_data_and_no_instruction() {
 }
 
 #[test]
-fn a_question_past_its_due_time_is_an_owner_notice_carrying_the_question() {
-  let said = question_due(&json!({
-    "id": 9, "itemId": 3, "text": "which one?", "choices": ["a", "b"], "askerName": "harness", "dueAt": 5,
-  }));
-
-  assert_eq!(said["code"], JOB_NOTICES.question_due_code.as_str());
-  assert_eq!(
-    (&said["questionId"], &said["itemId"], &said["text"]),
-    (&json!(9), &json!(3), &json!("which one?"))
+fn a_question_past_its_due_time_is_an_instruction_in_its_orderer_s_room_carrying_the_question() {
+  let orderer = Orderer {
+    room: Some(-3),
+    requester: None,
+  };
+  let told = question_due(
+    &json!({
+      "id": 9, "itemId": 3, "text": "which one?", "choices": ["a", "b"], "askerName": "harness", "dueAt": 5,
+    }),
+    &orderer,
   );
-  assert_eq!(said["choices"], json!(["a", "b"]));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(
+    (&told["kind"], &told["events"], &told["room"], &told["sort"]),
+    (&json!("job-question-due:9"), &json!(["job-question-due:#9"]), &json!(-3), &json!("job"))
+  );
+
+  for word in ["#9", "#3", "harness", "which one?", "a / b"] {
+    assert!(order.contains(word), "{word} in {order}");
+  }
+
+  assert_no_instruction(order);
+}
+
+#[test]
+fn a_question_settled_on_its_recommendation_is_an_instruction_naming_the_answer_and_why() {
+  let orderer = Orderer {
+    room: Some(-4),
+    requester: None,
+  };
+  let reply = json!({ "questionId": 40, "choice": "b", "text": "b", "why": "b keeps the contract" });
+  let told = question_settled(&reply, Some(&json!({ "id": 40, "itemId": 95 })), &orderer);
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(
+    (&told["kind"], &told["events"], &told["room"], &told["sort"]),
+    (
+      &json!("job-question-settled:40"),
+      &json!(["job-question-settled:#40"]),
+      &json!(-4),
+      &json!("job")
+    )
+  );
+
+  for word in ["#40", "#95", ": b.", "b keeps the contract"] {
+    assert!(order.contains(word), "{word} in {order}");
+  }
+
+  assert_no_instruction(order);
+
+  // A free answer is told by its text; a question the service no longer holds names no item.
+  let free =
+    json!({ "questionId": 41, "choice": null, "text": "write it fresh", "why": "nothing to keep" });
+  let told = question_settled(&free, None, &Orderer::default());
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert!(order.contains("write it fresh") && !order.contains("item #"), "{order}");
+  assert_eq!(told["room"], Value::Null);
 }

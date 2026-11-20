@@ -492,7 +492,7 @@ fn the_agent_approves_every_sound_draft_itself_and_names_each_item_s_repository(
   ] {
     assert!(queue.contains(said), "{said}: {queue}");
   }
-  assert!(!queue.contains("recommendation"), "{queue}");
+  assert!(!queue.contains("is your recommendation"), "{queue}");
 
   for said in [
     "**Your approval opens a draft.**",

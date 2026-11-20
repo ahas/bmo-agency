@@ -98,6 +98,10 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   of its agents, unless the owner named them himself. The job runs as its agent's role, goes out on that
   agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it however
   long its provider cannot answer, never on another agent of the role and never on another road.
+- **A name agency does not hold is refused as it is set.** The job service refuses an item filed, or an
+  `agent`, `role` or `model` label changed, naming an agent, a role or a model agency does not hold, from the
+  values agency publishes to it (`docs/agent-control.md`, 「A label agency does not hold is refused as it is
+  set」); what changes after the label was set is told to the item's orderer at once.
 - **An `agent` label stands over a `model` label.** Where an item carries both, the agent it names is the job's
   and the `model` label is not read.
 - **A model an item names is taken at the launch.** The `model` label names the model as an agent's road names
@@ -121,7 +125,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   agent whose every job stands in the machine's turn — testing, waiting to test, deploying or waiting for its
   deployment — is free, and the launch goes through (`docs/role-agents.md`, 「When an agent is busy」). A busy
   agent's next job is launched by the supervisor once the agent, or for a model any candidate, is free, as the
-  queue's notice tells it (`docs/agent-control.md`, 「An item's change is told to its orderer」).
+  idle agent's notice tells it (`docs/agent-control.md`, 「An idle agent is told to the orderers of the items it
+  could take」).
 - **A model no agent of the role runs is refused** 422 `no-candidate`, at the filing (`docs/api.md`,
   「assignments and jobs」) and at the launch alike, its sentence naming the role, the model and the role's agents
   with their roads; the item is never launched on another agent in its place, and its orderer is told

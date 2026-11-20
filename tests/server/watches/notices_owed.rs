@@ -47,6 +47,17 @@ fn kinds(peers: &Peers) -> Vec<Value> {
   peers.lock().unwrap().instructed().iter().map(|told| told["kind"].clone()).collect()
 }
 
+// The instructions told, each kind with its room.
+fn rooms(peers: &Peers) -> BTreeMap<String, Value> {
+  peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .map(|told| (told["kind"].as_str().unwrap_or_default().to_owned(), told["room"].clone()))
+    .collect()
+}
+
 async fn failed_tries(scratch: &Scratch) -> i64 {
   scratch.count(r#"SELECT COUNT(*) FROM "notices" WHERE "tries" > 0"#, vec![]).await
 }
@@ -210,11 +221,12 @@ async fn a_job_s_end_whose_notice_a_stop_cut_off_is_owed_by_the_sender_once_and_
 
   pass(db, &vars).await.unwrap();
 
-  let told = peers.lock().unwrap().instructed();
-
-  assert_eq!(told.len(), 1, "only the end past its grace: {told:?}");
-  assert_eq!((&told[0]["kind"], &told[0]["room"]), (&json!("job-ended:12"), &json!(-120)));
-  assert_eq!(peers.lock().unwrap().noticed()[0]["code"], json!(JOB_NOTICES.failed_code));
+  assert_eq!(
+    rooms(&peers),
+    BTreeMap::from([("job-ended:12".to_owned(), json!(-120)), ("job-failed:12".to_owned(), Value::Null)]),
+    "only the end past its grace, and its failure in the owner's private room"
+  );
+  assert!(peers.lock().unwrap().noticed().is_empty(), "no owner notice");
   assert_eq!(
     scratch.count(r#"SELECT COUNT(*) FROM "jobs" WHERE "end_owed""#, vec![]).await,
     1,
@@ -222,7 +234,7 @@ async fn a_job_s_end_whose_notice_a_stop_cut_off_is_owed_by_the_sender_once_and_
   );
 
   pass(db, &vars).await.unwrap();
-  assert_eq!(peers.lock().unwrap().instructed().len(), 1, "an end owed is not owed twice");
+  assert_eq!(peers.lock().unwrap().instructed().len(), 2, "an end owed is not owed twice");
 }
 
 fn told(heard: &str, words: &str, at: i64) -> String {
@@ -417,10 +429,13 @@ async fn a_job_s_end_cut_off_by_a_restart_before_its_row_is_told_once_the_next_p
   assert_eq!(
     started_again(db, &vars, &jobs, &receiver).await,
     2,
-    "the end and the owner's failure notice"
+    "the end and its failure in the owner's private room"
   );
-  assert_eq!(kinds(&peers), [json!("job-ended:12")]);
-  assert_eq!(peers.lock().unwrap().noticed()[0]["code"], json!(JOB_NOTICES.failed_code));
+  assert_eq!(
+    rooms(&peers),
+    BTreeMap::from([("job-ended:12".to_owned(), json!(-120)), ("job-failed:12".to_owned(), Value::Null)])
+  );
+  assert!(peers.lock().unwrap().noticed().is_empty(), "no owner notice");
   restarted(db).await.unwrap();
   assert_eq!(pass(db, &vars).await.unwrap(), 0, "told once");
 }

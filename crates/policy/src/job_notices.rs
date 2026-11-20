@@ -14,8 +14,10 @@ pub struct JobNotices {
   pub paused_order: String,
   /// An open item whose assignee no checkout is of: `{item}`, `{title}` and `{assignee}`.
   pub unlaunchable_order: String,
-  /// An item whose launch was refused for its `agent` label: `{item}`, `{title}`, `{label}` and `{why}`.
+  /// An item whose `agent` label no launch takes: `{item}`, `{title}`, `{label}` and `{why}`.
   pub agent_order: String,
+  /// An item whose `role` label names no role agency holds: `{item}`, `{title}`, `{label}` and `{roles}`.
+  pub role_order: String,
   /// An open item whose model no agent of its role runs: `{item}`, `{title}`, `{model}`, `{role}` and
   /// `{agents}`.
   pub no_candidate_order: String,
@@ -66,12 +68,16 @@ pub struct JobNotices {
   pub waiting_order: String,
   /// An ended job's item still leased: `{item}` and `{lease}`.
   pub close_order: String,
-  /// The code of the owner's notice of a question past its due time.
-  pub question_due_code: String,
-  /// The code of the owner's notice of a question settled on its recommendation once its due time passed.
-  pub question_settled_code: String,
-  /// The code of the owner's notice of a job that failed in another room.
-  pub failed_code: String,
+  /// A person's question past its due time: `{question}`, `{item}`, `{asker}`, `{text}` and `{choices}`.
+  pub question_due_order: String,
+  /// A question settled on its recommendation once its due time passed: `{question}`, `{item}`, `{answer}`
+  /// and `{why}`.
+  pub question_settled_order: String,
+  /// The item a settled question names, as `{item}` of `question_settled_order` gives it: `{item}`.
+  pub question_settled_item: String,
+  /// A job that failed in another room, told in the owner's: `{job}`, `{item}`, `{worker}`, `{outcome}` and
+  /// `{room}`.
+  pub failed_order: String,
   /// How often agency's sender sends the notices due, in seconds.
   pub send_seconds: u64,
   /// The wait after a notice's first failed try, in seconds, doubled after each try that fails after it.

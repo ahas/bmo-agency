@@ -48,6 +48,7 @@ pub mod job_leases;
 pub mod job_notices;
 pub mod job_review;
 pub mod job_words;
+pub mod label_values;
 
 /// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), the walk of the logins that
 /// carries it and the renewal of a login near its end before a turn goes out on it, the reset a worker's

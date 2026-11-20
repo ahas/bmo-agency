@@ -1,27 +1,19 @@
-//! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」).
+//! The queue's minute pass (docs/agent-control.md, 「An idle agent is told to the orderers of the items it could
+//! take」).
 
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueueIdle {
-  /// How long no job may start while approved work waits and a worker is free, in minutes.
-  pub idle_minutes: i64,
   /// How often the queue is looked at, in seconds.
   pub check_seconds: u64,
-  /// The code the owner's notice carries.
-  pub code: String,
-  /// What the supervisor is asked to do about it.
-  pub ask: String,
-  /// How long an approved item may wait on its own free worker before the supervisor is told of it, in
-  /// seconds.
+  /// How long an agent stays idle before the orderers of the items it could take are told, in seconds.
   pub launch_seconds: i64,
-  /// What the supervisor is told of such an item: `{item}`, `{title}` and `{worker}`.
-  pub launch_order: String,
-  /// What follows it for an item naming a model: `{agent}`, the agent it would take, `{role}` and `{model}`.
-  pub launch_seat: String,
-  /// How long after one of a free agent's items is told the next is, while the agent stays free, in seconds.
-  pub next_offer_seconds: i64,
+  /// What an orderer is told of an idle agent: `{agent}`, `{role}`, `{provider}`, `{model}` and `{items}`.
+  pub agent_idle_order: String,
+  /// One item an idle agent could take, as `{items}` lists it: `{item}` and `{title}`.
+  pub agent_idle_item: String,
   /// How many of a draft's brief's first lines the supervisor is told.
   pub draft_brief_lines: usize,
   /// The most characters of those lines the supervisor is told.

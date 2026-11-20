@@ -457,7 +457,14 @@ async fn a_standing_launch_or_close_notice_is_kept_due_no_more_once_told_and_mar
       vec![],
     )
     .await;
-  Migrator::up(scratch.db(), None).await.unwrap();
+  // Every migration after it up to the one that lets the launch notice go.
+  let launch_gone = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20270110_000001_queue_notices_one_road")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(launch_gone - before)).await.unwrap();
 
   let told = scratch.count(
     r#"SELECT count(*) FROM "notices"
@@ -678,4 +685,74 @@ async fn the_retired_sanitiser_and_output_format_gates_kinds_and_switches_go() {
     1,
     "the retired gates' switches go"
   );
+}
+
+#[tokio::test]
+async fn the_owner_road_s_notices_the_launch_notices_and_the_idle_queue_s_rows_go_a_told_launch_withdrawn()
+{
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that tells every notice of the queue as an instruction to its orderer.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20270110_000001_queue_notices_one_road")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "notices" ("key", "route", "body", "keep", "mark", "instruction_id", "owed_at", "told_at",
+                                "due_at", "tries", "failure")
+         VALUES
+           ('job-failed:7', 'owner', '{}', 'once', '', NULL, 1, NULL, 5, 2, 'cut'),
+           ('item-awaits-launch:1', 'instruction', '{}', 'kept', '', 41, 1, 2, NULL, 0, NULL),
+           ('item-awaits-launch:2', 'instruction', '{}', 'kept', '', NULL, 1, NULL, 5, 3, 'cut'),
+           ('job-ended:3', 'instruction', '{}', 'once', '', NULL, 1, NULL, 5, 0, NULL)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value")
+         VALUES ('queue_idle_alarm', 'off'), ('queue_idle_told', '1'), ('queue_idle_minutes', '5'),
+           ('queue_item_waiting:1', '1'), ('queue_item_waiting:2', '1'), ('queue_draft_told:4', '1')"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), Some(1)).await.unwrap();
+
+  let count = |sql: &'static str| scratch.count(sql, vec![]);
+
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "notices" WHERE "route" = 'owner'"#).await,
+    0,
+    "the owner road's notices go"
+  );
+  assert_eq!(
+    count(
+      r#"SELECT count(*) FROM "notices"
+          WHERE "key" = 'item-awaits-launch:1' AND "route" = 'withdrawal' AND "body"::jsonb ->> 'id' = '41'
+            AND "keep" = 'once' AND "due_at" IS NOT NULL AND "tries" = 0 AND "failure" IS NULL"#
+    )
+    .await,
+    1,
+    "a told launch notice turns into the withdrawal of its instruction, due now"
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "notices" WHERE "key" = 'item-awaits-launch:2'"#).await,
+    0,
+    "an untold launch notice goes"
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "notices" WHERE "key" = 'job-ended:3' AND "route" = 'instruction'"#)
+      .await,
+    1,
+    "another instruction stays"
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "settings""#).await,
+    1,
+    "the idle queue's rows go, another queue row stays"
+  );
+  assert_eq!(count(r#"SELECT count(*) FROM "settings" WHERE "key" = 'queue_draft_told:4'"#).await, 1);
 }

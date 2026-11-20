@@ -177,10 +177,12 @@ async fn tell_room(db: &DatabaseConnection, vars: &BTreeMap<String, String>, mem
   }
 
   if crate::job_notices::owner_hears_failure(member, &orderer) {
-    let failed = Notice::owner(id_of(member), crate::job_notices::failed(member, orderer.room));
+    // Keyed by the job, so the orderer's own `job-ended` and another failure of the item are never replaced by it.
+    let failed = Notice::instruction(crate::job_notices::failed(member, orderer.room), Keep::Once)
+      .keyed(format!("job-failed:{}@owner", id_of(member)));
 
     if let Err(why) = crate::outbox::owe(db, vars, failed).await {
-      eprintln!("job {}: its failure was not owed to the owner: {why}", id_of(member));
+      eprintln!("job {}: its failure was not owed to the owner's room: {why}", id_of(member));
       owed = false;
     }
   }
