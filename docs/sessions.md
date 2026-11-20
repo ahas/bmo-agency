@@ -424,9 +424,11 @@ statements below about either are kept for a rollback to the road a deployment l
   directory for a search. A session is kept per folder by the program itself, so a folder that moved is a
   new key.
 - **The provider and the model are the ones the run went out on,** with the effort and the login, and every
-  word of its command but its session's, the system prompt's text standing for its file: a run on another
-  effort, login, tool list or system prompt is another command and opens its own session, so a resumed
-  session always stands on the road and the prefix it was opened on.
+  word of its command but its session's and its advisor's, the system prompt's text standing for its file: a
+  run on another effort, login, tool list or system prompt is another command and opens its own session, so a
+  resumed session always stands on the road and the prefix it was opened on. The advisor stands outside the
+  prefix the model's cache keeps, so a run with another advisor, or none, resumes the same session
+  (`docs/provider-order.md`, 「The advisor」); the prefix digest a job's change is read by leaves it out too.
 - **A session is valid while all of these hold:**
   - its cache is warm: the time since its last answer is under the cache lifetime the provider declares for
     the model (the criterion below);
@@ -529,7 +531,8 @@ statements below about either are kept for a rollback to the road a deployment l
 - Folding a session is what happens when its window fills. Replacing it is what happens when the next
   turn should not go on in the session the agent holds: the documents its prompt is composed from
   moved, its road moved (another provider, model or effort, another login, or a place its registration
-  no longer has), the kept harness session can no longer be resumed, the owner asked for a fresh
+  no longer has; another advisor is no move, its program being started again on the same session with it),
+  the kept harness session can no longer be resumed, the owner asked for a fresh
   start, or its provider's cache lifetime passed. A full session on a provider that hands a full
   session over by a note is replaced at its compaction mark (「Session compaction」,
   `docs/supervisors.md`, 「Its limit」).

@@ -678,6 +678,12 @@ pub struct Provider {
   /// Whether its engine is the owner's own, as the provider declares it: what a session on it reads stays with
   /// the owner. Neither `registered` nor `gateway` stands in for it.
   pub owners_engine: bool,
+  /// Whether a road of it may name an advisor its program consults.
+  #[serde(default)]
+  pub takes_advisor: bool,
+  /// The family words such a road may name its advisor by beside a model of its own; empty where it takes none.
+  #[serde(default)]
+  pub advisor_words: Vec<String>,
   /// The launch lines its program carries.
   pub lines: Vec<String>,
   pub quota: ProviderQuota,
@@ -3243,6 +3249,9 @@ pub struct Supervisor {
   /// on the registry's provider, the answer ceiling; null for the registration's own
   #[serde(default)]
   pub answer_tokens: Option<i64>,
+  /// the model its program may consult, a model of the provider or a family word; null for none
+  #[serde(default)]
+  pub advisor: Option<String>,
   /// for each provider, whether its prefix is kept warm there
   pub warming: BTreeMap<String, bool>,
   /// its compaction threshold
@@ -3316,6 +3325,9 @@ pub struct SupervisorAsk {
   pub thinking: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub answer_tokens: Option<i64>,
+  /// the model its program may consult, on a provider that takes an advisor
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub advisor: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub repository: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3341,7 +3353,7 @@ pub struct SupervisorChange {
   /// The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none.
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub aliases: Option<Option<Vec<String>>>,
-  /// Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named.
+  /// Its road's provider; a changed provider or model drops the road's other fields not named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3355,6 +3367,9 @@ pub struct SupervisorChange {
   /// null for the registration's own
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub answer_tokens: Option<Option<i64>>,
+  /// the model its program may consult, a model of the provider or a family word; null for none
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub advisor: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub warming: Option<BTreeMap<String, bool>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3496,6 +3511,9 @@ pub struct RoleAgent {
   /// `on`, `off`, or null for the provider's own
   pub thinking: Option<String>,
   pub answer_tokens: Option<i64>,
+  /// the model its program may consult, or null for none
+  #[serde(default)]
+  pub advisor: Option<String>,
   /// an agent switched off takes no run
   pub enabled: bool,
   /// whether the session its last answered run kept is pinged before its cache cools
@@ -3552,6 +3570,9 @@ pub struct RoleAgentChange {
   pub thinking: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub answer_tokens: Option<Option<i64>>,
+  /// the model its program may consult, a model of the provider or a family word; null for none
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub advisor: Option<Option<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

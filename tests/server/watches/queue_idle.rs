@@ -76,6 +76,7 @@ fn agent(name: &str, role: &str, model: &str) -> RoleAgent {
     effort: None,
     thinking: None,
     answer_tokens: None,
+    advisor: None,
     enabled: true,
     keeps_cache: false,
     sessions: Default::default(),

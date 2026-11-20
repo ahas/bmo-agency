@@ -106,6 +106,9 @@ pub struct ChatRun {
   pub reasoning: Reasoning,
   /// Whether the run thinks: the deployment's own choice, or yes.
   pub thinking: bool,
+  /// The model the program may consult, where the supervisor's road on Claude Code names one
+  /// (docs/provider-order.md, 「The advisor」).
+  pub advisor: Option<String>,
   pub system_path: PathBuf,
   /// The SHA-256 of the system prompt as composed, which the next turn compares against the one its session
   /// was last sent with (docs/supervisors.md, 「A session in each room」).
@@ -618,6 +621,7 @@ pub async fn chat_run(
   let reasoning = reasoning_of(ground, agent).await?;
   let named = launch.model.map(str::trim).filter(|model| !model.is_empty());
   let mut held_thinking = None;
+  let mut advisor = None;
   let (model, effort, tier) = match named {
     // A model the caller named belongs to the provider it named beside it, which this line does not
     // know; its agent's own level is the whole of what the chat line hands it.
@@ -639,6 +643,7 @@ pub async fn chat_run(
       };
 
       held_thinking = road.thinks();
+      advisor = road.advisor_taken();
 
       (road.model, effort, None)
     }
@@ -681,6 +686,7 @@ pub async fn chat_run(
     tier,
     reasoning,
     thinking,
+    advisor,
     system_path,
     system_hash,
     system_parts: Some(parts),
@@ -882,6 +888,7 @@ pub fn gate_run(
   Ok(ChatRun {
     line: LINE,
     agent: agent.to_owned(),
+    advisor: None,
     model: gate.model.clone().unwrap_or_default(),
     effort: effort.clone(),
     tier: None,
@@ -922,6 +929,8 @@ pub fn gate_run(
 pub struct Words<'a> {
   pub model: &'a str,
   pub effort: &'a str,
+  /// The model the program may consult, where the run's road names one.
+  pub advisor: Option<&'a str>,
   /// The whole system prompt, which stands in the program's own place: a supervisor's opens with a
   /// harness, a gate's is its instructions.
   pub system: &'a Path,
@@ -957,6 +966,7 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
     "--effort".to_owned(),
     line.effort.to_owned(),
   ]);
+  args.extend(super::claude::advisor_words(line.model, line.advisor));
   args.extend(["--system-prompt-file".to_owned(), line.system.to_string_lossy().into_owned()]);
   args.extend(["--setting-sources", "", "--strict-mcp-config", "--mcp-config"].map(str::to_owned));
   args.push(handed(LINE, line.mcp)?);
@@ -1019,6 +1029,7 @@ impl ChatRun {
     Words {
       model: &self.model,
       effort: &self.effort,
+      advisor: self.advisor.as_deref(),
       system: &self.system_path,
       mcp: &self.mcp_config,
       hands: match &self.tools_denied {
@@ -1400,6 +1411,7 @@ pub async fn compose_stand_in(
               model: name.to_owned(),
               effort: effort.to_owned(),
               thinking,
+              advisor: None,
               ..worker.clone()
             };
             let session = match &sent_run.resume {
@@ -1414,6 +1426,7 @@ pub async fn compose_stand_in(
               model: name.to_owned(),
               effort: effort.to_owned(),
               thinking,
+              advisor: None,
               ..sent_run.clone()
             };
 

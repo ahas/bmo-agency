@@ -407,6 +407,8 @@ struct OnLogin<'a> {
   purpose: Purpose,
   model: &'a str,
   effort: String,
+  /// The model the program may consult, as the translator's road on Claude Code names it.
+  advisor: Option<String>,
   system: std::path::PathBuf,
   input: &'a str,
 }
@@ -426,6 +428,7 @@ impl Attempt<String> for OnLogin<'_> {
         tools_shown: "",
         tools_allowed: "",
         host_commands: false,
+        advisor: self.advisor.as_deref(),
       },
       &session,
     )
@@ -493,6 +496,7 @@ async fn apart_on_claude(
     purpose,
     model,
     effort,
+    advisor: entry.advisor_taken(),
     system,
     input,
   };

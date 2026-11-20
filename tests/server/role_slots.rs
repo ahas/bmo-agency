@@ -242,6 +242,7 @@ async fn a_run_of_a_role_that_follows_its_supervisor_waits_on_that_road_and_neve
         effort: None,
         thinking: None,
         answer_tokens: None,
+        advisor: None,
       }),
       agent: None,
     },
@@ -936,6 +937,7 @@ async fn a_role_of_both_kinds_of_agent_seats_a_supervisors_run_in_one_order() {
     effort: Some("high".to_owned()),
     thinking: None,
     answer_tokens: None,
+    advisor: None,
   };
 
   assert_eq!(seat(&ask("pinned", None, Some(pinned)).await), None);

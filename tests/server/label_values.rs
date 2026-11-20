@@ -21,6 +21,7 @@ fn agent(name: &str, role: &str, road: Option<(&str, &str)>, enabled: bool) -> R
     effort: None,
     thinking: None,
     answer_tokens: None,
+    advisor: None,
     enabled,
     keeps_cache: false,
     sessions: Default::default(),

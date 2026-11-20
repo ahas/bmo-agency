@@ -45,8 +45,9 @@ pub async fn setting<C: ConnectionTrait>(db: &C, role: &str, path: &str) -> Sess
 }
 
 /// The key a command stands under beside its role, path, provider and model: the line, the login's
-/// configuration home and every word of the command but its session's, the system prompt's text standing for
-/// its file, so another effort, login, tool list or prompt is another command.
+/// configuration home and every word of the command but its session's and its advisor's, the system prompt's
+/// text standing for its file, so another effort, login, tool list or prompt is another command, and another
+/// advisor is not (docs/sessions.md, 「A role's session」).
 pub fn key(line: &str, command: &Command, home: &Path) -> String {
   let mut hash = Sha256::new();
   let mut part = |text: &[u8]| {
@@ -58,7 +59,8 @@ pub fn key(line: &str, command: &Command, home: &Path) -> String {
   part(command.cwd.as_bytes());
   part(home.as_os_str().as_encoded_bytes());
 
-  let mut words = command.args.iter();
+  let kept = crate::lines::claude::without_advisor(&command.args);
+  let mut words = kept.into_iter();
 
   while let Some(word) = words.next() {
     if word == OPENS {

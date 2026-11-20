@@ -106,6 +106,11 @@ impl Supervisor {
           .flatten()
           .filter(|thinking| !thinking.is_empty()),
         answer_tokens: row.try_get("", "answer_tokens").ok().flatten(),
+        advisor: row
+          .try_get::<Option<String>>("", "advisor")
+          .ok()
+          .flatten()
+          .filter(|advisor| !advisor.is_empty()),
       });
 
     Ok(Self {

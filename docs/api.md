@@ -209,7 +209,7 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`; `aliases`, its call names as one line
   joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `sessionScope`,
   `turnShape`, `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
-  `thinking` and `answerTokens` (below), every turn of it going out there; `cardRank`, the rank of the demands of
+  `thinking`, `answerTokens` and `advisor` (below), every turn of it going out there; `cardRank`, the rank of the demands of
   the runs for it, or null; `warming`, for each provider whether its prefix is kept warm there; `foldRatio`, its
   compaction threshold; `gates`, `voice` and `sampling`; `seeded`, true for a supervisor the deployment seeds,
   which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
@@ -235,13 +235,15 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   never spoke in is not listed, and a room forgotten takes its runs with it. 404 `not-found` for no supervisor of
   the name.
 - **A road** is `provider`, a provider agency carries, `model`, `effort` (a level of the reasoning policy or
-  null), `thinking` (`on`, `off` or null for the provider's own) and, on the registry's provider,
-  `answerTokens` or null (`docs/provider-order.md`, 「What a road is」). The same shape is an agent's.
+  null), `thinking` (`on`, `off` or null for the provider's own), `advisor` (a model of the provider's catalogue
+  or a family word its program takes, on a provider whose `takesAdvisor` is true, or null for none) and, on the
+  registry's provider, `answerTokens` or null (`docs/provider-order.md`, 「What a road is」, 「The advisor」). The
+  same shape is an agent's.
 - **`POST /supervisors` takes the registration,** each field judged in this order and nothing written until
   all have passed (`docs/supervisors.md`, 「Adding and removing a supervisor」): `name`, a lowercase letter,
   then lowercase letters, digits and hyphens, forty characters at most, held by no supervisor yet, 409
-  `name-taken` where one holds it; `label`, given; the road, `provider` and `model` with `effort`, `thinking`
-  and `answerTokens` where it names them, judged as a road is (below);
+  `name-taken` where one holds it; `label`, given; the road, `provider` and `model` with `effort`, `thinking`,
+  `answerTokens` and `advisor` where it names them, judged as a road is (below);
   `repository`, a repository the store holds, or none; `ownerAccount`, none where the caller gives none; and
   `foldRatio`, the first provider's declared default where none is given. The row is written as one added
   on the console is: the `room` scope, the `pieces` shape, warmed on its road's provider, the brain folder
@@ -253,19 +255,21 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **A road is refused** 400 `bad-request` with `field` beside `error`, naming the field: no provider or no
   model, a provider agency does not carry, a provider whose program does not carry the chat line, a model the
   provider does not hold — a catalogue that reads and does not name it, a member its gateway road does not
-  hold, a registration with no address — and an effort the model does not take. A catalogue that cannot be
-  read refuses nothing. A body naming `order`, `quotaShare` or `active` is refused 400 with that field: a
+  hold, a registration with no address —, an effort the model does not take, and an advisor (`field`
+  `advisor`) on a provider that takes none, one that is neither a model the catalogue holds nor a family word,
+  or one the road's model is not paired with (`docs/provider-order.md`, 「The advisor」). A catalogue that
+  cannot be read refuses nothing. A body naming `order`, `quotaShare` or `active` is refused 400 with that field: a
   supervisor holds no order and nothing is forced over its road.
 - **The answer is 201,** `supervisor`, as the read answers it, and `brain`, what became of its brain:
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
 - **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, the road —
-  `provider` and `model`, both or neither, `effort`, `thinking` and `answerTokens` —, `warming`, `foldRatio`,
+  `provider` and `model`, both or neither, `effort`, `thinking`, `answerTokens` and `advisor` —, `warming`, `foldRatio`,
   `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and
   `voice`, each judged as the registration judges it; a road's fields it does not name keep what the road
-  holds, except that a changed provider or model drops the effort, thinking and answer ceiling the body does
-  not name, since they were the old model's. `aliases` is the whole list of the supervisor's call names, or
+  holds, except that a changed provider or model drops the effort, thinking, answer ceiling and advisor the body
+  does not name, since they were the old model's. `aliases` is the whole list of the supervisor's call names, or
   null or an empty list for none: at most ten, each one to forty characters once trimmed and holding no comma,
   else refused 400 `bad-request` with `field` `aliases`. A body naming `order`, `quotaShare` or `active` is
   refused 400 with that field. A changed road — its provider, model, effort, thinking or answer ceiling —
@@ -399,7 +403,7 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   under.
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by name,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
-  `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `enabled`,
+  `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `advisor`, `enabled`,
   `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
   names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
@@ -1020,8 +1024,11 @@ engine is the owner's own, so what a session on it reads stays with the owner: t
 (`docs/provider-presence.md`), true for the registry's registrations and Claude Code on the owner's logins and
 false for every road that hands what it reads to an outside service (`docs/supervisors.md`, 「What confines a
 session allowed files」). A consumer judging where a session's reading goes reads it, never `registered` or
-`gateway` in its place, since a provider may be neither and still not the owner's own. A provider that cannot
-answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
+`gateway` in its place, since a provider may be neither and still not the owner's own.
+`takesAdvisor` says a road of it may name an advisor, the provider's own answer (`docs/provider-order.md`, 「The
+advisor」): true for Claude Code on its own logins, false for every provider carried through the gateway; and
+`advisorWords` the family words such a road may name its advisor by beside a model of the provider's own, empty
+where it takes none. A provider that cannot answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
 `reasonCode`, its kebab-case code, both null on a provider that can answer. Each provider answers
 `foldRatioDefault` as well: the compaction threshold a supervisor or an agent whose road is on it is given
 where its add names none — the provider's own declaration, 0.85 where it declares none (`docs/supervisors.md`,

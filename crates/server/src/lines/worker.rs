@@ -64,6 +64,9 @@ pub struct WorkerRun {
   pub plugin_dir: PathBuf,
   pub tools_denied: String,
   pub cwd: String,
+  /// The model the program may consult, its seat's road's where that names one (docs/provider-order.md, 「The
+  /// advisor」).
+  pub advisor: Option<String>,
 }
 
 /// The repository a checkout belongs to, by name: its own name for a base, its repository's for a support
@@ -556,6 +559,10 @@ async fn run_on_line(
     Some(worker) => Some(reasoning_of(ground, worker).await?),
     None => None,
   };
+  let advisor = match &seat {
+    Some(seat) => crate::role_agents::advisor_of(&ground.db, seat).await?,
+    None => None,
+  };
 
   Ok(WorkerRun {
     model: model.to_owned(),
@@ -571,6 +578,7 @@ async fn run_on_line(
     plugin_dir,
     tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
     cwd: cwd.to_owned(),
+    advisor,
   })
 }
 

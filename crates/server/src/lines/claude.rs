@@ -42,6 +42,47 @@ pub struct Command {
   pub env: BTreeMap<String, Option<String>>,
 }
 
+/// The flag the program is handed its advisor by. The advisor stands outside the prefix a session's cache keeps,
+/// so it is no word of a session's key or prefix (docs/provider-order.md, 「The advisor」).
+pub const ADVISOR_FLAG: &str = "--advisor";
+
+/// A command's words without its advisor: the flag and the model after it left out.
+pub fn without_advisor(args: &[String]) -> Vec<&String> {
+  let mut kept = Vec::with_capacity(args.len());
+  let mut words = args.iter();
+
+  while let Some(word) = words.next() {
+    if word == ADVISOR_FLAG {
+      words.next();
+      continue;
+    }
+
+    kept.push(word);
+  }
+
+  kept
+}
+
+/// The words that start the program with its advisor (docs/provider-order.md, 「The advisor」): none where the run
+/// names none, and none where the program would not attach it to the model the run goes out on — a model a
+/// gateway serves under a name of its own among them —, which the server's log says, since the program refuses
+/// to start on an advisor it cannot pair.
+pub fn advisor_words(model: &str, advisor: Option<&str>) -> Vec<String> {
+  let Some(advisor) = advisor else {
+    return Vec::new();
+  };
+
+  if !CLAUDE_CODE.advisor.attaches(model, advisor) {
+    eprintln!(
+      "agency: {model} goes out without its advisor {advisor}, which Claude Code would not attach to it"
+    );
+
+    return Vec::new();
+  }
+
+  vec![ADVISOR_FLAG.to_owned(), advisor.to_owned()]
+}
+
 /// A path the worker line hands the program, and never one that is not there.
 pub fn handed_path(path: &Path) -> Result<String, Refusal> {
   handed(LINE, path)
@@ -76,11 +117,15 @@ pub fn worker_args(
     run.model.clone(),
     "--effort".to_owned(),
     run.effort.clone(),
+  ];
+
+  args.extend(advisor_words(&run.model, run.advisor.as_deref()));
+  args.extend([
     "--permission-mode".to_owned(),
     "bypassPermissions".to_owned(),
     "--disallowedTools".to_owned(),
     run.tools_denied.clone(),
-  ];
+  ]);
 
   // One whole system prompt in the program's own place: a base prompt's where one is chosen, the platform's
   // harness opening's otherwise, the worker's rules after either.
@@ -124,6 +169,8 @@ pub struct ApartRun<'a> {
   pub tools_shown: &'a str,
   pub tools_allowed: &'a str,
   pub host_commands: bool,
+  /// The model the program may consult, where the run's road names one.
+  pub advisor: Option<&'a str>,
 }
 
 /// The words of a run apart, the interactive program opening the session named, which no run resumes: no
@@ -132,7 +179,9 @@ pub struct ApartRun<'a> {
 pub fn apart_args(run: &ApartRun, session: &str) -> Result<Vec<String>, Refusal> {
   let mut args = vec![ClaudeCode::PROGRAM.to_owned()];
 
-  args.extend(["--model", run.model, "--effort", run.effort, "--setting-sources", ""].map(str::to_owned));
+  args.extend(["--model", run.model, "--effort", run.effort].map(str::to_owned));
+  args.extend(advisor_words(run.model, run.advisor));
+  args.extend(["--setting-sources", ""].map(str::to_owned));
 
   if let Some(prompt) = run.system_prompt {
     args.extend(["--system-prompt-file".to_owned(), handed(run.line, prompt)?]);

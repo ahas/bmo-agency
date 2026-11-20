@@ -301,6 +301,49 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     "{first}"
   );
 
+  // An agent on Claude Code names an advisor its model is paired with; one ranking below its model is refused
+  // with nothing written, and a road moved to another model drops the advisor it names not
+  // (docs/provider-order.md, 「The advisor」).
+  let (status, advised) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/role-agents/reviewer-01",
+    Some(json!({ "advisor": "opus" })),
+  )
+  .await;
+  assert_eq!((status, &advised["advisor"]), (200, &json!("opus")), "{advised}");
+
+  let (status, said) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/role-agents/reviewer-01",
+    Some(json!({ "advisor": "claude-haiku-4-5-20251001" })),
+  )
+  .await;
+  assert_eq!(status, 422, "{said}");
+  assert!(said.to_string().contains("advisor"), "{said}");
+
+  let (_, moved) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/role-agents/reviewer-01",
+    Some(json!({ "model": "claude-opus-4-6", "effort": "high" })),
+  )
+  .await;
+  assert_eq!(moved["advisor"], Value::Null, "{moved}");
+
+  let (_, providers) = ask(reqwest::Method::GET, port, "/providers", None).await;
+  let claude = providers["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .find(|one| one["name"] == "claude-code")
+    .unwrap();
+  assert_eq!(
+    (&claude["takesAdvisor"], &claude["advisorWords"]),
+    (&json!(true), &json!(["fable", "opus", "sonnet"]))
+  );
+
   let (status, second) = ask(
     reqwest::Method::POST,
     port,
@@ -368,6 +411,11 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     (json!({ "role": "reviewer", "bundles": ["web.nothing"] }), 422),
     (json!({ "role": "reviewer", "skills": ["no-such-skill"] }), 422),
     (json!({ "role": "reviewer", "sessions": "sometimes" }), 422),
+    (json!({ "role": "reviewer", "advisor": "opus" }), 422),
+    (
+      json!({ "role": "reviewer", "provider": "claude-code", "model": "claude-opus-5-5", "advisor": "claude-sonnet-5-5" }),
+      422,
+    ),
   ] {
     let (status, said) = ask(reqwest::Method::POST, port, "/role-agents", Some(body.clone())).await;
 

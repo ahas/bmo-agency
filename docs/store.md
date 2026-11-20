@@ -20,7 +20,7 @@ seeds. The other crates and the server reach the store only through it.
 - **The tables, by what they keep:**
   - the supervisors: `supervisors`, one row a supervisor — its name, label, owner account, the words that
     call it, its prompt and brain folders, its session scope and turn shape, whether the deployment seeds it,
-    its road — `provider`, `model`, `effort`, `thinking` and `answer_tokens` —, its warming per provider as a
+    its road — `provider`, `model`, `effort`, `thinking`, `answer_tokens` and `advisor` —, its warming per provider as a
     JSON object, its compaction threshold, its card rank, the repository its items go to, and when it was made and last
     changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」); a room forgotten
     leaves every row of it, since a supervisor is its account's and never a room's;
@@ -80,7 +80,7 @@ seeds. The other crates and the server reach the store only through it.
     provider states none (`docs/usage-windows.md`, 「Balances」);
   - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the account whose seat it
     is or none, the provider and model
-    its runs go out on or none, the effort, thinking and answer ceiling there, whether it is switched on,
+    its runs go out on or none, the effort, thinking, answer ceiling and advisor there, whether it is switched on,
     whether its kept session is kept warm, whether its runs keep their sessions, its compaction threshold or none, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);

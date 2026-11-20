@@ -29,9 +29,33 @@ pub struct Entry {
   pub thinking: Option<String>,
   #[serde(default)]
   pub answer_tokens: Option<i64>,
+  /// The model the run's program may consult, a model of the provider or a family word its program takes;
+  /// none for none (docs/provider-order.md, 「The advisor」).
+  #[serde(default)]
+  pub advisor: Option<String>,
 }
 
 impl Entry {
+  /// Whether this road is another than `other` in what its sessions stand on: its provider, model, effort,
+  /// thinking or answer ceiling. The advisor stands outside the prefix a session's cache keeps, so a road that
+  /// moved only its advisor has not moved (docs/provider-order.md, 「The advisor」).
+  pub fn moved_from(&self, other: &Entry) -> bool {
+    Entry {
+      advisor: None,
+      ..self.clone()
+    } != Entry {
+      advisor: None,
+      ..other.clone()
+    }
+  }
+
+  /// The advisor a run of this road consults: the one it names, where its provider takes an advisor.
+  pub fn advisor_taken(&self) -> Option<String> {
+    self.advisor.clone().filter(|_| {
+      harness_providers::provider(&self.provider).is_some_and(|provider| provider.takes_advisor())
+    })
+  }
+
   /// Whether the entry asks the run to think, where it names it.
   pub fn thinks(&self) -> Option<bool> {
     match self.thinking.as_deref() {
@@ -84,6 +108,7 @@ impl Order {
       effort: own.and_then(|entry| entry.effort.clone()),
       thinking: own.and_then(|entry| entry.thinking.clone()),
       answer_tokens: own.and_then(|entry| entry.answer_tokens),
+      advisor: own.and_then(|entry| entry.advisor.clone()),
     }
   }
 
@@ -131,6 +156,9 @@ impl Order {
 
 /// The compaction threshold of a row whose first provider declares none.
 pub const DEFAULT_FOLD_RATIO: f64 = 0.85;
+
+/// The field an advisor a road may not name is refused under.
+pub const ADVISOR: &str = "advisor";
 
 /// Why an order a write hands in is refused: the field it names and one English sentence.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -214,6 +242,12 @@ pub async fn judge(
       && thinking != "off"
     {
       return Err(refused(field, "Thinking is on, off or left to the provider."));
+    }
+
+    if let Some(advisor) = &entry.advisor
+      && let Some(why) = harness::advisor_refusal(judging, machine, provider, &entry.model, advisor).await
+    {
+      return Err(refused(ADVISOR, why));
     }
   }
 

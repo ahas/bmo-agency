@@ -148,6 +148,7 @@ impl StandInRun {
       plugin_dir: self.extensions.plugin_dir.clone(),
       tools_denied: self.tools_denied.clone(),
       cwd: self.cwd.clone(),
+      advisor: None,
     })
   }
 }

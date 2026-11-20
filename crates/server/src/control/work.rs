@@ -1111,6 +1111,7 @@ async fn first_wait(
         effort: entry.effort.clone(),
         thinking: None,
         answer_tokens: None,
+        advisor: None,
       }),
       agent: Some(agent),
     },
@@ -2859,6 +2860,7 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
       effort: parts.mapping.effort.clone(),
       thinking: None,
       answer_tokens: parts.mapping.answer_tokens.and_then(|tokens| i64::try_from(tokens).ok()),
+      advisor: None,
     };
     let asked = dispatch::Asked {
       request_key: format!("job-{id}-{}-{}", self.began, self.roads),
@@ -3358,6 +3360,7 @@ pub(crate) async fn asked_handoff<S: Sessions>(
     effort: None,
     thinking: None,
     answer_tokens: None,
+    advisor: None,
   };
   let parts = match role_work_parts(ground, role, worker, room, &name, &title, &entry).await {
     Ok(parts) => parts,

@@ -304,6 +304,7 @@ pub async fn named_road<C: ConnectionTrait>(
     effort: own.and_then(|entry| entry.effort.clone()),
     thinking: own.and_then(|entry| entry.thinking.clone()),
     answer_tokens: own.and_then(|entry| entry.answer_tokens),
+    advisor: own.and_then(|entry| entry.advisor.clone()),
   })
 }
 
@@ -560,6 +561,7 @@ pub async fn road_of(
       .entry_of(&held.provider, &held.model)
       .and_then(|entry| entry.thinking.clone()),
     answer_tokens: role.order.entry_of(&held.provider, &held.model).and_then(|entry| entry.answer_tokens),
+    advisor: role.order.entry_of(&held.provider, &held.model).and_then(|entry| entry.advisor.clone()),
   });
   let ask = Ask {
     fixed: fixed.as_ref(),

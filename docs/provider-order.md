@@ -1,8 +1,8 @@
 # Roads
 
 How a run gets its provider and its model. Every supervisor and every agent of a role stands on one road: a
-provider, one model of it, the effort and the thinking its runs go out with there and, on the registry's
-provider, the answer ceiling. Its runs go out on that road and on no other. No row holds an order of
+provider, one model of it, the effort and the thinking its runs go out with there, the advisor its program may
+consult where the provider takes one and, on the registry's provider, the answer ceiling. Its runs go out on that road and on no other. No row holds an order of
 providers, nothing is forced over a road, and nothing stands in for a road that cannot answer: a supervisor's
 turn on such a road fails and says why, and a job waits for its agent's road. A supervisor's road is set on its
 row (`docs/supervisors.md`), an agent's on the agent (`docs/role-agents.md`). There is no road shared by
@@ -27,7 +27,9 @@ person's run goes out inside its road is `docs/supply.md`.
   - the effort, a level of the one scale `low`, `medium`, `high`, `xhigh` and `max`, or none for the
     provider's own default; the provider turns a level into its own word (「Effort and thinking」 below);
   - whether the run thinks, where the provider takes the switch;
-  - on the registry's provider, the answer ceiling, or none for the registration's own.
+  - on the registry's provider, the answer ceiling, or none for the registration's own;
+  - the advisor, a stronger model the run's program may consult, or none, where the provider takes one
+    (「The advisor」 below).
 - **A road names only a provider agency carries and whose program carries the row's line** (the chat line
   for a supervisor, the role's own line for an agent); a write naming another is refused with the provider and
   why. A supervisor always names a road. An agent may name none and follow the supervisor that asks it
@@ -215,6 +217,36 @@ person's run goes out inside its road is `docs/supply.md`.
   the model's catalogue named its levels runs at the provider's default for that run.
 - **What a run went out with is what its record, its session's key and its prefix digest carry,** so a
   changed model or effort selects another session (`docs/sessions.md`, 「A role's session」).
+
+## The advisor
+
+- **An advisor is a second, stronger model the run's own model consults** at the moments it chooses —
+  before it commits to an approach, when an error keeps coming back, before it says the work is done. It reads
+  the whole conversation and answers with advice; its tokens are spent at its own model's rates, and on a
+  subscription they count toward the login's usage windows.
+- **A road names it or names none,** none by default: a model of the provider's own catalogue, or one of the
+  words the provider names its families by. A run of a road naming none consults nothing.
+- **Each provider answers for itself whether its runs take an advisor,** declared beside its harness, and
+  answers `takesAdvisor` on the provider (`docs/api.md`, 「providers, models and model files」). Claude Code
+  on its own logins takes one, as `--advisor` on its program's line (`docs/launch-lines.md`); every provider
+  carried through agency's gateway takes none, since the advisor is a tool Anthropic's own service runs and the
+  gateway hands no request to it. A road of a provider that takes none is refused an advisor as it is written.
+- **An advisor ranks at or above the model it advises.** Claude Code's declaration holds the pairings its
+  program attaches (`policy/providers/claude-code.toml`, `[advisor]`): for each model, by the start of its name,
+  the models that may advise it, also by the start of theirs, the longest start naming a model taking it. A
+  family word is read through the catalogue's own aliases to the model it stands for now. A road is refused, as
+  it is written, an advisor the model is not paired with, one that is no model the catalogue holds and no family
+  word, and one for a model no pairing names; a family word the catalogue cannot be read for is kept, since an
+  unread catalogue says nothing against it.
+- **A run checks the pairing again as it goes out,** on the model it really goes out on — an agent following its
+  supervisor, an item's model, a repository's pin — and goes out without the advisor where the pairing does not
+  hold, saying so in agency's log; the program would otherwise refuse to start.
+- **An agent that names no road follows its supervisor's advisor** with the rest of its road
+  (「Runs on another's road」 above). An agent of a road of its own names its own.
+- **A changed advisor moves no session.** The advisor stands outside the prefix the model's cache keeps, so it
+  is no part of a session's key and no road move (`docs/sessions.md`, 「A role's session」 and 「Session
+  replacement」): a supervisor's program is started again on its own session with it, and an agent's next run
+  resumes its kept session with it.
 
 ## The Claude catalogue
 

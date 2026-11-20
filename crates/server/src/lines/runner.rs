@@ -54,6 +54,9 @@ pub struct RunnerRun {
   pub tools_allowed: &'static str,
   pub thinking: bool,
   pub cwd: PathBuf,
+  /// The model the program may consult, its seat's road's where that names one (docs/provider-order.md, 「The
+  /// advisor」).
+  pub advisor: Option<String>,
 }
 
 // The tool host's namespace as a configuration names it: its address, and the header handing the run's
@@ -276,6 +279,10 @@ pub async fn given_run(
   };
   let text = super::harnessed(trees, instructions)?;
   let digest = sha2::Sha256::digest(text.as_bytes());
+  let advisor = match crate::role_agents::seated_at(&ground.db, None, None).await? {
+    Some(seat) => crate::role_agents::advisor_of(&ground.db, &seat).await?,
+    None => None,
+  };
   let named: String = digest.iter().take(8).map(|byte| format!("{byte:02x}")).collect();
 
   Ok(RunnerRun {
@@ -288,6 +295,7 @@ pub async fn given_run(
     tools_allowed,
     thinking: reasoning_of(ground, name).await?.thinking.unwrap_or(true),
     cwd: trees.agents.join(name),
+    advisor,
   })
 }
 
@@ -304,6 +312,7 @@ impl RunnerRun {
         tools_shown: "",
         tools_allowed: self.tools_allowed,
         host_commands: true,
+        advisor: self.advisor.as_deref(),
       },
       session,
     )

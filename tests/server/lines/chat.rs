@@ -25,6 +25,7 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
   Words {
     model: "local-model@node",
     effort: "low",
+    advisor: None,
     system,
     mcp: dir,
     hands: Hands::AllBut {

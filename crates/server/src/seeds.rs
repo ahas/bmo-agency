@@ -87,6 +87,7 @@ fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
         effort: entry.effort.clone(),
         thinking: entry.thinking.map(|on| if on { "on" } else { "off" }.to_owned()),
         answer_tokens: None,
+        advisor: None,
       })
       .collect(),
     forced: None,

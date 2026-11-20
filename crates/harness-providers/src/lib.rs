@@ -122,6 +122,9 @@ impl Reason {
 pub type Offering<'a> = Pin<Box<dyn Future<Output = Result<Offered, String>> + Send + 'a>>;
 
 /// The efforts one model takes being read.
+/// A judgement being made: the sentence a refusal says, or nothing where it passes.
+pub type Judged<'a> = Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>>;
+
 pub type ModelEfforts<'a> = Pin<Box<dyn Future<Output = Option<Vec<String>>> + Send + 'a>>;
 
 /// One usage window as a provider's headline reads it: its name, and the minutes it runs over where
@@ -223,6 +226,34 @@ pub trait Provider: Sync {
     let _ = (machine, config_dir, model);
 
     Box::pin(async { None })
+  }
+
+  /// Whether a road of it may name an advisor its program consults (docs/provider-order.md, 「The advisor」):
+  /// none takes one but a provider whose program does.
+  fn takes_advisor(&self) -> bool {
+    false
+  }
+
+  /// The family words a road of it may name an advisor by beside a model of its own; none where it takes no
+  /// advisor.
+  fn advisor_words(&self) -> &'static [String] {
+    &[]
+  }
+
+  /// Why a road of it on `model` may not name `advisor`, or nothing where it may; a provider whose program
+  /// takes no advisor refuses every one. A login's configuration directory is named where the provider's
+  /// catalogue is kept under one.
+  fn advisor_refusal<'a>(
+    &'a self,
+    machine: &'a Machine,
+    config_dir: Option<&'a Path>,
+    model: &'a str,
+    advisor: &'a str,
+  ) -> Judged<'a> {
+    let _ = (machine, config_dir, model, advisor);
+    let name = self.name();
+
+    Box::pin(async move { Some(format!("{name} takes no advisor.")) })
   }
 
   /// What it offers a tier mapping, read afresh at the moment given in epoch milliseconds.

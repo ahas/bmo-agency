@@ -10578,6 +10578,19 @@
             "type": "boolean",
             "description": "Whether its engine is the owner's own, as the provider declares it: what a session on it reads stays with\nthe owner. Neither `registered` nor `gateway` stands in for it."
           },
+          "takesAdvisor": {
+            "type": "boolean",
+            "description": "Whether a road of it may name an advisor its program consults.",
+            "default": false
+          },
+          "advisorWords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The family words such a road may name its advisor by beside a model of its own; empty where it takes none.",
+            "default": []
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -10624,6 +10637,8 @@
           "registered",
           "gateway",
           "ownersEngine",
+          "takesAdvisor",
+          "advisorWords",
           "lines",
           "quota",
           "reason",
@@ -14037,6 +14052,14 @@
             "description": "on the registry's provider, the answer ceiling; null for the registration's own",
             "default": null
           },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, a model of the provider or a family word; null for none",
+            "default": null
+          },
           "warming": {
             "type": "object",
             "additionalProperties": {
@@ -14097,6 +14120,7 @@
           "effort",
           "thinking",
           "answerTokens",
+          "advisor",
           "warming",
           "foldRatio",
           "cardRank",
@@ -14168,6 +14192,13 @@
               "null"
             ],
             "format": "int64"
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, on a provider that takes an advisor"
           },
           "repository": {
             "type": [
@@ -14722,7 +14753,7 @@
               "string",
               "null"
             ],
-            "description": "Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named."
+            "description": "Its road's provider; a changed provider or model drops the road's other fields not named."
           },
           "model": {
             "type": [
@@ -14751,6 +14782,13 @@
             ],
             "format": "int64",
             "description": "null for the registration's own"
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, a model of the provider or a family word; null for none"
           },
           "warming": {
             "type": [
@@ -15014,6 +15052,14 @@
             ],
             "format": "int64"
           },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, or null for none",
+            "default": null
+          },
           "enabled": {
             "type": "boolean",
             "description": "an agent switched off takes no run"
@@ -15083,6 +15129,7 @@
           "effort",
           "thinking",
           "answerTokens",
+          "advisor",
           "enabled",
           "keepsCache",
           "sessions",
@@ -15392,6 +15439,13 @@
             ],
             "format": "int64"
           },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, a model of the provider or a family word; null for none"
+          },
           "enabled": {
             "type": [
               "boolean",
@@ -15484,6 +15538,13 @@
               "null"
             ],
             "format": "int64"
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the model its program may consult, a model of the provider or a family word; null for none"
           },
           "enabled": {
             "type": [

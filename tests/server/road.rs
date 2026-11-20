@@ -24,6 +24,7 @@ fn entry(provider: &str, model: &str) -> Entry {
     effort: None,
     thinking: None,
     answer_tokens: None,
+    advisor: None,
   }
 }
 
@@ -792,5 +793,32 @@ async fn one_model_s_limit_leaves_the_login_s_other_models_running() {
     fable.sentence().contains(&format!("is at its {FABLE} limit until")),
     "{}",
     fable.sentence()
+  );
+}
+
+/// a road that moved only its advisor has not moved, and one that moved its effort has
+#[test]
+fn a_road_that_moved_only_its_advisor_has_not_moved() {
+  let held = entry("claude-code", "claude-sonnet-5");
+  let advised = Entry {
+    advisor: Some("opus".to_owned()),
+    ..held.clone()
+  };
+  let harder = Entry {
+    effort: Some("high".to_owned()),
+    ..held.clone()
+  };
+
+  assert!(!advised.moved_from(&held));
+  assert!(harder.moved_from(&held));
+  assert_eq!(advised.advisor_taken().as_deref(), Some("opus"));
+  assert_eq!(
+    Entry {
+      advisor: Some("opus".to_owned()),
+      ..entry("deepseek", "deepseek-flash")
+    }
+    .advisor_taken(),
+    None,
+    "a provider that takes no advisor carries none"
   );
 }

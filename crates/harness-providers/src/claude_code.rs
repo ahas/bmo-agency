@@ -13,8 +13,8 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
-  Headline, Machine, ModelEfforts, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason,
-  Window, number,
+  Headline, Judged, Machine, ModelEfforts, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading,
+  Reason, Window, number,
 };
 
 pub struct ClaudeCode;
@@ -354,6 +354,52 @@ impl Provider for ClaudeCode {
     })
   }
 
+  // Its program consults the advisor a road names, Anthropic's own service running it.
+  fn takes_advisor(&self) -> bool {
+    true
+  }
+
+  fn advisor_words(&self) -> &'static [String] {
+    &CLAUDE_CODE.advisor.aliases
+  }
+
+  // A family word or a model of the catalogue, paired with the road's model as the declaration states the
+  // program's pairings (docs/provider-order.md, 「The advisor」). A family word the catalogue cannot be read for
+  // stands as a model the declaration's pairing judges by its own name; a model the catalogue does not name is
+  // refused only where the catalogue reads.
+  fn advisor_refusal<'a>(
+    &'a self,
+    _machine: &'a Machine,
+    config_dir: Option<&'a Path>,
+    model: &'a str,
+    advisor: &'a str,
+  ) -> Judged<'a> {
+    Box::pin(async move {
+      let declared = &CLAUDE_CODE.advisor;
+      let read = config_dir.and_then(|dir| catalogue(dir).ok());
+      let alias = declared.is_alias(advisor);
+      let resolved = match (&read, alias) {
+        (Some(read), true) => read.aliases.get(&advisor.to_ascii_lowercase()).cloned(),
+        (Some(read), false) if !read.models.iter().any(|one| one.id == advisor) => {
+          return Some(format!("Claude Code holds no model {advisor} to advise with."));
+        }
+        (_, false) => Some(advisor.to_owned()),
+        (None, true) => None,
+      };
+
+      if declared.pair_of(model).is_none() {
+        return Some(format!("Claude Code pairs no advisor with {model}."));
+      }
+
+      match resolved {
+        Some(resolved) if !declared.pairs(model, &resolved) => {
+          Some(advisor_below(model, advisor, &resolved))
+        }
+        _ => None,
+      }
+    })
+  }
+
   fn catalogue<'a>(&'a self, _machine: &'a Machine, config_dir: Option<&'a Path>) -> Reading<'a> {
     Box::pin(async move {
       let dir = config_dir.ok_or("the Claude catalogue is read under a login's configuration directory")?;
@@ -399,6 +445,15 @@ impl Provider for ClaudeCode {
   }
 }
 
+// The sentence an advisor the model is not paired with is refused with, naming the model a family word stands for.
+fn advisor_below(model: &str, advisor: &str, resolved: &str) -> String {
+  let named = if advisor == resolved { advisor.to_owned() } else { format!("{advisor} ({resolved})") };
+
+  format!(
+    "Claude Code does not attach {named} as the advisor of {model}: an advisor ranks at or above the model it advises."
+  )
+}
+
 /// One model as the catalogue names it.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -413,6 +468,8 @@ pub struct Model {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Catalogue {
   pub models: Vec<Model>,
+  /// The model each family word stands for now, as the CLI resolves its aliases.
+  pub aliases: BTreeMap<String, String>,
   /// When the CLI fetched it, and when it holds it worth fetching again.
   pub fetched_at: f64,
   pub stale_at: f64,
@@ -427,6 +484,23 @@ impl Catalogue {
 
 fn finite(value: Option<&Value>) -> f64 {
   value.and_then(Value::as_f64).filter(|one| one.is_finite()).unwrap_or(0.0)
+}
+
+// The model each family word stands for now: the catalogue's own alias targets, each its default.
+fn aliases(payload: &Value) -> BTreeMap<String, String> {
+  let Some(targets) = payload.pointer("/catalog/config/provider_alias_targets").and_then(Value::as_object)
+  else {
+    return BTreeMap::new();
+  };
+
+  targets
+    .iter()
+    .filter_map(|(alias, target)| {
+      let model = target.get("default")?.as_str().filter(|model| !model.is_empty())?;
+
+      Some((alias.clone(), model.to_owned()))
+    })
+    .collect()
 }
 
 fn models(payload: &Value) -> Vec<Model> {
@@ -491,6 +565,7 @@ pub fn catalogue(config_dir: &Path) -> Result<Catalogue, String> {
     match parsed {
       Ok(payload) => read.push(Catalogue {
         models: models(&payload),
+        aliases: aliases(&payload),
         fetched_at: finite(payload.get("fetchedAt")),
         stale_at: finite(payload.get("staleAt")),
       }),

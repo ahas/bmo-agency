@@ -2904,6 +2904,16 @@ export interface components {
              *     the owner. Neither `registered` nor `gateway` stands in for it.
              */
             ownersEngine: boolean;
+            /**
+             * @description Whether a road of it may name an advisor its program consults.
+             * @default false
+             */
+            takesAdvisor: boolean;
+            /**
+             * @description The family words such a road may name its advisor by beside a model of its own; empty where it takes none.
+             * @default []
+             */
+            advisorWords: string[];
             /** @description The launch lines its program carries. */
             lines: string[];
             quota: components["schemas"]["ProviderQuota"];
@@ -4175,6 +4185,11 @@ export interface components {
              * @default null
              */
             answerTokens: number | null;
+            /**
+             * @description the model its program may consult, a model of the provider or a family word; null for none
+             * @default null
+             */
+            advisor: string | null;
             /** @description for each provider, whether its prefix is kept warm there */
             warming: {
                 [key: string]: boolean;
@@ -4226,6 +4241,8 @@ export interface components {
             thinking?: string | null;
             /** Format: int64 */
             answerTokens?: number | null;
+            /** @description the model its program may consult, on a provider that takes an advisor */
+            advisor?: string | null;
             repository?: string | null;
             /** Format: int64 */
             ownerAccount?: number | null;
@@ -4413,7 +4430,7 @@ export interface components {
             label?: string | null;
             /** @description The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none. */
             aliases?: string[] | null;
-            /** @description Its road's provider; a changed provider or model drops the effort, thinking and answer ceiling not named. */
+            /** @description Its road's provider; a changed provider or model drops the road's other fields not named. */
             provider?: string | null;
             model?: string | null;
             /** @description null for the provider's own */
@@ -4425,6 +4442,8 @@ export interface components {
              * @description null for the registration's own
              */
             answerTokens?: number | null;
+            /** @description the model its program may consult, a model of the provider or a family word; null for none */
+            advisor?: string | null;
             warming?: {
                 [key: string]: boolean;
             } | null;
@@ -4526,6 +4545,11 @@ export interface components {
             thinking: string | null;
             /** Format: int64 */
             answerTokens: number | null;
+            /**
+             * @description the model its program may consult, or null for none
+             * @default null
+             */
+            advisor: string | null;
             /** @description an agent switched off takes no run */
             enabled: boolean;
             /** @description whether the session its last answered run kept is pinged before its cache cools */
@@ -4651,6 +4675,8 @@ export interface components {
             thinking?: string | null;
             /** Format: int64 */
             answerTokens?: number | null;
+            /** @description the model its program may consult, a model of the provider or a family word; null for none */
+            advisor?: string | null;
             enabled?: boolean | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;
@@ -4671,6 +4697,8 @@ export interface components {
             thinking?: string | null;
             /** Format: int64 */
             answerTokens?: number | null;
+            /** @description the model its program may consult, a model of the provider or a family word; null for none */
+            advisor?: string | null;
             enabled?: boolean | null;
             keepsCache?: boolean | null;
             sessions?: components["schemas"]["RoleSessions"] | null;

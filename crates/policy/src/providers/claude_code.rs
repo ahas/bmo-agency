@@ -17,6 +17,7 @@ pub struct ClaudeCode {
   pub node_login: NodeLogin,
   pub console_login: ConsoleLogin,
   pub usage: Usage,
+  pub advisor: Advisor,
 }
 
 /// How every account's own windows are read on a clock (docs/usage-windows.md, 「The Claude account
@@ -140,6 +141,69 @@ pub struct Catalogue {
   pub dir: String,
   /// The ending of every file of the surface agency runs on.
   pub suffix: String,
+}
+
+/// The advisor a road may name, and the pairings the program attaches (docs/provider-order.md, 「The
+/// advisor」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Advisor {
+  /// The family words a road may name an advisor by, which the catalogue's aliases read as a model.
+  pub aliases: Vec<String>,
+  pub pairs: Vec<Pair>,
+}
+
+/// One pairing: the models, by the start of their name, and the advisors that may advise them, by theirs.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Pair {
+  pub main: Vec<String>,
+  pub advisors: Vec<String>,
+}
+
+impl Advisor {
+  /// Whether the word is one of the family words rather than a model.
+  pub fn is_alias(&self, word: &str) -> bool {
+    self.aliases.iter().any(|alias| alias.eq_ignore_ascii_case(word))
+  }
+
+  /// The pairing that takes a model: the one whose start naming it is the longest, none where no start
+  /// names it. Names are compared without case.
+  pub fn pair_of(&self, model: &str) -> Option<&Pair> {
+    let model = model.to_ascii_lowercase();
+
+    self
+      .pairs
+      .iter()
+      .filter_map(|pair| {
+        let longest = pair
+          .main
+          .iter()
+          .filter(|start| model.starts_with(&start.to_ascii_lowercase()))
+          .map(String::len)
+          .max()?;
+
+        Some((longest, pair))
+      })
+      .max_by_key(|(longest, _)| *longest)
+      .map(|(_, pair)| pair)
+  }
+
+  /// Whether the program, started on the model with the advisor named, attaches it rather than refusing to start
+  /// or dropping it, judged without the catalogue: the model has a pairing, and the advisor is a family word —
+  /// read against the catalogue as the road was written — or a model the pairing names.
+  pub fn attaches(&self, model: &str, advisor: &str) -> bool {
+    self.pair_of(model).is_some() && (self.is_alias(advisor) || self.pairs(model, advisor))
+  }
+
+  /// Whether the advisor, a model's name, may advise the model.
+  pub fn pairs(&self, model: &str, advisor: &str) -> bool {
+    let advisor = advisor.to_ascii_lowercase();
+
+    self.pair_of(model).is_some_and(|pair| {
+      pair.advisors.iter().any(|start| advisor.starts_with(&start.to_ascii_lowercase()))
+    })
+  }
 }
 
 crate::part!(pub CLAUDE_CODE: ClaudeCode = "providers/claude-code.toml");

@@ -25,6 +25,8 @@ pub struct RoleAgent {
   /// `on`, `off`, or none for the provider's own.
   pub thinking: Option<String>,
   pub answer_tokens: Option<i64>,
+  /// The model its program may consult, none for none (docs/provider-order.md, 「The advisor」).
+  pub advisor: Option<String>,
   pub enabled: bool,
   /// Whether its session's cache is kept warm between runs.
   pub keeps_cache: bool,
@@ -68,6 +70,7 @@ impl RoleAgent {
       effort: text("effort")?,
       thinking: text("thinking")?,
       answer_tokens: row.try_get("", "answer_tokens")?,
+      advisor: text("advisor")?,
       enabled: row.try_get::<i64>("", "enabled")? != 0,
       keeps_cache: row.try_get::<i64>("", "keeps_cache")? != 0,
       sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
@@ -88,6 +91,7 @@ impl RoleAgent {
       effort: self.effort.clone(),
       thinking: self.thinking.clone(),
       answer_tokens: self.answer_tokens,
+      advisor: self.advisor.clone(),
     })
   }
 
@@ -214,8 +218,8 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
     r#"INSERT INTO "role_agents"
          ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled",
           "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions",
-          "owner_account")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          "owner_account", "advisor")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
@@ -223,7 +227,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
          "keeps_cache" = excluded."keeps_cache",
          "fold_ratio" = excluded."fold_ratio", "prompt" = excluded."prompt", "bundles" = excluded."bundles",
          "skills" = excluded."skills", "sessions" = excluded."sessions",
-         "owner_account" = excluded."owner_account""#,
+         "owner_account" = excluded."owner_account", "advisor" = excluded."advisor""#,
     vec![
       agent.name.clone().into(),
       agent.role.clone().into(),
@@ -241,6 +245,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       agent.added_at.into(),
       agent.sessions.word().into(),
       agent.owner_account.clone().into(),
+      agent.advisor.clone().into(),
     ],
   )
   .await?;
@@ -397,6 +402,36 @@ pub async fn seated_at<C: ConnectionTrait>(
     Some(seat) => named(db, &seat).await,
     None => Ok(None),
   }
+}
+
+/// The advisor a run let in on the seat consults (docs/provider-order.md, 「The advisor」): the seat's own where it
+/// names a road, and for a seat that follows its supervisor the advisor of the supervisor that asked the newest
+/// slot request standing on it; none where that road's provider takes no advisor or names none.
+pub async fn advisor_of<C: ConnectionTrait>(db: &C, seat: &RoleAgent) -> Result<Option<String>, Fault> {
+  let road = match seat.entry() {
+    Some(own) => Some(own),
+    None => {
+      let asker = one(
+        db,
+        r#"SELECT "asked_by" FROM "role_slot_requests"
+           WHERE "seat" = $1 AND "state" = 'active' AND "asked_by" IS NOT NULL
+           ORDER BY "sequence" DESC LIMIT 1"#,
+        vec![seat.name.clone().into()],
+      )
+      .await?
+      .map(|row| row.try_get::<String>("", "asked_by"))
+      .transpose()?;
+
+      match asker {
+        Some(asker) => {
+          crate::supervisors::named(db, &asker).await?.and_then(|supervisor| supervisor.road())
+        }
+        None => None,
+      }
+    }
+  };
+
+  Ok(road.and_then(|road| road.advisor_taken()))
 }
 
 /// The prompt a run of a role opens with: its agent's own where it lays one over its role's, else its role's;

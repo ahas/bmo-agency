@@ -36,6 +36,25 @@ pub async fn levels(
   REASONING.levels.iter().filter(|level| words.contains(level)).cloned().collect()
 }
 
+/// Why a road of the provider on `model` may not name `advisor`, or nothing where it may
+/// (docs/provider-order.md, 「The advisor」): the provider's own answer, read against the catalogue of the login
+/// the account walk would take first where its catalogue is kept under a login.
+pub async fn advisor_refusal(
+  judging: Judging<'_>,
+  machine: &Machine,
+  provider: &dyn Provider,
+  model: &str,
+  advisor: &str,
+) -> Option<String> {
+  let dir = if provider.catalogue_under_login() {
+    claude_accounts::catalogue_dir(judging, machine).await.ok()
+  } else {
+    None
+  };
+
+  provider.advisor_refusal(machine, dir.as_deref(), model, advisor).await
+}
+
 /// A provider this build carries.
 pub fn named(name: &str) -> Result<&'static dyn Provider, Refused> {
   provider(name).ok_or_else(|| Refused::failed(format!("no provider named {name} in this build")))

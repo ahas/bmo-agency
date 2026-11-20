@@ -24,6 +24,7 @@ fn run_on(mode: &'static str, model: &str) -> SessionRun {
       effort: "high".to_owned(),
       tier: None,
       thinking: true,
+      advisor: None,
       reasoning: None,
       system_prompt: None,
       harnessed: PathBuf::new(),

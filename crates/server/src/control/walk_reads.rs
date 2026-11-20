@@ -34,6 +34,8 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
     "registered": provider.unregistered().is_some(),
     "gateway": provider.models_on_gateway(),
     "ownersEngine": declared.owners_engine,
+    "takesAdvisor": provider.takes_advisor(),
+    "advisorWords": provider.advisor_words(),
     "lines": declared.lines,
     "quota": quota,
     "reason": missing.as_ref().map(|missing| missing.text.clone()),

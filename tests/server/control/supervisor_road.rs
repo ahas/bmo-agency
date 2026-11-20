@@ -98,6 +98,31 @@ async fn a_running_server_answers_a_supervisor_s_road_and_call_names_and_refuses
     assert_eq!((status, &refused["field"]), (400, &json!(field)), "{refused}");
   }
 
+  // Its road names an advisor its model is paired with, read back with the road; one ranking below its model is
+  // refused by its own field and leaves the advisor standing (docs/provider-order.md, 「The advisor」).
+  let (status, advised) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent",
+    json!({ "advisor": "fable" }),
+  )
+  .await;
+
+  assert_eq!((status, &advised["advisor"]), (200, &json!("fable")), "{advised}");
+
+  let (status, refused) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent",
+    json!({ "advisor": "claude-sonnet-5" }),
+  )
+  .await;
+
+  assert_eq!((status, &refused["field"]), (400, &json!("advisor")), "{refused}");
+  assert_eq!(get(port, token, "/supervisors/chat-agent").await.1["advisor"], json!("fable"));
+
   // Call names are written as a whole list and read back on both reads as the one line the receiver wakes it on;
   // a list out of the policy's bounds is refused by its field and leaves the names standing.
   let (status, named) = send(

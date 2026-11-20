@@ -36,6 +36,15 @@
   thinking」). On Claude Code the level is the
   `--effort` word and thinking off is `MAX_THINKING_TOKENS=0` in the environment, so no flag moves that
   is not already the line's. Where the entry names nothing, each line below is as written.
+- **The advisor is the road's too, on Claude Code's own road alone.** A road naming one puts `--advisor` and
+  its model right after `--effort` on the chat line, the worker line and the runner lines, as the server's lines
+  compose them; a road naming none, and every road the gateway serves, carries no such word, so the line of a
+  road that names none is the line as written. The flag goes out only where the program would attach the
+  advisor to the model the run really goes out on, judged by the provider's declared pairings, since the program
+  refuses to start on one it cannot pair; one dropped so is said in the server's log (`docs/provider-order.md`,
+  「The advisor」). An agent's advisor is its seat's, or the asking supervisor's for a seat that follows it.
+  The CLI's own `/advisor` command, which writes the login's user settings every session on the login reads, is
+  never used, and no line reads the user settings it would write.
 
 ## Harnesses
 

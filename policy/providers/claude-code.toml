@@ -158,6 +158,52 @@ keep_minutes = 20
 took = ["Login successful", "Logged in as", "Successfully logged in"]
 refused = ["Login failed", "Invalid code", "OAuth error", "Authentication failed"]
 
+[advisor]
+# The advisor a road of Claude Code may name (docs/provider-order.md, 「The advisor」), which its program is
+# started with as `--advisor`. A road names a model of the catalogue or one of these family words, which the
+# catalogue's own aliases read as the model each stands for now.
+aliases = ["fable", "opus", "sonnet"]
+
+# The pairings the program attaches, as Claude Code's own advisor page states them: for the models whose name
+# starts with one of `main`, the advisors whose name starts with one of `advisors`. The longest start naming a
+# model takes it; a model no start names is paired with no advisor, so a model the program does not know yet is
+# refused one rather than started with one it would drop. An advisor ranks at or above the model it advises.
+[[advisor.pairs]]
+main = ["claude-haiku-4-5", "claude-sonnet-4-6"]
+advisors = ["claude-fable", "claude-opus", "claude-sonnet", "claude-haiku-5-5"]
+
+[[advisor.pairs]]
+main = ["claude-opus-4-6"]
+advisors = ["claude-fable", "claude-opus", "claude-sonnet-5", "claude-haiku-5-5"]
+
+[[advisor.pairs]]
+main = ["claude-sonnet-5", "claude-haiku-5-5"]
+advisors = ["claude-fable", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-haiku-5-5"]
+
+[[advisor.pairs]]
+main = ["claude-opus-4-7", "claude-opus-4-8"]
+advisors = ["claude-fable", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5-5"]
+
+[[advisor.pairs]]
+main = ["claude-sonnet-5-5"]
+advisors = ["claude-fable", "claude-opus-5", "claude-sonnet-5-5"]
+
+[[advisor.pairs]]
+main = ["claude-opus-5"]
+advisors = ["claude-fable", "claude-opus-5"]
+
+[[advisor.pairs]]
+main = ["claude-fable-5"]
+advisors = ["claude-fable-5"]
+
+[[advisor.pairs]]
+main = ["claude-fable-5-1"]
+advisors = ["claude-fable-5-1", "claude-fable-5-2"]
+
+[[advisor.pairs]]
+main = ["claude-fable-5-2"]
+advisors = ["claude-fable-5-2"]
+
 [[reads]]
 # The media a model of this road reads natively (docs/provider-order.md, 「The media a model reads」):
 # the Claude models take pictures and PDF documents into the request their runs go out on.

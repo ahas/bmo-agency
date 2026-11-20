@@ -370,11 +370,20 @@ pub async fn compose(
   };
   let denied = limits.denied(&denied());
   let kept = limits.kept();
-  let line = |model: &str, effort: &str, settings: &std::path::Path| {
+  // The advisor goes out on the supervisor's own road on Claude Code alone; a road the gateway serves takes none
+  // (docs/provider-order.md, 「The advisor」).
+  let advisor = crate::supervisors::named(&ground.db, turn.agent)
+    .await
+    .map_err(|why| fault(why.detail))?
+    .and_then(|supervisor| supervisor.road())
+    .filter(|road| road.provider == turn.provider && road.model == turn.model)
+    .and_then(|road| road.advisor_taken());
+  let line = |model: &str, effort: &str, advisor: Option<&str>, settings: &std::path::Path| {
     standing_words(
       &Words {
         model,
         effort,
+        advisor,
         system: &system,
         mcp: &mcp,
         hands: Hands::AllBut {
@@ -398,7 +407,7 @@ pub async fn compose(
     env.extend(variables.map(|(name, value)| (name.to_owned(), Some(value))));
 
     let command = Command {
-      args: line(turn.model, &effort, &settings)?,
+      args: line(turn.model, &effort, advisor.as_deref(), &settings)?,
       cwd: cwd.clone(),
       env,
     };
@@ -483,7 +492,7 @@ pub async fn compose(
     on,
     ceiling,
     Placing::At(placement),
-    |name, effort, _, settings| line(name, effort, settings),
+    |name, effort, _, settings| line(name, effort, None, settings),
   )
   .await?;
 

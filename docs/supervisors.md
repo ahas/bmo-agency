@@ -18,7 +18,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   brain folder, whose base persona its system prompt ends with (`docs/agent-documents.md`).
 - **How it converses:** its session scope and its turn shape (「One runner」 below).
 - **Where it runs — its road:** one provider, one model of it, the effort and the thinking its turns go out
-  with there and, on the registry's provider, the answer ceiling (`docs/provider-order.md`, 「What a road
+  with there, the advisor its program may consult where the provider takes one (`docs/provider-order.md`, 「The
+  advisor」) and, on the registry's provider, the answer ceiling (`docs/provider-order.md`, 「What a road
   is」). Every supervisor names its own, set on its row as an agent's is set on the agent; its turns go out on
   it and on no other, and no other provider or model stands in when it cannot answer.
 - **Its card rank:** the rank the demands of every run for it are asked at on an engine the arbiter stands, the

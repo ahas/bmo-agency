@@ -84,6 +84,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "effort": road.and_then(|road| road.effort.as_ref()),
     "thinking": road.and_then(|road| road.thinking.as_ref()),
     "answerTokens": road.and_then(|road| road.answer_tokens),
+    "advisor": road.and_then(|road| road.advisor.as_ref()),
     "warming": supervisor.warming,
     "foldRatio": supervisor.fold_ratio,
     "cardRank": supervisor.card_rank,
@@ -247,10 +248,10 @@ fn retired(body: &Value) -> Result<(), Refused> {
 }
 
 // The road a body names over the one `held`, judged against the chat line: its provider and model, each kept
-// where the body names it not, and its effort, thinking and answer ceiling, kept only while the provider and
-// model stay; none where the body names no field of a road.
+// where the body names it not, and its effort, thinking, answer ceiling and advisor, kept only while the provider
+// and model stay; none where the body names no field of a road. An advisor refused is refused under its own field.
 async fn road_of(ground: &Ground, body: &Value, held: Option<&Entry>) -> Result<Option<Entry>, Refused> {
-  const FIELDS: [&str; 5] = ["provider", "model", "effort", "thinking", "answerTokens"];
+  const FIELDS: [&str; 6] = ["provider", "model", "effort", "thinking", "answerTokens", "advisor"];
 
   if !FIELDS.iter().any(|field| body.get(*field).is_some()) {
     return Ok(None);
@@ -272,13 +273,26 @@ async fn road_of(ground: &Ground, body: &Value, held: Option<&Entry>) -> Result<
     "effort": named("effort").unwrap_or_else(|| json!(kept.and_then(|road| road.effort.clone()))),
     "thinking": named("thinking").unwrap_or_else(|| json!(kept.and_then(|road| road.thinking.clone()))),
     "answerTokens": named("answerTokens").unwrap_or_else(|| json!(kept.and_then(|road| road.answer_tokens))),
+    "advisor": advisor_of(body, kept),
   }]);
   let judged =
     order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, &entry, order::Empty::Refused)
       .await
-      .map_err(|refusal| bad("provider", refusal.error))?;
+      .map_err(|refusal| {
+        let field = if refusal.field == order::ADVISOR { order::ADVISOR } else { "provider" };
+
+        bad(field, refusal.error)
+      })?;
 
   Ok(judged.entries.into_iter().next())
+}
+
+// The advisor a body names over the one a kept road holds: a word trimmed, none for null or nothing.
+fn advisor_of(body: &Value, kept: Option<&Entry>) -> Value {
+  match body.get("advisor") {
+    None => json!(kept.and_then(|road| road.advisor.clone())),
+    Some(named) => json!(named.as_str().map(str::trim).filter(|advisor| !advisor.is_empty())),
+  }
 }
 
 // A compaction threshold a body names: a fraction above 0 and at most 1.
@@ -397,8 +411,8 @@ impl Route for SupervisorCreate {
       call.store(),
       r#"INSERT INTO "supervisors" ("name", "label", "owner_account", "icon", "brain_folder", "session_scope",
            "turn_shape", "repository", "provider", "model", "effort", "thinking", "answer_tokens", "warming",
-           "fold_ratio", "created_at", "updated_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)"#,
+           "fold_ratio", "created_at", "updated_at", "advisor")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $17)"#,
       vec![
         name.clone().into(),
         label.clone().into(),
@@ -416,6 +430,7 @@ impl Route for SupervisorCreate {
         serde_json::to_string(&warming).map_err(Refused::failed)?.into(),
         fold_ratio.into(),
         now.into(),
+        road.advisor.clone().into(),
       ],
     )
     .await?;
@@ -467,8 +482,12 @@ impl Route for SupervisorChange {
     let road = road_of(call.ground(), &body, held.road.as_ref()).await?.or(held.road.clone());
     // A road the body moves — another provider, model, effort, thinking or answer ceiling — is what makes the
     // supervisor's sessions go, as the settings route's moved thinking does (docs/supervisors.md, 「Where a
-    // supervisor's turn runs」).
-    let moved = held.road != road;
+    // supervisor's turn runs」). An advisor alone moves no session: the program takes it as it is started again on
+    // its own session (docs/provider-order.md, 「The advisor」).
+    let moved = match (&held.road, &road) {
+      (Some(held), Some(road)) => road.moved_from(held),
+      (held, road) => held != road,
+    };
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or(held.fold_ratio);
     let repository = repository_of(call.store(), &body).await?.unwrap_or(held.repository.clone());
     let label = match body.get("label") {
@@ -531,7 +550,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider" = $3, "model" = $4, "effort" = $5, "thinking" = $6,
            "answer_tokens" = $7, "warming" = $8, "fold_ratio" = $9, "repository" = $10, "voice" = $11,
-           "updated_at" = $12, "card_rank" = $13, "aliases" = $14
+           "updated_at" = $12, "card_rank" = $13, "aliases" = $14, "advisor" = $15
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -548,6 +567,7 @@ impl Route for SupervisorChange {
         now_ms().into(),
         card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
         aliases.into(),
+        road.as_ref().and_then(|road| road.advisor.clone()).into(),
       ],
     )
     .await?;

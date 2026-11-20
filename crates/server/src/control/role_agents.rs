@@ -72,6 +72,7 @@ async fn judged(
   held: RoleAgent,
   body: &Value,
 ) -> Result<RoleAgent, Refused> {
+  let held_road = (held.provider.clone(), held.model.clone());
   let mut agent = held;
 
   // The account whose seat it is, a login account's id written as digits, or none for the deployment's own.
@@ -96,6 +97,13 @@ async fn judged(
 
   if let Some(thinking) = body.get("thinking") {
     agent.thinking = text(thinking, "thinking")?;
+  }
+
+  // An advisor was the old model's: a road moved to another provider or model and naming none keeps none.
+  if let Some(advisor) = body.get("advisor") {
+    agent.advisor = text(advisor, "advisor")?;
+  } else if (agent.provider.clone(), agent.model.clone()) != held_road {
+    agent.advisor = None;
   }
 
   if let Some(tokens) = body.get("answerTokens") {
@@ -171,6 +179,12 @@ async fn judged(
       agent.effort = None;
       agent.thinking = None;
       agent.answer_tokens = None;
+
+      if agent.advisor.is_some() {
+        return Err(unprocessable(
+          "advisor: an agent following its supervisor consults the supervisor's advisor; name a road first.",
+        ));
+      }
     }
     (Some(provider), Some(model)) => {
       let entry = json!([{
@@ -179,11 +193,20 @@ async fn judged(
         "effort": agent.effort,
         "thinking": agent.thinking,
         "answerTokens": agent.answer_tokens,
+        "advisor": agent.advisor,
       }]);
 
       order::judge(Judging::of(ground), &ground.machine(), &role.line, &entry, Empty::Refused)
         .await
-        .map_err(|refusal| unprocessable(refusal.error))?;
+        .map_err(|refusal| {
+          let error = if refusal.field == order::ADVISOR {
+            format!("advisor: {}", refusal.error)
+          } else {
+            refusal.error
+          };
+
+          unprocessable(error)
+        })?;
     }
     _ => {
       return Err(unprocessable("An agent's road names its provider together with its model, or neither."));
@@ -266,6 +289,7 @@ impl Route for RoleAgentCreate {
       effort: None,
       thinking: None,
       answer_tokens: None,
+      advisor: None,
       enabled: true,
       keeps_cache: false,
       sessions: policy::roles::Sessions::default(),

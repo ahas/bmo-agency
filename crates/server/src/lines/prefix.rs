@@ -42,9 +42,11 @@ fn read_if_there(path: &Path) -> Option<String> {
   std::fs::read(path).ok().map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
+// The command's words as a prefix reads them: every word but its advisor's, which stands outside the prefix a
+// session's cache keeps, and each root a path starts with named rather than written out.
 fn normalised_args(args: &[String], roots: &[(&str, &Path)]) -> String {
-  args
-    .iter()
+  super::claude::without_advisor(args)
+    .into_iter()
     .map(|arg| {
       roots
         .iter()

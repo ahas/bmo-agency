@@ -1,6 +1,7 @@
 //! The policy's tests: every part reads as its type from the file compiled in, and what its readers make of
 //! it.
 
+mod advisor;
 mod agent_renames;
 mod answer_ceilings;
 mod background_work;

@@ -224,6 +224,7 @@ pub async fn run(ground: &Ground, account: &Account) -> Result<(), Failure> {
       tools_shown: "",
       tools_allowed: "",
       host_commands: false,
+      advisor: None,
     },
     &session,
   )

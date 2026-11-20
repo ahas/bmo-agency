@@ -11,8 +11,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   thing: the agent it is let in on is the seat it holds, and an agent busy with one run takes no other
   (「When an agent is busy」 below). A role with three agents has three of its runs at work at once, and a role
   with none runs nothing.
-- **An agent's road is fixed.** It names one provider, one model of it and the effort and thinking its runs
-  go out with there. Its runs go out on that road and never on another: an agent whose provider cannot answer
+- **An agent's road is fixed.** It names one provider, one model of it and the effort, thinking and advisor
+  its runs go out with there. Its runs go out on that road and never on another: an agent whose provider cannot answer
   now, or has no quota, takes no run until it can, and no run of its moves to another provider.
 - **An agent that names no road follows the supervisor that asks it.** Its run goes out on the asking
   supervisor's own provider, model and effort as they stand when it is asked; it takes no run that names no
@@ -39,7 +39,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
     name is named after its role and a number, `coder-01`;
   - **its role,** one the store holds;
   - **its road:** `provider` and `model`, both or neither, with `effort`, `thinking` (`on`, `off` or the
-    provider's own) and `answerTokens`, each where it is set;
+    provider's own), `answerTokens` and `advisor` (the model its program may consult, or none;
+    `docs/provider-order.md`, 「The advisor」), each where it is set;
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
   - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
     kept is pinged before its cache cools, so its next run there resumes it warm
@@ -191,7 +192,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **`POST /role-agents`** adds an agent to a role: `role` required, every other field optional. It refuses a
   role the store does not hold, a name out of the pattern or already taken, a provider agency does not
   carry, a model its provider does not hold, a provider without a model or a model without a provider, a
-  bundle the policy does not declare and a skill no plugin of the release carries.
+  bundle the policy does not declare, a skill no plugin of the release carries, and an advisor its provider
+  does not take or its model is not paired with (`docs/provider-order.md`, 「The advisor」).
 - **`PATCH /role-agents/{agentName}`** changes any field of the row, each judged as the add judges it; a
   field set to null is cleared, which for an override gives the role's own back.
 - **`DELETE /role-agents/{agentName}`** removes an agent, and is refused 409 while it carries a run.

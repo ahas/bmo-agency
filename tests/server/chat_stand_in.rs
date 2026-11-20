@@ -63,6 +63,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     agent: "chat-agent".into(),
     model: "claude-model".into(),
     effort: "high".into(),
+    advisor: None,
     tier: None,
     reasoning: Reasoning::default(),
     thinking: true,

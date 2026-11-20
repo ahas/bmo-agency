@@ -125,6 +125,7 @@ impl RoleLine {
     ChatRun {
       line: self.line,
       agent: turned.place,
+      advisor: None,
       model: turned.model,
       effort: self.effort,
       tier: self.tier,

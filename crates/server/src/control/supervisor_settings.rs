@@ -657,6 +657,7 @@ async fn write(
       effort: None,
       thinking: None,
       answer_tokens: None,
+      advisor: None,
     });
   }
 
@@ -671,7 +672,7 @@ async fn write(
   run(
     db,
     r#"UPDATE "supervisors" SET "provider" = $1, "model" = $2, "effort" = $3, "thinking" = $4,
-         "answer_tokens" = $5
+         "answer_tokens" = $5, "advisor" = $7
        WHERE "name" = $6"#,
     vec![
       road.as_ref().map(|road| road.provider.clone()).into(),
@@ -680,6 +681,7 @@ async fn write(
       road.as_ref().and_then(|road| road.thinking.clone()).into(),
       road.as_ref().and_then(|road| road.answer_tokens).into(),
       row.try_get::<String>("", "name")?.into(),
+      road.as_ref().and_then(|road| road.advisor.clone()).into(),
     ],
   )
   .await?;
