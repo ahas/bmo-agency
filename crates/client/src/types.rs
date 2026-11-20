@@ -3739,6 +3739,9 @@ pub struct PersonNode {
   pub shared: bool,
   /// epoch milliseconds
   pub set_at: i64,
+  /// Whether the node's link is up now: connected and heard from in the last twenty seconds.
+  #[serde(default)]
+  pub linked: bool,
 }
 
 /// PersonNodeList: every account's node, by account.

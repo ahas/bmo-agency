@@ -1,16 +1,16 @@
-//! Who reaches a node, read over the control routes of a running server (docs/api.md, 「person-nodes」): the
-//! answer a node service's tool reads as agency's client types it, the root of a caller's account sharing the node
-//! among it, and a caller left unnamed refused.
+//! Who reaches a node and whether an account's node is linked, read over the control routes of a running server
+//! (docs/api.md, 「person-nodes」): the answer a node service's tool reads as agency's client types it, the root of a
+//! caller's account sharing the node among it, a caller left unnamed refused, and each record with its link's state.
 
 use agency_server::person_nodes;
-use bmo_agency_client::NodeAccess;
+use bmo_agency_client::{NodeAccess, PersonNode, PersonNodeList};
 
 use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_running_server_answers_who_reaches_a_node() {
+async fn a_running_server_answers_who_reaches_a_node_and_whether_its_link_is_up() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -52,4 +52,27 @@ async fn a_running_server_answers_who_reaches_a_node() {
     }
   );
   assert_eq!(ask("?agent=%20").await.unwrap().status().as_u16(), 400);
+
+  std::fs::create_dir_all(data.join("nodes/pc-7")).unwrap();
+  std::fs::write(
+    data.join("nodes/pc-7/link-state.json"),
+    format!(r#"{{"state": "connected", "heard": {}}}"#, chrono::Utc::now().timestamp_millis()),
+  )
+  .unwrap();
+  let list = client
+    .get(format!("http://127.0.0.1:{}/person-nodes", server.port))
+    .bearer_auth(token)
+    .send()
+    .await
+    .unwrap()
+    .json::<PersonNodeList>()
+    .await
+    .unwrap();
+  let read: Vec<(&str, &str, bool)> = list
+    .items
+    .iter()
+    .map(|one: &PersonNode| (one.owner_account.as_str(), one.node.as_str(), one.linked))
+    .collect();
+
+  assert_eq!(read, vec![("7", "pc-7", true)], "a node connected and heard from just now is linked");
 }

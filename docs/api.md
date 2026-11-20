@@ -1424,9 +1424,11 @@ where the shell stands in an agent's program, else the owner.
 | GET | `/nodes/{nodeName}/access` | Whether a caller reaches a node: its owners, the caller's account and the administrator's grant. |
 
 - **An account's node is where its runs stand** (`docs/person-nodes.md`, 「Which node is a person's」): each record is
-  `ownerAccount`, `node`, `shared`, whether the administrator declared the node shared for the account, and `setAt`
-  in epoch milliseconds. The service that binds an account to its machine sets it once the machine is proven, and
-  again when the account is bound to another.
+  `ownerAccount`, `node`, `shared`, whether the administrator declared the node shared for the account, `setAt`
+  in epoch milliseconds, and `linked`, whether the node's link is up now: connected and heard from in the last
+  twenty seconds (`docs/work-nodes.md`, 「The link」), the judgement a run of the account waits on before it starts.
+  The service that binds an account to its machine sets it once the machine is proven, and again when the account
+  is bound to another.
 - **The node is one the node service keeps as a hub node reserved for no service:** another is 422
   `not-a-hub-node`, and a node service
   that cannot answer is 502 `upstream-failed`. Taking away a record no account holds is 404 `not-found`.

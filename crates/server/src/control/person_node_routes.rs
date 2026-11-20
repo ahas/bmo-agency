@@ -1,5 +1,6 @@
 //! An account's node across the boundary (docs/api.md, 「person-nodes」): the record of the node an account's runs
-//! stand on, read, set by the service that binds the account to its machine, and taken away.
+//! stand on, read with whether its link is up, set by the service that binds the account to its machine, and taken
+//! away.
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -7,7 +8,8 @@ use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
 use crate::peers::PeerFault;
-use crate::person_nodes;
+use crate::person_nodes::{self, PersonNode};
+use crate::watches::links::link_heard;
 
 fn account_of(call: &Call) -> Result<String, Refused> {
   call
@@ -22,6 +24,13 @@ fn unanswered(fault: PeerFault) -> Refused {
   Refused::new(StatusCode::BAD_GATEWAY, fault.to_string()).with_code("upstream-failed")
 }
 
+/// A record as the boundary reads it: with whether its node's link is up now, as a run of the account judges it.
+fn read(call: &Call, record: &PersonNode) -> Value {
+  let mut read = json!(record);
+  read["linked"] = json!(link_heard(&call.ground().roots.data, &record.node));
+  read
+}
+
 /// `GET /person-nodes`: every account's node, by account.
 pub struct ListPersonNodes;
 
@@ -30,7 +39,11 @@ impl Route for ListPersonNodes {
   const PATH: &'static str = "/person-nodes";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let items = person_nodes::every(call.store()).await?;
+    let items: Vec<Value> = person_nodes::every(call.store())
+      .await?
+      .iter()
+      .map(|record| read(&call, record))
+      .collect();
 
     Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
@@ -71,7 +84,7 @@ impl Route for SetPersonNode {
     }
 
     match person_nodes::set(call.store(), &account, &node, shared).await? {
-      Ok(set) => Ok(answer(StatusCode::OK, json!(set))),
+      Ok(set) => Ok(answer(StatusCode::OK, read(&call, &set))),
       Err(taken) => Err(Refused::new(StatusCode::CONFLICT, taken.to_string()).with_code("node-taken")),
     }
   }

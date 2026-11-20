@@ -16156,13 +16156,19 @@
             "type": "integer",
             "format": "int64",
             "description": "epoch milliseconds"
+          },
+          "linked": {
+            "type": "boolean",
+            "description": "Whether the node's link is up now: connected and heard from in the last twenty seconds.",
+            "default": false
           }
         },
         "required": [
           "ownerAccount",
           "node",
           "shared",
-          "setAt"
+          "setAt",
+          "linked"
         ],
         "description": "PersonNode: the node an account's runs stand on."
       },

@@ -4867,6 +4867,11 @@ export interface components {
              * @description epoch milliseconds
              */
             setAt: number;
+            /**
+             * @description Whether the node's link is up now: connected and heard from in the last twenty seconds.
+             * @default false
+             */
+            linked: boolean;
         };
         /**
          * @description The body that sets an account's node: a hub node the node service keeps, and whether it is shared with other
