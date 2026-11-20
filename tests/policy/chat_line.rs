@@ -7,7 +7,6 @@ fn reads_its_lines() {
   assert!(CHAT_LINE.tools.shown.split(',').any(|tool| tool == "Bash"));
   assert!(!CHAT_LINE.tools.listed.is_empty());
   assert!(CHAT_LINE.room.mark.contains("{title}"));
-  assert_eq!(CHAT_LINE.persona.default_tone, "bmo");
   assert_eq!(CHAT_LINE.persona.base_layer, "persona");
 }
 

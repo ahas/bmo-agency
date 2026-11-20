@@ -10,7 +10,6 @@ fn only_the_rulebooks_and_the_agent_documents_ship_with_the_code() {
     "prompts/agents/chat/manual.md",
     "prompts/harness.md",
     "prompts/persona/base.md",
-    "prompts/persona/rooms/42.md",
     "prompts/rules/notes.txt",
     "prompts/base/dsh.md",
   ]
@@ -31,5 +30,4 @@ fn a_chat_session_is_given_its_system_documents_and_carries_its_turn_documents()
   assert!(is_chat_turn_document("prompts/agents/chat/owner.md"));
   assert!(!is_chat_prompt_document("prompts/agents/chat/owner.md"));
   assert!(!is_chat_prompt_document("prompts/persona/base.md"));
-  assert!(!is_chat_turn_document("prompts/persona/rooms/42.md"));
 }

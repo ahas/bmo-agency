@@ -28,9 +28,6 @@ pub struct Tools {
 pub struct Persona {
   pub base_layer: String,
   pub header: String,
-  pub tone_header: String,
-  pub room_header: String,
-  pub default_tone: String,
 }
 
 #[derive(Debug, Deserialize)]
