@@ -1,7 +1,7 @@
 ---
 name: "bmo-asking"
 bundle: worker
-version: "2.0.0"
+version: "2.1.0"
 description: "How a job asks: anything it cannot settle or do itself goes to its supervisor with bmo job ask — a decision that is not the job's, a command on a node it cannot reach, a deployment it waits on — and the supervisor settles it or puts it to the owner; and a document for the owner to read or approve filed in the deployment's 아카이브. Use before asking anything and before handing the owner any document."
 ---
 
@@ -39,8 +39,11 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
   checkout's lock, and nothing else is named for that checkout, so nothing else is held up.
 - **Settled, it prints the answer on stdout and nothing else**, exit code 0. The supervisor's answer comes as
   it wrote it, a result of several lines among it; the owner's, once the supervisor put the question to him, is
-  one line: the option's own text where he picked one, or his own words. Carry on with what it says. A
-  recommendation is only shown, and comes back only where the owner settled with it.
+  one line: the option's own text where he picked one, or his own words. Carry on with what it says. While the
+  supervisor holds the question, only an answer settles it. Once it is put to the owner, he has the wait the
+  supervisor names, a minute where it names none, and where he has not answered by then the question settles on
+  the recommendation it was put to him with, which comes back as his line would, with a line on stderr saying it
+  was the recommendation.
 - **That answer stands, and the question is over.** Never run the same ask again to check it, to see whether it
   still waits or to read the answer a second time; the answer stays for the rest of the job, across its stages.
   Carry it into your report as the supervisor's word or the owner's, whichever gave it.

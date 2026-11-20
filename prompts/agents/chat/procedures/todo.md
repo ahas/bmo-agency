@@ -455,9 +455,9 @@ and the agency's own:
 - **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
   `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
   the owner in your own words with `job_question_change`, `addressee` `person`, two to four `choices` and your
-  `recommendation`, written as if he knows nothing of the work; it then has no due time, and only he settles
-  it. Do one of the three before the
-  turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
+  `recommendation`, written as if he knows nothing of the work, and a `waitMs`: how long he has before your
+  recommendation settles it in his place, a minute where it is left out, so name one he can meet as for a
+  question you ask him yourself. Do one of the three before the turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
   ("woken again: n of 6"), never the owner. Once it is settled or put to the owner, the job withdraws the
   instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
