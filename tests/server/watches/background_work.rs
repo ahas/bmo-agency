@@ -1,11 +1,12 @@
 //! A supervisor's background work after the turn that launched it (docs/agent-control.md, 「Background work on a
 //! line that carries it apart」): a task its notice ended is told once to the room it was launched in, as an order
 //! for its supervisor opening a turn there; a task whose program is gone, or that a stop ended, is told once as
-//! lost; a task with no room, and one still running under its program, is told nowhere. What still runs is
-//! answered as room state, and each launch and each end is told once on the stream (docs/api.md,
-//! 「background-work」).
+//! lost; a task with no room, and one still running under its program, is told nowhere. A notice the program
+//! took up without a submit ends its task from the session record, and work a stop of its session left out with
+//! no notice is settled once the grace passed, told to no room. What still runs is answered as room state, and
+//! each launch and each end is told once on the stream (docs/api.md, 「background-work」).
 
-use agency_server::door::place_run::{BackgroundLine, Launch, background_file};
+use agency_server::door::place_run::{BackgroundLine, Launch, background_file, hooks_file};
 use agency_server::door::record::task_notice;
 use agency_server::events::Bus;
 use agency_server::lines::place::place_of;
@@ -216,4 +217,112 @@ async fn a_launch_and_its_end_are_each_told_once_on_the_stream() {
   assert_eq!(told[0].1["roomId"], -500);
   assert_eq!(told[1].1["status"], "completed");
   assert_eq!(told[1].1["task"], "a80");
+}
+
+// The stream's background-work events heard so far, each its kind and its status.
+fn heard(events: &mut agency_server::events::WireSubscription) -> Vec<(String, String)> {
+  std::iter::from_fn(|| events.ready())
+    .map(|event| (event.name.to_string(), event.body["status"].as_str().unwrap_or_default().to_owned()))
+    .collect()
+}
+
+/// a notice the program took off its queue into a running turn, which no submit handed over, ends its task from
+/// the session record its launch names, and the room is told as for any ended notice
+#[tokio::test]
+async fn a_notice_only_the_session_record_holds_ends_its_task() {
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+  let data = tempfile::tempdir().unwrap();
+  let session = data.path().join("session-a.jsonl");
+  let queued = json!({ "type": "queue-operation", "operation": "enqueue", "timestamp": "2026-11-20T07:07:36.500Z",
+    "content": "<task-notification>\n<task-id>b90</task-id>\n<output-file>/tmp/tasks/b90.output</output-file>\n\
+      <status>completed</status>\n<summary>Background command done</summary>\n</task-notification>" });
+
+  std::fs::write(
+    &session,
+    format!("{}\n{}\n", json!({ "type": "user", "message": { "content": "hello" } }), queued),
+  )
+  .unwrap();
+
+  let launch = match launched("b90", "shell", Some("-500"), 2_000) {
+    BackgroundLine::Launched(launch) => Launch {
+      transcript: Some(session.display().to_string()),
+      ..launch
+    },
+    _ => unreachable!(),
+  };
+
+  place_with(data.path(), 1_000, &[BackgroundLine::Launched(launch)]);
+
+  let events = Bus::default();
+  let mut stream = events.subscribe_wire(None);
+  let mut watch = Watch::default();
+
+  pass(scratch.db(), &vars, &events, data.path(), &mut watch).await;
+  pass(scratch.db(), &vars, &events, data.path(), &mut watch).await;
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!(told[0]["kind"], "background-ended:b90");
+  assert!(order(&told[0]).contains("has ended (completed)"), "{}", order(&told[0]));
+  assert_eq!(heard(&mut stream), [("background-work.ended".to_owned(), "completed".to_owned())]);
+  assert!(running_work(data.path(), None).is_empty());
+}
+
+/// a running task a later stop of its own session leaves out, with no notice anywhere, is settled as gone once the
+/// grace passed since that stop: no room is told, the stream hears it ended, and it leaves the list; a task
+/// launched after that stop still runs
+#[tokio::test]
+async fn work_a_later_stop_left_out_is_settled_as_gone_and_told_to_no_room() {
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+  let data = tempfile::tempdir().unwrap();
+  let now = chrono::Utc::now().timestamp_millis();
+  let long_ago = now - 600_000;
+  let in_session = |task: &str, at: i64| match launched(task, "shell", Some("-500"), at) {
+    BackgroundLine::Launched(launch) => BackgroundLine::Launched(Launch {
+      session: Some("session-a".to_owned()),
+      ..launch
+    }),
+    _ => unreachable!(),
+  };
+  let place = place_with(
+    data.path(),
+    1_000,
+    &[in_session("b91", long_ago - 1_000), in_session("b92", long_ago + 1_000)],
+  );
+
+  std::fs::write(
+    hooks_file(&place),
+    format!(
+      "{}\n",
+      json!({ "at": long_ago, "kind": "stop", "payload": { "session_id": "session-a", "background_tasks": [] } })
+    ),
+  )
+  .unwrap();
+
+  let events = Bus::default();
+  let mut stream = events.subscribe_wire(None);
+  let mut watch = Watch::default();
+
+  pass(scratch.db(), &vars, &events, data.path(), &mut watch).await;
+  pass(scratch.db(), &vars, &events, data.path(), &mut watch).await;
+
+  assert!(peers.lock().unwrap().instructed().is_empty());
+
+  let mut kinds = heard(&mut stream);
+
+  kinds.sort();
+  assert_eq!(
+    kinds,
+    [
+      ("background-work.created".to_owned(), "running".to_owned()),
+      ("background-work.ended".to_owned(), "gone".to_owned())
+    ]
+  );
+
+  let left: Vec<String> = running_work(data.path(), None).into_iter().map(|work| work.task).collect();
+
+  assert_eq!(left, ["b92"]);
 }

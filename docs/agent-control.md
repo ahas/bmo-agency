@@ -1046,6 +1046,18 @@ turn reads」 says, the job's turn among them, unchanged.
   session and its record, and when. A task first named at the stop of a person's turn, or of a run that names
   no room, is written with no room. The submit hook appends each notice it is handed beside them: the task,
   the status, the summary, the result and the output file.
+- **A notice the program takes up without a submit is read off its session record.** Claude Code queues a
+  finished task's notice and may take it off the queue into a turn still working, so no submit hands it over
+  and the background record never holds it (measured: the queue's enqueue and remove stand in the session record
+  within a moment of each other, and no submit follows). So the watch also reads each running task's session
+  record, the one its launch names, as it grows, and a notice there naming the task with the status it ended on
+  ends the task as one the submit hook wrote.
+- **Work its program drops without any notice ends all the same.** A task the program kills on its own word ends
+  with no notice anywhere (measured). Every stop names the session's tasks still running, so a task a later stop
+  of its own session leaves out has ended; a notice can still come a moment after that stop, so the task is
+  taken as ended only once `gone_seconds` (`policy/background-work.toml`) passed since the first stop that left it
+  out and no notice came. Such work wakes no room: the program ended it itself, and the turn that did so is where
+  it was said.
 - **The notice is carried to its room as a wake.** Agency's server reads every supervisor's background record
   every `look_seconds` (`policy/background-work.toml`). A task launched under a room whose notice ended it —
   `completed`, `failed`, `killed` or `stopped` — is told once to that room: the receiver's `POST /instructions`
@@ -1057,7 +1069,8 @@ turn reads」 says, the job's turn among them, unchanged.
   tells nothing, and a task told is told once whatever later notice comes for it. A task with no room keeps
   the rule every notice had: it opens a turn no round carries.
 - **While it runs, it is read as room state.** `GET /background-work` answers every task with its room that no
-  notice, stop or loss has ended, and each look that first reads a task running, or finds it over, publishes
+  notice, stop, loss or drop has ended and the watch has not settled, and each look that first reads a task
+  running, or finds it over, publishes
   `background-work.created` or `background-work.ended` (`docs/api.md`, 「background-work」), so a screen of the
   room stands the work from the turn's end until its wake.
 - **Work lost with its program is told once.** The work lives only inside the program. A task with a room

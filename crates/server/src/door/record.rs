@@ -1020,6 +1020,27 @@ impl TaskNotice {
   }
 }
 
+/// Every notice a session record's line carries that names the status its task ended on, however the line
+/// carries it: a queued prompt, an attachment or the user line it was taken up as.
+pub fn ended_notices(record: &Value) -> Vec<TaskNotice> {
+  let mut found = vec![];
+
+  each_notification(record, &mut |body| {
+    if let Some(notice) =
+      task_notice(&format!("{NOTICE_MARK}{body}</task-notification>")).filter(TaskNotice::ended)
+    {
+      found.push(notice);
+    }
+  });
+
+  found
+}
+
+/// Whether a line of a session record may carry a notice, read before the line is parsed.
+pub fn may_hold_notice(line: &str) -> bool {
+  line.contains(NOTICE_MARK)
+}
+
 /// Whether a prompt is a background task's notice the program hands itself.
 pub fn is_notice(prompt: &str) -> bool {
   prompt.trim_start().starts_with(NOTICE_MARK)

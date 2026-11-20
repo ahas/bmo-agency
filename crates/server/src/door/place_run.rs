@@ -482,12 +482,15 @@ pub struct RunningTask {
   pub description: String,
 }
 
+/// The place's last stop: the stop hook's call, or a stop it held.
+pub fn last_stop(place: &Path) -> Option<HookRecord> {
+  records_back::<HookRecord>(&hooks_file(place)).find(|hook| hook.kind == "stop" || hook.kind == "held")
+}
+
 /// The background tasks the place's last stop named running that no notice or stop in its background record has
 /// ended since.
 pub fn last_stop_tasks(place: &Path) -> Vec<RunningTask> {
-  let Some(stop) =
-    records_back::<HookRecord>(&hooks_file(place)).find(|hook| hook.kind == "stop" || hook.kind == "held")
-  else {
+  let Some(stop) = last_stop(place) else {
     return vec![];
   };
   let ended: std::collections::HashSet<String> = read_background(place)

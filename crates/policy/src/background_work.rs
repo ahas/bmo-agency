@@ -14,6 +14,9 @@ pub struct BackgroundWork {
   pub stop_grace_ms: u64,
   /// How long the whole ending on a stop may take.
   pub stop_bound_seconds: u64,
+  /// How long after the first stop of its session that leaves a running task out it is taken as dropped, where no
+  /// notice of it came.
+  pub gone_seconds: u64,
   pub words: BackgroundWords,
 }
 

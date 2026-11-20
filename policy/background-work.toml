@@ -16,6 +16,11 @@ result_chars = 4000
 stop_grace_ms = 2000
 stop_bound_seconds = 10
 
+# How long after the first stop of its session that leaves a running task out the task is taken as dropped by its
+# program, where no notice of it came: a notice can follow that stop by a moment, and work the program killed on
+# its own word ends with none.
+gone_seconds = 60
+
 [words]
 # What the room's wake tells the supervisor, as an order, once background work it launched in the room ended.
 # `{launched}` is when the turn launched it (the deployment's clock), `{kind}` what it was, `{description}` what

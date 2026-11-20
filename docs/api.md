@@ -768,10 +768,11 @@ Each answers `task`, the program's id for it; `kind`, `shell` or `subagent`, or 
 it; `description`, what it was launched as; `command`, a shell's command, else null; `roomId`, the room the
 launching turn was in, null for work launched in no room; `agentName`, the supervisor whose program runs it, or
 null; `launchedAt`, the moment its launch was written down, which is the stop of the turn that launched it; and
-`status`, `running` on the list. The list holds the work still running and nothing that ended, was stopped or
-was lost with its program; it narrows by `roomId`, and a value that does not read as a whole number is refused
-400. It is read from every supervisor's background record as it stands at the call, so it answers within a
-moment of a launch being written, ahead of the watch's own look.
+`status`, `running` on the list. The list holds the work still running and nothing that ended, was stopped, was
+lost with its program or was dropped by it, and nothing the background watch already settled; it narrows by `roomId`, and a value that does not read as a whole number is refused
+400. It is read from every supervisor's background record as it stands at the call, so it answers a launch within a
+moment of its being written, ahead of the watch's own look; an end the record does not hold — a notice the
+program took up without a submit, or work it dropped — leaves the list on the watch's look that settles it.
 
 ### log-lines
 
@@ -1896,7 +1897,7 @@ notice to a reader resuming too late (「events」 above), never published as an
   publishes `created` on the look that first reads the task running, a server started afresh reading it again,
   and `ended` once, on the look that finds it over, its `status` then the word its ending is told by: the word
   its notice ended on (`completed`, `failed`, `killed` or `stopped`), `stopped` where a stop of the turn ended
-  it, or `lost` where its program went without a notice.
+  it, `lost` where its program went without a notice, or `gone` where its program dropped it with none.
 - **`turn.changed`** carries what a running turn waits for (「sessions」 above): `session`, `turnId`, `run` and
   `waiting`, null as the wait clears.
 - **`road.changed`** carries one fact of a role's road (`docs/provider-order.md`, 「The facts told」),
