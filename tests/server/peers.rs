@@ -37,6 +37,7 @@ fn node(name: &str, label: &str, kind: &str, role: Option<&str>, state: &str, up
     "role": role,
     "ownership": "shared",
     "account": null,
+    "monitored": true,
     "callers": [],
     "address": format!("worker@{name}.lan"),
     "state": state,
