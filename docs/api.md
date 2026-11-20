@@ -78,14 +78,31 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   `Owner-Role`, `administrator` or `member`, the same headers it sets on every call it relays.
 - **A caller carrying no key is the deployment's own** — a unit, a tool, a job, the shell — and keeps every
   route's present behaviour. `Owner-Role: administrator` is the owner and keeps every access.
-- **A member's access to agent management is the console's.** On the routes of the five kinds — the
-  supervisors, the roles, the repositories, the registered models and the model files, the paths under
-  `/supervisors`, `/roles`, `/repositories`, `/models` and `/model-catalogue` — agency asks the account
-  service for that person's console sections, with the person's own headers, and goes on only where the
-  `agents` section allows it: a `GET` or `HEAD` needs its read, and every other method its write. A refusal is
-  403 `forbidden` with one sentence naming what was asked; a permission that could not be read because the
-  account service did not answer is 503 `access-unchecked`, so no access is guessed. Agency keeps no
-  permission of its own: the console's is the only one.
+- **A member's access to agent management is the console's.** Agent management is five kinds of route, each
+  under the console section of the agent management tab that holds it (the web's `docs/accounts.md`,
+  「Console sections」):
+
+  | Paths under | Section |
+  |---|---|
+  | `/supervisors` | `supervisors` |
+  | `/roles` | `roles` |
+  | `/repositories` | `repositories` |
+  | `/models` | `models` |
+  | `/model-catalogue` | `model-files` |
+
+  On these routes agency asks the account service for that person's console sections, with the person's own
+  headers, and goes on only where the route's section allows it: a `GET` or `HEAD` needs its read, and every
+  other method its write.
+- **The agent list is read under any part of agent management.** The console's agent management screen opens
+  on any one of its five parts the reader may read, and its shared reads open on any part read: the agent
+  list is the supervisors, the roles and the repositories read together, and an agent's own page stands under
+  those three parts. So a `GET` or `HEAD` under `/supervisors`, `/roles` or `/repositories` goes on where the
+  person may read any one of the five sections; a read under `/models` or `/model-catalogue` needs that
+  route's own section, and every change needs its own route's write. What the console reads of the agents
+  for its own bookkeeping, outside agent management's screen, carries no key and is the deployment's own.
+- A refusal is 403 `forbidden` with one sentence naming what was asked and the section it needs; a permission
+  that could not be read because the account service did not answer is 503 `access-unchecked`, so no access is
+  guessed. Agency keeps no permission of its own: the console's is the only one.
 - **A person's own supply is theirs alone** (`docs/supply.md`, 「What a person brings」). On `/fallback`,
   `/accounts`, `/claude-logins` and `/personal-supply`, a call naming a person with `Owner-Key` and
   `Owner-Role: member` acts on that person's own Claude accounts and keys alone: what it reads holds no other
