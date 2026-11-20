@@ -3358,7 +3358,9 @@ them run a browser, and whose a place is.
 - **Each idle agent is told to the orderer of every item it could take, once for each stretch.** Agency keeps
   when it first saw the agent idle; once it has stayed idle for the launch seconds (`policy/queue-idle.toml`,
   `launch_seconds`, a minute), it queues one instruction for each room the orderers of those items stand in,
-  under the kind `agent-idle:<agent>`: the agent's name, role, provider and model, and the items of that room
+  under the kind `agent-idle:<agent>@<room>`, `owner` standing for a room the orderer names none of, so two
+  rooms the receiver hands to one chat never replace each other's notice: the agent's name, role, provider and
+  model, and the items of that room
   it could take, each by number and title in the queue's order (the highest priority, then the earliest place,
   then the lowest number). The supervisor's manual says to launch the first of them on the agent or say in one
   line why not. The notice is kept while the agent stays idle and withdrawn once it is not; it is owed again
@@ -3488,7 +3490,7 @@ view and a person's room may not mend it alone.
 
 | Transition | Who is told | Through | Kind and event |
 |---|---|---|---|
-| An agent idle a minute: switched on, free, and able to take one open item at least (「An idle agent is told to the orderers of the items it could take」) | the orderer of each item it could take, one instruction to each room | instruction, kept while it stays idle, owed again where the room's items it could take change; withdrawn once it is busy or no item is left | `agent-idle:<agent>` |
+| An agent idle a minute: switched on, free, and able to take one open item at least (「An idle agent is told to the orderers of the items it could take」) | the orderer of each item it could take, one instruction to each room | instruction, kept while it stays idle, owed again where the room's items it could take change; withdrawn once it is busy or no item is left | `agent-idle:<agent>@<room>` |
 | An open item whose `model` label names a model no agent of its role, switched on, runs | the orderer | instruction, from the minute pass, at once as the owner changes an agent, and as a launch is refused; once until the item gains a candidate or names another role or model | `item-no-candidate:<item>`, `item-no-candidate:#<item>` |
 | An open item in a queue paused or under a hold | the orderer | instruction | `item-queue-paused:<item>`, `item-queue-paused:#<item>` |
 | An open item whose assignee is no checkout and no repository agency holds, so no launch ever takes it | the orderer | instruction | `item-unlaunchable:<item>`, `item-unlaunchable:#<item>` |

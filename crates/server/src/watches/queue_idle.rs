@@ -253,8 +253,11 @@ pub fn role_unknown(standing: &Standing) -> Vec<&Open> {
     .collect()
 }
 
-/// The instruction an idle agent is told with to the orderer of `items`, the room `orderer` names.
+/// The instruction an idle agent is told with to the orderer of `items`, the room `orderer` names, under a kind
+/// naming the agent and that room, `owner` where it names none: the receiver hands the owner's private room and a
+/// room naming it to one chat, where one kind would replace the other's copy.
 pub fn idle_instruction(agent: &RoleAgent, items: &[&Open], orderer: &Orderer) -> Value {
+  let room = orderer.room.map_or_else(|| "owner".to_owned(), |room| room.to_string());
   let listed: Vec<String> = items
     .iter()
     .map(|item| {
@@ -277,7 +280,7 @@ pub fn idle_instruction(agent: &RoleAgent, items: &[&Open], orderer: &Orderer) -
     "said": { "order": order },
     "agentName": Value::Null,
     "sort": "job",
-    "kind": format!("agent-idle:{}", agent.name),
+    "kind": format!("{IDLE_OWED}{}@{room}", agent.name),
     "summary": format!("The agent {} is idle", agent.name),
     "run": Value::Null,
   })
@@ -561,9 +564,9 @@ pub async fn tell_idle(
       continue;
     }
 
-    let notice = Notice::instruction(idle_instruction(agent, items, orderer), Keep::Kept)
-      .keyed(format!("{IDLE_OWED}{key}"))
-      .marked(mark.clone());
+    // Keyed by its kind, which names the agent and the room as `key` does.
+    let notice =
+      Notice::instruction(idle_instruction(agent, items, orderer), Keep::Kept).marked(mark.clone());
 
     outbox::owe(db, vars, notice).await?;
     println!("queue: the agent {} is idle and could take {mark}, owed to their orderer", agent.name);

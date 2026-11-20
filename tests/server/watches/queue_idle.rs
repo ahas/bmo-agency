@@ -262,13 +262,18 @@ fn an_idle_agent_is_told_in_its_orderer_s_room_with_its_road_and_the_room_s_item
 
   assert_eq!(
     (&told["sort"], &told["kind"], &told["room"]),
-    (&json!("job"), &json!("agent-idle:coder-a"), &json!(-9_000_000_000_003_i64))
+    (
+      &json!("job"),
+      &json!("agent-idle:coder-a@-9000000000003"),
+      &json!(-9_000_000_000_003_i64)
+    )
   );
-  assert_eq!(
-    idle_instruction(&coder_a, &[&first], &room(None))["room"],
-    Value::Null,
-    "the owner's room"
-  );
+
+  // A room naming none goes to the owner's private room under a kind of its own, so the receiver, which hands it
+  // and a room naming the owner's to one chat, never lets one replace the other.
+  let owner = idle_instruction(&coder_a, &[&first], &room(None));
+
+  assert_eq!((&owner["room"], &owner["kind"]), (&Value::Null, &json!("agent-idle:coder-a@owner")));
 
   for word in ["coder-a", "coder", "claude-code/opus", "#2265 (item 2265)", "#2268 (item 2268)"] {
     assert!(order.contains(word), "{word} in {order}");
@@ -652,7 +657,7 @@ async fn open_items_that_cannot_go_are_told_once_to_their_orderer_and_a_merged_o
   pass(db, &vars).await.unwrap();
 
   let told: BTreeMap<String, Value> = kinds(&peers).into_iter().collect();
-  let agent_idle = format!("{IDLE_OWED}{}-01", job_role());
+  let agent_idle = format!("{IDLE_OWED}{}-01@-9000", job_role());
 
   assert_eq!(kinds(&peers).len(), 4, "each told once: {:?}", kinds(&peers));
   assert_eq!(
@@ -1024,7 +1029,6 @@ async fn an_idle_agent_is_told_to_each_room_after_its_launch_seconds_again_for_a
   let (peers, vars) = stand().await;
   let role = job_role();
   let agent = format!("{role}-01");
-  let kind = format!("{IDLE_OWED}{agent}");
 
   repository(db, "worker", "/checkouts/worker", &[]).await;
   seats(db, role, &[("claude-code", "opus")]).await;
@@ -1055,7 +1059,9 @@ async fn an_idle_agent_is_told_to_each_room_after_its_launch_seconds_again_for_a
 
   assert_eq!(told.len(), 2, "one instruction a room: {told:?}");
   assert!(
-    told.iter().all(|body| body["kind"] == kind.as_str() && body["sort"] == "job"),
+    told
+      .iter()
+      .all(|body| body["kind"] == format!("{IDLE_OWED}{agent}@{}", body["room"]) && body["sort"] == "job"),
     "{told:?}"
   );
   assert_eq!(by_room.keys().collect::<Vec<_>>(), ["-9100", "-9200"]);
