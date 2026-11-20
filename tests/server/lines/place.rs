@@ -83,6 +83,46 @@ fn a_command_opening_its_session_is_compared_by_the_form_that_resumes_it() {
   assert_eq!(resumed.opened, Some(None));
 }
 
+/// a standing program whose road took an advisor is another program, started again on the session it stood on
+/// (docs/provider-order.md, 「The advisor」)
+#[test]
+fn a_standing_program_that_took_an_advisor_is_another_program_on_the_same_session() {
+  let machine = Machine::with_env([("HOME".to_owned(), "/fixture/home".to_owned())], "/data");
+  let place = Path::new("/data/agent-places/chat-agent");
+  let env = BTreeMap::from([("PATH".to_owned(), "/bin".to_owned())]);
+  let words = |advisor: Option<&str>| {
+    let mut args: Vec<String> = ["claude", "--model", "claude-sonnet-5", "--effort", "medium"]
+      .map(str::to_owned)
+      .to_vec();
+
+    if let Some(advisor) = advisor {
+      args.extend(["--advisor".to_owned(), advisor.to_owned()]);
+    }
+
+    args.extend(["--resume".to_owned(), "s1".to_owned()]);
+    args
+  };
+  let plain = resident_of(&machine, place, "/w", &words(None), &env, "s1");
+  let advised = resident_of(&machine, place, "/w", &words(Some("opus")), &env, "s1");
+
+  assert_ne!(plain.identity, advised.identity);
+  assert!(advised.resumes("s1"));
+  assert_eq!(
+    advised.restart.as_ref().unwrap().args,
+    [
+      "claude",
+      "--model",
+      "claude-sonnet-5",
+      "--effort",
+      "medium",
+      "--advisor",
+      "opus",
+      "--resume",
+      "s1"
+    ]
+  );
+}
+
 #[test]
 fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_four_hooks() {
   let dir = tempfile::tempdir().unwrap();
