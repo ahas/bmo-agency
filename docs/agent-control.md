@@ -1748,8 +1748,12 @@ execution that name owns. While a row stands, every launch under that name is re
 - **The marker is taken back.** It is the signal that ends one run, never a verdict about a name,
   and a marker left standing refuses its name for ever. Whoever asked for the stop drops every
   marker it wrote once the run it stopped is confirmed gone; every name it covers is its own, so no other
-  run's row keeps one of them standing. The reconciliation sweeps what is left: a marker past its
-  grace goes whether or not anybody was there to drop it.
+  run's row keeps one of them standing. A session's interrupt is such an asker too, the one an
+  owner's release of a slot puts to the turn of the role session bound to it among them: the backend
+  takes back the stop it put to a turn once that turn's end has been handed back, so a later turn
+  sent under the same name is never refused for it. The queue's reconciliation, each minute, sweeps
+  what is left: a marker raised more than an hour before goes whether or not anybody was there to drop
+  it.
 - **A row under a standing marker is not evidence of life.** The marker is the statement that the
   run must not be running; a row still open beneath one is reconciliation not having caught up, and
   a row whose process died without closing it would otherwise hold its marker for good. So neither

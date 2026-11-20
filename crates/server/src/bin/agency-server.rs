@@ -469,6 +469,14 @@ fn clocks(ground: &Arc<Ground>) {
         agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data)
           .await
           .map_err(|refusal| refusal.detail)?;
+        if let Err(refusal) =
+          agency_server::queue::cancels::swept(&ground.db, agency_server::now_ms()).await
+        {
+          eprintln!(
+            "queue reconciliation: the cancellations past their grace were not swept: {}",
+            refusal.detail
+          );
+        }
         agency_server::turn_pickup::reap_dead(&ground).await;
         agency_server::turn_keys::prune(&ground.db).await;
         agency_server::control::work::reap_stale(&ground)

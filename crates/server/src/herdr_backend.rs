@@ -328,6 +328,9 @@ pub struct HerdrSessions {
   // The runs cut because the slot their session was bound to was given back, each with the reason its end
   // carries.
   cut: Mutex<HashMap<String, String>>,
+  // The runs this backend put a stop to, whose cancellation it takes back once their end is handed back
+  // (docs/agent-control.md, 「What a cancellation reaches, and how long it stands」).
+  interrupted: Mutex<HashSet<String>>,
   // The agents whose one session across rooms is being replaced now, outside any turn, and the word that
   // wakes a turn waiting for one of them (docs/sessions.md, 「Session replacement」).
   replacing: Mutex<HashSet<String>>,
@@ -849,6 +852,7 @@ impl HerdrSessions {
       outputs,
       left: Mutex::default(),
       cut: Mutex::default(),
+      interrupted: Mutex::default(),
       replacing: Mutex::default(),
       replaced: tokio::sync::Notify::new(),
       settling_rooms: Mutex::default(),
@@ -2903,6 +2907,14 @@ impl HerdrSessions {
     }
 
     crate::turn_pickup::forget(&ground.db, run, "its end reached its caller").await;
+
+    // A stop this backend put to the turn is taken back now the turn is gone, so it refuses no later turn
+    // that goes out under the same name.
+    let stopped = self.interrupted.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(run);
+
+    if stopped && let Err(refusal) = crate::queue::cancels::take_back(&ground.db, run).await {
+      eprintln!("{run}: the stop put to it was not taken back: {}", refusal.detail);
+    }
   }
 
   // A turn's end published, its `ending` the word the door's last turn under the send ended on where the
@@ -3672,6 +3684,12 @@ impl Sessions for HerdrSessions {
     };
     let stops = crate::queue::stops::Stops::of(self.ground(), None);
 
+    // Named before the stop is written, so a turn that ends while it is written still takes it back.
+    self
+      .interrupted
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner())
+      .insert(running.run.clone());
     stops.cancel(&running.run).await.map_err(store_fault)?;
     Ok(())
   }

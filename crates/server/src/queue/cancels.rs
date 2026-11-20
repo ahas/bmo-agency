@@ -4,6 +4,7 @@
 //! work it was raised over has ended — the name asked for and every execution that name owns.
 
 use std::collections::BTreeSet;
+use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
@@ -61,6 +62,27 @@ pub async fn standing(db: &DatabaseConnection, rows: &[Value]) -> Result<BTreeSe
 /// Whether a cancellation stands over this name itself.
 pub async fn standing_named(db: &DatabaseConnection, name: &str) -> Result<bool, Refusal> {
   Ok(settings::get(db, &format!("{EXECUTION_CANCEL_PREFIX}{name}")).await?.is_some())
+}
+
+/// How long a marker stands before the reconciliation's sweep takes it, whether or not anybody took it
+/// back: longer than any stopped run takes to wind down.
+pub const MARKER_GRACE: Duration = Duration::from_secs(60 * 60);
+
+/// Every marker raised before `now` less the grace taken, the floor under the take-back; how many were. A
+/// marker's value is the moment it was raised, in milliseconds.
+pub async fn swept(db: &DatabaseConnection, now: i64) -> Result<u64, Refusal> {
+  let raised_before = now - i64::try_from(MARKER_GRACE.as_millis()).unwrap_or(i64::MAX);
+  let taken = all(
+    db,
+    r#"DELETE FROM "settings"
+       WHERE "key" LIKE $1 ESCAPE '\'
+         AND CASE WHEN "value" ~ '^[0-9]{1,18}$' THEN "value"::bigint END < $2
+       RETURNING "key""#,
+    vec![format!("{}%", EXECUTION_CANCEL_PREFIX.replace('_', "\\_")).into(), raised_before.into()],
+  )
+  .await?;
+
+  Ok(taken.len() as u64)
 }
 
 /// Every marker the cancellation of this name raised taken back; the names actually dropped.

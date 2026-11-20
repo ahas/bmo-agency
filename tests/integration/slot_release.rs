@@ -1,7 +1,7 @@
 //! A slot given back under a running turn (docs/role-slots.md, 「The line」): the owner's release gives back the
 //! lease at once, puts the stop to the turn running in the role session the lease was bound to, and ends that
 //! session only once its turn has ended — never under it — the turn ending `stopped` with the reason
-//! `released`.
+//! `released`, and the stop taken back once it has.
 
 use crate::integration::common;
 
@@ -172,6 +172,13 @@ async fn an_owner_s_release_under_a_running_turn_cuts_it_and_ends_its_session_on
     );
     cut.await.unwrap().unwrap();
     assert_eq!(ends.ready().map(|ended| ended.end.reason), Some(Some("released".to_owned())));
+
+    let marker =
+      agency_server::queue::settings::get(&line.db, &format!("{EXECUTION_CANCEL_PREFIX}research-9-round"))
+        .await
+        .unwrap();
+
+    assert_eq!(marker, None, "the stop is taken back once its turn has ended, refusing no later turn");
     assert_eq!(sessions.read_state(&started.id, None).await.unwrap_err().kind, FaultKind::Unknown);
   } else {
     // A turn not yet at its program reads the stop as it gets there; until then its session stands.
