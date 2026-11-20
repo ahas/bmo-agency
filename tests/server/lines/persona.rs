@@ -45,9 +45,9 @@ async fn answer(State(asked): State<Asked>, uri: Uri) -> Response {
   asked.lock().unwrap().push(format!("{path}?{query}"));
 
   match (path.as_str(), query.as_str()) {
-    ("/brains", "agentKey=held&limit=1") => brains("held", Some(5)),
-    ("/brains", "agentKey=plain&limit=1") => brains("plain", Some(6)),
-    ("/brains", "agentKey=bare&limit=1") => brains("bare", Some(7)),
+    ("/brains", "kind=agent&agentKey=held&limit=1") => brains("held", Some(5)),
+    ("/brains", "kind=agent&agentKey=plain&limit=1") => brains("plain", Some(6)),
+    ("/brains", "kind=agent&agentKey=bare&limit=1") => brains("bare", Some(7)),
     ("/brains", _) => brains("nobody", None),
     ("/brains/5/persona", "layers=persona") => ([("content-type", "text/plain")], BASE).into_response(),
     ("/brains/6/persona", "layers=persona") => {
@@ -99,7 +99,7 @@ async fn the_brain_s_base_layer_is_used_with_its_placeholders_filled() {
   );
   assert_eq!(
     *asked.lock().unwrap(),
-    ["/brains?agentKey=held&limit=1", "/brains/5/persona?layers=persona"],
+    ["/brains?kind=agent&agentKey=held&limit=1", "/brains/5/persona?layers=persona"],
     "the base layer alone is asked for"
   );
 

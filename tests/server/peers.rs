@@ -153,10 +153,14 @@ async fn answer(
     ("GET", "events") if query.as_deref().is_some_and(|query| query.contains("kinds=machine.changed")) => {
       return ([("content-type", "text/event-stream")], CHANGES).into_response();
     }
-    ("GET", "brains") if query.as_deref() == Some("agentKey=kept&limit=1") => brains(&[("kept", 5)]),
-    ("GET", "brains") if query.as_deref() == Some("agentKey=gone&limit=1") => brains(&[]),
-    ("GET", "brains") if query.as_deref() == Some("agentKey=busy&limit=1") => brains(&[("busy", 6)]),
-    ("GET", "brains") if query.as_deref() == Some("agentKey=fresh&limit=1") => brains(&[]),
+    ("GET", "brains") if query.as_deref() == Some("kind=agent&agentKey=kept&limit=1") => {
+      brains(&[("kept", 5)])
+    }
+    ("GET", "brains") if query.as_deref() == Some("kind=agent&agentKey=gone&limit=1") => brains(&[]),
+    ("GET", "brains") if query.as_deref() == Some("kind=agent&agentKey=busy&limit=1") => {
+      brains(&[("busy", 6)])
+    }
+    ("GET", "brains") if query.as_deref() == Some("kind=agent&agentKey=fresh&limit=1") => brains(&[]),
     ("POST", "brains") => json!({
       "id": 7,
       "accountKey": body["accountKey"],
@@ -349,14 +353,14 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
       .map(|call| (call.method.as_str(), call.path.as_str(), call.query.as_deref()))
       .collect::<Vec<_>>(),
     [
-      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
-      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=kept&limit=1")),
       ("DELETE", "/base/brains/5", None),
-      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=kept&limit=1")),
       ("DELETE", "/base/brains/5", None),
-      ("GET", "/base/brains", Some("agentKey=gone&limit=1")),
-      ("GET", "/base/brains", Some("agentKey=gone&limit=1")),
-      ("GET", "/base/brains", Some("agentKey=busy&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=gone&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=gone&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=busy&limit=1")),
       ("DELETE", "/base/brains/6", None)
     ]
   );
@@ -379,12 +383,15 @@ async fn a_brain_is_made_under_the_account_named_where_the_agent_keeps_none() {
       .map(|call| (call.method.as_str(), call.path.as_str(), call.query.as_deref()))
       .collect::<Vec<_>>(),
     [
-      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
-      ("GET", "/base/brains", Some("agentKey=fresh&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("kind=agent&agentKey=fresh&limit=1")),
       ("POST", "/base/brains", None)
     ]
   );
-  assert_eq!(made[2].body, json!({ "accountKey": "1", "agentKey": "fresh", "name": "Fresh one" }));
+  assert_eq!(
+    made[2].body,
+    json!({ "accountKey": "1", "agentKey": "fresh", "kind": "agent", "name": "Fresh one" })
+  );
 
   let refused = brain_at(&address, Some("  ")).brain.make("fresh", "Fresh one", None).await.unwrap_err();
 
@@ -409,7 +416,7 @@ async fn a_brain_is_filed_under_its_owner_s_account_where_the_agent_names_one() 
     assert_eq!(made, Made::Made);
     assert_eq!(
       taken(&calls).last().map(|call| call.body.clone()),
-      Some(json!({ "accountKey": "42", "agentKey": "fresh", "name": "Fresh one" }))
+      Some(json!({ "accountKey": "42", "agentKey": "fresh", "kind": "agent", "name": "Fresh one" }))
     );
   }
 }

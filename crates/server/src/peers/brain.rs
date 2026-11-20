@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use bmo_brain_client::{
-  Brain as BrainMember, BrainClient, BrainsQuery, ClientFailure, NewBrain, PersonaQuery,
+  Brain as BrainMember, BrainClient, BrainKind, BrainsQuery, ClientFailure, NewBrain, PersonaQuery,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -128,6 +128,7 @@ impl PublishedBrain {
     let asked = NewBrain {
       account_key: account,
       agent_key: agent.to_owned(),
+      kind: Some(BrainKind::Agent),
       name: Some(name.to_owned()).filter(|name| !name.is_empty()),
     };
 
@@ -136,9 +137,10 @@ impl PublishedBrain {
     Ok(Made::Made)
   }
 
-  /// The one brain registered for the agent's key, where one is.
+  /// The one agent brain registered for the agent's key, where one is; an org brain never answers for it.
   async fn find(&self, agent: &str) -> Result<Option<BrainMember>, PeerFault> {
     let query = BrainsQuery {
+      kind: Some(BrainKind::Agent),
       agent_key: Some(agent.to_owned()),
       limit: Some(1),
       ..BrainsQuery::default()

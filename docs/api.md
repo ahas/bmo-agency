@@ -2171,7 +2171,9 @@ role `administrator`, each else from the mail unit's settings file `env/mail.tom
   scoped to that agent alone, made from the hub's `JAKE_CONTROL_KEY` and never the control token
   (`docs/person-nodes.md`, 「Who reaches a node」).
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
-  and the agent's key, and never makes one by itself. A brain agency makes carries, as the account key,
+  and the agent's key, and never makes one by itself. A brain agency makes is of the kind `agent`, and an
+  agent's brain is found by its key among the brains of that kind alone, so a unit's org brain filed under
+  the same key never answers for an agent. A brain agency makes carries, as the account key,
   the id of the login account owning the agent where it names one, and otherwise the key
   `AGENCY_BRAIN_ACCOUNT` names; as the agent's key, the agent's registered name — the key the brain tool
   and the gate look a brain up by. The brain reads no meaning into the account key. With no account to

@@ -190,7 +190,7 @@ describe("POST /supervisors/{supervisorName}/resets", () => {
     expect(rowsOf(both)).toEqual({ agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(both.files.toSorted()).toEqual([...stood.home, ...stood.brainFolder].toSorted());
     expect(both.brain).toEqual({ took: counts, couldNot: [] });
-    expect(brainAsked).toEqual([{ method: "GET", path: "/brains", query: `?agentKey=${stood.agent}&limit=1` }]);
+    expect(brainAsked).toEqual([{ method: "GET", path: "/brains", query: `?kind=agent&agentKey=${stood.agent}&limit=1` }]);
 
     const conversation = await answered(ask({ agent: stood.agent, conversation: "1", alone: String(stood.alone) }));
 
@@ -233,7 +233,7 @@ describe("POST /supervisors/{supervisorName}/resets", () => {
     expect(done.brain).toEqual({ took: counts, couldNot: [] });
     expect(done.failures).toEqual([]);
     expect(brainAsked).toEqual([
-      { method: "GET", path: "/brains", query: `?agentKey=${stood.agent}&limit=1` },
+      { method: "GET", path: "/brains", query: `?kind=agent&agentKey=${stood.agent}&limit=1` },
       { method: "DELETE", path: `/brains/${BRAIN_ID}`, query: "" },
     ]);
     expect([stood.home.every((path) => existsSync(path)), stood.brainFolder.some((path) => existsSync(path))]).toEqual([true, false]);
