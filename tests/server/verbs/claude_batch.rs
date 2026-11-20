@@ -21,6 +21,13 @@ fn a_batch_opens_its_own_session_bare_of_the_machine_and_never_in_print_mode() {
 }
 
 #[test]
+fn a_batch_reads_no_memory_file_so_it_never_stops_at_the_external_imports_question() {
+  let args = batch_args("claude-sonnet-5", "high", Path::new("/tmp/system.md"), "s-1");
+
+  assert!(args.windows(2).any(|pair| pair == ["--setting-sources", ""]));
+}
+
+#[test]
 fn a_batch_is_pinned_to_the_login_named_and_no_other() {
   let process = BTreeMap::from([
     ("PATH".to_owned(), "/bin".to_owned()),

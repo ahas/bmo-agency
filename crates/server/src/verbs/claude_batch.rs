@@ -57,9 +57,11 @@ pub struct ClaudeBatch {
 }
 
 /// The program's words for one batch: safe mode, so none of the machine's instructions, hooks, plugins,
-/// skills or MCP servers ride along; no MCP configuration and no tool at all; the fixed part as the system
-/// prompt; no fallback model, so an answer is the model's named or none; and the session the run opens,
-/// which nothing resumes.
+/// skills or MCP servers ride along; no setting source, so no memory file is read and the program never
+/// stops at the external-imports question the home's own one raises (docs/agent-control.md, 「A run under
+/// a login directory stops at the external-imports question」); no MCP configuration and no tool at all;
+/// the fixed part as the system prompt; no fallback model, so an answer is the model's named or none; and
+/// the session the run opens, which nothing resumes.
 pub fn batch_args(model: &str, effort: &str, system_file: &Path, session: &str) -> Vec<String> {
   let mut args = vec![ClaudeCode::PROGRAM.to_owned()];
 
@@ -70,6 +72,8 @@ pub fn batch_args(model: &str, effort: &str, system_file: &Path, session: &str) 
       "--effort",
       effort,
       "--safe-mode",
+      "--setting-sources",
+      "",
       "--strict-mcp-config",
       "--tools",
       "",

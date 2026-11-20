@@ -2454,6 +2454,33 @@ was coming to answer and the job ended `blocked` with its report on screen.
   (`docs/api.md`, 「The harness plugin」), and an offer to install another is a question no person is
   meant to answer.
 
+### A run under a login directory stops at the external-imports question
+
+Measured. A run apart started in a folder under the home, on a login's own configuration directory, with
+the project setting source loaded stood `blocked` a few seconds after it came up, before any prompt went
+in, with its folder trusted and its login's first-run screens marked as passed. On screen:
+
+```
+ Allow external CLAUDE.md file imports?
+ ❯ No, disable external imports
+   Yes, allow external imports
+```
+
+- **The question comes from the home's own memory file.** A run handed a configuration directory of
+  its own no longer reads the home's `.claude` folder as its user configuration, so the CLI walks up from
+  the run's folder, reaches the home, and reads `.claude/CLAUDE.md` there as a project memory file. That
+  file imports documents outside the run's folder, and an import from outside the project is a question
+  the CLI puts once per folder, whatever the login's trust of the folder says. `--safe-mode` does not keep
+  it away.
+- **A run apart empties its setting sources,** and a program started with `--setting-sources ""` reads no
+  project memory file at all, so it never asks (measured: the same launch with the sources emptied came
+  straight up at its prompt, on both logins). Every run apart's words carry the emptied sources, the
+  gate's claude batch among them.
+- **The question is never answered from the screen.** Allowing the imports would hand the run the
+  machine's own instructions, which a run apart is meant to go without, and refusing them is a choice the
+  CLI keeps per folder in the login's configuration file. A run that stands at it all the same ends
+  `blocked`, as any other question nobody answers does.
+
 ### The order for putting in one turn and waiting for it to end
 
 The measured, fixed order.
