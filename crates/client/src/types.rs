@@ -1737,6 +1737,28 @@ pub struct ExecutionPage {
   pub more: bool,
 }
 
+/// BackgroundWork: one task a supervisor's program still runs in its own background after the turn that launched it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundWork {
+  pub task: String,
+  pub kind: String,
+  pub description: String,
+  pub command: Option<String>,
+  pub room_id: Option<i64>,
+  pub agent_name: Option<String>,
+  pub launched_at: i64,
+  pub status: String,
+}
+
+/// BackgroundWorkPage:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundWorkPage {
+  pub items: Vec<BackgroundWork>,
+  pub more: bool,
+}
+
 /// OvertimeRequestPage:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

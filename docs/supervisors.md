@@ -656,7 +656,8 @@ rule to.
     on it, and the program takes the process's later turns and other rooms' rounds meanwhile. The work's
     finished notice comes back to the room the turn was in as a wake of that room's own: agency hands the
     receiver an order for the supervisor in that room carrying what the notice said, and the round it opens
-    answers there. The turn the program itself opens on the notice is no round's, and nothing of it reaches a
+    answers there. Until then the work stands as running in that room: agency lists it and tells its launch and
+    its end on its stream (`docs/api.md`, 「background-work」). The turn the program itself opens on the notice is no round's, and nothing of it reaches a
     room (`docs/agent-control.md`, 「Background work on a line that carries it apart」).
 - **What lives only inside the program is lost with it.** The program's background work has no record outside
   the program that could carry it on: a session stood afresh, a program ended or stood again on another

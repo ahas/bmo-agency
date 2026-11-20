@@ -418,6 +418,7 @@ fn clocks(ground: &Arc<Ground>) {
         agency_server::watches::background_work::pass(
           &ground.db,
           ground.vars(),
+          &ground.events,
           &ground.roots.data,
           &mut watch,
         )

@@ -46,6 +46,7 @@ export type Model = Schemas["Model"];
 export type Assignment = Schemas["Assignment"];
 export type JobItem = Schemas["JobItem"];
 export type Job = Schemas["Job"];
+export type BackgroundWork = Schemas["BackgroundWork"];
 export type SessionWork = Schemas["SessionWork"];
 export type SessionLoads = Schemas["SessionLoads"];
 export type WireError = Schemas["Error"];

@@ -756,6 +756,23 @@ read as its filter's kind, is refused 400. A change naming `messageId` alone att
 leaves the run's closing as it stands. A closed run answers `counts.tools`, how many tool calls its log
 lines held as it closed; an open run's `counts` is empty.
 
+### background-work
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/background-work` | The background work every supervisor's program still runs after the turn that launched it, oldest first; by room. |
+
+A supervisor's background work is a shell command or a subagent its program put in its own background and that
+outlived the turn that launched it (`docs/agent-control.md`, 「Background work on a line that carries it apart」).
+Each answers `task`, the program's id for it; `kind`, `shell` or `subagent`, or whatever else the program names
+it; `description`, what it was launched as; `command`, a shell's command, else null; `roomId`, the room the
+launching turn was in, null for work launched in no room; `agentName`, the supervisor whose program runs it, or
+null; `launchedAt`, the moment its launch was written down, which is the stop of the turn that launched it; and
+`status`, `running` on the list. The list holds the work still running and nothing that ended, was stopped or
+was lost with its program; it narrows by `roomId`, and a value that does not read as a whole number is refused
+400. It is read from every supervisor's background record as it stands at the call, so it answers within a
+moment of a launch being written, ahead of the watch's own look.
+
 ### log-lines
 
 | Method | Path | Does |
@@ -1856,7 +1873,8 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `supervisor-reset.created`, `place.changed`, `assignment.created`,
-`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`, `supply.changed`.
+`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`, `road-walked`, `supply.changed`,
+`background-work.created`, `background-work.ended`.
 
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
@@ -1873,6 +1891,12 @@ notice to a reader resuming too late (「events」 above), never published as an
   go what waited for its turns; and the reset once agency's part is taken, `agent`, `ranges`, `alone` and
   `shared`, the rooms, `runs`, the runs its own log lines went under, `by` and `at` in epoch seconds, so each
   unit takes its own rows.
+- **`background-work.created`** and **`background-work.ended`** carry one task of a supervisor's background
+  work as `GET /background-work` answers it (「background-work」 above). The watch over the background records
+  publishes `created` on the look that first reads the task running, a server started afresh reading it again,
+  and `ended` once, on the look that finds it over, its `status` then the word its ending is told by: the word
+  its notice ended on (`completed`, `failed`, `killed` or `stopped`), `stopped` where a stop of the turn ended
+  it, or `lost` where its program went without a notice.
 - **`turn.changed`** carries what a running turn waits for (「sessions」 above): `session`, `turnId`, `run` and
   `waiting`, null as the wait clears.
 - **`road.changed`** carries one fact of a role's road (`docs/provider-order.md`, 「The facts told」),

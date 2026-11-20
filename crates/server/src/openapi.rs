@@ -931,6 +931,23 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "GET",
+    path: "/background-work",
+    id: "listBackgroundWork",
+    tag: "background-work",
+    summary: "The background work supervisors' programs still run.",
+    params: &[Param {
+      name: "roomId",
+      place: "query",
+      required: false,
+      kind: "integer",
+      description: "",
+    }],
+    body: None,
+    answers: &[(200, Some("BackgroundWorkPage"), false)],
+    codes: &["bad-request"],
+  },
+  Operation {
+    method: "GET",
     path: "/overtime-requests",
     id: "listOvertimeRequests",
     tag: "overtime-requests",
@@ -3101,6 +3118,8 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "AgentLogPage" => g.subschema_for::<AgentLogPage>(),
     "ExecutionPage" => g.subschema_for::<ExecutionPage>(),
     "OvertimeRequestPage" => g.subschema_for::<OvertimeRequestPage>(),
+    "BackgroundWork" => g.subschema_for::<BackgroundWork>(),
+    "BackgroundWorkPage" => g.subschema_for::<BackgroundWorkPage>(),
     "SeatRequestPage" => g.subschema_for::<SeatRequestPage>(),
     "ReservationPage" => g.subschema_for::<ReservationPage>(),
     "PlacePage" => g.subschema_for::<PlacePage>(),
@@ -3204,7 +3223,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 37] = [
+pub const EVENTS: [&str; 39] = [
   "supervisor.changed",
   "role.changed",
   "session.created",
@@ -3242,6 +3261,8 @@ pub const EVENTS: [&str; 37] = [
   "job.ended",
   "road-walked",
   "supply.changed",
+  "background-work.created",
+  "background-work.ended",
 ];
 
 /// The upstreams this service reaches, through what each repository publishes.

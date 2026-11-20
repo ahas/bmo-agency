@@ -3,10 +3,14 @@
 //! record is read as it grows: a task launched under a room is told to that room once, as an order for its
 //! supervisor through the outbox, when its notice ends it, when a stop ended it, or when its program is gone
 //! without a notice; and while it runs, its calls are held to the call clock, each cut written down so the
-//! room's wake can say why.
+//! room's wake can say why. What still runs is answered as room state, and its launch and its end are told on
+//! the stream (docs/api.md, 「background-work」).
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use bmo_agency_client::BackgroundWork;
 
 use policy::background_work::BACKGROUND_WORK;
 use policy::fill_marks;
@@ -15,11 +19,12 @@ use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::door::place_run::{BackgroundLine, Launch, background_file, transcript_since};
+use crate::door::place_run::{BackgroundLine, Launch, background_file, read_background, transcript_since};
 use crate::door::record::{TaskNotice, shells_left};
 use crate::door::tool_clock::{
   BackgroundCall, BackgroundClock, BackgroundCut, Owns, ToolClock, subagent_uses,
 };
+use crate::events::{Bus, Named};
 use crate::lines::place::{Place, places_dir};
 use crate::outbox::{self, Keep, Notice};
 
@@ -120,6 +125,81 @@ impl Task {
       Some(started_at) if started_at <= self.launch.at => None,
       _ => Some(Came::Lost),
     })
+  }
+}
+
+/// The word a task stands by once it came to be as `came` says: the word its notice ended on, `stopped` where a
+/// stop ended it, `lost` where its program went without a notice.
+pub fn ending_word(task: &Task, came: &Came) -> String {
+  match came {
+    Came::Ended => task.notice.as_ref().and_then(|notice| notice.status.clone()).unwrap_or_default(),
+    Came::Stopped => "stopped".to_owned(),
+    Came::Lost => "lost".to_owned(),
+  }
+}
+
+/// A task as `GET /background-work` and its events answer it, standing by `status`.
+pub fn member(task: &Task, status: &str) -> BackgroundWork {
+  let launch = &task.launch;
+
+  BackgroundWork {
+    task: launch.task.clone(),
+    kind: launch.kind.clone(),
+    description: launch.description.clone(),
+    command: launch.command.clone(),
+    room_id: launch.room.as_deref().and_then(|room| room.parse().ok()),
+    agent_name: launch.agent.clone(),
+    launched_at: launch.at,
+    status: status.to_owned(),
+  }
+}
+
+/// The word a task still running stands by.
+pub const RUNNING: &str = "running";
+
+// The places under the data root that hold a background record, each by its agent.
+fn recorded_places(data_root: &Path) -> Vec<Place> {
+  let Ok(entries) = std::fs::read_dir(places_dir(data_root)) else { return vec![] };
+
+  entries
+    .flatten()
+    .map(|entry| entry.path())
+    .filter(|path| background_file(path).exists())
+    .filter_map(|path| path.file_name().and_then(|name| name.to_str()).map(str::to_owned))
+    .map(|agent| Place::of(data_root, &agent))
+    .collect()
+}
+
+/// The background work every place's program still runs, oldest first, of `room` alone where one is named.
+pub fn running_work(data_root: &Path, room: Option<i64>) -> Vec<BackgroundWork> {
+  let mut work: Vec<BackgroundWork> = recorded_places(data_root)
+    .iter()
+    .flat_map(|place| {
+      let started_at = place.program_alive().map(|running| running.started_at as i64);
+
+      tasks_of(&read_background(&place.path))
+        .into_values()
+        .filter(move |task| task.came(started_at).is_none())
+        .map(|task| member(&task, RUNNING))
+    })
+    .filter(|work| room.is_none() || work.room_id == room)
+    .collect();
+
+  work
+    .sort_by(|one, other| one.launched_at.cmp(&other.launched_at).then_with(|| one.task.cmp(&other.task)));
+  work
+}
+
+// One task told on the stream under `kind`.
+fn tell(events: &Bus, kind: &'static str, work: &BackgroundWork) {
+  match serde_json::to_value(work) {
+    Ok(body) => events.publish_named(Named {
+      id: 0,
+      at: 0,
+      name: Cow::Borrowed(kind),
+      body,
+    }),
+    Err(why) => eprintln!("background work: task {} was not told as {kind}: {why}", work.task),
   }
 }
 
@@ -274,8 +354,8 @@ pub fn calls_of(task: &Task) -> Vec<BackgroundCall> {
   in_flight.chain(left).collect()
 }
 
-/// What the watch holds between passes: how far it has read each place's record, the tasks read so far, and the
-/// clock over each place's program.
+/// What the watch holds between passes: how far it has read each place's record, the tasks read so far, the tasks
+/// it has told the stream are running, and the clock over each place's program.
 #[derive(Debug, Default)]
 pub struct Watch {
   places: BTreeMap<PathBuf, Read>,
@@ -285,6 +365,7 @@ pub struct Watch {
 struct Read {
   offset: u64,
   lines: Vec<BackgroundLine>,
+  running: BTreeSet<String>,
   clock: BackgroundClock,
 }
 
@@ -314,39 +395,31 @@ fn grown(path: &Path, offset: u64) -> Option<(Vec<BackgroundLine>, u64, bool)> {
   Some((lines, from + whole as u64, again))
 }
 
-/// One pass over every place under the data root that holds a background record.
+/// One pass over every place under the data root that holds a background record: what ended told to its room
+/// through the outbox, and every launch and end told on `events`.
 pub async fn pass(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
+  events: &Bus,
   data_root: &Path,
   watch: &mut Watch,
 ) {
-  let Ok(entries) = std::fs::read_dir(places_dir(data_root)) else { return };
-
-  for entry in entries.flatten() {
-    let path = entry.path();
-
-    if !background_file(&path).exists() {
-      continue;
-    }
-
-    let Some(agent) = path.file_name().and_then(|name| name.to_str()).map(str::to_owned) else {
-      continue;
-    };
-
-    look_at(db, vars, &Place::of(data_root, &agent), watch).await;
+  for place in recorded_places(data_root) {
+    look_at(db, vars, events, &place, watch).await;
   }
 }
 
 async fn look_at(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
+  events: &Bus,
   place: &Place,
   watch: &mut Watch,
 ) {
   let read = watch.places.entry(place.path.clone()).or_insert_with(|| Read {
     offset: 0,
     lines: vec![],
+    running: BTreeSet::new(),
     clock: BackgroundClock::new(ToolClock::from(&TOOL_CLOCK.call)),
   });
 
@@ -369,7 +442,13 @@ async fn look_at(
 
   for (id, task) in &tasks {
     match task.came(started_at) {
-      None => running.extend(calls_of(task)),
+      None => {
+        if read.running.insert(id.clone()) {
+          tell(events, "background-work.created", &member(task, RUNNING));
+        }
+
+        running.extend(calls_of(task));
+      }
       Some(_) if kept.told.contains(id) => {}
       Some(came) => {
         let cuts = kept.cuts.get(id).cloned().unwrap_or_default();
@@ -391,6 +470,8 @@ async fn look_at(
         }
 
         kept.told.insert(id.clone());
+        read.running.remove(id);
+        tell(events, "background-work.ended", &member(task, &ending_word(task, &came)));
       }
     }
   }

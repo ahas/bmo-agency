@@ -543,6 +543,23 @@ export interface paths {
         patch: operations["changeExecution"];
         trace?: never;
     };
+    "/background-work": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The background work supervisors' programs still run. */
+        get: operations["listBackgroundWork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/overtime-requests": {
         parameters: {
             query?: never;
@@ -2666,6 +2683,24 @@ export interface components {
         };
         /** @description The body that cancels an execution or takes the cancel back, which reads nothing. */
         ExecutionChange: Record<string, never>;
+        /** @description BackgroundWorkPage: */
+        BackgroundWorkPage: {
+            items: components["schemas"]["BackgroundWork"][];
+            more: boolean;
+        };
+        /** @description BackgroundWork: one task a supervisor's program still runs in its own background after the turn that launched it. */
+        BackgroundWork: {
+            task: string;
+            kind: string;
+            description: string;
+            command: string | null;
+            /** Format: int64 */
+            roomId: number | null;
+            agentName: string | null;
+            /** Format: int64 */
+            launchedAt: number;
+            status: string;
+        };
         /** @description OvertimeRequestPage: */
         OvertimeRequestPage: {
             items: components["schemas"]["OvertimeRequest"][];
@@ -6646,6 +6681,30 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listBackgroundWork: {
+        parameters: {
+            query?: {
+                roomId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackgroundWorkPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listOvertimeRequests: {

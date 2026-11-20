@@ -70,7 +70,9 @@
     "job.changed",
     "job.ended",
     "road-walked",
-    "supply.changed"
+    "supply.changed",
+    "background-work.created",
+    "background-work.ended"
   ],
   "tags": [
     {
@@ -111,6 +113,9 @@
     },
     {
       "name": "executions"
+    },
+    {
+      "name": "background-work"
     },
     {
       "name": "overtime-requests"
@@ -2346,6 +2351,48 @@
             }
           }
         }
+      }
+    },
+    "/background-work": {
+      "get": {
+        "operationId": "listBackgroundWork",
+        "tags": [
+          "background-work"
+        ],
+        "summary": "The background work supervisors' programs still run.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundWorkPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "parameters": [
+          {
+            "name": "roomId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
       }
     },
     "/overtime-requests": {
@@ -9828,6 +9875,76 @@
       "ExecutionChange": {
         "type": "object",
         "description": "The body that cancels an execution or takes the cancel back, which reads nothing."
+      },
+      "BackgroundWorkPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackgroundWork"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "BackgroundWorkPage:"
+      },
+      "BackgroundWork": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "launchedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "kind",
+          "description",
+          "command",
+          "roomId",
+          "agentName",
+          "launchedAt",
+          "status"
+        ],
+        "description": "BackgroundWork: one task a supervisor's program still runs in its own background after the turn that launched it."
       },
       "OvertimeRequestPage": {
         "type": "object",

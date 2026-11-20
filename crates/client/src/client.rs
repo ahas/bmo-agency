@@ -239,6 +239,13 @@ pub struct ListOvertimeRequestsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ListBackgroundWorkQuery {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub room_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListReservationsQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub owner: Option<String>,
@@ -551,6 +558,11 @@ impl AgencyClient {
   }
 
   /// `GET /overtime-requests`: Runs asking for more time.
+  /// `GET /background-work`: The background work supervisors' programs still run.
+  pub async fn list_background_work(&self, query: &ListBackgroundWorkQuery) -> Answer<BackgroundWorkPage> {
+    Self::answered(self.request(Method::GET, &["background-work"]).query(query)).await
+  }
+
   pub async fn list_overtime_requests(
     &self,
     query: &ListOvertimeRequestsQuery,

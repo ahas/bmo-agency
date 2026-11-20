@@ -5,6 +5,7 @@
 mod account_routes;
 mod agent_roles;
 mod agent_sampling;
+mod background_work;
 mod base_prompts;
 pub mod borrowings;
 mod catalogues;

@@ -1056,6 +1056,10 @@ turn reads」 says, the job's turn among them, unchanged.
   out there through the draft process. A notice that ends nothing, such as one saying a task was resumed,
   tells nothing, and a task told is told once whatever later notice comes for it. A task with no room keeps
   the rule every notice had: it opens a turn no round carries.
+- **While it runs, it is read as room state.** `GET /background-work` answers every task with its room that no
+  notice, stop or loss has ended, and each look that first reads a task running, or finds it over, publishes
+  `background-work.created` or `background-work.ended` (`docs/api.md`, 「background-work」), so a screen of the
+  room stands the work from the turn's end until its wake.
 - **Work lost with its program is told once.** The work lives only inside the program. A task with a room
   whose notice never came while its program is gone — the place names no program alive, or one started after
   the task was launched, which is a program ended, stood afresh or stood again on another command — is told
