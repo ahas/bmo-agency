@@ -138,6 +138,8 @@ impl PublishedGate {
       people_spoke: false,
       answered: None,
       records: false,
+      // No room, so no audience: the gate reads it as the internal one a turn with no situation is.
+      audience: None,
     };
 
     self.client.reference(&ask).await.map(|answer| answer.entries).map_err(fault)
