@@ -829,20 +829,27 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
 }
 
+// "asked to speak, the supervisor says its own answer aloud with speak, makes any other sound with voice/generate as
+// a file that moves no face, leaves the spoken words to the voice unit, and takes no tool call in a briefing turn"
 #[test]
-fn the_manual_sends_no_voice_note_and_leaves_the_spoken_words_to_the_voice_unit() {
+fn the_manual_speaks_with_speak_generates_other_sounds_and_keeps_a_briefing_turn_tool_free() {
   let system = composed();
   let voice = section(&system, "A LINE FOR THE VOICE");
 
   for said in [
-    "You send no voice note",
-    "is refused, since its words go into your round's message",
-    "handed to that room's supervisor as words",
-    "derives the spoken words itself",
+    "bmo use bmo/speak --arg emotion=",
+    "goes out as a voice note in your voice",
+    "your face speaks it",
+    "The voice unit derives how each word is said",
+    "speak is refused with the road's reason",
+    "bmo use voice/generate --arg voiceName=",
+    "your face does not move for it",
+    "your own voice speaks only through speak",
+    "That turn takes no tool call",
   ] {
     assert!(voice.contains(said), "{said}: {voice}");
   }
-  for gone in ["--spoken", "bmo talk"] {
+  for gone in ["You send no voice note", "--spoken", "bmo talk"] {
     assert!(!voice.contains(gone), "{gone}: {voice}");
   }
   assert!(!voice.contains('"'), "a rule, with no sentence for the agent to repeat: {voice}");

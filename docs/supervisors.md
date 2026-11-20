@@ -198,9 +198,16 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **It is filed under the supervisor's own number and name** on a road that speaks for several speakers;
   which supervisor is the road's own voice, naming no speaker, is the receiver's setting.
 - **Only a supervisor's own round sends, and no send carries words.** Words reach a room only as a round's
-  message, which the draft process reviews: a line, a spoken line, a voice note or a caption the round asks
-  into its own room is refused, and one it asks into another room is handed to that room's supervisor, whose
-  round there writes and reviews it. A send anything else asks — a job, a role's run, a person at a shell, a
+  message, which its instruction stages review: a line, a spoken line, a voice note file or a caption the round
+  asks into its own room is refused, and one it asks into another room is handed to that room's supervisor,
+  whose round there writes and reviews it.
+- **A supervisor asked to say something aloud says its round's message in its own voice.** Its round asks the
+  send tool's `speak`, and the message, reviewed as every message is, goes out as a voice note in the voice its
+  row names, the voice unit speaking it as the supervisor speaking as itself, which its face plays (the
+  receiver's `docs/voiced-notices.md`, 「An answer said aloud」). Any other sound, another voice or words read in
+  a voice not its own, it makes with the voice unit's `voice/generate`, reached through the chat line's `voice`
+  namespace, and sends as a file: generated media, which no face plays. The manual's 「A LINE FOR THE VOICE」
+  says when each fits and that a voice briefing turn takes no tool call. A send anything else asks — a job, a role's run, a person at a shell, a
   script — goes out nowhere: the receiver hands it to the room's supervisor as a quiet instruction, and that
   supervisor says it as its round's message or lets it go (the receiver's `docs/messages.md`, 「Words handed
   to the room's supervisor」).
