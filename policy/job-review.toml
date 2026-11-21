@@ -15,7 +15,7 @@ work_order_longest_ms = 60000
 work_order_wait = "it waits for item #{item}'s work order, which could not be read: {why}"
 # What the orderer is told: `{job}`, `{item}`, `{worker}`, `{stage}`, `{round}`, `{rejections}`, `{language}`,
 # `{check}`, `{requirement}`, `{heading}`, `{words}` and `{moves}`.
-review_order = "The job {job} of item #{item} on {worker} is under review: {stage}, round {round}, its work sent back {rejections} times so far. {language}\n\nThe check due now is {check}: {requirement}\n\n{heading}\n\n{words}\n\nGive the verdict by calling review_job on job {job} with one of its actions: {moves}. The call alone is the verdict. Write nothing in the room's reply for it, neither an action's name nor an account of the verdict: writing nothing keeps whatever reply the round already stands on, and words the round carries from the room are answered as they would be without this instruction."
+review_order = "The job {job} of item #{item} on {worker} is under review: {stage}, round {round}, its work sent back {rejections} times so far. {language}\n\nThe check due now is {check}: {requirement}\n\n{heading}\n\n{words}\n\nGive the verdict by calling review_job on job {job} with one of its actions: {moves}. The call alone is the verdict, and the room's reply says nothing of it, neither an action's name nor an account of the verdict. Where this instruction came into a turn that already wrote a reply, answer <<KEEP>> after the call to keep that reply as it is, never an empty answer, which reads as no answer at all; words the round carries from the room are answered as they would be without this instruction. Where it came in a round of its own and nothing is for the room, answer <<SKIP: <why>>>."
 # The language the run writes its results for a person in, as the order names it (docs/job-review.md, 「The
 # checks」): on a registration that names the languages it writes, `{model}` the registration and `{languages}`
 # its languages; on every other road, the brief's language.
@@ -24,6 +24,9 @@ result_language_brief = "Its results for a person are written in the language it
 moves_early = "`ask`, `reject` or `pass`"
 moves_open = "`ask`, `reject`, `pass` or `escalate`"
 report_heading = "The worker's report:"
+# What a later check of a round examining the same report is told in the report's place, its words told once a
+# round with the first check (docs/job-review.md, 「The checks」): `{item}`.
+report_unchanged = "The same report this round's first check was told with, unchanged. Where your session no longer holds it, job_reviews on item #{item} reads it."
 answer_heading = "The worker's answer to your question:"
 ruling_heading = "The owner's word on it:"
 # The stage named in an order and on the owner's question: `{stage}`, `{stages}` and `{step}`.

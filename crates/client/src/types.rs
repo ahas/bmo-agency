@@ -2033,6 +2033,34 @@ pub struct JobReview {
   pub parked: bool,
 }
 
+/// JobReviewed: where a job stands after its orderer's move, as `POST /job-reviews` answers it: nothing of its
+/// report, its steps or its spend, which the review's instruction told or a read of the job answers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobReviewed {
+  pub id: i64,
+  pub item_id: i64,
+  pub state: JobState,
+  /// Where its review stands now.
+  pub review: ReviewPosition,
+}
+
+/// ReviewPosition: where a job's review stands, without its steps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewPosition {
+  /// The stage under way counted from 1, or none for the final report.
+  pub stage: Option<i64>,
+  /// How many stages the job runs in, 1 for a job of one stage.
+  pub stages: i64,
+  pub round: i64,
+  /// The check due now, kept while a question of it is out; none while a work turn runs.
+  pub check: Option<String>,
+  pub rejections: i64,
+  /// The owner's question while the work waits on it.
+  pub question: Option<i64>,
+}
+
 /// JobRoad: one road a job's turn went out on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

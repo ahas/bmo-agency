@@ -258,8 +258,10 @@ fn id_of(member: &Value) -> i64 {
 
 /// What the room's supervisor is told: an order carrying the item, the worker, the state and the report;
 /// where the job ended holding a lease, the lease that still stands on the item. The order carries no
-/// instruction: the supervisor's manual says how to relay an end and close its item. A job that left no
-/// report says so.
+/// instruction: the supervisor's manual says how to relay an end and close its item. A job that ended `ended`
+/// had its report passed by its review, whose checks told it to the same supervisor, so the order names that
+/// report and the item it stands on instead of carrying its words (docs/job-review.md, 「The job's end」); a job
+/// that ended any other way carries its report whole, and one that left none says so.
 pub fn order(member: &Value) -> String {
   let item = member["itemId"].as_i64().unwrap_or_default();
   let worker = member["workerName"].as_str().unwrap_or_default();
@@ -273,10 +275,18 @@ pub fn order(member: &Value) -> String {
     (state, Some(outcome)) => format!("{state}, its outcome {outcome}"),
     (state, None) => state.to_owned(),
   };
-  let mut text = format!(
-    "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}",
-    report.unwrap_or("The run left no report; its end is all there is to tell.")
-  );
+  let reviewed = state == "ended" && outcome.is_none() && report.is_some();
+  let mut text = if reviewed {
+    format!(
+      "The job of item #{item} on worker {worker} {ended}.\n\nIts report is the one its review passed, which \
+       the review's checks told you; job_reviews on item #{item} reads it again."
+    )
+  } else {
+    format!(
+      "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}",
+      report.unwrap_or("The run left no report; its end is all there is to tell.")
+    )
+  };
 
   if keeps_lease(member) {
     let lease = member["leaseId"].as_i64().unwrap_or_default();

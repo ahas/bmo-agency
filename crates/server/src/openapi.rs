@@ -1447,7 +1447,7 @@ pub const OPERATIONS: &[Operation] = &[
     summary: "Examine a job's report under review, for the turn an agent is carrying now: ask the worker, send the work back, pass the check due, or put the work to the owner once it was sent back as often as the review's ceiling.",
     params: &[],
     body: Some("JobReviewAsk"),
-    answers: &[(200, Some("Job"), false)],
+    answers: &[(200, Some("JobReviewed"), false)],
     codes: &[
       "bad-request",
       "no-turn",
@@ -3168,6 +3168,8 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "AssignmentPage" => g.subschema_for::<AssignmentPage>(),
     "JobItem" => g.subschema_for::<JobItem>(),
     "Job" => g.subschema_for::<Job>(),
+    "JobReviewed" => g.subschema_for::<JobReviewed>(),
+    "ReviewPosition" => g.subschema_for::<ReviewPosition>(),
     "JobPage" => g.subschema_for::<JobPage>(),
     "JobPrompt" => g.subschema_for::<JobPrompt>(),
     "GithubEvent" => g.subschema_for::<serde_json::Value>(),

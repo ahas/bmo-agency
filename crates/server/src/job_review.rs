@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
-use bmo_agency_client::JobReviewAsk;
+use bmo_agency_client::{JobReviewAsk, JobReviewed, ReviewPosition};
 use policy::fill_marks;
 use policy::job_notices::JOB_NOTICES;
 use policy::job_review::JOB_REVIEW;
@@ -519,22 +519,32 @@ pub async fn result_language(db: &DatabaseConnection, road: Option<&Resumed>) ->
 /// The prefix of the key a job's check is owed under, its item's number after it.
 pub const CHECK_OWED: &str = "job-review:";
 
-/// What the words a check is told with are: the report, the worker's answer to the orderer's question, or the
-/// owner's word.
+/// What the words a check is told with are: the report, the worker's answer to the orderer's question, the
+/// owner's word, or the report a check before it in the same round was told with, which a later check names
+/// rather than carries (docs/job-review.md, 「The checks」).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum Heard {
   Report,
   Answer,
   Ruling,
+  Unchanged,
 }
 
 impl Heard {
   fn heading(self) -> &'static str {
     match self {
-      Self::Report => &JOB_REVIEW.report_heading,
+      Self::Report | Self::Unchanged => &JOB_REVIEW.report_heading,
       Self::Answer => &JOB_REVIEW.answer_heading,
       Self::Ruling => &JOB_REVIEW.ruling_heading,
+    }
+  }
+
+  // The words the check is told with: those it was handed, or the line naming the report told before.
+  fn words(self, item: i64, words: &str) -> String {
+    match self {
+      Self::Unchanged => fill_marks(&JOB_REVIEW.report_unchanged, &[("item", &item.to_string())]),
+      _ => words.to_owned(),
     }
   }
 }
@@ -572,6 +582,7 @@ async fn tell_check(
   words: &str,
 ) {
   let heading = heard.heading();
+  let words = heard.words(standing.item, words);
 
   if Receiver::of(vars).is_none() {
     eprintln!("job {id}: its review was not told: no receiver is named");
@@ -601,7 +612,7 @@ async fn tell_check(
       ("check", &check),
       ("requirement", requirement),
       ("heading", heading),
-      ("words", words),
+      ("words", &words),
       ("moves", moves),
     ],
   );
@@ -855,8 +866,30 @@ impl Route for ReviewJob {
 
     let member = acted(ground, sessions, &ask.agent_name, ask.job_id, action, &text, ask.stage).await?;
 
-    Ok(answer(StatusCode::OK, member))
+    Ok(answer(StatusCode::OK, json!(reviewed(&member)?)))
   }
+}
+
+/// Where a job stands after its orderer's move, as the move answers it (docs/job-review.md, 「What the orderer
+/// may do」): its id, item and state and its review's position, with nothing of its report, its steps or its
+/// spend, which the review's instruction told or a read of the job answers.
+fn reviewed(member: &Value) -> Result<JobReviewed, Refused> {
+  let review = &member["review"];
+  let read = |why: serde_json::Error| Refused::failed(format!("the job as it stands was not read: {why}"));
+
+  Ok(JobReviewed {
+    id: member["id"].as_i64().unwrap_or_default(),
+    item_id: member["itemId"].as_i64().unwrap_or_default(),
+    state: serde_json::from_value(member["state"].clone()).map_err(read)?,
+    review: ReviewPosition {
+      stage: review["stage"].as_i64(),
+      stages: review["stages"].as_array().map_or(0, Vec::len).max(1) as i64,
+      round: review["round"].as_i64().unwrap_or_default(),
+      check: review["check"].as_str().map(str::to_owned),
+      rejections: review["rejections"].as_i64().unwrap_or_default(),
+      question: review["question"].as_i64(),
+    },
+  })
 }
 
 crate::moved!(ReviewJob);
@@ -1016,18 +1049,19 @@ async fn passed(
 ) -> Result<(), Refused> {
   let db = &ground.db;
 
+  // The next check of the round examines the report its first check was told with, so it names that report
+  // rather than carrying its words again (docs/job-review.md, 「The checks」).
   if let Some(next) = JOB_REVIEW.after(check) {
     standing.check = Some(next.name.clone());
-    let words = standing.words.clone().unwrap_or_default();
 
     run(
       db,
       r#"UPDATE "jobs" SET "review_check" = $1, "review_told" = $3 WHERE "id" = $2"#,
-      vec![next.name.clone().into(), id.into(), Told::now(Heard::Report, &words).into()],
+      vec![next.name.clone().into(), id.into(), Told::now(Heard::Unchanged, "").into()],
     )
     .await?;
 
-    tell_check(&ground.db, ground.vars(), id, &standing, Heard::Report, &words).await;
+    tell_check(&ground.db, ground.vars(), id, &standing, Heard::Unchanged, "").await;
 
     return Ok(());
   }

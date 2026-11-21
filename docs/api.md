@@ -1673,8 +1673,11 @@ service.
   - a job that is not `reviewing` is 409 `not-reviewing`, and one naming no job 404 `no-job`;
   - `escalate` while the job's work was sent back fewer times than the review policy's ceiling is 409
     `escalation-early`, and every action while the owner's question on it waits is 409 `awaits-owner`;
-  - it answers 200 with the job as it stands after the move, its `review` naming where its review stands;
-    a turn the move asks for runs apart from the answer, as a launch does.
+  - it answers 200 with where the job stands after the move (`JobReviewed`): its `id`, `itemId` and `state`,
+    and `review`, its review's position — `stage`, `stages` (how many there are), `round`, `check`,
+    `rejections` and `question` as below — and nothing of its report, its steps or its spend, which the
+    review's instruction told or a read of the job answers; a turn the move asks for runs apart from the
+    answer, as a launch does.
   Every job answers `review`: `stages`, the steps it runs in order, empty for a job of one stage; `stage`, the
   stage under way counted from 1, or null for the final report; `round`; `check`, the check due now, kept
   while a question of it is out and null while a work turn runs; `rejections`; `question`, the owner's question while the work waits on it, else null; and
@@ -1718,8 +1721,11 @@ service.
   (`docs/job-review.md`, 「The job's end」); however a job ends, agency queues the job's report for the item's
   orderer through the receiver's `POST /instructions`: an order under the sort `job` in the orderer's room,
   naming the requester of the item the orderer was found on, and carrying the item, the repository, the role,
-  the outcome and the report whole, under the kind `job-ended:<item>` and the event `job-ended:#<item>`; an
-  ended job's order names the lease that still stands on the item, which the close ends. Agency owes it in its
+  the outcome and the report, under the kind `job-ended:<item>` and the event `job-ended:#<item>`; an
+  ended job's order names the lease that still stands on the item, which the close ends. The report goes
+  whole only where no review examined it — a job stopped, failed or blocked; a job that ended `ended`, whose
+  report its review passed and so told the orderer already, has its order name that report and the item it
+  stands on instead (`docs/job-review.md`, 「The job's end」). Agency owes it in its
   outbox until the receiver takes it, and owes the end of a job whose notice a restart of agency cut off once the
   policy's grace has passed (`docs/agent-control.md`, 「An item's change is told to its orderer」); the receiver
   keeps the instruction until a turn takes it, so a chat session being replaced when the job ended loses nothing.

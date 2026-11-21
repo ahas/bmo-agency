@@ -721,7 +721,7 @@ impl AgencyClient {
   }
 
   /// `POST /job-reviews`: Examine a job's report under review, for the turn an agent is carrying now.
-  pub async fn create_job_reviews(&self, body: &JobReviewAsk) -> Answer<Job> {
+  pub async fn create_job_reviews(&self, body: &JobReviewAsk) -> Answer<JobReviewed> {
     Self::answered(self.request(Method::POST, &["job-reviews"]).json(body)).await
   }
 

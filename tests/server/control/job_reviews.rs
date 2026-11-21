@@ -269,7 +269,8 @@ async fn the_checks_pass_one_at_a_time_and_a_job_of_one_stage_ends_after_its_las
   let (status, member) = review(port, agent, 22, "pass", None).await;
 
   assert_eq!(status, 200, "{member}");
-  assert_eq!((&member["state"], &member["report"]), (&json!("ended"), &json!("All of it is done.")));
+  assert_eq!(member["state"], "ended", "{member}");
+  assert_eq!(read(port, 22).await["report"], "All of it is done.");
   assert_eq!(call(port, reqwest::Method::GET, "/assignments/22", None).await.1["state"], "released");
 
   // A job no longer under review takes no move.
@@ -280,17 +281,21 @@ async fn the_checks_pass_one_at_a_time_and_a_job_of_one_stage_ends_after_its_las
 }
 
 // The review tool reads the route's answer through the agency's own client: a move that leaves the job under
-// review answers a job the client reads, standing `reviewing` with the check due next, and the move is made once.
+// review answers where the job stands, `reviewing` with the check due next and nothing of its report, and the
+// move is made once. The report's words are told once a round: the round's next check names the report the
+// first was told with instead of carrying it again (docs/job-review.md, 「The checks」).
 #[tokio::test(flavor = "multi_thread")]
-async fn a_move_that_leaves_the_job_under_review_answers_a_job_the_client_reads() {
+async fn a_move_answers_where_the_job_stands_and_the_round_s_next_check_names_the_report_told_before() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
-  let (ground, peers, _) = ground_on_peers(&scratch, home.path()).await;
+  let (ground, peers, vars) = ground_on_peers(&scratch, home.path()).await;
   let port = front(ground.clone()).await;
   let agent = "client-reviewing-agent";
+  let report = "All of it is done: the guard is mended and its test passes.";
 
-  running(&scratch, "worker-c", 26, 66, &[]).await;
-  agency_server::job_review::reported(&ground, 26, "All of it is done.", None).await;
+  peers.lock().unwrap().items.insert(66, item(66, "leased", json!({ "roomId": -5 })));
+  running(&scratch, "worker-c", 26, 66, &["Investigate", "Implement"]).await;
+  agency_server::job_review::reported(&ground, 26, report, None).await;
   carrying(agent, "run-c1");
 
   let client = AgencyClient::new(&format!("http://127.0.0.1:{port}"), TOKEN).unwrap();
@@ -303,8 +308,11 @@ async fn a_move_that_leaves_the_job_under_review_answers_a_job_the_client_reads(
   };
   let job = client.create_job_reviews(&ask).await.unwrap();
 
-  assert_eq!((job.id, job.state), (26, JobState::Reviewing));
-  assert_eq!((job.review.check.as_deref(), job.review.round), (Some("decisions"), 1));
+  assert_eq!((job.id, job.item_id, job.state), (26, 66, JobState::Reviewing));
+  assert_eq!(
+    (job.review.check.as_deref(), job.review.round, job.review.stage, job.review.stages),
+    (Some("decisions"), 1, Some(1), 2)
+  );
 
   let passes: Vec<Value> = peers
     .lock()
@@ -317,6 +325,41 @@ async fn a_move_that_leaves_the_job_under_review_answers_a_job_the_client_reads(
 
   assert_eq!(passes.len(), 1, "{passes:?}");
   assert_eq!(passes[0]["labels"]["check"], "promises");
+
+  // The first check of the round carried the report whole; the second names it, carrying none of its words.
+  send_due(scratch.db(), &vars).await.unwrap();
+
+  let orders: Vec<String> = peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .iter()
+    .filter(|told| told["kind"] == "job-review:66")
+    .map(|told| told["said"]["order"].as_str().unwrap_or_default().to_owned())
+    .collect();
+  let decisions = orders.iter().find(|order| order.contains("The check due now is decisions")).unwrap();
+
+  assert!(!decisions.contains(report), "{decisions}");
+  assert!(
+    decisions.contains(
+      "The worker's report:\n\nThe same report this round's first check was told with, unchanged. Where your \
+       session no longer holds it, job_reviews on item #66 reads it."
+    ),
+    "{decisions}"
+  );
+
+  // The route's own answer carries the job's position alone: no report, no steps and no spend.
+  let (status, member) = review(port, agent, 26, "pass", None).await;
+
+  assert_eq!(status, 200, "{member}");
+  let mut fields: Vec<&String> = member.as_object().unwrap().keys().collect();
+
+  fields.sort();
+  assert_eq!(fields, ["id", "itemId", "review", "state"]);
+  assert_eq!(
+    member["review"],
+    json!({ "stage": 2, "stages": 2, "round": 1, "check": null, "rejections": 0, "question": null })
+  );
   turn_marks::ended(agent, "run-c1");
 }
 
@@ -352,8 +395,9 @@ async fn a_rejection_is_counted_and_a_stage_passed_hands_the_next_one_over() {
 
   assert_eq!(status, 200, "{member}");
   assert_eq!((&member["review"]["stage"], &member["review"]["round"]), (&json!(2), &json!(1)));
+  assert_eq!(member["review"]["stages"], 2);
   assert_eq!(
-    member["review"]["stages"],
+    read(port, 24).await["review"]["stages"],
     json!(["Change the screen", "Check it with the design skill"])
   );
   // The second stage goes out as a turn the way the rework did; it is waited out, so no turn of it still holds the
@@ -736,13 +780,15 @@ async fn a_check_owed_across_a_cut_receiver_and_a_restart_names_the_run_s_result
     order.contains("The worker's report:\n\nThe work is done, reported in English."),
     "{order}"
   );
-  // The verdict is the call alone, so the order asks nothing to be written in the room's reply for it.
+  // The verdict is the call alone: a reply the round stands on is kept with the keep mark, never with an empty
+  // answer, which reads as no answer at all.
   assert!(
     order.contains(
       "Give the verdict by calling review_job on job 27 with one of its actions: `ask`, `reject` or `pass`. \
-       The call alone is the verdict. Write nothing in the room's reply for it,"
+       The call alone is the verdict, and the room's reply says nothing of it"
     ),
     "{order}"
   );
+  assert!(order.contains("answer <<KEEP>> after the call to keep that reply as it is"), "{order}");
   assert!(!order.contains("<<SKIP>>"), "{order}");
 }

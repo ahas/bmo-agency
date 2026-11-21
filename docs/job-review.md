@@ -102,6 +102,11 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
   owner's word. It closes by naming the actions open on the check and saying that the verdict is the
   `review_job` call alone, so nothing is written in the room's reply for it (「What the orderer may do」). The
   supervisor writes its own questions from what it read; nothing composes them for it.
+- **A report's words are told once a round,** with the first check of the round. A later check of the same
+  round that examines the same report carries none of its words: it says that the report is the one the
+  round's first check was told with, unchanged, and that `job_reviews` reads it again where the session no
+  longer holds it. An answer to a question and the owner's word are told whole with the check they come to,
+  since nothing told them before.
 - **The result language is the run's road's:** read off the road the job's last turn answered on. A run on a
   registration that names the languages it writes (`docs/own-llm.md`, 「What a registration holds」) writes its
   results in the brief's language where that is one of them and in English otherwise, and the instruction says
@@ -136,9 +141,14 @@ The orderer gives its verdict on each instruction by calling `review_job` (`POST
 - **The call is the verdict, and the room's reply carries nothing for it:** no action's name and no account of
   the verdict. The instruction may come into a round that is already writing a reply to the room, as words
   pushed into a working turn (`docs/agent-control.md`, 「Words that arrive while a turn is working」), and the
-  receiver keeps the reply that round stands on where nothing is written after the push. So the instruction
-  tells the supervisor to write nothing for the verdict, and never to answer with a mark that sends nothing,
-  which would drop that reply.
+  receiver keeps the reply that round stands on where the answer after the push is its keep mark,
+  `<<KEEP>>`. So the instruction tells the supervisor to answer `<<KEEP>>` where it has nothing to add, never an
+  empty answer, which a turn's door reads as a turn that wrote no answer, and never a mark that sends
+  nothing, which would drop that reply; and, where the instruction came in a round of its own with nothing for
+  the room, a skip naming why.
+- **The call answers where the job now stands, and nothing of its report:** the job's id, its item, its state
+  and its review's position — the stage, how many stages there are, the round, the check due, the rejections
+  and the owner's question — so the verdict's answer never carries the words the instruction already told.
 - **Any reason to send the work back sends it back.** While the job's work has been sent back fewer times than
   the review policy's ceiling, ten (`policy/job-review.toml`, `escalate_after`), `escalate` is refused 409
   `escalation-early`: the supervisor's only moves are to ask, to send it back or to pass it, and the manual
@@ -240,6 +250,8 @@ The orderer gives its verdict on each instruction by calling `review_job` (`POST
 
 - **Once the last report passes, the job ends `ended`** with that report as its report, and its end is told to
   the orderer as `job-ended` (`docs/api.md`, 「assignments and jobs」): its assignment released, its slot given
-  back, its lease kept for the item's close. The supervisor closes the item as its procedure says.
-- **A job that ends any other way** — stopped, failed, blocked — ends as before, its review left as it stood on
-  the item.
+  back, its lease kept for the item's close. The notice names that report as the one the review passed and the
+  item it stands on, and carries none of its words, which the review's checks already told; `job_reviews` or
+  the item reads it again. The supervisor closes the item as its procedure says.
+- **A job that ends any other way** — stopped, failed, blocked — ends with its review left as it stood on the
+  item, and its notice carries its report whole, since no check examined it.

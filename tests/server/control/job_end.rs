@@ -40,16 +40,35 @@ fn member(report: Option<&str>, outcome: Option<&str>) -> Value {
   })
 }
 
+// A job its review took had its report told by the review's checks, so its end names that report and the item
+// rather than carrying it again (docs/job-review.md, 「The job's end」).
 #[test]
-fn the_order_carries_the_item_the_worker_and_the_report_whole() {
+fn an_ended_job_s_order_names_the_report_its_review_passed_and_carries_none_of_it() {
   let said = order(&member(Some("The change landed in commit abc123.\n\nWhat is left: a deploy."), None));
 
   assert!(said.contains("item #2224"));
   assert!(said.contains("worker bmo-agency"));
-  assert!(said.contains("The change landed in commit abc123."));
-  assert!(said.contains("What is left: a deploy."));
-  assert!(said.contains("Its report, as the run left it:"));
+  assert!(!said.contains("The change landed in commit abc123."), "{said}");
+  assert!(said.contains("Its report is the one its review passed"), "{said}");
+  assert!(said.contains("job_reviews on item #2224 reads it again."), "{said}");
   assert_no_instruction(&said);
+}
+
+// A job no review examined — one stopped, failed or blocked — carries its report whole.
+#[test]
+fn a_job_that_ended_unreviewed_carries_its_report_whole() {
+  let mut stopped = member(
+    Some("Stopped on the owner's word.\n\nThe branch holds the work so far."),
+    Some("stopped"),
+  );
+
+  stopped["state"] = json!("stopped");
+
+  let said = order(&stopped);
+
+  assert!(said.contains("Its report, as the run left it:"), "{said}");
+  assert!(said.contains("Stopped on the owner's word."));
+  assert!(said.contains("The branch holds the work so far."));
 }
 
 #[test]
@@ -87,7 +106,12 @@ fn the_instruction_names_the_item_as_queue_news_and_the_room_the_job_answers() {
   assert_eq!(body["events"], json!(["job-ended:#2224"]));
   assert_eq!(body["run"], 5938);
   assert_eq!(body["summary"], "The job of item #2224 ended");
-  assert!(body["said"]["order"].as_str().unwrap().contains("done"));
+  assert!(
+    body["said"]["order"]
+      .as_str()
+      .unwrap()
+      .contains("The job of item #2224 on worker bmo-agency ended.")
+  );
 }
 
 #[derive(Clone, Debug)]
@@ -224,7 +248,7 @@ async fn an_ended_job_keeps_its_lease_through_the_close_and_its_item_never_passe
 
     let order = told.body["said"]["order"].as_str().unwrap();
 
-    assert!(order.contains("The work is done."));
+    assert!(order.contains("Its report is the one its review passed"), "{order}");
     assert!(order.contains("lease 64"), "the order names the lease its close ends: {order}");
   }
 

@@ -3799,7 +3799,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Job"
+                  "$ref": "#/components/schemas/JobReviewed"
                 }
               }
             }
@@ -12481,6 +12481,83 @@
         ],
         "description": "JobStopAsk: a job a supervisor stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
       },
+      "JobReviewed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "review": {
+            "$ref": "#/components/schemas/ReviewPosition",
+            "description": "Where its review stands now."
+          }
+        },
+        "required": [
+          "id",
+          "itemId",
+          "state",
+          "review"
+        ],
+        "description": "JobReviewed: where a job stands after its orderer's move, as `POST /job-reviews` answers it: nothing of its\nreport, its steps or its spend, which the review's instruction told or a read of the job answers."
+      },
+      "ReviewPosition": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The stage under way counted from 1, or none for the final report."
+          },
+          "stages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many stages the job runs in, 1 for a job of one stage."
+          },
+          "round": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "check": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The check due now, kept while a question of it is out; none while a work turn runs."
+          },
+          "rejections": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "question": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The owner's question while the work waits on it."
+          }
+        },
+        "required": [
+          "stage",
+          "stages",
+          "round",
+          "check",
+          "rejections",
+          "question"
+        ],
+        "description": "ReviewPosition: where a job's review stands, without its steps."
+      },
       "JobReviewAsk": {
         "type": "object",
         "properties": {
@@ -17648,7 +17725,7 @@
         "$ref": "#/components/schemas/ReviewJob"
       },
       "output": {
-        "$ref": "#/components/schemas/Job"
+        "$ref": "#/components/schemas/JobReviewed"
       },
       "route": "POST /job-reviews"
     },

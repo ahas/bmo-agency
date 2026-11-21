@@ -40,7 +40,7 @@ pub const TOOLS: [Tool; 6] = [
     name: "review_job",
     description: REVIEW_JOB,
     input: "ReviewJob",
-    output: "Job",
+    output: "JobReviewed",
     route: "POST /job-reviews",
   },
   Tool {

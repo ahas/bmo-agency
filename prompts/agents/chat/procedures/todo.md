@@ -338,7 +338,8 @@ and the agency's own:
   hourly flush puts them live, since the flush reads neither, and carry on from here when the owner's word comes.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
-  whole on the item.
+  whole on the item. An end its review took carries no report of its own: it is the one your review passed,
+  read again with `job_reviews` where your session no longer holds it.
 - **A question the run asks** comes to you first (`question-for-supervisor`); read it with `job_question`
   and its replies with `job_replies`, and settle it yourself, talk it over with the job, or put it to the
   owner, as the manual's judgement of a job's question says. A question you ask the owner yourself is
@@ -363,7 +364,8 @@ and the agency's own:
   job, the stage and its step, the round, how many times the work was sent back, the language the run writes its
   results for a person in, the check due now with what it requires, and the words to examine — the worker's
   report, its answer to your question, or the owner's word. One check comes at a time, in order: `promises`,
-  then `decisions`.
+  then `decisions`. A report's words come once a round, with its first check: the next check of the round names
+  the same report as unchanged, and `job_reviews` reads it again where your session no longer holds it.
 - **A report in the language the instruction names is in the right language.** A run on a model that writes only
   some languages writes its results in English where the brief names a language outside them, and the person
   reads them through a translation shown beside them: such a report is never sent back for being English.
@@ -376,9 +378,12 @@ and the agency's own:
     stage with `stage`: its step is handed over again with your words as what is to be done, and the stages
     after it follow again once it passes. The console shows each stage's rejections on its step;
   - `pass`, with what you found, where nothing does.
-- **The call alone is the verdict.** Write nothing in the room's reply for it, neither the action's name nor an
-  account of it: writing nothing keeps whatever reply the round already stands on, and words the round carries
-  from the room are answered as they would be without the review.
+- **The call alone is the verdict.** The room's reply says nothing of it, neither the action's name nor an
+  account of it. Where the instruction came into a turn that already wrote a reply, answer <<KEEP>> after the
+  call to keep that reply as it stands, never an empty answer, which reads as no answer at all; where it came
+  in a round of its own with nothing for the room, answer <<SKIP: <why>>>. Words the round carries from the room
+  are answered as they would be without the review. The call answers where the job now stands, its state and
+  its review's position, and nothing of its report.
 - **`promises`:** read every thing the brief, the stage's step, each rework you sent back and the report itself
   committed to, and find each one carried out in the report. Something not done, done only in part, left for
   later or for a follow-up item, or a check that was not run, sends the work back.
@@ -477,7 +482,9 @@ and the agency's own:
 - **`job-review-parked`:** a job whose work waits on the owner's question gave its checkout up after the question
   went unanswered for its due time. Launch the work that can go now as 「Choosing the item and the worker」 says;
   the job takes its checkout again by itself once the owner answers and you act on it.
-- **`job-ended`:** a job's end and its report. Relay it as 「The run, its report and its close」 says. A
+- **`job-ended`:** a job's end, with its report whole where no review examined it — a job stopped, failed or
+  blocked — and, for a job its review took, naming the report the review passed. Relay it as 「The run, its
+  report and its close」 says. A
   job that failed in a room other than the owner's own is told in the owner's private room as well.
 - **`job-failed`:** in the owner's private room, a job that ended failed or blocked in another room, which its
   own room's supervisor has as `job-ended`. Say it to the owner in one line with the item, the worker and the

@@ -3576,6 +3576,43 @@ export interface components {
             reason: string;
         };
         /**
+         * @description JobReviewed: where a job stands after its orderer's move, as `POST /job-reviews` answers it: nothing of its
+         *     report, its steps or its spend, which the review's instruction told or a read of the job answers.
+         */
+        JobReviewed: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            itemId: number;
+            state: components["schemas"]["JobState"];
+            /** @description Where its review stands now. */
+            review: components["schemas"]["ReviewPosition"];
+        };
+        /** @description ReviewPosition: where a job's review stands, without its steps. */
+        ReviewPosition: {
+            /**
+             * Format: int64
+             * @description The stage under way counted from 1, or none for the final report.
+             */
+            stage: number | null;
+            /**
+             * Format: int64
+             * @description How many stages the job runs in, 1 for a job of one stage.
+             */
+            stages: number;
+            /** Format: int64 */
+            round: number;
+            /** @description The check due now, kept while a question of it is out; none while a work turn runs. */
+            check: string | null;
+            /** Format: int64 */
+            rejections: number;
+            /**
+             * Format: int64
+             * @description The owner's question while the work waits on it.
+             */
+            question: number | null;
+        };
+        /**
          * @description JobReviewAsk: a supervisor's move on a job's report under review, for the turn it carries now; the agent is the
          *     one its harness plugin was started for (docs/job-review.md, 「What the orderer may do」).
          */
@@ -7694,7 +7731,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Job"];
+                    "application/json": components["schemas"]["JobReviewed"];
                 };
             };
             400: components["responses"]["BadRequest"];

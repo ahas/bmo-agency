@@ -32,6 +32,8 @@ pub struct JobReview {
   pub moves_open: String,
   /// The heading of a report under review.
   pub report_heading: String,
+  /// What a later check of a round is told in the place of the report its first check was told with: `{item}`.
+  pub report_unchanged: String,
   /// The heading of an answer under review.
   pub answer_heading: String,
   /// The heading of the owner's word under review.

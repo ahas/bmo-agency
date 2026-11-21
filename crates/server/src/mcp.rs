@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use bmo_agency_client::{
   AgencyClient, Answer, ApiError, AssignWorker, Assignment, AssignmentChange, AssignmentState,
-  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobStopAsk, REVIEW_JOB,
-  ReleaseWorker, ReviewJob, RunJob, STOP_JOB, StopJob,
+  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobReviewed, JobStopAsk,
+  REVIEW_JOB, ReleaseWorker, ReviewJob, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -174,7 +174,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
       },
     ));
 
-    tools.push(tool::<ReviewJob, Job, _, _>(
+    tools.push(tool::<ReviewJob, JobReviewed, _, _>(
       "review_job",
       REVIEW_JOB,
       "POST /job-reviews",
