@@ -127,10 +127,17 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   person may not read:
   - it reads the day's traces by the day's date — the calendar, the Outlook day on the person's own PC,
     the mail they sent, the files they changed, the approvals, the Teams talks they stand in, the TODO
-    items closed or reported for them — and keeps of each a reference alone, never its content;
-  - it drafts the day's entries from them, finding each one's work, and shows them all in one
-    confirmation card, with the drafts already standing and one question of what was finished and how
-    much is left;
+    items closed or reported for them — and keeps of each a reference alone, never its content, and reads
+    the person's attendance for the day: the hours worked, leave, a half day, a trip and overtime;
+  - it drafts the day's entries from them, finding each one's work, each with its time in half hours
+    and its activity, the day's drafts adding up to the hours attendance says were worked and the time
+    after the working day drafted as overtime, so the weekly and monthly reports are filled from what
+    the person confirms and nobody draws hour blocks by hand; and shows them all in one confirmation
+    card, with the drafts already standing, the day's hours against attendance's and one question of
+    what was finished and how much is left;
+  - on the last working day of the person's week the same message carries next week's plan, hours by
+    work and day drafted from what is due, planned or repeating next week and from their meetings,
+    which stays a draft only they read until they confirm it;
   - nothing becomes a record but what the person confirms: a confirmed draft is confirmed as corrected,
     a rejected one withdrawn, and an unanswered one stays a draft and comes back with the next day's
     question;
