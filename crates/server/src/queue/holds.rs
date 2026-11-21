@@ -1,6 +1,7 @@
 //! What holds a checkout now (docs/api.md, 「assignments and jobs」): an assignment `held` or `running`, or a
 //! job at work in it. `POST /assignments`, a job's borrowing and the queue's notices read a checkout as free by
-//! this one reading, and the assignments whose hold has ended are released before any of them reads it.
+//! this one reading, and the assignments whose hold has ended are released before any of them reads it. Its
+//! half of jobs at work is what a checkout's dev server and the running workers are read by.
 
 use sea_orm::DatabaseConnection;
 use store::{all, one, run};
@@ -15,10 +16,23 @@ use crate::places::loan_branch;
 /// borrowed from another repository.
 pub const JOB_HOLDER: &str = "job:";
 
+// The checkouts a job is at work in, one row a job: starting, running, or under review with its checkout kept,
+// through every stage and round and the pauses between their turns. A macro, so the holding reading below is
+// put together from it at compile time.
+macro_rules! at_work {
+  () => {
+    r#"SELECT "worker_name" FROM "jobs"
+   WHERE "state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")"#
+  };
+}
+
+const AT_WORK: &str = at_work!();
+
 // The checkouts held now, one row a hold: every assignment held or running, and every job at work.
-const HOLDING: &str = r#"SELECT "worker_name" FROM "assignments" WHERE "state" IN ('held', 'running')
-  UNION ALL SELECT "worker_name" FROM "jobs"
-   WHERE "state" IN ('starting', 'running') OR ("state" = 'reviewing' AND NOT "review_parked")"#;
+const HOLDING: &str = concat!(
+  r#"SELECT "worker_name" FROM "assignments" WHERE "state" IN ('held', 'running') UNION ALL "#,
+  at_work!()
+);
 
 /// The assignments whose hold has ended, released: a running one whose job has ended, one lent to a job that gave
 /// its checkout up, given back, and a held one a newer assignment of the same item follows, since an item is held on one checkout
@@ -137,8 +151,31 @@ pub async fn is_free<C: sea_orm::ConnectionTrait>(db: &C, checkout: &str) -> Res
 
 /// The checkouts something holds now, by name.
 pub async fn held_checkouts(db: &DatabaseConnection) -> Result<Vec<String>, Refusal> {
+  names(db, HOLDING).await
+}
+
+/// Whether a job is at work in a checkout now, in any stage or round of it (docs/worker-bench.md, 「It stands
+/// only while a job runs」).
+pub async fn job_at_work(db: &DatabaseConnection, checkout: &str) -> Result<bool, Refusal> {
+  let at_work = one(
+    db,
+    &format!(r#"SELECT 1 AS "at_work" FROM ({AT_WORK}) w WHERE w."worker_name" = $1 LIMIT 1"#),
+    vec![checkout.into()],
+  )
+  .await?;
+
+  Ok(at_work.is_some())
+}
+
+/// The checkouts a job is at work in now, by name.
+pub async fn checkouts_at_work(db: &DatabaseConnection) -> Result<Vec<String>, Refusal> {
+  names(db, AT_WORK).await
+}
+
+// The checkouts a reading of checkout rows names, each once.
+async fn names(db: &DatabaseConnection, rows: &str) -> Result<Vec<String>, Refusal> {
   Ok(
-    all(db, &format!(r#"SELECT DISTINCT "worker_name" FROM ({HOLDING}) h"#), vec![])
+    all(db, &format!(r#"SELECT DISTINCT "worker_name" FROM ({rows}) h"#), vec![])
       .await?
       .iter()
       .filter_map(|row| row.try_get::<String>("", "worker_name").ok())

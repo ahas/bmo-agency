@@ -1,6 +1,6 @@
 //! The file locks agency's server holds, as the TypeScript side's file lock in `packages/support` does
-//! (docs/worker-bench.md, 「It stands only while a job of the worker runs」): one file per checkout, per job
-//! hold, per agent's program and per worker's dev pane under the data root's `locks/`, held by `flock`, so
+//! (docs/worker-bench.md, 「It stands only while a job of the worker runs」): one file per checkout, per agent's
+//! program and per worker's dev pane under the data root's `locks/`, held by `flock`, so
 //! a lock of a process that died is no lock at all.
 
 use std::fs::{File, OpenOptions};
@@ -48,11 +48,6 @@ pub fn lock_path(data_root: &Path, name: &str) -> PathBuf {
 /// The lock an agent's one program is held under while a turn or a stand-in of it runs.
 pub fn agent_lock_path(data_root: &Path, agent: &str) -> PathBuf {
   lock_path(data_root, &format!("agent:{agent}"))
-}
-
-/// The lock a job's runner holds for the whole job, beside the checkout's own lock.
-pub fn job_hold_path(data_root: &Path, cwd: &str) -> PathBuf {
-  lock_path(data_root, &format!("job-hold:{cwd}"))
 }
 
 /// A worker's pane lock beside the checkouts' locks, named by the worker, so two workers pointed at one

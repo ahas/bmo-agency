@@ -20,8 +20,8 @@ use serde_json::json;
 use tokio::io::AsyncReadExt;
 
 use super::{Answer, VerbError};
-use crate::places::{AgentRow, Ground, dev, locks, process_table};
-use crate::queue::settings;
+use crate::places::{AgentRow, Ground, dev, process_table};
+use crate::queue::{holds, settings};
 
 /// The process group the dev server was last started in, so a pane that died without tidying up does not
 /// leave a server holding the port the next one needs.
@@ -123,9 +123,11 @@ async fn end_group(group: i32) {
   }
 }
 
-// Whether a job of the worker holds its checkout's job hold.
-fn job_held(ground: &Ground, row: &AgentRow) -> bool {
-  locks::held(&locks::job_hold_path(&ground.roots.data, &ground.checkout_of(row)))
+// Whether a job is at work in the worker's checkout, in any stage or round of it.
+async fn job_at_work(ground: &Ground, worker: &str) -> Result<bool, VerbError> {
+  holds::job_at_work(&ground.db, worker)
+    .await
+    .map_err(|refusal| VerbError::Refused(refusal.detail))
 }
 
 /// What `bmo-agency dev-server` is asked.
@@ -171,7 +173,7 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
   }
 
   // The server stands only while a job of the worker runs, so with none the pane would close again at once.
-  if !job_held(&ground, &row) {
+  if !job_at_work(&ground, worker).await? {
     return Err(refused(&words.no_job, &[("worker", worker)]));
   }
 
@@ -201,7 +203,7 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
       break Some(now);
     }
 
-    if !bench.asked() || !job_held(&ground, &row) {
+    if !bench.asked() || !job_at_work(&ground, worker).await? {
       break None;
     }
 
@@ -258,7 +260,7 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
       .iter()
       .find(|one| one.pid == leader)
       .map_or_else(|| members.iter().map(|one| one.age_seconds).max().unwrap_or(0), |one| one.age_seconds);
-    let job = if job_held(&ground, &row) { &words.job_running } else { &words.no_job };
+    let job = if job_at_work(&ground, &row.name).await? { &words.job_running } else { &words.no_job };
 
     count += 1;
     kilobytes += held;
@@ -656,10 +658,9 @@ impl Pane {
       || self.ground.source.to_string_lossy().into_owned(),
       |row| self.ground.checkout_of(row),
     );
-    // Every worker's server runs only while a job of it holds its checkout's job hold and has asked for
-    // it, since a dev console nobody looks at would hold gigabytes for nothing. A support worker runs its
-    // base's command.
-    let job_over = !locks::held(&locks::job_hold_path(&self.ground.roots.data, &cwd));
+    // Every worker's server runs only while a job is at work in its checkout and has asked for it, since a
+    // dev console nobody looks at would hold gigabytes for nothing. A support worker runs its base's command.
+    let job_over = !job_at_work(&self.ground, &self.worker).await?;
     let asked = self.bench.asked();
     let command = match &row {
       Some(row) if row.kind == "worker" && !job_over && asked && !row.resting => {

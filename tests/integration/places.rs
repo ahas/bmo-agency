@@ -299,7 +299,6 @@ async fn a_worker_is_settled_its_dev_pane_follows_its_row_and_comes_back_only_fo
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
   let checkout = bench.home.path().join("checkout");
-  let support = bench.home.path().join("checkout-w2");
   // A job's request for the checkout's dev server, as the start verb leaves it.
   let wanted = |worker: &str| bench.data().join("workbench").join(worker).join("dev-server.wanted");
   let ask = |worker: &str| {
@@ -364,17 +363,23 @@ async fn a_worker_is_settled_its_dev_pane_follows_its_row_and_comes_back_only_fo
   dev::settle(bench.ground(), "w").await;
   assert_eq!(herdr.commands_of("agent", "w"), [bench.head("w")]);
 
-  // Put back after herdr came back: only the checkout a job holds, a support checkout running its
+  // Put back after herdr came back: only the checkout a job is at work in, a support checkout running its
   // repository's command.
   bench
     .scratch
     .run(r#"UPDATE "repositories" SET "dev_command" = 'nuxi dev' WHERE "name" = 'w'"#, vec![])
     .await;
-
-  let hold = locks::try_hold(&locks::job_hold_path(&bench.data(), &support.to_string_lossy())).unwrap();
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "started_at", "prompt")
+         VALUES (1, 1, 'tester', 1, 'w-w2', 'running', 1, 'the item')"#,
+      vec![],
+    )
+    .await;
 
   dev::dev_panes(bench.ground()).await;
-  drop(hold);
 
   assert!(
     herdr

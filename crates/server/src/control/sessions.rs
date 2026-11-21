@@ -26,9 +26,9 @@ use super::{Call, Refused, Route, answer, canonical_agent, whole};
 use crate::conversational::Scope;
 use crate::hooks::Hooks;
 use crate::now_ms;
+use crate::places::Ground;
 use crate::places::follow::RoomTitle;
-use crate::places::{Ground, locks};
-use crate::queue::workers;
+use crate::queue::{holds, workers};
 
 // The word a writer outside this process says once it has written an ask that clears at once.
 pub const TELL: &str = "session-resets";
@@ -63,18 +63,16 @@ impl Running {
   }
 }
 
-/// Which workers have a job running now: each whose checkout's job hold is held, which a job's runner
-/// holds for the whole job. A worker on a node is read as running, since this machine holds no lock of its;
-/// none where the workers could not be read.
+/// Which workers have a job running now: each a job is at work in, in any stage or round of it. A worker on a
+/// node is read as running, so a reset of it waits for its next job; none where the workers could not be read.
 pub async fn running_workers(ground: &Ground) -> Option<Vec<String>> {
   let workers = workers::workers(&ground.db, &ground.source).await.ok()?;
+  let at_work = holds::checkouts_at_work(&ground.db).await.ok()?;
 
   Some(
     workers
       .into_iter()
-      .filter(|worker| {
-        worker.node.is_some() || locks::held(&locks::job_hold_path(&ground.roots.data, &worker.cwd))
-      })
+      .filter(|worker| worker.node.is_some() || at_work.contains(&worker.name))
       .map(|worker| worker.name)
       .collect(),
   )

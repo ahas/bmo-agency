@@ -260,13 +260,17 @@ Each repository holds three things beside the work of its jobs:
   - **Why:** a console dev server holds two to three gigabytes once its pages have been opened, and
     one stood up for every job, the many that never open the console included, ran the machine out
     of memory with five of them standing.
-- **What counts as a job running:** the job hold, a lock of the checkout's own that the job's runner
-  holds beside the checkout's job lock for the whole job. Nothing but a job's runner takes it, and it
-  goes with the runner's process, so a runner that died holds nothing.
-- **Why not the job lock:** a fold and a worker ask take the checkout's job lock too, for as long as each
-  runs, and neither looks at what a dev server serves.
-- **The job ends, the server ends:** once no job holds the hold, the pane stops the server, removes the
-  request and closes itself; the next job starts it again where it needs it.
+- **What counts as a job running:** a job at work in the checkout, read as a checkout's hold reads one
+  (`docs/api.md`, 「assignments and jobs」): a job of that checkout `starting` or `running`, or `reviewing`
+  unparked. So it counts through every stage and every review round, the pauses between their turns
+  included, and stops counting once the job ends or gives its checkout up while the owner's word is awaited
+  (`docs/job-review.md`, 「The owner's word」). A job whose execution went away is ended stopped by agency
+  (`docs/api.md`, 「assignments and jobs」), and then counts no more.
+- **Why not a lock:** a job's turns run in sessions of their own, one after another, with no process
+  standing for the whole job, and the checkout's job lock is taken by a fold and a worker ask too, which
+  never look at what a dev server serves.
+- **The job ends, the server ends:** once no job is at work in the checkout, the pane stops the server,
+  removes the request and closes itself; the next job starts it again where it needs it.
 - **No clock ends it:** a server stands for as long as the job that asked for it runs and has not
   taken the request back, however long that is. Its age and how long it has gone unasked end nothing.
 
@@ -289,7 +293,7 @@ Each repository holds three things beside the work of its jobs:
 - **Where:** each checkout has one fixed workspace of its own holding one dev-server tab, whose pane runs
   `bmo-agency dev-server pane` with the checkout's name.
 - **Why apart from the run's pane:** a job's run stands in a pane of its own that closes with the run
-  (`docs/agents.md`, 「A run in a pane of its own」), while the dev server's life is the job hold's, so it
+  (`docs/agents.md`, 「A run in a pane of its own」), while the dev server's life is the job's, so it
   stands in a workspace that outlives every run.
 - **Only while the dev server does:** the sweep of herdr closes a checkout's workspace whole once neither a
   dev-server pane nor a run at work is in it, a support worktree's past its repository's present count
@@ -326,7 +330,7 @@ Each repository holds three things beside the work of its jobs:
     whose command has ended.
   - So editing the field alone changes or brings down the dev server.
 - **Follows the job and its use.**
-  - On every look it also asks whether a job holds the checkout's job hold, whether the request still
+  - On every look it also asks whether a job is at work in the checkout, whether the request still
     stands, and whether the machine is short of memory, and while it is, whether a client is on the
     server.
   - No job, no request, or memory short with no client on the server stops the server, removes the
@@ -341,7 +345,8 @@ Each repository holds three things beside the work of its jobs:
 - **A pane stands only where the request stands** (「It stands only while a job runs」);
   everywhere else setting it up closes any pane it finds.
 - **Called at five moments:**
-  1. When agency's server starts, for every checkout a job holds of a repository with a dev-server command.
+  1. When agency's server starts, for every checkout a job is at work in of a repository with a dev-server
+     command.
   2. When the herdr subscription is reattached. If herdr died and came back, the pane front's process is
      dead.
   3. Right after agency's repository routes change a repository's dev-server command, for its checkouts a
@@ -382,8 +387,8 @@ Each repository holds three things beside the work of its jobs:
 
 - **No run token:** the dev-server pane has none.
 - **So it is outside the run bookkeeping:** it is not in the picture that tracks liveness, not in the run
-  list a run writes, and takes no lock a job waits on; it only reads the job hold.
-- **Tied to the job by the hold alone:** it outlives no job; a job never starts a second server beside it
+  list a run writes, and takes no lock a job waits on; it only reads whether a job is at work in the checkout.
+- **Tied to the job by that alone:** it outlives no job; a job never starts a second server beside it
   and never ends the pane, but starts, restarts and stops the server through the verb (below).
 
 ### A job starts, restarts and stops it
@@ -392,12 +397,12 @@ Each repository holds three things beside the work of its jobs:
   in the preamble header, since a job's checkout may be any repository's.
 - **`start`:**
   1. Refuses a name that is no checkout, a checkout whose repository has no dev-server command
-     (`docs/worker-slots.md`), or a checkout no job holds.
+     (`docs/worker-slots.md`), or a checkout no job is at work in.
   2. Leaves the request in the workbench folder, which counts as use as well.
   3. Brings the dev-server pane to the row, as agency does, so a pane that is missing is started.
   4. Where a live server stands already, says so at once. Otherwise waits until the pid file names a
      live process group, then prints it and the log's path. Where the request is taken away or the job
-     hold let go before one stands — the pane closed, or the job ended — it prints the log's tail and
+     stops being at work before one stands — the pane closed, or the job ended — it prints the log's tail and
      fails.
 - **`restart`:** the same, with a restart request left beside the request, and the wait is for a
   process group other than the one standing.

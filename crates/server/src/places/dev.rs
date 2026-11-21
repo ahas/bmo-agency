@@ -156,10 +156,13 @@ pub async fn dev_panes(ground: &Ground) {
     Err(refusal) => return eprintln!("dev servers: {}", refusal.detail),
   };
 
-  for worker in &workers {
-    let held = locks::held(&locks::job_hold_path(&ground.roots.data, &ground.checkout_of(worker)));
+  let at_work = match crate::queue::holds::checkouts_at_work(&ground.db).await {
+    Ok(at_work) => at_work,
+    Err(refusal) => return eprintln!("dev servers: {}", refusal.detail),
+  };
 
-    if held && matches!(dev_command(ground, worker).await, Ok(Some(_))) {
+  for worker in workers.iter().filter(|worker| at_work.contains(&worker.name)) {
+    if matches!(dev_command(ground, worker).await, Ok(Some(_))) {
       dev_pane(ground, &worker.name).await;
     }
   }

@@ -1,5 +1,6 @@
 //! A worker's dev server and the model catalogue as `bmo-agency` carries them: the dev pane's own decisions,
-//! and the catalogue verb run as a shell runs it over a scratch store, its engine's installer a stand-in.
+//! the start verb run as a job's shell runs it over a scratch store, its server a stand-in, and the catalogue
+//! verb run the same way, its engine's installer a stand-in.
 
 use crate::integration::common;
 use crate::support::binary;
@@ -323,4 +324,182 @@ async fn runs_the_engine_s_installer_with_the_entry_and_ends_done_or_failed_with
   );
   assert_eq!(std::fs::read_to_string(&asked).unwrap(), "--model rvn\n--model trained\n");
   assert_eq!(models(&scratch, data.path(), &["run-use", &second], &env).0, 2);
+}
+
+// A process standing in for a checkout's dev server in a process group of its own, as the pane starts one, its
+// group taken down when it is dropped.
+struct Server(std::process::Child);
+
+impl Server {
+  fn stand() -> Self {
+    use std::os::unix::process::CommandExt;
+
+    Self(
+      std::process::Command::new("sleep")
+        .arg("infinity")
+        .process_group(0)
+        .stdin(std::process::Stdio::null())
+        .spawn()
+        .unwrap(),
+    )
+  }
+
+  fn group(&self) -> u32 {
+    self.0.id()
+  }
+}
+
+impl Drop for Server {
+  fn drop(&mut self) {
+    // SAFETY: the group is the stand-in's own, started above.
+    unsafe {
+      libc::kill(-(self.0.id() as i32), libc::SIGKILL);
+    }
+    let _ = self.0.wait();
+  }
+}
+
+// `bmo-agency dev-server` run as a job's shell runs it on the scratch store and data root, taken down where it
+// is dropped before it ends.
+struct DevVerb(std::process::Child);
+
+impl DevVerb {
+  fn start(scratch: &Scratch, data_root: &Path, action: &str, worker: &str) -> Self {
+    Self(
+      std::process::Command::new(binary::path("bmo-agency"))
+        .args(["dev-server", action, worker])
+        .env("HOME", data_root)
+        .env("BMO_DATA_DIR", data_root)
+        .env("BMO_ARCHIVE_URL", scratch.address())
+        .env_remove("BMO_HOME_BRIDGE")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap(),
+    )
+  }
+
+  // Whether it has ended already.
+  fn has_ended(&mut self) -> bool {
+    self.0.try_wait().unwrap().is_some()
+  }
+
+  // Its exit code, standard output and error stream once it has ended, within a bound.
+  fn ended(mut self) -> (i32, String, String) {
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(60);
+
+    while self.0.try_wait().unwrap().is_none() {
+      assert!(std::time::Instant::now() < until, "the dev-server verb did not end");
+      std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+
+    let mut out = String::new();
+    let mut err = String::new();
+
+    std::io::Read::read_to_string(self.0.stdout.as_mut().unwrap(), &mut out).unwrap();
+    std::io::Read::read_to_string(self.0.stderr.as_mut().unwrap(), &mut err).unwrap();
+
+    (self.0.wait().unwrap().code().unwrap_or(-1), out, err)
+  }
+}
+
+impl Drop for DevVerb {
+  fn drop(&mut self) {
+    let _ = self.0.kill();
+    let _ = self.0.wait();
+  }
+}
+
+// "Refuses ... a checkout no job is at work in"; a job counts through every stage and every review round, the
+// pauses between their turns included, and stops counting once it gives its checkout up or ends
+// (docs/worker-bench.md, 「It stands only while a job runs」).
+#[tokio::test]
+async fn a_job_starts_its_dev_server_in_a_later_stage_and_between_its_rounds() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let checkout = data.path().join("shop");
+  let words = &policy::verb_words::VERB_WORDS.dev_servers.server;
+  let bench = data.path().join("workbench").join("shop");
+  let log = bench.join("dev-server.log").to_string_lossy().into_owned();
+  let job = async |state: &str, parked: bool| {
+    scratch
+      .run(
+        r#"UPDATE "jobs" SET "state" = $1, "review_parked" = $2 WHERE "worker_name" = 'shop'"#,
+        vec![state.into(), parked.into()],
+      )
+      .await;
+  };
+
+  std::fs::create_dir_all(&checkout).unwrap();
+  crate::support::rows::repository(
+    scratch.db(),
+    "shop",
+    &checkout.to_string_lossy(),
+    &[("label", "Shop".into()), ("dev_command", "nuxi dev".into())],
+  )
+  .await;
+  // The second of three stages under way, in a turn of its own after the first stage's review.
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "started_at", "prompt", "review_stages", "review_stage", "review_round")
+         VALUES (1, 1, 'tester', 1, 'shop', 'running', 1, 'the item',
+                 '["Investigate","Implement","Verify"]', 2, 2)"#,
+      vec![],
+    )
+    .await;
+
+  // Started in the second stage, the verb leaves the request and waits until the pane's server stands.
+  let mut start = DevVerb::start(&scratch, data.path(), "start", "shop");
+  let until = std::time::Instant::now() + std::time::Duration::from_secs(60);
+
+  while !bench.join("dev-server.wanted").exists() {
+    if start.has_ended() {
+      let (code, out, err) = start.ended();
+
+      panic!("the start verb ended ({code}) before it left a request: {out}{err}");
+    }
+
+    assert!(std::time::Instant::now() < until, "the start verb left no request");
+    std::thread::sleep(std::time::Duration::from_millis(20));
+  }
+
+  let server = Server::stand();
+  let group = server.group().to_string();
+
+  std::fs::write(bench.join("dev-server.pid"), format!("{group}\n")).unwrap();
+
+  let (code, out, err) = start.ended();
+  let up = policy::fill_marks(
+    &words.up,
+    &[("worker", "shop"), ("done", &words.started), ("group", &group), ("log", &log)],
+  );
+
+  assert_eq!(code, 0, "{out}{err}");
+  assert!(out.contains(&up), "{out}{err}");
+
+  // Between the stage's rounds, its report under review, the job is still at work and the server stands.
+  job("reviewing", false).await;
+
+  let (code, out, err) = DevVerb::start(&scratch, data.path(), "start", "shop").ended();
+  let already =
+    policy::fill_marks(&words.already_up, &[("worker", "shop"), ("group", &group), ("log", &log)]);
+
+  assert_eq!(code, 0, "{out}{err}");
+  assert!(out.contains(&already), "{out}{err}");
+
+  // A job that gave its checkout up awaiting the owner's word, or one that ended, is at work no more.
+  let no_job = policy::fill_marks(&words.no_job, &[("worker", "shop")]);
+
+  for (state, parked) in [("reviewing", true), ("ended", false)] {
+    job(state, parked).await;
+
+    let (code, out, err) = DevVerb::start(&scratch, data.path(), "start", "shop").ended();
+
+    assert_ne!(code, 0, "{state}: {out}");
+    assert!(format!("{out}{err}").contains(&no_job), "{state}: {out}{err}");
+  }
+
+  drop(server);
 }

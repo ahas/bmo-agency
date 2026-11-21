@@ -348,8 +348,9 @@
 
 - **A support checkout's dev server stands only while a job in it runs and has asked for it,** as
   every checkout's does (`docs/worker-bench.md`, 「It stands only while a job runs」). It runs the
-  repository's dev command in the support worktree, from its own workbench, and stops once the job
-  lets the job hold go or leaves it unused; a fold holding the checkout's job lock does not stand it.
+  repository's dev command in the support worktree, from its own workbench, and stops once the job is
+  no longer at work in the checkout or leaves it unused; a fold holding the checkout's job lock does not
+  stand it.
 - **It is told its number:** the pane runs it with `BMO_WORKER_SLOT=<n>` in its environment, and a
   dev server that binds ports moves them by that number. The operations repository's bench does
   (`docs/worker-bench.md`); the base's dev server runs with none and keeps its ports.

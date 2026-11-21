@@ -75,8 +75,8 @@ pub fn after_turn(ground: &Arc<Ground>) {
   });
 }
 
-// One base brought up where nothing holds it: no hold of the checkout, no lock of its own, its agent's or a
-// job's runner held. The locks stay held while git moves it.
+// One base brought up where nothing holds it: no hold of the checkout, a job at work in it among them, and no
+// lock of its own or its agent's held. The locks stay held while git moves it.
 async fn bring_up(ground: &Ground, repository: &Repository, remote: Remote) -> Result<Outcome, String> {
   if !is_free(&ground.db, &repository.name).await.map_err(|refusal| refusal.detail)? {
     return Ok(Outcome::Left);
@@ -90,10 +90,6 @@ async fn bring_up(ground: &Ground, repository: &Repository, remote: Remote) -> R
     let at = cwd.clone();
 
     tokio::task::spawn_blocking(move || fetch(&at)).await.map_err(|why| why.to_string())??;
-  }
-
-  if locks::held(&locks::job_hold_path(data, &cwd)) {
-    return Ok(Outcome::Left);
   }
 
   let Some(_checkout) = locks::try_hold(&locks::lock_path(data, &cwd)) else {
