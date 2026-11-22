@@ -51,10 +51,6 @@ const CLAUDE: &str = "claude-code";
 // The tool host's namespace the deployment's own digest is read under.
 const SERVER: &str = "bmo";
 
-// The holder the harness plugins report and subscribe under. It is the line's own role, the same in
-// every supervisor that stands on it, and never an agent's name.
-const HARNESS: &str = "harness";
-
 /// The chat line's denied list (`policy/run-lines.toml`): the one restriction on a supervisor's program, which
 /// runs in bypass-permissions mode over every other tool of its own on every road (docs/launch-lines.md,
 /// 「What a line's program is allowed, by road」).
@@ -344,8 +340,8 @@ pub fn mcp_config(
 const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || exit 1; export BMO_JOB_TOKEN; unset BMO_JOB_TOKEN_FILE; exec "$0" "$@""#;
 
 // The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
-// its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
-// under, and the agency's own binary on the same verb.
+// its own — the job plugin on its `mcp` verb, subscribed to no queue, and the agency's own binary on the same
+// verb.
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
@@ -360,13 +356,10 @@ fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
     .collect();
 
   if let (Some(plugin), Some(url)) = (env.get("BMO_JOB_PLUGIN"), env.get("BMO_JOB_URL")) {
-    let mut args = vec![
-      Ordered::text("mcp"),
-      Ordered::text("--service"),
-      Ordered::text(url),
-      Ordered::text("--holder"),
-      Ordered::text(HARNESS),
-    ];
+    // No queue is subscribed to, so no holder is named: the plugin takes a holder only beside the queues it
+    // subscribes for it, and refuses to start on one alone. What the queue tells a supervisor reaches it as
+    // agency's quiet instructions alone (docs/agent-control.md, 「An item's change is told to its orderer」).
+    let mut args = vec![Ordered::text("mcp"), Ordered::text("--service"), Ordered::text(url)];
 
     // The plugin's own tools the line keeps from the chat, which the plugin then neither lists nor calls on
     // any program, by the names it serves them under.
@@ -378,9 +371,6 @@ fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
       args.push(Ordered::text("--without"));
       args.push(Ordered::text(without.join(",")));
     }
-
-    // No queue is subscribed to: what the queue tells a supervisor reaches it as agency's quiet instructions alone
-    // (docs/agent-control.md, 「An item's change is told to its orderer」).
 
     // The chat's own caller token where the deployment names one, so the job service records what the
     // chat does under the chat's name; the shared token otherwise. Each is handed as the file it stands in,

@@ -194,7 +194,9 @@
   chat's caller an approver and stands as a recommendation where it does not — and on the deployment's
   shared token otherwise — either handed as the file it stands in and read by a shell in front of the
   plugin, which takes its token from its environment alone (`docs/agent-control.md`, 「A token is handed as
-  the file it stands in」) — its own item creation left out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
+  the file it stands in」) — subscribed to no queue and so named no holder, since the plugin's `mcp` verb takes a
+  holder only beside the queues it subscribes for it and refuses to start on one alone (`docs/agent-control.md`,
+  「An item's change is told to its orderer」) — its own item creation left out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
   as well; and the agency's own, `agency`, started for the supervisor the configuration is
   composed for (`--agent`, one configuration a supervisor), which files an item through agency and launches
   the item's job (`docs/api.md`, 「assignments and jobs」). A hosted tool those namespaces do not show is

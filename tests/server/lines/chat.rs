@@ -796,15 +796,6 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   assert_eq!(std::fs::read_to_string(job_file).unwrap(), "job-token-value");
   assert_eq!(std::fs::read_to_string(control_file).unwrap(), "control-token-value");
 
-  // The shell hands the plugin the token the file holds.
-  let shell = std::process::Command::new("/bin/sh")
-    .args(["-c", &job[1], "/bin/sh", "-c", r#"printf %s "$BMO_JOB_TOKEN""#])
-    .env("BMO_JOB_TOKEN_FILE", job_file)
-    .output()
-    .unwrap();
-
-  assert_eq!(String::from_utf8_lossy(&shell.stdout), "job-token-value");
-
   // Another supervisor's configuration carries the same servers, agency's own plugin among them, under its
   // own name.
   let supervisor = mcp_config(&ground, &Trees::of(&ground), "supervisor-agent", &Limits::open()).unwrap();
@@ -828,6 +819,142 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
     "{config}"
   );
   assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
+}
+
+// The job plugin's `mcp` verb as the job service's command-line document states it (its docs/cli.md,
+// 「`bmo-job mcp`」): the service's address required, a holder and queues each needing the other. The token is
+// read from the environment, which the stand-in records apart.
+fn job_mcp_verb() -> clap::Command {
+  use clap::{Arg, ArgAction, Command};
+
+  Command::new("bmo-job").subcommand_required(true).subcommand(
+    Command::new("mcp")
+      .arg(Arg::new("service").long("service").required(true))
+      .arg(Arg::new("token").long("token"))
+      .arg(Arg::new("holder").long("holder").requires("queue"))
+      .arg(Arg::new("queue").long("queue").action(ArgAction::Append).requires("holder"))
+      .arg(Arg::new("channel").long("channel"))
+      .arg(Arg::new("without").long("without").action(ArgAction::Append)),
+  )
+}
+
+// The started server entry, killed and reaped when it is dropped; the shell in front of the plugin replaces
+// itself with it, so it is the one process.
+struct Started(std::process::Child);
+
+impl Drop for Started {
+  fn drop(&mut self) {
+    let _ = self.0.kill();
+    let _ = self.0.wait();
+  }
+}
+
+#[tokio::test]
+async fn the_job_server_a_supervisor_s_config_names_starts_and_answers_on_the_plugin_s_grammar() {
+  use std::io::{BufRead, Write};
+  use std::os::unix::fs::PermissionsExt;
+  use std::time::{Duration, Instant};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+
+  // A stand-in for the job plugin: it records the words it was started on and the token it was handed, answers
+  // the harness's first request and ends once its input closes, as the plugin does.
+  let plugin = home.path().join("bmo-job");
+  let recorded = home.path().join("args");
+  let token = home.path().join("token");
+  std::fs::write(
+    &plugin,
+    format!(
+      "#!/bin/sh\nprintf '%s\\0' \"$@\" > '{}'\nprintf %s \"$BMO_JOB_TOKEN\" > '{}'\nIFS= read -r request\n\
+       printf '%s\\n' '{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{{\"serverInfo\":{{\"name\":\"job\"}}}}}}'\n\
+       while IFS= read -r rest; do :; done\n",
+      at(&recorded),
+      at(&token),
+    ),
+  )
+  .unwrap();
+  std::fs::set_permissions(&plugin, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_JOB_PLUGIN".to_owned(), at(&plugin)),
+      ("BMO_JOB_URL".to_owned(), "http://[::1]:1".to_owned()),
+      ("BMO_AGENCY_URL".to_owned(), "http://[::1]:2".to_owned()),
+      ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
+      ("BMO_JOB_TOKEN".to_owned(), "job-token-value".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", &Limits::open()).unwrap();
+  let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+  let job = &config["mcpServers"]["job"];
+  let words = |value: &serde_json::Value| -> Vec<String> {
+    value.as_array().unwrap().iter().map(|word| word.as_str().unwrap().to_owned()).collect()
+  };
+
+  // Started as a harness starts a stdio server: its command on its words, on an environment holding only the
+  // entries the configuration writes.
+  let mut command = std::process::Command::new(job["command"].as_str().unwrap());
+  command.args(words(&job["args"])).env_clear();
+  for (name, value) in job["env"].as_object().into_iter().flatten() {
+    command.env(name, value.as_str().unwrap());
+  }
+  let mut started = Started(
+    command
+      .stdin(std::process::Stdio::piped())
+      .stdout(std::process::Stdio::piped())
+      .stderr(std::process::Stdio::null())
+      .spawn()
+      .unwrap(),
+  );
+
+  let mut input = started.0.stdin.take().unwrap();
+  writeln!(input, r#"{{"jsonrpc":"2.0","id":1,"method":"initialize","params":{{}}}}"#).unwrap();
+  let output = started.0.stdout.take().unwrap();
+  let (answered, answer) = std::sync::mpsc::channel();
+  std::thread::spawn(move || {
+    let mut line = String::new();
+    let _ = std::io::BufReader::new(output).read_line(&mut line);
+    let _ = answered.send(line);
+  });
+  let line = answer.recv_timeout(Duration::from_secs(10)).expect("the job server never answered");
+  let reply: serde_json::Value = serde_json::from_str(&line).unwrap_or_else(|_| panic!("{line:?}"));
+
+  assert_eq!(reply["result"]["serverInfo"]["name"], "job", "{reply}");
+
+  // The server ends once the harness closes its input.
+  drop(input);
+  let bound = Instant::now() + Duration::from_secs(10);
+  let ended = loop {
+    if let Some(status) = started.0.try_wait().unwrap() {
+      break status;
+    }
+    assert!(Instant::now() < bound, "the job server did not end when its input closed");
+    std::thread::sleep(Duration::from_millis(20));
+  };
+  assert!(ended.success(), "{ended:?}");
+
+  // The plugin was handed the token the configuration's file holds, and started on words its `mcp` verb takes.
+  assert_eq!(std::fs::read_to_string(&token).unwrap(), "job-token-value");
+  let handed: Vec<String> = std::fs::read_to_string(&recorded)
+    .unwrap()
+    .split_terminator('\0')
+    .map(str::to_owned)
+    .collect();
+  let mut grammar = job_mcp_verb();
+  let parsed = grammar
+    .try_get_matches_from_mut(std::iter::once("bmo-job".to_owned()).chain(handed.iter().cloned()))
+    .unwrap_or_else(|error| panic!("{handed:?}: {error}"));
+
+  assert_eq!(parsed.subcommand_name(), Some("mcp"), "{handed:?}");
 }
 
 // "asked to speak, the supervisor says its own answer aloud with speak, makes any other sound with voice/generate as
