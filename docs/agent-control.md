@@ -3644,11 +3644,17 @@ view and a person's room may not mend it alone.
     this machine, agency asks git for the commit its remote's `main` stands on and starts the testbed's
     `deploy` verb with that commit and an English reason, `deploy_flush_why`, naming the items whose commits wait
     (the testbed's `docs/boundary.md`, 「`deploy`」). The verb starts the deployment in a unit of its own and
-    returns, so agency waits on none, and the testbed's deployment line runs them one after the other. A
+    returns, so agency waits on none, and the testbed's deployment line runs them one after the other; where a
+    deployment of that commit already stands for the repository, waiting or under way, the verb starts none and
+    names that one, so a flush never stacks a second deployment of a commit (the testbed's `docs/deploy.md`, 「The
+    deployment line」). A
     repository with no checkout on this machine is left to its supervisor. A repository whose last run, as its
     progress record names it, was of that very commit and ended without going live is not started again: main
-    waits for the mend the failure's notice sends back, and the first flush after main moves starts it. A
-    refusal, or a main that cannot be read, is written to agency's log, and the next flush tries again.
+    waits for the mend the failure's notice sends back, and the first flush after main moves starts it. The
+    testbed refuses the same commit by its own record, its newest ended deployment having failed in its gate while
+    main still stands on it, whatever run wrote the progress record last. A refusal, or a main that cannot be read,
+    is written to agency's log and nothing else: no deployment stands for it, so the deployment watch has no run to
+    tell, and the next flush asks again, the other repositories of the same flush started all the same.
   - **What comes of it.** The deployment watch tells a flushed deployment's outcome
     (「A deployment that did not go live is told」): one that failed as any failure, and one that went live, judged
     by its progress record, where the deployment record under its root names the run's commit with a reason

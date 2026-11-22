@@ -26,6 +26,8 @@ const MINUTE: i64 = 60_000;
 struct StandIn {
   mains: BTreeMap<PathBuf, String>,
   started: Mutex<Vec<(PathBuf, String, String)>>,
+  /// Checkouts whose deploy call the testbed refuses, as its verb ends 2 with its refusal on standard error.
+  refusing: Vec<PathBuf>,
 }
 
 impl StandIn {
@@ -45,6 +47,12 @@ impl Deployments for StandIn {
       .lock()
       .unwrap()
       .push((checkout.to_path_buf(), commit.to_owned(), why.to_owned()));
+
+    if self.refusing.iter().any(|refusing| refusing == checkout) {
+      return Err(format!(
+        "bmo-testbed deploy ended exit status: 2: refused: {commit} failed in its gate in bmo-deploy-1, and the main branch still stands on it"
+      ));
+    }
 
     Ok("bmo-deploy-1".to_owned())
   }
@@ -142,6 +150,65 @@ async fn every_repository_with_a_waiting_commit_is_put_live_once_the_flush_minut
     .await
     .unwrap();
   assert_eq!(deployments.started().len(), 2, "the owner's row sets the minutes, read at each tick");
+}
+
+// "A refusal ... is written to agency's log and nothing else ... the next flush asks again, the other repositories
+// of the same flush started all the same"
+#[tokio::test]
+async fn a_deploy_the_testbed_refuses_is_asked_again_at_the_next_flush_and_holds_no_other_repository_back()
+{
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let web = tempfile::tempdir().unwrap();
+  let drive = tempfile::tempdir().unwrap();
+  let checkouts: BTreeMap<String, PathBuf> = [
+    ("web".to_owned(), web.path().to_path_buf()),
+    ("drive".to_owned(), drive.path().to_path_buf()),
+  ]
+  .into();
+  let deployments = StandIn {
+    mains: [
+      (web.path().to_path_buf(), "web-main".to_owned()),
+      (drive.path().to_path_buf(), "drive-main".to_owned()),
+    ]
+    .into(),
+    refusing: vec![web.path().to_path_buf()],
+    ..StandIn::default()
+  };
+  let home = Path::new("/nonexistent");
+  let asked = |flushed: Vec<(PathBuf, String, String)>| -> Vec<PathBuf> {
+    flushed.into_iter().map(|(checkout, _, _)| checkout).collect()
+  };
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.items.insert(81, waiting(81, "web", "aaaa1111"));
+    held.items.insert(83, waiting(83, "drive", "cccc3333"));
+  }
+
+  flush(db, &vars, &checkouts, home, T0, &deployments).await.unwrap();
+  flush(db, &vars, &checkouts, home, T0 + interval(), &deployments).await.unwrap();
+
+  assert_eq!(
+    asked(deployments.started()),
+    [drive.path().to_path_buf(), web.path().to_path_buf()],
+    "the refused repository holds the other back from nothing"
+  );
+  assert_eq!(settings::get(db, LAST_KEY).await.unwrap(), Some((T0 + interval()).to_string()));
+
+  flush(db, &vars, &checkouts, home, T0 + interval() + MINUTE, &deployments)
+    .await
+    .unwrap();
+  assert!(deployments.started().is_empty(), "a refusal is not asked again before the next flush");
+
+  flush(db, &vars, &checkouts, home, T0 + 2 * interval(), &deployments).await.unwrap();
+  assert_eq!(
+    asked(deployments.started()),
+    [drive.path().to_path_buf(), web.path().to_path_buf()],
+    "the next flush asks again"
+  );
 }
 
 /// A checkout of `web` holding two commits, its testbed declaration naming `root` as its deploy root.

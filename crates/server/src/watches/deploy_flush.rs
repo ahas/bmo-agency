@@ -233,7 +233,8 @@ pub async fn flush(
     }
 
     match deployments.start(checkout, &commit, &why(&items)).await {
-      Ok(said) => println!("deploy flush: {repository} at {commit} started: {said}"),
+      // The verb says whether it started a deployment or names one of the commit already standing.
+      Ok(said) => println!("deploy flush: {repository} at {commit} asked: {said}"),
       Err(why) => eprintln!("deploy flush: {repository} at {commit} was not started: {why}"),
     }
   }
