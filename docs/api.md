@@ -373,9 +373,12 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   its runs carry, or null where it sets none and its runs carry the whole plugin the release places for it;
   `line`; `agents`, its agents in the
   order a run looks for a free one, each as 「role agents」 below answers it; `maxConcurrent`, how many of
-  them are switched on; `followsSupervisor`, true while none of its agents names a road,
-  so its runs go out on the road of the supervisor that asks them (`docs/role-slots.md`, 「A role that follows
-  its supervisor」) and a screen shows its road as the supervisor's; `providerPrompts`, each text its runs are given beside its
+  them are switched on; `followsAsker`, whether its agents follow the supervisor that asks a run of them, each
+  one's own road standing where no supervisor's does or that road cannot answer now (`docs/role-agents.md`, 「An
+  agent that follows its asker」), an agent's own setting standing over it; `followsSupervisor`, true while each
+  of its switched-on agents names no road or follows its asker, so its runs a supervisor asks go out on that
+  supervisor's road (`docs/role-slots.md`, 「A role that follows its supervisor」) and a screen shows its road as
+  the supervisor's; `providerPrompts`, each text its runs are given beside its
   prompt by the provider their program stands on (`docs/agent-roles.md`, 「A role's provider prompts」); and
   what stands of it now: `running` and `waiting`, how
   many of its runs go and wait, `provider`, the provider its next run goes out on, or null where none of its
@@ -385,14 +388,14 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   them, every bundle the policy declares with its `name`, `code` and `label`, the name of every skill a
   plugin of the release carries, which a role or an agent may name, and every line agency carries a role may
   name.
-- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description`, `skills`
-  and `providerPrompts`, and
+- **`POST /roles` takes `name`, `label`, `bundles` and `line`,** and may add `prompt`, `description`, `skills`,
+  `providerPrompts` and `followsAsker`, false where it names none, and
   answers 201 with the role, which holds no agent yet. It is refused 422 `unprocessable-entity`, with one
   English sentence and nothing written, for a name out of the roles policy's pattern or past its length or
   already held; an empty label or one past the policy's length; a bundle the policy does not declare; a line
   agency does not carry; a prompt or description that is not text; `skills` that is not a list of names or
   names a skill no plugin of the release carries; `providerPrompts` that is not an object naming providers of
-  this build, each with text or null;
+  this build, each with text or null; `followsAsker` that is not true or false;
   and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions` or `foldRatio`, none of which
   a role holds: each is its agent's (「role agents」 below).
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
@@ -404,13 +407,17 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **Role agents.** `GET /role-agents` answers `items`, every agent by role and by name,
   narrowed to one role's by `role`; each is its row (`docs/role-agents.md`, 「What an agent row holds」):
   `name`, `role`, `ownerAccount`, `provider`, `model`, `effort`, `thinking`, `answerTokens`, `advisor`, `enabled`,
-  `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, with `followsSupervisor`, true where it
-  names no road, and `carries`, whether a run stands let in on it now. `POST /role-agents` takes `role` and
+  `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, `followsAsker`, true or false
+  where it sets whether it follows its asker and null where its role's setting stands (`docs/role-agents.md`, 「An
+  agent that follows its asker」), with `followsSupervisor`, true where it names no road or follows its asker by its
+  own setting or its role's, and `carries`, whether a run stands let in on it now. A role's `agents` are answered
+  the same way. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
   and answers 200. Both refuse 422 a role the store does not hold (`unknown-role`), a name out of the
   pattern, a provider without a model or a model without a provider, a road judged as a supervisor's road is
-  against the role's line, and a bundle the policy does not declare; `POST` refuses 409 a name
+  against the role's line, a bundle the policy does not declare, and a `followsAsker` that is not true, false or
+  null; `POST` refuses 409 a name
   already taken. `DELETE /role-agents/{agentName}` answers 204, 404 for an agent the store does not hold and
   409 while it carries a run. An agent added, switched or removed holds from the next admission, and one
   more seat lets in at once the reserved slots it frees.

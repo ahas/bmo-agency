@@ -30,6 +30,9 @@ pub struct AgentRole {
   pub line: String,
   /// Its provider order.
   pub order: Order,
+  /// Whether its agents follow the supervisor that asks a run of them, each agent's own setting standing over
+  /// it (docs/role-agents.md, 「An agent that follows its asker」).
+  pub follows_asker: bool,
   /// The share of its model's window a run's session may fill before it is folded.
   pub fold_ratio: f64,
   pub position: i64,
@@ -57,6 +60,19 @@ impl AgentRole {
   pub fn names_no_road(&self) -> bool {
     self.order.entries.is_empty() && self.agents.iter().any(|agent| agent.enabled)
   }
+
+  /// Whether a run let in on `agent` that a supervisor asks goes out on that supervisor's road.
+  pub fn follows(&self, agent: &RoleAgent) -> bool {
+    agent.follows(self.follows_asker)
+  }
+
+  /// Whether a run of it a supervisor asks goes out on that supervisor's road: every agent of it switched on
+  /// follows its asker, and one at least is switched on.
+  pub fn runs_follow(&self) -> bool {
+    let mut on = self.agents.iter().filter(|agent| agent.enabled).peekable();
+
+    on.peek().is_some() && on.all(|agent| self.follows(agent))
+  }
 }
 
 impl AgentRole {
@@ -80,6 +96,7 @@ impl AgentRole {
       order: Order::of_row(&order)
         .forcing(row.try_get("", "active_provider")?, row.try_get("", "active_model")?),
       fold_ratio: row.try_get("", "fold_ratio")?,
+      follows_asker: row.try_get::<i64>("", "follows_asker")? != 0,
       position: row.try_get("", "position")?,
       agents: vec![],
       road_agents: vec![],

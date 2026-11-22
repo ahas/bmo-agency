@@ -331,8 +331,9 @@ impl Resolution {
 /// Where a job of a role at a checkout goes out now, the first that stands of three (docs/repositories.md, 「A
 /// model an item names」): the model its item names, else its repository's pinned model, each walked alone,
 /// waited for and never left; else the roads of its role's agents, in their order. A role whose switched-on
-/// agents all name no road follows the supervisor that asks the job, the one its `asked_by` names, and has no
-/// road where that names none (docs/provider-order.md, 「Runs on another's road」). The
+/// agents all follow their asker goes out on the road of the supervisor that asks the job, the one its `asked_by`
+/// names, first; where they name roads of their own those come after it, and where they name none the role has no
+/// road where that supervisor names none (docs/provider-order.md, 「Runs on another's road」). The
 /// role is the job role where none is named. The providers the job already left count as unable to answer.
 pub async fn for_job(
   ground: &Ground,
@@ -365,6 +366,31 @@ pub async fn for_job(
   // provider, has no road to follow, which its start refuses.
   let (fixed, follow, no_road) = match (fixed, held.names_no_road()) {
     (Some(fixed), _) => (Some(fixed), None, None),
+    // Where its agents follow their asker and name roads of their own, the asker's road goes first and theirs
+    // after it, so they stand where no supervisor asks or the asker's road cannot answer (docs/role-agents.md,
+    // 「An agent that follows its asker」).
+    (None, false) if held.runs_follow() => {
+      let supervisor = match asked_by {
+        Some(name) => crate::supervisors::named(&ground.db, name).await.map_err(|why| why.detail)?,
+        None => None,
+      };
+      let follow = supervisor.and_then(|supervisor| supervisor.road()).map(|asker| {
+        let own = held
+          .order
+          .entries
+          .iter()
+          .filter(|own| (&own.provider, &own.model) != (&asker.provider, &asker.model))
+          .cloned()
+          .collect::<Vec<_>>();
+
+        Order {
+          entries: std::iter::once(asker).chain(own).collect(),
+          forced: None,
+        }
+      });
+
+      (None, follow, None)
+    }
     (None, false) => (None, None, None),
     (None, true) => {
       let supervisor = match asked_by {

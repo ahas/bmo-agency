@@ -48,6 +48,8 @@ pub struct RoleSeed {
   pub sessions: String,
   pub fold_ratio: f64,
   pub provider_prompts: Vec<(String, String)>,
+  /// Whether its runs follow the supervisor that asks them, its agents' own roads standing where none does.
+  pub follows_asker: bool,
 }
 
 /// One base prompt a store is given once by its name (docs/base-prompts.md, 「The seeds」), with the
@@ -253,8 +255,8 @@ async fn role_seed<C: ConnectionTrait>(
   run(
     db,
     r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-         "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING"#,
+         "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio", "follows_asker")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT DO NOTHING"#,
     vec![
       role.name.clone().into(),
       role.label.clone().into(),
@@ -268,6 +270,7 @@ async fn role_seed<C: ConnectionTrait>(
       role.line.clone().into(),
       role.order.clone().into(),
       role.fold_ratio.into(),
+      i64::from(role.follows_asker).into(),
     ],
   )
   .await?;

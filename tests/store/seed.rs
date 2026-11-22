@@ -22,6 +22,7 @@ fn role(name: &str, cap: i64, sessions: &str, prompt: Option<&str>) -> RoleSeed 
     } else {
       vec![]
     },
+    follows_asker: false,
   }
 }
 

@@ -4538,11 +4538,17 @@ export interface components {
              */
             maxConcurrent: number;
             /**
-             * @description Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
-             *     screen shows its road as the supervisor's.
+             * @description Whether a run of it a supervisor asks goes out on that supervisor's road: its switched-on agents name no
+             *     road, or each follows its asker; a screen shows its road as the supervisor's.
              * @default false
              */
             followsSupervisor: boolean;
+            /**
+             * @description whether its agents follow the supervisor that asks a run of them, each one's own road standing where no
+             *     supervisor's does or that road cannot answer now; an agent's own setting stands over it
+             * @default false
+             */
+            followsAsker: boolean;
             /**
              * @description the text a run of it is given beside its prompt where its program stands on a provider, by provider
              * @default {}
@@ -4608,7 +4614,14 @@ export interface components {
              */
             addedAt: number;
             /**
-             * @description whether it names no road
+             * @description whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer
+             *     now, or null where its role's setting stands
+             * @default null
+             */
+            followsAsker: boolean | null;
+            /**
+             * @description whether a run of it a supervisor asks goes out on that supervisor's road: it names no road, or it follows
+             *     its asker by its own setting or its role's
              * @default false
              */
             followsSupervisor: boolean;
@@ -4637,6 +4650,8 @@ export interface components {
             providerPrompts?: {
                 [key: string]: string;
             };
+            /** @description whether its agents follow the supervisor that asks a run of them; false where it names none */
+            followsAsker?: boolean | null;
         };
         /**
          * @description RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
@@ -4653,6 +4668,8 @@ export interface components {
             providerPrompts?: {
                 [key: string]: string | null;
             };
+            /** @description whether its agents follow the supervisor that asks a run of them */
+            followsAsker?: boolean | null;
         };
         /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
         RoleSessionPage: {
@@ -4722,6 +4739,11 @@ export interface components {
             prompt?: string | null;
             bundles?: string[] | null;
             skills?: string[] | null;
+            /**
+             * @description whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer
+             *     now; null gives its role's setting back
+             */
+            followsAsker?: boolean | null;
         };
         /**
          * @description RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an
@@ -4744,6 +4766,11 @@ export interface components {
             prompt?: string | null;
             bundles?: string[] | null;
             skills?: string[] | null;
+            /**
+             * @description whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer
+             *     now; null gives its role's setting back
+             */
+            followsAsker?: boolean | null;
         };
         /** @description RepositoryList: every repository. */
         RepositoryList: {

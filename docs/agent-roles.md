@@ -46,7 +46,12 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is
   asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A role that follows its
   supervisor」). The role's
-  row answers `followsSupervisor` true while none of its agents names a road (`docs/api.md`, 「roles」).
+  row answers `followsSupervisor` true while each of its agents names no road or follows its asker
+  (`docs/api.md`, 「roles」).
+- **A role may have its agents follow their asker while they name roads of their own,** `followsAsker` on the
+  role, each agent's own setting standing over it: a run a supervisor asks goes out on that supervisor's road,
+  and the agent's own road is its fallback where none asked or that road cannot answer now
+  (`docs/role-agents.md`, 「An agent that follows its asker」).
 - **An agent may lay its own prompt, bundles and skills over its role's,** each standing in place of the
   role's for that agent's runs alone (`docs/role-agents.md`, 「What an agent row holds」).
 - **The owner adds, changes and removes roles on the control port** (「Changing the roles」 below), and every
@@ -229,6 +234,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The transliterator is the voice unit's,** asked for a slot under its name with the search line, and
   holds no bundle (the voice's `docs/boundary-api.md`). It carries no seeded prompt: the voice unit hands
   every session its own instructions, and the search line reads no role prompt.
+- **The transliterator follows its asker,** as its declaration seeds it: a slot asked for a supervisor's
+  narration naming that supervisor as `askedBy` goes out on that supervisor's road, and one naming none, or
+  whose supervisor's road cannot answer now, goes out on its agent's own road (`docs/role-agents.md`, 「An
+  agent that follows its asker」).
 
 ## The upkeep role
 

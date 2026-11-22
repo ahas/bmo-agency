@@ -30,6 +30,7 @@ fn agent(name: &str, role: &str, road: Option<(&str, &str)>, enabled: bool) -> R
     bundles: None,
     skills: None,
     added_at: 0,
+    follows_asker: None,
   }
 }
 

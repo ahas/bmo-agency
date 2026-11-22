@@ -214,6 +214,9 @@ is and which one a run takes is `docs/role-agents.md`.
   no road to go out on.
 - **An agent the owner sets a road goes out on that road instead,** like any role's agent; in a role holding
   agents of both kinds, only a slot let in on an agent that names none follows its asking supervisor.
+- **An agent that follows its asker while naming a road of its own** goes out on its asking supervisor's road
+  where one asked and that road can answer now, and on its own road otherwise, a slot no supervisor asks
+  included (`docs/role-agents.md`, 「An agent that follows its asker」).
 
 ## A co-work branch
 

@@ -3456,10 +3456,14 @@ pub struct Role {
   pub agents: Vec<RoleAgent>,
   /// the most of its runs that go at once: how many of its agents are switched on
   pub max_concurrent: i64,
-  /// Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a
-  /// screen shows its road as the supervisor's.
+  /// Whether a run of it a supervisor asks goes out on that supervisor's road: its switched-on agents name no
+  /// road, or each follows its asker; a screen shows its road as the supervisor's.
   #[serde(default)]
   pub follows_supervisor: bool,
+  /// whether its agents follow the supervisor that asks a run of them, each one's own road standing where no
+  /// supervisor's does or that road cannot answer now; an agent's own setting stands over it
+  #[serde(default)]
+  pub follows_asker: bool,
   /// the text a run of it is given beside its prompt where its program stands on a provider, by provider
   #[serde(default)]
   pub provider_prompts: std::collections::BTreeMap<String, String>,
@@ -3501,6 +3505,9 @@ pub struct RoleAsk {
   /// the text a run of it is given beside its prompt where its program stands on a provider, by provider
   #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
   pub provider_prompts: std::collections::BTreeMap<String, String>,
+  /// whether its agents follow the supervisor that asks a run of them; false where it names none
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub follows_asker: Option<bool>,
 }
 
 /// RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears
@@ -3523,6 +3530,9 @@ pub struct RoleChange {
   /// each provider's prompt set, or taken away where it is given as null; a provider left out stands as it is
   #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
   pub provider_prompts: std::collections::BTreeMap<String, Option<String>>,
+  /// whether its agents follow the supervisor that asks a run of them
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub follows_asker: Option<bool>,
 }
 
 /// RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one
@@ -3556,7 +3566,12 @@ pub struct RoleAgent {
   pub skills: Option<Vec<String>>,
   /// epoch milliseconds
   pub added_at: i64,
-  /// whether it names no road
+  /// whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer
+  /// now, or null where its role's setting stands
+  #[serde(default)]
+  pub follows_asker: Option<bool>,
+  /// whether a run of it a supervisor asks goes out on that supervisor's road: it names no road, or it follows
+  /// its asker by its own setting or its role's
   #[serde(default)]
   pub follows_supervisor: bool,
   /// whether a run stands let in on it now
@@ -3615,6 +3630,10 @@ pub struct RoleAgentChange {
   pub bundles: Option<Option<Vec<String>>>,
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub skills: Option<Option<Vec<String>>>,
+  /// whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer
+  /// now; null gives its role's setting back
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub follows_asker: Option<Option<bool>>,
 }
 
 /// RoleSession: one session a role's runs opened, and whether the next run of its key would resume it.

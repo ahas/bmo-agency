@@ -27,7 +27,8 @@ seeds. The other crates and the server reach the store only through it.
   - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
     the bundles it gives as a JSON list, the skills its runs carry as a JSON list or none, its line, what its declaration gave the agents it was seeded with —
     a road list, a count, a sessions setting, a compaction threshold and a callability, which nothing reads
-    once its agents stand — the place a screen lists it at, and when it was made and last changed in epoch milliseconds
+    once its agents stand — whether its agents follow the supervisor that asks a run of them, the place a screen
+    lists it at, and when it was made and last changed in epoch milliseconds
     — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a
     role row holds」);
   - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
@@ -81,7 +82,8 @@ seeds. The other crates and the server reach the store only through it.
   - the roles' agents: `role_agents`, one row a seat of a role — its name, its role, the account whose seat it
     is or none, the provider and model
     its runs go out on or none, the effort, thinking, answer ceiling and advisor there, whether it is switched on,
-    whether its kept session is kept warm, whether its runs keep their sessions, its compaction threshold or none, and the prompt,
+    whether its kept session is kept warm, whether its runs keep their sessions, its compaction threshold or none,
+    whether it follows the supervisor that asks its run or none for its role's setting, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
   - the accounts' nodes: `person_nodes`, one row an account — its id, the node its runs stand on, whether that

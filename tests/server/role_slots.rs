@@ -6,7 +6,7 @@
 use agency_server::order_run::dispatch::{self, Asked, Wanted, acquire, enqueue, finish, used};
 use agency_server::places::Ground;
 
-use crate::support::grounds::{deepseek_balance, seeded};
+use crate::support::grounds::{deepseek_balance, openrouter_road, provider_balance, seeded};
 use crate::support::scratch::Scratch;
 
 fn asked<'a>(role: &'a str, key: &str) -> Asked<'a> {
@@ -1193,4 +1193,123 @@ async fn an_ask_is_judged_only_while_it_holds_its_role() {
 
   held.commit().await.unwrap();
   assert!(asking.await.unwrap(), "let go, the role's free agent takes the ask");
+}
+
+// A slot of a role whose agents follow their asker while naming roads of their own (docs/role-agents.md, 「An agent
+// that follows its asker」): the transliterator, seeded so, goes out on its asking supervisor's road; on its agent's
+// own road where no supervisor asks or the asker's road cannot answer, as OpenRouter's, whose program does not
+// carry the search line, cannot; and on its own road alone once the agent's own setting says it does not follow.
+// A turn's entry is the asker's on the asker's provider and the agent's own elsewhere.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_following_its_asker_takes_the_askers_road_and_falls_back_to_its_own() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  openrouter_road(home.path(), &[("paid", "vendor/a-model", None)]);
+
+  // A second model on DeepSeek's road, the asking supervisor's, beside the flash model the agents stand on.
+  let members = home.path().join("data").join("llm-gateway").join("members.json");
+  let mut held: Vec<serde_json::Value> =
+    serde_json::from_str(&std::fs::read_to_string(&members).unwrap()).unwrap();
+  let mut other = held[0].clone();
+
+  other["name"] = "deepseek-other".into();
+  other["model"] = "deepseek-other".into();
+  held.push(other);
+  std::fs::write(&members, serde_json::to_string(&held).unwrap()).unwrap();
+
+  provider_balance(&ground, "openrouter", 5.0).await;
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider", "model", "effort",
+           "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', 'deepseek', 'deepseek-other', 'high', 0, 0),
+                ('elsewhere', 'room', 'window', 'openrouter', 'paid', 'high', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = 'deepseek', "model" = 'deepseek-flash', "effort" = 'low',
+           "enabled" = 1
+         WHERE "role" = 'transliterator'"#,
+      vec![],
+    )
+    .await;
+
+  let role = agency_server::agent_roles::named(&ground.db, "transliterator").await.unwrap().unwrap();
+
+  assert!(role.follows_asker, "the transliterator is seeded following its asker");
+
+  let road_of = async |key: &str, asked_by: Option<&str>| {
+    let run = Asked {
+      request_key: format!("follows-asker:{key}"),
+      owner: format!("follows-asker:{key}"),
+      wanted: Wanted {
+        role: "transliterator",
+        path: None,
+        fixed: None,
+        agent: None,
+      },
+      asked_by,
+      ..Asked::default()
+    };
+    let held = enqueue(&ground.db, &ground.events, &run, "voice", async |_, _| Ok(())).await.unwrap();
+
+    assert!(admitted(&ground, &held).await, "{key}: let in");
+
+    let running = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+    assert!(finish(&ground.db, &ground.events, &held.token, "done", false).await.unwrap());
+
+    (running.provider, running.model)
+  };
+  let own = ("deepseek".to_owned(), "deepseek-flash".to_owned());
+
+  assert_eq!(
+    road_of("asked", Some("chat")).await,
+    ("deepseek".to_owned(), "deepseek-other".to_owned()),
+    "a supervisor's ask goes out on that supervisor's road"
+  );
+  assert_eq!(
+    road_of("unasked", None).await,
+    own,
+    "an ask no supervisor makes goes out on the agent's own road"
+  );
+  assert_eq!(
+    road_of("elsewhere", Some("elsewhere")).await,
+    own,
+    "an asker's road that cannot answer gives way to the agent's own"
+  );
+
+  let entry = agency_server::order::row_entry(&ground.db, "transliterator", "deepseek", Some("chat"))
+    .await
+    .unwrap();
+
+  assert_eq!(
+    (entry.model.as_str(), entry.effort.as_deref()),
+    ("deepseek-other", Some("high")),
+    "the asker's entry"
+  );
+
+  let entry = agency_server::order::row_entry(&ground.db, "transliterator", "deepseek", Some("elsewhere"))
+    .await
+    .unwrap();
+
+  assert_eq!(
+    (entry.model.as_str(), entry.effort.as_deref()),
+    ("deepseek-flash", Some("low")),
+    "its own entry"
+  );
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "follows_asker" = 0 WHERE "role" = 'transliterator'"#,
+      vec![],
+    )
+    .await;
+
+  assert_eq!(road_of("own", Some("chat")).await, own, "an agent's own setting stands over its role's");
 }

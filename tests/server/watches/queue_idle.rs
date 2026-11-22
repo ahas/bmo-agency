@@ -85,6 +85,7 @@ fn agent(name: &str, role: &str, model: &str) -> RoleAgent {
     bundles: None,
     skills: None,
     added_at: 0,
+    follows_asker: None,
   }
 }
 

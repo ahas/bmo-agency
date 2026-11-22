@@ -115,6 +115,12 @@ async fn standing(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
 
 /// One role as the routes answer it: every field of its row, and what stands of it now.
 pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
+  let carrying = crate::role_agents::carrying(&ground.db, &role.name).await?;
+  let agents: Vec<Value> = role
+    .agents
+    .iter()
+    .map(|agent| super::role_agents::view(agent, role.follows_asker, &carrying))
+    .collect();
   let mut shown = json!({
     "name": role.name,
     "code": role.name,
@@ -124,9 +130,10 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "bundles": role.bundles.iter().map(|bundle| bundle_view(bundle)).collect::<Vec<_>>(),
     "skills": role.skills,
     "line": role.line,
-    "agents": role.agents,
+    "agents": agents,
     "maxConcurrent": role.max_concurrent,
-    "followsSupervisor": role.order.follows_supervisor(),
+    "followsSupervisor": role.order.follows_supervisor() || role.runs_follow(),
+    "followsAsker": role.follows_asker,
     "providerPrompts": agent_roles::provider_prompts(&ground.db, &role.name).await?,
   });
 
@@ -152,6 +159,8 @@ struct Fields {
   fold_ratio: Option<f64>,
   /// The provider prompts named, each by its provider, `None` where the body clears that provider's.
   provider_prompts: BTreeMap<String, Option<String>>,
+  /// Whether its agents follow the supervisor that asks a run of them.
+  follows_asker: Option<bool>,
 }
 
 // What a role's row does not hold: a body naming one is told where it stands.
@@ -216,6 +225,13 @@ impl Fields {
         }
         _ => return Err(unprocessable(label_refusal())),
       }
+    }
+
+    // Whether its agents follow the supervisor that asks a run of them, each agent's own setting standing over
+    // it (docs/role-agents.md, 「An agent that follows its asker」).
+    if let Some(follows) = body.get("followsAsker") {
+      fields.follows_asker =
+        Some(follows.as_bool().ok_or_else(|| unprocessable("followsAsker: true or false."))?);
     }
 
     if let Some(bundles) = body.get("bundles") {
@@ -414,9 +430,10 @@ impl Route for RoleCreate {
     run(
       call.store(),
       r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
-           "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio", "skills")
+           "updated_at", "sessions", "description", "line", "provider_order", "fold_ratio", "skills",
+           "follows_asker")
          VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "roles"), $6, $6, $7, $8, $9, $10,
-           $11, $12)"#,
+           $11, $12, $13)"#,
       vec![
         name.clone().into(),
         label.into(),
@@ -430,6 +447,7 @@ impl Route for RoleCreate {
         "[]".into(),
         fields.fold_ratio.unwrap_or(order::DEFAULT_FOLD_RATIO).into(),
         listed(fields.skills.flatten().as_deref())?.into(),
+        i64::from(fields.follows_asker.unwrap_or(false)).into(),
       ],
     )
     .await?;
@@ -462,7 +480,7 @@ impl Route for RoleChange {
     run(
       call.store(),
       r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "prompt" = $3, "updated_at" = $4, "sessions" = $6,
-           "description" = $7, "line" = $8, "fold_ratio" = $9, "skills" = $10
+           "description" = $7, "line" = $8, "fold_ratio" = $9, "skills" = $10, "follows_asker" = $11
          WHERE "name" = $5"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
@@ -477,6 +495,7 @@ impl Route for RoleChange {
         fields.line.unwrap_or(held.line).into(),
         fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
         listed(fields.skills.unwrap_or(held.skills).as_deref())?.into(),
+        i64::from(fields.follows_asker.unwrap_or(held.follows_asker)).into(),
       ],
     )
     .await?;

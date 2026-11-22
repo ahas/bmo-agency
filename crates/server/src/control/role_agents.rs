@@ -31,11 +31,12 @@ fn unknown(name: &str) -> Refused {
   Refused::new(StatusCode::NOT_FOUND, format!("No agent is named {name}."))
 }
 
-// An agent as the routes answer it: every field of its row, and the slot request it carries now.
-fn view(agent: &RoleAgent, carrying: &[String]) -> Value {
+/// An agent as the routes answer it: every field of its row, whether a run a supervisor asks of it goes out on that
+/// supervisor's road, its role following where `role_follows` says so, and whether it carries a slot request now.
+pub fn view(agent: &RoleAgent, role_follows: bool, carrying: &[String]) -> Value {
   let mut shown = serde_json::to_value(agent).unwrap_or(Value::Null);
 
-  shown["followsSupervisor"] = json!(agent.entry().is_none());
+  shown["followsSupervisor"] = json!(agent.follows(role_follows));
   shown["carries"] = json!(carrying.contains(&agent.name));
 
   shown
@@ -130,6 +131,16 @@ async fn judged(
 
   if let Some(keeps) = body.get("keepsCache") {
     agent.keeps_cache = keeps.as_bool().ok_or_else(|| unprocessable("keepsCache: true or false."))?;
+  }
+
+  // Whether a run a supervisor asks of it goes out on that supervisor's road, its own road standing where none
+  // does; null gives its role's setting back (docs/role-agents.md, 「An agent that follows its asker」).
+  if let Some(follows) = body.get("followsAsker") {
+    agent.follows_asker = match follows {
+      Value::Null => None,
+      Value::Bool(on) => Some(*on),
+      _ => return Err(unprocessable("followsAsker: true or false, or null for its role's.")),
+    };
   }
 
   if let Some(ratio) = body.get("foldRatio") {
@@ -241,11 +252,17 @@ impl Route for RoleAgentList {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let role = call.query("role");
     let carrying = role_agents::carrying_any(call.store()).await?;
+    let following: Vec<String> = agent_roles::every(call.store())
+      .await?
+      .into_iter()
+      .filter(|held| held.follows_asker)
+      .map(|held| held.name)
+      .collect();
     let items: Vec<Value> = role_agents::every(call.store())
       .await?
       .iter()
       .filter(|agent| role.as_deref().is_none_or(|role| agent.role == role))
-      .map(|agent| view(agent, &carrying))
+      .map(|agent| view(agent, following.contains(&agent.role), &carrying))
       .collect();
 
     Ok(answer(StatusCode::OK, json!({ "items": items })))
@@ -299,6 +316,7 @@ impl Route for RoleAgentCreate {
       skills: None,
       added_at: now_ms(),
       owner_account: None,
+      follows_asker: None,
     };
     let agent = judged(call.ground(), &held, fresh, &body).await?;
 
@@ -306,7 +324,7 @@ impl Route for RoleAgentCreate {
     seats_changed(db, call.events(), &agent.role).await?;
     queue_told(&call);
 
-    Ok(answer(StatusCode::CREATED, view(&agent, &[])))
+    Ok(answer(StatusCode::CREATED, view(&agent, held.follows_asker, &[])))
   }
 }
 
@@ -335,7 +353,7 @@ impl Route for RoleAgentChange {
 
     let carrying = role_agents::carrying(db, &agent.role).await?;
 
-    Ok(answer(StatusCode::OK, view(&agent, &carrying)))
+    Ok(answer(StatusCode::OK, view(&agent, role.follows_asker, &carrying)))
   }
 }
 

@@ -13,7 +13,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   with none runs nothing.
 - **An agent's road is fixed.** It names one provider, one model of it and the effort, thinking and advisor
   its runs go out with there. Its runs go out on that road and never on another: an agent whose provider cannot answer
-  now, or has no quota, takes no run until it can, and no run of its moves to another provider.
+  now, or has no quota, takes no run until it can, and no run of its moves to another provider. An agent that
+  follows its asker is the one exception (「An agent that follows its asker」 below).
 - **An agent that names no road follows the supervisor that asks it.** Its run goes out on the asking
   supervisor's own provider, model and effort as they stand when it is asked; it takes no run that names no
   road and that no supervisor asked. It also takes a run whose ask names a road no agent of its role stands
@@ -41,6 +42,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   - **its road:** `provider` and `model`, both or neither, with `effort`, `thinking` (`on`, `off` or the
     provider's own), `answerTokens` and `advisor` (the model its program may consult, or none;
     `docs/provider-order.md`, 「The advisor」), each where it is set;
+  - **whether it follows its asker,** `followsAsker`: true or false, or none where its role's setting stands
+    (「An agent that follows its asker」 below);
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
   - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
     kept is pinged before its cache cools, so its next run there resumes it warm
@@ -54,6 +57,29 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
     of the role's; and `skills`, the names of the skills its runs carry in place of the role's.
 - **A role's preset is the default of every agent of it.** A run reads its agent first and its role for
   whatever the agent leaves unset, so an agent that sets nothing runs exactly as its role says.
+
+## An agent that follows its asker
+
+- **An agent may follow the supervisor that asks its run while it names a road of its own.** A run of it that a
+  supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is asked, as
+  an agent that names no road does; the agent's own road is its fallback, named and kept on the agent, and the
+  run goes out on it where no supervisor asked, where the asking supervisor names no road, or where that
+  supervisor's road cannot answer now. The asker's road is taken first, and only a run that road cannot take
+  goes out on the agent's own.
+- **The setting is the role's, and each agent's own stands over it.** A role says whether its agents follow
+  their asker, `followsAsker` on the role, false unless set; an agent says it for itself, true or false, or
+  none for the role's. An agent that names no road follows its asker whatever either says, and has no fallback.
+- **The supervisor a run is asked for is the one its slot names as `askedBy`** (`docs/role-slots.md`, 「Who
+  takes a slot」). A caller that names none, a unit asking for its own work among them, has its run go out on
+  the agent's own road.
+- **What a run of such an agent goes out with on each turn** is the asking supervisor's entry on that
+  supervisor's provider and the agent's own entry on any other, so a run that fell back to its own road keeps
+  that road's model, effort and thinking.
+- **A job of a role whose agents follow their asker** walks the asking supervisor's road first and its agents'
+  own roads after it (`docs/repositories.md`, 「A job」).
+- **The transliterator follows its asker** (`docs/agent-roles.md`, 「The translator and the transliterator
+  roles」): a narration's spoken words go out on the road of the supervisor whose narration asks them, and on
+  its agents' own roads where none is named.
 
 ## What a run reads off its agent
 
@@ -119,9 +145,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   (`docs/agent-control.md`, 「An item's change is told to its orderer」).
 - **A run that names no agent is let in on any agent of its role that is switched on, is free, and whose
   road can answer now,** taken by name where several are free; the agents hold no order of priority. A run a
-  supervisor asks may take an
-  agent that names no road, on that supervisor's road, and a run no supervisor asks passes the agents that name
-  no road over.
+  supervisor asks may take an agent that names no road, or one that follows its asker, on that supervisor's
+  road, and a run no supervisor asks passes the agents that name no road over and takes one that follows its
+  asker on that agent's own road.
 - **A run that names a road takes an agent of that road alone.** An ask naming a provider and a model, or a
   model alone, is let in only on an agent whose road is that one, and waits for such an agent however long
   it takes; where no agent of the role stands on that road it is let in on an agent that names none, and

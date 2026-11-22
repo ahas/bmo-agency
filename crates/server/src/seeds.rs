@@ -105,6 +105,7 @@ fn role_seed(role: &Role, texts: RoleTexts) -> RoleSeed {
     sessions: role.sessions.word().to_owned(),
     fold_ratio: order.default_fold_ratio(),
     provider_prompts: texts.provider_prompts,
+    follows_asker: role.follows_asker,
   }
 }
 

@@ -92,6 +92,10 @@ pub struct Role {
   #[serde(default)]
   pub sessions: Sessions,
   pub order: Vec<OrderEntry>,
+  /// Whether a run of it follows the supervisor that asks it, its agents' own roads standing where none does
+  /// (docs/role-agents.md, 「An agent that follows its asker」); off where the declaration names none.
+  #[serde(default)]
+  pub follows_asker: bool,
 }
 
 /// Every bundle and every seeded role, each in the order a screen lists them, and the roles nothing names.

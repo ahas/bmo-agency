@@ -15014,7 +15014,12 @@
           },
           "followsSupervisor": {
             "type": "boolean",
-            "description": "Whether its agents name no road, so its runs go out on the road of the supervisor that asks them; a\nscreen shows its road as the supervisor's.",
+            "description": "Whether a run of it a supervisor asks goes out on that supervisor's road: its switched-on agents name no\nroad, or each follows its asker; a screen shows its road as the supervisor's.",
+            "default": false
+          },
+          "followsAsker": {
+            "type": "boolean",
+            "description": "whether its agents follow the supervisor that asks a run of them, each one's own road standing where no\nsupervisor's does or that road cannot answer now; an agent's own setting stands over it",
             "default": false
           },
           "providerPrompts": {
@@ -15059,6 +15064,7 @@
           "agents",
           "maxConcurrent",
           "followsSupervisor",
+          "followsAsker",
           "providerPrompts",
           "running",
           "waiting",
@@ -15187,9 +15193,17 @@
             "format": "int64",
             "description": "epoch milliseconds"
           },
+          "followsAsker": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer\nnow, or null where its role's setting stands",
+            "default": null
+          },
           "followsSupervisor": {
             "type": "boolean",
-            "description": "whether it names no road",
+            "description": "whether a run of it a supervisor asks goes out on that supervisor's road: it names no road, or it follows\nits asker by its own setting or its role's",
             "default": false
           },
           "carries": {
@@ -15215,6 +15229,7 @@
           "bundles",
           "skills",
           "addedAt",
+          "followsAsker",
           "followsSupervisor",
           "carries"
         ],
@@ -15273,6 +15288,13 @@
               "type": "string"
             },
             "description": "the text a run of it is given beside its prompt where its program stands on a provider, by provider"
+          },
+          "followsAsker": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "whether its agents follow the supervisor that asks a run of them; false where it names none"
           }
         },
         "required": [
@@ -15337,6 +15359,13 @@
               ]
             },
             "description": "each provider's prompt set, or taken away where it is given as null; a provider left out stands as it is"
+          },
+          "followsAsker": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "whether its agents follow the supervisor that asks a run of them"
           }
         },
         "description": "RoleChange: the fields a change of a role names; a prompt, a description or the skills given as null clears\nit."
@@ -15575,6 +15604,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "followsAsker": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer\nnow; null gives its role's setting back"
           }
         },
         "required": [
@@ -15675,6 +15711,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "followsAsker": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "whether it follows its asker, its own road standing where no supervisor's does or that road cannot answer\nnow; null gives its role's setting back"
           }
         },
         "description": "RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an\noverride gives the role's own back."

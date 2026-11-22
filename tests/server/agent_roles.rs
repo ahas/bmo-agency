@@ -66,6 +66,7 @@ fn advised(name: &str, model: &str, advisor: &str) -> agency_server::role_agents
     bundles: None,
     skills: None,
     added_at: 0,
+    follows_asker: None,
   }
 }
 

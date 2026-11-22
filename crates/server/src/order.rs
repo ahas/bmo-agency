@@ -513,8 +513,10 @@ pub async fn supervisor_entry<C: sea_orm::ConnectionTrait>(
 }
 
 /// The entry the row a run names — a supervisor's, else a role's of that name — holds for a provider. A role
-/// whose order is empty follows the supervisor that asks it (docs/provider-order.md, 「Runs on another's road」): its entry is that supervisor's for the provider, and a run of such a role that
-/// names no supervisor is refused.
+/// whose order is empty follows the supervisor that asks it (docs/provider-order.md, 「Runs on another's road」):
+/// its entry is that supervisor's for the provider, and a run of such a role that names no supervisor is refused.
+/// A role whose agents follow their asker and name roads of their own takes the supervisor's entry on that
+/// supervisor's provider and its own elsewhere.
 pub async fn row_entry<C: sea_orm::ConnectionTrait>(
   db: &C,
   row: &str,
@@ -533,6 +535,16 @@ pub async fn row_entry<C: sea_orm::ConnectionTrait>(
       Some(supervisor) => supervisor_entry(db, supervisor, provider).await,
       None => Err(format!("the {row} role follows the supervisor that asks it, and this run names none")),
     };
+  }
+
+  // A role whose agents follow their asker while naming roads of their own goes by the asking supervisor's entry
+  // on that supervisor's provider, and by its agents' own entry on any other, the road it stands on where the
+  // supervisor's cannot answer (docs/role-agents.md, 「An agent that follows its asker」).
+  if held.runs_follow()
+    && let Some(supervisor) = supervisor
+    && let Ok(entry) = supervisor_entry(db, supervisor, provider).await
+  {
+    return Ok(entry);
   }
 
   held

@@ -586,8 +586,9 @@ pub struct Seat {
 /// The agents a request may be let in on (docs/role-agents.md, 「Which agent a run takes」), in the order it
 /// looks for a free one, each with whether its road answers now. A request that names a road takes the agents
 /// on that road, or the agents that name none where no agent of the role is on it; one that names none
-/// takes every agent of the role that is switched on, an agent that names a road on its own and an agent
-/// that names none on the road of the supervisor that asked the request, where one did.
+/// takes every agent of the role that is switched on: an agent that follows its asker on the road of the
+/// supervisor that asked the request, where one did, its own road standing where none did or that road cannot
+/// answer now, and any other agent on its own road.
 pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
   // A request that names an agent is let in on that agent alone (docs/role-agents.md, 「Which agent a run
   // takes」).
@@ -600,9 +601,9 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
   let mut seats: Vec<Seat> = vec![];
 
   if held.provider.is_empty() {
-    // An agent that names no road takes the request on its asking supervisor's road, and takes none of a
-    // request no supervisor asked.
-    let followed = match (on.clone().any(|agent| agent.entry().is_none()), held.asked_by.as_deref()) {
+    // An agent that follows its asker takes the request on its asking supervisor's road; one that names no road
+    // takes none of a request no supervisor asked (docs/role-agents.md, 「An agent that follows its asker」).
+    let followed = match (on.clone().any(|agent| role.follows(agent)), held.asked_by.as_deref()) {
       (true, Some(name)) => crate::supervisors::named(&ground.db, name)
         .await
         .map_err(faulted)?
@@ -614,30 +615,36 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
     let mut judged: Vec<(String, String, Result<(), String>)> = vec![];
 
     for agent in on {
-      let Some(own) = agent.entry().or_else(|| followed.clone()) else { continue };
-      let known = judged
-        .iter()
-        .find(|(provider, model, _)| *provider == own.provider && *model == own.model)
-        .map(|(_, _, answers)| answers.clone());
-      let answers = match known {
-        Some(answers) => answers,
-        None => {
-          let asked = Request {
-            provider: own.provider.clone(),
-            model: own.model.clone(),
-            effort: own.effort.clone(),
-            ..held.clone()
-          };
-          let answers = road_of(ground, &asked, role).await?.map(|_| ());
+      // The asker's road first where the agent follows it, then the agent's own, which stands where no
+      // supervisor's road does or where that road cannot answer now.
+      let asker = followed.clone().filter(|_| role.follows(agent));
+      let own = agent.entry().filter(|own| {
+        asker
+          .as_ref()
+          .is_none_or(|asker| (&asker.provider, &asker.model) != (&own.provider, &own.model))
+      });
+      let roads: Vec<Entry> = asker.into_iter().chain(own).collect();
 
-          judged.push((own.provider.clone(), own.model.clone(), answers.clone()));
-          answers
+      if roads.is_empty() {
+        continue;
+      }
+
+      let mut refusals: Vec<String> = vec![];
+      let mut taken: Option<Entry> = None;
+
+      for road in roads {
+        match answers_now(ground, held, role, &road, &mut judged).await? {
+          Ok(()) => {
+            taken = Some(road);
+            break;
+          }
+          Err(why) => refusals.push(why),
         }
-      };
+      }
 
       seats.push(Seat {
         agent: agent.name.clone(),
-        road: answers.map(|()| own),
+        road: taken.ok_or_else(|| refusals.join("; on its own road, ")),
       });
     }
 
@@ -666,6 +673,35 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
       })
       .collect(),
   )
+}
+
+// Whether a road can take the request now, asked of its provider once however many agents stand on it: `judged`
+// keeps each road's answer.
+async fn answers_now(
+  ground: &Ground,
+  held: &Request,
+  role: &AgentRole,
+  road: &Entry,
+  judged: &mut Vec<(String, String, Result<(), String>)>,
+) -> Result<Result<(), String>, Fault> {
+  if let Some((_, _, answers)) = judged
+    .iter()
+    .find(|(provider, model, _)| *provider == road.provider && *model == road.model)
+  {
+    return Ok(answers.clone());
+  }
+
+  let asked = Request {
+    provider: road.provider.clone(),
+    model: road.model.clone(),
+    effort: road.effort.clone(),
+    ..held.clone()
+  };
+  let answers = road_of(ground, &asked, role).await?.map(|_| ());
+
+  judged.push((road.provider.clone(), road.model.clone(), answers.clone()));
+
+  Ok(answers)
 }
 
 /// The request let in where its turn has come, or none where it waits on: its owner asking for it, let in once

@@ -178,6 +178,9 @@ description = "Spells the written words of a line as the spoken words the voice 
 line = "search"
 max_concurrent = 4
 bundles = []
+# A narration's spoken words go out on the road of the supervisor whose narration asks them, the agents' own
+# roads standing where none does.
+follows_asker = true
 order = [
   { provider = "claude-code", model = "claude-haiku-4-5-20251001", effort = "low" },
   { provider = "deepseek", model = "deepseek-flash", effort = "low" },
