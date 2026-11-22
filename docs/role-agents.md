@@ -65,7 +65,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   an agent that names no road does; the agent's own road is its fallback, named and kept on the agent, and the
   run goes out on it where no supervisor asked, where the asking supervisor names no road, or where that
   supervisor's road cannot answer now. The asker's road is taken first, and only a run that road cannot take
-  goes out on the agent's own.
+  goes out on the agent's own. A run let in on its own road in place of its asker's is logged once as it is let
+  in, naming the agent's own road it went out on and the asking supervisor, its road and the sentence that road
+  answered.
 - **The setting is the role's, and each agent's own stands over it.** A role says whether its agents follow
   their asker, `followsAsker` on the role, false unless set; an agent says it for itself, true or false, or
   none for the role's. An agent that names no road follows its asker whatever either says, and has no fallback.

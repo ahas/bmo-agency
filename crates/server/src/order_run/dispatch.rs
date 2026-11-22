@@ -581,6 +581,10 @@ pub async fn road_of(
 pub struct Seat {
   pub agent: String,
   pub road: Result<Entry, String>,
+  /// Why the road of the supervisor the agent follows was passed over for the agent's own, where it was: that
+  /// supervisor and its road, and the sentence the road answered (docs/role-agents.md, 「An agent that follows its
+  /// asker」).
+  pub passed_over: Option<String>,
 }
 
 /// The agents a request may be let in on (docs/role-agents.md, 「Which agent a run takes」), in the order it
@@ -623,6 +627,7 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
           .as_ref()
           .is_none_or(|asker| (&asker.provider, &asker.model) != (&own.provider, &own.model))
       });
+      let asker_road = asker.as_ref().map(|asker| format!("{}/{}", asker.provider, asker.model));
       let roads: Vec<Entry> = asker.into_iter().chain(own).collect();
 
       if roads.is_empty() {
@@ -642,9 +647,21 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
         }
       }
 
+      // The asker's road answered first where it was tried, so a refusal before a road taken is the asker's.
+      let passed_over = match (&taken, &asker_road, refusals.first()) {
+        // The road's sentence runs over several lines; the log keeps it on one.
+        (Some(_), Some(asker_road), Some(why)) => Some(format!(
+          "it follows {}, whose road {asker_road} cannot answer now: {}",
+          held.asked_by.as_deref().unwrap_or_default(),
+          why.lines().map(str::trim).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ")
+        )),
+        _ => None,
+      };
+
       seats.push(Seat {
         agent: agent.name.clone(),
         road: taken.ok_or_else(|| refusals.join("; on its own road, ")),
+        passed_over,
       });
     }
 
@@ -670,6 +687,7 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
       .map(|agent| Seat {
         agent: agent.name.clone(),
         road: road.clone(),
+        passed_over: None,
       })
       .collect(),
   )
@@ -719,6 +737,10 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
 
   let role = role_of(&ground.db, &held.role).await?;
   let seats = seats_for(ground, held, &role).await?;
+  let passed_over: Vec<(String, String)> = seats
+    .iter()
+    .filter_map(|seat| seat.passed_over.clone().map(|why| (seat.agent.clone(), why)))
+    .collect();
   let written = ground.db.begin().await.map_err(faulted)?;
   let (admitted, changed) = admission(&written, &held.token, &role, seats, crate::now_ms()).await?;
 
@@ -730,9 +752,25 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
 
   if let Some(request) = &admitted {
     announce(&ground.events, request);
+
+    // A request let in on an agent's own road in place of the road of the supervisor it follows says both: the
+    // road it went out on, and why the supervisor's was passed over.
+    if let Some((agent, why)) = passed_over.iter().find(|(agent, _)| request.seat.as_deref() == Some(agent))
+    {
+      eprintln!("{}", fallback_line(request, agent, why));
+    }
   }
 
   Ok(admitted)
+}
+
+/// The line a request let in on an agent's own road in place of the road of the supervisor it follows is logged
+/// with: the role, the request, the agent and its own road, and why the supervisor's road was passed over.
+pub fn fallback_line(request: &Request, agent: &str, why: &str) -> String {
+  format!(
+    "{} slot {}: let in on {agent}'s own road {}/{} in place of its asker's; {why}",
+    request.role, request.token, request.provider, request.model
+  )
 }
 
 // Numbers a waiting request's ask in the line's one increasing order of asks, and answers the ask its owner

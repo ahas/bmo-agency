@@ -1284,6 +1284,50 @@ async fn an_agent_following_its_asker_takes_the_askers_road_and_falls_back_to_it
     "an asker's road that cannot answer gives way to the agent's own"
   );
 
+  // The seat that gave way says both: the asker and its road with the sentence that road answered, and the own road
+  // the request is let in on, in the line its admission logs.
+  let run = Asked {
+    request_key: "follows-asker:passed-over".into(),
+    owner: "follows-asker:passed-over".into(),
+    wanted: Wanted {
+      role: "transliterator",
+      path: None,
+      fixed: None,
+      agent: None,
+    },
+    asked_by: Some("elsewhere"),
+    ..Asked::default()
+  };
+  let held = enqueue(&ground.db, &ground.events, &run, "voice", async |_, _| Ok(())).await.unwrap();
+  let role = agency_server::agent_roles::named(&ground.db, "transliterator").await.unwrap().unwrap();
+  let seats = dispatch::seats_for(&ground, &held, &role).await.unwrap();
+  let seat = &seats[0];
+  let why = seat.passed_over.clone().expect("the asker's road was passed over");
+
+  assert_eq!(seat.road.as_ref().map(|road| road.model.as_str()), Ok("deepseek-flash"));
+  assert!(
+    why.starts_with("it follows elsewhere, whose road openrouter/paid cannot answer now: "),
+    "{why}"
+  );
+  assert!(
+    why.len() > "it follows elsewhere, whose road openrouter/paid cannot answer now: ".len(),
+    "{why}"
+  );
+  assert!(admitted(&ground, &held).await);
+
+  let running = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+  let line = dispatch::fallback_line(&running, &seat.agent, &why);
+
+  assert!(
+    line.starts_with(&format!(
+      "transliterator slot {}: let in on {}'s own road deepseek/deepseek-flash in place of its asker's; it follows \
+       elsewhere, whose road openrouter/paid cannot answer now: ",
+      held.token, seat.agent
+    )),
+    "{line}"
+  );
+  assert!(finish(&ground.db, &ground.events, &held.token, "done", false).await.unwrap());
+
   let entry = agency_server::order::row_entry(&ground.db, "transliterator", "deepseek", Some("chat"))
     .await
     .unwrap();
