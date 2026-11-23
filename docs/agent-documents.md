@@ -132,8 +132,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   repository live and adding one, a hosted tool made and a supervisor's cut turn — is not the manual's: it
   stands in the platform's rules, which a supervisor of the platform administrator's reads before its role.
 - **The day's collection is the supervisor's own reading, told by the manual.** The work service only
-  says when a person's day is to be asked, with its `day.end` notice (bmo-work `docs/design.md`, 「The
-  end-of-day question」); the person's supervisor does the rest with its own tools, reaching nothing the
+  says when a person's day is to be asked, with its `day.end` notice; the person's supervisor does the rest with its own tools, reaching nothing the
   person may not read:
   - it reads the day's traces by the day's date — the calendar, the Outlook day on the person's own PC,
     the mail they sent, the files they changed, the approvals, the Teams talks they stand in, the TODO
