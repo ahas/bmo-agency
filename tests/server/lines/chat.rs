@@ -360,18 +360,15 @@ fn an_unfolded_answer_is_the_default_and_a_fold_is_the_agents_own_mark() {
   let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
   let section = capabilities.split("CAPABILITY foldable: ").nth(1).expect("the fold's section");
 
-  assert!(section.contains("Your answer goes out unfolded: that is the default."), "{section}");
   assert!(
-    section.contains("only where its body runs long and stands apart from a short lead"),
+    section.contains("Fold an answer whose body runs long behind a lead the room reads first"),
     "{section}"
   );
-  assert!(section.contains("Never fold a conversational answer, a short answer"), "{section}");
+  assert!(section.contains("past about 600 characters or eight lines"), "{section}");
+  assert!(section.contains("folds however warmly it is written"), "{section}");
+  assert!(section.contains("Leave unfolded a short answer"), "{section}");
   assert!(section.contains("end the answer with <<FOLD>>"), "{section}");
   assert!(section.contains("nothing folds an answer you leave unmarked"), "{section}");
-  assert!(
-    section.contains("whether to fold is your own judgement, never a count of characters"),
-    "{section}"
-  );
   assert!(
     capabilities.contains("or for folding where its dialect\nfolds"),
     "the section stands only there"
