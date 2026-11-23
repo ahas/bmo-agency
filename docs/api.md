@@ -2120,7 +2120,9 @@ notice to a reader resuming too late (「events」 above), never published as an
   receiver's.
 - **`supply`**: asked as a person's run starts and as it spends (`docs/supply.md`, 「The supply hook」). Each ask
   is `{ "point": "supply", "ask": { "op", … } }`, the answer read from `answer`; amounts are US dollars, times
-  epoch milliseconds, and `key` the idempotency key `<run>:<step>:<op>`.
+  epoch milliseconds, and `key` the idempotency key `<run>:<step>:<op>`. `run` is the run's supply key, a
+  string: its kind (`job` or `turn`), its number and the moment it chose its source in epoch milliseconds, joined
+  by hyphens, so no two runs share one across kinds or restarts. `account`, `step`, `job` and `room` are numbers.
 
   | `op` | Ask | Answer |
   |---|---|---|

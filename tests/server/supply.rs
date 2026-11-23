@@ -6,6 +6,7 @@
 
 mod call_keys;
 mod choice;
+mod contract;
 mod kept_hook;
 mod meter;
 mod organisation;
@@ -206,9 +207,10 @@ pub async fn call(port: u16, method: reqwest::Method, path: &str, body: Option<V
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
-/// One ask the consumer was posted: the ask itself, and the bearer it came under.
+/// One ask the consumer was posted: the whole body as it came, the ask itself, and the bearer it came under.
 #[derive(Clone, Debug)]
 pub struct Heard {
+  pub body: Value,
   pub ask: Value,
   pub bearer: Option<String>,
 }
@@ -239,7 +241,7 @@ impl Consumer {
       let op = ask["op"].as_str().unwrap_or_default().to_owned();
       let source = ask["source"].as_str().unwrap_or_default().to_owned();
 
-      kept.lock().unwrap().push(Heard { ask, bearer });
+      kept.lock().unwrap().push(Heard { body, ask, bearer });
 
       let script = scripted.lock().unwrap();
       let (status, answer) = script

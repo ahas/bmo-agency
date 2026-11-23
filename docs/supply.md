@@ -203,6 +203,9 @@ platform pays for takes it.
     Answered with `taken`. It may exceed the reservation; how far is the consumer's, at most one reservation
     unit. A reservation the consumer already let go, past its expiry, is taken as a charge of that amount.
   - `release`: the run, the step, the reservation and the key. Answered with `taken`.
+- **A run is named to the hook by its supply key,** a string: its kind, `job` or `turn`, its number — the job's
+  id, or the ledger run a supervisor's turn opened — and the moment it chose its source, joined by hyphens. A job
+  and a turn of the same number, and a run chosen again after a restart, never share one.
 - **Every ask that moves money carries its idempotency key,** `<run>:<step>:<op>`, the step a number that
   rises with each reservation, extension, capture and release of the run, so an ask sent again is taken once.
 - **Agency never calls the account service by its own address:** the hook is the consumer's, and its default
