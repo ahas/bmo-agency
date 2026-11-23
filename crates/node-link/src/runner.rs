@@ -5,6 +5,7 @@
 //! answers what the tool wrote and how it ended. Its standard input closing before the tool has answered is its
 //! caller gone, and ends the tool.
 
+use std::collections::BTreeMap;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -16,6 +17,9 @@ use tokio::sync::mpsc;
 
 /// The folder under a workplace's data root a PC's runner keeps its owners' tools in.
 pub const PERSONAL_TOOLS: &str = "personal-tools";
+
+/// The folder beside it, under the same data root, the person's apps' sources stand in, one folder an app.
+pub const MY_APPS: &str = "my-apps";
 
 /// The variable a test names a stand-in for bubblewrap in.
 pub const BWRAP_VARIABLE: &str = "NODE_LINK_BWRAP";
@@ -60,8 +64,32 @@ pub enum Answered {
   Said { line: String },
   /// How the tool ended, none where a signal ended it, and what it wrote on its standard output.
   End { code: Option<i32>, out: String },
-  /// Why the runner did not run the tool.
+  /// Why the runner did not run the tool, or did not do what it was asked.
   Refused { why: String },
+  /// An app placed as a new version, pointed at by nothing yet, and its description by path.
+  Placed {
+    version: String,
+    files: BTreeMap<String, String>,
+  },
+  /// A version's description by path.
+  Described {
+    version: String,
+    files: BTreeMap<String, String>,
+  },
+  /// The pointer moved onto the version, and the versions kept older than it, newest first.
+  Pointed { version: String, kept: Vec<String> },
+  /// Each tool's version pointed at and those kept beside it, by the tool's name.
+  Versions { tools: BTreeMap<String, Kept> },
+  /// The tool's pointer and versions taken away.
+  Taken {},
+}
+
+/// What a tool keeps: the version pointed at, none where no pointer stands, and the others older than it, newest
+/// first.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Kept {
+  pub current: Option<String>,
+  pub kept: Vec<String>,
 }
 
 impl Answered {
@@ -94,6 +122,12 @@ pub fn version_dir(root: &Path, owner: &str, tool: &str, version: &str) -> PathB
   root.join("owners").join(owner).join("tools").join(tool).join(version)
 }
 
+/// The folder the apps' sources stand in, one folder an app: the runner's root's sibling `my-apps`, under the same
+/// data root (docs/person-nodes.md, 「Personal apps」).
+pub fn apps_dir(root: &Path) -> PathBuf {
+  root.parent().map_or_else(|| PathBuf::from(MY_APPS), |parent| parent.join(MY_APPS))
+}
+
 /// The folder an owner's tool keeps its data in, the one it writes.
 pub fn data_dir(root: &Path, owner: &str, tool: &str) -> PathBuf {
   root.join("owners").join(owner).join("data").join(tool)
@@ -105,6 +139,37 @@ pub fn data_dir(root: &Path, owner: &str, tool: &str) -> PathBuf {
 /// at `/tool`, where it starts, and the data folder written at `/data`, its home. The first run word is read in the
 /// version folder where a file of that name stands there, and found on the search path otherwise.
 pub fn confined(version: &Path, data: &Path, run: &[String]) -> Vec<String> {
+  let mut words = machine_words();
+
+  words.extend(["--ro-bind".into(), version.to_string_lossy().into_owned(), TOOL_AT.into()]);
+  words.extend(["--bind".into(), data.to_string_lossy().into_owned(), DATA_AT.into()]);
+  words.extend(["--chdir".into(), TOOL_AT.into()]);
+
+  for (name, value) in [("PATH", CONFINED_PATH), ("HOME", DATA_AT), ("TMPDIR", "/tmp"), ("LANG", "C.UTF-8")]
+  {
+    words.extend(["--setenv".into(), name.into(), value.into()]);
+  }
+
+  words.push("--".into());
+
+  if let Some((first, rest)) = run.split_first() {
+    let own = version.join(first);
+
+    words.push(if plain_name(first) && own.is_file() {
+      format!("{TOOL_AT}/{first}")
+    } else {
+      first.clone()
+    });
+    words.extend(rest.iter().cloned());
+  }
+
+  words
+}
+
+/// The words every confinement starts with: every namespace its own, the network among them; ended with its
+/// parent; in a session of its own; a clean environment; the machine's `/usr` and the few files its programs read,
+/// read alone; and a process table, devices and a scratch folder of its own.
+pub fn machine_words() -> Vec<String> {
   let mut words: Vec<String> = [
     "--unshare-all",
     "--die-with-parent",
@@ -134,29 +199,12 @@ pub fn confined(version: &Path, data: &Path, run: &[String]) -> Vec<String> {
   }
 
   words.extend(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"].map(str::to_owned));
-  words.extend(["--ro-bind".into(), version.to_string_lossy().into_owned(), TOOL_AT.into()]);
-  words.extend(["--bind".into(), data.to_string_lossy().into_owned(), DATA_AT.into()]);
-  words.extend(["--chdir".into(), TOOL_AT.into()]);
-
-  for (name, value) in [("PATH", CONFINED_PATH), ("HOME", DATA_AT), ("TMPDIR", "/tmp"), ("LANG", "C.UTF-8")]
-  {
-    words.extend(["--setenv".into(), name.into(), value.into()]);
-  }
-
-  words.push("--".into());
-
-  if let Some((first, rest)) = run.split_first() {
-    let own = version.join(first);
-
-    words.push(if plain_name(first) && own.is_file() {
-      format!("{TOOL_AT}/{first}")
-    } else {
-      first.clone()
-    });
-    words.extend(rest.iter().cloned());
-  }
-
   words
+}
+
+/// The search path a confined program runs with.
+pub fn confined_path() -> &'static str {
+  CONFINED_PATH
 }
 
 /// Whether a program stands where it is named: a path that is a file, or a name found on the search path.
@@ -225,6 +273,12 @@ pub async fn run(
   let mut first = String::new();
 
   if !matches!(input.read_line(&mut first).await, Ok(read) if read > 0) {
+    return;
+  }
+
+  // A line naming no call asks the runner to keep the owner's versions (docs/person-nodes.md, 「Personal apps」).
+  if serde_json::from_str::<Value>(first.trim_end()).is_ok_and(|line| line.get("call").is_none()) {
+    crate::keeping::keep(runner, first.trim_end(), input, output).await;
     return;
   }
 

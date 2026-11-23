@@ -80,6 +80,9 @@ pub fn kinds() -> Vec<Kind> {
     own(&organisation.sources.personal),
     organisation.composition.kind(),
     own(&organisation.repositories),
+    own(&organisation.personal_apps.make),
+    own(&organisation.personal_apps.network),
+    own(&organisation.personal_apps.secrets),
   ]
 }
 

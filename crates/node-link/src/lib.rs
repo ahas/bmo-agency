@@ -7,6 +7,7 @@ pub mod connect;
 pub mod frame;
 pub mod home;
 pub mod hub;
+pub mod keeping;
 pub mod rewrite;
 pub mod runner;
 pub mod serve;

@@ -36,6 +36,51 @@ pub struct AskInput {
   pub words: String,
   #[serde(default)]
   pub folder: Option<String>,
+  /// A personal app of the person the session acts for, whose folder of 'my apps' the run works in.
+  #[serde(default)]
+  pub app: Option<String>,
+}
+
+/// The folder under the data root the apps' sources stand in, one folder an app, which a person's PC reads as its
+/// own (docs/person-nodes.md, 「Personal apps」).
+pub const MY_APPS: &str = "my-apps";
+
+/// The procedure an app's run is led by, under the tree the tool reads `prompts/` from.
+pub const GUIDE: &str = "prompts/agents/chat/procedures/make-app.md";
+
+/// An app's name: a lower-case letter, then lower-case letters, digits and `_`.
+pub fn app_name(name: &str) -> bool {
+  name.chars().next().is_some_and(|first| first.is_ascii_lowercase())
+    && name.chars().all(|one| one.is_ascii_lowercase() || one.is_ascii_digit() || one == '_')
+}
+
+// The app's folder and the guide its run is led by, or why it cannot be asked: an app and a folder together, an app
+// under a record naming no account, a name outside an app's alphabet, or a guide that cannot be read.
+fn app_of(session: &Session, input: &AskInput) -> Result<Option<(String, String)>, String> {
+  let Some(app) = input.app.as_deref().map(str::trim).filter(|app| !app.is_empty()) else {
+    return Ok(None);
+  };
+
+  if input.folder.as_deref().is_some_and(|folder| !folder.trim().is_empty()) {
+    return Err("name an app or a folder, not both".to_owned());
+  }
+
+  if session.owner_account.as_deref().is_none_or(|account| account.trim().is_empty()) {
+    return Err("this session acts for no person, and makes no personal app".to_owned());
+  }
+
+  if !app_name(app) {
+    return Err(format!(
+      "{app:?} is no app's name: a lower-case letter, then lower-case letters, digits and `_`"
+    ));
+  }
+
+  let tree = tool_call::prompts_tree(&std::env::current_dir().unwrap_or_default());
+  let guide = std::fs::read_to_string(tree.join(GUIDE))
+    .map_err(|why| format!("the guide {GUIDE} could not be read: {why}"))?;
+  let folder = session.data_root().join(MY_APPS).join(app);
+
+  Ok(Some((folder.to_string_lossy().into_owned(), guide)))
 }
 
 /// Agency's server as the tool reaches it (docs/tools.md, 「The worker ask」), and the pace a waiting slot asks
@@ -184,6 +229,17 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
     return Answer::failure("words must not be empty");
   }
 
+  let (input, guide) = match app_of(session, &input) {
+    Ok(Some((folder, guide))) => (
+      AskInput {
+        folder: Some(folder),
+        ..input
+      },
+      Some(guide),
+    ),
+    Ok(None) => (input, None),
+    Err(why) => return Answer::failure(why),
+  };
   let owner = session.variables.get("BMO_TURN_PRIVILEGED").is_some_and(|flag| flag == "1");
   let named = input
     .folder
@@ -282,7 +338,15 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
   }
 
   let since = now_ms();
-  let prompt = format!("Work in {}.\n\n{}", folder.display(), input.words.trim());
+  let prompt = match (&guide, &input.app) {
+    (Some(guide), Some(app)) => format!(
+      "Work in {}, the folder of the personal app {}, and follow the guide below.\n\n{}\n\n{guide}",
+      folder.display(),
+      app.trim(),
+      input.words.trim()
+    ),
+    _ => format!("Work in {}.\n\n{}", folder.display(), input.words.trim()),
+  };
   let turned = ok(
     api
       .post(

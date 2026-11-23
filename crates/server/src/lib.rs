@@ -83,6 +83,7 @@ pub mod organisation;
 pub mod outbox;
 pub mod peers;
 pub mod person_nodes;
+pub mod personal_apps;
 pub mod places;
 pub mod prompt_layers;
 pub mod queue;

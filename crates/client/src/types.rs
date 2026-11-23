@@ -3923,6 +3923,66 @@ pub struct PersonNodeList {
   pub more: bool,
 }
 
+/// One entry of a personal app, by its full name, as the tool host holds it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalAppEntry {
+  pub name: String,
+  #[serde(default)]
+  pub title: Option<String>,
+  pub description: String,
+}
+
+/// What a personal app's manifest asks for beyond its own folders.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalAppPermissions {
+  pub network: Vec<String>,
+  pub secrets: Vec<String>,
+}
+
+/// PersonalApp: one of an account's personal apps: the version in place, when it was put, its entries, its
+/// permissions, and the versions its PC keeps older than the one in place, newest first, null where the PC was not
+/// reached.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalApp {
+  pub name: String,
+  pub version: String,
+  pub put_at: i64,
+  pub entries: Vec<PersonalAppEntry>,
+  pub permissions: PersonalAppPermissions,
+  pub kept: Option<Vec<String>>,
+}
+
+/// PersonalAppList: an account's personal apps, and whether its PC was reached for the versions it keeps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalAppList {
+  pub items: Vec<PersonalApp>,
+  pub reached: bool,
+}
+
+/// PersonalAppBack: the version a personal app is sent back to, the newest kept older than the current where none
+/// is named.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalAppBack {
+  #[serde(default)]
+  pub version: Option<String>,
+}
+
+/// PersonalAppDone: what a put, a going back or a removal of a personal app came to: the version now in place,
+/// none after a removal, the entries the account's sessions reach, and what the tool host and the build said.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalAppDone {
+  pub name: String,
+  pub version: Option<String>,
+  pub entries: Vec<PersonalAppEntry>,
+  pub said: Vec<String>,
+}
+
 /// A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
 /// its name, one of the two.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

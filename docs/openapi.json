@@ -202,6 +202,9 @@
       "name": "person-nodes"
     },
     {
+      "name": "personal-apps"
+    },
+    {
       "name": "slots"
     }
   ],
@@ -7845,6 +7848,271 @@
             "schema": {
               "type": "string",
               "description": "the account"
+            }
+          }
+        ]
+      }
+    },
+    "/personal-apps/{ownerAccount}": {
+      "get": {
+        "operationId": "listPersonalApps",
+        "tags": [
+          "personal-apps"
+        ],
+        "summary": "An account's personal apps, as the tool host holds them and the PC keeps their versions.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAppList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ]
+      }
+    },
+    "/personal-apps/{ownerAccount}/{name}/put": {
+      "post": {
+        "operationId": "putPersonalApp",
+        "tags": [
+          "personal-apps"
+        ],
+        "summary": "Build the app's folder on the account's PC into a new version, put it at home and point at it.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAppDone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "personal-apps-withheld",
+          "permission-withheld",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's name"
+            }
+          }
+        ]
+      }
+    },
+    "/personal-apps/{ownerAccount}/{name}/back": {
+      "post": {
+        "operationId": "backPersonalApp",
+        "tags": [
+          "personal-apps"
+        ],
+        "summary": "Send the app back to a version its PC keeps.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAppDone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "no-older-version"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalAppBack"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/personal-apps/{ownerAccount}/{name}": {
+      "delete": {
+        "operationId": "removePersonalApp",
+        "tags": [
+          "personal-apps"
+        ],
+        "summary": "Take the app out at home and on the PC.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalAppDone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's name"
             }
           }
         ]
@@ -17012,6 +17280,162 @@
         ],
         "description": "The body that sets an account's node: a hub node the node service keeps, and whether it is shared with other\naccounts, false where left out."
       },
+      "PersonalAppList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalApp"
+            }
+          },
+          "reached": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "reached"
+        ],
+        "description": "PersonalAppList: an account's personal apps, and whether its PC was reached for the versions it keeps."
+      },
+      "PersonalApp": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "putAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalAppEntry"
+            }
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PersonalAppPermissions"
+          },
+          "kept": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "putAt",
+          "entries",
+          "permissions",
+          "kept"
+        ],
+        "description": "PersonalApp: one of an account's personal apps: the version in place, when it was put, its entries, its\npermissions, and the versions its PC keeps older than the one in place, newest first, null where the PC was not\nreached."
+      },
+      "PersonalAppEntry": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description"
+        ],
+        "description": "One entry of a personal app, by its full name, as the tool host holds it."
+      },
+      "PersonalAppPermissions": {
+        "type": "object",
+        "properties": {
+          "network": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "secrets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "network",
+          "secrets"
+        ],
+        "description": "What a personal app's manifest asks for beyond its own folders."
+      },
+      "PersonalAppDone": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalAppEntry"
+            }
+          },
+          "said": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "entries",
+          "said"
+        ],
+        "description": "PersonalAppDone: what a put, a going back or a removal of a personal app came to: the version now in place,\nnone after a removal, the entries the account's sessions reach, and what the tool host and the build said."
+      },
+      "PersonalAppBack": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "description": "PersonalAppBack: the version a personal app is sent back to, the newest kept older than the current where none\nis named."
+      },
       "NodeAccess": {
         "type": "object",
         "properties": {
@@ -17941,6 +18365,16 @@
           }
         }
       },
+      "AppRefused": {
+        "description": "app-refused",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AwaitsOwner": {
         "description": "awaits-owner",
         "content": {
@@ -18131,6 +18565,26 @@
           }
         }
       },
+      "NoOlderVersion": {
+        "description": "no-older-version",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoRunner": {
+        "description": "no-runner",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoSignIn": {
         "description": "no-sign-in",
         "content": {
@@ -18293,6 +18747,36 @@
       },
       "OwnRepository": {
         "description": "own-repository",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PermissionWithheld": {
+        "description": "permission-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PersonalAppsWithheld": {
+        "description": "personal-apps-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RunnerUnreached": {
+        "description": "runner-unreached",
         "content": {
           "application/json": {
             "schema": {

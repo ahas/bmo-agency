@@ -75,6 +75,7 @@ binaries = [
   "llm-gateway",
   "procedures-tool",
   "worker-ask-tool",
+  "app-put-tool",
   "relay-tool",
   "room-grant-tool",
   "deepseek-top-up-tool",
@@ -215,6 +216,17 @@ rm -rf tools/worker_ask/.placed
 mkdir -p tools/worker_ask/.placed
 cp bin/worker-ask-tool tools/worker_ask/tool.toml tools/worker_ask/worker_ask.json tools/worker_ask/.placed/
 bmo-pocket put tools/worker_ask/.placed --placed --service agency --allow room.tools
+'''
+
+[[deploy.step]]
+id = "place-app-put"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/app_put/.placed
+mkdir -p tools/app_put/.placed
+cp bin/app-put-tool tools/app_put/tool.toml tools/app_put/app_put.json tools/app_put/.placed/
+bmo-pocket put tools/app_put/.placed --placed --service agency --allow room.tools
 '''
 
 # The tool host's registry holds no tool of agency's named `delegate`, since no folder under tools/ declares one:

@@ -33,6 +33,7 @@ mod node_reads;
 pub mod organisation_supply;
 pub mod own_llm;
 mod person_node_routes;
+mod personal_app_routes;
 pub mod personal_supply;
 pub mod pool;
 mod pool_routes;

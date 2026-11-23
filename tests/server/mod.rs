@@ -158,6 +158,7 @@ mod order_run {
 }
 mod peers;
 mod person_nodes;
+mod personal_apps;
 
 mod lines {
   mod advisor;

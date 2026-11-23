@@ -1530,6 +1530,33 @@ where the shell stands in an agent's program, else the owner.
   record holds none: another account's supervisor's, a role agent's, a seat's run's and a job's alike, judged as the access read judges. So the tool
   reads the grant off the caller's record and asks agency nothing for it.
 
+### personal-apps
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/personal-apps/{ownerAccount}` | An account's personal apps, as the tool host holds them and the PC keeps their versions. |
+| POST | `/personal-apps/{ownerAccount}/{name}/put` | The app's folder on the account's PC built into a new version, put at home and pointed at. |
+| POST | `/personal-apps/{ownerAccount}/{name}/back` | The app sent back to a version its PC keeps: `version`, the newest older than the current where left out. |
+| DELETE | `/personal-apps/{ownerAccount}/{name}` | The app taken out at home and on the PC. |
+
+- **What each does is `docs/person-nodes.md`, 「Personal apps」:** the runner the account's records name is asked
+  over its passage, and the tool host's registry through `bmo-pocket`, the binary `BMO_POCKET_BIN` names in agency's
+  environment, else `bmo-pocket` on the path.
+- **A caller naming a person with `Owner-Key` acts on that person's account alone;** another account in the path is
+  403 `forbidden`. A caller of the deployment's own names the account, as the console does for the person signed in
+  and agency's app put does for the account its record names.
+- **The listing** answers `items`, one per app: `name`, `version`, `putAt` in epoch milliseconds, `entries`, each
+  `{name, title, description}` by its full name, `permissions`, `{network, secrets}`, and `kept`, the versions its
+  PC keeps older than the current, newest first, null where the PC was not reached; and `reached`, whether it was.
+- **A put, a going back and a removal** answer `name`, `version`, the version now in place (null after a removal),
+  `entries` and `said`, the lines the tool host and the build said.
+- **Refusals:** an account with no runner, its PC shared or absent, is 409 `no-runner`; a PC that cannot be reached
+  is 502 `runner-unreached`; the runner's refusal, a build that failed or the tool host's refusal is 422
+  `app-refused` with its words; a person whose chain does not let them put an app is 403 `personal-apps-withheld`,
+  and one whose app asks for a permission their chain leaves off is 403 `permission-withheld`, naming it; an
+  account service that cannot be asked is 503 `access-unchecked`; going back with no older version kept is 409
+  `no-older-version`; an app the account holds none of is 404 `not-found`; a name outside an app's alphabet is 400.
+
 ### assignments and jobs
 
 | Method | Path | Does |
@@ -2261,7 +2288,8 @@ with the issuer token, a session token for each program and run that holds a cap
 back, the asynchronous calls still running (`GET /uses`, `state=running`) before it takes back a token a
 supervisor's replaced program carried, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's instruction
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing; and through
+`bmo-pocket`'s owner verbs it puts, takes and lists an account's personal tools (「personal-apps」). Of the gate it asks the reference a job's instruction
 calls for, picked over the brain of the supervisor the call names in its `agent`, and attaches the picked entries
 to the run's first prompt; it asks `POST /translations` for the English of what a person wrote for a job's
 worker, the owner's part of its preamble and the words handed to a running job, waiting for the answer no longer

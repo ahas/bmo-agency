@@ -32,7 +32,10 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   folders.sort();
 
-  assert_eq!(folders, ["deepseek_top_up", "procedures", "relay", "room_grant", "worker_ask"]);
+  assert_eq!(
+    folders,
+    ["app_put", "deepseek_top_up", "procedures", "relay", "room_grant", "worker_ask"]
+  );
 
   for folder in &folders {
     let manifest = read(&tools().join(folder).join("tool.toml"));

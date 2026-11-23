@@ -33,3 +33,5 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio.workspace = true
+# An app's manifest read as the runner places it (docs/person-nodes.md, 「Personal apps」).
+toml.workspace = true

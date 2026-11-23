@@ -73,3 +73,38 @@ levels = ["platform", "unit", "person"]
 unit_permission = "manage"
 person_writer = "heads"
 default = true
+
+# Personal apps (docs/person-nodes.md, 「Personal apps」): whether a person here may put an app of their own, and the
+# ceiling of what an app's manifest may ask for beyond its own folders. Each narrows down the chain.
+[personal_apps.make]
+key = "personal-apps.make"
+description = "Whether a person here may make personal apps: tools of their own, which their BMO writes and builds on their PC. A link turns it off for everyone below it; none turns it back on."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
+[personal_apps.network]
+key = "personal-apps.network"
+description = "Whether a personal app here may ask to reach the network, at the addresses its manifest names. Off until the platform turns it on for a company, by a rule naming it at the platform's link; a link below only turns it off."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit"]
+unit_permission = "manage"
+person_writer = "heads"
+default = false
+
+[personal_apps.secrets]
+key = "personal-apps.secrets"
+description = "Whether a personal app here may ask to be handed its person's secrets, by the names its manifest gives. Off until the platform turns it on for a company, by a rule naming it at the platform's link; a link below only turns it off."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit"]
+unit_permission = "manage"
+person_writer = "heads"
+default = false

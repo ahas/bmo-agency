@@ -3,8 +3,8 @@
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
-to a run of the worker role, let one BMO hand a line to another person's BMO and open a chat into that
-person's room, let a supervisor save what the owner allows in a room as the room's grants, and let the
+to a run of the worker role, put the personal app such a run made for a person, let one BMO hand a line to
+another person's BMO and open a chat into that person's room, let a supervisor save what the owner allows in a room as the room's grants, and let the
 platform's supervisor ask for a DeepSeek top-up. A tool that belongs to no one service is a repository of
 its own, not a folder here.
 
@@ -154,10 +154,16 @@ its own, not a folder here.
 - **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」): on a room turn not the
   owner's, every message the turn answers must be answered allowed `launch` in the room by the account
   service, and where it is not, or cannot be asked, the tool answers a failure saying so and starts nothing.
-- **Its arguments** are the words and an optional folder. The folder is the asking supervisor's scratch
-  workspace under the data root where none is named, made on first use; a repository's checkout may be named
+- **Its arguments** are the words and an optional folder or app. The folder is the asking supervisor's scratch
+  workspace under the data root where neither is named, made on first use; a repository's checkout may be named
   only in the owner's turn, and the run is then handed that repository's own (`docs/repositories.md`, 「What a
   run in a repository is handed」).
+- **An app names a personal app of the person the session acts for** (`docs/person-nodes.md`, 「Personal apps」):
+  its name, a lower-case letter, then lower-case letters, digits and `_`, which is the tool's and its entry's. The
+  run works in that app's folder of 'my apps', `my-apps/<name>` under the data root, which the person's PC reads as
+  its own, and its words are led by the procedure `make-app`, read from the tree the tool reads `prompts/` from, so
+  the run writes the app as the guide says. An app and a folder together, and an app asked under a record naming no
+  account, are refused.
 - **It takes a slot of the worker role,** as the source `ask`, and a repository's checkout where it names one,
   and waits for both however long it takes: a busy role or checkout is waited for, never refused
   (`docs/role-slots.md`, 「The line」). The run goes out on the worker role's active provider
@@ -172,6 +178,21 @@ its own, not a folder here.
 - **It refuses only what cannot be asked at all:** a folder on no machine the worker role can run on and a
   checkout named outside the owner's turn, besides the owner's gate. A task worth keeping and reviewing is a
   queue item, filed with `file_item`, not asked this way.
+
+## The app put
+
+- **`tools/app_put`** declares `bmo/app_put` to a session holding `room.tools`: a supervisor puts the personal app a
+  worker ask wrote for the person it serves, sends it back to an earlier version, or removes it
+  (`docs/person-nodes.md`, 「Personal apps」).
+- **The person is the record's,** `ownerAccount` (「The owner and the runner a record names」), read afresh at every
+  call; a record naming none is refused, so no session puts an app for anyone but the person it acts for. It asks
+  only past the owner's gate, as the worker ask does.
+- **Its arguments:** `name`, the app's; `action`, `put` where left out, `back` or `remove`; and for `back` an
+  optional `version`, the newest kept older than the current where none is named.
+- **It reaches agency's server** as every tool of agency's does and asks `POST /personal-apps/{account}/{name}/put`,
+  `…/back` or `DELETE /personal-apps/{account}/{name}` (`docs/api.md`, 「personal-apps」), waiting however long the
+  build on the PC takes. Its answer says the version now in place, the entries the person's sessions reach from their
+  next turn, `my/<entry>`, and what the tool host said; a refusal is a failed call saying why.
 
 ## The relay
 

@@ -1,6 +1,7 @@
 //! What agency reads off the account service's delegation chain for the person an agent serves, beside its
 //! prompt layers: the supply sources a person's chain leaves open, the agents an account is given as it is made
-//! ready, and who may add and change repositories (docs/supply.md, docs/role-agents.md, docs/repositories.md).
+//! ready, who may add and change repositories, and who may make personal apps and what one may ask for
+//! (docs/supply.md, docs/role-agents.md, docs/repositories.md, docs/person-nodes.md).
 
 use serde::Deserialize;
 
@@ -53,12 +54,22 @@ impl Composition {
   }
 }
 
+/// The personal apps' settings: who may put one, and the ceiling of what one may ask for.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PersonalApps {
+  pub make: Kind,
+  pub network: Kind,
+  pub secrets: Kind,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Organisation {
   pub sources: Sources,
   pub composition: Composition,
   pub repositories: Kind,
+  pub personal_apps: PersonalApps,
 }
 
 crate::part!(pub ORGANISATION: Organisation = "organisation.toml");

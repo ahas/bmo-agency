@@ -1,0 +1,129 @@
+# Making a personal app
+
+Read this right before making, changing, sending back or removing a personal app: a tool of the person you serve,
+built and run on their own PC, which their sessions reach as `my/<name>` and nobody else's do. The first part is
+yours; the second is the guide the worker run that writes the app follows, which it is handed whole.
+
+## Your part
+
+- **An app is made for the person you serve, on their word:** they ask for a tool of their own, or agree when you
+  offer one for a request of theirs that keeps coming back. A one-off is answered now, as the fast track says, and
+  no app is made for it.
+- **Name it first:** a lower-case letter, then lower-case letters, digits and `_`, in English, saying what it does
+  (`weekly_summary`). The name is the app's folder's, its tool's and its one entry's, so it is called as
+  `my/<name>`. An app already standing under the name is changed, not made again.
+- **Have a worker run write it:** `bmo/worker_ask` with `app` set to the name and `words` saying, in English, what
+  the tool must do, the arguments it takes and what it answers, as the person put it. The run works in the app's
+  folder on the person's PC and follows the guide below. A change is asked the same way, its words saying what to
+  change. Read its answer: it names the files and the commit, or why it stopped.
+- **Put it:** `bmo/app_put` with the name. It builds the folder on the PC into a new version, puts the tool's
+  description at home and points both at it. Its answer names the version and the entries; from your next turn the
+  tool is among your tools as `my/<name>`, and you call it as any tool. Tell the person it is ready and what it
+  does.
+- **A refusal says why.** A build or a manifest the tool host refuses goes back to a worker ask with the refusal's
+  words. An organisation that does not let the person make apps, or a permission it leaves off, is said to the
+  person as it is; nothing goes around it.
+- **Going back and removing are the person's word alone:** `bmo/app_put` with `action` `back` sends the app back to
+  the version before, or the `version` named; `action` `remove` takes it away, its source and its data staying on
+  the PC. The person does both themselves in 설정, under 내 개인 앱.
+- **An app reaches nothing but its own folders:** no network, no secret, no other tool, no file of the person's
+  outside the app. A request that needs any of those is said to the person as something a personal app cannot do
+  yet.
+
+## The worker run's guide
+
+You are writing one personal app in the folder you were started in, the app's own. Touch nothing outside it.
+
+### The folder
+
+- **It is one git repository:** run `git init` where it is not one yet, and commit every change you finish, the
+  message saying what changed. The person's history of the app is that log.
+- **It holds:**
+  - `tool.toml`, the manifest;
+  - `input.json`, the input schema, and `output.json` where the tool answers an object;
+  - the code, `main.py` for a Python tool;
+  - `manual.md`, how to call it, where the description is not enough;
+  - `tests/`, its tests.
+
+### The manifest
+
+```toml
+[tool]
+name = "weekly_summary"        # the folder's name
+protocol = 1
+language = "python"
+run = ["python3", "main.py"]
+check = "python3 -m unittest discover -s tests"
+
+[[entry]]
+namespace = "my"
+name = "weekly_summary"        # the tool's name again
+title = "Weekly summary"
+description = "Sums up the notes kept this week. Answers the summary as text."
+input = "input.json"
+capabilities = ["my.own"]
+hints = { read_only = true }
+```
+
+- **`[tool]`:** `name` is the folder's; `protocol` is 1; `run` is the command as words, read in the placed folder.
+  `build` only where something must be made from the source, a command run by `sh` that writes what `run` reads
+  into the folder `BMO_TOOL_OUT` names; with none, the folder is placed whole. No `mode`, `shared`,
+  `after_deploy` or `timeout`.
+- **One `[[entry]]`,** in the namespace `my`, named as the tool: its `description` says what it does and answers,
+  its first sentence standing alone; `capabilities` names `my.own`, since the person's sessions hold their own app
+  whole; `hints` marks `read_only` where it changes nothing, `destructive` where it takes something away. No
+  `system`, `bundle`, `claims`, `schedule` or `grant`.
+- **No `[permissions]`:** an app is given no network and no secret yet, and one asking for either is refused.
+- **No `[app]`:** a personal app is its person's alone.
+- **The input schema** is a JSON Schema of an object, one property per argument, each with a `description`; name
+  what is required and set `additionalProperties` to false.
+
+### Where it runs
+
+- **Confined on the person's PC:** it sees its own version's folder, read alone, as `/tool`, where it starts; its own
+  data folder, written, as `/data`, which is also its `HOME`; a scratch `/tmp`; and the machine's own programs under
+  `/usr`. It sees nothing else of the PC, reaches no network, and is handed no token.
+- **So write it on what the machine has:** Python 3 and its standard library, or a shell script, or a program a
+  `build` makes. A build runs confined the same way, its source read alone, with no network: nothing is downloaded
+  during it, so whatever it needs is in the folder already.
+- **Keep what it must remember in `/data`,** in files of its own; that folder survives every new version.
+
+### What a call is
+
+- **One process per call.** It is handed one JSON object on standard input — `protocol` 1, `kind` `"call"`, `entry`
+  `"my/<name>"`, `arguments`, the object the input schema describes, and `session`, the record it is called under —
+  and answers one JSON object on standard output, then ends cleanly:
+  `{"content": [{"type": "text", "text": "..."}], "isError": false}`, with `structuredContent`, the object
+  `output.json` describes, where it declares one.
+- **A refusal the caller reads** is the same answer with `isError` true and one English sentence saying why. What
+  it writes on standard error goes to the log.
+
+```python
+import json
+import os
+import sys
+
+handed = json.load(sys.stdin)
+arguments = handed.get("arguments", {})
+notes = os.path.join(os.environ.get("HOME", "/data"), "notes.txt")
+
+try:
+    with open(notes, encoding="utf-8") as kept:
+        text = kept.read()
+except FileNotFoundError:
+    text = ""
+
+print(json.dumps({"content": [{"type": "text", "text": text or "No notes yet."}], "isError": False}))
+```
+
+### Tests
+
+- **Its `check` runs them,** in the folder: each test runs the code as the runner does, a handed object on standard
+  input, the answer read off standard output, `HOME` pointed at a scratch folder.
+- **Run the check before you end,** and end only once it passes.
+
+### When you end
+
+- Answer with the app's name, what it does, the files you wrote or changed and the commit. Do not put it: the BMO
+  that asked you puts it.
+- A screen of an app's own is not made yet; write none.

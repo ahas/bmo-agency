@@ -138,6 +138,7 @@ fn asked(words: &str, folder: &std::path::Path) -> AskInput {
   AskInput {
     words: words.into(),
     folder: Some(folder.to_string_lossy().into_owned()),
+    app: None,
   }
 }
 
@@ -203,6 +204,53 @@ async fn a_repository_checkout_outside_the_owners_turn_and_one_on_a_node_are_ref
   }
 
   assert!(held.lock().unwrap().slot.is_none(), "nothing was asked");
+}
+
+// "an app names a personal app of the person the session acts for: the run works in that app's folder of 'my apps'
+// and its words are led by the make-app guide; an app and a folder together, and an app under a record naming no
+// account, are refused"
+#[tokio::test]
+async fn an_app_s_run_works_in_its_folder_of_my_apps_led_by_the_guide() {
+  let home = tempfile::tempdir().unwrap();
+  let folder = home.path().join("my-apps").join("weekly_summary");
+  let stub = stub(&folder, 0);
+  let held = stub.asked.clone();
+  let api = server(stub).await;
+  let app = |folder: Option<&str>, app: &str| AskInput {
+    words: "sum up the week's notes".into(),
+    folder: folder.map(str::to_owned),
+    app: Some(app.to_owned()),
+  };
+  let owned = Session {
+    owner_account: Some("8".to_owned()),
+    ..session(home.path())
+  };
+  let refused = |answer: tool_call::Answer| serde_json::to_string(&answer).unwrap();
+
+  assert!(
+    refused(ask_with(&api, &owned, app(Some("/work/x"), "weekly_summary")).await).contains("not both")
+  );
+  assert!(
+    refused(ask_with(&api, &session(home.path()), app(None, "weekly_summary")).await)
+      .contains("acts for no person")
+  );
+  assert!(refused(ask_with(&api, &owned, app(None, "../up")).await).contains("no app's name"));
+  assert!(held.lock().unwrap().slot.is_none(), "nothing was asked");
+
+  let answer = refused(ask_with(&api, &owned, app(None, "weekly_summary")).await);
+
+  assert!(answer.contains("Done in"), "{answer}");
+
+  let held = held.lock().unwrap();
+
+  assert_eq!(held.slot.clone().unwrap()["path"], folder.display().to_string());
+  assert_eq!(held.started.clone().unwrap()["cwd"], folder.display().to_string());
+
+  let prompt = held.turned.clone().unwrap().1["prompt"].as_str().unwrap().to_owned();
+
+  assert!(prompt.contains("the personal app weekly_summary"), "{prompt}");
+  assert!(prompt.contains("sum up the week's notes"), "{prompt}");
+  assert!(prompt.contains("## The worker run's guide"), "the guide leads the words: {prompt}");
 }
 
 #[tokio::test]
@@ -360,6 +408,7 @@ async fn agency_is_asked_where_the_data_roots_env_file_names_it() {
   let input = AskInput {
     words: "fix the typo".to_owned(),
     folder: Some("/work/elsewhere".to_owned()),
+    app: None,
   };
 
   ask_with(&api, &session(agency.root.path()), input).await;

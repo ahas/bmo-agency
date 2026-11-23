@@ -1928,6 +1928,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/personal-apps/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An account's personal apps, as the tool host holds them and the PC keeps their versions. */
+        get: operations["listPersonalApps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-apps/{ownerAccount}/{name}/put": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build the app's folder on the account's PC into a new version, put it at home and point at it. */
+        post: operations["putPersonalApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-apps/{ownerAccount}/{name}/back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send the app back to a version its PC keeps. */
+        post: operations["backPersonalApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-apps/{ownerAccount}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Take the app out at home and on the PC. */
+        delete: operations["removePersonalApp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/nodes/{nodeName}/access": {
         parameters: {
             query?: never;
@@ -5164,6 +5232,55 @@ export interface components {
             node: string;
             shared?: boolean | null;
         };
+        /** @description PersonalAppList: an account's personal apps, and whether its PC was reached for the versions it keeps. */
+        PersonalAppList: {
+            items: components["schemas"]["PersonalApp"][];
+            reached: boolean;
+        };
+        /**
+         * @description PersonalApp: one of an account's personal apps: the version in place, when it was put, its entries, its
+         *     permissions, and the versions its PC keeps older than the one in place, newest first, null where the PC was not
+         *     reached.
+         */
+        PersonalApp: {
+            name: string;
+            version: string;
+            /** Format: int64 */
+            putAt: number;
+            entries: components["schemas"]["PersonalAppEntry"][];
+            permissions: components["schemas"]["PersonalAppPermissions"];
+            kept: string[] | null;
+        };
+        /** @description One entry of a personal app, by its full name, as the tool host holds it. */
+        PersonalAppEntry: {
+            name: string;
+            /** @default null */
+            title: string | null;
+            description: string;
+        };
+        /** @description What a personal app's manifest asks for beyond its own folders. */
+        PersonalAppPermissions: {
+            network: string[];
+            secrets: string[];
+        };
+        /**
+         * @description PersonalAppDone: what a put, a going back or a removal of a personal app came to: the version now in place,
+         *     none after a removal, the entries the account's sessions reach, and what the tool host and the build said.
+         */
+        PersonalAppDone: {
+            name: string;
+            version: string | null;
+            entries: components["schemas"]["PersonalAppEntry"][];
+            said: string[];
+        };
+        /**
+         * @description PersonalAppBack: the version a personal app is sent back to, the newest kept older than the current where none
+         *     is named.
+         */
+        PersonalAppBack: {
+            /** @default null */
+            version: string | null;
+        };
         /** @description NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there. */
         NodeAccess: {
             node: string;
@@ -5518,6 +5635,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description app-refused */
+        AppRefused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description awaits-owner */
         AwaitsOwner: {
             headers: {
@@ -5689,6 +5815,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-older-version */
+        NoOlderVersion: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description no-runner */
+        NoRunner: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-sign-in */
         NoSignIn: {
             headers: {
@@ -5835,6 +5979,33 @@ export interface components {
         };
         /** @description own-repository */
         OwnRepository: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description permission-withheld */
+        PermissionWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description personal-apps-withheld */
+        PersonalAppsWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description runner-unreached */
+        RunnerUnreached: {
             headers: {
                 [name: string]: unknown;
             };
@@ -10261,6 +10432,123 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listPersonalApps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalAppList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AppRefused"];
+        };
+    };
+    putPersonalApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalAppDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    backPersonalApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalAppBack"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalAppDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    removePersonalApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalAppDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AppRefused"];
         };
     };
     getNodeAccess: {

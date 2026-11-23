@@ -292,7 +292,7 @@ async fn the_administrator_s_supervisors_carry_the_platform_s_rules_and_an_organ
 }
 
 // Agency declares every setting it keeps on the chain as its policy holds them — the prompt layers' two beside the
-// supply sources, the sign-up composition and repository management — and a kind a resolution finds undeclared is
+// supply sources, the sign-up composition, repository management and personal apps — and a kind a resolution finds undeclared is
 // declared and asked again.
 #[tokio::test]
 async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_undeclared() {
@@ -312,6 +312,9 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
       "supply.personal",
       "signup.composition",
       "repositories.manage",
+      "personal-apps.make",
+      "personal-apps.network",
+      "personal-apps.secrets",
     ])
   );
   assert_eq!(declared["supply.organisation"]["mode"], "narrowing");

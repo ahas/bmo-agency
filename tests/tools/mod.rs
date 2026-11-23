@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use axum::Router;
 use axum::http::{HeaderMap, StatusCode, header};
 
+mod app_put;
 mod call;
 mod deepseek_top_up;
 mod deepseek_top_up_payment;

@@ -5,6 +5,7 @@ mod bridge;
 mod connect;
 mod frame;
 mod jake;
+mod keeping;
 mod link;
 mod node_build;
 mod rewrite;

@@ -57,6 +57,10 @@ pub struct Session {
   /// The issuer's own values.
   #[serde(default)]
   pub labels: Labels,
+  /// The account the session acts for, whose personal apps it holds (docs/tools.md, 「The owner and the runner a
+  /// record names」); none for the deployment's own callers.
+  #[serde(default)]
+  pub owner_account: Option<String>,
 }
 
 impl Session {
