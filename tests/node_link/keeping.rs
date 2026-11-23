@@ -368,6 +368,42 @@ fn a_screen_is_indexed_as_it_is_placed_and_its_files_are_read_alone() {
   assert!(machine.standing("bare").is_empty(), "nothing is left staged");
 }
 
+// "a place of a folder that is a git repository of its own keeps what the repository keeps or would keep, so a test
+// run's caches its ignore rules leave out stay out of the source"
+#[test]
+fn a_version_keeps_the_source_its_repository_keeps() {
+  let machine = Machine::new();
+  let dir = machine.app("cached", "cached", "");
+  let git = |words: &[&str]| {
+    let ran = std::process::Command::new("git").arg("-C").arg(&dir).args(words).output().unwrap();
+
+    assert!(ran.status.success(), "git {words:?}: {}", String::from_utf8_lossy(&ran.stderr));
+  };
+
+  fs::remove_dir_all(dir.join(".git")).unwrap();
+  git(&["init", "-q"]);
+  fs::write(dir.join(".gitignore"), "__pycache__/\n").unwrap();
+  git(&["add", "-A"]);
+  git(&["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "app"]);
+  fs::create_dir_all(dir.join("__pycache__")).unwrap();
+  fs::write(dir.join("__pycache__").join("main.cpython-312.pyc"), [0xff_u8, 0xfe, 0x00]).unwrap();
+  fs::write(dir.join("notes.md"), "untracked, not ignored").unwrap();
+
+  let placed = machine.last(json!({ "place": { "tool": "cached" } }));
+  let version = placed["version"].as_str().unwrap().to_owned();
+  let source = machine.last(json!({ "source": { "tool": "cached", "version": version } }));
+
+  assert_eq!(source["t"], "source", "{source}");
+
+  let mut paths: Vec<&String> = source["files"].as_object().unwrap().keys().collect();
+
+  paths.sort();
+  assert_eq!(
+    paths,
+    [".gitignore", "docs/manual.md", "input.json", "main.py", "notes.md", "tool.toml"]
+  );
+}
+
 // "a place keeps the source it was built from, which a source answers, its .git left out; a receive writes a shared
 // app's source into its folder where its hash is the one given, marked as a copy, replaces a copy of the same app, and
 // never writes over the person's own app or another app's copy; an adoption takes the mark away"

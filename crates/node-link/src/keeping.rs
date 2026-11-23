@@ -51,9 +51,71 @@ pub fn source_hash(files: &BTreeMap<String, String>) -> String {
   hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-// Every file of an app's folder by its path, its `.git` and the received mark left out, as text; none where a file
-// is not UTF-8 text or the whole holds more than a catalogue takes.
+// Every file of an app's folder by its path, as text: the files its own git repository keeps or would keep where
+// the folder is one, else every file, its `.git` and the received mark left out either way; none where a file is not
+// UTF-8 text or the whole holds more than a catalogue takes.
 fn source_files(folder: &Path) -> Option<BTreeMap<String, String>> {
+  match git_listed(folder) {
+    Some(paths) => listed_files(folder, &paths),
+    None => walked_files(folder),
+  }
+}
+
+// The paths the folder's own git repository keeps or would keep: tracked, or untracked and not ignored, so what its
+// ignore rules leave out — a test run's caches — stays out. None where the folder is no repository of its own or git
+// does not answer.
+fn git_listed(folder: &Path) -> Option<Vec<String>> {
+  if !folder.join(".git").exists() {
+    return None;
+  }
+
+  let listed = std::process::Command::new("git")
+    .arg("-C")
+    .arg(folder)
+    .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+    .stdin(Stdio::null())
+    .stderr(Stdio::null())
+    .output()
+    .ok()?;
+
+  if !listed.status.success() {
+    return None;
+  }
+
+  let text = String::from_utf8(listed.stdout).ok()?;
+
+  Some(
+    text
+      .split('\0')
+      .filter(|path| !path.is_empty() && *path != RECEIVED_MARK)
+      .filter(|path| folder.join(path).is_file())
+      .map(str::to_owned)
+      .collect(),
+  )
+}
+
+// The listed files read as text.
+fn listed_files(folder: &Path, paths: &[String]) -> Option<BTreeMap<String, String>> {
+  let mut files = BTreeMap::new();
+  let mut total = 0;
+
+  for path in paths {
+    let text = String::from_utf8(std::fs::read(folder.join(path)).ok()?).ok()?;
+
+    total += text.len();
+
+    if total > SOURCE_MOST {
+      return None;
+    }
+
+    files.insert(path.clone(), text);
+  }
+
+  Some(files)
+}
+
+// Every file under the folder read as text, its `.git` and the received mark left out.
+fn walked_files(folder: &Path) -> Option<BTreeMap<String, String>> {
   fn walk(base: &Path, dir: &Path, files: &mut BTreeMap<String, String>, total: &mut usize) -> Option<()> {
     for entry in std::fs::read_dir(dir).ok()? {
       let entry = entry.ok()?;

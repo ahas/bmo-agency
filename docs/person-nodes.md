@@ -335,8 +335,10 @@ whose data stays on that PC. Nothing of it reaches another company.
 | `adopt` | `tool` | `{"t": "adopted"}` | makes a received app the person's own: it is no shared app's copy any more |
 
   - **A place keeps the source it built from** inside the new version, so a version shared later is shared as it was
-    built, whatever the folder holds since. A folder holding a file that is not UTF-8 text, or more than the
-    catalogue takes, places all the same and keeps no source, and such a version is not shared.
+    built, whatever the folder holds since. The source is what the app's own git repository keeps or would keep —
+    its tracked files and the untracked ones its ignore rules let in — so a test run's caches stay out; a folder
+    that is no repository of its own gives every file. A source holding a file that is not UTF-8 text, or more than
+    the catalogue takes, places all the same and keeps no source, and such a version is not shared.
   - **A receive checks the hash before it writes anything:** the files' hash, reckoned as the catalogue reckons it
     (the tool host's `docs/catalogue.md`, 「The source hash」), must be the one given, else nothing is written. A
     folder of the name that stands already and is no received copy of the same app is refused, so a receiver's own
