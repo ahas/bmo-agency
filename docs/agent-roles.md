@@ -249,7 +249,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 ## The actor role
 
-- **The role a rehearsal's actor runs as** (the rehearsal's `docs/scenes.md`, 「Actors」): one person of a mock
+- **The role a rehearsal's actor runs as:** one person of a mock
   company, played from that person's roster line and the goal a scene hands them. Its prompt, seeded from
   `prompts/roles/actor.md`, stands first in every run.
 - **It reaches nothing itself.** Each turn hands it the person's roster line, their language, their goal, the
