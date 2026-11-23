@@ -42,7 +42,7 @@ this is how.
   - **its repository:** the service's own where the tool is that service's door (it calls the
     service's routes or reads its store), the tool then a folder of its `tools/`; else the tool's own
     repository, `bmo-<name>`, whose checkout stands in the set's `tools/` folder. A repository not yet
-    listed is the owner's to make, and the brief says so;
+    listed you make before filing, as 「A tool's own repository」 below says;
   - **its brief:** what the tool does, each entry's arguments and answer, and why it is worth keeping;
     that it is written to bmo-pocket's `docs/authoring.md`, started from the example in its language,
     with a test its manifest's `check` runs and a call through a scratch host as the guide says; its
@@ -50,6 +50,16 @@ this is how.
     unless the owner names others; any grant it would need, named for the owner; and that the run
     puts nothing live.
   - It is a draft, and you never approve it: approval is the owner's.
+- **A tool's own repository** you make yourself, once, before the item that fills it:
+  - `gh repo create <owner>/bmo-<name> --private --description "<what the tool does, one line>"`, `<owner>` the account the
+    set's other repositories stand under (`git remote get-url origin` of any of them), private like
+    every new repository; making it public is the owner's word;
+  - its checkout cloned into the set's `tools/` folder, `git clone <its address> <the set>/tools/<name>`, with
+    a first commit holding its `README.md` (one line of what it is), the MIT `LICENSE`, its `testbed.toml`
+    copied from the closest tool repository's and renamed, and nothing else; pushed to its `main`;
+  - registered so a worker can work in it: `bmo repository add bmo-<name> --path <that checkout>`;
+  - a name already taken on GitHub or in the registration is no reason to pick another quietly: tell the owner
+    and wait. Then file the item on that repository.
 - **A worker never puts a tool live.** Its job writes, tests and commits the tool and ends at the
   merge, as every job does.
 - **Once the close has merged, the tool goes live:**
