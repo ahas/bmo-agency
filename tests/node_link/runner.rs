@@ -438,3 +438,230 @@ fn a_call_is_carried_to_the_pc_s_runner_and_ends_with_its_caller() {
     fs::read_to_string(format!("/proc/{pid}/stat")).map_or(true, |stat| stat.contains(") Z "))
   });
 }
+
+// A stand-in for an address a tool may reach: a server on this machine's loopback answering every request
+// `reached <path>`, standing until the test ends.
+fn stand_in_server() -> u16 {
+  let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+  let port = listener.local_addr().unwrap().port();
+
+  std::thread::spawn(move || {
+    for stream in listener.incoming().flatten() {
+      std::thread::spawn(move || {
+        let mut reading = BufReader::new(stream.try_clone().unwrap());
+        let mut first = String::new();
+
+        let _ = reading.read_line(&mut first);
+
+        loop {
+          let mut header = String::new();
+
+          if reading.read_line(&mut header).unwrap_or(0) == 0 || header.trim().is_empty() {
+            break;
+          }
+        }
+
+        let path = first.split_whitespace().nth(1).unwrap_or("/").to_owned();
+        let body = format!("reached {path}");
+        let mut stream = stream;
+        let _ = write!(
+          stream,
+          "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+          body.len()
+        );
+      });
+    }
+  });
+
+  port
+}
+
+const REACHING: &str = r#"import json, os, socket, sys, urllib.request
+
+call = json.load(sys.stdin)
+port = call["arguments"]["port"]
+said = {}
+
+def tunnel(host):
+    try:
+        with socket.create_connection(("127.0.0.1", 3128), timeout=10) as stream:
+            stream.sendall(f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n".encode())
+            answer = stream.recv(4096).decode(errors="replace")
+            if " 200 " not in answer.split("\r\n")[0] + " ":
+                return answer.split("\r\n")[0]
+            stream.sendall(f"GET /tunnelled HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode())
+            got = b""
+            while True:
+                part = stream.recv(4096)
+                if not part:
+                    break
+                got += part
+            return got.decode(errors="replace").split("\r\n\r\n", 1)[-1]
+    except OSError as why:
+        return f"failed: {why}"
+
+def direct(host, to):
+    try:
+        with socket.create_connection((host, to), timeout=5):
+            return "connected"
+    except OSError as why:
+        return f"failed: {why}"
+
+try:
+    said["plain"] = urllib.request.urlopen(f"http://api.example.test:{port}/plain", timeout=10).read().decode()
+except Exception as why:
+    said["plain"] = f"failed: {why}"
+said["tunnel"] = tunnel("api.example.test")
+said["other"] = tunnel("other.example.test")
+said["address"] = tunnel("127.0.0.1")
+said["direct"] = direct("127.0.0.1", port)
+said["outside"] = direct("192.0.2.1", 80)
+try:
+    said["resolved"] = socket.gethostbyname("api.example.test")
+except OSError as why:
+    said["resolved"] = f"failed: {why}"
+said["secret"] = open(os.path.join(os.environ["BMO_SECRETS"], "team-key")).read()
+said["secrets"] = sorted(os.listdir("/secrets"))
+print("the key is " + said["secret"].strip(), file=sys.stderr)
+print(json.dumps({"content": [{"type": "text", "text": json.dumps(said)}], "isError": False}))
+"#;
+
+// "a call naming addresses reaches those names through its own proxy and nothing else — another name, an address
+// written whole, the PC's loopback and the world beyond all refused or unreached — and a call carrying a secret reads
+// it in the confinement alone, its value masked in what the tool says, nothing of the call left on the PC"
+#[test]
+fn a_call_reaches_its_listed_names_alone_and_reads_its_secrets_for_the_call() {
+  if let Err(why) = bwrap_confines() {
+    eprintln!(
+      "skipped: bubblewrap makes no namespace on this machine, so no tool can be confined here: {why}"
+    );
+    return;
+  }
+
+  let dir = tempfile::tempdir().unwrap();
+  let root = dir.path().join("data").join(node_link::runner::PERSONAL_TOOLS);
+  let scratch = dir.path().join("tmp");
+  let port = stand_in_server();
+
+  fs::create_dir_all(&scratch).unwrap();
+  placed_version(&root, "a1", "reaching", "v1", &[("reaching.py", REACHING)]);
+
+  let mut asked: Value = serde_json::from_str(&asking(
+    "a1",
+    "reaching",
+    "v1",
+    &["python3", "reaching.py"],
+    json!({ "port": port }),
+  ))
+  .unwrap();
+
+  asked["network"] = json!([format!("api.example.test:{port}")]);
+  // "stand-in value" in base64.
+  asked["secrets"] = json!({ "team-key": "c3RhbmQtaW4gdmFsdWUK" });
+
+  let answered = run_once(
+    &root,
+    "a1",
+    None,
+    &format!("{asked}\n"),
+    &[
+      (
+        node_link::proxy::RESOLVE_VARIABLE,
+        "api.example.test=127.0.0.1,other.example.test=127.0.0.1",
+      ),
+      ("TMPDIR", scratch.to_str().unwrap()),
+    ],
+  );
+  let end = answered.last().unwrap();
+
+  assert_eq!(end["t"], "end", "{answered:?}");
+  assert_eq!(end["code"], 0, "{answered:?}");
+
+  let result: Value = serde_json::from_str(end["out"].as_str().unwrap()).unwrap();
+  let text = result["content"][0]["text"].as_str().unwrap();
+  let said: Value = serde_json::from_str(text).unwrap();
+
+  assert_eq!(said["plain"], "reached /plain", "{said}");
+  assert_eq!(said["tunnel"], "reached /tunnelled", "{said}");
+  assert!(said["other"].as_str().unwrap().contains("403"), "{said}");
+  assert!(said["address"].as_str().unwrap().contains("403"), "{said}");
+  assert!(said["direct"].as_str().unwrap().starts_with("failed"), "{said}");
+  assert!(said["outside"].as_str().unwrap().starts_with("failed"), "{said}");
+  assert!(said["resolved"].as_str().unwrap().starts_with("failed"), "{said}");
+  assert_eq!(said["secrets"], json!(["team-key"]), "{said}");
+  // What the tool wrote is masked, its output and its errors alike.
+  assert_eq!(said["secret"], "[secret team-key]\n", "{said}");
+  assert!(answered.iter().any(|one| one["line"] == "the key is [secret team-key]"), "{answered:?}");
+  assert!(!format!("{answered:?}").contains("stand-in value"), "{answered:?}");
+  // The call's proxy folder went with the call, before its answer.
+  assert_eq!(fs::read_dir(&scratch).unwrap().count(), 0);
+}
+
+// "a call's confinement binds its proxy and the forwarder where it names addresses, and each secret from its own
+// descriptor, read alone"
+#[test]
+fn a_call_s_confinement_carries_its_proxy_and_secrets() {
+  let version = Path::new("/r/owners/a1/tools/probe/v1");
+  let data = Path::new("/r/owners/a1/data/probe");
+  let opened = node_link::runner::Opened {
+    proxy: Some(("/proc/7/exe".into(), "/tmp/bmo-call-1/proxy.sock".into())),
+    secrets: vec![("team-key".to_owned(), 9)],
+  };
+  let words =
+    node_link::runner::confined_call(version, data, &["python3".into(), "probe.py".into()], &opened);
+  let joined = words.join(" ");
+
+  assert!(joined.contains("--ro-bind /proc/7/exe /.bmo/node-link"), "{joined}");
+  assert!(joined.contains("--bind /tmp/bmo-call-1/proxy.sock /.bmo/proxy.sock"), "{joined}");
+  assert!(joined.contains("--setenv HTTPS_PROXY http://127.0.0.1:3128"), "{joined}");
+  assert!(joined.contains("--perms 0400 --ro-bind-data 9 /secrets/team-key"), "{joined}");
+  assert!(
+    joined.ends_with(
+      "-- /.bmo/node-link forward --listen 127.0.0.1:3128 --to /.bmo/proxy.sock -- python3 probe.py"
+    ),
+    "{joined}"
+  );
+  assert_eq!(words.iter().filter(|word| *word == "--unshare-all").count(), 1, "{joined}");
+
+  let plain = node_link::runner::confined_call(version, data, &["true".into()], &Default::default());
+
+  assert_eq!(plain, node_link::runner::confined(version, data, &["true".into()]));
+}
+
+// "an address a manifest lists is a name, a domain's subdomains or either on a port; an address written whole, a
+// name not listed and a name standing for this machine are refused"
+#[test]
+fn the_proxy_reaches_listed_names_alone() {
+  let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+  let reach = node_link::proxy::Reach::of(
+    &["api.example.test:8080".to_owned(), "*.example.org".to_owned()],
+    node_link::proxy::stand_ins("api.example.test=192.0.2.7"),
+  )
+  .unwrap();
+
+  runtime.block_on(async {
+    assert_eq!(
+      reach.reach("API.example.test.", 8080).await.unwrap(),
+      ["192.0.2.7:8080".parse().unwrap()]
+    );
+
+    for (host, port, why) in [
+      ("api.example.test", 443, "not among the addresses"),
+      ("example.org", 443, "not among the addresses"),
+      ("192.0.2.7", 8080, "is an address"),
+      ("[::1]", 443, "is an address"),
+    ] {
+      let refused = reach.reach(host, port).await.unwrap_err();
+
+      assert!(refused.contains(why), "{host}:{port}: {refused}");
+    }
+  });
+
+  assert!(node_link::proxy::Reach::of(&["192.0.2.7".to_owned()], Default::default()).is_err());
+  assert!(node_link::proxy::this_machine("127.0.0.1".parse().unwrap()));
+  assert!(node_link::proxy::this_machine("::ffff:127.0.0.1".parse().unwrap()));
+  assert!(node_link::proxy::this_machine(
+    std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1).into()
+  ));
+  assert!(!node_link::proxy::this_machine("192.0.2.7".parse().unwrap()));
+}

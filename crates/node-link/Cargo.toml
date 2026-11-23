@@ -26,6 +26,11 @@ dotenvy.workspace = true
 # The control credential scoped to one agent, made as the jake hub checks it.
 hex.workspace = true
 hmac.workspace = true
+# The call's proxy a personal tool reaches the network through (docs/person-nodes.md, 「The network and secrets of a
+# call」).
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
 # The jake hub asked to let go of the listens it keeps for a person's PC.
 reqwest.workspace = true
 libc.workspace = true

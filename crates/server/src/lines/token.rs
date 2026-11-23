@@ -252,6 +252,7 @@ fn record(
     // Named by the issue that judges the account its caller acts for (「owned」).
     owner_account: None,
     runner: None,
+    secret_space: None,
     labels,
     ttl_ms,
   }
@@ -307,12 +308,12 @@ async fn withhold(
   request.withheld_apps_file = Some(file);
 }
 
-// The record named the account its caller acts for and the runner that account's personal tools run on
-// (docs/tools.md, 「The owner and the runner a record names」): the account a person's caller acts for, and the
-// administrator's for a supervisor holding the administrator's grant; none for the deployment's own callers. The
-// administrator's tools run on this machine, under this deployment's node link; a person's on their PC, through its
-// link's runner socket, where the PC's link spec names the account as the one it runs personal tools for; and an
-// account on a shared PC or with no PC is named no runner.
+// The record named the account its caller acts for, the runner that account's personal tools run on and the folder
+// their secrets are read from (docs/tools.md, 「The owner and the runner a record names」): the account a person's
+// caller acts for, and the administrator's for a supervisor holding the administrator's grant; none for the
+// deployment's own callers. The administrator's tools run on this machine, under this deployment's node link; a
+// person's on their PC, through its link's runner socket, where the PC's link spec names the account as the one it
+// runs personal tools for; and an account on a shared PC or with no PC is named no runner.
 async fn owned(ground: &Ground, request: &mut SessionRequest, caller: Caller<'_>) -> Result<(), Refusal> {
   let acting = acting_for(&ground.db, &ground.roots.data, caller).await?;
   let account = match (acting.account, acting.administrator) {
@@ -325,8 +326,23 @@ async fn owned(ground: &Ground, request: &mut SessionRequest, caller: Caller<'_>
   };
 
   request.runner = runner_of(ground, &account).await?;
+  request.secret_space = Some(secret_space_of(ground, &account).await?);
   request.owner_account = Some(account);
   Ok(())
+}
+
+/// The folder an account's secrets stand in, which its personal tools are handed the secrets they name from
+/// (docs/person-nodes.md, 「The network and secrets of a call」): the console's secret store's space of the person,
+/// the data root's `env/users/<account>/`, and the administrator's, the data root's `env/` itself (bmo-web's
+/// `docs/accounts.md`, 「The secret store」).
+pub async fn secret_space_of(ground: &Ground, account: &str) -> Result<PathBuf, Refusal> {
+  let env = ground.roots.data.join("env");
+
+  if crate::account_isolation::owners_own(&ground.db, account).await? {
+    return Ok(env);
+  }
+
+  Ok(env.join("users").join(account))
 }
 
 /// The runner an account's personal tools run on (docs/person-nodes.md, 「Personal tools on a PC」): the
@@ -397,6 +413,7 @@ pub async fn issue_screen_session(
     withheld_apps_file: None,
     owner_account: Some(account.to_owned()),
     runner: Some(runner),
+    secret_space: Some(secret_space_of(ground, account).await?),
     labels,
     ttl_ms: Some(SCREEN_SESSION_MS),
   };

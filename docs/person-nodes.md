@@ -107,8 +107,9 @@ PC; the tool host at home keeps a copy of each one's description alone and relay
   started for, and refuses a call of another, a name that is no folder's, a version not placed and a run command
   naming nothing.
 - **It runs a tool confined by bubblewrap, or not at all:**
-  - every namespace the tool's own, the network among them, so it reaches no address; ended with the runner; in a
-    session of its own;
+  - every namespace the tool's own, the network among them, so it reaches no address but through the call's proxy
+    where the call names addresses (「The network and secrets of a call」); ended with the runner; in a session of
+    its own;
   - a clean environment: the search path of the machine's own programs, its data folder as its home, a scratch
     folder of its own, and nothing of the runner's, so no token or key reaches it;
   - the machine's `/usr`, its links or folders `/bin`, `/sbin` and `/lib*`, and the files the dynamic loader and the
@@ -116,7 +117,7 @@ PC; the tool host at home keeps a copy of each one's description alone and relay
   - its version folder read alone at `/tool`, where it starts, and its data folder written at `/data`; nothing else
     of the PC — the home, the CLI's records, the workplace's data root, the link's tool token and the gateway's key
     files, another tool's folders — stands inside;
-  - a call-back socket into the host, a helper and a secret are given no call yet.
+  - a call-back socket into the host and a helper are given no call yet.
   Where bubblewrap is not on the machine, the runner refuses the call saying so.
 - **A call reaches the PC over a passage of its own:**
   - the near end listens on the link's runner socket, `runner.sock` in the node's folder here, readable by this
@@ -141,6 +142,50 @@ PC; the tool host at home keeps a copy of each one's description alone and relay
   filesystem read alone. What it found is said beside the setup's answer, as `personal tools: …`, and kept in the
   node's setup record as `confinement`, `ready` or why not. It holds nothing else of the workplace back: the PC's
   BMO runs as before, and its personal tools are refused until bubblewrap confines there.
+
+## The network and secrets of a call
+
+A personal tool asks for the network and secrets in its manifest's `[permissions]` (the tool host's `docs/api.md`,
+「`[permissions]`」): the host names it may reach, and the names of the secrets of its owner's it is handed. It is given
+them for one call at a time, where the delegation chain allows them for the person, and nothing else past its folders.
+
+- **The chain decides per person, at every turn:** agency resolves `personal-apps.network` and `personal-apps.secrets`
+  for the person a record acts for and writes them into the record's withheld-apps file as `personal` (`docs/tools.md`,
+  「The apps a person reaches」); the tool host refuses a call of a tool asking for what the file does not allow,
+  saying the organisation does not allow it. A flag that does not resolve allows nothing. The administrator's records
+  name no such file and are held to neither.
+- **An address is a host name, never an IP address:** `api.example.com` on ports 80 and 443, `api.example.com:8443`
+  on that port alone, `*.example.com` every name under `example.com` — not `example.com` itself — and nothing else:
+  no other wildcard, no address written whole and no `localhost`.
+- **The confinement keeps a network of its own,** whose one road out is the call's proxy:
+  - the runner serves a proxy for the call, a unix socket in a folder of the call's own under the PC's temporary
+    folder, readable by its user alone, taken away with the folder as the tool ends, before the call is answered; a
+    folder a runner ended early left behind is taken away by a later call once it is a day old;
+  - the socket is bound into the confinement, and the runner's own binary with it, read alone, which runs as the
+    confinement's first program: it listens on the confinement's loopback at `127.0.0.1:3128`, joins each connection
+    there to the socket, starts the tool and ends as the tool ends, with its code;
+  - the tool finds the proxy in `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY`, in both cases, and reads the machine's
+    certificates, `/etc/ssl`, `/etc/ca-certificates` and `/etc/pki` where they stand, read alone;
+  - the confinement holds no interface but its own loopback and no resolver, so a raw socket, an address written
+    whole and a name resolved by the tool itself reach nothing; a tool asking for no address has no proxy and no way
+    out at all.
+- **The proxy reaches what the manifest lists and nothing else:** a `CONNECT` to a host and port tunnels there, and a
+  plain HTTP request naming its address whole is sent on and its answer carried back. The host must be a name the
+  manifest admits on that port; the proxy resolves it itself and reaches only the addresses it found outside the PC —
+  a loopback, unspecified, link-local, multicast or broadcast address is never reached, whatever a name resolves to.
+  Anything else is answered 403 saying why: an address written whole, a name or a port not listed, a name resolving
+  to the PC alone.
+- **A secret is read at home and lives in the confinement's memory for the call alone:**
+  - the tool host's relay reads each name from the record's secret space — the person's space of the console's secret
+    store, `env/users/<account>/` under the data root, or `env/` itself for the administrator (`docs/tools.md`, 「The
+    owner and the runner a record names」) — and refuses the call naming a secret the space holds no file of;
+  - the values travel on the call's first line alone, in base64, and are never written on the PC: the runner hands
+    each to bubblewrap through a pipe, which copies it into a file of the confinement's own memory, `/secrets/<name>`,
+    read alone, the folder named in `BMO_SECRETS`, gone with the confinement as the call ends;
+  - no value stands on a command line, in an environment, in the runner's refusals or in a log, and every value of at
+    least four characters, each of its lines and each `KEY=VALUE` line's value is masked as `[secret <name>]` in
+    what the tool writes on its output and its errors, so the session never reads one back. A value written in
+    another encoding is not recognised.
 
 ## Personal apps
 
@@ -197,8 +242,8 @@ sessions reach it as `my/<entry>` from their next turn.
   link turns it off, decides whether a person may put an app; `personal-apps.network` and `personal-apps.secrets`,
   flags narrowing down the chain and off until the platform turns them on for a company by a rule at its link, are
   the ceiling of what an app may ask for in its manifest's `[permissions]`. A put asking for what its ceiling leaves
-  off is refused saying the organisation does not allow it; one asking for what the ceiling allows is refused by the
-  tool host until a runner gives a call the network or a secret. Agency declares the three with its other kinds
+  off is refused saying the organisation does not allow it; a call is held to the ceiling as it stands at the
+  session's turn (「The network and secrets of a call」). Agency declares the three with its other kinds
   (`docs/prompt-layers.md`, 「The settings agency declares」); the administrator's account is held to none of them.
 
 ## Personal screens
@@ -550,7 +595,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard, the wait typed `node-link`, ended by a stop and bounded by the policy, and neither counted by the quiet nor lost silently across a restart | — |
 | who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
 | several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
-| personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | the network and secrets during a call, a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
-| personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for; a screen of an app's own built with the workplace's screen kit, its index written as it is placed, its files read for the tool host, and a short-lived session issued for a console to read and call it under | sharing, and the network and secrets themselves |
+| personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network but the call's own proxy to the addresses its manifest lists, the secrets it names handed in the confinement's memory for the call alone, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
+| personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for; a screen of an app's own built with the workplace's screen kit, its index written as it is placed, its files read for the tool host, and a short-lived session issued for a console to read and call it under | — |
 | a check on a real PC | a PC attached as a jake agent with its stream ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

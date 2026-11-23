@@ -30,9 +30,12 @@ yours; the second is the guide the worker run that writes the app follows, which
   run for it in the same words, saying what the screen shows and what it lets the person do. Once it is put, the
   screen stands in the person's 콘솔 sidebar under 내 앱, for them alone; it reads and writes only through the app's
   own tool, and while their PC is off it says it cannot be opened.
-- **An app reaches nothing but its own folders:** no network, no secret, no other tool, no file of the person's
-  outside the app. A request that needs any of those is said to the person as something a personal app cannot do
-  yet.
+- **An app reaches nothing but its own folders,** and the network and secrets only as its manifest names them:
+  the host names it calls and the names of the person's secrets it reads, which the person's organisation must allow;
+  a put asking for what it does not allow is refused, and that is said to the person as it is. Each secret is one
+  the person saves themselves in 설정, under 비밀 보관함, by the name the app reads; tell them the name, never ask for
+  the value. No other tool and no file of the person's outside the app: a request that needs either is said to the
+  person as something a personal app cannot do yet.
 
 ## The worker run's guide
 
@@ -77,7 +80,10 @@ hints = { read_only = true }
   its first sentence standing alone; `capabilities` names `my.own`, since the person's sessions hold their own app
   whole; `hints` marks `read_only` where it changes nothing, `destructive` where it takes something away. No
   `system`, `bundle`, `claims`, `schedule` or `grant`.
-- **No `[permissions]`:** an app is given no network and no secret yet, and one asking for either is refused.
+- **`[permissions]` only where the app needs it:** `network`, the host names it calls, each a name such as
+  `api.example.com` (ports 80 and 443), `api.example.com:8443` (that port alone) or `*.example.com` (every name under
+  it), never an IP address or `localhost`; and `secrets`, the names of the person's secrets it reads, plain file
+  names of letters, digits, `.`, `_` and `-`. Name nothing it does not use.
 - **No `[app]`:** a personal app is its person's alone.
 - **The input schema** is a JSON Schema of an object, one property per argument, each with a `description`; name
   what is required and set `additionalProperties` to false.
@@ -118,7 +124,14 @@ the same release of bmo-ui the console runs, and the console shows it to the per
 
 - **Confined on the person's PC:** it sees its own version's folder, read alone, as `/tool`, where it starts; its own
   data folder, written, as `/data`, which is also its `HOME`; a scratch `/tmp`; and the machine's own programs under
-  `/usr`. It sees nothing else of the PC, reaches no network, and is handed no token.
+  `/usr`. It sees nothing else of the PC, and is handed no token.
+- **The network, where `[permissions]` names it,** is reached through a proxy alone, named in `HTTPS_PROXY`,
+  `HTTP_PROXY` and `ALL_PROXY`: use a client that honours them, as Python's `urllib.request` does, and let the proxy
+  resolve the name, since nothing resolves one inside. Only the names listed answer; any other, and any address
+  written whole, is refused 403.
+- **Each secret `[permissions]` names** is a file of its own, `/secrets/<name>`, the folder named in `BMO_SECRETS`,
+  read for the call alone. Never print one or put it in the answer: whatever the app writes has every secret's value
+  masked.
 - **So write it on what the machine has:** Python 3 and its standard library, or a shell script, or a program a
   `build` makes. A build runs confined the same way, its source read alone, with no network: nothing is downloaded
   during it, so whatever it needs is in the folder already.

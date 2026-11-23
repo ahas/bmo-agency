@@ -10,7 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::{Arc, Mutex};
 
-use agency_server::apps::{self, Changed, Withheld};
+use agency_server::apps::{self, Changed, Personal, Withheld};
 use agency_server::person_nodes::Caller;
 use axum::extract::{Path, Query, State};
 use serde_json::{Value, json};
@@ -145,9 +145,28 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     Some(Withheld {
       apps: keys(&[]),
       account: COMPANY_PERSON.to_owned(),
+      personal: Personal {
+        network: true,
+        secrets: true,
+      },
     })
   );
   assert_eq!(apps::refresh(&ground, &place).await, None, "nothing changed");
+
+  // The company takes the network from its person's personal apps: the file says so from the next turn, and no app
+  // changed, so nothing is told.
+  table
+    .lock()
+    .unwrap()
+    .insert(("personal-apps.network".to_owned(), COMPANY_PERSON.to_owned()), false);
+  assert_eq!(apps::refresh(&ground, &place).await, None);
+  assert_eq!(
+    apps::read(&file).unwrap().personal,
+    Personal {
+      network: false,
+      secrets: true,
+    }
+  );
 
   // The company turns the almanac off for its person between two turns.
   table
@@ -386,6 +405,12 @@ async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tool
 
   assert_eq!(person["ownerAccount"], "8", "{person}");
   assert_eq!(person["runner"], json!({ "socket": runner_socket }), "{person}");
+  // Its secrets are read from the person's own space of the secret store.
+  assert_eq!(
+    person["secretSpace"],
+    json!(ground.roots.data.join("env").join("users").join("8")),
+    "{person}"
+  );
 
   let administrators = json!({ "command": [
     ground.roots.deploy.join("bin").join("node-link"),
@@ -403,11 +428,17 @@ async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tool
 
     assert_eq!(record["ownerAccount"], "9", "{agent}: {record}");
     assert_eq!(record["runner"], administrators, "{agent}: {record}");
+    assert_eq!(record["secretSpace"], json!(ground.roots.data.join("env")), "{agent}: {record}");
   }
 
   let stray = issue("stray").await;
 
-  assert!(stray.get("ownerAccount").is_none() && stray.get("runner").is_none(), "{stray}");
+  assert!(
+    stray.get("ownerAccount").is_none()
+      && stray.get("runner").is_none()
+      && stray.get("secretSpace").is_none(),
+    "{stray}"
+  );
 
   // A PC whose link runs no single account's personal tools names its person no runner.
   std::fs::write(&spec_path, spec(None)).unwrap();

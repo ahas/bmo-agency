@@ -1,8 +1,10 @@
 //! The apps a person's sessions reach (docs/tools.md, 「The apps a person reaches」): each app's two settings on the
 //! account service's delegation chain, `app.<key>.offered` and `app.<key>.on`, resolved for the person a session
 //! acts for, and the apps that are not both written into the file the session's record names as its
-//! `withheldAppsFile`, which the tool host reads at every listing, description and call. Resolved as a record is
-//! issued and again as each turn of a resident program begins.
+//! `withheldAppsFile`, which the tool host reads at every listing, description and call; and beside them what the
+//! person's personal tools may reach, the chain's `personal-apps.network` and `personal-apps.secrets` for the person
+//! (docs/person-nodes.md, 「The network and secrets of a call」). Resolved as a record is issued and again as each
+//! turn of a resident program begins.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -26,12 +28,39 @@ const RUN_FOLDER: &str = "agency/withheld-apps";
 const KIND_HEAD: &str = "app.";
 const OFFERED_TAIL: &str = ".offered";
 
-/// What a withheld-apps file holds: the keys of the apps that do not reach the person, and the account they were
-/// resolved for, which a turn resolves them again for.
+/// What a withheld-apps file holds: the keys of the apps that do not reach the person, the account they were
+/// resolved for, which a turn resolves them again for, and what the person's personal tools may reach.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Withheld {
   pub apps: BTreeSet<String>,
   pub account: String,
+  #[serde(default)]
+  pub personal: Personal,
+}
+
+/// What a person's personal tools may reach beyond their own folders, as the chain allows it for them: the network
+/// at the addresses a tool's manifest names, and the secrets it names. Neither where the chain cannot be asked.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Personal {
+  pub network: bool,
+  pub secrets: bool,
+}
+
+/// What `person`'s personal tools may reach: the two flags resolved for them, each off where it does not resolve.
+pub async fn personal(service: &AccountService, person: &str) -> Personal {
+  let Ok(person) = person.parse::<i64>() else {
+    return Personal::default();
+  };
+  let settings = &policy::organisation::ORGANISATION.personal_apps;
+  let allows = |key: &'static str| async move {
+    crate::chain::resolve(service, key, crate::chain::Subject::Person(person))
+      .await
+      .is_ok_and(|answer| crate::chain::flag(answer.as_ref(), false))
+  };
+  let (network, secrets) =
+    futures_util::join!(allows(settings.network.key.as_str()), allows(settings.secrets.key.as_str()));
+
+  Personal { network, secrets }
 }
 
 /// What a turn's resolution changed: the apps turned off and those turned on since the file last said.
@@ -186,11 +215,14 @@ pub fn service(ground: &Ground) -> AccountService {
 /// The file written for `person` before a record naming it is issued; where the account service cannot be asked,
 /// left as it stands, which a file never written yet reads to the tool host as every app withheld.
 pub async fn write_for(ground: &Ground, file: &Path, person: &str) {
-  match resolve(&service(ground), person).await {
+  let service = service(ground);
+
+  match resolve(&service, person).await {
     Ok(apps) => {
       let withheld = Withheld {
         apps,
         account: person.to_owned(),
+        personal: personal(&service, person).await,
       };
 
       if let Err(why) = write(file, &withheld) {
@@ -204,11 +236,13 @@ pub async fn write_for(ground: &Ground, file: &Path, person: &str) {
 }
 
 /// As a resident program's turn begins: the place's file, where it stands, resolved again for the account it
-/// names, and what that changed. Nothing changes where the account service cannot be asked.
+/// names, and how its apps changed, none where they did not; what the person's personal tools reach is written
+/// again with them. Nothing changes where the account service cannot be asked.
 pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
   let file = place_file(place);
   let before = read(&file)?;
-  let apps = match resolve(&service(ground), &before.account).await {
+  let service = service(ground);
+  let apps = match resolve(&service, &before.account).await {
     Ok(apps) => apps,
     Err(why) => {
       eprintln!(
@@ -219,7 +253,9 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
     }
   };
 
-  if apps == before.apps {
+  let personal = personal(&service, &before.account).await;
+
+  if apps == before.apps && personal == before.personal {
     return None;
   }
 
@@ -227,13 +263,21 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
     off: apps.difference(&before.apps).cloned().collect(),
     on: before.apps.difference(&apps).cloned().collect(),
   };
+  let apps_moved = apps != before.apps;
 
-  if let Err(why) = write(&file, &Withheld { apps, ..before }) {
+  if let Err(why) = write(
+    &file,
+    &Withheld {
+      apps,
+      personal,
+      ..before
+    },
+  ) {
     eprintln!("the withheld apps were not written: {why}");
     return None;
   }
 
-  Some(changed)
+  apps_moved.then_some(changed)
 }
 
 /// The fact a session is told of a change of the apps it reaches.

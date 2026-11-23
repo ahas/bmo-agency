@@ -39,6 +39,16 @@ enum Verb {
     #[arg(long)]
     kit: Option<PathBuf>,
   },
+  /// Inside a personal tool's confinement: its loopback at `listen` joined to the call's proxy socket `to` while
+  /// the command after `--` runs, ending as it ends (docs/person-nodes.md, 「The network and secrets of a call」).
+  Forward {
+    #[arg(long)]
+    listen: String,
+    #[arg(long)]
+    to: PathBuf,
+    #[arg(last = true, required = true)]
+    run: Vec<String>,
+  },
   /// The far end, on the node: watch, send, write and signal over standard input and output.
   Serve {
     /// The workplace's root on the node.
@@ -95,16 +105,21 @@ async fn main() -> ExitCode {
     }
     Verb::Runner { root, owner, kit } => {
       let bwrap = std::env::var(node_link::runner::BWRAP_VARIABLE).unwrap_or_else(|_| "bwrap".to_owned());
+      let stand_ins = std::env::var(node_link::proxy::RESOLVE_VARIABLE)
+        .map(|named| node_link::proxy::stand_ins(&named))
+        .unwrap_or_default();
       let runner = node_link::runner::Runner {
         root,
         owner,
         bwrap,
         kit,
+        stand_ins,
       };
 
       node_link::runner::run(runner, tokio::io::stdin(), tokio::io::stdout()).await;
       ExitCode::SUCCESS
     }
+    Verb::Forward { listen, to, run } => node_link::proxy::forward(&listen, &to, &run).await,
     Verb::Serve {
       root,
       bridge,

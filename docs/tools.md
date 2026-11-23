@@ -84,9 +84,12 @@ its own, not a folder here.
   「Who reaches a node」), where it is a person's account other than the administrator's. A caller of the
   deployment's own, and one holding the administrator's grants, has no app withheld, as the system's own sessions
   and the owner's supervisors have.
-- **What it writes:** a JSON object, `apps`, the keys of the apps that do not reach the person, and `account`, the
-  account they were resolved for, written whole into the file the record's `withheldAppsFile` names. The tool host
-  reads it at every listing, description and call, so a write holds from the session's next request.
+- **What it writes:** a JSON object, `apps`, the keys of the apps that do not reach the person, `account`, the
+  account they were resolved for, and `personal`, `{network, secrets}`, whether the person's personal tools may reach
+  the network and secrets — the chain's `personal-apps.network` and `personal-apps.secrets` resolved for the person,
+  each false where it does not resolve (`docs/person-nodes.md`, 「The network and secrets of a call」) — written whole
+  into the file the record's `withheldAppsFile` names. The tool host reads it at every listing, description and
+  call, so a write holds from the session's next request.
   - A resident program's file stands in its place, `withheld-apps.json`, and so does a run's that names its place;
     a run that names none has a file of its own under the data root's `agency/withheld-apps/`, named by when its
     record lapses, and the files whose records have lapsed are taken away as another is written.
@@ -101,10 +104,11 @@ its own, not a folder here.
 - **Where the account service cannot be asked,** the file is left as it stands, so a session keeps what it last
   reached; a record issued with no file yet names one that does not stand, which the tool host reads as every app
   withheld until a turn writes it.
-- **The session is told when its apps change.** Where a turn's resolution withholds other apps than the file held
-  before, and the turn is a chat session's in a room, a notice is owed in agency's outbox to the supervisor in that room, as the
-  fact the chat line's policy words for it, naming the apps turned off and on, so the session does not reach for a
-  tool it no longer has. It carries no instruction.
+- **The session is told when its apps change.** What its personal tools reach is written again without a word to
+  it; where a turn's resolution withholds other apps than the file held before, and the turn is a chat session's in
+  a room, a notice is owed in agency's outbox to the supervisor in that room, as the fact the chat line's policy
+  words for it, naming the apps turned off and on, so the session does not reach for a tool it no longer has. It
+  carries no instruction.
 
 
 ## The owner and the runner a record names
@@ -122,6 +126,10 @@ its own, not a folder here.
     account the PC runs personal tools for;
   - none for an account on a shared PC, an account with no PC, or a PC whose link has no spec yet, so a call of a
     personal tool fails saying no runner is named.
+- **And the folder that account's secrets stand in,** `secretSpace`, which a call of a personal tool naming secrets
+  is handed them from (`docs/person-nodes.md`, 「The network and secrets of a call」): the console's secret store's
+  space of the account, the data root's `env/users/<account>/`, and the data root's `env/` itself for the
+  administrator's (bmo-web's `docs/accounts.md`, 「The secret store」).
 - **It is judged as the record is issued,** as the grants are, so a session issued again reads the account and its
   PC afresh.
 ## The procedures
