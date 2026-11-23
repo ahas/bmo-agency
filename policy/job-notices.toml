@@ -56,6 +56,8 @@ deploy_no_reason = "its run gave no reason"
 deploy_read_seconds = 5
 deploy_journal_lines = 20
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
+# A job's question the job service put to the owner once the supervisor's minute on it passed: the same marks.
+question_handed_order = "Your minute on question #{question} on item #{item} passed, so the job service put it to the owner as the job wrote it; he has a minute before its recommendation, if any, settles it. Tell him of it in his chat now, in his language: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
 # A job's turn that has made no progress for its stall span (docs/agent-control.md, 「A run's tool calls are held
 # to a clock」): `{job}`, `{item}`, `{worker}`, `{minutes}`, `{since}`, the time of day of its last progress, and

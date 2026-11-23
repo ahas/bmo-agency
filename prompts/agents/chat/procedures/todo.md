@@ -346,7 +346,7 @@ and the agency's own:
   `job_question_ask` with `itemId`, `text`, two to four `choices`, a `recommendation` and
   `askerName` `harness`, put to a person as every question of yours that names no addressee is, and written as
   the manual says every question to him is: as if he knows nothing of the work. He has the job service's
-  person wait, a minute, before the recommendation settles it in his place: leave `waitMs` out, since a longer one
+  question wait, a minute, before the recommendation settles it in his place: leave `waitMs` out, since a longer one
   is cut to that minute. Wait for its answer with
   `job_replies`.
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
@@ -457,17 +457,22 @@ and the agency's own:
   told. A merge names the item that carries the work.
 - **`item-closed`:** somebody other than you closed the item. Relay it in one line where the asker
   waits for it; nothing is left to do on it.
-- **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
-  `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
-  the owner in your own words with `job_question_change`, `addressee` `person`, two to four `choices` and your
-  `recommendation`, written as if he knows nothing of the work, and no `waitMs`: he has the job service's person
-  wait, a minute, before your recommendation settles it in his place, as for a question you ask him yourself. Do one of the three before the turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
-  ("woken again: n of 6"), never the owner. Once it is settled or put to the owner, the job withdraws the
+- **`question-for-supervisor`:** a job asked you a question, and you have one minute from the moment it reached
+  you, the job service's question wait, which nothing you say stops or lengthens. Judge it as the manual says:
+  settle it with `job_reply` once you did what it asks, ask the job with a `job_reply` that settles nothing, or
+  put it to the owner in your own words with `job_question_change`, `addressee` `person`, two to four `choices`
+  and your `recommendation`, written as if he knows nothing of the work, and no `waitMs`: he has the same minute
+  before your recommendation settles it in his place. Do one of the three before the turn ends. Once the minute
+  passes with the question still yours, the job service puts it to the owner as the job wrote it, and it comes
+  back to you as `question-awaits-answer`. Once it is settled or put to the owner, the job withdraws the
   instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked
-  him. Read it with `job_question` and its replies with `job_replies`, put it to the owner in his own chat, and
-  never answer it for him. Once a reply settles it, the instruction is withdrawn. A job's question with him that he has not settled and that
-  is yours to settle after all you take back with `job_question_change`, `addressee` `supervisor`.
+  him, or a job's question the job service put to him once your minute on it passed. Read it with `job_question`
+  and its replies with `job_replies`, put it to the owner in his own chat in his language, with its choices where
+  it has them and that he has a minute, and never answer it for him. Once a reply settles it, the instruction is
+  withdrawn. A job's question with him that he has not settled and that you can settle at once after all you take
+  back with `job_question_change`, `addressee` `supervisor`, and settle in the same turn: taking it back never
+  buys time.
 - **`job-question-due`:** a question put to the owner is past its due time with no recommendation: put it to
   him again in his own chat, and never answer it for him.
 - **`job-question-settled`:** a question put to the owner went unanswered past its due time and was settled on

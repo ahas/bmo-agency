@@ -67,6 +67,8 @@ pub struct JobNotices {
   pub deploy_live_order: String,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
+  /// A job's question the job service put to the owner once the supervisor's minute on it passed: the same marks.
+  pub question_handed_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.
   pub waiting_order: String,
   /// An ended job's item still leased: `{item}` and `{lease}`.

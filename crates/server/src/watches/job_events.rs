@@ -2,7 +2,8 @@
 //! change is told to its orderer」): read as a page past the cursor agency keeps, each event's notice owed in
 //! agency's outbox — a close that handed its commit over and waits on its deployment, told once for each commit
 //! and kept until it no longer waits, an item closed by somebody other than its orderer, a run's question asked,
-//! a question past its due time, a settling reply that withdraws the question's instruction, and one the job
+//! a job's question the job service put to the owner once the supervisor's minute passed, a question past its due
+//! time, a settling reply that withdraws the question's instruction, and one the job
 //! service gave on the question's recommendation, told to the owner — and a note
 //! added to the item of a job that runs, handed to that job (「Words for a running job」); and the title of an item
 //! raised or changed, asked of the gate so a worker reads it translated (docs/worker-language.md). The cursor advances
@@ -28,11 +29,14 @@ use crate::watches::closes::{self, Close};
 pub const CURSOR_KEY: &str = "job_events_after";
 /// The prefix of the key a run's question is owed under, its number after it.
 pub const QUESTION_OWED: &str = "question-awaits-answer:";
+/// Who a question carries as having put it to a person where the job service did, the supervisor's minute on it
+/// having passed (the job service's docs/api.md, 「When the due time passes」).
+pub const HANDED_BY: &str = "due time";
 /// The prefix of the key a commit waiting to go live is owed under, its item's number after it.
 pub const DEPLOY_OWED: &str = "item-awaits-deploy:";
 /// The kinds read.
 pub const KINDS: &str =
-  "item.created,item.changed,note.created,question.created,question.due,reply.created";
+  "item.created,item.changed,note.created,question.created,question.changed,question.due,reply.created";
 
 // A page of events past `after`, and whether more stand; none where the cursor left the service's window.
 async fn page(service: &JobService, after: Option<i64>) -> Result<Option<(Vec<Value>, bool)>, String> {
@@ -277,6 +281,24 @@ async fn told(
 
       outbox::owe(db, vars, Notice::instruction(job_notices::question(data, &orderer), Keep::Kept)).await?;
       println!("queue: question #{id} owed to its orderer");
+    }
+    // The job service put the question to the owner itself, the supervisor's minute on it having passed: told
+    // once, by the change that moved it, never by a later change of the same question.
+    "question.changed" => {
+      let Some(id) = data["id"].as_i64() else { return Ok(()) };
+      let handed = data["addressee"] == "person"
+        && data["readdressedBy"] == HANDED_BY
+        && data["readdressedAt"].as_i64().is_some_and(|at| Some(at) == event["at"].as_i64());
+
+      if !handed {
+        return Ok(());
+      }
+
+      let orderer = question_orderer(service, data).await?;
+
+      outbox::owe(db, vars, Notice::instruction(job_notices::question_handed(data, &orderer), Keep::Kept))
+        .await?;
+      println!("queue: question #{id} put to the owner by its due time, owed to its orderer");
     }
     "question.due" => {
       let Some(question) = data["id"].as_i64() else { return Ok(()) };

@@ -1,6 +1,8 @@
 //! The job service's events told to an item's orderer (docs/agent-control.md, 「An item's change is told to its
 //! orderer」): an item closed by somebody other than its orderer, a run's question asked and withdrawn once a
-//! reply settles it, a question past its due time told to the question's orderer, each once; a question settled
+//! reply settles it, a question past its due time told to the question's orderer, each once; a job's question the
+//! job service put to the owner once the supervisor's minute passed told to its orderer once, by the change that
+//! moved it; a question settled
 //! on its recommendation told to its orderer and one a person or the supervisor settled not; and a pass
 //! with no cursor, or one past the window, telling nothing of what it passed but the commits still waiting to go
 //! live; a commit waiting for its deployment told once for each commit, never again on another change, a start or
@@ -201,6 +203,61 @@ async fn a_question_is_told_to_its_orderer_withdrawn_once_settled_and_told_to_it
 
   assert_eq!(held.withdrawn(), ["1"], "the settled question's instruction withdrawn");
   assert_eq!(held.instructed().len(), 3, "nothing told twice");
+}
+
+#[tokio::test]
+async fn a_question_the_job_service_put_to_the_owner_is_told_to_its_orderer_once_and_a_supervisor_s_move_not()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+
+  settings::set(db, CURSOR_KEY, "50").await.unwrap();
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.items.insert(90, item(90, "leased", json!({ "scope": "-950" })));
+    let handed = |at: i64| {
+      json!({ "id": 11, "itemId": 90, "text": "deploy the docs unit?", "choices": [], "addressee": "person",
+              "readdressedBy": "due time", "readdressedAt": at })
+    };
+    held.events = vec![
+      // The supervisor's own move: it tells the owner itself.
+      event(
+        51,
+        "question.changed",
+        json!({ "id": 10, "itemId": 90, "text": "x", "choices": ["a", "b"], "addressee": "person",
+                "readdressedBy": "chat", "readdressedAt": 51 }),
+      ),
+      event(52, "question.changed", handed(52)),
+      // A later change of the same question, a talk pausing it: told no more.
+      event(53, "question.changed", handed(52)),
+    ];
+  }
+
+  pass(db, &vars).await.unwrap();
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!(
+    (&told[0]["kind"], &told[0]["events"], &told[0]["room"]),
+    (
+      &json!("question-awaits-answer:11"),
+      &json!(["question-awaits-answer:#11"]),
+      &json!(-950)
+    )
+  );
+  let order = told[0]["said"]["order"].as_str().unwrap();
+  assert!(
+    order.contains("minute") && order.contains("deploy the docs unit?") && order.contains("an open answer"),
+    "{order}"
+  );
+  assert!(
+    owed(db, &format!("{QUESTION_OWED}11")).await.unwrap().contains_key(""),
+    "withdrawn once settled, as an asked one"
+  );
 }
 
 #[tokio::test]

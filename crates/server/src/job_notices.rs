@@ -339,6 +339,16 @@ pub fn deploy_live(
 
 /// A run's question, for the orderer to put to the owner.
 pub fn question(question: &Value, orderer: &Orderer) -> Value {
+  question_told(question, orderer, &JOB_NOTICES.question_order)
+}
+
+/// A job's question the job service put to the owner once the supervisor's minute on it passed, told to the
+/// orderer under the same key as a question asked, so a settling reply withdraws it alike.
+pub fn question_handed(question: &Value, orderer: &Orderer) -> Value {
+  question_told(question, orderer, &JOB_NOTICES.question_handed_order)
+}
+
+fn question_told(question: &Value, orderer: &Orderer, words: &str) -> Value {
   let id = id_of(question);
   let number = id.to_string();
   let item = question["itemId"]
@@ -347,7 +357,7 @@ pub fn question(question: &Value, orderer: &Orderer) -> Value {
     .unwrap_or_else(|| "none".to_owned());
   let choices = choices_of(question);
   let order = fill_marks(
-    &JOB_NOTICES.question_order,
+    words,
     &[
       ("question", &number),
       ("item", &item),
