@@ -270,6 +270,17 @@ impl Route for FileItem {
 
     let checkouts = lent.iter().filter(|name| Some(name.as_str()) != own).count() + 1;
 
+    // A supervisor files work on the repositories of its own account alone, and a supervisor of the platform's side
+    // on the platform's (docs/api.md, 「assignments and jobs」).
+    let account = crate::supervisors::named(&call.ground().db, &ask.agent_name)
+      .await?
+      .and_then(|supervisor| supervisor.owner_account);
+    let goes_to = assignee_of(&ask).ok().flatten();
+
+    for name in goes_to.into_iter().chain(lent.iter().map(String::as_str)) {
+      crate::access::works_on(call.ground(), account, name).await?;
+    }
+
     if !lent.is_empty() && checkouts > policy::workers::WORKERS.job_checkouts_most {
       return Err(super::loans::too_many(policy::workers::WORKERS.job_checkouts_most));
     }

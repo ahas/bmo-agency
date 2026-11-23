@@ -13,6 +13,7 @@ use store::{all, run};
 
 use super::claude_accounts::Judging;
 use super::{Call, Refused, Route, agent_sampling, answer};
+use crate::access::Acting;
 use crate::now_ms;
 use crate::places::Ground;
 use crate::queue::settings;
@@ -453,6 +454,9 @@ impl Route for RepositoryCreate {
       );
     }
 
+    // A member's repository is filed under their own account (docs/api.md, 「Who a caller acts for」).
+    let owner = Acting::of(&call)?
+      .files_under(body.get("ownerAccount").and_then(Value::as_i64), &format!("the repository {name}"))?;
     let fields = Fields::of(call.ground(), &body).await?;
     let path = fields.path.clone().ok_or_else(|| bad("path", "A repository names its path."))?;
     let pin = fields.pin.clone().flatten();
@@ -476,7 +480,7 @@ impl Route for RepositoryCreate {
       vec![
         name.clone().into(),
         fields.label.clone().flatten().into(),
-        body.get("ownerAccount").and_then(Value::as_i64).into(),
+        owner.into(),
         path.into(),
         fields.node.clone().flatten().into(),
         support.stored().into(),

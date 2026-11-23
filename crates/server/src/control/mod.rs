@@ -583,6 +583,17 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     return refused.into_response();
   }
 
+  let owning = match crate::access::owning(&call, &method, route.path()) {
+    Ok(owning) => owning,
+    Err(refused) => return refused.into_response(),
+  };
+
+  if let Some(owning) = owning
+    && let Err(refused) = crate::access::judge(owning).await
+  {
+    return refused.into_response();
+  }
+
   match route.answer(call).await {
     Ok(response) => response,
     Err(refused) => refused.into_response(),

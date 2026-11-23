@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 
 use super::claude_accounts::Judging;
 use super::{Call, Refused, Route, answer, whole};
+use crate::access::{self, Acting};
 use crate::agent_roles::{self, AgentRole};
 use crate::now_ms;
 use crate::order::{self, Empty};
@@ -227,6 +228,21 @@ async fn judged(
   Ok(agent)
 }
 
+// The account an agent a member adds or changes is filed under (docs/api.md, 「Who a caller acts for」): their own,
+// a body naming another refused. The platform's call keeps the owner the body gives.
+fn filed(acting: Acting, agent: &mut RoleAgent) -> Result<(), Refused> {
+  if acting == Acting::Platform {
+    return Ok(());
+  }
+
+  let named = agent.owner_account.as_deref().map(access::seat_owner);
+  let owner = acting.files_under(named, &format!("the role agent {}", agent.name))?;
+
+  agent.owner_account = owner.map(|owner| owner.to_string());
+
+  Ok(())
+}
+
 // A role whose seats changed lets in at once the reserved slots a seat more frees.
 async fn seats_changed(
   db: &sea_orm::DatabaseConnection,
@@ -318,8 +334,9 @@ impl Route for RoleAgentCreate {
       owner_account: None,
       follows_asker: None,
     };
-    let agent = judged(call.ground(), &held, fresh, &body).await?;
+    let mut agent = judged(call.ground(), &held, fresh, &body).await?;
 
+    filed(Acting::of(&call)?, &mut agent)?;
     role_agents::write(db, &agent).await?;
     seats_changed(db, call.events(), &agent.role).await?;
     queue_told(&call);
@@ -345,8 +362,9 @@ impl Route for RoleAgentChange {
     let role = agent_roles::named(db, &held.role)
       .await?
       .ok_or_else(|| unprocessable(agent_roles::unknown(&held.role)))?;
-    let agent = judged(call.ground(), &role, held, &body).await?;
+    let mut agent = judged(call.ground(), &role, held, &body).await?;
 
+    filed(Acting::of(&call)?, &mut agent)?;
     role_agents::write(db, &agent).await?;
     seats_changed(db, call.events(), &agent.role).await?;
     queue_told(&call);

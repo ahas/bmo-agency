@@ -78,14 +78,14 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   `Owner-Role`, `administrator` or `member`, the same headers it sets on every call it relays.
 - **A caller carrying no key is the deployment's own** — a unit, a tool, a job, the shell — and keeps every
   route's present behaviour. `Owner-Role: administrator` is the owner and keeps every access.
-- **A member's access to agent management is the console's.** Agent management is five kinds of route, each
-  under the console section of the agent management tab that holds it (the web's `docs/accounts.md`,
-  「Console sections」):
+- **A member's access to agent management is the console's.** Agent management is five parts, each under the
+  console section of the agent management tab that holds it (the web's `docs/accounts.md`, 「Console
+  sections」), a role's agents standing under the roles section with the roles:
 
   | Paths under | Section |
   |---|---|
   | `/supervisors` | `supervisors` |
-  | `/roles` | `roles` |
+  | `/roles`, `/role-agents` | `roles` |
   | `/repositories` | `repositories` |
   | `/models` | `models` |
   | `/model-catalogue` | `model-files` |
@@ -96,13 +96,25 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 - **The agent list is read under any part of agent management.** The console's agent management screen opens
   on any one of its five parts the reader may read, and its shared reads open on any part read: the agent
   list is the supervisors, the roles and the repositories read together, and an agent's own page stands under
-  those three parts. So a `GET` or `HEAD` under `/supervisors`, `/roles` or `/repositories` goes on where the
-  person may read any one of the five sections; a read under `/models` or `/model-catalogue` needs that
+  those three parts. So a `GET` or `HEAD` under `/supervisors`, `/roles`, `/role-agents` or `/repositories` goes
+  on where the person may read any one of the five sections; a read under `/models` or `/model-catalogue` needs that
   route's own section, and every change needs its own route's write. What the console reads of the agents
   for its own bookkeeping, outside agent management's screen, carries no key and is the deployment's own.
 - A refusal is 403 `forbidden` with one sentence naming what was asked and the section it needs; a permission
   that could not be read because the account service did not answer is 503 `access-unchecked`, so no access is
   guessed. Agency keeps no permission of its own: the console's is the only one.
+- **A section's write reaches a member's own rows alone.** Every row of agent management but a role is filed
+  under the login account it belongs to, its `ownerAccount`, the user id `Owner-Key` names, or under none, the
+  platform's. A member's change — any method but `GET` and `HEAD` — of a supervisor, a repository or a role
+  agent the path names goes on only where that row is filed under the member's own account: one filed under
+  another account, or one of the platform's, is refused 403 `forbidden`, the sentence naming the row and
+  whose it is, before the route reads the body. A row a member adds — `POST /supervisors`, `POST /repositories`,
+  `POST /role-agents` — is filed under their own account, and a body naming another account as `ownerAccount`
+  is refused 403 `forbidden`; a member's change of a role agent keeps it filed under their own account the same
+  way. A role is no account's: the roles are the platform's presets, and a member's `POST`, `PATCH` or
+  `DELETE` under `/roles` is refused 403 `forbidden` whatever the section grants. A path naming a row the store
+  does not hold goes on to its route, which answers it as it does. The administrator and the caller carrying no
+  key change every row and file it where the body says.
 - **A person's own supply is theirs alone** (`docs/supply.md`, 「What a person brings」). On `/fallback`,
   `/accounts`, `/claude-logins` and `/personal-supply`, a call naming a person with `Owner-Key` and
   `Owner-Role: member` acts on that person's own Claude accounts and keys alone: what it reads holds no other
@@ -204,8 +216,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change, reset and end any of
   them alike.
 - **A supervisor is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
-  an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
-  which supervisor is the caller's to judge; agency writes the owner it is handed.
+  an account's `user_id` names (`docs/store.md`). None means the administrator's. A member named on the call
+  registers, changes, resets and ends the supervisors of their own account alone, and registers one under it
+  (「Who a caller acts for」); the platform's own call writes the owner it is handed.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`; `aliases`, its call names as one line
   joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `sessionScope`,
   `turnShape`, `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
@@ -399,7 +412,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   names a skill no plugin of the release carries; `providerPrompts` that is not an object naming providers of
   this build, each with text or null; `followsAsker` that is not true or false;
   and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions` or `foldRatio`, none of which
-  a role holds: each is its agent's (「role agents」 below).
+  a role holds: each is its agent's (「role agents」 below). A role is the platform's preset: a member's `POST`,
+  `PATCH` or `DELETE` of one is refused 403 `forbidden` (「Who a caller acts for」).
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
   `POST` judges it; a `prompt`, a `description` or `skills` given as null clears it; `providerPrompts` sets the
   text of each provider it names and takes away each it names as null, and leaves every other provider's as
@@ -422,7 +436,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   null; `POST` refuses 409 a name
   already taken. `DELETE /role-agents/{agentName}` answers 204, 404 for an agent the store does not hold and
   409 while it carries a run. An agent added, switched or removed holds from the next admission, and one
-  more seat lets in at once the reserved slots it frees.
+  more seat lets in at once the reserved slots it frees. A member named on the call adds agents under their
+  own account and changes and removes those alone (「Who a caller acts for」).
 - **`DELETE /roles/{roleName}`** answers 204; 404 `not-found` for a role the store does not hold, and 409
   `conflict` while a run of it goes or waits, or for a role the roles policy names as a default.
 - **`GET /roles/{roleName}/sessions` answers `items`,** the sessions the role's runs opened, newest first, a
@@ -1362,7 +1377,15 @@ is refused 422 `not-a-directory`, as an account that keeps no login here is.
   them newest first, and a job's run is read by the job's own log; a screen shows the log of the job going in
   the repository, else of its latest.
 - **An add names its path,** the base checkout's directory, and is refused 400 `path` without one: agency makes
-  no checkout and no directory for a repository.
+  no checkout and no directory for a repository. It may name `ownerAccount`, the account it is filed under, none
+  being the platform's; a member named on the call adds, changes and removes the repositories of their own
+  account alone (「Who a caller acts for」).
+- **A repository takes the work of its own side alone.** A side is one account, or the platform's: what is
+  filed under no account or under the administrator's own. Work stands on a repository only where its holder —
+  the supervisor that files or holds it, or the role agent's seat, by its `ownerAccount` — stands on the
+  repository's side, so a member's supervisor works on its account's repositories alone and the platform's
+  supervisors on the platform's. An item filing, an assignment, a launch with every repository it lends, and a
+  borrowing that cross the sides are refused 403 `foreign-repository` (「assignments and jobs」).
 - **`prefixDocuments`** is the paths of the documents a run's prefix carries at the repository's path, in order
   (`docs/worker-bench.md`, 「Prefix documents」); the add and the change take the list whole, an empty list
   clearing it, and refuse an empty path or one that climbs with `..`.
@@ -1516,8 +1539,11 @@ naming anything else, or a value that does not read as its filter's kind, is ref
 - **`POST /assignments` names the repository by its `assigneeName`,** exactly as `GET /repositories` lists it,
   or a checkout of one: an assignee no repository holds a checkout by is refused 422 `unknown-repository`,
   naming the assignee and, where they are few, the repositories' names, else pointing at `GET /repositories`;
-  a repository whose checkouts are all held now is refused 422 `no-worker-free`, and the item waits for one
-  to come free. A repository set to `"auto"` grows a support checkout instead and answers it held
+  a repository of another side than its holder's — the account of the supervisor or the seat the holder is
+  (「repositories」, 「A repository takes the work of its own side alone」) — is refused 403
+  `foreign-repository`, nothing held; a repository whose checkouts are all held now is refused 422
+  `no-worker-free`, and the item waits for one to come free. A repository set to `"auto"` grows a support
+  checkout instead and answers it held
   (`docs/worker-slots.md`, 「Growing a checkout at a launch」): refused 409 `agent-busy` where no agent of the
   item's `agent` or `model` label is left free, and 422 `no-worker-free` where the machine has no room, its
   sentence naming each reason. A checkout is held now while an assignment of it is `held` or `running` or a job is at work in
@@ -1551,7 +1577,8 @@ naming anything else, or a value that does not read as its filter's kind, is ref
   are held fixed on the lease with the launch's other labels (below). It refuses, nothing written: a name no
   repository holds 422 `unknown-repository`; a repository with no checkout on the machine the job's checkout
   stands on 422 `no-checkout-here`; more checkouts than `job_checkouts_most` (`policy/workers.toml`), the
-  job's own among them, 422 `too-many-checkouts`. Before the job's first turn a checkout of each is lent
+  job's own among them, 422 `too-many-checkouts`; and a repository, the job's own or one it lends, of another
+  side than its holder's 403 `foreign-repository`. Before the job's first turn a checkout of each is lent
   together, the job waiting `starting` with its `heldFor` naming them while any has none to give, and its
   prompt opens with each lent repository, its path and its branch (`docs/worker-slots.md`, 「A checkout lent
   to a job」). A checkout that cannot be put on the job's branch fails the job with what git said.
@@ -1569,8 +1596,9 @@ naming anything else, or a value that does not read as its filter's kind, is ref
     be is given back and refused 500 `checkout-not-placed`, with what git said. It answers 201 with
     `workerName`, `cwd` and the assignment's `assignmentId`, or 200 with the loan the job already holds, asked
     again.
-  - **What it refuses:** a run no starting or running job works in 404 `no-job`; the job's own repository 422
-    `own-repository`; a repository with no checkout on that machine 422 `no-checkout-here`; a loan that would
+  - **What it refuses:** a run no starting or running job works in 404 `no-job`; a repository of another side
+    than the job's holder's 403 `foreign-repository`; the job's own repository 422 `own-repository`; a
+    repository with no checkout on that machine 422 `no-checkout-here`; a loan that would
     take the job past `job_checkouts_most` 422 `too-many-checkouts`; one whose every checkout there is at work
     and that grows none 422 `no-worker-free`, naming them, and the machine's reasons where its room held the
     growth.
@@ -1628,6 +1656,9 @@ service.
     (「A launch lends the repositories its item names」 above), each one the store holds, refused 422
     `unknown-repository` otherwise, and no more than `job_checkouts_most` with the item's own repository among
     them, refused 422 `too-many-checkouts`;
+  - the repository and every repository the label names stand on the filing supervisor's side
+    (「repositories」, 「A repository takes the work of its own side alone」); one of another side is refused
+    403 `foreign-repository`, nothing filed;
   - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
     the owner's, said under the owner's own sender, which the account service links to the owner's account, whatever
     surface it came through, the console's included (`STRUCTURE.md`, 「In the console a person is their account」) — and lose any `asked-by` the call names, so the job service's unattended labels open an item

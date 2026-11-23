@@ -47,7 +47,7 @@ impl Route for Borrow {
     let ground = call.ground();
     let job = one(
       &ground.db,
-      r#"SELECT "id", "worker_name" FROM "jobs"
+      r#"SELECT "id", "worker_name", "holder_name" FROM "jobs"
          WHERE "run_name" = $1 AND "state" IN ('starting', 'running')
          ORDER BY "id" DESC LIMIT 1"#,
       vec![run_name.into()],
@@ -66,6 +66,12 @@ impl Route for Borrow {
         format!("the session token is {holder}'s, and the job working in {run_name} runs in {own}"),
       ));
     }
+
+    // A job borrows only a repository its holder's work may stand on (docs/api.md, 「assignments and jobs」).
+    let holder: String = job.try_get("", "holder_name")?;
+    let account = crate::supply::account_of(ground, &holder).await?;
+
+    crate::access::works_on(ground, account, repository).await?;
 
     let borrower = Borrower::of_job(ground, job_id)
       .await?

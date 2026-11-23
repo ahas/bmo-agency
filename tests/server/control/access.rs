@@ -1,7 +1,8 @@
 //! Who may read or change agent management (docs/api.md, 「Who a caller acts for」): a member's five kinds of
 //! route asked with the console's permission for the section of each, read and write apart, and the agent list
 //! read under any of the five; the administrator and a caller carrying no key unchecked; and a permission that
-//! could not be read refused, never guessed.
+//! could not be read refused, never guessed. A member's write reaches the rows of their own account alone, the
+//! roles none, and work stands only on a repository of its holder's side.
 
 use std::sync::{Arc, Mutex};
 
@@ -208,7 +209,7 @@ async fn a_change_needs_its_own_sections_write() {
   grants.push(("roles", true, true));
 
   let (port, granting) = granted(&scratch, home.path(), &grants).await;
-  let (status, body) = member(port, reqwest::Method::POST, "/roles").await;
+  let (status, body) = member(port, reqwest::Method::POST, "/role-agents").await;
 
   assert_ne!(status, 403, "the roles write lets the change reach the route: {body}");
 
@@ -273,4 +274,314 @@ async fn a_permission_that_cannot_be_read_is_no_access() {
 
   assert_eq!(status, 503, "{body}");
   assert_eq!(body["code"], "access-unchecked");
+}
+
+/// A member's write of every part a test of rows changes.
+const ROW_WRITES: [Grant; 3] =
+  [("supervisors", true, true), ("repositories", true, true), ("roles", true, true)];
+
+/// The rows of three sides a test of ownership changes: member 7's, member 8's and the platform's, each a
+/// supervisor, a repository and a role agent of the worker role.
+async fn rows(scratch: &Scratch, home: &std::path::Path) {
+  for (side, account) in [("seven", Some(7i64)), ("eight", Some(8)), ("platform", None)] {
+    scratch
+      .run(
+        r#"INSERT INTO "supervisors" ("name", "label", "session_scope", "turn_shape", "owner_account",
+             "created_at", "updated_at")
+           VALUES ($1, $1, 'room', 'pieces', $2, 0, 0)"#,
+        vec![format!("sup-{side}").into(), account.into()],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "repositories" ("name", "path", "owner_account", "created_at", "updated_at")
+           VALUES ($1, $2, $3, 0, 0)"#,
+        vec![
+          format!("repo-{side}").into(),
+          home.join(format!("repo-{side}")).to_string_lossy().into_owned().into(),
+          account.into(),
+        ],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'worker', $2)"#,
+        vec![format!("worker-{side}").into(), account.map(|account| account.to_string()).into()],
+      )
+      .await;
+  }
+}
+
+async fn send(
+  port: u16,
+  method: reqwest::Method,
+  path: &str,
+  key: Option<&str>,
+  role: Option<&str>,
+  body: Value,
+) -> (u16, Value) {
+  let mut request = reqwest::Client::new()
+    .request(method, format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(TOKEN)
+    .json(&body);
+
+  if let Some(key) = key {
+    request = request.header("Owner-Key", key);
+  }
+
+  if let Some(role) = role {
+    request = request.header("Owner-Role", role);
+  }
+
+  let answer = request.send().await.unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
+/// A harmless change of each kind of row a member may own, by the path that names it.
+fn changes(side: &str) -> [(String, Value); 3] {
+  [
+    (format!("/supervisors/sup-{side}"), json!({ "label": "Renamed" })),
+    (format!("/repositories/repo-{side}"), json!({ "label": "Renamed" })),
+    (format!("/role-agents/worker-{side}"), json!({ "enabled": false })),
+  ]
+}
+
+#[tokio::test]
+async fn a_member_changes_the_supervisors_repositories_and_role_agents_of_their_own_account_alone() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, _granting) = granted(&scratch, home.path(), &ROW_WRITES).await;
+
+  rows(&scratch, home.path()).await;
+
+  for (path, body) in changes("seven") {
+    let (status, answer) = send(port, reqwest::Method::PATCH, &path, Some("7"), Some("member"), body).await;
+
+    assert_eq!(status, 200, "member 7 changes its own {path}: {answer}");
+  }
+
+  for (side, whose) in [("eight", "another account"), ("platform", "the platform's")] {
+    for (path, body) in changes(side) {
+      let (status, answer) =
+        send(port, reqwest::Method::PATCH, &path, Some("7"), Some("member"), body).await;
+
+      assert_eq!((status, &answer["code"]), (403, &json!("forbidden")), "{path}: {answer}");
+      assert!(answer["error"].as_str().unwrap().contains(whose), "{path}: {answer}");
+    }
+  }
+
+  for path in ["/supervisors/sup-eight", "/repositories/repo-platform", "/role-agents/worker-eight"] {
+    let (status, answer) = member(port, reqwest::Method::DELETE, path).await;
+
+    assert_eq!(status, 403, "{path} is not removed: {answer}");
+  }
+
+  let left = scratch
+    .count(
+      r#"SELECT COUNT(*) FROM "supervisors" WHERE "name" = 'sup-eight' AND "label" = 'sup-eight'"#,
+      vec![],
+    )
+    .await;
+
+  assert_eq!(left, 1, "another account's supervisor stands as it stood");
+}
+
+#[tokio::test]
+async fn the_platform_s_rows_and_every_account_s_are_changed_by_the_administrator_and_the_keyless_caller() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, granting) = granted(&scratch, home.path(), &[]).await;
+
+  rows(&scratch, home.path()).await;
+
+  for side in ["platform", "eight"] {
+    for (path, body) in changes(side) {
+      let (administrator, answer) =
+        send(port, reqwest::Method::PATCH, &path, Some("7"), Some("administrator"), body.clone()).await;
+
+      assert_eq!(administrator, 200, "the administrator changes {path}: {answer}");
+
+      let (keyless, answer) = send(port, reqwest::Method::PATCH, &path, None, None, body).await;
+
+      assert_eq!(keyless, 200, "the deployment's own call changes {path}: {answer}");
+    }
+  }
+
+  assert_eq!(granting.asked(), 0, "neither is asked of the account service");
+}
+
+#[tokio::test]
+async fn a_member_adds_under_their_own_account_and_never_under_another_s() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, _granting) = granted(&scratch, home.path(), &ROW_WRITES).await;
+  let as_member = |path: &'static str, body: Value| {
+    send(port, reqwest::Method::POST, path, Some("7"), Some("member"), body)
+  };
+
+  let (status, agent) = as_member("/role-agents", json!({ "role": "worker", "name": "worker-mine" })).await;
+
+  assert_eq!((status, &agent["ownerAccount"]), (201, &json!("7")), "{agent}");
+
+  let path = home.path().join("mine").to_string_lossy().into_owned();
+  let (status, repository) = as_member("/repositories", json!({ "name": "mine", "path": path })).await;
+
+  assert_eq!((status, &repository["ownerAccount"]), (201, &json!(7)), "{repository}");
+
+  for (path, body) in [
+    ("/role-agents", json!({ "role": "worker", "name": "worker-theirs", "ownerAccount": 8 })),
+    ("/repositories", json!({ "name": "theirs", "path": path, "ownerAccount": 8 })),
+    ("/supervisors", json!({ "name": "theirs", "label": "Theirs", "ownerAccount": 8 })),
+  ] {
+    let (status, answer) = as_member(path, body).await;
+
+    assert_eq!((status, &answer["code"]), (403, &json!("forbidden")), "{path}: {answer}");
+    assert!(answer["error"].as_str().unwrap().contains("under another account"), "{path}: {answer}");
+  }
+
+  // A member's change cannot move its own agent to another account.
+  let (status, answer) = send(
+    port,
+    reqwest::Method::PATCH,
+    "/role-agents/worker-mine",
+    Some("7"),
+    Some("member"),
+    json!({ "ownerAccount": "8" }),
+  )
+  .await;
+
+  assert_eq!(status, 403, "{answer}");
+}
+
+#[tokio::test]
+async fn the_roles_are_the_platform_s_and_a_role_s_agents_stand_under_the_roles_section() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, granting) = granted(&scratch, home.path(), &ROW_WRITES).await;
+
+  rows(&scratch, home.path()).await;
+
+  for (method, path) in [
+    (reqwest::Method::POST, "/roles"),
+    (reqwest::Method::PATCH, "/roles/worker"),
+    (reqwest::Method::DELETE, "/roles/worker"),
+  ] {
+    let (status, answer) = member(port, method, path).await;
+
+    assert_eq!((status, &answer["code"]), (403, &json!("forbidden")), "{path}: {answer}");
+    assert!(answer["error"].as_str().unwrap().contains("platform's presets"), "{path}: {answer}");
+  }
+
+  let (administrator, answer) = send(
+    port,
+    reqwest::Method::PATCH,
+    "/roles/worker",
+    Some("7"),
+    Some("administrator"),
+    json!({ "description": "Works an item." }),
+  )
+  .await;
+
+  assert_eq!(administrator, 200, "{answer}");
+
+  // Without the roles write, a member changes no agent of a role, even their own.
+  granting.grant(&[("supervisors", true, true), ("roles", true, false)]);
+
+  let (status, answer) = send(
+    port,
+    reqwest::Method::PATCH,
+    "/role-agents/worker-seven",
+    Some("7"),
+    Some("member"),
+    json!({ "enabled": false }),
+  )
+  .await;
+
+  assert_eq!(status, 403, "{answer}");
+  assert!(
+    answer["error"].as_str().unwrap().contains("write access to the roles section"),
+    "{answer}"
+  );
+
+  let (status, answer) = member(port, reqwest::Method::GET, "/role-agents").await;
+
+  assert_eq!(status, 200, "the agents are read under the roles read: {answer}");
+}
+
+#[tokio::test]
+async fn work_stands_only_on_a_repository_of_its_holder_s_side() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, _granting) = granted(&scratch, home.path(), &[]).await;
+
+  rows(&scratch, home.path()).await;
+
+  let assign = |id: i64, holder: &str, assignee: &str| json!({ "itemId": id, "holderName": holder, "assigneeName": assignee, "item": { "title": "t", "labels": {} } });
+  let ask = |body: Value| send(port, reqwest::Method::POST, "/assignments", None, None, body);
+
+  for (id, holder, repository) in [
+    (71, "sup-eight", "repo-seven"),
+    (72, "sup-seven", "repo-platform"),
+    (73, "sup-platform", "repo-seven"),
+    (74, "worker-eight", "repo-seven"),
+  ] {
+    let (status, answer) = ask(assign(id, holder, repository)).await;
+
+    assert_eq!(
+      (status, &answer["code"]),
+      (403, &json!("foreign-repository")),
+      "{holder} on {repository}: {answer}"
+    );
+  }
+
+  let (status, own) = ask(assign(75, "sup-seven", "repo-seven")).await;
+
+  assert_eq!(status, 201, "{own}");
+
+  let (status, answer) = ask(assign(76, "sup-platform", "repo-platform")).await;
+
+  assert_eq!(status, 201, "the platform's supervisor on the platform's repository: {answer}");
+
+  // A launch lending another account's repository beside its own is refused, nothing written.
+  let item =
+    json!({ "title": "t", "labels": { "agent": "worker-seven", "repositories": "repo-seven,repo-eight" } });
+  let (status, answer) = send(
+    port,
+    reqwest::Method::POST,
+    "/jobs",
+    None,
+    None,
+    json!({ "assignmentId": own["id"], "itemId": 75, "leaseId": 1, "holderName": "sup-seven", "item": item }),
+  )
+  .await;
+
+  assert_eq!((status, &answer["code"]), (403, &json!("foreign-repository")), "{answer}");
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
+
+  // A supervisor carrying a turn files no item on another account's repository.
+  agency_server::turn_marks::carrying(
+    "sup-eight",
+    "run-foreign",
+    agency_server::turn_marks::Mark {
+      chat_id: -8,
+      privileged: true,
+    },
+  );
+
+  let filing = |repository: &str| json!({ "agentName": "sup-eight", "title": "t", "brief": "b", "queueName": "todo", "repository": repository });
+  let (status, answer) =
+    send(port, reqwest::Method::POST, "/item-filings", None, None, filing("repo-seven")).await;
+
+  assert_eq!((status, &answer["code"]), (403, &json!("foreign-repository")), "{answer}");
+
+  let (status, answer) =
+    send(port, reqwest::Method::POST, "/item-filings", None, None, filing("repo-eight")).await;
+
+  assert_ne!(
+    answer["code"], "foreign-repository",
+    "its own repository passes the check: {status} {answer}"
+  );
+
+  agency_server::turn_marks::ended("sup-eight", "run-foreign");
 }

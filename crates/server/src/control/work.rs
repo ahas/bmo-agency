@@ -304,6 +304,8 @@ impl Route for CreateAssignment {
       return Err(unknown_repository(db, assignee).await?);
     }
 
+    holder_works_on(call.ground(), &holder, assignee, &[]).await?;
+
     crate::queue::holds::release_others(db, item_id, &holder).await?;
 
     // An ask for the same item by the same holder answers the hold it already stands in, so a lost answer
@@ -922,6 +924,8 @@ impl Route for CreateJob {
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
     let lent_named = to_lend(call.ground(), &item, &worker_name).await?;
+
+    holder_works_on(call.ground(), &holder, &worker_name, &lent_named).await?;
     // Every job names its agent, or the model and the role whose free agent it takes, and that agent carries its
     // role and its road (docs/repositories.md, 「An agent an item names」).
     let asked_role = item_role(&call.shared_ground(), item_id, &item).await?.unwrap_or_else(|| {
@@ -1039,6 +1043,29 @@ impl Route for CreateJob {
 }
 
 crate::moved!(CreateJob);
+
+/// Whether a holder's work may stand on the repository of a checkout and on each repository lent beside it
+/// (docs/api.md, 「assignments and jobs」): the holder's account, the supervisor's or the seat's it is, against each
+/// repository's owner, refused 403 `foreign-repository` where they stand on different sides.
+async fn holder_works_on(
+  ground: &Ground,
+  holder: &str,
+  worker: &str,
+  lent: &[String],
+) -> Result<(), Refused> {
+  let account = crate::supply::account_of(ground, holder).await?;
+  let known = crate::queue::workers::workers(&ground.db, &ground.source).await?;
+  let own = known
+    .iter()
+    .find(|checkout| checkout.name == worker)
+    .map_or(worker, |checkout| checkout.repository());
+
+  for name in std::iter::once(own).chain(lent.iter().map(String::as_str)) {
+    crate::access::works_on(ground, account, name).await?;
+  }
+
+  Ok(())
+}
 
 /// The repositories an item's label names to be lent to its job, the job's own left out, each judged
 /// (docs/api.md, 「assignments and jobs」): a repository the store holds, with a checkout on the machine the job's

@@ -24,6 +24,7 @@ use super::sessions::asked_by;
 use super::supervisor_removal::{Left, remove};
 use super::supervisor_reset::{reset_whole, rooms_named, to_its_end};
 use super::{Call, Refused, Route, answer, set_setting, setting};
+use crate::access::Acting;
 use crate::conversational::Settings as Conversation;
 use crate::now_ms;
 use crate::order::{self, Entry};
@@ -390,18 +391,21 @@ impl Route for SupervisorCreate {
       return Err(bad("label", roster.label.as_str()));
     }
 
+    let named = match body.get("ownerAccount") {
+      None | Some(Value::Null) => None,
+      Some(owner) => {
+        Some(owner.as_i64().ok_or_else(|| bad("ownerAccount", CONTROL_WORDS.agents.owner.as_str()))?)
+      }
+    };
+    // A member's supervisor is filed under their own account (docs/api.md, 「Who a caller acts for」).
+    let owner = Acting::of(&call)?.files_under(named, &format!("the supervisor {name}"))?;
+
     retired(&body)?;
 
     let road = road_of(call.ground(), &body, None)
       .await?
       .ok_or_else(|| bad("provider", "A supervisor's road names its provider and its model."))?;
     let repository = repository_of(call.store(), &body).await?.flatten();
-    let owner = match body.get("ownerAccount") {
-      None | Some(Value::Null) => None,
-      Some(owner) => {
-        Some(owner.as_i64().ok_or_else(|| bad("ownerAccount", CONTROL_WORDS.agents.owner.as_str()))?)
-      }
-    };
     let fold_ratio = fold_ratio_of(&body)?.unwrap_or_else(|| default_fold_ratio(&road));
     let conversation = Conversation::console_added();
     let warming: BTreeMap<&str, bool> = BTreeMap::from([(road.provider.as_str(), true)]);
