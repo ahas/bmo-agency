@@ -137,8 +137,25 @@ fn the_tree_is_the_nearest_folder_above_holding_prompts() {
   let tree = tempfile::tempdir().unwrap();
   let placed = tree.path().join("tools").join("procedures").join(".placed");
 
-  std::fs::create_dir_all(tree.path().join("prompts")).unwrap();
+  std::fs::create_dir_all(tree.path().join("prompts").join("agents")).unwrap();
   std::fs::create_dir_all(&placed).unwrap();
 
   assert_eq!(prompts_tree(&placed), tree.path());
+}
+
+#[test]
+fn a_prompts_folder_of_another_shape_is_passed_by() {
+  // The tool host runs a tool from its copy under the data root, whose own `prompts/` holds the personas.
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let copy = data.join("tool-host").join("tools").join("worker_ask").join("1-a");
+  let agency = home.path().join("agency");
+
+  std::fs::create_dir_all(data.join("prompts").join("persona")).unwrap();
+  std::fs::create_dir_all(&copy).unwrap();
+  std::fs::create_dir_all(agency.join("prompts").join("agents").join("chat")).unwrap();
+  std::fs::create_dir_all(agency.join("tools").join("worker_ask")).unwrap();
+
+  assert_ne!(prompts_tree(&copy), data, "the data root's personas are no prompt tree of agency's");
+  assert_eq!(prompts_tree(&agency.join("tools").join("worker_ask")), agency);
 }

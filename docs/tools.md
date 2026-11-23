@@ -75,8 +75,10 @@ here.
   `BMO_TURN_AGENT`, the agent the turn is; `BMO_TURN_BEGAN`, when it took its words, in epoch
   milliseconds; `BMO_TURN_CHAT`, the room it answers; and `BMO_TURN_VIA`, the road it answers on.
 - **The tree a tool reads `prompts/` from** is the nearest folder above the one it runs in that holds
-  `prompts/`, which is the deploy tree the tool is placed in; else the tree `BMO_DEPLOY_DIR` names;
-  else agency's deploy link, `$HOME/.local/share/bmo-agency/deploy`.
+  `prompts/agents/`, agency's own prompt tree, which is the deploy tree the tool is placed in; else the tree
+  `BMO_DEPLOY_DIR` names; else agency's deploy link, `$HOME/.local/share/bmo-agency/deploy`. A `prompts/` of
+  another shape is passed by: the tool host runs a tool from its copy under the data root, whose own `prompts/`
+  holds the personas, so the copy finds agency's deploy link.
 
 ## The apps a person reaches
 
