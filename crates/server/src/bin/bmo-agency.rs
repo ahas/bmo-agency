@@ -602,7 +602,7 @@ async fn run(verb: Verb) -> ExitCode {
 
         return ended(Ok(answer.into_iter().collect::<Vec<_>>().into()));
       }
-      record_secrets::install(record_secrets::Sources::of_process(&data_root));
+      record_secrets::install(&data_root);
 
       let ground = agent_status::Ground {
         env: &env,
@@ -659,7 +659,7 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::HandTokens => ended(agency_server::verbs::hand_tokens::hand_tokens(&data_root)),
     Verb::RedactRecords => ended(agency_server::verbs::redact_records::redact_records(
       &data_root,
-      &record_secrets::Readings::read(&record_secrets::Sources::of_process(&data_root)),
+      &record_secrets::Readings::read(&data_root),
     )),
     Verb::Reload { paths, now } => ended(reloaded(&data_root, &paths, now).await),
     Verb::Overtime {

@@ -43,6 +43,7 @@ quick = ["layout", "dependencies", "cargo-profile", "shared-versions", "personal
 base_libraries = [
   "bmo-chat",
   "bmo-chat-client",
+  "bmo-secret-shapes",
   "bmo-gate-client",
   "bmo-ui",
   "bmo-brain-client",

@@ -1,7 +1,7 @@
 //! What an agent place's records are read for before a line is written (docs/agent-control.md, 「A record
-//! holds no secret」): a saved secret's value, the receiver's secret shapes and agency's own token shapes, each
-//! run found written as `[redacted]` in every string a line holds, its keys aside. Nothing here writes a word
-//! of what it read.
+//! holds no secret」): a saved secret's value, the secret shapes of the base library `bmo-secret-shapes` and
+//! agency's own token shapes, each run found written as `[redacted]` in every string a line holds, its keys
+//! aside. Nothing here writes a word of what it read.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
@@ -10,116 +10,24 @@ use std::sync::{LazyLock, OnceLock};
 
 use policy::record_secrets::RECORD_SECRETS;
 use regex::Regex;
-use serde::Deserialize;
 use serde_json::Value;
 
 use crate::text::{REDACTED, redact_tokens_counted};
 
-/// The variable that names another file of the receiver's secret shapes than the one under the home.
-pub const SHAPES_VARIABLE: &str = "AGENCY_SECRET_SHAPES";
-
-/// The part of a shape's run that alone is replaced, where the shape names one.
-const SECRET_PART: &str = "secret";
-
-/// Where the readings are read from: the data root whose `env/` holds the saved values, and the receiver's
-/// shapes file.
-#[derive(Clone, Debug)]
-pub struct Sources {
-  pub data_root: PathBuf,
-  pub shapes_file: PathBuf,
-}
-
-impl Sources {
-  /// The sources of a machine: its data root, and the shapes file `named` gives where it is set and not blank,
-  /// else the one under `home` the policy names.
-  pub fn of(data_root: &Path, home: &Path, named: Option<&str>) -> Self {
-    let shapes_file = named
-      .map(str::trim)
-      .filter(|named| !named.is_empty())
-      .map_or_else(|| home.join(&RECORD_SECRETS.receiver_shapes), PathBuf::from);
-
-    Self {
-      data_root: data_root.to_path_buf(),
-      shapes_file,
-    }
-  }
-
-  /// The sources of this process: the data root it stands on, its home and its environment's shapes file.
-  pub fn of_process(data_root: &Path) -> Self {
-    Self::of(data_root, &crate::verbs::home(), std::env::var(SHAPES_VARIABLE).ok().as_deref())
-  }
-}
-
-// The sources this process was told as it started, and the readings made from them on the first line written.
-static SOURCES: OnceLock<Sources> = OnceLock::new();
+// The data root this process was told as it started, and the readings made from it on the first line written.
+static DATA_ROOT: OnceLock<PathBuf> = OnceLock::new();
 static PROCESS: LazyLock<Readings> =
-  LazyLock::new(|| SOURCES.get().map_or_else(Readings::tokens_only, Readings::read));
+  LazyLock::new(|| DATA_ROOT.get().map_or_else(Readings::shapes_only, |root| Readings::read(root)));
 
-/// Tells this process where its readings are read from; the first call alone counts, and a process never told
-/// reads only agency's token shapes.
-pub fn install(sources: Sources) {
-  let _ = SOURCES.set(sources);
+/// Tells this process the data root whose `env/` holds the saved values; the first call alone counts, and a
+/// process never told reads the secret shapes and agency's token shapes alone.
+pub fn install(data_root: &Path) {
+  let _ = DATA_ROOT.set(data_root.to_path_buf());
 }
 
 /// The readings every record this process writes is read through.
 pub fn process() -> &'static Readings {
   &PROCESS
-}
-
-// One of the receiver's shapes as its file declares it; what else the file holds is the receiver's.
-#[derive(Deserialize)]
-struct DeclaredShape {
-  name: String,
-  pattern: String,
-  #[serde(default)]
-  spared: Vec<String>,
-}
-
-#[derive(Deserialize)]
-struct ShapesFile {
-  shapes: Vec<DeclaredShape>,
-}
-
-// One shape compiled: its name, its pattern and the runs it spares.
-struct Shape {
-  name: String,
-  pattern: Regex,
-  spared: Vec<Regex>,
-}
-
-impl Shape {
-  // Whether a run of the shape lies wholly inside a run of one it spares, in the words it was found in.
-  fn spares(&self, text: &str, run: &regex::Match) -> bool {
-    self.spared.iter().any(|spared| {
-      spared
-        .find_iter(text)
-        .any(|kept| kept.start() <= run.start() && run.end() <= kept.end())
-    })
-  }
-
-  // The words with each of the shape's runs replaced, and how many, or none where it found none.
-  fn redact(&self, text: &str) -> Option<(String, usize)> {
-    let mut out = String::with_capacity(text.len());
-    let mut last = 0;
-    let mut runs = 0;
-
-    for found in self.pattern.captures_iter(text) {
-      let Some(run) = found.name(SECRET_PART).or_else(|| found.get(0)) else {
-        continue;
-      };
-
-      if run.is_empty() || run.as_str() == REDACTED || self.spares(text, &run) {
-        continue;
-      }
-
-      out.push_str(&text[last..run.start()]);
-      out.push_str(REDACTED);
-      last = run.end();
-      runs += 1;
-    }
-
-    (runs > 0).then(|| (out + &text[last..], runs))
-  }
 }
 
 /// A saved value and the file under `env/` it stands in, named from `env/`.
@@ -138,12 +46,12 @@ impl Saved {
   }
 }
 
-/// What took a run out: a saved value by the files it stands in, a receiver shape by its name, or agency's
-/// own token shapes.
+/// What took a run out: a saved value by the files it stands in, a secret shape by its name, or agency's own
+/// token shapes.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Source {
   Saved(String),
-  Receiver(String),
+  Shape(String),
   Agency,
 }
 
@@ -151,7 +59,7 @@ impl std::fmt::Display for Source {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
       Self::Saved(files) => write!(f, "saved value in {files}"),
-      Self::Receiver(name) => write!(f, "receiver shape {name}"),
+      Self::Shape(name) => write!(f, "secret shape {name}"),
       Self::Agency => f.write_str("agency token shape"),
     }
   }
@@ -177,54 +85,27 @@ impl Tally {
   }
 }
 
-/// The three readings, in the order they run.
+/// The three readings, in the order they run: the saved values here, the secret shapes and agency's token
+/// shapes as they stand.
 pub struct Readings {
   saved: Option<Regex>,
   // The files each saved value stands in, joined, by the value.
   saved_files: HashMap<String, String>,
-  shapes: Vec<Shape>,
 }
 
 impl Readings {
-  /// Agency's own token shapes alone.
-  pub fn tokens_only() -> Self {
-    Self {
-      saved: None,
-      saved_files: HashMap::new(),
-      shapes: vec![],
-    }
+  /// The secret shapes and agency's token shapes alone.
+  pub fn shapes_only() -> Self {
+    Self::of(vec![])
   }
 
-  /// The readings a machine's sources give; a shapes file that is missing or does not read, and a shape that
-  /// does not compile, are said on the error stream and cost only themselves.
-  pub fn read(sources: &Sources) -> Self {
-    let shapes = match std::fs::read_to_string(&sources.shapes_file) {
-      Ok(text) => text,
-      Err(why) => {
-        eprintln!(
-          "records: the receiver's secret shapes at {} cannot be read: {why}",
-          sources.shapes_file.display()
-        );
-        String::new()
-      }
-    };
-
-    Self::of(saved_values(&sources.data_root.join("env")), &shapes)
+  /// The readings a machine's data root gives, its saved values those its `env/` holds.
+  pub fn read(data_root: &Path) -> Self {
+    Self::of(saved_values(&data_root.join("env")))
   }
 
-  /// The readings of saved values and a shapes file's text; a text that does not read is said on the error
-  /// stream and gives no shapes.
-  pub fn of(saved: Vec<Saved>, shapes: &str) -> Self {
-    let declared = match shapes.trim() {
-      "" => vec![],
-      text => match toml::from_str::<ShapesFile>(text) {
-        Ok(file) => file.shapes,
-        Err(why) => {
-          eprintln!("records: the receiver's secret shapes do not read: {why}");
-          vec![]
-        }
-      },
-    };
+  /// The readings of saved values.
+  pub fn of(saved: Vec<Saved>) -> Self {
     let mut saved_files: HashMap<String, String> = HashMap::new();
 
     for Saved { value, file } in saved {
@@ -242,7 +123,6 @@ impl Readings {
     Self {
       saved: saved_pattern(saved_files.keys()),
       saved_files,
-      shapes: declared.iter().filter_map(compiled).collect(),
     }
   }
 
@@ -268,11 +148,14 @@ impl Readings {
       }
     }
 
-    for shape in &self.shapes {
-      if let Some((replaced, runs)) = shape.redact(&words) {
-        tally.add(Source::Receiver(shape.name.clone()), runs);
-        words = Cow::Owned(replaced);
-      }
+    let shaped = bmo_secret_shapes::redact(&words, REDACTED);
+
+    for found in &shaped.found {
+      tally.add(Source::Shape(found.shape.to_owned()), found.runs);
+    }
+
+    if let Cow::Owned(replaced) = shaped.text {
+      words = Cow::Owned(replaced);
     }
 
     let (replaced, runs) = redact_tokens_counted(&words);
@@ -318,23 +201,6 @@ fn owned(words: Cow<'_, str>) -> Option<String> {
     Cow::Owned(replaced) => Some(replaced),
     Cow::Borrowed(_) => None,
   }
-}
-
-// A declared shape compiled, or none where its pattern or a spare does not compile.
-fn compiled(shape: &DeclaredShape) -> Option<Shape> {
-  let compile = |pattern: &str| {
-    Regex::new(pattern)
-      .map_err(|why| {
-        eprintln!("records: the receiver's secret shape {} does not compile: {why}", shape.name)
-      })
-      .ok()
-  };
-
-  Some(Shape {
-    name: shape.name.clone(),
-    pattern: compile(&shape.pattern)?,
-    spared: shape.spared.iter().map(|pattern| compile(pattern)).collect::<Option<_>>()?,
-  })
 }
 
 // A line's field, where it reads as one: not where its value is padding alone, which a base64 value ends on.

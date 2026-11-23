@@ -1,7 +1,6 @@
 //! The records as the binary writes and rewrites them (docs/agent-control.md, 「A record holds no secret」):
-//! `bmo-agency agent-status` reading a hook's call for the saved values under its data root and the receiver's
-//! shapes under its home before the hooks record keeps it, and `bmo-agency redact-records` rewriting a record
-//! written before through the shapes file `AGENCY_SECRET_SHAPES` names.
+//! `bmo-agency agent-status` reading a hook's call for the saved values under its data root and the secret
+//! shapes before the hooks record keeps it, and `bmo-agency redact-records` rewriting a record written before.
 
 use std::io::Write as _;
 use std::path::Path;
@@ -9,21 +8,9 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 use agency_server::door::place_run::read_hooks;
-use policy::record_secrets::RECORD_SECRETS;
 use serde_json::json;
 
 use crate::support::binary;
-
-// A bearer token's shape and a named value's, in the receiver's form.
-const SHAPES: &str = r#"
-[[shapes]]
-name = "bearer-token"
-pattern = '''(?i)(?-u:\b)bearer[ \t]+(?P<secret>[A-Za-z0-9._~+/-]{20,}=*)'''
-
-[[shapes]]
-name = "named-value"
-pattern = '''(?i)(?-u:\b)(?:[a-z0-9]+[_.-])*(?:api)?(?:key|token|secret|password|passwd)["']?[ \t]*[=:][ \t]*["']?(?P<secret>[^\s"'<>]{12,})'''
-"#;
 
 const BEARER: &str = "abcdefghijklmnopqrstuvwxyz0123";
 const API_KEY: &str = "key0123456789abcdef";
@@ -31,9 +18,9 @@ const SAVED: &str = "saved-0123456789-abcdef";
 const FOLDED: &str = "folded-0123456789-abcdef";
 const URL: &str = "https://example.com/docs/page?id=42&lang=en";
 
-// The binary run on `args` under `home`, its data root `home/data`, `input` on its standard input and the
-// variables named beside; killed and failed where it has not ended within ten seconds.
-fn run(home: &Path, args: &[&str], input: &str, variables: &[(&str, &Path)]) -> Output {
+// The binary run on `args` under `home`, its data root `home/data` and `input` on its standard input; killed and
+// failed where it has not ended within ten seconds.
+fn run(home: &Path, args: &[&str], input: &str) -> Output {
   let mut command = Command::new(binary::path("bmo-agency"));
 
   command
@@ -41,15 +28,10 @@ fn run(home: &Path, args: &[&str], input: &str, variables: &[(&str, &Path)]) -> 
     .current_dir(home)
     .env("HOME", home)
     .env("BMO_DATA_DIR", home.join("data"))
-    .env_remove("AGENCY_SECRET_SHAPES")
     .env_remove("CLAUDECODE")
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
-
-  for (name, value) in variables {
-    command.env(name, value);
-  }
 
   let mut child = command.spawn().unwrap();
 
@@ -70,20 +52,16 @@ fn run(home: &Path, args: &[&str], input: &str, variables: &[(&str, &Path)]) -> 
   child.wait_with_output().unwrap()
 }
 
-// A home whose data root holds two saved secrets, one in a folder, and whose receiver deploy tree holds the
-// shapes, and the place of one agent under it.
+// A home whose data root holds two saved secrets, one in a folder, and the place of one agent under it.
 fn home() -> (tempfile::TempDir, std::path::PathBuf) {
   let home = tempfile::tempdir().unwrap();
   let env = home.path().join("data").join("env");
-  let shapes = home.path().join(&RECORD_SECRETS.receiver_shapes);
   let place = home.path().join("data").join("agent-places").join("worker");
 
   std::fs::create_dir_all(&env).unwrap();
   std::fs::write(env.join("service.env"), format!("SERVICE_URL={URL}\nSERVICE_TOKEN={SAVED}\n")).unwrap();
   std::fs::create_dir_all(env.join("hooks")).unwrap();
   std::fs::write(env.join("hooks").join("point.json"), json!({ "token": FOLDED }).to_string()).unwrap();
-  std::fs::create_dir_all(shapes.parent().unwrap()).unwrap();
-  std::fs::write(&shapes, SHAPES).unwrap();
   std::fs::create_dir_all(&place).unwrap();
 
   (home, place)
@@ -102,8 +80,7 @@ fn a_secret_in_a_tool_argument_is_redacted_in_the_hooks_record_and_an_ordinary_u
     "last_assistant_message": format!("The saved ones are {SAVED} and {FOLDED}."),
   });
   let place_arg = place.to_string_lossy().into_owned();
-  let output =
-    run(home.path(), &["agent-status", "stop", "--place", &place_arg], &payload.to_string(), &[]);
+  let output = run(home.path(), &["agent-status", "stop", "--place", &place_arg], &payload.to_string());
 
   assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 
@@ -128,18 +105,11 @@ fn a_secret_in_a_tool_argument_is_redacted_in_the_hooks_record_and_an_ordinary_u
 #[test]
 fn redact_records_rewrites_a_record_written_before_and_says_only_how_many_by_source() {
   let (home, place) = home();
-  let shapes = home.path().join("shapes.toml");
-
-  std::fs::write(&shapes, SHAPES).unwrap();
-
   let line = json!({ "at": 1, "kind": "submit", "payload": { "prompt": format!("use api_key={API_KEY} or {FOLDED} at {URL}") } });
 
   std::fs::write(place.join("hooks.jsonl"), format!("{line}\n{}\n", json!({ "at": 2, "kind": "stop" })))
     .unwrap();
-  // The shapes the home holds are none, so what is taken out is the named file's reading.
-  std::fs::write(home.path().join(&RECORD_SECRETS.receiver_shapes), "").unwrap();
-
-  let output = run(home.path(), &["redact-records"], "", &[("AGENCY_SECRET_SHAPES", &shapes)]);
+  let output = run(home.path(), &["redact-records"], "");
   let said = String::from_utf8_lossy(&output.stdout);
 
   assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -148,7 +118,7 @@ fn redact_records_rewrites_a_record_written_before_and_says_only_how_many_by_sou
     "{said}"
   );
   assert!(said.contains("  saved value in hooks/point.json: 1"), "{said}");
-  assert!(said.contains("  receiver shape named-value: 1"), "{said}");
+  assert!(said.contains("  secret shape named-value: 1"), "{said}");
   assert!(!said.contains(API_KEY) && !said.contains(FOLDED), "{said}");
 
   let text = std::fs::read_to_string(place.join("hooks.jsonl")).unwrap();

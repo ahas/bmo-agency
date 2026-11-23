@@ -70,6 +70,7 @@ dependencies = [
  "bmo-gate-client",
  "bmo-node-client",
  "bmo-pocket-client",
+ "bmo-secret-shapes",
  "bmo-testbed-client",
  "brush-parser",
  "cache-siren",
@@ -505,6 +506,15 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "bmo-secret-shapes"
+version = "0.1.0-rev.10"
+dependencies = [
+ "regex",
+ "serde",
+ "toml",
 ]
 
 [[package]]
