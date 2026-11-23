@@ -100,9 +100,10 @@ platform pays for takes it.
     itself is not followed.
   Nothing else of the hook's order moves, so a person's own reordering of the platform's sources stands.
 - **`GET /supply-sources`** answers the signed-in person what their chain leaves open — `personal`, `platform`,
-  `organisation` — whether a unit of their path holds supply of its own that is on, and `personalOnly`, whether
-  their own login or key is all that can carry their runs, which the console reads to ask a new person for one
-  (the web's `docs/web.md`, 「The join page」).
+  `organisation` — whether a unit of their path holds supply of its own that is on, `personalOnly`, whether
+  their own login or key is all that can carry their runs, and `ownSupply`, whether they hold one of their own
+  that is on, which the console reads to ask a new person for one before they start (the web's `docs/web.md`,
+  「The join page」).
 
 ## Organisation supply
 

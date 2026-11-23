@@ -13574,6 +13574,10 @@
           "personalOnly": {
             "type": "boolean",
             "description": "Whether their own login or key is all that can carry their runs."
+          },
+          "ownSupply": {
+            "type": "boolean",
+            "description": "Whether they hold a login or a key of their own that is on."
           }
         },
         "required": [
@@ -13581,7 +13585,8 @@
           "platform",
           "organisation",
           "organisationSupply",
-          "personalOnly"
+          "personalOnly",
+          "ownSupply"
         ],
         "description": "The supply sources the signed-in person's delegation chain leaves open."
       },

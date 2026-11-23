@@ -3950,6 +3950,8 @@ export interface components {
             organisationSupply: boolean;
             /** @description Whether their own login or key is all that can carry their runs. */
             personalOnly: boolean;
+            /** @description Whether they hold a login or a key of their own that is on. */
+            ownSupply: boolean;
         };
         /** @description What a person's off-boarding turned off. */
         OffBoarded: {

@@ -979,6 +979,8 @@ pub struct SupplySources {
   pub organisation_supply: bool,
   /// Whether their own login or key is all that can carry their runs.
   pub personal_only: bool,
+  /// Whether they hold a login or a key of their own that is on.
+  pub own_supply: bool,
 }
 
 /// One agent's road in a sign-up composition.

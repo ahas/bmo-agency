@@ -405,9 +405,22 @@ async fn any_supply(ground: &Ground, units: &[i64]) -> Result<bool, Refused> {
   Ok(false)
 }
 
+/// Whether the person holds a credential of their own that is on: a Claude login or key, or a gateway key.
+async fn own_supply(ground: &Ground, person: i64) -> Result<bool, Refused> {
+  let keyed = one(
+    &ground.db,
+    r#"SELECT 1 AS "held" FROM "personal_supply" WHERE "user_id" = $1 AND "enabled" LIMIT 1"#,
+    vec![person.into()],
+  )
+  .await?
+  .is_some();
+
+  Ok(keyed || accounts(&ground.db).await?.iter().any(|one| one.user_id == Some(person) && one.enabled))
+}
+
 /// `GET /supply-sources`: the sources the signed-in person's chain leaves open — their own, their organisation's
 /// and the platform's — whether a unit on their path holds supply of its own, and whether their own is all that
-/// can carry their runs.
+/// can carry their runs, and whether they hold one of their own that is on.
 pub struct SupplySources;
 
 impl Route for SupplySources {
@@ -426,6 +439,7 @@ impl Route for SupplySources {
           Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
         })?;
     let organisation_supply = any_supply(&ground, &open.units).await?;
+    let own_supply = own_supply(&ground, person).await?;
 
     Ok(answer(
       StatusCode::OK,
@@ -435,6 +449,7 @@ impl Route for SupplySources {
         "organisation": !open.units.is_empty(),
         "organisationSupply": organisation_supply,
         "personalOnly": open.personal && !open.platform && !organisation_supply,
+        "ownSupply": own_supply,
       }),
     ))
   }

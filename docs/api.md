@@ -1331,7 +1331,7 @@ configuration home of its own under the data root; it answers 201 with the item,
 already as a key of the road, and 422 `unknown-road` as a person's is. `PATCH` takes `enabled` and answers the
 page; turning a refused key on clears `refusedAt`. `DELETE` answers 204. An item of no such unit's is 404
 `unknown-supply`. `GET /supply-sources` answers a person's call `personal`, `platform`, `organisation`,
-`organisationSupply` and `personalOnly` (`docs/supply.md`, 「The sources a person's chain leaves open」); a call
+`organisationSupply`, `personalOnly` and `ownSupply` (`docs/supply.md`, 「The sources a person's chain leaves open」); a call
 naming no person is refused 403.
 
 **Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it
