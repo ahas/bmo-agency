@@ -115,7 +115,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   name, images read and drawn, a document
   filed for a person and the pictures that stand in its body, a line for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
-  of the agent's tools,
+  of the agent's tools, the research unit's tools and the research skill a request it answers itself
+  follows,
   the draft process, the answer rules, promises, and a turn past its clock. It says how a message of each kind reaches the
   agent, a voice note among them arriving as what was said in it rather than as a placeholder it cannot open. It is how
   the supervisor works at all, and it says when to act.
