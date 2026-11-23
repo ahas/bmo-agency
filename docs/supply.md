@@ -195,7 +195,7 @@ platform pays for takes it.
     out on the platform's credential: a lendable Claude account, the gateway's member no person owns, or a
     registration no person owns, under the person's call key. A model another person owns offers no platform
     source.
-  - **with nothing left,** the run is stopped (「Running out mid-turn」, the same sentence).
+  - **with nothing left,** the run is stopped (「Running out mid-turn」), saying why (「Why none is left」).
 - **The order is asked afresh for every run,** so a personal login that reopens is taken again from the next
   run, and the platform's rule of using the login in use to its end does not hold for a person's run.
 - **With no hook registered, or one that does not answer,** the order is personal supply alone: the platform's
@@ -260,8 +260,30 @@ platform pays for takes it.
   answered, and then its turn is interrupted through the session contract:
   - a job waits for supply, as it waits for a road, holding no slot, and asks its order again on each beat of
     its wait (`policy/supply.toml`, `wait_seconds`); it goes out once a source takes it;
-  - a supervisor's turn ends with one sentence: the source that ran out, when it reopens where the hook names a
-    moment, and what the person can do — top up, or open their supply settings.
+  - a supervisor's turn ends with one sentence (「Why none is left」).
+
+## Why none is left
+
+- **A run that finds no source left names why,** by what kept the last source it tried from taking it, and the one
+  sentence it ends with, and a job waits with, is the policy's for that reason (`policy/supply.toml`,
+  `[words.closed]`), each saying what the person can do:
+  - `no-order`: the order named no source — add a login or key of their own, or ask the platform's administrator;
+  - `withheld`: the order named sources and the person's chain closed every one — ask their organisation's
+    administrator to turn one on;
+  - `no-personal`: no open login or key of their own answers the road's provider — add one in their supply
+    settings;
+  - `own-refused`: the provider refused their own key for the road — add it again;
+  - `no-organisation`: no unit of their path holds an open credential for the road — ask their organisation;
+  - `organisation-refused`: the hook refused a reservation of the organisation's supply — its credits ran out,
+    with when they reopen where the hook names a moment;
+  - `no-lendable`: no Claude account is marked lendable (「The lendable accounts」) — add their own Claude login, or ask
+    the platform's administrator; no credits ran out, so nothing says to top up;
+  - `owned`: the run's model is another person's own — choose another model;
+  - `refused`: the hook refused a reservation of a platform source — the source ran out, with when it reopens where
+    the hook names a moment, and to top up or change the supply order;
+  - `ran-out`: the source the run went out on ran out mid-run and no other took it.
+- **The reason is carried, not only its words:** the `supply.changed` fact names it as `why`, and the line the room
+  hears names it, so the console says it in the reader's language (「The facts told」).
 
 ## The ledger
 
@@ -281,8 +303,13 @@ platform pays for takes it.
 - **The person's own supervisor room is told, and the telling never opens a turn.** Each fact goes through the
   receiver's instruction route by the outbox to the room the run answers, for its supervisor, as a row that rides
   that room's rounds for good (the receiver's `docs/bmo-window.md`, 「Rows that ride」): while no source is left a
-  turn of that supervisor can only fail, so a fact that opened one would only fail it. The person hears it at the
-  next round that goes out. The owner is not told.
+  turn of that supervisor can only fail, so a fact that opened one would only fail it. The supervisor reads it at
+  the next round that goes out. The owner is not told.
+- **No source left is heard in the room at once.** No round goes out while none is left, so its instruction
+  carries the receiver's fixed line `supply-closed` with `why`, the reason (「Why none is left」), and `until`, the
+  epoch second the source reopens where the hook named a moment (the receiver's `docs/codes.md`, 「Fixed lines」):
+  the receiver says it into the room as its own line as it writes the row, and the console draws it as a system
+  line in the reader's language. It is said as often as the fact is told, once while it stays so.
 - **No source left is told once while it stays so.** It is kept in the outbox under the supervisor and the room;
   while it stands, a later run of that supervisor there that finds none left tells nothing again. The first run of
   that supervisor in that room that goes out on a source takes it away, withdrawing the row where no round has
@@ -297,4 +324,4 @@ platform pays for takes it.
 | owned supply | a Claude account's, a gateway member's and a registration's owner, the walk and the gateway holding to it, the administrator's owned supply carrying the deployment's own runs | — |
 | organisation supply | the three source settings on the chain, the order's shape, a unit's keys and Claude accounts, the walk to the nearest unit, its reservation and the gateway's members of it | a Claude subscription login of a unit's own, signed in from its screen |
 | sources and reservations | the hook, the walk at a run's start, reservations, extension, the settlement outbox, the capture after a restart | — |
-| running out | the personal pass-over, the platform hand-over, the grace unit, the job's wait and the supervisor's sentence | — |
+| running out | the personal pass-over, the platform hand-over, the grace unit, the job's wait, the supervisor's sentence for each reason none is left and the room's line saying it | — |

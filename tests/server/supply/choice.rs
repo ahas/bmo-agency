@@ -10,7 +10,9 @@
 use agency_server::control::claude_account_changes::set_lendable;
 use agency_server::control::claude_accounts::{Carrying, carried_for_user, moment_words};
 use agency_server::supply::reservations::held;
-use agency_server::supply::{Choice, Chosen, Source, carrying, choose, pass_owned, refuse_personal_key};
+use agency_server::supply::{
+  Choice, Chosen, Shortfall, Source, carrying, choose, pass_owned, refuse_personal_key,
+};
 use axum::http::StatusCode;
 use policy::fill_marks;
 use policy::supply::SUPPLY;
@@ -264,11 +266,12 @@ async fn every_source_refused_closes_the_run_with_the_policy_s_sentence() {
   let reopening = fill_marks(&SUPPLY.words.reopens, &[("at", &moment_words(reopens / 1000))]);
 
   assert_eq!((closed.source.as_str(), closed.reopens_at), ("plan", Some(reopens)));
+  assert_eq!(closed.why, Shortfall::Refused);
   assert_eq!(closed.reason, fill_marks(&SUPPLY.words.refused, &[("source", "plan")]));
   assert_eq!(
     closed.sentence,
     fill_marks(
-      &SUPPLY.words.closed,
+      &SUPPLY.words.closed.refused,
       &[
         ("source", "plan"),
         ("reopens", &reopening),
@@ -377,5 +380,70 @@ async fn an_account_marked_lendable_is_lent_on_a_platform_source_whoever_owns_it
   assert_eq!(carried(&scratch, Carrying::Own(8)).await, ["eight"]);
   assert_eq!(carried(&scratch, Carrying::Lent(8)).await, ["owner"]);
   assert_eq!(carried(&scratch, Carrying::Lent(PERSON)).await, ["owner", "eight"]);
+  consumer.down().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_closed_run_names_the_reason_the_last_source_failed_in_a_sentence_of_its_own() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(scratch.db().clone(), home.path());
+  let consumer = Consumer::stand().await;
+  let why = |choice: Choice| match choice {
+    Choice::Closed(closed) => (closed.why, closed.sentence),
+    Choice::Go(chosen) => panic!("the run was due to be closed: {chosen:?}"),
+  };
+
+  consumer.register(&ground);
+  consumer.answers("order", json!({ "sources": ["personal", "global"] }));
+  consumer.answers("reserve:global", json!({ "accepted": true, "reservation": "r", "amountUsd": 1.0 }));
+
+  // A Claude Code run of a person with no login of their own, and no platform account lent: the platform's credits
+  // are not what ran out, so the person is not told to top up.
+  let (shortfall, sentence) = why(choose(&ground, &asked(Some(PERSON), "claude-code")).await.unwrap());
+
+  assert_eq!(shortfall, Shortfall::NoLendable);
+  assert_eq!(shortfall.word(), "no-lendable");
+  assert_eq!(
+    sentence,
+    fill_marks(&SUPPLY.words.closed.no_lendable, &[("settings", &SUPPLY.words.settings_section)])
+  );
+  assert!(!sentence.contains("Top up"), "{sentence}");
+
+  // A gateway road whose only key of the person's own its provider refused, the platform's source refusing too: the
+  // last tried names why.
+  consumer.answers("order", json!({ "sources": ["global", "personal"] }));
+  consumer.answers("reserve:global", json!({ "accepted": false }));
+  personal_key(scratch.db(), "deepseek").await;
+  scratch
+    .run(
+      r#"UPDATE "personal_supply" SET "refused_at" = 1 WHERE "user_id" = $1"#,
+      vec![PERSON.into()],
+    )
+    .await;
+
+  let (shortfall, sentence) = why(choose(&ground, &asked(Some(PERSON), "deepseek")).await.unwrap());
+
+  assert_eq!(shortfall, Shortfall::OwnRefused);
+  assert_eq!(
+    sentence,
+    fill_marks(&SUPPLY.words.closed.own_refused, &[("settings", &SUPPLY.words.settings_section)])
+  );
+
+  // Every reason says its own sentence.
+  let sentences = [
+    &SUPPLY.words.closed.no_order,
+    &SUPPLY.words.closed.withheld,
+    &SUPPLY.words.closed.no_personal,
+    &SUPPLY.words.closed.own_refused,
+    &SUPPLY.words.closed.no_organisation,
+    &SUPPLY.words.closed.organisation_refused,
+    &SUPPLY.words.closed.no_lendable,
+    &SUPPLY.words.closed.owned,
+    &SUPPLY.words.closed.refused,
+    &SUPPLY.words.closed.ran_out,
+  ];
+
+  assert_eq!(sentences.iter().collect::<std::collections::BTreeSet<_>>().len(), sentences.len());
   consumer.down().await;
 }

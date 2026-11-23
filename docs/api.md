@@ -2145,8 +2145,9 @@ notice to a reader resuming too late (「events」 above), never published as an
   told」), published once, after agency has acted, named in its `fact`, with `run`, `account`, `job` or null,
   `supervisor` or null, `provider` and `model`:
   - `supply-moved`: `from` and `to`, each a source, and `reason`, why the source left could not go on;
-  - `supply-closed`: `source`, the last source that ran out, `reason`, `reopensAt`, the epoch millisecond the
-    hook named or null, and `sentence`, the one sentence the person is told.
+  - `supply-closed`: `source`, the last source tried, `why`, the reason none is left as `docs/supply.md`,
+    「Why none is left」, words it, `reason`, `reopensAt`, the epoch millisecond the hook named or null, and
+    `sentence`, the one sentence the person is told.
 - **`road-walked`** carries the road a turn on a supervisor's line walked (`docs/run-records.md`, 「The roads a
   turn walked」), published once as the turn ends: `stage`, `chatId`, `run`, `provider`, `model`, `outcome`,
   `answered` or `error`, `ms`, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens`, each
@@ -2337,7 +2338,8 @@ documented route of the unit that holds what must reach it; agency keeps no clie
 store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
 at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none
 left, the receiver's `POST /instructions` is handed, through the outbox, one fact for the supervisor in the
-room the run answers, marked `ridesForGood` so it opens no turn, and no source left is withdrawn with `DELETE
+room the run answers, marked `ridesForGood` so it opens no turn, no source left carrying the fixed line
+`supply-closed` as its `line` for the room to hear at once, and no source left is withdrawn with `DELETE
 /instructions/{instructionId}` once a run of that supervisor there goes out again (`docs/supply.md`, 「The facts
 told」).
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,

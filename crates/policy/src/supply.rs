@@ -34,8 +34,9 @@ pub struct Words {
   pub taken_first: String,
   /// With `{source}`.
   pub ran_out: String,
-  /// With `{source}`, `{reopens}` and `{settings}`.
-  pub closed: String,
+  pub withheld: String,
+  /// One sentence to each reason no source is left, each with `{source}`, `{reopens}` and `{settings}`.
+  pub closed: ClosedWords,
   /// With `{at}`.
   pub reopens: String,
   /// With `{source}` and `{why}`.
@@ -43,6 +44,22 @@ pub struct Words {
   /// With `{from}`, `{to}` and `{why}`.
   pub moved_told: String,
   pub settings_section: String,
+}
+
+/// The sentence a person is told where no source is left, by why (docs/supply.md, 「Running out mid-turn」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClosedWords {
+  pub no_order: String,
+  pub withheld: String,
+  pub no_personal: String,
+  pub own_refused: String,
+  pub no_organisation: String,
+  pub organisation_refused: String,
+  pub no_lendable: String,
+  pub owned: String,
+  pub refused: String,
+  pub ran_out: String,
 }
 
 crate::part!(pub SUPPLY: Supply = "supply.toml");

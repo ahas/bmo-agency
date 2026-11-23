@@ -176,7 +176,8 @@ async fn hand_over(
     Err(_) => {
       metered.chosen.step = next.step;
 
-      let closed = Closed::of(&left, policy::fill_marks(&SUPPLY.words.ran_out, &[("source", &left)]), None);
+      let reason = policy::fill_marks(&SUPPLY.words.ran_out, &[("source", &left)]);
+      let closed = Closed::of(super::Shortfall::RanOut, &left, reason, None);
 
       metered.grace = Some((held.amount_micros + held.unit_micros, closed));
       Ok(None)

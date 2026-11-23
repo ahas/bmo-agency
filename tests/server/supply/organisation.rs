@@ -9,8 +9,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use agency_server::supply::sources::{self, Open};
-use agency_server::supply::{Choice, Source, choose, personal_member};
+use agency_server::supply::{Choice, Shortfall, Source, choose, personal_member};
 use axum::extract::{Path as Route, Query};
+use policy::supply::SUPPLY;
 use serde_json::{Value, json};
 
 use super::{Consumer, PERSON, asked, personal_key};
@@ -94,6 +95,11 @@ fn resolved(key: &str) -> Value {
 }
 
 async fn account_service() -> (String, tokio::task::JoinHandle<()>) {
+  account_service_with(resolved).await
+}
+
+// The same, the chain answering each setting as `resolved` says.
+async fn account_service_with(resolved: fn(&str) -> Value) -> (String, tokio::task::JoinHandle<()>) {
   let app = axum::Router::new()
     .route(
       "/chain/kinds/{key}",
@@ -102,7 +108,7 @@ async fn account_service() -> (String, tokio::task::JoinHandle<()>) {
     .route(
       "/chain/kinds/{key}/resolve",
       axum::routing::get(
-        |Route(key): Route<String>, Query(asked): Query<HashMap<String, String>>| async move {
+        move |Route(key): Route<String>, Query(asked): Query<HashMap<String, String>>| async move {
           assert_eq!(asked.get("person"), Some(&PERSON.to_string()));
 
           axum::Json(resolved(&key))
@@ -161,6 +167,43 @@ async fn a_person_s_run_takes_the_nearest_unit_s_key_through_a_reservation_namin
     1
   );
   assert_eq!(personal_member(Some(&chosen), "deepseek-flash").as_deref(), Some("deepseek-flash@o4"));
+
+  consumer.down().await;
+  serving.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chain_that_closes_every_source_the_order_names_closes_the_run_saying_so() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  // Every source is turned off above the person, organisation supply never opened.
+  let (address, serving) = account_service_with(|key| match key {
+    "supply.organisation" => json!({ "value": false, "layers": [], "path": ["platform", "unit:3"] }),
+    _ => json!({ "value": false, "layers": [{ "link": "unit:3", "value": false }], "path": ["platform", "unit:3"] }),
+  })
+  .await;
+  let vars =
+    BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
+  let ground = ground_with(scratch.db().clone(), home.path(), &vars);
+  let consumer = Consumer::stand().await;
+
+  consumer.register(&ground);
+  consumer.answers("order", json!({ "sources": ["personal", "plan"] }));
+
+  let Choice::Closed(closed) = choose(&ground, &asked(Some(PERSON), "deepseek")).await.unwrap() else {
+    panic!("the run was due to be closed");
+  };
+
+  assert_eq!(closed.why, Shortfall::Withheld);
+  assert_eq!(closed.reason, SUPPLY.words.withheld);
+  assert!(
+    closed
+      .sentence
+      .starts_with("No supply is left for this run: your organisation's settings"),
+    "{}",
+    closed.sentence
+  );
+  assert!(!consumer.ops().contains(&"reserve".to_owned()), "nothing is reserved");
 
   consumer.down().await;
   serving.abort();

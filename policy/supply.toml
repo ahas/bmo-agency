@@ -28,9 +28,8 @@ refused = "{source} refused a reservation"
 taken_first = "the order took {source} first as the run started"
 # Why a source left mid-run.
 ran_out = "{source} ran out"
-# The one sentence a supervisor's turn ends with, and a job waits with, where no source is left. With {source},
-# {reopens} and {settings}.
-closed = "No supply is left for this run: {source} ran out{reopens}. Top up or change the supply in your settings ({settings})."
+# Why a run has no source although the hook named some: the person's chain closed every one it named.
+withheld = "the person's organisations close every source the order named"
 # Where the hook named a moment the source reopens. With {at}.
 reopens = ", and it reopens at {at}"
 # A person's key or login the provider refused, told to their own supervisor room once. With {source} and {why}.
@@ -39,3 +38,28 @@ refused_told = "Your own supply {source} was refused by its provider ({why}); ru
 moved_told = "A run moved from {from} to {to}: {why}."
 # The console section a person opens to change their supply.
 settings_section = "settings → supply"
+
+# The one sentence a supervisor's turn ends with, and a job waits with, where no source is left: one to each reason
+# the last source tried could not take the run, each saying what the person can do (docs/supply.md, 「Running out
+# mid-turn」). With {source}, {reopens} and {settings}.
+[words.closed]
+# The order named no source.
+no_order = "No supply is left for this run: none is set for it. Add a login or key of your own in your settings ({settings}), or ask the platform's administrator."
+# The person's organisations close every source the order named.
+withheld = "No supply is left for this run: your organisation's settings turn every source off for you. Ask your organisation's administrator to turn one on."
+# The person holds no open login or key of their own for the road's provider.
+no_personal = "No supply is left for this run: you hold no login or key of your own for its provider. Add one in your settings ({settings})."
+# The provider refused the person's own key.
+own_refused = "No supply is left for this run: the provider refused your own key. Add it again in your settings ({settings})."
+# The person's organisations hold no open login or key for the road's provider.
+no_organisation = "No supply is left for this run: your organisation holds no open login or key for its provider. Ask your organisation's administrator."
+# The hook refused a reservation of the organisation's own supply.
+organisation_refused = "No supply is left for this run: your organisation's credits ran out{reopens}. Ask your organisation's administrator to grant more."
+# No platform Claude account is lent to other people's runs now.
+no_lendable = "No supply is left for this run: no Claude account is marked lendable for other people's runs now. Add your own Claude login in your settings ({settings}), or ask the platform's administrator."
+# The run's model is another person's own, which no platform source carries.
+owned = "No supply is left for this run: its model is another person's own, which no platform supply carries. Choose another model for the agent."
+# The hook refused a reservation of a platform source: the person's credits are spent.
+refused = "No supply is left for this run: {source} ran out{reopens}. Top up or change the supply order in your settings ({settings})."
+# The source the run went out on ran out while it went on, and no other took it.
+ran_out = "The run stopped: {source} ran out while it went on{reopens}. Top up or change the supply order in your settings ({settings})."

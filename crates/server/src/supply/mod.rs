@@ -116,9 +116,72 @@ pub enum Choice {
   Closed(Closed),
 }
 
+/// Why no source is left for a run: what kept the last source tried from taking it. It names the sentence a person
+/// is told and the word the room's line carries (docs/supply.md, 「Running out mid-turn」 and 「The facts told」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shortfall {
+  /// The order named no source.
+  NoOrder,
+  /// The person's chain closed every source the order named.
+  Withheld,
+  /// The person holds no open login or key of their own for the road's provider.
+  NoPersonal,
+  /// The provider refused the person's own key for the road.
+  OwnRefused,
+  /// No unit of the person's path holds an open credential for the road's provider.
+  NoOrganisation,
+  /// The hook refused a reservation of the organisation's own supply.
+  OrganisationRefused,
+  /// No Claude account marked lendable answers for other people's runs.
+  NoLendable,
+  /// The run's model is another person's own.
+  Owned,
+  /// The hook refused a reservation of a platform source.
+  Refused,
+  /// The source the run went out on ran out mid-run and no other took it.
+  RanOut,
+}
+
+impl Shortfall {
+  /// The word the room's line and the `supply.changed` fact carry.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::NoOrder => "no-order",
+      Self::Withheld => "withheld",
+      Self::NoPersonal => "no-personal",
+      Self::OwnRefused => "own-refused",
+      Self::NoOrganisation => "no-organisation",
+      Self::OrganisationRefused => "organisation-refused",
+      Self::NoLendable => "no-lendable",
+      Self::Owned => "owned",
+      Self::Refused => "refused",
+      Self::RanOut => "ran-out",
+    }
+  }
+
+  // The policy's sentence for it, with its marks still to fill.
+  fn sentence(self) -> &'static str {
+    let words = &SUPPLY.words.closed;
+
+    match self {
+      Self::NoOrder => &words.no_order,
+      Self::Withheld => &words.withheld,
+      Self::NoPersonal => &words.no_personal,
+      Self::OwnRefused => &words.own_refused,
+      Self::NoOrganisation => &words.no_organisation,
+      Self::OrganisationRefused => &words.organisation_refused,
+      Self::NoLendable => &words.no_lendable,
+      Self::Owned => &words.owned,
+      Self::Refused => &words.refused,
+      Self::RanOut => &words.ran_out,
+    }
+  }
+}
+
 /// No source left for a run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Closed {
+  pub why: Shortfall,
   pub source: String,
   pub reason: String,
   pub reopens_at: Option<i64>,
@@ -126,17 +189,18 @@ pub struct Closed {
 }
 
 impl Closed {
-  /// No source left, the last one tried named with why, and the one sentence a person is told.
-  pub fn of(source: &str, reason: String, reopens_at: Option<i64>) -> Self {
+  /// No source left, the last one tried named with why, and the one sentence a person is told for that reason.
+  pub fn of(why: Shortfall, source: &str, reason: String, reopens_at: Option<i64>) -> Self {
     let reopens = reopens_at.map_or_else(String::new, |at| {
       fill_marks(&SUPPLY.words.reopens, &[("at", &moment_words(at / 1000))])
     });
     let sentence = fill_marks(
-      &SUPPLY.words.closed,
+      why.sentence(),
       &[("source", source), ("reopens", &reopens), ("settings", &SUPPLY.words.settings_section)],
     );
 
     Self {
+      why,
       source: source.to_owned(),
       reason,
       reopens_at,
@@ -324,6 +388,24 @@ pub async fn personal_source(
   Ok(keyed.then_some(Source::Personal))
 }
 
+/// Whether the person holds a key of their own for the road that its provider refused, where none of theirs is open.
+async fn own_key_refused(ground: &Ground, account: i64, provider: &str) -> Result<bool, Refusal> {
+  if provider == CLAUDE_CODE || provider == REGISTERED {
+    return Ok(false);
+  }
+
+  Ok(
+    one(
+      &ground.db,
+      r#"SELECT 1 AS "refused" FROM "personal_supply"
+         WHERE "user_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NOT NULL LIMIT 1"#,
+      vec![account.into(), provider.into()],
+    )
+    .await?
+    .is_some(),
+  )
+}
+
 /// The nearest unit of `units` whose own supply is open for the road's provider, where one is: a Claude account
 /// of the unit's that can answer now for a Claude Code road, an open key of the unit's for a gateway road; the
 /// registry's provider has none (docs/supply.md, 「Organisation supply」).
@@ -380,11 +462,20 @@ pub async fn platform_open(
 
 /// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, as the
 /// sources their chain leaves open shape it (`sources::shaped`).
-async fn order_of(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> (Vec<String>, Vec<i64>) {
+///
+/// Answers too whether the chain closed every source the hook's order named.
+async fn order_of(
+  ground: &Ground,
+  asked: &Asked<'_>,
+  run: &str,
+  account: i64,
+) -> (Vec<String>, Vec<i64>, bool) {
   let open = sources::open_for(ground, account).await;
   let order = hooked_order(ground, asked, run, account).await;
+  let shaped = sources::shaped(&order, &open);
+  let withheld = !order.is_empty() && shaped.is_empty();
 
-  (sources::shaped(&order, &open), open.units)
+  (shaped, open.units, withheld)
 }
 
 async fn hooked_order(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> Vec<String> {
@@ -421,7 +512,7 @@ pub async fn choose(ground: &Ground, asked: &Asked<'_>) -> Result<Choice, Refusa
   let Some(account) = person(ground, asked.account).await? else {
     return Ok(Choice::Go(Chosen::deployment(run, asked.provider, asked.model)));
   };
-  let (order, units) = order_of(ground, asked, &run, account).await;
+  let (order, units, withheld) = order_of(ground, asked, &run, account).await;
   let mut chosen = Chosen {
     run,
     account: Some(account),
@@ -432,6 +523,15 @@ pub async fn choose(ground: &Ground, asked: &Asked<'_>) -> Result<Choice, Refusa
     units,
     step: 1,
   };
+
+  if withheld {
+    return Ok(Choice::Closed(Closed::of(
+      Shortfall::Withheld,
+      PLATFORM,
+      SUPPLY.words.withheld.clone(),
+      None,
+    )));
+  }
 
   match next_source(ground, &mut chosen, &order).await? {
     Ok(()) => Ok(Choice::Go(chosen)),
@@ -450,7 +550,7 @@ pub async fn next_source(
     chosen.source = Source::Deployment;
     return Ok(Ok(()));
   };
-  let mut last = Closed::of(PLATFORM, SUPPLY.words.no_order.clone(), None);
+  let mut last = Closed::of(Shortfall::NoOrder, PLATFORM, SUPPLY.words.no_order.clone(), None);
 
   for source in sources {
     if source == PERSONAL {
@@ -460,8 +560,13 @@ pub async fn next_source(
       }
 
       let reason = fill_marks(&SUPPLY.words.no_personal, &[("provider", &chosen.provider)]);
+      let why = if own_key_refused(ground, account, &chosen.provider).await? {
+        Shortfall::OwnRefused
+      } else {
+        Shortfall::NoPersonal
+      };
 
-      last = Closed::of(PERSONAL, reason, None);
+      last = Closed::of(why, PERSONAL, reason, None);
       continue;
     }
 
@@ -470,7 +575,7 @@ pub async fn next_source(
       else {
         let reason = fill_marks(&ORGANISATION.sources.no_organisation, &[("provider", &chosen.provider)]);
 
-        last = Closed::of(source, reason, None);
+        last = Closed::of(Shortfall::NoOrganisation, source, reason, None);
         continue;
       };
 
@@ -483,20 +588,25 @@ pub async fn next_source(
           return Ok(Ok(()));
         }
         Err(reopens_at) => {
-          last = Closed::of(source, fill_marks(&SUPPLY.words.refused, &[("source", source)]), reopens_at);
+          let reason = fill_marks(&SUPPLY.words.refused, &[("source", source)]);
+
+          last = Closed::of(Shortfall::OrganisationRefused, source, reason, reopens_at);
           continue;
         }
       }
     }
 
     if !platform_open(ground, account, &chosen.provider, &chosen.model).await? {
-      let reason = if chosen.provider == CLAUDE_CODE {
-        fill_marks(&SUPPLY.words.no_lendable, &[("provider", &chosen.provider)])
+      let (why, reason) = if chosen.provider == CLAUDE_CODE {
+        (
+          Shortfall::NoLendable,
+          fill_marks(&SUPPLY.words.no_lendable, &[("provider", &chosen.provider)]),
+        )
       } else {
-        fill_marks(&SUPPLY.words.owned, &[("model", &chosen.model)])
+        (Shortfall::Owned, fill_marks(&SUPPLY.words.owned, &[("model", &chosen.model)]))
       };
 
-      last = Closed::of(source, reason, None);
+      last = Closed::of(why, source, reason, None);
       continue;
     }
 
@@ -509,7 +619,9 @@ pub async fn next_source(
         return Ok(Ok(()));
       }
       Err(reopens_at) => {
-        last = Closed::of(source, fill_marks(&SUPPLY.words.refused, &[("source", source)]), reopens_at);
+        let reason = fill_marks(&SUPPLY.words.refused, &[("source", source)]);
+
+        last = Closed::of(Shortfall::Refused, source, reason, reopens_at);
       }
     }
   }
