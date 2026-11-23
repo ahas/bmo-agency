@@ -12,6 +12,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::door::record_secrets::{Readings, Tally};
 use crate::lines::place::{FAILURE_KIND, PLACE_VARIABLE, Place, is_turn_variable};
 
 pub fn run_file(place: &Path) -> PathBuf {
@@ -276,15 +277,114 @@ fn forget_session(path: &Path, session: &str) -> std::io::Result<()> {
   }
 }
 
-/// A line appended to one of the place's records, every token-shaped value in it redacted
-/// (docs/agent-control.md, 「A record holds no token」).
+/// A line appended to one of the place's records, every secret in its strings written as `[redacted]` by the
+/// process's readings (docs/agent-control.md, 「A record holds no secret」).
 pub fn append(path: &Path, record: &Value) -> std::io::Result<()> {
+  append_read(path, record, crate::door::record_secrets::process())
+}
+
+/// A line appended to one of the place's records, read through `readings` first.
+pub fn append_read(path: &Path, record: &Value, readings: &Readings) -> std::io::Result<()> {
   use std::io::Write as _;
 
-  let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
-  let line = record.to_string();
+  let mut record = record.clone();
 
-  file.write_all(format!("{}\n", crate::text::redact_tokens(&line)).as_bytes())
+  readings.value(&mut record);
+
+  let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+
+  file.write_all(format!("{record}\n").as_bytes())
+}
+
+/// The place's records that a line is appended to, each read through the readings as it is written.
+pub fn record_files(place: &Path) -> [PathBuf; 3] {
+  [status_file(place), hooks_file(place), background_file(place)]
+}
+
+/// One record written before read through `readings`, a line at a time since an agent's records grow large,
+/// and rewritten where a line changed; a line that did not change is kept byte for byte, and a record holding
+/// none is left as it is. A line appended while the record is read is read on and written too, and one
+/// appended to the old record once it is replaced is appended to the new one. Answers how many lines changed,
+/// each run taken out counted into `tally` by its source.
+pub fn redact_record(path: &Path, readings: &Readings, tally: &mut Tally) -> std::io::Result<usize> {
+  use std::io::{BufRead as _, Write as _};
+
+  let source = std::fs::File::open(path)?;
+  let permissions = source.metadata()?.permissions();
+  let mut reader = std::io::BufReader::new(source);
+  let mut temporary = path.as_os_str().to_owned();
+
+  temporary.push(format!(".redact.{}", std::process::id()));
+
+  let temporary = PathBuf::from(temporary);
+  // Each line read on to the record's end, written as the readings leave it; answers how many changed.
+  let mut read_on = |into: &mut dyn std::io::Write| -> std::io::Result<usize> {
+    let mut changed = 0;
+    let mut line = Vec::new();
+
+    while reader.read_until(b'\n', &mut line)? > 0 {
+      match redacted_line(&line, readings, tally) {
+        Some(redacted) => {
+          into.write_all(redacted.as_bytes())?;
+          changed += 1;
+        }
+        None => into.write_all(&line)?,
+      }
+
+      line.clear();
+    }
+
+    Ok(changed)
+  };
+  let written = (|| {
+    let mut kept = std::io::BufWriter::new(std::fs::File::create(&temporary)?);
+    let changed = read_on(&mut kept)?;
+
+    if changed > 0 {
+      read_on(&mut kept)?;
+      kept.flush()?;
+      std::fs::set_permissions(&temporary, permissions)?;
+    }
+
+    Ok::<usize, std::io::Error>(changed)
+  })();
+
+  match written {
+    Ok(0) => std::fs::remove_file(&temporary).map(|()| 0),
+    Ok(changed) => {
+      std::fs::rename(&temporary, path)?;
+
+      let mut late = Vec::new();
+      let late_changed = read_on(&mut late)?;
+
+      if !late.is_empty() {
+        std::fs::OpenOptions::new().append(true).open(path)?.write_all(&late)?;
+      }
+
+      Ok(changed + late_changed)
+    }
+    Err(error) => {
+      let _ = std::fs::remove_file(&temporary);
+
+      Err(error)
+    }
+  }
+}
+
+// A record's line as the readings leave it, its line end kept, or none where they change nothing: a line that
+// reads as JSON has its strings read, any other line its words.
+fn redacted_line(line: &[u8], readings: &Readings, tally: &mut Tally) -> Option<String> {
+  let text = std::str::from_utf8(line).ok()?;
+  let body = text.strip_suffix('\n').unwrap_or(text);
+  let end = &text[body.len()..];
+
+  match serde_json::from_str::<Value>(body) {
+    Ok(mut record) => readings.value_tallied(&mut record, tally).then(|| format!("{record}{end}")),
+    Err(_) => match readings.text_tallied(body, tally) {
+      std::borrow::Cow::Owned(redacted) => Some(format!("{redacted}{end}")),
+      std::borrow::Cow::Borrowed(_) => None,
+    },
+  }
 }
 
 /// The lines a Claude Code session's own record, its transcript, holds stamped at or after `since`, oldest

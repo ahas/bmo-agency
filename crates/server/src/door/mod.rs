@@ -17,6 +17,7 @@ pub mod looks;
 pub mod node_take;
 pub mod place_run;
 pub mod record;
+pub mod record_secrets;
 pub mod rollout;
 pub mod stand;
 pub mod surface;

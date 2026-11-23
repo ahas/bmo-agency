@@ -507,12 +507,61 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     readers take the figures from, and it prints the one line the program shows at the foot of its
     screen (「Runs and sessions in one pane」). On a work node it runs on the operations machine, where
     the place stands; the shell guard reads only the command it is handed and runs where it is called.
-  - **A record holds no token.** Before a line is appended to the place's status or hooks record, every
-    value shaped as a token — sixty-four hexadecimal digits standing alone, a key beginning `sk-`, the
-    word after `Bearer` — is written as `[redacted]`. A hook hands the call whole, a shell command an
-    agent ran with a token in it included, and the records are read by more than the agent they belong to.
+  - **A record holds no secret.** A hook hands the call whole — a prompt, a background task's command, the
+    agent's last answer, a shell command an agent ran with a token in it — and the records are read by more
+    than the agent they belong to. So before a line is appended to one of the place's records, its status,
+    hooks or background record, every string the line holds, its keys aside, is read for secrets, and each
+    one found is written as `[redacted]`. The line stays JSON and nothing but a secret's run changes, so
+    every field a reader takes — the session, the transcript's path, a task's id, status and description —
+    stands as the program handed it. Three readings run, in this order:
+    - **A saved secret's value,** wherever it stands in the words. The values are those of the files
+      under the data root's `env/`, its folders included at any depth, a folder's files before its
+      folders and each in the order of their names. A folder that is a provider's login home is passed
+      over: its files are the program's own, thousands of them, and the login's token is reached through
+      the files agency saves beside it. Each provider names the entry its login home holds (Claude Code's
+      is its `.claude.json`), and a folder holding one of them is such a home. Links are not followed. In
+      each file blank lines and lines opening on `#` are passed over, and:
+      - a file of one line is that line as one value, unless the line is a `NAME=VALUE` field as below;
+      - a `.toml` or `.json` file holds the strings under its keys at any depth, and a `.json` file that
+        is one string holds that string; one that does not read as its format is read as lines;
+      - a line `NAME=VALUE` of any other file, also as `export NAME=VALUE`, holds its value verbatim after
+        the first `=`, and also without the one pair of quotes it may be wrapped in; a value of `=` alone
+        is the padding a base64 value ends on, and such a line is a value, not a field.
+
+      A value counts where a file of one line or one string holds it, or where its key's last part, split
+      at `_`, `.` and `-` and where a lowercase letter meets an uppercase one, and read in any case, is a
+      word a secret is named by, alone or after `api`. It counts only at twelve or more characters and
+      where it is no path, since a shorter run is an ordinary word and a path is what a reader takes. The
+      walk is bounded, since a process reads it before the first line it writes and a hook's call is a
+      process of its own: a file over 64 KiB is passed over, as no saved secret's, and the walk stops at
+      1,000 files and says so on the error stream. The words, the length and both bounds stand in
+      `policy/record-secrets.toml`.
+    - **The receiver's secret shapes,** as the receiver's deploy tree holds them in its
+      `policy/secret-shapes.toml` (the receiver's `docs/messages.md`, 「Secrets taken out」): each shape in
+      the order the file lists it, over what the shapes before it left, its `secret` part alone replaced
+      where it names one, and a run lying wholly inside a run one of its spared patterns finds left as it
+      stands. Agency keeps no copy of them, so the records follow the receiver's shapes as it deploys them.
+      The file is the one `AGENCY_SECRET_SHAPES` names, else the path under the home
+      `policy/record-secrets.toml` gives. A file that is missing or does not read costs the records these
+      shapes, and a shape that does not compile costs them that shape; each is said on the error stream.
+    - **Agency's own token shapes,** which stand whether the receiver's file reads or not: sixty-four
+      hexadecimal digits standing alone, a key beginning `sk-`, and the word after `Bearer`, which keeps
+      its `Bearer`.
+
+    The processes that append, the hook command and the server (which writes a stopped task's mark), are
+    each told the data root and the home as they start, and read the saved values and the shapes once, on
+    the first line they write; a process told neither, a test's own, reads only agency's token shapes.
+    The records written before are read the same way by `bmo-agency redact-records`, which reads the saved
+    values and the shapes as it starts and goes through every place under the data root. It rewrites a
+    record only where one of its lines changed, a line at a time, keeps every line that did not change
+    byte for byte along with the record's permissions, and prints how many records and lines it changed
+    and how many runs each source took out, so a false find can be judged without the words: a saved
+    value by the file under `env/` it stands in, a receiver shape by its name, and agency's token shapes
+    as one. It prints nothing of what it took out. A line the program appends while its record is rewritten is carried
+    into the rewritten record, read through the same readings.
   - **The place's records are read from their end.** Each call is one line appended to the place's
-    status record or its hooks record, and neither is cut while what they hold stands, so an agent's records
+    status record or its hooks record, and neither is cut while what they hold stands, but for a secret's
+    run written as `[redacted]` (「A record holds no secret」), so an agent's records
     grow to hundreds of megabytes. A supervisor's are cut where its conversation is taken: its reset empties both,
     and a turn the reset overtook takes its session's lines out of them (`docs/supervisors.md`, 「Starting it
     afresh」). Every reader wants only the lines since a moment — a turn's start, its end,

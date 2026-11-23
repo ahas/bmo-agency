@@ -15,6 +15,7 @@ mod machine_memory;
 mod machine_verbs;
 mod nouns;
 mod places;
+mod record_secrets_verbs;
 mod runs;
 mod slot_release;
 mod stops;

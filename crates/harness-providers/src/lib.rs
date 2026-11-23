@@ -288,6 +288,13 @@ pub trait Provider: Sync {
     false
   }
 
+  /// The entry its login home holds, where it holds one, by which a folder under the data root's `env/` is
+  /// told as a login home and passed over when the saved values are read (docs/agent-control.md, 「A record
+  /// holds no secret」).
+  fn login_home_mark(&self) -> Option<&'static str> {
+    None
+  }
+
   /// The session one event its program prints in a run of its own names, where it names one.
   fn session_of_event(&self, event: &serde_json::Value) -> Option<String> {
     let _ = event;

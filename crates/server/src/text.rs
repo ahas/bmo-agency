@@ -61,7 +61,7 @@ pub fn listed(names: &[String]) -> String {
   }
 }
 
-/// What a token-shaped value is written as in a record (docs/agent-control.md, 「A record holds no token」).
+/// What a secret's run is written as in a record (docs/agent-control.md, 「A record holds no secret」).
 pub const REDACTED: &str = "[redacted]";
 
 static TOKEN_SHAPED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -74,7 +74,16 @@ static TOKEN_SHAPED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::ne
 /// A text with every value shaped as a token written as `[redacted]`: sixty-four hexadecimal digits standing
 /// alone, a key beginning `sk-`, and the word after `Bearer`, which keeps its `Bearer`.
 pub fn redact_tokens(text: &str) -> std::borrow::Cow<'_, str> {
-  TOKEN_SHAPED.replace_all(text, |found: &regex::Captures| {
+  redact_tokens_counted(text).0
+}
+
+/// A text with every value shaped as a token written as `[redacted]`, and how many it wrote.
+pub fn redact_tokens_counted(text: &str) -> (std::borrow::Cow<'_, str>, usize) {
+  let mut runs = 0;
+  let words = TOKEN_SHAPED.replace_all(text, |found: &regex::Captures| {
+    runs += 1;
     format!("{}{REDACTED}", found.name("bearer").map_or("", |bearer| bearer.as_str()))
-  })
+  });
+
+  (words, runs)
 }

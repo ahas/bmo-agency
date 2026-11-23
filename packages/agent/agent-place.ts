@@ -137,21 +137,15 @@ function handedPending(place: string): boolean {
   return existsSync(handedFile(place));
 }
 
-// Every value shaped as a token — sixty-four hexadecimal digits standing alone, a key beginning `sk-`, the word
-// after `Bearer` — as a record writes it (docs/agent-control.md, 「A record holds no token」).
-const tokenShaped = /\b[0-9a-fA-F]{64}\b|\bsk-[A-Za-z0-9_-]{16,}|(\bBearer\s+)[A-Za-z0-9._~+/=-]{16,}/g;
-
-export function redactTokens(text: string): string {
-  return text.replace(tokenShaped, (_found, bearer: string | undefined) => `${bearer ?? ""}[redacted]`);
-}
-
 // One call of the program's, as its hook or status-line command receives it. A prompt submitted while
 // no run of the bot's is going, and no word of the bot's is still to arrive, is a person's turn; a
 // submit the bot marked for opens its run again where a turn's end had closed it, and takes the mark
 // away. A turn's end, a stop or a failure, closes whatever run is going, except a
 // bot's run whose round still owes a turn — a word handed to the program after its last tool call opens
 // a turn of its own, and the round is not over until that turn is (`keepsRun`). What the program handed
-// over is kept whole beside the moment it arrived, but for a value shaped as a token.
+// over is kept whole beside the moment it arrived: this writer stands in for the hook command in tests, and
+// the records a deployment keeps are that command's, which reads them for secrets (docs/agent-control.md,
+// 「A record holds no secret」).
 export function recordCall(
   place: string,
   kind: HookKind | "status",
@@ -164,11 +158,11 @@ export function recordCall(
   if (kind === "status") {
     const record: StatusRecord = options.login === undefined ? { at, payload } : { at, payload, login: options.login };
 
-    appendFileSync(statusFile(place), `${redactTokens(JSON.stringify(record))}\n`);
+    appendFileSync(statusFile(place), `${JSON.stringify(record)}\n`);
     return;
   }
 
-  appendFileSync(hooksFile(place), `${redactTokens(JSON.stringify({ at, kind, payload } satisfies HookRecord))}\n`);
+  appendFileSync(hooksFile(place), `${JSON.stringify({ at, kind, payload } satisfies HookRecord)}\n`);
   const run = readRun(place);
 
   if (kind === "submit" && personSubmits(place)) {
