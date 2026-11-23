@@ -41,7 +41,7 @@ pub fn choice(provider: &str, model: &str) -> String {
   serde_json::json!([provider, model]).to_string()
 }
 
-/// The command a provider's pane program stands on in an agent's place: bmo-tui on its `dsh` subcommand,
+/// The command a provider's pane program stands on in an agent's place: the terminal client on its `dsh` subcommand,
 /// the harness at `--profile acp`, the agent's place, the line's model choice and the overlay dsh reads,
 /// under the process's own variables less any one turn's, with the key the provider's dsh route reads from
 /// the data root's env directory put into the program's environment alone.
@@ -111,7 +111,7 @@ pub fn resident_command(
     env.remove(super::place::SHELL_GUARD_VARIABLE);
   }
   // What dsh says on its error stream — a client that did not activate among it — is kept in the place
-  // rather than drawn over bmo-tui's screen.
+  // rather than drawn over the terminal client's screen.
   env.insert(
     agent_host::place::STDERR_VARIABLE.to_owned(),
     stderr_file(place).to_string_lossy().into_owned(),
@@ -137,7 +137,7 @@ pub fn resident_command(
   }
 
   // The agency's own MCP servers stand in the overlay, read from the same configuration the Claude Code
-  // line is handed, so bmo-tui hands the session none of its own: dsh fails a session whole on a server
+  // line is handed, so the terminal client hands the session none of its own: dsh fails a session whole on a server
   // handed to it that cannot open, and the overlay's clients let such a server go.
   args.push("--patch".to_owned());
   args.push(patch.to_string_lossy().into_owned());

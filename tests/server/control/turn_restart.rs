@@ -40,7 +40,7 @@ impl Drop for Program {
   }
 }
 
-// A line of the pane program's record, as bmo-tui appends it.
+// A line of the pane program's record, as the terminal client appends it.
 fn append(place: &Place, line: Value) {
   use std::io::Write as _;
 

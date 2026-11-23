@@ -160,5 +160,5 @@ fn claude_code_under_its_road_s_home_is_its_own_and_another_road_s_is_not() {
   assert!(owns(&homes.join("openrouter").join("vendor-model").to_string_lossy()));
   assert!(!owns(&homes.join("deepseek").join("deepseek-flash").to_string_lossy()));
   assert!(!owns("/somewhere/else"));
-  assert!(!OpenRouter.owns_program(&machine, &["bmo-tui".to_owned()], &BTreeMap::new()));
+  assert!(!OpenRouter.owns_program(&machine, &["term-client".to_owned()], &BTreeMap::new()));
 }

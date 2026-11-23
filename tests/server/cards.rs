@@ -177,13 +177,13 @@ fn granted(shared: &Shared, id: i64) {
   stand_in.next = stand_in.next.max(id);
   stand_in
     .demands
-    .insert(id, json!({ "id": id, "serviceName": "lab-arena", "cards": cards, "state": "granted" }));
+    .insert(id, json!({ "id": id, "serviceName": "arena", "cards": cards, "state": "granted" }));
 }
 
 fn asking<'a>(holder: &'a str, ask: Ask, lease: Option<&'a str>) -> Asking<'a> {
   Asking {
     registration: "flash",
-    service: "lab-arena",
+    service: "arena",
     holder,
     work_key: Some("session-1"),
     ask,
@@ -260,7 +260,7 @@ async fn a_run_waits_with_no_clock_until_its_demand_is_granted_and_gives_it_back
 
   assert_eq!(held.node, "n1");
   assert!(held.asked && !held.lent, "{held:?}");
-  assert_eq!(said, vec!["Waiting for a card of lab-arena: Every card is in use.".to_owned()]);
+  assert_eq!(said, vec!["Waiting for a card of arena: Every card is in use.".to_owned()]);
   assert_eq!(shared.lock().unwrap().reads[&held.demand], 4, "read until granted, however many reads");
   assert_eq!(shared.lock().unwrap().asked[0]["workKey"], "session-1");
   assert_eq!(shared.lock().unwrap().asked[0]["count"], 1);
@@ -401,7 +401,7 @@ async fn demands_left_behind_are_given_back_at_start_and_with_an_ended_lease() {
     scratch
       .run(
         r#"INSERT INTO "card_demands" ("demand_id", "service", "registration", "holder", "lease", "asked_at")
-           VALUES ($1, 'lab-arena', 'flash', 'worker-a', $2, 1)"#,
+           VALUES ($1, 'arena', 'flash', 'worker-a', $2, 1)"#,
         vec![i64::from(id).into(), lease.map(str::to_owned).into()],
       )
       .await;
@@ -423,7 +423,7 @@ async fn demands_left_behind_are_given_back_at_start_and_with_an_ended_lease() {
   scratch
     .run(
       r#"INSERT INTO "card_demands" ("demand_id", "service", "registration", "holder", "asked_at")
-         VALUES (404, 'lab-arena', 'flash', 'worker-a', 1)"#,
+         VALUES (404, 'arena', 'flash', 'worker-a', 1)"#,
       vec![],
     )
     .await;
@@ -460,7 +460,7 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
   change(
     db,
     data.path(),
-    &json!({ "action": "save", "name": "flash", "cardService": "lab-arena", "roleFiles": true }),
+    &json!({ "action": "save", "name": "flash", "cardService": "arena", "roleFiles": true }),
   )
   .await
   .unwrap()
@@ -468,17 +468,17 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
 
   let held = registration(db, "flash").await.unwrap().unwrap();
 
-  assert_eq!(held.card_service.as_deref(), Some("lab-arena"));
+  assert_eq!(held.card_service.as_deref(), Some("arena"));
   assert!(held.role_files && held.addresses.is_empty() && held.offered());
   assert!(held.holds_node("n4"), "a session goes wherever its demand is granted");
 
   let refused = change(db, data.path(), &address).await.unwrap();
 
-  assert!(matches!(&refused, Err(why) if why.contains("lab-arena")), "{refused:?}");
+  assert!(matches!(&refused, Err(why) if why.contains("arena")), "{refused:?}");
 
   let shown = view(db, data.path()).await.unwrap();
 
-  assert_eq!(shown["registrations"][0]["cardService"], "lab-arena");
+  assert_eq!(shown["registrations"][0]["cardService"], "arena");
   assert_eq!(shown["registrations"][0]["roleFiles"], true);
 
   let bad = change(db, data.path(), &save(json!({ "cardService": "Not A Service" }))).await.unwrap();
@@ -495,7 +495,7 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
   );
 }
 
-// The registration `flash` naming the card service `lab-arena`, and what a card its runs share is asked
+// The registration `flash` naming the card service `arena`, and what a card its runs share is asked
 // with: the stand-in as the master and as the gateway, its key file readable as the gateway's is.
 async fn shared_ask(
   db: &sea_orm::DatabaseConnection,
@@ -508,7 +508,7 @@ async fn shared_ask(
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "arena", "roleFiles": true,
     }),
   )
   .await
@@ -524,7 +524,7 @@ async fn shared_ask(
     db: db.clone(),
     master: master.clone(),
     registration: "flash".into(),
-    service: "lab-arena".into(),
+    service: "arena".into(),
     holder: "translator".into(),
     gateway: Gateway {
       url: shared.lock().unwrap().base.clone(),
@@ -665,7 +665,7 @@ async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() 
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "arena", "roleFiles": true,
     }),
   )
   .await
@@ -715,7 +715,7 @@ async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_i
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "arena", "roleFiles": true,
     }),
   )
   .await
@@ -835,7 +835,7 @@ async fn a_turn_s_card_wait_is_its_state_and_its_job_s_hold_until_the_grant_clea
 
   told
     .waits(&CardWait {
-      service: "lab-arena".into(),
+      service: "arena".into(),
       reason: "Every card is in use.".into(),
     })
     .await;
@@ -844,16 +844,16 @@ async fn a_turn_s_card_wait_is_its_state_and_its_job_s_hold_until_the_grant_clea
 
   assert_eq!(
     (waiting.kind, waiting.service.as_str(), waiting.reason.as_str()),
-    (WaitKind::Card, "lab-arena", "Every card is in use.")
+    (WaitKind::Card, "arena", "Every card is in use.")
   );
   assert_eq!(
     held_for(&scratch, 7).await.as_deref(),
-    Some("Waiting for a card of lab-arena: Every card is in use.")
+    Some("Waiting for a card of arena: Every card is in use.")
   );
 
   told
     .waits(&CardWait {
-      service: "lab-arena".into(),
+      service: "arena".into(),
       reason: "The engine is starting.".into(),
     })
     .await;
@@ -902,7 +902,7 @@ async fn a_turn_s_card_wait_is_its_state_and_its_job_s_hold_until_the_grant_clea
   // A turn that ends waits for nothing.
   told
     .waits(&CardWait {
-      service: "lab-arena".into(),
+      service: "arena".into(),
       reason: "Every card is in use.".into(),
     })
     .await;

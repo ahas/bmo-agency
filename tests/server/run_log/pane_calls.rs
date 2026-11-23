@@ -1,4 +1,4 @@
-//! A pane program's tool calls (docs/run-records.md, 「Agent log」): the progress lines bmo-tui writes as dsh
+//! A pane program's tool calls (docs/run-records.md, 「Agent log」): the progress lines the terminal client writes as dsh
 //! reports a call over the Agent Client Protocol — asked, under way, settled — filed as a `tool` line under
 //! the tool's name carrying its argument summary, and the `tool-result` that answers it, how it ended, how
 //! long it ran and how large its result was. A line that names its call by `toolCallId` is matched to that

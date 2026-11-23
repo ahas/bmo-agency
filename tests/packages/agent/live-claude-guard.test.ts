@@ -20,7 +20,7 @@ import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 // room's, the bot's and a test's, and the job's opening is read from an archive of the test's own.
 
 const root = codeRoot;
-const unit = "bmo-work-331-stage-4-0-1";
+const unit = "bmo-run-331-stage-4-0-1";
 const cli = ["claude", "-p", "--output-format", "json", "--resume", "00000000-0000-0000-0000-000000000000"];
 
 // A job's shell, as its CLI starts it: both markers, the run's own name, an archive of the test's own.

@@ -684,7 +684,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -698,7 +698,7 @@ describe("a turn driven over a socket", () => {
 
     installProviderSettings(null);
     expect((await archive.executions().executions()).find(row => row.line === "native-child")).toMatchObject({ sharedPane: true, state: "unknown", nativeState: "unresolved" });
-    expect((await archive.executions().executions()).find(row => row.line === "worker")).toMatchObject({ parent: "bmo-work-9-build-0-1", state: "exited" });
+    expect((await archive.executions().executions()).find(row => row.line === "worker")).toMatchObject({ parent: "bmo-run-9-build-0-1", state: "exited" });
     expect(turn.outcome).toBe("answered");
     expect(turn.outcome === "answered" ? turn.reply.text : "").toBe("the answer");
     expect(turn.outcome === "answered" ? turn.reply.sessionId : "").toBe(sessionId);
@@ -719,7 +719,7 @@ describe("a turn driven over a socket", () => {
   // herdr's own word」).
   describe("a herdr that does not answer", () => {
     const turnOn = (herdr: Driven, extra: Partial<Parameters<typeof runTurnInPane>[0]> = {}) => runTurnInPane({
-      name: "bmo-work-9-build-0-1", title: "#9 a build", cwd, command: ["claude", "--session-id", sessionId],
+      name: "bmo-run-9-build-0-1", title: "#9 a build", cwd, command: ["claude", "--session-id", sessionId],
       env: {}, prompt: "the work", sessionId, from: 0, pollMs: 5, socket: herdr.path, goneConfirm: { gapMs: 1 }, ...extra,
     });
 
@@ -801,7 +801,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -830,7 +830,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-plan-1",
+      name: "bmo-run-9-plan-1",
       title: "#9 a plan",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -861,7 +861,7 @@ describe("a turn driven over a socket", () => {
     const asked: string[] = [];
 
     await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -892,7 +892,7 @@ describe("a turn driven over a socket", () => {
     const limit = { ...assistant({ text: "You've hit your session limit · resets 8pm (Asia/Seoul)", model: "<synthetic>" }), isApiErrorMessage: true };
     const herdr = herdrLike("limit", { statuses: ["idle", "working", "idle"], transcript: [limit], cwd, sessionId });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -962,7 +962,7 @@ describe("a turn driven over a socket", () => {
       },
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -981,7 +981,7 @@ describe("a turn driven over a socket", () => {
   test("a pane that never comes ready is waiting on a person, and says what is on its screen", async () => {
     const herdr = herdrLike("blocked", { statuses: ["blocked"], transcript: [], cwd, sessionId });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude"],
@@ -1010,7 +1010,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -1034,7 +1034,7 @@ describe("a turn driven over a socket", () => {
   test("a run that was not told it trusts its folder leaves the question to a person", async () => {
     const herdr = herdrLike("untrusted", { statuses: ["blocked"], screen: trustScreen, transcript: [], cwd, sessionId });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude"],
@@ -1060,7 +1060,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -1105,7 +1105,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -1304,7 +1304,7 @@ describe("a turn driven over a socket", () => {
       sessionId,
     });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude", "--session-id", sessionId],
@@ -1331,7 +1331,7 @@ describe("a turn driven over a socket", () => {
   test("any other question is a person's, even for a run that trusts its folder", async () => {
     const herdr = herdrLike("other", { statuses: ["blocked"], screen: "Allow this MCP server?\n❯ Yes\n  No", transcript: [], cwd, sessionId });
     const turn = await runTurnInPane({
-      name: "bmo-work-9-build-0-1",
+      name: "bmo-run-9-build-0-1",
       title: "#9 a build",
       cwd,
       command: ["claude"],

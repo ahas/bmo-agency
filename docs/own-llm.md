@@ -750,7 +750,7 @@ never the model's name.
 ### Role files
 
 - **What a role file is:** an instance of an engine that saves and restores its conversation state —
-  Lab-arena's `POST /slots/0?action=save|restore`, a file named in a JSON body — keeps one file per role,
+  a llama.cpp-style server's `POST /slots/0?action=save|restore`, a file named in a JSON body — keeps one file per role,
   the state of that role's system prompt read once. Restoring it is a fraction of a second where reading
   the prompt again is many; the file is named `role-<role>.bin`, the role's name being its whole key.
   Which files stand and whether one is still valid are the engine deployment's own: it builds them and

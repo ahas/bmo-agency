@@ -46,7 +46,7 @@ fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
   Arc::new(Ground::new(&service, &machine, None))
 }
 
-// A line of a pane program's record, as bmo-tui appends it.
+// A line of a pane program's record, as the terminal client appends it.
 fn append(place: &Place, line: serde_json::Value) {
   use std::io::Write as _;
 

@@ -295,7 +295,7 @@ async fn a_program_written_into_its_place_carries_the_token_it_was_handed() {
     ("BMO_MCP_TOKEN".to_owned(), "issued".to_owned()),
   ]);
   let command = ResidentCommand {
-    args: vec!["bmo-tui".into()],
+    args: vec!["term-client".into()],
     cwd: data.path().to_path_buf(),
     env,
     login_file: None,

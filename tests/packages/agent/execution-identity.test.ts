@@ -73,11 +73,6 @@ test("parallel allocators cannot reuse a root attempt", async () => {
   expect(new Set(rows.map(r => r.id)).size).toBe(24);
 });
 
-test("co-work retry units retain the revisioned task root", () => {
-  expect(executionRoot('bmo-work-379-r2-build-1-1')).toBe(executionRoot('bmo-work-379-r2-build-1-2'));
-  expect(executionRoot('bmo-work-379-r2-build-1-1')).not.toBe(executionRoot('bmo-work-379-r3-build-1-1'));
-});
-
 test("physical history preserves the role and effective effort without inventing native settings", async () => {
   const archive = await scratchArchive();
   const record = await beginExecution(archive, "codex", "worker", { role: "builder", model: "gpt-5.6-terra", effort: "low" });

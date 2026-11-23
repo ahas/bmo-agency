@@ -54,17 +54,9 @@ pub fn own_unit(env: &std::collections::BTreeMap<String, String>) -> Option<Stri
   })
 }
 
-/// The root a run's executions are counted under: a co-work unit's name without its retry number, a
-/// task unit's own name, and a root of its own for anything else.
+/// The root a run's executions are counted under: a task unit's own name, and a root of its own for anything
+/// else.
 pub fn execution_root(owner: &str) -> String {
-  if let Some(cowork) = owner.strip_prefix("bmo-work-").and_then(|rest| {
-    let (head, tail) = rest.rsplit_once('-')?;
-
-    (!head.is_empty() && !tail.is_empty() && tail.bytes().all(|byte| byte.is_ascii_digit())).then_some(head)
-  }) {
-    return format!("bmo-work-{cowork}");
-  }
-
   if owner.starts_with("bmo-task-") {
     return owner.to_owned();
   }

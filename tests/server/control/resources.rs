@@ -675,12 +675,12 @@ async fn the_model_resource_is_one_record() {
     token,
     reqwest::Method::PATCH,
     "/models/registered::made",
-    json!({ "cardService": "lab-arena", "roleFiles": true }),
+    json!({ "cardService": "arena", "roleFiles": true }),
   )
   .await;
 
   assert_eq!(status, 200, "{carded}");
-  assert_eq!((&carded["cardService"], &carded["roleFiles"]), (&json!("lab-arena"), &json!(true)));
+  assert_eq!((&carded["cardService"], &carded["roleFiles"]), (&json!("arena"), &json!(true)));
   assert_eq!(carded["model"], json!("changed-model"));
 
   let (status, _) = send(

@@ -1,8 +1,8 @@
 //! A turn on a road other than Claude Code's own session (docs/cache-fallback.md, 「A supervisor's turn on a road
 //! other than Claude Code」): the chat's turn across rooms on the supervisor's one road, and a job's, a
 //! conversation's and a gate's turn on theirs — Codex on the agent's kept thread, OpenRouter and DeepSeek
-//! through bmo-tui, a registered model's Claude Code on the gateway — as that provider's program standing in
-//! the agent's pane. A road that does not answer fails its turn; no other road stands in.
+//! through the terminal client, a registered model's Claude Code on the gateway — as that provider's program standing
+//! in the agent's pane. A road that does not answer fails its turn; no other road stands in.
 
 use agent_session::GateAsk;
 use harness_providers::Machine;

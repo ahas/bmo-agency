@@ -1105,7 +1105,7 @@ async fn through_litellm_a_runs_long_tools_reach_the_backend_and_each_requests_c
 // A registration naming a card service, whose engine the master stands, beside the pair.
 const CARDED: &str = "
   INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked, added_at, card_service)
-    VALUES ('flash', 'Flash', 'flash-model', 32768, 4096, 0, 0, 3, 'lab-arena');
+    VALUES ('flash', 'Flash', 'flash-model', 32768, 4096, 0, 0, 3, 'arena');
 ";
 
 // The arbiter's master, standing in: it keeps every demand asked and every one given back, answers a
@@ -1156,7 +1156,7 @@ async fn master_standin(held: Vec<Value>) -> (String, Shared) {
         let mut master = shared.lock().unwrap();
         master.asked.push(ask.clone());
         if master.refusing {
-          let said = json!({ "code": "no-place", "error": "The service lab-arena is placed on no node." });
+          let said = json!({ "code": "no-place", "error": "The service arena is placed on no node." });
           return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(said)).into_response();
         }
         let id = 1_000 + master.asked.len() as i64;
@@ -1219,7 +1219,7 @@ async fn master_standin(held: Vec<Value>) -> (String, Shared) {
           json!([])
         };
         axum::Json(json!({
-          "services": [{ "serviceName": "lab-arena", "tier": 2, "nodeNames": ["n3"], "instances": instances }],
+          "services": [{ "serviceName": "arena", "tier": 2, "nodeNames": ["n3"], "instances": instances }],
           "nodes": [{ "name": "n3", "link": { "state": "connected" }, "cards": [{ "queue": [] }] }],
         }))
       }),
@@ -1283,7 +1283,7 @@ async fn a_request_on_an_engine_standing_nowhere_waits_for_one_shared_card_and_g
 
   let asked = master.lock().unwrap().asked.clone();
   assert_eq!(asked.len(), 1, "the two requests did not share one demand: {asked:?}");
-  assert_eq!(asked[0], json!({ "serviceName": "lab-arena", "count": 1, "ref": "agency gateway door" }));
+  assert_eq!(asked[0], json!({ "serviceName": "arena", "count": 1, "ref": "agency gateway door" }));
   until("the demand to be given back", || master.lock().unwrap().given_back == [1_001]).await;
 
   // The engine stays on its card, so the next request finds it served and asks nothing.
@@ -1309,7 +1309,7 @@ async fn a_request_for_vectors_on_an_engine_standing_nowhere_asks_its_card_as_a_
   let sent: Value = serde_json::from_str(&body).unwrap();
   assert_eq!(sent["path"], "/v1/embeddings");
   let asked = master.lock().unwrap().asked.clone();
-  assert_eq!(asked, [json!({ "serviceName": "lab-arena", "count": 1, "ref": "agency gateway door" })]);
+  assert_eq!(asked, [json!({ "serviceName": "arena", "count": 1, "ref": "agency gateway door" })]);
   until("the demand to be given back", || master.lock().unwrap().given_back == [1_001]).await;
 }
 
@@ -1332,7 +1332,7 @@ async fn an_unknown_model_is_400_without_a_demand_and_a_refused_demand_is_503_wi
 
   master.lock().unwrap().refusing = true;
   let (status, _, body) = world.ask("POST", "/v1/chat/completions", &[], r#"{"model":"flash"}"#).await;
-  assert_eq!((status, body.as_str()), (503, "The service lab-arena is placed on no node."));
+  assert_eq!((status, body.as_str()), (503, "The service arena is placed on no node."));
   assert_eq!(master.lock().unwrap().asked.len(), 1);
 
   // The refusal ends the line: the next request asks anew.
@@ -1358,8 +1358,8 @@ async fn a_request_whose_caller_leaves_while_its_card_waits_gives_the_demand_bac
 #[tokio::test(flavor = "multi_thread")]
 async fn the_demands_a_launcher_left_under_the_doors_reference_are_given_back_as_it_starts() {
   let left = vec![
-    json!({ "id": 7, "serviceName": "lab-arena", "ref": "agency gateway door" }),
-    json!({ "id": 8, "serviceName": "lab-arena", "ref": "agency translator" }),
+    json!({ "id": 7, "serviceName": "arena", "ref": "agency gateway door" }),
+    json!({ "id": 8, "serviceName": "arena", "ref": "agency translator" }),
   ];
   let (_world, master) = carded_world(left).await;
 

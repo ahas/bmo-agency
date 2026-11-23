@@ -35,10 +35,10 @@ about a message is not agency's: the judgement records belong to the units that 
   spend without waiting for the end.
   - **Its tool calls are filed as a stream's are.** A `progress` line saying a call began is filed
     beside itself as a `tool` line under the tool's name, its text the summary of the call's arguments
-    the record keeps — redacted and cut by bmo-tui, the line marked cut upstream where the record says
+    the record keeps — redacted and cut by the terminal client, the line marked cut upstream where the record says
     `inputCut` — and one saying the call settled as the `tool-result` line that answers it, succeeded
     or failed, its text saying how many milliseconds the call ran and how many bytes its result held
-    where the record gives `resultBytes`. A settling line carrying `bashEditDiff` — bmo-tui's record
+    where the record gives `resultBytes`. A settling line carrying `bashEditDiff` — the terminal client's record
     of the files a shell call changed — has it kept as the result line's
     `metadata.toolUseResult.bashEditDiff`, the place a Claude Code tool result's `toolUseResult`
     stands.
@@ -49,7 +49,7 @@ about a message is not agency's: the judgement records belong to the units that 
     still open, the two sharing a reference made of the turn's id and the call's place in the turn, and
     a call reported as asked and then as under way is one call.
 - **A pane program's error stream is filed too.** Where the program's command keeps its error stream in
-  its place, as bmo-tui's does (`docs/agent-control.md`, 「What a resident turn reads」),
+  its place, as the terminal client's does (`docs/agent-control.md`, 「What a resident turn reads」),
   the lines the file gained since the last look are written into the run log of the turn that just
   ended, each a note, at most the number `policy/resident-turn.toml` names a turn; and where a chat
   session's server did not attach, one note naming the server and why.

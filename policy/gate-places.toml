@@ -2,7 +2,7 @@
 # program a gate's ask composes (docs/agent-control.md, 「A gate's places」): how many may stand and how
 # long its session may grow. Counts alone bound them; no clock ends a place.
 
-# The most gate places standing at once, every program's together. A place is one bmo-tui with its dsh,
+# The most gate places standing at once, every program's together. A place is one terminal client with its dsh,
 # some 170 MB between them, so eight hold under 1.5 GB; it is also the most gate turns on such a road that
 # run at once.
 places = 8

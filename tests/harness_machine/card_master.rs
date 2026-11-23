@@ -35,9 +35,9 @@ fn the_token_is_the_settings_file_s_card_master_token() {
 
 fn picture(cards: serde_json::Value) -> serde_json::Value {
   json!({
-    "tiers": [{ "name": "bench", "tier": 1 }, { "name": "lab-arena", "tier": 2 }],
+    "tiers": [{ "name": "bench", "tier": 1 }, { "name": "arena", "tier": 2 }],
     "services": [{
-      "serviceName": "lab-arena", "tier": 2, "nodeNames": ["n3", "n4"],
+      "serviceName": "arena", "tier": 2, "nodeNames": ["n3", "n4"],
       "instances": [
         { "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions", "keyFile": "/keys/n3.key", "demands": 1 },
         { "nodeName": "n4", "demands": 0 },
@@ -52,7 +52,7 @@ fn picture(cards: serde_json::Value) -> serde_json::Value {
 
 #[test]
 fn a_service_is_open_while_a_node_of_its_placement_is_held_by_no_claim_and_no_lower_tier() {
-  let open = standing_in(&picture(json!({ "queue": [{ "serviceName": "lab-arena" }] })), "lab-arena").unwrap();
+  let open = standing_in(&picture(json!({ "queue": [{ "serviceName": "arena" }] })), "arena").unwrap();
 
   assert!(open.open);
   assert_eq!(open.instances.len(), 1, "an instance naming no address is no instance callers reach");
@@ -64,10 +64,10 @@ fn a_service_is_open_while_a_node_of_its_placement_is_held_by_no_claim_and_no_lo
     json!({ "turn": { "serviceName": "bench" }, "queue": [] }),
     json!({ "queue": [{ "serviceName": "bench" }] }),
   ] {
-    assert!(!standing_in(&picture(held.clone()), "lab-arena").unwrap().open, "{held}");
+    assert!(!standing_in(&picture(held.clone()), "arena").unwrap().open, "{held}");
   }
 
-  assert_eq!(standing_in(&picture(json!({})), "lab-arena-coder"), None);
+  assert_eq!(standing_in(&picture(json!({})), "arena-coder"), None);
 }
 
 #[test]
@@ -76,16 +76,16 @@ fn a_demand_holds_its_card_only_while_granted_and_untaken() {
   let card = json!([{ "nodeName": "n3", "address": "http://[::1]:9/v1/chat/completions" }]);
 
   assert_eq!(
-    read(json!({ "id": 1, "serviceName": "lab-arena", "cards": card, "state": "granted" }))
+    read(json!({ "id": 1, "serviceName": "arena", "cards": card, "state": "granted" }))
       .card()
       .map(|c| c.node_name.as_str()),
     Some("n3")
   );
 
   let taken =
-    read(json!({ "id": 1, "serviceName": "lab-arena", "cards": card, "state": "granted", "taken": "bench" }));
+    read(json!({ "id": 1, "serviceName": "arena", "cards": card, "state": "granted", "taken": "bench" }));
 
   assert!(taken.card().is_none());
   assert_eq!(taken.waiting_on().as_deref(), Some("The card was taken by bench."));
-  assert!(read(json!({ "id": 1, "serviceName": "lab-arena", "state": "lent" })).lent());
+  assert!(read(json!({ "id": 1, "serviceName": "arena", "state": "lent" })).lent());
 }

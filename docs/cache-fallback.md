@@ -803,7 +803,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   different roads are not merged. Agency reads those figures off each road — Codex's JSON events,
   OpenRouter's stream usage read through a loopback tab on a headless run, Claude's own answer — and
   hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream
-  carried no usage gets no invented figures, and a turn in bmo-tui's dsh session reports none: its record
+  carried no usage gets no invented figures, and a turn in the terminal client's dsh session reports none: its record
   carries the answer's words and model alone.
 - **Each window and run belongs to a slot:** the provider that reported it, and the account too where
   that provider holds logins, built by one constructor so no writer decides for itself whether an account
@@ -812,7 +812,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   provider holds logins, the login the provider walks to now.
 - **Sessions follow the same principle:** Claude Code sessions and Codex threads are shown with their own
   mode and model, a Claude session with the account it was opened under. A dsh session stands in
-  bmo-tui's pane across its turns, but agency records no id for it, so an OpenRouter answer offers no
+  the terminal client's pane across its turns, but agency records no id for it, so an OpenRouter answer offers no
   session back. A session is offered back only to a run on the account that opened it.
 - **Cache lifetime and keepalive follow the provider's policy.** A ping goes only into a supervisor's
   program (`docs/keepalive-schedule.md`); a role's session is judged by the same lifetime when it is
@@ -847,7 +847,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   chat line's system prompt, tools and MCP configuration:
   - **Codex** on the supervisor's kept thread for that model and effort, opened afresh where Codex no longer
     holds it, and the thread that answered kept for the next turn;
-  - **OpenRouter** through bmo-tui, which keeps one dsh session on the Agent Client Protocol, the turn put
+  - **OpenRouter** through the terminal client, which keeps one dsh session on the Agent Client Protocol, the turn put
     into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
     rides in the program's environment, and the agency's MCP configuration stands in the overlay as the
     session's servers, rows the overlay inserts; a server that does not attach is told to the session as
@@ -855,7 +855,7 @@ When a demotion first catches — when a healthy session first drops — two thi
     drops by their names (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); the
     system prompt's tools paragraph names dsh's own tools; no upstream is pinned, since agency keeps no
     record of a warmed one;
-  - **DeepSeek** through bmo-tui in the same way, the overlay's route DeepSeek's own API on the model the
+  - **DeepSeek** through the terminal client in the same way, the overlay's route DeepSeek's own API on the model the
     road names, with the road's key in the program's environment (「The DeepSeek road is a member of the
     gateway」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
@@ -877,7 +877,7 @@ the same. "None" means that program has no such concept, with the reason.
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
 | Ping time limit | None: a ping goes until it answers or fails on its own | Same | Same | No ping |
 | Keepalive switch · rest | Warms a supervisor only where its switch for the provider is on, pauses during its own account's rest | Obeys the switch but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |
-| Session continuation | Resumes a supervisor's session and a role's kept session | Resumes a thread per run scope, model and effort | The session stands in bmo-tui's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
+| Session continuation | Resumes a supervisor's session and a role's kept session | Resumes a thread per run scope, model and effort | The session stands in the terminal client's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
 | Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | dsh compacts its own session; agency folds nothing | Not applicable |
 | effort · thinking | The effort set per line | Passes effort, thinking-off is low | The entry's level is the session's reasoning effort, and thinking off passes off | Thinking on or off; a run with tools sends medium or low |
 | System prompt | Replaces the CLI instruction with one whole file opening on the platform's harness, worker its rules after it | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | Goes in as one part of the dsh prompt, no replacement | A request with no tools carries its system prompt in the request; a run with tools as on Claude Code |

@@ -279,14 +279,14 @@ fn a_member_naming_a_registration_refuses_the_table() {
 #[test]
 fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_instances_each_by_its_node() {
   let carded = Registration {
-    card_service: Some("lab-arena".into()),
+    card_service: Some("arena".into()),
     role_files: true,
     ..registration("flash", vec![])
   };
   let picture = json!({
     "services": [{
-      "serviceName": "lab-arena", "nodeNames": ["n3", "n4"],
-      "instances": [{ "nodeName": "n3", "address": "http://127.0.0.1:18021/v1/chat/completions", "keyFile": "/keys/lab-arena.key" }],
+      "serviceName": "arena", "nodeNames": ["n3", "n4"],
+      "instances": [{ "nodeName": "n3", "address": "http://127.0.0.1:18021/v1/chat/completions", "keyFile": "/keys/arena.key" }],
     }],
     "nodes": [],
   });
@@ -322,7 +322,7 @@ fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_insta
       .unwrap()
       .contains(&"unclocked.handler".into())
   );
-  assert_eq!(table.key_files.values().next().map(String::as_str), Some("/keys/lab-arena.key"));
+  assert_eq!(table.key_files.values().next().map(String::as_str), Some("/keys/arena.key"));
 
   for nothing in [None, Some(json!({ "services": [] }))] {
     let laid = laid_instances(vec![carded.clone()], nothing.as_ref());

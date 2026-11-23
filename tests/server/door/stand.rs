@@ -27,7 +27,7 @@ fn program(identity: &str, cwd: &std::path::Path) -> Program {
   Program {
     identity: identity.to_owned(),
     command: ResidentCommand {
-      args: vec!["bmo-tui".into(), identity.into()],
+      args: vec!["term-client".into(), identity.into()],
       cwd: cwd.to_path_buf(),
       env: Default::default(),
       login_file: None,

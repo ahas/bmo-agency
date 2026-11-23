@@ -558,12 +558,12 @@ describe("waiting for a run in a pane", () => {
 describe("stopping a run in a pane", () => {
   test("the run is asked, and a run that ends itself is not closed", async () => {
     const herdr = herdrLike("asked");
-    const opened = await openPane(run("bmo-work-9-build-0-1"), { socket: herdr.path });
+    const opened = await openPane(run("bmo-run-9-build-0-1"), { socket: herdr.path });
 
     // It goes as soon as it is asked, which is what a run that commits and reports looks like.
     setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 100);
 
-    expect(await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
+    expect(await stopRun("bmo-run-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
 
     const asked = herdr.asked.filter((one) => one.method === "agent.prompt");
 
@@ -575,11 +575,11 @@ describe("stopping a run in a pane", () => {
 
   test("a run that takes its time over its ending is waited on, and its pane is never taken away", async () => {
     const herdr = herdrLike("slow");
-    const opened = await openPane(run("bmo-work-9-build-0-1", { home: home() }), { socket: herdr.path });
+    const opened = await openPane(run("bmo-run-9-build-0-1", { home: home() }), { socket: herdr.path });
 
     setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 600);
 
-    expect(await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
+    expect(await stopRun("bmo-run-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
     expect(herdr.asked.filter((one) => one.method === "agent.prompt")).toHaveLength(1);
     expect(herdr.asked.some((one) => one.method === "pane.close" || one.method === "workspace.close")).toBe(false);
   });
@@ -587,7 +587,7 @@ describe("stopping a run in a pane", () => {
   test("a name herdr is not holding is nothing to stop", async () => {
     const herdr = herdrLike("nothing");
 
-    expect(await stopRun("bmo-work-9-build-0-1", { socket: herdr.path })).toBe("absent");
+    expect(await stopRun("bmo-run-9-build-0-1", { socket: herdr.path })).toBe("absent");
     expect(herdr.asked.map((one) => one.method)).toEqual(["session.snapshot"]);
   });
 
@@ -605,10 +605,10 @@ describe("stopping a run that is waiting on a person", () => {
   test("it is not waited for, because it was never told anything", async () => {
     const herdr = herdrLike("blocked-stop", { promptBlocked: true });
 
-    await openPane(run("bmo-work-9-build-0-1"), { socket: herdr.path });
+    await openPane(run("bmo-run-9-build-0-1"), { socket: herdr.path });
 
     const began = Bun.nanoseconds();
-    const how = await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path });
+    const how = await stopRun("bmo-run-9-build-0-1", { everyMs: 50, socket: herdr.path });
     const held = (Bun.nanoseconds() - began) / 1e6;
 
     expect(how).toBe("closed");

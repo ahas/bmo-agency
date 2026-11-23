@@ -35,9 +35,6 @@ export async function executionCancelled(
 }
 
 export function executionRoot(owner: string | null): string {
-  // Work-task unit names end in the retry number; the task key includes its revision.
-  const cowork = owner && /^(bmo-work-.+)-\d+$/.exec(owner);
-  if (cowork) return cowork[1]!;
   return owner && /^bmo-task-/.test(owner) ? owner : `bmo-root-${randomUUID()}`;
 }
 

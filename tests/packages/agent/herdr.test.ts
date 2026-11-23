@@ -171,7 +171,7 @@ describe("which runs herdr still holds", () => {
     panes: [
       { pane_id: "w1:p1", workspace_id: "w1", label: "mother worker" },
       { pane_id: "w1:p2", workspace_id: "w1", label: "#322 herdr screen", tokens: { run: "bmo-task-1789" } },
-      { pane_id: "w2:p1", workspace_id: "w2", tokens: { run: "bmo-work-308-stage-1" } },
+      { pane_id: "w2:p1", workspace_id: "w2", tokens: { run: "bmo-run-308-stage-1" } },
     ],
   };
 
@@ -184,10 +184,10 @@ describe("which runs herdr still holds", () => {
   });
 
   test("asking about several answers about several, and never invents one", () => {
-    const alive = liveRuns(snapshot, ["bmo-task-1789", "bmo-work-308-stage-1", "bmo-gone"]);
+    const alive = liveRuns(snapshot, ["bmo-task-1789", "bmo-run-308-stage-1", "bmo-gone"]);
 
     expect(alive.has("bmo-task-1789")).toBe(true);
-    expect(alive.has("bmo-work-308-stage-1")).toBe(true);
+    expect(alive.has("bmo-run-308-stage-1")).toBe(true);
     expect(alive.has("bmo-gone")).toBe(false);
     expect(alive.size).toBe(2);
   });

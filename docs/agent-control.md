@@ -339,12 +339,12 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     names there and never through one chosen by the provider's name.
 - **Whether it stands with nothing put in.** A surface whose program can be stood from a supervisor's
   own line alone, before any turn has asked for it, says how: the command, with whatever a person's
-  first turn at the program needs laid down beside it in the place. The inbox surface does — bmo-tui
+  first turn at the program needs laid down beside it in the place. The inbox surface does — the terminal client
   takes a typed line into the same dsh session it keeps, so no run need be laid down — and Codex's
   surface stands only with a turn. The standing pass reads it for a supervisor alone; no role's program
   stands before its run (「Nothing of a role stands between runs」).
 - **Whether a standing program is its own,** read off the command the program was started on: Claude
-  Code's and Codex's by the executable, bmo-tui's by the program's file name and the provider its
+  Code's and Codex's by the executable, the terminal client's by the program's file name and the provider its
   model choice names, `[provider, model]`, so a program started from another tree, wherever that tree
   keeps the binary, is still its own. A supervisor's place holding a program no surface of its current
   provider owns is one the next turn stands again on its own provider's program.
@@ -354,7 +354,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   - Any difference — provider, model, effort, login, the system-prompt file, the working directory
     — means the program is ended between turns and started again in the same pane on the new
     command. The pane stays.
-  - **Between turns is read off the program's own record** where it keeps one, as bmo-tui's
+  - **Between turns is read off the program's own record** where it keeps one, as the terminal client's
     `loop.jsonl` does: while its last turn — the bot's or one a person typed — has a start and no end,
     the program is not ended. The turn that found the command changed goes into it as it stands, waiting
     in its inbox behind the working one, and the next turn's stand, the working turn over, replaces it
@@ -665,10 +665,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     its `web` profile serves a browser, and its `acp` profile speaks the Agent Client Protocol. The
     `tui` profile its help names in an example ships in no release: booting it ends with
     `dsh: profile "tui" does not exist` on the pinned version and on the newest (measured).
-  - **The resident program is bmo-tui.** It stands in the pane, starts the harness the provider
+  - **The resident program is the terminal client.** It stands in the pane, starts the harness the provider
     declares at `--profile acp` with an overlay agency composed, opens one persistent session and
     keeps its screen open for the session's life. dsh owns the agent loop, the tools, the model
-    calls, compaction and the session; bmo-tui sends prompts and shows what comes back, and keeps no
+    calls, compaction and the session; the terminal client sends prompts and shows what comes back, and keeps no
     agent loop of its own.
   - **One session across turns.** A turn the bot puts in and a line a person types go into the same
     ACP session, so the conversation carries across them. The model and effort are chosen on the
@@ -698,7 +698,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     standing session's client that cannot open fails its own activation, which dsh writes to its error
     stream with the cause and goes on without it; a headless run's is let go in silence. Either way the
     session stands: dsh ends a session whole on a server handed to it over the protocol that does not
-    open, and a tool host namespace with nothing placed for the session answers not found. bmo-tui hands
+    open, and a tool host namespace with nothing placed for the session answers not found. The terminal client hands
     the session none of its own, so no server stands twice. A server's bearer and every variable it is
     given are read from dsh's own environment as the overlay loads, never written into the overlay's
     file: under the variable's own name where the program's environment holds the same value, and
@@ -721,7 +721,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     variable the shell lacks back under its own name in every shell dsh starts.
   - **What dsh says on its error stream is kept.** The program's command names a file in its place,
     `stderr.log`, in the variable the pane head reads, and the head points the program's error stream
-    there as it starts it, so neither bmo-tui's own last words nor what dsh says of a client that did not
+    there as it starts it, so neither the terminal client's own last words nor what dsh says of a client that did not
     activate draws over the screen or is lost. After each turn the lines the file gained since the last
     look are written into that turn's run log, a few hundred at most (`policy/resident-turn.toml`).
   - **A chat session hears which of its servers is absent.** After the first turn a chat program stands
@@ -751,9 +751,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     turn. No key, no token and none of the rest of the bot's environment go into it. The program's own
     command carries none of those turn variables, so its identity is the same from one turn to the
     next and it is started again only when the agent's command really changes.
-  - **What a person types.** A line typed at bmo-tui's screen and ended with Enter is a prompt into
-    the same session. The record marks it as typed, under the name bmo-tui gives a typed line.
-  - **The record.** bmo-tui appends to `loop.jsonl` in the agent's place as a turn starts and ends:
+  - **What a person types.** A line typed at the terminal client's screen and ended with Enter is a prompt into
+    the same session. The record marks it as typed, under the name the terminal client gives a typed line.
+  - **The record.** The terminal client appends to `loop.jsonl` in the agent's place as a turn starts and ends:
     the start with the turn's id, name and title, its moment and whether a person typed it, then the
     answer with its model, or an interruption, or a failure with its sentence, and the end. The bot
     reads its turn out of the record by the id it put it in under, from its start line to the next
@@ -761,7 +761,7 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   - **One turn at a time.** One prompt stands in the session at a time, and a line typed while a turn
     works is not taken into that turn; the bot's next turn waits in the inbox until the working turn
     ends.
-  - **The interrupt.** Escape at bmo-tui's screen cancels the session's working turn; the turn is
+  - **The interrupt.** Escape at the terminal client's screen cancels the session's working turn; the turn is
     recorded as interrupted. A key's own escape sequence — an arrow, a function key — is no
     interrupt.
   - **On the screen** a turn opens with a line naming it and when it started, dsh's words and
@@ -1987,8 +1987,8 @@ four-provider byte test does not establish provider support for an otherwise uns
 
 | Execution family | Claude Code | Codex | OpenRouter | Registry, no tools |
 | --- | --- | --- | --- | --- |
-| Supervisor turns: chat, keepalive, fold | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | bmo-tui fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model, on the supervisor's scope's session |
-| A role's run and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
+| Supervisor turns: chat, keepalive, fold | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | Terminal client fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model, on the supervisor's scope's session |
+| A role's run and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in the terminal client's pane | Pane fixture; stateless |
 | Search/browse | Pane fixture | Unsupported by harness | Unsupported by harness | Unsupported by harness |
 | A role's session compaction | Pane fixture | Existing provider-specific compaction only | Existing provider-specific compaction only | Existing provider-specific compaction only |
 | Native children | Request/start/notification reducer fixtures; external format and Claude Workflow branch coverage incomplete | Receiver-state reducer fixtures; installed CLI format coverage incomplete | Native tools disabled by the supervisor overlay; inapplicable | Native tools disabled by the supervisor overlay; inapplicable |
@@ -3216,7 +3216,7 @@ enters the prefix.
   beside them. A program's environment is fixed when it starts, so what belongs to one run is not in it — the run's name, the job runner's marker, whether
   the run is a middle step of a work order, and every variable under the turn prefix `BMO_TURN_`, where
   a launch names what else its run is about (the chat names its room and road there,
-  `chat-mcp.md`). Every resident surface — Claude's, Codex's and bmo-tui's — writes those into the
+  `chat-mcp.md`). Every resident surface — Claude's, Codex's and the terminal client's — writes those into the
   agent's place as it puts the turn in; a surface that runs a fresh program a turn hands them on with
   the turn as well, while the program that keeps one dsh session across turns reads them from the
   place. Everything the program runs — its hooks, its status line, the guards in front of a job's
@@ -3932,7 +3932,7 @@ Physical launches receive fresh UUID tokens. Native identifiers are archived as 
 the parent/provider namespace for record IDs. Model and session associations travel separately from command
 arguments; stateless harnesses keep a null session.
 
-Co-work retry units map to their revisioned task key without the trailing retry number; their coordinator unit remains the parent association. Maintenance turns receive separate logical roots. A fallback request carries one root through provider changes and lost-session retries. Counter initialization preserves the highest existing attempt when upgrading older records. Identity fields cannot be reassigned by lifecycle updates.
+A task unit is its own root; its coordinator unit remains the parent association. Maintenance turns receive separate logical roots. A fallback request carries one root through provider changes and lost-session retries. Counter initialization preserves the highest existing attempt when upgrading older records. Identity fields cannot be reassigned by lifecycle updates.
 
 Launch adapters require an installed archive before opening included work. Refusals before prompt delivery are recorded as launch errors. Structured supervisors reject expired grants and unreadable policy archives, publishing a launch outcome without starting a child. Interactive eligibility is checked again immediately before prompt delivery; uncertain delivery remains unknown.
 

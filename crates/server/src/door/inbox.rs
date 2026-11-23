@@ -1,5 +1,5 @@
 //! One turn of a pane program that carries its own turns (docs/agent-control.md, 「What a resident turn
-//! reads」): bmo-tui stood on its command, the turn put into its inbox, and its record read until that turn
+//! reads」): the terminal client stood on its command, the turn put into its inbox, and its record read until that turn
 //! has ended. The pane program keeps one dsh session across turns; the turn carries only its own variables,
 //! the key is the program's, read from its own environment, and nothing else of the caller's goes into the
 //! inbox.

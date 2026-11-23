@@ -1,4 +1,4 @@
-//! A pane program's tool calls (docs/run-records.md, 「Agent log」): bmo-tui's record says a call began by a
+//! A pane program's tool calls (docs/run-records.md, 「Agent log」): the terminal client's record says a call began by a
 //! `progress` line naming the tool and the state dsh gave it, and that it settled by one naming the state it
 //! settled in. Each call is filed as a `tool` line under the tool's name, carrying the summary of its
 //! arguments the record keeps, and a `tool-result` line saying how it ended, how long it took and how large
@@ -11,7 +11,7 @@ use std::collections::VecDeque;
 use super::json::Json;
 use super::lines::Line;
 
-// The name bmo-tui writes where an update names no tool, as a call's settling does.
+// The name the terminal client writes where an update names no tool, as a call's settling does.
 const UNNAMED: &str = "tool";
 
 // The states a call stands in before it settles, in dsh's words.

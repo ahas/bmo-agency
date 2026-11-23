@@ -1,7 +1,7 @@
 //! The program a worker stands with nothing put in (docs/agent-control.md, 「A worker standing with
 //! nothing to do」): Claude Code on the worker's own line, on its kept session or a fresh one; or, for a
 //! worker pinned to a provider whose surface stands with nothing put in, that provider's program — the
-//! registry's Claude Code on the gateway, or bmo-tui on a dsh session for OpenRouter and DeepSeek.
+//! registry's Claude Code on the gateway, or the terminal client on a dsh session for OpenRouter and DeepSeek.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -926,7 +926,7 @@ pub(crate) async fn worker_sampling(
   Ok((!sampling.is_empty()).then_some(sampling))
 }
 
-/// The pane program for a worker pinned to a provider that stands one with nothing put in: bmo-tui on the
+/// The pane program for a worker pinned to a provider that stands one with nothing put in: the terminal client on the
 /// worker's place and dsh session, on the model its pin names where it names one, its screen kept open
 /// across turns and a line typed at it sent into the same session.
 #[allow(clippy::too_many_arguments)]

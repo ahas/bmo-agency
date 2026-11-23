@@ -3,11 +3,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 #[test]
-fn a_root_is_a_co_work_unit_s_name_without_its_retry_or_a_task_s_own_name() {
-  assert_eq!(execution_root("bmo-work-17-plan-2"), "bmo-work-17-plan");
+fn a_root_is_a_task_s_own_name_or_one_of_its_own() {
   assert_eq!(execution_root("bmo-task-99"), "bmo-task-99");
   assert!(execution_root("bmo-word-w-3").starts_with("bmo-root-"));
-  assert!(execution_root("bmo-work-x").starts_with("bmo-root-"));
+  assert!(execution_root("bmo-run-17-plan-2").starts_with("bmo-root-"));
 }
 
 #[test]
