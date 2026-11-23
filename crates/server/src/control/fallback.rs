@@ -415,7 +415,16 @@ async fn own_change(
         Some(_) => return Err(bad(CONTROL_WORDS.accounts.switch.as_str()).with_field("lendable")),
       };
 
+      // Whether an account is lent, whoever owns it, is the administrator's alone to set (docs/supply.md,
+      // 「The lendable accounts」).
       if let Some(lendable) = lendable {
+        if acting != Acting::Platform {
+          return Err(
+            Refused::new(axum::http::StatusCode::FORBIDDEN, CONTROL_WORDS.accounts.lend_owner.clone())
+              .with_code("forbidden"),
+          );
+        }
+
         changes::set_lendable(db, id, lendable).await?;
       }
 

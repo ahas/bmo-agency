@@ -244,7 +244,7 @@ pub async fn account_of(ground: &Ground, agent: &str) -> Result<Option<i64>, Ref
 pub fn carrying(chosen: Option<&Chosen>) -> Carrying {
   match chosen.map(|chosen| (&chosen.source, chosen.account)) {
     Some((Source::Personal | Source::Owned, Some(account))) => Carrying::Own(account),
-    Some((Source::Platform { .. }, Some(_))) => Carrying::Lent,
+    Some((Source::Platform { .. }, Some(account))) => Carrying::Lent(account),
     Some((Source::Organisation { unit, .. }, Some(_))) => Carrying::Organisation(*unit),
     _ => Carrying::Platform,
   }
@@ -358,15 +358,20 @@ pub async fn organisation_source(
   Ok(None)
 }
 
-/// Whether the platform's credentials can carry a person's run on the road: for Claude Code, an open
-/// lendable account; on every other road, a model no person owns.
-pub async fn platform_open(ground: &Ground, provider: &str, model: &str) -> Result<bool, Refusal> {
+/// Whether the platform's credentials can carry `account`'s run on the road: for Claude Code, an open
+/// lendable account of someone else's; on every other road, a model no person owns.
+pub async fn platform_open(
+  ground: &Ground,
+  account: i64,
+  provider: &str,
+  model: &str,
+) -> Result<bool, Refusal> {
   if provider != CLAUDE_CODE {
     return Ok(owner_of(ground, provider, model).await?.is_none());
   }
 
   Ok(
-    !walk_for_user(Judging::of(ground), Carrying::Lent, Some(model))
+    !walk_for_user(Judging::of(ground), Carrying::Lent(account), Some(model))
       .await
       .map_err(|refused| Refusal::failed(refused.error))?
       .is_empty(),
@@ -484,7 +489,7 @@ pub async fn next_source(
       }
     }
 
-    if !platform_open(ground, &chosen.provider, &chosen.model).await? {
+    if !platform_open(ground, account, &chosen.provider, &chosen.model).await? {
       let reason = if chosen.provider == CLAUDE_CODE {
         fill_marks(&SUPPLY.words.no_lendable, &[("provider", &chosen.provider)])
       } else {

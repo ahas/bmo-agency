@@ -258,10 +258,11 @@ When a demotion first catches — when a healthy session first drops — two thi
   the deployment, and it is what every run on the Claude Code road walks.
 - **An account belongs to a person or to the platform:** its `user_id` names the person, or none for the
   platform's. A person's run on personal supply walks that person's own accounts alone, in the list's order; a
-  person's run on a platform source walks the platform's accounts marked lendable alone, and none is marked
-  until the owner marks one (`docs/supply.md`, 「The lendable accounts」). An account of the administrator's is the
-  owner's own personal supply (`docs/supply.md`, 「Owned supply」): a run of no account or of the administrator's
-  walks it with the platform's accounts, lent or not, and it is never lent.
+  person's run on a platform source walks the accounts marked lendable alone, whoever owns them, save that
+  person's own, and none is marked until the administrator marks one (`docs/supply.md`, 「The lendable
+  accounts」). An account of the administrator's is the owner's own personal supply (`docs/supply.md`, 「Owned
+  supply」): a run of no account or of the administrator's walks it with the platform's accounts, lent or not,
+  and it goes out for another person's run only once it is marked lendable.
 - **A person's account is made by that person alone:** an account added with a signed-in person's headers is
   pinned to that person, and a person reads and changes their own accounts alone (`docs/api.md`, 「Who a caller
   acts for」).

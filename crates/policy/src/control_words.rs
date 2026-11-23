@@ -119,7 +119,7 @@ pub struct AccountsWords {
   pub base_prompt: String,
   pub secret_needed: String,
   pub secret_name: String,
-  pub not_lendable: String,
+  pub lend_owner: String,
   pub not_unit_owned: String,
   pub unit_owner: String,
   pub unit_named: String,

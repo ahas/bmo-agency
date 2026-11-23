@@ -15,8 +15,9 @@ platform pays for takes it.
 - **Organisation supply:** the credential of an organisation unit on the person's path, the keys and Claude
   accounts the unit registers (「Organisation supply」), paid by the unit to the provider and counted as
   organisation credits by the consumer. Its source word is `organisation`.
-- **A platform source:** the platform's credential, its Claude logins lent for the purpose and the gateway
-  members and registrations no person and no organisation owns (「Owned supply」), paid as the consumer answers:
+- **A platform source:** the platform's credential, the Claude logins marked lendable whoever owns them
+  (「The lendable accounts」) and the gateway members and registrations no person and no organisation owns
+  (「Owned supply」), paid as the consumer answers:
   the plan's included supply, an organisation's credits or the person's own credits are each a platform source
   of the consumer's naming. Every platform source goes out on the same credentials, so moving between them
   changes only who pays.
@@ -115,7 +116,9 @@ platform pays for takes it.
 - **Only the people of its path take it.** A run of a person whose chain leaves organisation supply open takes
   the supply of the nearest unit of their path that holds an open credential for the road's provider: a Claude
   account of the unit's that can answer now on Claude Code, an open key of the unit's on a gateway road; the
-  registry's provider has none. Nobody else's run goes out on it, the platform's own runs among them.
+  registry's provider has none. Nobody else's run goes out on it as organisation supply, the platform's own
+  runs among them; a Claude account of the unit's that the administrator marked lendable goes out for others
+  as a platform source (「The lendable accounts」).
 - **It is reserved through the hook as a platform source is,** under the source `organisation`, the
   reservation naming the unit, so the consumer counts its cost and the gateway lets the person's call key reach
   that unit's members while it is open (`docs/own-llm.md`, 「Personal members」). A Claude account of the unit's
@@ -130,11 +133,23 @@ platform pays for takes it.
 
 ## The lendable accounts
 
-- **A platform Claude account goes out for another person's run only where it is marked lendable.** None is
-  marked by default; the owner marks one. An account of a person, the administrator's among them, is never
-  lent, and marking one lendable is refused.
-- **An `api-key` account of the platform is never sent to a person's node,** as an endpoint account is not: its
-  key stays on this machine.
+- **A Claude account goes out for another person's run only where it is marked lendable,** and the mark is
+  the one switch: an account of no one's, a unit's or a person's own, the administrator's among them, is lent
+  once it is marked and never otherwise. None is marked by default, and only the administrator marks or
+  unmarks one; a person's call naming it is refused, their own account's mark among them.
+- **Lending an account sends its login to the borrower's node.** A lent login goes out on the node the
+  borrower's run stands on, its token for the nodes with it (`docs/person-nodes.md`), so marking an account
+  lendable is the administrator's explicit choice to hand that login to whoever the supply order lets take a
+  platform source, and the account's owner is not asked.
+- **Who borrows it is the supply order's:** a lendable account goes out only for a run whose order reaches a
+  platform source and whose reservation the hook accepts (「Choosing a source as a run starts」), as every
+  platform source does.
+- **An account is never lent to its own owner.** The owner's runs carry it as their own supply, never as a
+  platform source, so a platform source of theirs walks the lendable accounts of others alone.
+- **Marking leaves ownership as it stands:** a lent account keeps its owner, and its owner's runs and its
+  unit's people's runs take it as before. Giving an account to a unit, or back, leaves its mark as it is.
+- **A lendable `api-key` account is never sent to a borrower's node,** as an endpoint account is not: its key
+  stays on this machine.
 
 ## Owned supply
 
@@ -145,16 +160,19 @@ platform pays for takes it.
   - a gateway member by the `account` the members file names for it (`docs/own-llm.md`, 「The gateway's
     members」);
   - a registration by its own `account` (`docs/own-llm.md`, 「What a registration holds」).
-- **What no person and no organisation owns is the platform's,** and is the only supply a platform source goes
-  out on. What a unit owns is its organisation supply alone (「Organisation supply」).
+- **What no person and no organisation owns is the platform's,** and a platform source goes out on it and on the
+  Claude accounts marked lendable (「The lendable accounts」) alone. What a unit owns is its organisation supply,
+  and a source of no one else's unless it is marked lendable (「Organisation supply」).
 - **What a person owns is that person's personal supply:** their run takes it as personal supply, and nobody
-  else's run goes out on it, as a platform source or any other. The gateway holds to the same line on every
-  request (`docs/own-llm.md`, 「The gateway」).
+  else's run goes out on it, as a platform source or any other, unless it is a Claude account the
+  administrator marked lendable. The gateway holds to the same line on every request (`docs/own-llm.md`,
+  「The gateway」).
 - **What the administrator owns is the owner's own supply,** and the deployment's own runs go out on it as on
   the platform's: a run of no account or of the administrator's walks the administrator's Claude accounts with
   the platform's, and is sent on the gateway's own key, which reaches the administrator's members and
-  registrations. Another person's run never does, and a deployment run naming a model another person owns is
-  refused by the gateway as any stranger's request is.
+  registrations. Another person's run never does, save on a Claude account of the administrator's marked
+  lendable, and a deployment run naming a model another person owns is refused by the gateway as any
+  stranger's request is.
 - **A model a person owns that refuses their run** is passed over as a refused personal key is (「Running out
   mid-turn」): the run goes out on the next source of its order after personal supply, and no key of theirs is
   marked refused for it, since none was used. A job that finds no source left waits for supply, and on the next

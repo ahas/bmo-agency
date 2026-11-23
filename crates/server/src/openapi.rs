@@ -1361,7 +1361,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("FallbackChange"),
     answers: &[(200, Some("Fallback"), false)],
-    codes: &["forbidden", "unknown-account", "not-lendable"],
+    codes: &["forbidden", "unknown-account"],
   },
   Operation {
     method: "POST",

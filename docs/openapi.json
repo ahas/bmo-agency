@@ -3520,16 +3520,12 @@
           },
           "404": {
             "$ref": "#/components/responses/UnknownAccount"
-          },
-          "422": {
-            "$ref": "#/components/responses/NotLendable"
           }
         },
         "x-codes": [
           "unauthorized",
           "forbidden",
-          "unknown-account",
-          "not-lendable"
+          "unknown-account"
         ],
         "requestBody": {
           "required": true,
@@ -13483,7 +13479,7 @@
           },
           "lendable": {
             "type": "boolean",
-            "description": "Whether the platform's account goes out for another person's run.",
+            "description": "Whether the account goes out for another person's run on a platform source.",
             "default": false
           },
           "login": {
@@ -13702,7 +13698,7 @@
               "boolean",
               "null"
             ],
-            "description": "Whether the platform's account goes out for another person's run; refused for a person's account."
+            "description": "Whether the account goes out for another person's run on a platform source; the administrator's alone."
           },
           "unitId": {
             "type": [
@@ -14652,7 +14648,7 @@
           },
           "lendable": {
             "type": "boolean",
-            "description": "Whether the platform's account goes out for another person's run.",
+            "description": "Whether the account goes out for another person's run on a platform source.",
             "default": false
           }
         },
@@ -20271,16 +20267,6 @@
       },
       "NotFound": {
         "description": "not-found",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            }
-          }
-        }
-      },
-      "NotLendable": {
-        "description": "not-lendable",
         "content": {
           "application/json": {
             "schema": {

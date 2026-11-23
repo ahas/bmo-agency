@@ -1088,7 +1088,7 @@ pub struct FallbackAccount {
   /// The node a person's login stands on, or null.
   #[serde(default)]
   pub node: Option<String>,
-  /// Whether the platform's account goes out for another person's run.
+  /// Whether the account goes out for another person's run on a platform source.
   #[serde(default)]
   pub lendable: bool,
   /// One of `standing`, `ending` or `gone`.
@@ -1411,7 +1411,7 @@ pub struct Account {
   /// The node a person's login stands on, or null.
   #[serde(default)]
   pub node: Option<String>,
-  /// Whether the platform's account goes out for another person's run.
+  /// Whether the account goes out for another person's run on a platform source.
   #[serde(default)]
   pub lendable: bool,
 }
@@ -3106,7 +3106,7 @@ pub struct FallbackChange {
   /// The base prompt the account names, `none` or null to let it go.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub base_prompt: Option<String>,
-  /// Whether the platform's account goes out for another person's run; refused for a person's account.
+  /// Whether the account goes out for another person's run on a platform source; the administrator's alone.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub lendable: Option<bool>,
   /// `update-account`: the organisation unit a platform account is given to, null to give it back; the owner's

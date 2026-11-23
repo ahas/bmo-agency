@@ -3710,7 +3710,7 @@ export interface components {
              */
             node: string | null;
             /**
-             * @description Whether the platform's account goes out for another person's run.
+             * @description Whether the account goes out for another person's run on a platform source.
              * @default false
              */
             lendable: boolean;
@@ -3772,7 +3772,7 @@ export interface components {
             models?: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt the account names, `none` or null to let it go. */
             basePrompt?: string | null;
-            /** @description Whether the platform's account goes out for another person's run; refused for a person's account. */
+            /** @description Whether the account goes out for another person's run on a platform source; the administrator's alone. */
             lendable?: boolean | null;
             /**
              * Format: int64
@@ -4153,7 +4153,7 @@ export interface components {
              */
             node: string | null;
             /**
-             * @description Whether the platform's account goes out for another person's run.
+             * @description Whether the account goes out for another person's run on a platform source.
              * @default false
              */
             lendable: boolean;
@@ -6362,15 +6362,6 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description not-lendable */
-        NotLendable: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
         /** @description not-offered */
         NotOffered: {
             headers: {
@@ -8501,7 +8492,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["UnknownAccount"];
-            422: components["responses"]["NotLendable"];
         };
     };
     startClaudeLogin: {

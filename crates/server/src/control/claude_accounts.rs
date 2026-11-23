@@ -1023,9 +1023,9 @@ pub enum Carrying {
   Platform,
   /// One person's own accounts alone.
   Own(i64),
-  /// The platform's accounts marked lendable alone, which another person's run on a platform source walks
-  /// (docs/supply.md, 「The lendable accounts」).
-  Lent,
+  /// The accounts marked lendable, whoever owns them, save the borrowing person's own, which that person's
+  /// run on a platform source walks (docs/supply.md, 「The lendable accounts」).
+  Lent(i64),
   /// One organisation unit's own accounts alone, which a run of a person under it on organisation supply walks
   /// (docs/supply.md, 「Organisation supply」).
   Organisation(i64),
@@ -1041,7 +1041,7 @@ impl From<Option<i64>> for Carrying {
 }
 
 /// The logins a run may go out on for whom it carries, whether or not they answer now, in the order the
-/// road takes them: one person's own logins alone, the platform's lendable ones, or for no person the
+/// road takes them: one person's own logins alone, the lendable ones of others, or for no person the
 /// platform's own work's.
 pub async fn carried_for_user(
   db: &DatabaseConnection,
@@ -1052,17 +1052,17 @@ pub async fn carried_for_user(
   let carries = |account: &Account| match carrying {
     Carrying::Own(user) => account.user_id == Some(user),
     Carrying::Platform => platform_owned(account, administrator),
-    Carrying::Lent => account.user_id.is_none() && account.unit_id.is_none() && account.lendable,
+    Carrying::Lent(borrower) => account.lendable && account.user_id != Some(borrower),
     Carrying::Organisation(unit) => account.unit_id == Some(unit),
   };
 
   Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
 }
 
-/// The platform's accounts marked lendable, on, in the order the road takes them: what another person's
-/// run on a platform source may go out on (docs/supply.md, 「The lendable accounts」).
-pub async fn lent_accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
-  carried_for_user(db, Carrying::Lent).await
+/// The accounts marked lendable that `borrower`'s run on a platform source may go out on, in the order the
+/// road takes them (docs/supply.md, 「The lendable accounts」).
+pub async fn lent_accounts(db: &DatabaseConnection, borrower: i64) -> Result<Vec<Account>, Refused> {
+  carried_for_user(db, Carrying::Lent(borrower)).await
 }
 
 /// The logins a run on `model` is offered for whom it carries: of the logins it may go out on, those that

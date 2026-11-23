@@ -1,8 +1,8 @@
 //! The Claude accounts a person owns (docs/api.md, 「Who a caller acts for」; docs/supply.md, 「What a person
 //! brings」, 「The lendable accounts」), through the agency's own client: a member's call reads and changes
 //! their own accounts alone, pins what it adds to them and is refused the platform's order and choice; the
-//! platform's calls read the platform's accounts and each person's roads; a platform account is lent where
-//! it is marked, a person's, the administrator's among them, never; and a person's sign-in waits for their
+//! platform's calls read the platform's accounts and each person's roads; an account is lent where the
+//! administrator marks it, whoever owns it, and a person marks none; and a person's sign-in waits for their
 //! node's link.
 
 use std::sync::Arc;
@@ -193,7 +193,8 @@ async fn a_member_changes_their_own_accounts_alone_and_a_platform_account_alone_
     assert_eq!(refused(member.change_fallback(&change(asked)).await), (403, "forbidden".to_owned()));
   }
 
-  // A platform account is lent once marked; a person's own is never, the administrator's among them.
+  // Any account is lent once the administrator marks it, the administrator's own among them; a person may mark
+  // none, their own neither.
   let lent = deployment
     .change_fallback(&change(json!({ "action": "update-account", "account": "main", "lendable": true })))
     .await
@@ -208,33 +209,27 @@ async fn a_member_changes_their_own_accounts_alone_and_a_platform_account_alone_
         ))
         .await
     ),
-    (422, "not-lendable".to_owned())
+    (403, "forbidden".to_owned())
   );
-  assert_eq!(
-    refused(
-      deployment
-        .change_fallback(&change(
-          json!({ "action": "update-account", "account": "owner", "lendable": true })
-        ))
-        .await
-    ),
-    (422, "not-lendable".to_owned())
-  );
+  deployment
+    .change_fallback(&change(json!({ "action": "update-account", "account": "owner", "lendable": true })))
+    .await
+    .unwrap();
 
-  let lendable: Vec<String> = lent_accounts(scratch.db())
+  let lendable: Vec<String> = lent_accounts(scratch.db(), 8)
     .await
     .unwrap()
     .into_iter()
     .map(|account| account.id)
     .collect();
 
-  assert_eq!(lendable, ["main"]);
+  assert_eq!(lendable, ["main", "owner"]);
   assert!(
     accounts(scratch.db())
       .await
       .unwrap()
       .iter()
-      .all(|account| account.id == "main" || !account.lendable)
+      .all(|account| ["main", "owner"].contains(&account.id.as_str()) || !account.lendable)
   );
 }
 

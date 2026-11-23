@@ -1256,12 +1256,12 @@ Anthropic-compatible base URL with a key file and an optional map from the `opus
 family words to the endpoint's model ids — or an Anthropic API key, `api-key`, its secret under the data
 root's `env/`. Each carries `userId`, the person it belongs to or null for the platform's, `unitId`, the
 organisation unit it belongs to where a unit owns it, `node`, the node a
-person's login stands on or null, and `lendable`, whether the platform's account goes out for another person's
-run (`docs/supply.md`, 「The lendable accounts」); `update-account` takes `lendable` for a platform account and
-refuses it 422 `not-lendable` for a person's, the administrator's among them, or a unit's; and takes `unitId`
-from the owner alone, a unit's number giving an account of no person's to that organisation (`docs/supply.md`,
-「Organisation supply」) and lending it no more, null giving it back to the platform, a person's account refused
-422 `persons-own`. It may also name a base prompt that a worker-line run on it opens
+person's login stands on or null, and `lendable`, whether the account goes out for another person's run on a
+platform source (`docs/supply.md`, 「The lendable accounts」); `update-account` takes `lendable` for any account,
+a person's, a unit's or the platform's, from the administrator alone, a person's call naming it refused 403
+`forbidden`; and takes `unitId` from the owner alone, a unit's number giving an account of no person's to that
+organisation (`docs/supply.md`, 「Organisation supply」), null giving it back to the platform, either leaving its
+`lendable` as it is, a person's account refused 422 `persons-own`. It may also name a base prompt that a worker-line run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account

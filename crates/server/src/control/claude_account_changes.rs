@@ -446,7 +446,7 @@ pub async fn set_unit(db: &DatabaseConnection, id: &str, unit: Option<i64>) -> R
 
   run(
     db,
-    "UPDATE claude_accounts SET unit_id = $1, lendable = (lendable AND $1 IS NULL) WHERE id = $2",
+    "UPDATE claude_accounts SET unit_id = $1 WHERE id = $2",
     vec![unit.into(), id.into()],
   )
   .await?;
@@ -454,22 +454,14 @@ pub async fn set_unit(db: &DatabaseConnection, id: &str, unit: Option<i64>) -> R
   Ok(())
 }
 
-/// Whether the platform's account lends itself to another person's run, or the refusal: a person's own
-/// account is never lent (docs/supply.md, 「The lendable accounts」).
+/// Whether an account, whoever owns it, lends itself to another person's run on a platform source: the one
+/// switch, which the caller has already been judged the administrator to set (docs/supply.md, 「The lendable
+/// accounts」).
 pub async fn set_lendable(db: &DatabaseConnection, id: &str, lendable: bool) -> Result<(), Refused> {
   let held = accounts(db).await?;
-  let Some(account) = held.iter().find(|one| one.id == id) else {
-    return Err(Refused::failed(no_such(id)));
-  };
 
-  if account.user_id.is_some() || account.unit_id.is_some() {
-    return Err(
-      Refused::new(
-        axum::http::StatusCode::UNPROCESSABLE_ENTITY,
-        fill_marks(&CONTROL_WORDS.accounts.not_lendable, &[("name", &account.name)]),
-      )
-      .with_code("not-lendable"),
-    );
+  if !held.iter().any(|one| one.id == id) {
+    return Err(Refused::failed(no_such(id)));
   }
 
   run(

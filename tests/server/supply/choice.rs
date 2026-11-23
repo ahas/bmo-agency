@@ -4,11 +4,13 @@
 //! supply, its refusal marking no key of theirs and passing it over to no platform source, and another
 //! person's no platform source; with a hook its order walked past a refused reservation to the first
 //! accepted, the run closed with the policy's sentence where every source refuses, and personal supply alone
-//! where the hook fails or answers what does not read.
+//! where the hook fails or answers what does not read; and a Claude account the administrator marked lendable
+//! lent on a platform source whoever owns it, never to its owner (「The lendable accounts」).
 
-use agency_server::control::claude_accounts::moment_words;
+use agency_server::control::claude_account_changes::set_lendable;
+use agency_server::control::claude_accounts::{Carrying, carried_for_user, moment_words};
 use agency_server::supply::reservations::held;
-use agency_server::supply::{Choice, Chosen, Source, choose, pass_owned, refuse_personal_key};
+use agency_server::supply::{Choice, Chosen, Source, carrying, choose, pass_owned, refuse_personal_key};
 use axum::http::StatusCode;
 use policy::fill_marks;
 use policy::supply::SUPPLY;
@@ -309,5 +311,71 @@ async fn a_hook_that_fails_or_does_not_read_leaves_personal_supply_alone() {
   assert_eq!((chosen.source, chosen.order), (Source::Personal, vec!["personal".to_owned()]));
   assert_eq!(consumer.ops(), ["order", "order", "order"], "nothing is reserved");
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "supply_reservations""#, vec![]).await, 0);
+  consumer.down().await;
+}
+
+// The ids of the Claude accounts a run carrying `carrying` may go out on, in order.
+async fn carried(scratch: &Scratch, carrying: Carrying) -> Vec<String> {
+  carried_for_user(scratch.db(), carrying)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|account| account.id)
+    .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_account_marked_lendable_is_lent_on_a_platform_source_whoever_owns_it_and_never_to_its_owner() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(scratch.db().clone(), home.path());
+  let consumer = Consumer::stand().await;
+  let login = home.path().join("login");
+
+  std::fs::create_dir_all(&login).unwrap();
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts"
+           ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at", "user_id")
+         VALUES ('owner', 'owner', 1, 1, 'directory', $1, 0, 1),
+                ('eight', 'eight', 2, 1, 'directory', $1, 0, 8)"#,
+      vec![login.to_string_lossy().into_owned().into()],
+    )
+    .await;
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '1')"#, vec![])
+    .await;
+  consumer.register(&ground);
+  consumer.answers("order", json!({ "sources": ["personal", "global"] }));
+  consumer.answers(
+    "reserve:global",
+    json!({ "accepted": true, "reservation": "r-global", "amountUsd": 1.0 }),
+  );
+
+  // Unmarked, the administrator's account is lent to nobody.
+  assert_eq!(
+    closed(choose(&ground, &asked(Some(PERSON), "claude-code")).await.unwrap()),
+    (
+      "global".to_owned(),
+      fill_marks(&SUPPLY.words.no_lendable, &[("provider", "claude-code")])
+    )
+  );
+
+  set_lendable(scratch.db(), "owner", true).await.unwrap();
+
+  let chosen = going(choose(&ground, &asked(Some(PERSON), "claude-code")).await.unwrap());
+
+  assert_eq!(chosen.source.word(), "global");
+  assert_eq!(carrying(Some(&chosen)), Carrying::Lent(PERSON));
+  assert_eq!(carried(&scratch, Carrying::Lent(PERSON)).await, ["owner"]);
+
+  // The owner's own runs still carry it as their own, and a person's lendable account is lent to others alone.
+  set_lendable(scratch.db(), "eight", true).await.unwrap();
+
+  assert_eq!(carried(&scratch, Carrying::Platform).await, ["owner"]);
+  assert_eq!(carried(&scratch, Carrying::Own(8)).await, ["eight"]);
+  assert_eq!(carried(&scratch, Carrying::Lent(8)).await, ["owner"]);
+  assert_eq!(carried(&scratch, Carrying::Lent(PERSON)).await, ["owner", "eight"]);
   consumer.down().await;
 }
