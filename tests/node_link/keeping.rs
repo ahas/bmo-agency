@@ -431,6 +431,13 @@ fn a_version_keeps_its_source_and_a_shared_one_is_received_checked_and_adopted()
       .contains("no copy of 21-other")
   );
 
+  // An empty folder of the name holds no app, and is written over.
+  let empty = machine.dir.path().join("data").join(node_link::runner::MY_APPS).join("empty");
+
+  std::fs::create_dir_all(&empty).unwrap();
+  assert_eq!(receive("empty", &hash, "17-weekly"), json!({ "t": "received" }));
+  assert!(empty.join("main.py").exists());
+
   // An adoption makes the copy the person's own; their own app is no copy to adopt.
   assert_eq!(machine.last(json!({ "adopt": { "tool": "received" } })), json!({ "t": "adopted" }));
   assert!(!folder.join(node_link::keeping::RECEIVED_MARK).exists());

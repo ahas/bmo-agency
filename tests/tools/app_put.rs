@@ -6,11 +6,12 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use app_put_tool::{PutInput, put_with};
+use app_put_tool::{PutInput, may_put, put_with};
 use axum::extract::Path as Route;
 use axum::http::{Method, StatusCode};
 use axum::{Json, Router};
 use serde_json::{Value, json};
+use tool_call::room_gate::AccountService;
 use tool_call::{Control, Session};
 
 type Asked = Arc<Mutex<Vec<(String, String, Value)>>>;
@@ -133,4 +134,56 @@ fn the_app_put_entry_is_declared_as_its_tool_answers_it() {
   assert_eq!(schema["required"], json!(["name"]));
   assert_eq!(schema["properties"]["action"]["enum"], json!(app_put_tool::ACTIONS));
   assert_eq!(schema["additionalProperties"], false);
+}
+
+// An account service answering every message refused `launch`, its sender linked to account 60.
+async fn refusing_accounts() -> AccountService {
+  let app = Router::new().route(
+    "/checks/message",
+    axum::routing::post(|| async {
+      Json(json!({ "allowed": false, "grant": "bmo_room:-7#launch", "user": "60" }))
+    }),
+  );
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  AccountService {
+    address,
+    token: "web-token".into(),
+  }
+}
+
+#[tokio::test]
+async fn a_person_puts_their_own_app_without_a_launch_grant() {
+  let home = tempfile::tempdir().unwrap();
+  let place = home.path().join("place");
+
+  std::fs::create_dir_all(&place).unwrap();
+  std::fs::write(
+    place.join("run.json"),
+    json!({ "name": "chat:-7:1", "person": false, "env": {
+      "BMO_TURN_CHAT": "-7", "BMO_TURN_MESSAGES": "21", "BMO_TURN_PRIVILEGED": "0"
+    } })
+    .to_string(),
+  )
+  .unwrap();
+
+  let accounts = refusing_accounts().await;
+  let acting_for = |account: Option<&str>| {
+    let mut session = Session::default();
+
+    session.labels.place = Some(place.clone());
+    session.owner_account = account.map(str::to_owned);
+    session
+  };
+
+  assert_eq!(may_put(&accounts, &acting_for(Some("60"))).await, Ok(()));
+
+  for account in [None, Some("61")] {
+    let refused = may_put(&accounts, &acting_for(account)).await.unwrap_err();
+
+    assert!(refused.contains("message 21") && refused.contains("`launch`"), "{refused}");
+  }
 }

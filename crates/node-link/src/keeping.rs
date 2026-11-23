@@ -702,6 +702,11 @@ fn kept_source(owned: &Owned, tool: &str, version: &str) -> Answered {
   }
 }
 
+// Whether a folder holds nothing: an empty folder of 'my apps' is no app of anyone's, so a receive writes over it.
+fn empty(folder: &Path) -> bool {
+  std::fs::read_dir(folder).is_ok_and(|mut entries| entries.next().is_none())
+}
+
 // The app a folder of 'my apps' is a received copy of, where it is one.
 fn received_of(folder: &Path) -> Option<String> {
   let text = std::fs::read_to_string(folder.join(RECEIVED_MARK)).ok()?;
@@ -712,8 +717,8 @@ fn received_of(folder: &Path) -> Option<String> {
 }
 
 // A shared app's source written into its folder of 'my apps' once its hash is the one given: staged beside the
-// folder, marked with the app it is a copy of, and renamed over a received copy of the same app. A folder that is
-// the person's own, or another app's copy, is refused.
+// folder, marked with the app it is a copy of, and renamed over a received copy of the same app or an empty folder.
+// A folder that is the person's own, or another app's copy, is refused.
 fn receive(owned: &Owned, tool: &str, files: &BTreeMap<String, String>, hash: &str, app: &str) -> Answered {
   let reckoned = source_hash(files);
 
@@ -731,7 +736,7 @@ fn receive(owned: &Owned, tool: &str, files: &BTreeMap<String, String>, hash: &s
 
   let folder = owned.apps.join(tool);
 
-  if folder.exists() && received_of(&folder).as_deref() != Some(app) {
+  if folder.exists() && !empty(&folder) && received_of(&folder).as_deref() != Some(app) {
     return Answered::Refused {
       why: format!("an app named {tool} that is no copy of {app} stands on this machine already"),
     };

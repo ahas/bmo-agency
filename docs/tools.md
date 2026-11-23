@@ -209,7 +209,8 @@ here.
   (`docs/person-nodes.md`, 「Personal apps」).
 - **The person is the record's,** `ownerAccount` (「The owner and the runner a record names」), read afresh at every
   call; a record naming none is refused, so no session puts an app for anyone but the person it acts for. It asks
-  only past the owner's gate, as the worker ask does.
+  only past the owner's gate, as the worker ask naming an app does: a message the person the session acts for sent
+  passes with no grant, since the app is theirs, and anybody else's needs `launch`.
 - **Its arguments:** `name`, the app's; `action`, `put` where left out, `back` or `remove`; and for `back` an
   optional `version`, the newest kept older than the current where none is named.
 - **It reaches agency's server** as every tool of agency's does and asks `POST /personal-apps/{account}/{name}/put`,

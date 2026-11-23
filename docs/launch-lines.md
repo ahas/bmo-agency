@@ -589,9 +589,9 @@ the action out asks who sent the words the turn answers.
 - **Anybody else's are checked, every message.** Each message the turn answers is handed to the account
   service's `POST /checks/message` with the room and the relation, and the action goes on only where every one
   is answered allowed: the platform administrator, the owner, passes every check, and anybody else passes only
-  on a grant of that relation the owner made in that room. A worker ask naming a personal app also passes a
-  message the account service answers was sent by the person the session acts for, since the app is theirs and
-  the chain decides whether they may make one (`docs/tools.md`, 「The worker ask」).
+  on a grant of that relation the owner made in that room. A worker ask naming a personal app, and an app put,
+  also pass a message the account service answers was sent by the person the session acts for, since the app is
+  theirs and the chain decides whether they may make one (`docs/tools.md`, 「The worker ask」 and 「The app put」).
 - **A check that cannot be made refuses.** No account service named, one not reached, an answer that is not a
   success, a turn that names no message: the action is refused, never let through.
 - **The refusal is a sentence.** The tool answers with a failure saying what was refused and why — whose

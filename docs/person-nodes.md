@@ -340,8 +340,8 @@ whose data stays on that PC. Nothing of it reaches another company.
   - **A receive checks the hash before it writes anything:** the files' hash, reckoned as the catalogue reckons it
     (the tool host's `docs/catalogue.md`, 「The source hash」), must be the one given, else nothing is written. A
     folder of the name that stands already and is no received copy of the same app is refused, so a receiver's own
-    app is never written over; a received copy is replaced whole, the app's data folder left standing. The folder
-    is marked with the app it is a copy of.
+    app is never written over; a received copy is replaced whole, the app's data folder left standing, and an empty
+    folder, which holds no app, is written over. The folder is marked with the app it is a copy of.
   - **An adoption** takes the mark away, so the folder is the person's own app from then.
 - **Who may share, with whom, and who may install, is the delegation chain's,** three kinds agency declares with the
   others (`docs/prompt-layers.md`, 「The settings agency declares」):

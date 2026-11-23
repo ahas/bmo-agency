@@ -35,16 +35,27 @@ pub struct PutInput {
 pub async fn put(session: &Session, input: PutInput) -> Answer {
   let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
 
-  if let Err(refused) =
-    room_gate::gate(&accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Putting a personal app")
-      .await
-  {
+  if let Err(refused) = may_put(&accounts, session).await {
     return Answer::failure(refused);
   }
 
   let control = Control::read(&session.data_root(), |name| std::env::var(name).ok());
 
   put_with(&control, session, input).await
+}
+
+/// Whether the turn the call is made in may put an app (docs/launch-lines.md, 「The owner's gate」): the owner's own
+/// turn, one whose every message's sender holds `launch` in the room, or one whose messages the person the session
+/// acts for sent, since the app is theirs (docs/tools.md, 「The app put」).
+pub async fn may_put(accounts: &AccountService, session: &Session) -> Result<(), String> {
+  room_gate::gate_for(
+    accounts,
+    room_turn_of(session).as_ref(),
+    room_gate::LAUNCH,
+    "Putting a personal app",
+    session.owner_account.as_deref(),
+  )
+  .await
 }
 
 /// The same call against the server the caller names, for a test of the refusals and the round trip.
