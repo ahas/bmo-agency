@@ -91,6 +91,26 @@ impl Route for BackPersonalApp {
 
 crate::moved!(BackPersonalApp);
 
+/// `POST /personal-apps/{ownerAccount}/screen-session`: a short-lived tool session a console reads and calls the
+/// account's personal screens under.
+pub struct ScreenSession;
+
+impl Route for ScreenSession {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/personal-apps/{ownerAccount}/screen-session";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let account = account_of(&call)?;
+
+    Ok(answer(
+      StatusCode::CREATED,
+      personal_apps::screen_session(call.ground(), &account).await?,
+    ))
+  }
+}
+
+crate::moved!(ScreenSession);
+
 /// `DELETE /personal-apps/{ownerAccount}/{name}`: the app taken out at home and on the PC.
 pub struct RemovePersonalApp;
 

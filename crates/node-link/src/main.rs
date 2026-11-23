@@ -35,6 +35,9 @@ enum Verb {
     /// The one account whose tools this runner runs; any where none is named.
     #[arg(long)]
     owner: Option<String>,
+    /// The screen kit an app's build sees, read alone (docs/person-nodes.md, 「Personal screens」).
+    #[arg(long)]
+    kit: Option<PathBuf>,
   },
   /// The far end, on the node: watch, send, write and signal over standard input and output.
   Serve {
@@ -90,9 +93,14 @@ async fn main() -> ExitCode {
 
       ExitCode::from(u8::try_from(code).unwrap_or(1))
     }
-    Verb::Runner { root, owner } => {
+    Verb::Runner { root, owner, kit } => {
       let bwrap = std::env::var(node_link::runner::BWRAP_VARIABLE).unwrap_or_else(|_| "bwrap".to_owned());
-      let runner = node_link::runner::Runner { root, owner, bwrap };
+      let runner = node_link::runner::Runner {
+        root,
+        owner,
+        bwrap,
+        kit,
+      };
 
       node_link::runner::run(runner, tokio::io::stdin(), tokio::io::stdout()).await;
       ExitCode::SUCCESS

@@ -34,6 +34,7 @@ its turns, reads what it says and ends it. herdr is one backend behind the sessi
 | `deploy/` | the service units |
 | `docs/` | the canonical documents |
 | `packages/` | the TypeScript packages, one Bun workspace |
+| `screen-kit/` | what a personal app's screen is built with on a person's PC: bmo-ui's bundle build on the release the console runs |
 | `policy/` | the fixed values agency runs by |
 | `prompts/` | the prompts agency composes an agent's launch from |
 | `skills/` | the worker skills the repository carries |
@@ -60,6 +61,7 @@ its turns, reads what it says and ends it. herdr is one backend behind the sessi
 | `crates/server` | the service: sessions, places, lines, the role slots, control routes, verbs; its binaries `agency-server` and `bmo-agency` |
 | `tools/` | the tools agency provides to the tool host: the procedures and the rulebook reader |
 | `packages/` | the TypeScript packages, one Bun workspace |
+| `screen-kit/` | what a personal app's screen is built with on a person's PC: bmo-ui's bundle build on the release the console runs |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
 | `deploy/` | the service units: agency's server, the agent host and the model gateway, which every deployment restarts, and herdr's, which no deployment of agency keeps |
 | `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed, into agency's own deploy tree under `~/.local/share/bmo-agency` beside the data root it shares, `~/.local/share/bmo/data` |

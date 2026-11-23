@@ -163,6 +163,7 @@ sessions reach it as `my/<entry>` from their next turn.
 | `point` | `tool`, `version` | `{"t": "pointed", "version", "kept"}` | moves the tool's pointer onto the version and keeps the newest versions older than it |
 | `versions` | none | `{"t": "versions", "tools"}` | answers each tool's version pointed at, `current`, and those kept, `kept`, newest first |
 | `take` | `tool` | `{"t": "taken"}` | takes the tool's pointer and every version away |
+| `file` | `tool`, `version`, `path` | `{"t": "file", "bytes"}` | answers one file of a version's `screen/` folder by its path below it, its bytes in base64 |
 
   A `said` line carries each line a build writes on its errors before the answer, and a `refused` line, why the
   runner did nothing, as on a call's passage. `files` is the version's description by path: its manifest and the
@@ -191,6 +192,7 @@ sessions reach it as `my/<entry>` from their next turn.
     reaches any more;
   - **a listing** reads the account's registry at home and the versions the runner keeps, the latter left out where
     the PC cannot be reached.
+- **An app may carry a screen of its own** (「Personal screens」), built in the same place.
 - **Who may make one is the delegation chain's:** `personal-apps.make`, a flag narrowing down the chain, on unless a
   link turns it off, decides whether a person may put an app; `personal-apps.network` and `personal-apps.secrets`,
   flags narrowing down the chain and off until the platform turns them on for a company by a rule at its link, are
@@ -198,6 +200,41 @@ sessions reach it as `my/<entry>` from their next turn.
   off is refused saying the organisation does not allow it; one asking for what the ceiling allows is refused by the
   tool host until a runner gives a call the network or a secret. Agency declares the three with its other kinds
   (`docs/prompt-layers.md`, 「The settings agency declares」); the administrator's account is held to none of them.
+
+## Personal screens
+
+A personal app may carry a screen: a console bundle of its own, built on the person's PC on the same release of
+bmo-ui the console runs, which the console attaches for that person alone (the tool host's `docs/mcp-host.md`,
+「Personal screens」; bmo-ui's `docs/console-bundles.md`, 「A bundle that differs per reader」).
+
+- **The screen kit stands in the workplace:** `screen-kit/` of agency's tree, a Bun project of its own whose
+  manifest vendors the release of bmo-ui bmo-chat's shared versions pin, as the console does, beside Vite and its
+  Vue plugin, installed wherever the tree is (「The workplace on a PC」; `docs/work-nodes.md`, 「The workplace on a
+  node」). Its build, `build.mjs`, builds the app's `screen/` with bmo-ui's bundle build into the new version's
+  `screen/`: the bundle's name `my-` and the app's name with each `_` written `-`, its words `screen/words.json`
+  of the app, its routes the default export of `screen/entry.ts`, which stand under `/my/` and the same.
+- **A build sees the kit:** where the runner is told a kit, a place's confined build sees it read alone at `/kit`,
+  and the JavaScript runtime the runner itself finds on its path, read alone at `/runtime/bun`, with `/runtime`
+  first on its path, so an app's build runs `bun /kit/build.mjs` with no network and nothing of the PC's beside
+  them. The far end tells its runners the kit of the workplace's tree; the administrator's runner command names the
+  deploy tree's.
+- **The runner writes the screen's index as it places a version** whose manifest names a `[screen]` (the tool host's
+  `docs/api.md`, 「`[screen]`」): `screen/files.json`, every other file of the version's `screen/` by its path
+  below it with the SHA-256 of its bytes, written over whatever the build wrote there. A version whose `screen/`
+  holds no `module.js`, `layer.json` or `words.json` is refused and taken away. The description it answers carries
+  the screen's words, layer and index beside the manifest's files, and the put places them at home.
+- **A file is read for the tool host alone,** with the `file` ask: a path inside the version's `screen/` folder,
+  never one climbing out of it, answered in base64; the tool host checks it against the index at home before it
+  answers it on.
+- **The screen reads and writes through its app's tool alone:** no server stands behind it, so what it does is a
+  call of the app's own entry, under a session acting for the person, through the same records, checks and
+  confinement as their BMO's call.
+- **A console reads a person's screens under a session agency issues for them,** `POST
+  /personal-apps/{ownerAccount}/screen-session` (`docs/api.md`, 「personal-apps」): short-lived, naming the namespace
+  `my` alone, no capability and no grant, the account and its runner, and the file of the apps the person does not
+  reach, so the session reaches that person's personal tools and nothing else.
+- **A PC switched off** leaves the screen's listing standing from what the tool host holds, saying the runner was
+  not reached, and its files unread, so the console says the screen cannot be opened.
 
 ## Who reaches a node
 
@@ -426,6 +463,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
 | several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
 | personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | the network and secrets during a call, a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
-| personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for | a screen of an app's own, sharing, and the network and secrets themselves |
+| personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for; a screen of an app's own built with the workplace's screen kit, its index written as it is placed, its files read for the tool host, and a short-lived session issued for a console to read and call it under | sharing, and the network and secrets themselves |
 | a check on a real PC | a PC attached as a jake agent with its stream ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

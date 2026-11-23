@@ -290,3 +290,78 @@ fn the_keeping_refuses_what_it_does_not_keep_and_a_take_leaves_source_and_data()
   assert_eq!(fs::read_to_string(data.join("notes.txt")).unwrap(), "kept", "the data stands");
   assert!(refused(machine.last(json!({ "take": { "tool": "weekly" } }))).contains("keeps no app weekly"));
 }
+
+// "a place's build sees the screen kit read alone at /kit and the runtime at /runtime/bun, first on its path, where
+// the runner is told a kit, and neither where it is not"
+#[test]
+fn a_build_sees_the_screen_kit_and_the_runtime_where_a_kit_is_told() {
+  let (source, out) = (Path::new("/apps/notes"), Path::new("/versions/staged"));
+  let (kit, runtime) = (Path::new("/workplace/deploy/screen-kit"), Path::new("/workplace/bun/bin/bun"));
+  let words = node_link::keeping::build_words(source, out, "bun /kit/build.mjs", Some((kit, runtime)));
+  let bound = |from: &Path, at: &str| {
+    words.windows(3).any(|three| three == ["--ro-bind", &from.to_string_lossy(), at])
+  };
+
+  assert!(bound(kit, "/kit") && bound(runtime, "/runtime/bun"), "{words:?}");
+  assert!(
+    words
+      .windows(3)
+      .any(|three| three[0] == "--setenv" && three[1] == "PATH" && three[2].starts_with("/runtime:")),
+    "{words:?}"
+  );
+
+  let plain = node_link::keeping::build_words(source, out, "true", None);
+
+  assert!(!plain.iter().any(|word| word == "/kit" || word.starts_with("/runtime")), "{plain:?}");
+}
+
+// "a version whose manifest names a screen is given the runner's index of its screen's files, its description carries
+// the screen's words, layer and index, a file of its screen is answered in base64 and a path climbing out of it is
+// refused; a screen holding no module is refused and nothing is left staged"
+#[test]
+fn a_screen_is_indexed_as_it_is_placed_and_its_files_are_read_alone() {
+  let machine = Machine::new();
+  let build = "build = 'cp main.py \"$BMO_TOOL_OUT/\" && mkdir -p \"$BMO_TOOL_OUT/screen/parts\" && printf module > \"$BMO_TOOL_OUT/screen/module.js\" && printf chunk > \"$BMO_TOOL_OUT/screen/parts/chunk.js\" && printf {} > \"$BMO_TOOL_OUT/screen/layer.json\" && printf {} > \"$BMO_TOOL_OUT/screen/words.json\" && printf forged > \"$BMO_TOOL_OUT/screen/files.json\"'\n[screen]\n";
+
+  machine.app("notes", "notes", build);
+
+  let placed = machine.last(json!({ "place": { "tool": "notes" } }));
+
+  assert_eq!(placed["t"], "placed", "{placed}");
+
+  let version = placed["version"].as_str().unwrap();
+  let index: Value = serde_json::from_str(placed["files"]["screen/files.json"].as_str().unwrap()).unwrap();
+  let sha = |text: &str| {
+    use sha2::Digest;
+    format!("{:x}", sha2::Sha256::digest(text.as_bytes()))
+  };
+
+  assert_eq!(
+    index,
+    json!({ "layer.json": sha("{}"), "module.js": sha("module"), "parts/chunk.js": sha("chunk"), "words.json": sha("{}") })
+  );
+  assert_eq!(placed["files"]["screen/words.json"], "{}");
+  assert!(placed["files"].get("screen/module.js").is_none(), "{placed}");
+
+  let read =
+    machine.last(json!({ "file": { "tool": "notes", "version": version, "path": "parts/chunk.js" } }));
+
+  assert_eq!(read, json!({ "t": "file", "bytes": "Y2h1bms=" }));
+
+  let climbing =
+    machine.last(json!({ "file": { "tool": "notes", "version": version, "path": "../tool.toml" } }));
+
+  assert_eq!(climbing["t"], "refused", "{climbing}");
+
+  let described = machine.last(json!({ "describe": { "tool": "notes", "version": version } }));
+
+  assert_eq!(described["files"]["screen/files.json"], placed["files"]["screen/files.json"]);
+
+  machine.app("bare", "bare", "build = 'mkdir -p \"$BMO_TOOL_OUT/screen\" && printf {} > \"$BMO_TOOL_OUT/screen/words.json\"'\n[screen]\n");
+
+  let refused = machine.last(json!({ "place": { "tool": "bare" } }));
+
+  assert_eq!(refused["t"], "refused");
+  assert!(refused["why"].as_str().unwrap().contains("no screen/module.js"), "{refused}");
+  assert!(machine.standing("bare").is_empty(), "nothing is left staged");
+}

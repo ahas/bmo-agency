@@ -524,7 +524,11 @@ pub async fn set_up_workplace(
       let install = shell
         .run(&with_path(
           &root,
-          &format!("cd {} && bun install --frozen-lockfile", shell_word(&join(&deploy, BUN_WORKSPACE))),
+          &format!(
+            "cd {} && bun install --frozen-lockfile && cd {} && bun install --frozen-lockfile",
+            shell_word(&join(&deploy, BUN_WORKSPACE)),
+            shell_word(&join(&deploy, node_link::runner::SCREEN_KIT)),
+          ),
         ))
         .await;
 

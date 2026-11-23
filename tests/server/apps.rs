@@ -394,6 +394,8 @@ async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tool
     ground.roots.data.join("personal-tools"),
     "--owner",
     "9",
+    "--kit",
+    ground.roots.deploy.join("screen-kit"),
   ] });
 
   for agent in ["u9", "keeper"] {

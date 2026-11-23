@@ -9,7 +9,7 @@ name = "agency"
 # bunfig.toml in tests/packages preloads the same setup for a run started there.
 languages = ["cargo", "bun"]
 # A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
-setup = ["cd packages && bun install --frozen-lockfile"]
+setup = ["cd packages && bun install --frozen-lockfile", "cd screen-kit && bun install --frozen-lockfile"]
 # The root package's test harness holds every Rust test this repository keeps, and several of its modules
 # run a server against the test database; as one unit it needs more than the testbed's default guard on a
 # machine carrying other work, so the guards stand above that harness's measured time here (the testbed's

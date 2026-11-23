@@ -1538,6 +1538,7 @@ where the shell stands in an agent's program, else the owner.
 | POST | `/personal-apps/{ownerAccount}/{name}/put` | The app's folder on the account's PC built into a new version, put at home and pointed at. |
 | POST | `/personal-apps/{ownerAccount}/{name}/back` | The app sent back to a version its PC keeps: `version`, the newest older than the current where left out. |
 | DELETE | `/personal-apps/{ownerAccount}/{name}` | The app taken out at home and on the PC. |
+| POST | `/personal-apps/{ownerAccount}/screen-session` | A short-lived tool session acting for the account, which a console reads and calls the account's personal screens under. |
 
 - **What each does is `docs/person-nodes.md`, 「Personal apps」:** the runner the account's records name is asked
   over its passage, and the tool host's registry through `bmo-pocket`, the binary `BMO_POCKET_BIN` names in agency's
@@ -1548,6 +1549,12 @@ where the shell stands in an agent's program, else the owner.
 - **The listing** answers `items`, one per app: `name`, `version`, `putAt` in epoch milliseconds, `entries`, each
   `{name, title, description}` by its full name, `permissions`, `{network, secrets}`, and `kept`, the versions its
   PC keeps older than the current, newest first, null where the PC was not reached; and `reached`, whether it was.
+- **The screen session** is issued at the tool host for the account and nothing else (`docs/person-nodes.md`,
+  「Personal screens」): its record names the namespace `my` alone, no capability and no grant, the account as
+  `ownerAccount`, the runner its records name and the file of the apps the person does not reach, lasting
+  `SCREEN_SESSION_MS`, ten minutes. It answers 201 `{token, expiresAt}`, the token the tool host issued and when it
+  lapses in epoch milliseconds; the body is empty. An account with no runner is 409 `no-runner`, and a tool host that
+  does not issue it 503.
 - **A put, a going back and a removal** answer `name`, `version`, the version now in place (null after a removal),
   `entries` and `said`, the lines the tool host and the build said.
 - **Refusals:** an account with no runner, its PC shared or absent, is 409 `no-runner`; a PC that cannot be reached

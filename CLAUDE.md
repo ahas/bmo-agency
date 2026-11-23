@@ -96,6 +96,8 @@ them.
   `room_grant` and `deepseek_top_up`, each a folder with its `tool.toml` and the crate of its executable
   (`docs/tools.md`).
 - `packages/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
+- `screen-kit/`: what a personal app's screen is built with on a person's PC, a Bun project of its own vendoring
+  bmo-ui's release (`docs/person-nodes.md`, 「Personal screens」).
 - `policy/`: the TOML files agency's fixed numbers and words stand in, read by `crates/policy`.
 - `prompts/`: the prompts agency composes an agent's launch from.
 - `docs/`: the canonical documents.

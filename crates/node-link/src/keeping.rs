@@ -1,14 +1,17 @@
-//! The runner's keeping of an owner's personal apps (docs/person-nodes.md, 「Personal apps」): an app's folder of
-//! 'my apps' built confined into a new version, a version's description read, the tool's pointer moved and the
-//! versions beyond those kept taken away, what each tool keeps listed, and a tool taken away. Each is asked on the
-//! passage's first line, `{"owner": <account>, "<what>": {…}}`, and answered by one line.
+//! The runner's keeping of an owner's personal apps (docs/person-nodes.md, 「Personal apps」 and 「Personal
+//! screens」): an app's folder of 'my apps' built confined into a new version, its screen's index written, a
+//! version's description read, the tool's pointer moved and the versions beyond those kept taken away, what each tool
+//! keeps listed, a tool taken away, and one file of a version's screen read. Each is asked on the passage's first
+//! line, `{"owner": <account>, "<what>": {…}}`, and answered by one line.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
+use base64::Engine;
 use serde::Deserialize;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
 use crate::runner::{Answered, Kept, Runner, apps_dir, machine_words, plain_name, program_stands};
@@ -23,15 +26,41 @@ pub const KEEP: usize = 3;
 const SOURCE_AT: &str = "/src";
 const OUT_AT: &str = "/out";
 
+/// Where a confined build reads the screen kit, and the runtime it runs the kit's build with.
+const KIT_AT: &str = "/kit";
+const RUNTIME_AT: &str = "/runtime";
+
+/// The folder of a version a screen stands in, the files its description carries, its index and its module
+/// (bmo-pocket's docs/api.md, 「`[screen]`」).
+pub const SCREEN_FOLDER: &str = "screen";
+pub const SCREEN_INDEX: &str = "files.json";
+const SCREEN_DESCRIBED: [&str; 3] = ["words.json", "layer.json", SCREEN_INDEX];
+const SCREEN_MODULE: &str = "module.js";
+
 /// What a keeping asks, by the one field beside `owner` its line names.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub enum Asked {
-  Place { tool: String },
-  Describe { tool: String, version: String },
-  Point { tool: String, version: String },
+  Place {
+    tool: String,
+  },
+  Describe {
+    tool: String,
+    version: String,
+  },
+  Point {
+    tool: String,
+    version: String,
+  },
   Versions {},
-  Take { tool: String },
+  Take {
+    tool: String,
+  },
+  File {
+    tool: String,
+    version: String,
+    path: String,
+  },
 }
 
 #[derive(Deserialize)]
@@ -48,6 +77,9 @@ struct Manifest {
   tool: ToolPart,
   #[serde(default)]
   entry: Vec<EntryPart>,
+  // Its presence says the version holds a screen; what it holds is the tool host's to read.
+  #[serde(default)]
+  screen: Option<toml::Value>,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +121,84 @@ impl Manifest {
     files.sort();
     files.dedup();
     files
+  }
+
+  // The files its description carries: those it names, and its screen's words, layer and index where it has one.
+  fn described_files(&self) -> Vec<String> {
+    let mut files = self.named_files();
+
+    if self.screen.is_some() {
+      files.extend(SCREEN_DESCRIBED.map(|file| format!("{SCREEN_FOLDER}/{file}")));
+      files.sort();
+    }
+
+    files
+  }
+}
+
+// Every file under a folder, by its path below it, in order.
+fn files_below(dir: &Path, under: &str, found: &mut Vec<String>) -> std::io::Result<()> {
+  for entry in std::fs::read_dir(dir)? {
+    let entry = entry?;
+    let name = entry.file_name().to_string_lossy().into_owned();
+    let path = if under.is_empty() { name } else { format!("{under}/{name}") };
+    let kind = entry.file_type()?;
+
+    if kind.is_dir() {
+      files_below(&entry.path(), &path, found)?;
+    } else if kind.is_file() {
+      found.push(path);
+    }
+  }
+
+  found.sort();
+  Ok(())
+}
+
+/// A version's screen given its index: every file of its `screen/` folder but the index, by its path below it, with
+/// the SHA-256 of its bytes, written over whatever stood there; refused where the folder holds no module, layer or
+/// words.
+pub fn write_index(version: &Path) -> Result<(), String> {
+  let screen = version.join(SCREEN_FOLDER);
+
+  for needed in [SCREEN_MODULE, "layer.json", "words.json"] {
+    if !screen.join(needed).is_file() {
+      return Err(format!("its screen holds no {SCREEN_FOLDER}/{needed}"));
+    }
+  }
+
+  let mut found = Vec::new();
+
+  files_below(&screen, "", &mut found).map_err(|why| format!("its screen could not be read: {why}"))?;
+
+  let mut index = serde_json::Map::new();
+
+  for path in found.into_iter().filter(|path| path != SCREEN_INDEX) {
+    let bytes =
+      std::fs::read(screen.join(&path)).map_err(|why| format!("{SCREEN_FOLDER}/{path}: {why}"))?;
+
+    index.insert(path, json!(format!("{:x}", Sha256::digest(&bytes))));
+  }
+
+  std::fs::write(screen.join(SCREEN_INDEX), serde_json::Value::Object(index).to_string())
+    .map_err(|why| format!("its screen's index could not be written: {why}"))
+}
+
+// One file of a version's screen, its bytes in base64; a path climbing out of the screen's folder is refused.
+fn screen_file(version: &Path, path: &str) -> Answered {
+  if !inside(path) {
+    return Answered::Refused {
+      why: format!("{path:?} is no file inside a screen's folder"),
+    };
+  }
+
+  match std::fs::read(version.join(SCREEN_FOLDER).join(path)) {
+    Ok(bytes) => Answered::File {
+      bytes: base64::engine::general_purpose::STANDARD.encode(bytes),
+    },
+    Err(why) => Answered::Refused {
+      why: format!("{SCREEN_FOLDER}/{path} of the version could not be read: {why}"),
+    },
   }
 }
 
@@ -200,7 +310,7 @@ fn description(version: &Path) -> Result<BTreeMap<String, String>, String> {
   let manifest = Manifest::read(version)?;
   let mut files = BTreeMap::new();
 
-  for file in manifest.named_files() {
+  for file in manifest.described_files() {
     if !inside(&file) {
       return Err(format!("its manifest names {file}, which is not inside its folder"));
     }
@@ -215,16 +325,31 @@ fn description(version: &Path) -> Result<BTreeMap<String, String>, String> {
 
 /// The words bubblewrap runs a build with: the machine's own confinement, the app's folder read alone at `/src`,
 /// where it starts, and the new version's folder written at `/out`, which `BMO_TOOL_OUT` names; `sh` running the
-/// manifest's build.
-pub fn build_words(source: &Path, out: &Path, build: &str) -> Vec<String> {
+/// manifest's build. Where a screen kit is given, the kit read alone at `/kit` and the runtime at `/runtime/bun`,
+/// `/runtime` first on the search path (docs/person-nodes.md, 「Personal screens」).
+pub fn build_words(source: &Path, out: &Path, build: &str, kit: Option<(&Path, &Path)>) -> Vec<String> {
   let mut words = machine_words();
 
   words.extend(["--ro-bind".into(), source.to_string_lossy().into_owned(), SOURCE_AT.into()]);
   words.extend(["--bind".into(), out.to_string_lossy().into_owned(), OUT_AT.into()]);
+
+  let path = match kit {
+    Some((kit, runtime)) => {
+      words.extend(["--ro-bind".into(), kit.to_string_lossy().into_owned(), KIT_AT.into()]);
+      words.extend([
+        "--ro-bind".into(),
+        runtime.to_string_lossy().into_owned(),
+        format!("{RUNTIME_AT}/bun"),
+      ]);
+      format!("{RUNTIME_AT}:{}", crate::runner::confined_path())
+    }
+    None => crate::runner::confined_path().to_owned(),
+  };
+
   words.extend(["--chdir".into(), SOURCE_AT.into()]);
 
   for (name, value) in [
-    ("PATH", crate::runner::confined_path()),
+    ("PATH", path.as_str()),
     ("HOME", "/tmp"),
     ("TMPDIR", "/tmp"),
     ("LANG", "C.UTF-8"),
@@ -307,8 +432,11 @@ async fn place(
         };
       }
 
+      // The kit and the runtime the runner finds, where both stand.
+      let runtime = crate::runner::program_path("bun");
+      let kit = runner.kit.as_deref().filter(|kit| kit.is_dir()).zip(runtime.as_deref());
       let built = tokio::process::Command::new(&runner.bwrap)
-        .args(build_words(&source, &staged, build))
+        .args(build_words(&source, &staged, build, kit))
         .env_clear()
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -391,6 +519,14 @@ async fn place(
         };
       }
     }
+  }
+
+  if manifest.screen.is_some()
+    && let Err(why) = write_index(&staged)
+  {
+    return Answered::Refused {
+      why: format!("the app {tool}'s placed version: {why}"),
+    };
   }
 
   let files = match description(&staged) {
@@ -522,7 +658,9 @@ pub async fn keep(
       let owned = Owned::of(&runner, &line.owner);
       let named = match &line.asked {
         Asked::Place { tool } | Asked::Take { tool } => vec![("tool", tool)],
-        Asked::Describe { tool, version } | Asked::Point { tool, version } => {
+        Asked::Describe { tool, version }
+        | Asked::Point { tool, version }
+        | Asked::File { tool, version, .. } => {
           vec![("tool", tool), ("version", version)]
         }
         Asked::Versions {} => Vec::new(),
@@ -546,6 +684,11 @@ pub async fn keep(
           Asked::Point { tool, version } => point(&owned, tool, version),
           Asked::Versions {} => versions(&owned),
           Asked::Take { tool } => take(&owned, tool),
+          Asked::File {
+            tool,
+            version,
+            path,
+          } => screen_file(&owned.versions(tool).join(version), path),
         },
       }
     }

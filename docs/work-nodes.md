@@ -41,7 +41,8 @@ side of a remote agent, the rotation, and what a dropped node does.
      processor type — is said not ready, as is one where the runtime is installed and still does not
      run;
   4. the code: the deploy tree's commit copied to `<root>/deploy` — its installs, build output, logs,
-     env files and the data root left out — its Bun workspace under `packages/` installed there, and the
+     env files and the data root left out — its Bun workspace under `packages/` and its screen kit under `screen-kit/` (`docs/person-nodes.md`,
+     「Personal screens」) installed there, and the
      node's own host, pane and link binaries built there, since this machine's binaries are linked
      against a newer C library than a node may have. They are built in a workspace of their own under `<root>/build`, the crates they are
      made of (the agent host, the store beneath it, the pane head and the node link) each at the path it

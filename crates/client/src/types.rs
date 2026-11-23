@@ -3983,6 +3983,15 @@ pub struct PersonalAppDone {
   pub said: Vec<String>,
 }
 
+/// ScreenSession: a short-lived tool session a console reads and calls a person's personal screens under: the token
+/// the tool host issued, and when it lapses, in epoch milliseconds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenSession {
+  pub token: String,
+  pub expires_at: u64,
+}
+
 /// A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
 /// its name, one of the two.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

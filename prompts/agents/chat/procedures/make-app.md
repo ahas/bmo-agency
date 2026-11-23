@@ -26,6 +26,10 @@ yours; the second is the guide the worker run that writes the app follows, which
 - **Going back and removing are the person's word alone:** `bmo/app_put` with `action` `back` sends the app back to
   the version before, or the `version` named; `action` `remove` takes it away, its source and its data staying on
   the PC. The person does both themselves in 설정, under 내 개인 앱.
+- **An app may have a screen of its own,** where the person wants to see or work its data themselves: ask the worker
+  run for it in the same words, saying what the screen shows and what it lets the person do. Once it is put, the
+  screen stands in the person's 콘솔 sidebar under 내 앱, for them alone; it reads and writes only through the app's
+  own tool, and while their PC is off it says it cannot be opened.
 - **An app reaches nothing but its own folders:** no network, no secret, no other tool, no file of the person's
   outside the app. A request that needs any of those is said to the person as something a personal app cannot do
   yet.
@@ -77,6 +81,38 @@ hints = { read_only = true }
 - **No `[app]`:** a personal app is its person's alone.
 - **The input schema** is a JSON Schema of an object, one property per argument, each with a `description`; name
   what is required and set `additionalProperties` to false.
+- **`[screen]`** only where the app has a screen (below): its presence alone says so, with `icon`, the icon the
+  console shows it by, as `i-material-symbols-<name>`.
+
+### A screen
+
+Write one only where you were asked for it. It is a console screen built on the person's PC with the screen kit, on
+the same release of bmo-ui the console runs, and the console shows it to the person alone.
+
+- **Its names follow the app's:** with the app `weekly_notes`, the screen's name is `my-weekly-notes` (`my-`, then the
+  name with each `_` written `-`), every word it shows is a key under `my-weekly-notes.` in its words, and its routes
+  stand under `/my/weekly-notes`.
+- **Its files, in `screen/`:**
+  - `entry.ts`, whose default export is `{ routes: [...] }`: each route's `path` under the screen's path, its first
+    the path itself, with `meta: { consoleTitleBar: true }` so the console draws its title bar over it;
+  - its pages, `.vue` files, imported by `entry.ts`;
+  - `words.json`: each locale's words under its code, every key under the screen's name, `title` among them, the
+    name the sidebar shows; write the person's language at least, and `en`.
+- **What it imports:** `vue`, `vue-i18n` for `useI18n`, the component library's components each by its own path
+  (`import UButton from "@nuxt/ui/components/Button.vue"`), and bmo-ui's components and modules by their paths
+  (`bmo-ui/app/components/...`, `bmo-ui/app/domain/...`). Nothing else: the console hands the screen its own copies
+  of these, and the build carries nothing more. Every word it shows is `t("my-weekly-notes.<key>")`, never text
+  written in the page.
+- **Its data is the app's tool alone:** it calls the app's own entry through bmo-ui's relay,
+  `relayCall("my-weekly-notes", "/tools/weekly_notes", { method: "POST", body: { ...arguments } })`, and reads the
+  answer's `result`, the tool's own answer: `content` and `structuredContent`. Whatever the screen changes, the tool
+  changes, so give the tool the arguments the screen needs. No server stands behind it, and it reaches nothing else.
+- **It is built by the app's `build`:** the kit stands at `/kit` in the confined build, with `bun` on the path, so the
+  manifest's build copies the tool's own files and then builds the screen,
+  `build = "cp main.py \"$BMO_TOOL_OUT\"/ && bun /kit/build.mjs"`. The kit writes the screen into the version's
+  `screen/`; nothing is downloaded, so the screen needs nothing the kit does not hold.
+- **Draw it for a phone and a desk alike:** one column that wraps at a narrow width, the layer's components for every
+  control, nothing wider than the screen.
 
 ### Where it runs
 
@@ -126,4 +162,4 @@ print(json.dumps({"content": [{"type": "text", "text": text or "No notes yet."}]
 
 - Answer with the app's name, what it does, the files you wrote or changed and the commit. Do not put it: the BMO
   that asked you puts it.
-- A screen of an app's own is not made yet; write none.
+- Say whether you wrote a screen, and what it shows.

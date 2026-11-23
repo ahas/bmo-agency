@@ -208,6 +208,22 @@ fn expect(answered: &Answered, kind: &str) -> Result<(), Fault> {
   }
 }
 
+/// A short-lived tool session a console reads and calls the account's personal screens under (docs/person-nodes.md,
+/// 「Personal screens」): its token and when it lapses.
+pub async fn screen_session(ground: &Ground, account: &str) -> Result<Value, Refused> {
+  match crate::lines::token::issue_screen_session(ground, account).await {
+    Ok(Some((token, expires_at))) => Ok(json!({ "token": token, "expiresAt": expires_at })),
+    Ok(None) => Err(Fault::NoRunner(account.to_owned()).into()),
+    Err(refusal) => Err(
+      Refused::new(
+        StatusCode::SERVICE_UNAVAILABLE,
+        format!("the tool host did not issue it: {}", refusal.detail),
+      )
+      .with_code("screen-session-unissued"),
+    ),
+  }
+}
+
 /// The runner the account's apps are kept and run by, or the refusal saying it has none.
 pub async fn runner(ground: &Ground, account: &str) -> Result<Runner, Fault> {
   crate::lines::token::runner_of(ground, account)

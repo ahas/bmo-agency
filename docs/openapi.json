@@ -8118,6 +8118,60 @@
         ]
       }
     },
+    "/personal-apps/{ownerAccount}/screen-session": {
+      "post": {
+        "operationId": "issueScreenSession",
+        "tags": [
+          "personal-apps"
+        ],
+        "summary": "Issue a short-lived tool session a console reads and calls the account's personal screens under.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "422": {
+            "$ref": "#/components/responses/ScreenSessionUnissued"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "no-runner",
+          "screen-session-unissued"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ]
+      }
+    },
     "/nodes/{nodeName}/access": {
       "get": {
         "operationId": "getNodeAccess",
@@ -17436,6 +17490,24 @@
         ],
         "description": "PersonalAppBack: the version a personal app is sent back to, the newest kept older than the current where none\nis named."
       },
+      "ScreenSession": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "description": "ScreenSession: a short-lived tool session a console reads and calls a person's personal screens under: the token\nthe tool host issued, and when it lapses, in epoch milliseconds."
+      },
       "NodeAccess": {
         "type": "object",
         "properties": {
@@ -18787,6 +18859,16 @@
       },
       "Running": {
         "description": "running",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ScreenSessionUnissued": {
+        "description": "screen-session-unissued",
         "content": {
           "application/json": {
             "schema": {

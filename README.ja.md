@@ -40,6 +40,7 @@
 | `deploy/` | サービスユニット |
 | `docs/` | 正本となるドキュメント |
 | `packages/` | TypeScript パッケージ（一つの Bun ワークスペース） |
+| `screen-kit/` | 人の PC で個人アプリの画面をビルドするもの：コンソールと同じリリースの bmo-ui バンドルビルド |
 | `policy/` | agency が従う固定値 |
 | `prompts/` | agency がエージェントの起動を組み立てるプロンプト |
 | `skills/` | リポジトリが同梱するワーカースキル |
@@ -66,6 +67,7 @@
 | `crates/server` | サービス本体: セッション、場所、ライン、ロールスロット、制御ルート、動詞。バイナリは `agency-server` と `bmo-agency` |
 | `tools/` | agency がツールホストに提供するツール: 手続き群とルールブックのリーダー |
 | `packages/` | TypeScript パッケージ（一つの Bun ワークスペース） |
+| `screen-kit/` | 人の PC で個人アプリの画面をビルドするもの：コンソールと同じリリースの bmo-ui バンドルビルド |
 | `policy/`, `prompts/` | agency が従う固定値とプロンプト |
 | `deploy/` | サービスユニット: デプロイのたびに再起動される agency サーバー、エージェントホスト、モデルゲートウェイと、agency のデプロイでは保持しない herdr のユニット |
 | `testbed.toml` | テストベッドの宣言: リポジトリのテスト、チェック、ビルド、デプロイの方法。デプロイ先は、共有するデータルート `~/.local/share/bmo/data` の隣にある agency 自身のデプロイツリー `~/.local/share/bmo-agency` です |

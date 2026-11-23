@@ -326,3 +326,70 @@ async fn a_put_is_refused_where_the_account_has_no_runner_or_its_chain_withholds
   );
   assert!(stood.home_pointer("8", "reach").is_none(), "nothing is put at home");
 }
+
+// A tool host keeping the record each screen session is issued for, answering it as issued.
+fn issuing_host(socket: &Path) -> std::sync::Arc<std::sync::Mutex<Vec<Value>>> {
+  let issued = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+  let kept = issued.clone();
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new().route(
+    "/tool-sessions",
+    axum::routing::post(move |axum::Json(mut record): axum::Json<Value>| {
+      let kept = kept.clone();
+
+      async move {
+        kept.lock().unwrap().push(record.clone());
+        record["token"] = json!("screen-token");
+        for (field, empty) in [("shown", json!([])), ("variables", json!({})), ("labels", json!({}))] {
+          if record.get(field).is_none() {
+            record[field] = empty;
+          }
+        }
+        record["createdAt"] = json!(1);
+        record["expiresAt"] = json!(2);
+
+        (axum::http::StatusCode::CREATED, axum::Json(record))
+      }
+    }),
+  );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  issued
+}
+
+// "a screen session is issued for the account alone: the namespace `my`, no capability and no grant, the account and
+// its runner, the deploy tree's screen kit named to the administrator's runner, a file of the apps the person does
+// not reach, lasting ten minutes; an account with no runner is refused 409 `no-runner`"
+#[tokio::test]
+async fn a_screen_session_acts_for_the_account_alone_and_lapses() {
+  let socket_dir = tempfile::tempdir().unwrap();
+  let socket = socket_dir.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let named = socket.to_string_lossy().into_owned();
+  let stood = stood(&[("BMO_MCP_HOST_SOCKET", &named), ("BMO_MCP_HOST_ISSUER_TOKEN", "issuer")]).await;
+  let ground = &stood.ground;
+  let before = u64::try_from(agency_server::now_ms()).unwrap();
+  let answered = personal_apps::screen_session(ground, ADMINISTRATOR).await.unwrap();
+  let record = issued.lock().unwrap().pop().unwrap();
+  let lasts = agency_server::lines::token::SCREEN_SESSION_MS;
+
+  assert_eq!(answered["token"], "screen-token");
+  assert!(answered["expiresAt"].as_u64().unwrap() >= before + lasts, "{answered}");
+  assert_eq!(record["holderName"], format!("personal-screens:{ADMINISTRATOR}"));
+  assert_eq!(record["namespaces"], json!(["my"]));
+  assert_eq!(record["capabilities"], json!([]));
+  assert_eq!(record["grants"], json!([]));
+  assert_eq!(record["ownerAccount"], ADMINISTRATOR);
+  assert_eq!(record["ttlMs"], json!(lasts));
+  assert!(record["withheldAppsFile"].is_string(), "{record}");
+
+  let runner: Vec<String> = serde_json::from_value(record["runner"]["command"].clone()).unwrap();
+  let kit = ground.roots.deploy.join(node_link::runner::SCREEN_KIT).to_string_lossy().into_owned();
+
+  assert!(runner.windows(2).any(|two| two == ["--kit".to_owned(), kit.clone()]), "{runner:?}");
+
+  let refused = personal_apps::screen_session(ground, "8").await.unwrap_err();
+
+  assert_eq!(refused.status, axum::http::StatusCode::CONFLICT);
+  assert_eq!(refused.code.as_deref(), Some("no-runner"));
+}

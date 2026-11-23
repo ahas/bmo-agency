@@ -31,6 +31,7 @@
 | `deploy/` | 服务单元 |
 | `docs/` | 权威文档 |
 | `packages/` | TypeScript 包，同属一个 Bun 工作区 |
+| `screen-kit/` | 在个人电脑上构建个人应用界面的工具：与控制台同一版本的 bmo-ui 打包构建 |
 | `policy/` | agency 依据的固定值 |
 | `prompts/` | agency 组装智能体启动内容所用的提示词 |
 | `skills/` | 仓库自带的 worker 技能 |
@@ -57,6 +58,7 @@
 | `crates/server` | 服务本体：会话、位置、线路、角色槽位、控制路由、动词；其二进制为 `agency-server` 和 `bmo-agency` |
 | `tools/` | agency 提供给工具宿主的工具：各项流程与规则手册读取器 |
 | `packages/` | TypeScript 包，同属一个 Bun 工作区 |
+| `screen-kit/` | 在个人电脑上构建个人应用界面的工具：与控制台同一版本的 bmo-ui 打包构建 |
 | `policy/`, `prompts/` | agency 依据的固定值与提示词 |
 | `deploy/` | 服务单元：每次部署都会重启的 agency 服务器、智能体宿主和模型网关，以及 agency 部署不负责维持的 herdr 单元 |
 | `testbed.toml` | testbed 的声明：如何测试、检查、构建和部署本仓库。部署目标是 agency 自己的部署树 `~/.local/share/bmo-agency`，与它共用的数据根目录 `~/.local/share/bmo/data` 并列 |

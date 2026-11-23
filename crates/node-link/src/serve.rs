@@ -308,12 +308,20 @@ pub async fn run_tool(
   owner: &str,
 ) {
   let mut command = tokio::process::Command::new("/proc/self/exe");
+  // The workplace's own tree's screen kit, which an app's build sees (docs/person-nodes.md, 「Personal screens」).
+  let kit = tools
+    .parent()
+    .and_then(Path::parent)
+    .map(|root| root.join("deploy").join(crate::runner::SCREEN_KIT))
+    .filter(|kit| kit.is_dir());
+
+  command.arg("runner").arg("--root").arg(tools).args(["--owner", owner]);
+
+  if let Some(kit) = kit {
+    command.arg("--kit").arg(kit);
+  }
 
   command
-    .arg("runner")
-    .arg("--root")
-    .arg(tools)
-    .args(["--owner", owner])
     .stdin(std::process::Stdio::piped())
     .stdout(std::process::Stdio::piped())
     .stderr(std::process::Stdio::null())

@@ -39,6 +39,7 @@
 | `deploy/` | 서비스 유닛 |
 | `docs/` | 정본 문서 |
 | `packages/` | TypeScript 패키지, 하나의 Bun 워크스페이스 |
+| `screen-kit/` | 사람의 PC에서 개인 앱 화면을 빌드하는 도구: 콘솔이 쓰는 릴리스의 bmo-ui 번들 빌드 |
 | `policy/` | agency가 따르는 고정값 |
 | `prompts/` | agency가 에이전트 실행을 구성할 때 쓰는 프롬프트 |
 | `skills/` | 저장소가 함께 싣는 워커 스킬 |
@@ -65,6 +66,7 @@
 | `crates/server` | 서비스 본체: 세션, 자리, 라인, 역할 슬롯, 제어 라우트, 동사. 바이너리는 `agency-server`와 `bmo-agency` |
 | `tools/` | agency가 도구 호스트에 제공하는 도구: 절차들과 규칙집 리더 |
 | `packages/` | TypeScript 패키지, 하나의 Bun 워크스페이스 |
+| `screen-kit/` | 사람의 PC에서 개인 앱 화면을 빌드하는 도구: 콘솔이 쓰는 릴리스의 bmo-ui 번들 빌드 |
 | `policy/`, `prompts/` | agency가 따르는 고정값과 프롬프트 |
 | `deploy/` | 서비스 유닛: 배포할 때마다 재시작되는 agency 서버, 에이전트 호스트, 모델 게이트웨이, 그리고 agency 배포가 유지하지 않는 herdr의 유닛 |
 | `testbed.toml` | 테스트베드 선언: 저장소를 어떻게 테스트하고, 검사하고, 빌드하고, 배포하는지. 배포 대상은 함께 쓰는 데이터 루트 `~/.local/share/bmo/data` 옆에 있는 agency 자체의 배포 트리 `~/.local/share/bmo-agency`입니다 |

@@ -21,6 +21,9 @@ pub const PERSONAL_TOOLS: &str = "personal-tools";
 /// The folder beside it, under the same data root, the person's apps' sources stand in, one folder an app.
 pub const MY_APPS: &str = "my-apps";
 
+/// The folder of agency's tree the screen kit stands in (docs/person-nodes.md, 「Personal screens」).
+pub const SCREEN_KIT: &str = "screen-kit";
+
 /// The variable a test names a stand-in for bubblewrap in.
 pub const BWRAP_VARIABLE: &str = "NODE_LINK_BWRAP";
 
@@ -82,6 +85,8 @@ pub enum Answered {
   Versions { tools: BTreeMap<String, Kept> },
   /// The tool's pointer and versions taken away.
   Taken {},
+  /// One file of a version's screen, its bytes in base64.
+  File { bytes: String },
 }
 
 /// What a tool keeps: the version pointed at, none where no pointer stands, and the others older than it, newest
@@ -102,12 +107,13 @@ impl Answered {
 }
 
 /// How a runner is started: the folder its owners' tools stand in, the one owner it runs for where it is told one,
-/// and the bubblewrap program it confines with.
+/// the bubblewrap program it confines with, and the screen kit a place's build sees, where it is told one.
 #[derive(Clone, Debug)]
 pub struct Runner {
   pub root: PathBuf,
   pub owner: Option<String>,
   pub bwrap: String,
+  pub kit: Option<PathBuf>,
 }
 
 /// A name a folder of the runner's holds: an owner's, a tool's or a version's, never one that climbs or hides.
@@ -205,6 +211,15 @@ pub fn machine_words() -> Vec<String> {
 /// The search path a confined program runs with.
 pub fn confined_path() -> &'static str {
   CONFINED_PATH
+}
+
+/// Where a program named on the search path stands, its links followed; none where it is not found.
+pub fn program_path(program: &str) -> Option<PathBuf> {
+  std::env::var_os("PATH")
+    .and_then(|path| {
+      std::env::split_paths(&path).map(|dir| dir.join(program)).find(|found| found.is_file())
+    })
+    .and_then(|found| std::fs::canonicalize(found).ok())
 }
 
 /// Whether a program stands where it is named: a path that is a file, or a name found on the search path.

@@ -344,6 +344,8 @@ pub async fn runner_of(ground: &Ground, account: &str) -> Result<Option<Runner>,
       roots.data.join(node_link::runner::PERSONAL_TOOLS).to_string_lossy().into_owned(),
       "--owner".to_owned(),
       account.to_owned(),
+      "--kit".to_owned(),
+      roots.deploy.join(node_link::runner::SCREEN_KIT).to_string_lossy().into_owned(),
     ];
 
     return Ok(Some(Runner::Command(words.to_vec())));
@@ -358,6 +360,53 @@ pub async fn runner_of(ground: &Ground, account: &str) -> Result<Option<Runner>,
     (Some(socket), Some(owner)) if owner == account => Some(Runner::Socket(socket)),
     _ => None,
   }))
+}
+
+/// How long a screen session stands (docs/api.md, 「personal-apps」).
+pub const SCREEN_SESSION_MS: u64 = 10 * 60 * 1000;
+
+/// The holder a screen session is held under, which names its account.
+pub const SCREEN_HOLDER: &str = "personal-screens";
+
+/// A short-lived session a console reads and calls `account`'s personal screens under (docs/person-nodes.md,
+/// 「Personal screens」): the namespace `my` alone, no capability and no grant, the account and the runner its
+/// records name, and the file of the apps the person does not reach; its token and when it lapses, or none where
+/// the account has no runner.
+pub async fn issue_screen_session(
+  ground: &Ground,
+  account: &str,
+) -> Result<Option<(String, u64)>, Refusal> {
+  let Some(runner) = runner_of(ground, account).await? else {
+    return Ok(None);
+  };
+  let now = u64::try_from(crate::now_ms()).unwrap_or_default();
+  let lapses = now + SCREEN_SESSION_MS;
+  let mut labels = Map::new();
+
+  labels.insert("account".to_owned(), json!(account));
+
+  let mut request = SessionRequest {
+    holder_name: format!("{SCREEN_HOLDER}:{account}"),
+    namespaces: ["my".to_owned()].into(),
+    capabilities: Default::default(),
+    grants: Default::default(),
+    shown: Default::default(),
+    entries: None,
+    variables: BTreeMap::new(),
+    variables_file: None,
+    withheld_apps_file: None,
+    owner_account: Some(account.to_owned()),
+    runner: Some(runner),
+    labels,
+    ttl_ms: Some(SCREEN_SESSION_MS),
+  };
+
+  withhold(ground, &mut request, Some(account.to_owned()), || {
+    crate::apps::run_file(&ground.roots.data, lapses, now)
+  })
+  .await;
+
+  issue_record(ground, &request).await.map(|token| Some((token, lapses)))
 }
 
 /// A token for a resident program of `line` standing in `place` for `agent` and working in `checkout`, or

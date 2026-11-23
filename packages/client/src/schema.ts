@@ -1996,6 +1996,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/personal-apps/{ownerAccount}/screen-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a short-lived tool session a console reads and calls the account's personal screens under. */
+        post: operations["issueScreenSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/nodes/{nodeName}/access": {
         parameters: {
             query?: never;
@@ -5281,6 +5298,15 @@ export interface components {
             /** @default null */
             version: string | null;
         };
+        /**
+         * @description ScreenSession: a short-lived tool session a console reads and calls a person's personal screens under: the token
+         *     the tool host issued, and when it lapses, in epoch milliseconds.
+         */
+        ScreenSession: {
+            token: string;
+            /** Format: uint64 */
+            expiresAt: number;
+        };
         /** @description NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there. */
         NodeAccess: {
             node: string;
@@ -6015,6 +6041,15 @@ export interface components {
         };
         /** @description running */
         Running: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description screen-session-unissued */
+        ScreenSessionUnissued: {
             headers: {
                 [name: string]: unknown;
             };
@@ -10549,6 +10584,33 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["AppRefused"];
+        };
+    };
+    issueScreenSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScreenSession"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["ScreenSessionUnissued"];
         };
     };
     getNodeAccess: {
