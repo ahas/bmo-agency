@@ -119,21 +119,26 @@ fn named(name: &str) -> Result<(), Fault> {
 static HELD: LazyLock<std::sync::Mutex<BTreeMap<String, Arc<tokio::sync::Mutex<()>>>>> =
   LazyLock::new(Default::default);
 
-fn hold(account: &str, name: &str) -> Arc<tokio::sync::Mutex<()>> {
+pub fn hold(account: &str, name: &str) -> Arc<tokio::sync::Mutex<()>> {
   let mut held = HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
   held.entry(format!("{account}/{name}")).or_default().clone()
 }
 
 /// What the runner answered: its last line, and each line a build said before it.
-struct Answered {
-  last: Value,
-  said: Vec<String>,
+pub struct Answered {
+  pub last: Value,
+  pub said: Vec<String>,
+}
+
+/// Whether the chain lets the person make personal apps of their own.
+pub async fn may_make(ground: &Ground, account: &str) -> Result<(), Fault> {
+  may_put(ground, account, None, true).await
 }
 
 // One asking of the runner over its passage: the line sent and kept open, every `said` line read, and the first
 // other line its answer. The passage closing unanswered, or a runner that cannot be reached, is unreached.
-async fn ask(runner: &Runner, line: &Value) -> Result<Answered, Fault> {
+pub async fn ask(runner: &Runner, line: &Value) -> Result<Answered, Fault> {
   let mut asking = line.to_string();
 
   asking.push('\n');
@@ -200,7 +205,7 @@ async fn read_answer(
 }
 
 // The answer of the kind asked for, else the runner's line said as a refusal.
-fn expect(answered: &Answered, kind: &str) -> Result<(), Fault> {
+pub fn expect(answered: &Answered, kind: &str) -> Result<(), Fault> {
   if answered.last["t"] == kind {
     Ok(())
   } else {
@@ -232,9 +237,10 @@ pub async fn runner(ground: &Ground, account: &str) -> Result<Runner, Fault> {
     .ok_or_else(|| Fault::NoRunner(account.to_owned()))
 }
 
-// Whether the chain lets the person put a personal app, and whether it lets one ask for each permission its manifest
-// names; the administrator's account is held to none of it.
-async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>) -> Result<(), Fault> {
+// Whether the chain lets the person put a personal app of their own (`make`), and whether it lets one ask for each
+// permission its manifest names; the administrator's account is held to none of it. A received app is held to the
+// permissions alone.
+async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>, make: bool) -> Result<(), Fault> {
   if crate::account_isolation::owners_own(&ground.db, account)
     .await
     .map_err(|_| Fault::Unchecked)?
@@ -256,7 +262,7 @@ async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>) -> Resu
     }
   };
 
-  if !flag(settings.make.key.as_str(), true).await? {
+  if make && !flag(settings.make.key.as_str(), true).await? {
     return Err(Fault::Withheld);
   }
 
@@ -285,7 +291,7 @@ async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>) -> Resu
 }
 
 // `bmo-pocket` run on the data root with the words given: what it said, or its refusal.
-async fn pocket(ground: &Ground, words: &[&str]) -> Result<String, Fault> {
+pub async fn pocket(ground: &Ground, words: &[&str]) -> Result<String, Fault> {
   let program = ground.vars().get(POCKET_VARIABLE).cloned().unwrap_or_else(|| "bmo-pocket".to_owned());
   let ran = tokio::process::Command::new(&program)
     .arg("--data-root")
@@ -365,14 +371,20 @@ fn stage(data: &Path, name: &str, files: &Value) -> Result<Staged, Fault> {
 async fn put_home(
   ground: &Ground,
   account: &str,
-  name: &str,
+  (name, app): (&str, Option<&str>),
   version: &str,
   files: &Value,
 ) -> Result<String, Fault> {
   let staged = stage(&ground.roots.data, name, files)?;
   let folder = staged.0.to_string_lossy().into_owned();
+  let mut words = vec!["put", "--owner", account, "--version", version];
 
-  pocket(ground, &["put", "--owner", account, "--version", version, &folder]).await
+  if let Some(app) = app {
+    words.extend(["--app", app]);
+  }
+
+  words.push(&folder);
+  pocket(ground, &words).await
 }
 
 fn lines(said: &str) -> impl Iterator<Item = String> + '_ {
@@ -383,11 +395,38 @@ fn lines(said: &str) -> impl Iterator<Item = String> + '_ {
 /// and the PC pointed at it. A refusal at home leaves the PC's pointer where it stood.
 pub async fn put(ground: &Ground, account: &str, name: &str) -> Result<Outcome, Fault> {
   named(name)?;
-  may_put(ground, account, None).await?;
+  may_put(ground, account, None, true).await?;
 
   let runner = runner(ground, account).await?;
   let held = hold(account, name);
   let _held = held.lock().await;
+
+  put_held(ground, &runner, account, (name, None)).await
+}
+
+/// A received copy of a shared app put as a personal app standing for the shared app's key (docs/person-nodes.md,
+/// 「Shared apps」): its source already in its folder, built, put at home with the key and pointed at; held to the
+/// permissions the chain allows a personal app, not to whether the person may make one. The caller holds the app.
+pub async fn put_received(
+  ground: &Ground,
+  runner: &Runner,
+  account: &str,
+  name: &str,
+  key: Option<&str>,
+) -> Result<Outcome, Fault> {
+  named(name)?;
+  put_held(ground, runner, account, (name, key)).await
+}
+
+// A put under the app's hold: the PC places the folder, the chain judges its manifest, the description is put at
+// home under the PC's version, naming the shared app where it is a copy of one, and the PC is pointed at it.
+async fn put_held(
+  ground: &Ground,
+  runner: &Runner,
+  account: &str,
+  (name, app): (&str, Option<&str>),
+) -> Result<Outcome, Fault> {
+  let runner = runner.clone();
   let placed = ask(&runner, &json!({ "owner": account, "place": { "tool": name } })).await?;
 
   expect(&placed, "placed")?;
@@ -395,9 +434,9 @@ pub async fn put(ground: &Ground, account: &str, name: &str) -> Result<Outcome, 
   let version = placed.last["version"].as_str().unwrap_or_default().to_owned();
   let files = &placed.last["files"];
 
-  may_put(ground, account, files["tool.toml"].as_str()).await?;
+  may_put(ground, account, files["tool.toml"].as_str(), false).await?;
 
-  let home = put_home(ground, account, name, &version, files).await?;
+  let home = put_home(ground, account, (name, app), &version, files).await?;
   let pointed =
     ask(&runner, &json!({ "owner": account, "point": { "tool": name, "version": version } })).await?;
 
@@ -452,7 +491,13 @@ pub async fn back(
 
   expect(&described, "described")?;
 
-  let home = put_home(ground, account, name, &target, &described.last["files"]).await?;
+  let app = listed(ground, account)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .find(|tool| tool["name"] == name)
+    .and_then(|tool| tool["app"].as_str().map(str::to_owned));
+  let home = put_home(ground, account, (name, app.as_deref()), &target, &described.last["files"]).await?;
   let pointed =
     ask(&runner, &json!({ "owner": account, "point": { "tool": name, "version": target } })).await?;
 

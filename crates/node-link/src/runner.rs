@@ -87,6 +87,15 @@ pub enum Answered {
   Taken {},
   /// One file of a version's screen, its bytes in base64.
   File { bytes: String },
+  /// The source a version was placed from, by path.
+  Source {
+    version: String,
+    files: BTreeMap<String, String>,
+  },
+  /// A shared app's source written into its folder of 'my apps'.
+  Received {},
+  /// A received app made the person's own.
+  Adopted {},
 }
 
 /// What a tool keeps: the version pointed at, none where no pointer stands, and the others older than it, newest

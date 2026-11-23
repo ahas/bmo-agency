@@ -205,6 +205,9 @@
       "name": "personal-apps"
     },
     {
+      "name": "catalogue"
+    },
+    {
       "name": "slots"
     }
   ],
@@ -7374,6 +7377,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Locked"
           }
         },
         "x-codes": [
@@ -8169,6 +8175,1018 @@
               "description": "the account"
             }
           }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}": {
+      "get": {
+        "operationId": "listCatalogue",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "The apps of the account's company's catalogue the account sees, what each lets it do, its notices and its share ceiling.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the company, for the administrator"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/source": {
+      "get": {
+        "operationId": "getCatalogueAppSource",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "A version's source, checked against its hash, for a reader who sees the app.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueSource"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the company, for the administrator"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the version; the newest where none is named"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps": {
+      "post": {
+        "operationId": "shareCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Share one of the account's personal apps with the targets named.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "access-unchecked",
+          "scope-withheld",
+          "other-company",
+          "personal-apps-withheld"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueShare"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/install": {
+      "post": {
+        "operationId": "installCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Install the app's newest version for the account.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "access-unchecked",
+          "withdrawn",
+          "awaiting-approval",
+          "not-offered",
+          "install-withheld",
+          "name-taken",
+          "permission-withheld"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "uninstallCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Drop the account's copy.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "access-unchecked",
+          "locked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/update": {
+      "post": {
+        "operationId": "updateCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Move the account's copy onto the newest version.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "access-unchecked",
+          "awaiting-approval",
+          "permission-withheld"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/clone": {
+      "post": {
+        "operationId": "cloneCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Adopt the account's copy as its own personal app.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoRunner"
+          },
+          "502": {
+            "$ref": "#/components/responses/RunnerUnreached"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "no-runner",
+          "runner-unreached",
+          "app-refused",
+          "access-unchecked",
+          "locked",
+          "personal-apps-withheld"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/units/{unit}": {
+      "post": {
+        "operationId": "switchCatalogueAppUnit",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Turn the app on or off for a unit the account heads.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          },
+          "409": {
+            "$ref": "#/components/responses/Locked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "locked",
+          "withdrawn",
+          "awaiting-approval"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          },
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the unit"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueUnitSwitch"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/recall": {
+      "post": {
+        "operationId": "recallCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Recall the app at a unit the account heads, or at the platform for the administrator.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          },
+          "409": {
+            "$ref": "#/components/responses/Locked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "locked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the company, for the administrator"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueRecall"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/withdraw": {
+      "post": {
+        "operationId": "withdrawCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Withdraw the app, for its owner or maker.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the company, for the administrator"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/approve": {
+      "post": {
+        "operationId": "approveCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Approve a version, for a head of the maker's home unit.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueApprove"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/promote": {
+      "post": {
+        "operationId": "promoteCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Ask for the app to be made a platform app.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CataloguePromote"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/seen": {
+      "post": {
+        "operationId": "seenCatalogue",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Keep that the account has looked at what was shared with it.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueSeen"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the company, for the administrator"
+            }
+          }
+        ]
+      }
+    },
+    "/catalogue-promotions": {
+      "get": {
+        "operationId": "listCataloguePromotions",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Every company's requests to make an app a platform app, for the administrator.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CataloguePromotions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "app-refused"
         ]
       }
     },
@@ -17508,6 +18526,480 @@
         ],
         "description": "ScreenSession: a short-lived tool session a console reads and calls a person's personal screens under: the token\nthe tool host issued, and when it lapses, in epoch milliseconds."
       },
+      "CatalogueList": {
+        "type": "object",
+        "properties": {
+          "company": {
+            "type": "string"
+          },
+          "ceiling": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueApp"
+            }
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueNotice"
+            }
+          },
+          "seenAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "company",
+          "ceiling",
+          "apps",
+          "notices",
+          "seenAt"
+        ],
+        "description": "CatalogueList: the reader's company's catalogue as they see it: the targets they may share with, the apps, their\nnotices, and when they last looked."
+      },
+      "CatalogueApp": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "maker": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": true
+          },
+          "version": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueVersion"
+            }
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PersonalAppPermissions"
+          },
+          "review": {
+            "$ref": "#/components/schemas/CatalogueReview"
+          },
+          "approval": {
+            "$ref": "#/components/schemas/CatalogueApproval"
+          },
+          "installs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "withdrawn": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "promotion": {
+            "default": null
+          },
+          "installed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogueCopy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "updateWaiting": {
+            "type": "boolean"
+          },
+          "permissionsGrown": {
+            "type": "boolean"
+          },
+          "may": {
+            "$ref": "#/components/schemas/CatalogueMay"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "title",
+          "description",
+          "maker",
+          "owner",
+          "targets",
+          "version",
+          "versions",
+          "permissions",
+          "review",
+          "approval",
+          "installs",
+          "withdrawn",
+          "promotion",
+          "installed",
+          "updateWaiting",
+          "permissionsGrown",
+          "may"
+        ],
+        "description": "CatalogueApp: a shared app as its reader sees it in their company's catalogue."
+      },
+      "CatalogueVersion": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "sharedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PersonalAppPermissions"
+          },
+          "review": {
+            "$ref": "#/components/schemas/CatalogueReview"
+          }
+        },
+        "required": [
+          "version",
+          "sharedAt",
+          "sourceHash",
+          "permissions",
+          "review"
+        ],
+        "description": "CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its\nown folders, and its review report's state and text."
+      },
+      "CatalogueReview": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "report": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "state",
+          "report",
+          "at"
+        ],
+        "description": "CatalogueReview: a version's review report: `pending`, `written` with its text, or `failed` with why."
+      },
+      "CatalogueApproval": {
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "boolean"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "required",
+          "approved"
+        ],
+        "description": "CatalogueApproval: whether a head must approve the newest version before anybody installs it, and whether one did."
+      },
+      "CatalogueCopy": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "how": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "how"
+        ],
+        "description": "CatalogueCopy: the reader's copy of a shared app: the version it stands on, and how it came (`self` or `unit`)."
+      },
+      "CatalogueMay": {
+        "type": "object",
+        "properties": {
+          "install": {
+            "type": "boolean"
+          },
+          "update": {
+            "type": "boolean"
+          },
+          "uninstall": {
+            "type": "boolean"
+          },
+          "clone": {
+            "type": "boolean"
+          },
+          "withdraw": {
+            "type": "boolean"
+          },
+          "approve": {
+            "type": "boolean"
+          },
+          "promote": {
+            "type": "boolean"
+          },
+          "recall": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "turnOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "install",
+          "update",
+          "uninstall",
+          "clone",
+          "withdraw",
+          "approve",
+          "promote",
+          "recall",
+          "turnOn"
+        ],
+        "description": "CatalogueMay: what the reader may do with a shared app; `recall` and `turnOn` name the links they may do it at,\n`unit:<id>` for a unit they head and `platform` for the administrator."
+      },
+      "CatalogueNotice": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "kind",
+          "app",
+          "at"
+        ],
+        "description": "CatalogueNotice: what the reader is told of: an app shared with them since they last looked (`shared`), a copy\nwaiting for them to confirm what it asks for (`update`), or a version waiting for their approval (`approval`)."
+      },
+      "CatalogueSource": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "sourceHash": {
+            "type": "string"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "sourceHash",
+          "files"
+        ],
+        "description": "CatalogueSource: a version's source, checked against the hash recorded as it was shared, every file by its path."
+      },
+      "CatalogueShare": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "targets": {
+            "type": "array",
+            "items": true,
+            "default": []
+          }
+        },
+        "required": [
+          "name",
+          "targets"
+        ],
+        "description": "CatalogueShare: one of the reader's personal apps shared by its name, with whom: each target `{\"team\": true}`,\n`{\"heads\": true}`, `{\"company\": true}`, `{\"person\": <user>}`, `{\"group\": <id>}` or `{\"unit\": <id>}`; none shares\nwith the team and the heads."
+      },
+      "CatalogueUnitSwitch": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "lock": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "on",
+          "lock"
+        ],
+        "description": "CatalogueUnitSwitch: a shared app turned on or off for a unit, locked for those under it where `lock` says so."
+      },
+      "CatalogueRecall": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "unit"
+        ],
+        "description": "CatalogueRecall: the unit a head recalls a shared app at; none for the administrator's recall at the platform."
+      },
+      "CatalogueApprove": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "description": "CatalogueApprove: the version a head approves."
+      },
+      "CataloguePromote": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "description": "CataloguePromote: the request to make a shared app a platform app, with a note for the administrator."
+      },
+      "CatalogueSeen": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "description": "CatalogueSeen: when the reader last looked at what was shared with them."
+      },
+      "CataloguePromotions": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CataloguePromotion"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "CataloguePromotions: every company's requests to make a shared app a platform app, newest first."
+      },
+      "CataloguePromotion": {
+        "type": "object",
+        "properties": {
+          "company": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "maker": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "id",
+          "title",
+          "maker",
+          "by",
+          "at",
+          "note"
+        ],
+        "description": "CataloguePromotion: one request to make a shared app a platform app."
+      },
       "NodeAccess": {
         "type": "object",
         "properties": {
@@ -18447,6 +19939,16 @@
           }
         }
       },
+      "AwaitingApproval": {
+        "description": "awaiting-approval",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AwaitsOwner": {
         "description": "awaits-owner",
         "content": {
@@ -18539,6 +20041,16 @@
       },
       "Gone": {
         "description": "gone",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InstallWithheld": {
+        "description": "install-withheld",
         "content": {
           "application/json": {
             "schema": {
@@ -18777,6 +20289,16 @@
           }
         }
       },
+      "NotOffered": {
+        "description": "not-offered",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NotOwner": {
         "description": "not-owner",
         "content": {
@@ -18809,6 +20331,16 @@
       },
       "OrganisationSupplyClosed": {
         "description": "organisation-supply-closed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OtherCompany": {
+        "description": "other-company",
         "content": {
           "application/json": {
             "schema": {
@@ -18859,6 +20391,16 @@
       },
       "Running": {
         "description": "running",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ScopeWithheld": {
+        "description": "scope-withheld",
         "content": {
           "application/json": {
             "schema": {
@@ -19029,6 +20571,16 @@
       },
       "UpstreamFailed": {
         "description": "upstream-failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Withdrawn": {
+        "description": "withdrawn",
         "content": {
           "application/json": {
             "schema": {

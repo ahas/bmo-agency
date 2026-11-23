@@ -2013,6 +2013,228 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/catalogue/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The apps of the account's company's catalogue the account sees, what each lets it do, its notices and its share ceiling. */
+        get: operations["listCatalogue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A version's source, checked against its hash, for a reader who sees the app. */
+        get: operations["getCatalogueAppSource"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Share one of the account's personal apps with the targets named. */
+        post: operations["shareCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install the app's newest version for the account. */
+        post: operations["installCatalogueApp"];
+        /** Drop the account's copy. */
+        delete: operations["uninstallCatalogueApp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move the account's copy onto the newest version. */
+        post: operations["updateCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adopt the account's copy as its own personal app. */
+        post: operations["cloneCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/units/{unit}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turn the app on or off for a unit the account heads. */
+        post: operations["switchCatalogueAppUnit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recall the app at a unit the account heads, or at the platform for the administrator. */
+        post: operations["recallCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw the app, for its owner or maker. */
+        post: operations["withdrawCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a version, for a head of the maker's home unit. */
+        post: operations["approveCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask for the app to be made a platform app. */
+        post: operations["promoteCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keep that the account has looked at what was shared with it. */
+        post: operations["seenCatalogue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue-promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every company's requests to make an app a platform app, for the administrator. */
+        get: operations["listCataloguePromotions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/nodes/{nodeName}/access": {
         parameters: {
             query?: never;
@@ -5307,6 +5529,170 @@ export interface components {
             /** Format: uint64 */
             expiresAt: number;
         };
+        /**
+         * @description CatalogueList: the reader's company's catalogue as they see it: the targets they may share with, the apps, their
+         *     notices, and when they last looked.
+         */
+        CatalogueList: {
+            company: string;
+            ceiling: string[];
+            apps: components["schemas"]["CatalogueApp"][];
+            notices: components["schemas"]["CatalogueNotice"][];
+            /**
+             * Format: int64
+             * @default null
+             */
+            seenAt: number | null;
+        };
+        /** @description CatalogueApp: a shared app as its reader sees it in their company's catalogue. */
+        CatalogueApp: {
+            id: string;
+            key: string;
+            name: string;
+            title: string;
+            description: string;
+            maker: string;
+            owner: string;
+            targets: unknown[];
+            version: string;
+            versions: components["schemas"]["CatalogueVersion"][];
+            permissions: components["schemas"]["PersonalAppPermissions"];
+            review: components["schemas"]["CatalogueReview"];
+            approval: components["schemas"]["CatalogueApproval"];
+            /** Format: int64 */
+            installs: number;
+            /**
+             * Format: int64
+             * @default null
+             */
+            withdrawn: number | null;
+            /** @default null */
+            promotion: unknown;
+            /** @default null */
+            installed: components["schemas"]["CatalogueCopy"] | null;
+            updateWaiting: boolean;
+            permissionsGrown: boolean;
+            may: components["schemas"]["CatalogueMay"];
+        };
+        /**
+         * @description CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its
+         *     own folders, and its review report's state and text.
+         */
+        CatalogueVersion: {
+            version: string;
+            /** Format: int64 */
+            sharedAt: number;
+            sourceHash: string;
+            permissions: components["schemas"]["PersonalAppPermissions"];
+            review: components["schemas"]["CatalogueReview"];
+        };
+        /** @description CatalogueReview: a version's review report: `pending`, `written` with its text, or `failed` with why. */
+        CatalogueReview: {
+            state: string;
+            /** @default null */
+            report: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            at: number | null;
+        };
+        /** @description CatalogueApproval: whether a head must approve the newest version before anybody installs it, and whether one did. */
+        CatalogueApproval: {
+            required: boolean;
+            approved: boolean;
+        };
+        /** @description CatalogueCopy: the reader's copy of a shared app: the version it stands on, and how it came (`self` or `unit`). */
+        CatalogueCopy: {
+            version: string;
+            how: string;
+        };
+        /**
+         * @description CatalogueMay: what the reader may do with a shared app; `recall` and `turnOn` name the links they may do it at,
+         *     `unit:<id>` for a unit they head and `platform` for the administrator.
+         */
+        CatalogueMay: {
+            install: boolean;
+            update: boolean;
+            uninstall: boolean;
+            clone: boolean;
+            withdraw: boolean;
+            approve: boolean;
+            promote: boolean;
+            recall: string[];
+            turnOn: string[];
+        };
+        /**
+         * @description CatalogueNotice: what the reader is told of: an app shared with them since they last looked (`shared`), a copy
+         *     waiting for them to confirm what it asks for (`update`), or a version waiting for their approval (`approval`).
+         */
+        CatalogueNotice: {
+            kind: string;
+            app: string;
+            /** Format: int64 */
+            at: number;
+        };
+        /** @description CatalogueSource: a version's source, checked against the hash recorded as it was shared, every file by its path. */
+        CatalogueSource: {
+            version: string;
+            sourceHash: string;
+            files: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * @description CatalogueShare: one of the reader's personal apps shared by its name, with whom: each target `{"team": true}`,
+         *     `{"heads": true}`, `{"company": true}`, `{"person": <user>}`, `{"group": <id>}` or `{"unit": <id>}`; none shares
+         *     with the team and the heads.
+         */
+        CatalogueShare: {
+            name: string;
+            /** @default [] */
+            targets: unknown[];
+        };
+        /** @description CatalogueUnitSwitch: a shared app turned on or off for a unit, locked for those under it where `lock` says so. */
+        CatalogueUnitSwitch: {
+            on: boolean;
+            /** @default false */
+            lock: boolean;
+        };
+        /** @description CatalogueRecall: the unit a head recalls a shared app at; none for the administrator's recall at the platform. */
+        CatalogueRecall: {
+            /**
+             * Format: int64
+             * @default null
+             */
+            unit: number | null;
+        };
+        /** @description CatalogueApprove: the version a head approves. */
+        CatalogueApprove: {
+            version: string;
+        };
+        /** @description CataloguePromote: the request to make a shared app a platform app, with a note for the administrator. */
+        CataloguePromote: {
+            /** @default  */
+            note: string;
+        };
+        /** @description CatalogueSeen: when the reader last looked at what was shared with them. */
+        CatalogueSeen: {
+            /** Format: int64 */
+            at: number;
+        };
+        /** @description CataloguePromotions: every company's requests to make a shared app a platform app, newest first. */
+        CataloguePromotions: {
+            items: components["schemas"]["CataloguePromotion"][];
+        };
+        /** @description CataloguePromotion: one request to make a shared app a platform app. */
+        CataloguePromotion: {
+            company: string;
+            id: string;
+            title: string;
+            maker: string;
+            by: string;
+            /** Format: int64 */
+            at: number;
+            note: string;
+        };
         /** @description NodeAccess: whether a caller reaches a node, as the node service's tool asks it before it runs a command there. */
         NodeAccess: {
             node: string;
@@ -5670,6 +6056,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description awaiting-approval */
+        AwaitingApproval: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description awaits-owner */
         AwaitsOwner: {
             headers: {
@@ -5753,6 +6148,15 @@ export interface components {
         };
         /** @description gone */
         Gone: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description install-withheld */
+        InstallWithheld: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5967,6 +6371,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description not-offered */
+        NotOffered: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description not-owner */
         NotOwner: {
             headers: {
@@ -5996,6 +6409,15 @@ export interface components {
         };
         /** @description organisation-supply-closed */
         OrganisationSupplyClosed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description other-company */
+        OtherCompany: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6041,6 +6463,15 @@ export interface components {
         };
         /** @description running */
         Running: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description scope-withheld */
+        ScopeWithheld: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6194,6 +6625,15 @@ export interface components {
         };
         /** @description upstream-failed */
         UpstreamFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description withdrawn */
+        Withdrawn: {
             headers: {
                 [name: string]: unknown;
             };
@@ -10195,6 +10635,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Locked"];
             422: components["responses"]["BadComposition"];
         };
     };
@@ -10611,6 +11052,434 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             409: components["responses"]["NoRunner"];
             422: components["responses"]["ScreenSessionUnissued"];
+        };
+    };
+    listCatalogue: {
+        parameters: {
+            query?: {
+                company?: string;
+            };
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    getCatalogueAppSource: {
+        parameters: {
+            query?: {
+                company?: string;
+                version?: string;
+            };
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    shareCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogueShare"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    installCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    uninstallCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    updateCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    cloneCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NoRunner"];
+            422: components["responses"]["AppRefused"];
+            502: components["responses"]["RunnerUnreached"];
+        };
+    };
+    switchCatalogueAppUnit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+                unit: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogueUnitSwitch"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Locked"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    recallCatalogueApp: {
+        parameters: {
+            query?: {
+                company?: string;
+            };
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogueRecall"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Locked"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    withdrawCatalogueApp: {
+        parameters: {
+            query?: {
+                company?: string;
+            };
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    approveCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogueApprove"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    promoteCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CataloguePromote"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    seenCatalogue: {
+        parameters: {
+            query?: {
+                company?: string;
+            };
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueSeen"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    listCataloguePromotions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CataloguePromotions"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AppRefused"];
         };
     };
     getNodeAccess: {

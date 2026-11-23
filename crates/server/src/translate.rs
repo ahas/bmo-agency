@@ -88,6 +88,64 @@ impl Purpose {
   }
 }
 
+/// What a run on the translate runner is for: a translation for its purpose, or a shared app's review
+/// (docs/launch-lines.md, 「The app review」), each under its role.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Work {
+  Translation(Purpose),
+  Review,
+}
+
+impl Work {
+  fn word(self) -> &'static str {
+    match self {
+      Self::Translation(purpose) => purpose.word(),
+      Self::Review => "app-review",
+    }
+  }
+
+  fn role(self) -> &'static String {
+    match self {
+      Self::Translation(_) => &ROLES.translate,
+      Self::Review => &ROLES.app_review,
+    }
+  }
+}
+
+/// A shared app's review (docs/launch-lines.md, 「The app review」): one turn on the translate runner, on the first
+/// road of the `app-reviewer` role's agents that can answer, its system prompt that role's prompt and its input the
+/// app's manifest, permissions and source; answers the report.
+pub async fn review_app(ground: &Ground, input: &str) -> Result<String, String> {
+  let held = crate::agent_roles::named(&ground.db, &ROLES.app_review)
+    .await
+    .map_err(|why| why.detail)?
+    .ok_or_else(|| crate::agent_roles::unknown(&ROLES.app_review))?;
+  let resolution =
+    road::resolve(ground, &Ask::of(road::Row::Role(&held.name), &held.line, &held.order)).await?;
+  let Some(taken) = resolution.road().cloned() else {
+    road::went(ground, &resolution, None, &[]).await;
+
+    return Err(resolution.sentence());
+  };
+
+  road::went(ground, &resolution, Some(&taken), &[]).await;
+
+  let trees = Trees::of(ground);
+  let system = role_prompt(&ground.db, &ROLES.app_review, None)
+    .await
+    .ok_or_else(|| format!("the role {} carries no prompt", ROLES.app_review))?;
+
+  if taken.provider == crate::control::registry::PROVIDER {
+    recorded(ground, (Work::Review, "English"), &taken, &system, input).await
+  } else if taken.provider == crate::lines::runner::PROVIDER {
+    let entry = held.agent_of_road(&taken.provider, &taken.model).and_then(RoleAgent::entry);
+
+    apart_on_claude(ground, &trees, Work::Review, (&taken.model, entry.as_ref()), &system, input).await
+  } else {
+    Err(format!("{} carries no review", taken.provider))
+  }
+}
+
 /// A translation's system prompt: the translator role's prompt, where the store's role carries one, then
 /// the purpose's instructions.
 pub fn system_prompt(trees: &Trees, role: Option<&str>, purpose: Purpose) -> Result<String, String> {
@@ -201,11 +259,19 @@ pub async fn translate(
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
   let input = input(language, text, terms);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
-    recorded(ground, purpose, language, &taken, &system, &input).await
+    recorded(ground, (Work::Translation(purpose), language), &taken, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {
     let entry = held.agent_of_road(&taken.provider, &taken.model).and_then(RoleAgent::entry);
 
-    apart_on_claude(ground, &trees, purpose, (&taken.model, entry.as_ref()), &system, &input).await
+    apart_on_claude(
+      ground,
+      &trees,
+      Work::Translation(purpose),
+      (&taken.model, entry.as_ref()),
+      &system,
+      &input,
+    )
+    .await
   } else {
     Err(format!("{} carries no translation", taken.provider))
   }
@@ -248,8 +314,7 @@ pub fn gateway_request(registration: &str, system: &str, input: &str) -> Value {
 // None of the text is written down, and a record that cannot be kept is said and never fails the translation.
 async fn recorded(
   ground: &Ground,
-  purpose: Purpose,
-  language: &str,
+  (work, language): (Work, &str),
   taken: &road::Road,
   system: &str,
   input: &str,
@@ -260,7 +325,7 @@ async fn recorded(
   let ledger = run_ledger::open(
     db,
     &run_ledger::Opening {
-      agent: ROLES.translate.clone(),
+      agent: work.role().clone(),
       chat_id: None,
       unit: unit.clone(),
       depth: 0,
@@ -278,7 +343,7 @@ async fn recorded(
   .map_err(|why| eprintln!("{unit}: the translation could not be written to the ledger: {}", why.detail))
   .ok();
   let mut log = RunLog::new(Target {
-    agent: ROLES.translate.clone(),
+    agent: work.role().clone(),
     run: unit.clone(),
     chat_id: None,
     job_id: None,
@@ -294,7 +359,7 @@ async fn recorded(
       db,
       Line::note(format!(
         "{} · {} · {} characters in, {back} back",
-        purpose.word(),
+        work.word(),
         language.trim(),
         input.chars().count()
       )),
@@ -408,7 +473,7 @@ impl Watch for Quiet {}
 struct OnLogin<'a> {
   ground: &'a Ground,
   trees: &'a Trees,
-  purpose: Purpose,
+  work: Work,
   model: &'a str,
   effort: String,
   /// The model the program may consult, as the translator's road on Claude Code names it.
@@ -452,10 +517,10 @@ impl Attempt<String> for OnLogin<'_> {
       self.ground,
       Apart {
         agent: AGENT,
-        role: &ROLES.translate,
+        role: self.work.role(),
         line: LINE,
         provider: crate::lines::runner::PROVIDER,
-        title: format!("{KEY} · {} · {}", self.purpose.word(), self.model),
+        title: format!("{KEY} · {} · {}", self.work.word(), self.model),
         command,
         session,
         prompt: self.input.to_owned(),
@@ -483,7 +548,7 @@ impl Attempt<String> for OnLogin<'_> {
 async fn apart_on_claude(
   ground: &Ground,
   trees: &Trees,
-  purpose: Purpose,
+  work: Work,
   (model, entry): (&str, Option<&Entry>),
   system: &str,
   input: &str,
@@ -501,11 +566,11 @@ async fn apart_on_claude(
   .map_err(|why| why.detail)?
   .unwrap_or_default();
   let system =
-    system_prompt_file(trees, &format!("{LINE}-{}", purpose.word()), system).map_err(|why| why.detail)?;
+    system_prompt_file(trees, &format!("{LINE}-{}", work.word()), system).map_err(|why| why.detail)?;
   let mut attempt = OnLogin {
     ground,
     trees,
-    purpose,
+    work,
     model,
     effort,
     advisor: entry.and_then(Entry::advisor_taken),

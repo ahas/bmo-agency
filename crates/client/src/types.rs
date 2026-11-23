@@ -3992,6 +3992,192 @@ pub struct ScreenSession {
   pub expires_at: u64,
 }
 
+/// CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its
+/// own folders, and its review report's state and text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueVersion {
+  pub version: String,
+  pub shared_at: i64,
+  pub source_hash: String,
+  pub permissions: PersonalAppPermissions,
+  pub review: CatalogueReview,
+}
+
+/// CatalogueReview: a version's review report: `pending`, `written` with its text, or `failed` with why.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueReview {
+  pub state: String,
+  #[serde(default)]
+  pub report: Option<String>,
+  #[serde(default)]
+  pub at: Option<i64>,
+}
+
+/// CatalogueApproval: whether a head must approve the newest version before anybody installs it, and whether one did.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueApproval {
+  pub required: bool,
+  pub approved: bool,
+}
+
+/// CatalogueCopy: the reader's copy of a shared app: the version it stands on, and how it came (`self` or `unit`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueCopy {
+  pub version: String,
+  pub how: String,
+}
+
+/// CatalogueMay: what the reader may do with a shared app; `recall` and `turnOn` name the links they may do it at,
+/// `unit:<id>` for a unit they head and `platform` for the administrator.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueMay {
+  pub install: bool,
+  pub update: bool,
+  pub uninstall: bool,
+  pub clone: bool,
+  pub withdraw: bool,
+  pub approve: bool,
+  pub promote: bool,
+  pub recall: Vec<String>,
+  pub turn_on: Vec<String>,
+}
+
+/// CatalogueApp: a shared app as its reader sees it in their company's catalogue.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueApp {
+  pub id: String,
+  pub key: String,
+  pub name: String,
+  pub title: String,
+  pub description: String,
+  pub maker: String,
+  pub owner: String,
+  pub targets: Vec<Value>,
+  pub version: String,
+  pub versions: Vec<CatalogueVersion>,
+  pub permissions: PersonalAppPermissions,
+  pub review: CatalogueReview,
+  pub approval: CatalogueApproval,
+  pub installs: i64,
+  #[serde(default)]
+  pub withdrawn: Option<i64>,
+  #[serde(default)]
+  pub promotion: Option<Value>,
+  #[serde(default)]
+  pub installed: Option<CatalogueCopy>,
+  pub update_waiting: bool,
+  pub permissions_grown: bool,
+  pub may: CatalogueMay,
+}
+
+/// CatalogueNotice: what the reader is told of: an app shared with them since they last looked (`shared`), a copy
+/// waiting for them to confirm what it asks for (`update`), or a version waiting for their approval (`approval`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueNotice {
+  pub kind: String,
+  pub app: String,
+  pub at: i64,
+}
+
+/// CatalogueList: the reader's company's catalogue as they see it: the targets they may share with, the apps, their
+/// notices, and when they last looked.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueList {
+  pub company: String,
+  pub ceiling: Vec<String>,
+  pub apps: Vec<CatalogueApp>,
+  pub notices: Vec<CatalogueNotice>,
+  #[serde(default)]
+  pub seen_at: Option<i64>,
+}
+
+/// CatalogueSource: a version's source, checked against the hash recorded as it was shared, every file by its path.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueSource {
+  pub version: String,
+  pub source_hash: String,
+  pub files: BTreeMap<String, String>,
+}
+
+/// CatalogueShare: one of the reader's personal apps shared by its name, with whom: each target `{"team": true}`,
+/// `{"heads": true}`, `{"company": true}`, `{"person": <user>}`, `{"group": <id>}` or `{"unit": <id>}`; none shares
+/// with the team and the heads.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueShare {
+  pub name: String,
+  #[serde(default)]
+  pub targets: Vec<Value>,
+}
+
+/// CatalogueUnitSwitch: a shared app turned on or off for a unit, locked for those under it where `lock` says so.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueUnitSwitch {
+  pub on: bool,
+  #[serde(default)]
+  pub lock: bool,
+}
+
+/// CatalogueRecall: the unit a head recalls a shared app at; none for the administrator's recall at the platform.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueRecall {
+  #[serde(default)]
+  pub unit: Option<i64>,
+}
+
+/// CatalogueApprove: the version a head approves.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueApprove {
+  pub version: String,
+}
+
+/// CataloguePromote: the request to make a shared app a platform app, with a note for the administrator.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CataloguePromote {
+  #[serde(default)]
+  pub note: String,
+}
+
+/// CataloguePromotion: one request to make a shared app a platform app.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CataloguePromotion {
+  pub company: String,
+  pub id: String,
+  pub title: String,
+  pub maker: String,
+  pub by: String,
+  pub at: i64,
+  pub note: String,
+}
+
+/// CataloguePromotions: every company's requests to make a shared app a platform app, newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CataloguePromotions {
+  pub items: Vec<CataloguePromotion>,
+}
+
+/// CatalogueSeen: when the reader last looked at what was shared with them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueSeen {
+  pub at: i64,
+}
+
 /// A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
 /// its name, one of the two.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

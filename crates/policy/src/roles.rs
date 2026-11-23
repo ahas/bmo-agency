@@ -108,6 +108,8 @@ pub struct Roles {
   pub renewal: String,
   /// The role a translation agency is asked for runs as.
   pub translate: String,
+  /// The role a shared app's review runs as.
+  pub app_review: String,
   /// The bundle that opens sending into a room.
   pub send: String,
   /// The bundles every supervisor's session record holds.

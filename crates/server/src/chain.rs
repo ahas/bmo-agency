@@ -83,6 +83,9 @@ pub fn kinds() -> Vec<Kind> {
     own(&organisation.personal_apps.make),
     own(&organisation.personal_apps.network),
     own(&organisation.personal_apps.secrets),
+    own(&organisation.personal_apps.share_scope),
+    own(&organisation.personal_apps.share_review),
+    own(&organisation.personal_apps.install),
   ]
 }
 
@@ -278,4 +281,67 @@ pub fn units_of(answer: &Value) -> Vec<i64> {
 /// A resolved flag's value, `fallback` where the answer says none.
 pub fn flag(answer: Option<&Value>, fallback: bool) -> bool {
   answer.and_then(|answer| answer["value"].as_bool()).unwrap_or(fallback)
+}
+
+/// A link's delegation written in the caller's name, `allow`, `lock` or `inherit`; the chain judges whether the caller
+/// writes it.
+pub async fn write_delegation(
+  service: &AccountService,
+  key: &str,
+  link: &str,
+  caller: i64,
+  delegation: &str,
+) -> Result<Answered, String> {
+  let request = client()
+    .put(format!("{}/chain/kinds/{key}/links/{link}/delegation", service.address))
+    .bearer_auth(&service.token)
+    .json(&json!({ "delegation": delegation }));
+
+  in_name_of(request, caller).await
+}
+
+/// A read of the account service at `path`, in the caller's name where one is named: a unit, its subtree or a group
+/// of the chain.
+pub async fn read(service: &AccountService, path: &str, caller: Option<i64>) -> Result<Answered, String> {
+  let request = client().get(format!("{}{path}", service.address)).bearer_auth(&service.token);
+
+  match caller {
+    Some(caller) => in_name_of(request, caller).await,
+    None => {
+      let answer = request
+        .send()
+        .await
+        .map_err(|why| format!("the account service was not reached: {why}"))?;
+      let status = answer.status().as_u16();
+      let body = answer.json().await.unwrap_or(Value::Null);
+
+      Ok(Answered { status, body })
+    }
+  }
+}
+
+/// The links of a resolved subject's chain, top first, as its answer's path names them.
+pub fn path_of(answer: &Value) -> Vec<String> {
+  answer["path"]
+    .as_array()
+    .into_iter()
+    .flatten()
+    .filter_map(|link| link.as_str().or_else(|| link["link"].as_str()).map(str::to_owned))
+    .collect()
+}
+
+/// A link's rules written whole in the caller's name, each `who` and `value`.
+pub async fn write_rules(
+  service: &AccountService,
+  key: &str,
+  link: &str,
+  caller: i64,
+  rules: Value,
+) -> Result<Answered, String> {
+  let request = client()
+    .put(format!("{}/chain/kinds/{key}/links/{link}/rules", service.address))
+    .bearer_auth(&service.token)
+    .json(&json!({ "rules": rules }));
+
+  in_name_of(request, caller).await
 }

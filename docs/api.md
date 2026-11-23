@@ -1564,6 +1564,54 @@ where the shell stands in an agent's program, else the owner.
   account service that cannot be asked is 503 `access-unchecked`; going back with no older version kept is 409
   `no-older-version`; an app the account holds none of is 404 `not-found`; a name outside an app's alphabet is 400.
 
+### catalogue
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/catalogue/{ownerAccount}` | The apps of the account's company's catalogue the account sees, what each lets it do, its notices and its share ceiling; `company` names the company for the administrator. |
+| GET | `/catalogue/{ownerAccount}/apps/{appId}/source` | The newest version's source, checked against its hash, for a reader who sees the app; `version` names another. |
+| POST | `/catalogue/{ownerAccount}/apps` | Share one of the account's personal apps: `name` and `targets`. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/install` | Install the app's newest version for the account. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/update` | Move the account's copy onto the newest version, confirming what it asks for. |
+| DELETE | `/catalogue/{ownerAccount}/apps/{appId}/install` | Drop the account's copy. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/clone` | Adopt the account's copy as its own personal app. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/units/{unit}` | Turn the app on or off for a unit the account heads: `on`, and `lock`. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/recall` | Recall the app at a unit the account heads, `unit`, or at the platform for the administrator. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/withdraw` | Withdraw the app, for its owner or maker. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/approve` | Approve a version, `version`, for a head of the maker's home unit. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/promote` | Ask for the app to be made a platform app, with a `note`. |
+| POST | `/catalogue/{ownerAccount}/seen` | Keep that the account has looked at what was shared with it. |
+| GET | `/catalogue-promotions` | Every company's requests to make an app a platform app, for the administrator. |
+
+- **What each does is `docs/person-nodes.md`, 「Shared apps」:** the company's catalogue through `bmo-pocket
+  catalogue`, the account service's delegation chain in the account's name, and the runner its records name.
+- **Who acts:** as for 「personal-apps」, a caller naming a person with `Owner-Key` acts for that person's account
+  alone; a caller of the deployment's own names the account, as the console does for the person signed in. The
+  administrator's account reads any company's catalogue by `company`, an empty one where it names none, and recalls
+  at the platform; `GET /catalogue-promotions` answers the administrator's account and the deployment's own callers
+  alone, 403 otherwise.
+- **The listing** answers `company`; `ceiling`, the targets the account may share with; `apps`, each `id`, `key`,
+  `name`, `title`, `description`, `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,
+  `sharedAt`, `sourceHash`, `permissions` and `review`), `permissions` and `review` of the newest, `approval`
+  (`required`, `approved`), `installs` (how many), `withdrawn`, `promotion`, `installed` (the account's copy,
+  `version` and `how`, or null), `updateWaiting` (a newer version stands), `permissionsGrown` (it asks for more than
+  the copy's), and `may`, what the account may do with it — `install`, `update`, `uninstall`, `clone`, `withdraw`,
+  `approve`, `promote`, `recall` and `turnOn`, the last two the units it heads on the account's path, or `platform`
+  for the administrator; `notices`, each `kind` (`shared`, `update` or `approval`), `app` and `at`; and `seenAt`.
+- **A share** answers the app's entry as the listing answers it; each target is `{"team": true}`, `{"heads":
+  true}`, `{"company": true}`, `{"person": <user>}`, `{"group": <id>}` or `{"unit": <id>}`, and none given shares
+  with `team` and `heads`.
+- **The source** answers `version`, `sourceHash` and `files`, by path.
+- **Every change** answers the app's entry as it then stands; a removal of a copy answers it too.
+- **Refusals:** a target the ceiling leaves out is 403 `scope-withheld`, and one of another company 403
+  `other-company`; a person who may not make personal apps is 403 `personal-apps-withheld`, and one who may not
+  install received apps 403 `install-withheld`; an app the account does not see is 404 `not-found`; installing a
+  withdrawn app is 409 `withdrawn`, one waiting for a head's approval 409 `awaiting-approval`, one not offered to
+  the account 403 `not-offered`, and over an app of the account's own of the same name 409 `name-taken`; dropping or
+  adopting a copy a lock above keeps on, or turning an app on where a lock above holds it, is 409 `locked`; a unit
+  the account does not head is 403 `forbidden`; and the personal apps' own refusals (「personal-apps」) stand as
+  they are.
+
 ### assignments and jobs
 
 | Method | Path | Does |

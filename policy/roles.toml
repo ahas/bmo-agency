@@ -6,6 +6,7 @@
 #   judging batch among them (docs/agents.md, 「A run in a pane of its own」).
 # translate: the role a translation agency is asked for runs as (docs/agent-roles.md, 「The translator and the
 #   transliterator roles」).
+# app_review: the role a shared app's review runs as (docs/agent-roles.md, 「The app-reviewer role」).
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
 # supervisor: the bundles every supervisor's session record holds (docs/supervisors.md, 「The bundles a
 #   supervisor holds」).
@@ -30,6 +31,7 @@
 job = "worker"
 renewal = "upkeep"
 translate = "translator"
+app_review = "app-reviewer"
 send = "room.send"
 supervisor = ["room.chat", "room.send", "web.read"]
 brain = ["room.chat", "gate.reference", "brain.lessons"]
@@ -227,3 +229,17 @@ max_concurrent = 2
 bundles = []
 sessions = "fresh"
 order = [{ provider = "claude-code", model = "claude-opus-5-5", effort = "medium", thinking = true }]
+
+# The app reviewer: reads a personal app a person shares within their company and writes the review report its
+# receivers and their heads read (docs/agent-roles.md, 「The app-reviewer role」). One turn on the translate line,
+# no tool and no session, its input the app's manifest, permissions and source.
+[[roles]]
+name = "app-reviewer"
+label = "App reviewer"
+description = "Reads a personal app shared within a company and reports what it does and whether its code reaches for more than its manifest declares."
+line = "translate"
+prompt = "app-reviewer.md"
+max_concurrent = 2
+bundles = []
+sessions = "fresh"
+order = [{ provider = "claude-code", model = "claude-sonnet-5", effort = "high" }]

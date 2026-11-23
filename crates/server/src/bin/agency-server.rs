@@ -445,6 +445,21 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
 
+  let copies = ground.clone();
+
+  // The shared apps' copies kept on each PC heard again since the last look (docs/person-nodes.md, 「Keeping the
+  // copies」).
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::person_nodes::PERSON_NODES.copies_seconds);
+
+    every("shared apps' copies", period, period, move || {
+      let ground = copies.clone();
+
+      async move { agency_server::catalogue::pass(&ground).await }
+    })
+    .await
+  });
+
   let idle = ground.clone();
 
   tokio::spawn(async move {

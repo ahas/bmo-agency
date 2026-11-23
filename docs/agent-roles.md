@@ -120,6 +120,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `upkeep` | Upkeep | worker | none | 1 | none | none | policy | fresh |
   | `actor` | Actor | worker | none | 1 | `actor.md` | none | policy | fresh |
   | `note-assistant` | Note assistant | search | none | 2 | none | none | policy | fresh |
+  | `app-reviewer` | App reviewer | translate | none | 2 | `app-reviewer.md` | none | policy | fresh |
 
   A prompt and a provider prompt named by file are files under `prompts/roles/`. A `policy` description is
   the sentence the role's declaration states.
@@ -297,6 +298,17 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its agents are seeded `fresh`:** every ask hands the whole passage and the rounds before it, so no run
   resumes another's session.
 
+## The app-reviewer role
+
+- **It reads a shared personal app and writes its review report** (`docs/person-nodes.md`, 「Shared apps」): what the
+  app does, in a few sentences a receiver reads before installing it, and whether anything in its code reaches for
+  more than its manifest declares — the network, a secret, a file outside its own folders, another program — each
+  named with the file it stands in.
+- **Its line is the translate line,** one turn with no tools and no session, the way a translation goes out
+  (`docs/launch-lines.md`, 「Translate runner」): its prompt, `prompts/roles/app-reviewer.md`, is the system prompt,
+  and the input is the app's manifest, the permissions it asks for and every file of its source. It holds no seat
+  and no bundle, and its runs stand under no account.
+
 ## A role's provider prompts
 
 - **A role may give its runs a text beside its prompt by the provider their program stands on:** a run of
@@ -340,6 +352,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
   names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`, the
   rehearsal `actor`, the note unit `note-assistant`.
+- **A shared app's review:** `app-reviewer`, asked by agency itself as an app is shared (「The app-reviewer role」).
 - **A run standing for no one's work:** `upkeep`.
 - **A role the store does not hold gives nothing,** and every one of these refuses it with the name.
 

@@ -25,3 +25,7 @@ administrator_grants = ["node.admin", "platform.payment"]
 # word of its call (docs/person-nodes.md, 「Who reaches a node」): the status line's and the hooks' reading, a hosted
 # tool, and the other units' verbs a supervisor's manual names. Every other verb and every script is refused.
 bridge_verbs = ["agent-status", "use", "see", "watch", "talk", "archive"]
+
+# How often agency looks for the PCs heard again since its last look, to keep their shared apps' copies, in seconds
+# (docs/person-nodes.md, 「Keeping the copies」).
+copies_seconds = 30

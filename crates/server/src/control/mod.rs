@@ -8,6 +8,7 @@ mod agent_sampling;
 mod background_work;
 mod base_prompts;
 pub mod borrowings;
+mod catalogue_routes;
 mod catalogues;
 mod chat_documents;
 pub mod claude_account_changes;

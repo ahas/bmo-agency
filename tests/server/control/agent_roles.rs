@@ -42,7 +42,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   // prompt its file's text.
   let (status, listing) = ask(reqwest::Method::GET, port, "/roles", None).await;
   assert_eq!(status, 200, "{listing}");
-  assert_eq!(listing["roles"].as_array().unwrap().len(), 11, "{listing}");
+  assert_eq!(listing["roles"].as_array().unwrap().len(), 12, "{listing}");
   assert_eq!(role(&listing, "worker").unwrap()["followsSupervisor"], false);
   assert_eq!(role(&listing, "worker").unwrap()["maxConcurrent"], 3);
   // A seeded role's agents are as many as its declared count, each on the road it declares, in their order.
@@ -161,7 +161,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(status, 422, "{body}: {refused}");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 11);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 12);
 
   // A role added, its bundles once each: it holds no agent yet, so it carries no run.
   let (status, added) = ask(

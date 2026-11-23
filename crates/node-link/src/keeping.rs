@@ -1,8 +1,10 @@
-//! The runner's keeping of an owner's personal apps (docs/person-nodes.md, 「Personal apps」 and 「Personal
-//! screens」): an app's folder of 'my apps' built confined into a new version, its screen's index written, a
-//! version's description read, the tool's pointer moved and the versions beyond those kept taken away, what each tool
-//! keeps listed, a tool taken away, and one file of a version's screen read. Each is asked on the passage's first
-//! line, `{"owner": <account>, "<what>": {…}}`, and answered by one line.
+//! The runner's keeping of an owner's personal apps (docs/person-nodes.md, 「Personal apps」, 「Personal screens」 and
+//! 「Shared apps」): an app's folder of 'my apps' built confined into a new version, which keeps the source it was
+//! built from, its screen's index written, a version's description and its source read, the tool's pointer moved and
+//! the versions beyond those kept taken away, what each tool keeps listed, a tool taken away, one file of a version's
+//! screen read, a shared app's source received into its folder once its hash is the one given, and a received app
+//! adopted as the person's own. Each is asked on the passage's first line, `{"owner": <account>, "<what>": {…}}`, and
+//! answered by one line.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -21,6 +23,72 @@ pub const MANIFEST: &str = "tool.toml";
 
 /// How many versions older than the one pointed at a tool keeps.
 pub const KEEP: usize = 3;
+
+/// The file inside a version that keeps the source it was placed from, and the file inside an app's folder that
+/// marks it a received copy of a shared app.
+pub const SOURCE_KEPT: &str = ".bmo-source.json";
+pub const RECEIVED_MARK: &str = ".bmo-received.json";
+
+/// The most bytes a version's kept source holds, the most a company's catalogue takes.
+pub const SOURCE_MOST: usize = 8 * 1024 * 1024;
+
+/// The hash of a source's files as the company catalogue reckons it (the tool host's `docs/catalogue.md`, 「The
+/// source hash」): the SHA-256 of the files in the byte order of their paths, each its path, a zero byte, its length
+/// in decimal, a zero byte and its bytes.
+pub fn source_hash(files: &BTreeMap<String, String>) -> String {
+  use sha2::Digest as _;
+
+  let mut hasher = sha2::Sha256::new();
+
+  for (path, text) in files {
+    hasher.update(path.as_bytes());
+    hasher.update([0]);
+    hasher.update(text.len().to_string().as_bytes());
+    hasher.update([0]);
+    hasher.update(text.as_bytes());
+  }
+
+  hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+// Every file of an app's folder by its path, its `.git` and the received mark left out, as text; none where a file
+// is not UTF-8 text or the whole holds more than a catalogue takes.
+fn source_files(folder: &Path) -> Option<BTreeMap<String, String>> {
+  fn walk(base: &Path, dir: &Path, files: &mut BTreeMap<String, String>, total: &mut usize) -> Option<()> {
+    for entry in std::fs::read_dir(dir).ok()? {
+      let entry = entry.ok()?;
+      let name = entry.file_name();
+
+      if dir == base && (name == ".git" || name == RECEIVED_MARK) {
+        continue;
+      }
+
+      let kind = entry.file_type().ok()?;
+
+      if kind.is_dir() {
+        walk(base, &entry.path(), files, total)?;
+      } else if kind.is_file() {
+        let text = String::from_utf8(std::fs::read(entry.path()).ok()?).ok()?;
+        let path = entry.path().strip_prefix(base).ok()?.to_string_lossy().into_owned();
+
+        *total += text.len();
+
+        if *total > SOURCE_MOST {
+          return None;
+        }
+
+        files.insert(path, text);
+      }
+    }
+
+    Some(())
+  }
+
+  let mut files = BTreeMap::new();
+
+  walk(folder, folder, &mut files, &mut 0)?;
+  Some(files)
+}
 
 /// Where a confined build reads the app's folder and writes the new version.
 const SOURCE_AT: &str = "/src";
@@ -60,6 +128,19 @@ pub enum Asked {
     tool: String,
     version: String,
     path: String,
+  },
+  Source {
+    tool: String,
+    version: String,
+  },
+  Receive {
+    tool: String,
+    files: BTreeMap<String, String>,
+    hash: String,
+    app: String,
+  },
+  Adopt {
+    tool: String,
   },
 }
 
@@ -529,6 +610,13 @@ async fn place(
     };
   }
 
+  // The source the version was placed from, kept inside it, so a version shared later is shared as it was built.
+  if let Some(source) = source_files(&source)
+    && let Ok(text) = serde_json::to_string(&source)
+  {
+    let _ = std::fs::write(staged.join(SOURCE_KEPT), text);
+  }
+
   let files = match description(&staged) {
     Ok(files) => files,
     Err(why) => {
@@ -591,6 +679,111 @@ fn point(owned: &Owned, tool: &str, version: &str) -> Answered {
   Answered::Pointed {
     version: version.to_owned(),
     kept: keeping,
+  }
+}
+
+// The source a version was placed from, as the version keeps it.
+fn kept_source(owned: &Owned, tool: &str, version: &str) -> Answered {
+  let file = owned.versions(tool).join(version).join(SOURCE_KEPT);
+  let read = std::fs::read_to_string(&file)
+    .ok()
+    .and_then(|text| serde_json::from_str::<BTreeMap<String, String>>(&text).ok());
+
+  match read {
+    Some(files) => Answered::Source {
+      version: version.to_owned(),
+      files,
+    },
+    None => Answered::Refused {
+      why: format!(
+        "version {version} of the app {tool} keeps no source to share: put it again, with text files alone"
+      ),
+    },
+  }
+}
+
+// The app a folder of 'my apps' is a received copy of, where it is one.
+fn received_of(folder: &Path) -> Option<String> {
+  let text = std::fs::read_to_string(folder.join(RECEIVED_MARK)).ok()?;
+
+  serde_json::from_str::<serde_json::Value>(&text).ok()?["app"]
+    .as_str()
+    .map(str::to_owned)
+}
+
+// A shared app's source written into its folder of 'my apps' once its hash is the one given: staged beside the
+// folder, marked with the app it is a copy of, and renamed over a received copy of the same app. A folder that is
+// the person's own, or another app's copy, is refused.
+fn receive(owned: &Owned, tool: &str, files: &BTreeMap<String, String>, hash: &str, app: &str) -> Answered {
+  let reckoned = source_hash(files);
+
+  if reckoned != hash {
+    return Answered::Refused {
+      why: format!("the source received for {tool} does not match the hash its catalogue recorded"),
+    };
+  }
+
+  if let Some(path) = files.keys().find(|path| !inside(path) || path.as_str() == RECEIVED_MARK) {
+    return Answered::Refused {
+      why: format!("the source received for {tool} holds a file {path:?} outside the app's folder"),
+    };
+  }
+
+  let folder = owned.apps.join(tool);
+
+  if folder.exists() && received_of(&folder).as_deref() != Some(app) {
+    return Answered::Refused {
+      why: format!("an app named {tool} that is no copy of {app} stands on this machine already"),
+    };
+  }
+
+  let staged = owned.apps.join(format!(".receiving-{tool}-{}", fresh()));
+  let written = (|| {
+    for (path, text) in files {
+      let to = staged.join(path);
+
+      if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent)?;
+      }
+
+      std::fs::write(to, text)?;
+    }
+
+    std::fs::write(staged.join(RECEIVED_MARK), json!({ "app": app, "hash": hash }).to_string())?;
+
+    if folder.exists() {
+      std::fs::remove_dir_all(&folder)?;
+    }
+
+    std::fs::rename(&staged, &folder)
+  })();
+
+  if let Err(why) = written {
+    let _ = std::fs::remove_dir_all(&staged);
+
+    return Answered::Refused {
+      why: format!("the source of {tool} could not be written: {why}"),
+    };
+  }
+
+  Answered::Received {}
+}
+
+// A received app made the person's own: its mark taken away.
+fn adopt(owned: &Owned, tool: &str) -> Answered {
+  let folder = owned.apps.join(tool);
+
+  if received_of(&folder).is_none() {
+    return Answered::Refused {
+      why: format!("the app {tool} on this machine is no received copy"),
+    };
+  }
+
+  match std::fs::remove_file(folder.join(RECEIVED_MARK)) {
+    Ok(()) => Answered::Adopted {},
+    Err(why) => Answered::Refused {
+      why: format!("the app {tool} could not be adopted: {why}"),
+    },
   }
 }
 
@@ -657,9 +850,13 @@ pub async fn keep(
     Ok(line) => {
       let owned = Owned::of(&runner, &line.owner);
       let named = match &line.asked {
-        Asked::Place { tool } | Asked::Take { tool } => vec![("tool", tool)],
+        Asked::Place { tool }
+        | Asked::Take { tool }
+        | Asked::Adopt { tool }
+        | Asked::Receive { tool, .. } => vec![("tool", tool)],
         Asked::Describe { tool, version }
         | Asked::Point { tool, version }
+        | Asked::Source { tool, version }
         | Asked::File { tool, version, .. } => {
           vec![("tool", tool), ("version", version)]
         }
@@ -689,6 +886,14 @@ pub async fn keep(
             version,
             path,
           } => screen_file(&owned.versions(tool).join(version), path),
+          Asked::Source { tool, version } => kept_source(&owned, tool, version),
+          Asked::Receive {
+            tool,
+            files,
+            hash,
+            app,
+          } => receive(&owned, tool, files, hash, app),
+          Asked::Adopt { tool } => adopt(&owned, tool),
         },
       }
     }

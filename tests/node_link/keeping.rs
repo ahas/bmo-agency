@@ -1,7 +1,9 @@
 //! The runner's keeping of personal apps (docs/person-nodes.md, 「Personal apps」): an app's folder of 'my apps'
 //! placed as a new version, copied whole or built confined, its description answered; a version described and
 //! pointed at, three older ones kept and the rest taken away; what each tool keeps listed; and a tool taken away, its
-//! source and data left standing. A refusal names what failed and leaves nothing staged.
+//! source and data left standing; a version's source kept and answered, a shared app's source received once its hash
+//! is the one given and never over the person's own app, and a received app adopted. A refusal names what failed and
+//! leaves nothing staged.
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -169,7 +171,7 @@ fn a_place_copies_the_folder_into_a_version_and_a_point_keeps_three_older_ones()
   assert_eq!(files["docs/manual.md"], "Call it with nothing.");
   assert_eq!(
     listed(&machine.versions_dir("weekly").join(&first)),
-    ["docs", "input.json", "main.py", "tool.toml"]
+    [".bmo-source.json", "docs", "input.json", "main.py", "tool.toml"]
   );
 
   let kept = machine.last(json!({ "versions": {} }));
@@ -238,8 +240,8 @@ fn a_build_writes_the_version_and_a_failed_one_is_refused_with_its_lines() {
   assert_eq!(answered[0], json!({ "t": "said", "line": "building" }));
   assert_eq!(
     listed(&machine.versions_dir("built").join(placed["version"].as_str().unwrap())),
-    ["docs", "input.json", "run.py", "tool.toml"],
-    "the source's own main.py stays out"
+    [".bmo-source.json", "docs", "input.json", "run.py", "tool.toml"],
+    "the source's own main.py stays out, kept as the version's source alone"
   );
 
   machine.app("broken", "broken", "build = 'echo it broke >&2; exit 3'");
@@ -364,4 +366,78 @@ fn a_screen_is_indexed_as_it_is_placed_and_its_files_are_read_alone() {
   assert_eq!(refused["t"], "refused");
   assert!(refused["why"].as_str().unwrap().contains("no screen/module.js"), "{refused}");
   assert!(machine.standing("bare").is_empty(), "nothing is left staged");
+}
+
+// "a place keeps the source it was built from, which a source answers, its .git left out; a receive writes a shared
+// app's source into its folder where its hash is the one given, marked as a copy, replaces a copy of the same app, and
+// never writes over the person's own app or another app's copy; an adoption takes the mark away"
+#[test]
+fn a_version_keeps_its_source_and_a_shared_one_is_received_checked_and_adopted() {
+  let machine = Machine::new();
+
+  machine.app("weekly", "weekly", "build = 'cp main.py \"$BMO_TOOL_OUT/run.py\"'");
+
+  let placed = machine.last(json!({ "place": { "tool": "weekly" } }));
+  let version = placed["version"].as_str().unwrap().to_owned();
+  let source = machine.last(json!({ "source": { "tool": "weekly", "version": version } }));
+
+  assert_eq!(source["t"], "source", "{source}");
+
+  let files = source["files"].as_object().unwrap();
+  let mut paths: Vec<&String> = files.keys().collect();
+
+  paths.sort();
+  assert_eq!(paths, ["docs/manual.md", "input.json", "main.py", "tool.toml"], "its .git is left out");
+  assert!(
+    machine.last(json!({ "source": { "tool": "weekly", "version": "v9" } }))["why"]
+      .as_str()
+      .unwrap()
+      .contains("keeps no source")
+  );
+
+  // The shared source, as the catalogue would hand it, with the hash it records.
+  let shared: std::collections::BTreeMap<String, String> =
+    serde_json::from_value(source["files"].clone()).unwrap();
+  let hash = node_link::keeping::source_hash(&shared);
+  let receive = |tool: &str, hash: &str, app: &str| {
+    machine.last(json!({ "receive": { "tool": tool, "files": shared, "hash": hash, "app": app } }))
+  };
+
+  assert!(
+    receive("received", "0000", "17-weekly")["why"]
+      .as_str()
+      .unwrap()
+      .contains("does not match the hash")
+  );
+  assert_eq!(receive("received", &hash, "17-weekly"), json!({ "t": "received" }));
+
+  let folder = machine.dir.path().join("data").join(node_link::runner::MY_APPS).join("received");
+
+  assert!(folder.join("main.py").exists());
+  assert!(folder.join(node_link::keeping::RECEIVED_MARK).exists());
+
+  // Received again, as an update, it replaces the copy; never the person's own app, nor another app's copy.
+  assert_eq!(receive("received", &hash, "17-weekly"), json!({ "t": "received" }));
+  assert!(
+    receive("weekly", &hash, "17-weekly")["why"]
+      .as_str()
+      .unwrap()
+      .contains("no copy of 17-weekly")
+  );
+  assert!(
+    receive("received", &hash, "21-other")["why"]
+      .as_str()
+      .unwrap()
+      .contains("no copy of 21-other")
+  );
+
+  // An adoption makes the copy the person's own; their own app is no copy to adopt.
+  assert_eq!(machine.last(json!({ "adopt": { "tool": "received" } })), json!({ "t": "adopted" }));
+  assert!(!folder.join(node_link::keeping::RECEIVED_MARK).exists());
+  assert!(
+    machine.last(json!({ "adopt": { "tool": "weekly" } }))["why"]
+      .as_str()
+      .unwrap()
+      .contains("no received copy")
+  );
 }

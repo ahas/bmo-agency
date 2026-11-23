@@ -12,6 +12,7 @@ pub mod apart_sessions;
 pub mod apps;
 pub mod call_keys;
 pub mod cards;
+pub mod catalogue;
 pub mod chain;
 pub mod chat_stand_in;
 pub mod clock;

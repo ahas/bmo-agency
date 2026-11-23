@@ -236,6 +236,94 @@ bmo-ui the console runs, which the console attaches for that person alone (the t
 - **A PC switched off** leaves the screen's listing standing from what the tool host holds, saying the runner was
   not reached, and its files unread, so the console says the screen cannot be opened.
 
+## Shared apps
+
+A person shares a personal app they made with people of their own company: its source is copied into the company's
+catalogue at home (the tool host's `docs/catalogue.md`), and each receiver's PC builds and runs a copy of its own,
+whose data stays on that PC. Nothing of it reaches another company.
+
+- **The runner keeps each version's source, and receives a shared one,** beside its other keepings:
+
+| What is asked | Its fields | Answered with | What the runner does |
+|---|---|---|---|
+| `source` | `tool`, `version` | `{"t": "source", "version", "files"}` | answers the source the version was placed from, every file of the app's folder as it then stood, its `.git` left out, as text |
+| `receive` | `tool`, `files`, `hash`, `app` | `{"t": "received"}` | writes a shared app's source into the app's folder of 'my apps', where its hash is the one given |
+| `adopt` | `tool` | `{"t": "adopted"}` | makes a received app the person's own: it is no shared app's copy any more |
+
+  - **A place keeps the source it built from** inside the new version, so a version shared later is shared as it was
+    built, whatever the folder holds since. A folder holding a file that is not UTF-8 text, or more than the
+    catalogue takes, places all the same and keeps no source, and such a version is not shared.
+  - **A receive checks the hash before it writes anything:** the files' hash, reckoned as the catalogue reckons it
+    (the tool host's `docs/catalogue.md`, 「The source hash」), must be the one given, else nothing is written. A
+    folder of the name that stands already and is no received copy of the same app is refused, so a receiver's own
+    app is never written over; a received copy is replaced whole, the app's data folder left standing. The folder
+    is marked with the app it is a copy of.
+  - **An adoption** takes the mark away, so the folder is the person's own app from then.
+- **Who may share, with whom, and who may install, is the delegation chain's,** three kinds agency declares with the
+  others (`docs/prompt-layers.md`, 「The settings agency declares」):
+  - `personal-apps.share-scope`, the targets a person may share with, keys out of `team` (their home unit and every
+    unit under it), `heads` (the heads of the units on their line) and `company` (anyone of the company), narrowing
+    down the chain, `team` and `heads` unless a link says otherwise;
+  - `personal-apps.share-review`, whether a head of the maker's home unit must approve a shared version before
+    anybody installs it, a flag the nearest link decides, off until a company turns it on;
+  - `personal-apps.install`, whether a person may install a received app, a flag narrowing down the chain, on.
+  A person who may not make personal apps (「Personal apps」) shares none.
+- **A share** names the app and its targets: a person, a group of the chain, a unit, or the words `team`, `heads`
+  and `company` (the tool host's `docs/catalogue.md`, 「Targets」). Each target is judged against the maker's ceiling:
+  `team` and a unit at or under their home unit need `team`; `heads`, and a person heading their home unit, need
+  `heads`; a person of their home unit needs `team`; any other person or unit of the company, a group by its
+  widest member, and `company` need `company`. A person, a unit or a group of another company is refused, whatever
+  the ceiling. The version shared is the one the person's PC points at, its source read from the runner and put in
+  the catalogue with `bmo-pocket catalogue share`, which records its hash and declares the app on the chain, neither
+  offered nor on; agency then offers it to the maker's company alone, the platform's rule naming the company written
+  as the platform's administrator, the platform link's one writer, so nobody of another company is offered it. The
+  review is asked once it is kept.
+- **The review report** is written by an agent of the `app-reviewer` role (`docs/agent-roles.md`), a run apart of
+  one turn on the role's road, the way a translation goes out (`docs/launch-lines.md`, 「Translate runner」): it is
+  handed the manifest, the permissions it asks for and every file of the source, and answers what the app does and
+  whether anything in it reaches for more than its manifest declares. The report is written onto the version with
+  `catalogue review`, or the review written failed with why. It decides nothing by itself.
+- **Who sees an app:** its maker and its owner, the heads of the maker's home unit, whoever one of its targets takes
+  in, and whoever holds a copy. Everyone else of the company, and everyone of another company, never meets it.
+- **Installing one,** by the receiver: the app seen, not withdrawn, its newest version approved where a head must
+  approve it, offered to them on the chain and installing allowed them. The catalogue's source is read checked
+  against its hash, handed to the runner to receive under the app's name, placed, put at home with `put --owner
+  --app <key>` so the copy stands for the shared app, and pointed at; then the receiver's own link of the app's `on`
+  is turned on in their name and the copy recorded as theirs. A refusal anywhere leaves the PC's pointer where it
+  stood.
+- **A receiver's copy is theirs to drop or adopt:** dropping it removes it as a personal app is removed and turns
+  their link of `on` off, so a head's turning on does not bring it back; adopting it adopts
+  the folder on the runner, puts it again as the person's own personal app naming no shared app, turns their link
+  off and lets the catalogue's record of the copy go, so no update reaches it again. Neither is open where a lock
+  above keeps the app on for them.
+- **A head turns an app on for a unit they head:** the unit's link of `on` turned on, locked where the head asks,
+  and its `offered` left to follow above. Each member under the unit whose PC is reached then has a copy installed
+  for them; one whose PC is off has it installed as their PC is next heard (「Keeping the copies」). Turning it off
+  there leaves the copies, which the chain withholds.
+- **A recall** — a head's at a unit they head, the administrator's at the platform — turns the app's `offered` off
+  at that link and locks it; the administrator's takes the platform's rule offering it to the company away too. Every session under it is withheld the app from its next turn (`docs/tools.md`, 「The
+  apps a person reaches」), and each copy under it is taken off its PC as the PC is reached.
+- **A withdrawal** is the owner's or the maker's: no new install from then, every copy going on.
+- **When the maker leaves,** their shared apps stay, and each passes to a head of the maker's home unit, the nearest
+  unit up the line holding one who has not left, as the catalogue is next read; the maker's own apps are sealed with
+  the account, since no session of it starts again.
+- **A promotion** — a request to make the app a platform app — is asked by its owner, its maker or a head of the
+  maker's unit, and listed for the administrator.
+
+### Keeping the copies
+
+- **A person's copies are kept to what the chain and the catalogue say** each time their PC is heard after it was not,
+  each time a head turns an app on or recalls it for a unit above them, and each time a new version of an app they
+  hold is shared:
+  - a copy of an app no longer offered to them is taken off their PC and let go;
+  - a copy standing on an older version moves onto the newest where the newest asks for nothing its own version did
+    not, and is left for the receiver to confirm otherwise, the console asking them again for what grew;
+  - an app turned on for them by a unit's link, offered, not withdrawn and approved where it must be, is installed
+    where they hold no copy and may install received apps.
+- **A PC that cannot be reached is kept next time,** and nothing at home waits on it.
+- **What a reader is told:** the apps shared with them since they last looked, and the copies waiting for their
+  confirmation, which the console lists as notices; and for a head, the versions waiting for their approval.
+
 ## Who reaches a node
 
 - **An agent runs a command on a node through the node service's tool alone,** the tool host's `bmo/node_exec`

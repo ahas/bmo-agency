@@ -445,6 +445,10 @@
   thinking off. No other provider carries the line. The answer is the translation whole. A translation
   through the gateway leaves a run of the translator role and its log lines (`docs/run-records.md`, 「The run
   ledger」), as a run apart on Claude Code leaves its own.
+- **The app review**: one shared app's review (`docs/person-nodes.md`, 「Shared apps」) goes out as a translation
+  does, on the same runner and its key, on the first road of the `app-reviewer` role's agents that can answer,
+  with that role's prompt as its whole system prompt and the app's manifest, permissions and source as its input;
+  it answers the report alone.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is,
   by whoever starts an apart session on it: the model and effort the session names, else those the seeker
   role's order names for the provider it goes out on, don't-ask mode, no built-in tool shown, the

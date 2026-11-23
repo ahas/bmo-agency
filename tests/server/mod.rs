@@ -156,6 +156,7 @@ mod keepalive {
 mod order_run {
   mod places;
 }
+mod catalogue;
 mod peers;
 mod person_nodes;
 mod personal_apps;

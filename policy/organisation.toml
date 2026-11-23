@@ -108,3 +108,40 @@ levels = ["platform", "unit"]
 unit_permission = "manage"
 person_writer = "heads"
 default = false
+
+# Shared apps (docs/person-nodes.md, 「Shared apps」): whom a person here may share a personal app with, whether a head
+# of the maker's home unit approves a shared version before anybody installs it, and whether a person here may
+# install an app shared with them.
+[personal_apps.share_scope]
+key = "personal-apps.share-scope"
+description = "Whom a person here may share a personal app with: their team (their home unit and every unit under it), the heads of the units on their line, and anyone of their company. A link below only narrows it."
+shape = "keys"
+choices = ["team", "heads", "company"]
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit"]
+unit_permission = "manage"
+person_writer = "heads"
+default = ["team", "heads"]
+
+[personal_apps.share_review]
+key = "personal-apps.share-review"
+description = "Whether a head of the maker's home unit approves each version of a personal app shared here before anybody installs it. The nearest link decides; off until a link turns it on."
+shape = "flag"
+mode = "nearest"
+rules = true
+levels = ["platform", "unit"]
+unit_permission = "manage"
+person_writer = "heads"
+default = false
+
+[personal_apps.install]
+key = "personal-apps.install"
+description = "Whether a person here may install a personal app a colleague shared with them. A link turns it off for everyone below it; none turns it back on."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true

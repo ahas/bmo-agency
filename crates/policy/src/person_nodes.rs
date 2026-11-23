@@ -15,6 +15,8 @@ pub struct PersonNodes {
   pub administrator_grants: Vec<String>,
   /// The verbs of the CLI a person's node may ask the home bridge to run here.
   pub bridge_verbs: Vec<String>,
+  /// How often the PCs heard again are looked for, to keep their shared apps' copies, in seconds.
+  pub copies_seconds: u64,
 }
 
 crate::part!(pub PERSON_NODES: PersonNodes = "person-nodes.toml");

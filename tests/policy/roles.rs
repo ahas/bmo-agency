@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the eleven seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the twelve seeded roles with their
 //! lines, caps, sessions, descriptions, provider prompts and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_twelve_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -24,7 +24,8 @@ fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
       "transliterator",
       "upkeep",
       "actor",
-      "note-assistant"
+      "note-assistant",
+      "app-reviewer"
     ]
   );
 }

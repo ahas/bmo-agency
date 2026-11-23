@@ -61,6 +61,9 @@ pub struct PersonalApps {
   pub make: Kind,
   pub network: Kind,
   pub secrets: Kind,
+  pub share_scope: Kind,
+  pub share_review: Kind,
+  pub install: Kind,
 }
 
 #[derive(Debug, Deserialize)]
