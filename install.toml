@@ -100,7 +100,7 @@ AGENCY_CONTROL_PORT={{port.agency.control}}
 AGENCY_CONTROL_TOKEN={{token.agency.control}}
 AGENCY_QUOTA_PORT={{port.agency.quota}}
 BMO_DATA_DIR={{data_root}}
-BMO_ARCHIVE_URL=postgres:///bmo_agency?host=/var/run/postgresql
+BMO_ARCHIVE_URL=postgres:///bmo_agency?host={{postgres.host}}&port={{postgres.port}}
 AGENCY_AGENT_KEY={{value.agent.name}}
 AGENCY_AGENT_NAME={{value.agent.label}}
 AGENCY_SENDER_NAME={{value.agent.label}}
@@ -111,7 +111,7 @@ AGENCY_BRAIN_ACCOUNT={{value.agency.brain-account}}
 AGENCY_PERSONA_VALUES={{data_root}}/env/persona.toml
 BMO_JOB_URL=http://127.0.0.1:{{port.job.server}}
 BMO_JOB_TOKEN={{token.job.agency}}
-BMO_JOB_PLUGIN={{home}}/.local/share/bmo-job/deploy/bin/bmo-job
+BMO_JOB_PLUGIN={{prefix}}/bmo-job/deploy/bin/bmo-job
 BMO_AGENCY_URL=http://127.0.0.1:{{port.agency.control}}
 BMO_MCP_HOST_PORT={{port.pocket.tools}}
 BMO_GATE_URL=http://127.0.0.1:{{port.gate.server}}
@@ -120,7 +120,7 @@ BMO_RECEIVER_URL=http://127.0.0.1:{{port.receiver.server}}
 BMO_RECEIVER_TOKEN_FILE={{data_root}}/env/receiver.token
 BMO_ARTIFACT_URL=http://127.0.0.1:{{port.artifact.server}}
 BMO_ARTIFACT_TOKEN_FILE={{data_root}}/env/artifact.token
-BMO_EXPLORER_PLUGIN={{home}}/.local/share/bmo-explorer/deploy/bin/bmo-explorer
+BMO_EXPLORER_PLUGIN={{prefix}}/bmo-explorer/deploy/bin/bmo-explorer
 BMO_CONSOLE_ADDRESS={{input.web.public-address}}
 '''
 
@@ -141,7 +141,7 @@ value = "{{token.agency.control}}"
 id = "herdr"
 run = '''
 set -eu
-systemctl --user enable --now "$HOME/.local/share/bmo-agency/deploy/deploy/herdr.service"
+systemctl --user enable --now "$BMO_INSTALL_PREFIX/bmo-agency/deploy/deploy/herdr.service"
 systemctl --user restart bmo-agency.service
 '''
 done = "systemctl --user is-enabled --quiet herdr.service && systemctl --user is-active --quiet herdr.service"
