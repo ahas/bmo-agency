@@ -30,6 +30,7 @@ mod providers_codex;
 mod queue_idle;
 mod queue_words;
 mod reasoning;
+mod record_secrets;
 mod registry;
 mod resident_turn;
 mod rest;

@@ -92,6 +92,8 @@ pub struct Login {
   /// How long before a directory account's login here ends its runs here go out on its token for the nodes.
   pub hand_over_ahead_hours: i64,
   pub refused_rest_minutes: i64,
+  /// The entry a login home holds, by which a folder of saved values is told as one.
+  pub home_mark: String,
   pub head: String,
   pub gone: String,
   pub ending: String,

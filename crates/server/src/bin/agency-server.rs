@@ -85,6 +85,9 @@ async fn serve(args: Args) -> Result<(), String> {
 
   let machine = Machine::of_process(&data_root);
 
+  agency_server::door::record_secrets::install(agency_server::door::record_secrets::Sources::of_process(
+    &data_root,
+  ));
   store::seed::settle(&db, &agency_server::seeds::deployment(&machine))
     .await
     .map_err(|fault| format!("the store: {fault}"))?;

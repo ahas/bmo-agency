@@ -242,6 +242,11 @@ impl Provider for ClaudeCode {
     true
   }
 
+  // A directory account's login home holds the CLI's own state file, as its policy file names it.
+  fn login_home_mark(&self) -> Option<&'static str> {
+    Some(CLAUDE_CODE.login.home_mark.as_str())
+  }
+
   // Its shell, its sub-agents and its fetches from the web, as its policy file names them.
   fn long_tools(&self) -> &'static [String] {
     &CLAUDE_CODE.launch.long_tools

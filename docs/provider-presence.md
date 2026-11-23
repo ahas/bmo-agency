@@ -9,7 +9,10 @@
   - which of the usage windows its slot reported stand for its session and its week — Claude Code's
     five-hour and seven-day windows, Codex's primary and secondary, none for a provider that
     publishes none;
-  - whether it holds logins of its own: Claude Code alone, whose logins are its accounts.
+  - whether it holds logins of its own: Claude Code alone, whose logins are its accounts;
+  - the entry its login home holds, by which a folder under the data root's `env/` is told as one and
+    passed over when the saved values are read for a record's secrets (`docs/agent-control.md`, 「A record
+    holds no secret」): Claude Code's `.claude.json`, none for a provider that holds no login home.
 - **What each provider is** — its label, its lines, its effort words, the sentence it says where it is
   missing, where its catalogue is read, whether its engine is the owner's own — is its own file of agency's
   policy (`policy/providers/`); whether its models are the registry's registrations is its own member's

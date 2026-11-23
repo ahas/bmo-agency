@@ -37,6 +37,7 @@ pub mod pull_requests;
 pub mod queue_idle;
 pub mod queue_words;
 pub mod reasoning;
+pub mod record_secrets;
 pub mod registry;
 pub mod resident_turn;
 pub mod rest;

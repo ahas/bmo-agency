@@ -1,5 +1,5 @@
 //! Agency's tokens handed as the files they stand in (docs/agent-control.md, 「A token is handed as the file it
-//! stands in」, 「A record holds no token」): a launch's environment and a run's carry each as its `_FILE`
+//! stands in」, 「A record holds no secret」): a launch's environment and a run's carry each as its `_FILE`
 //! variable, a place written before is rewritten by `hand-tokens`, and a place's records hold no token.
 
 use std::collections::{BTreeMap, HashMap};

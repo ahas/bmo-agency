@@ -106,6 +106,10 @@ hand_over_ahead_hours = 12
 # its credential still states a moment ahead and so would let it straight back into the walk; a person settles
 # it by signing in again, and the walk carries the run to the next account meanwhile.
 refused_rest_minutes = 30
+# The entry a login home holds, the directory a directory account's login stands in, by which a folder under
+# the data root's env directory is told as one and passed over when the saved values are read for a record's
+# secrets (docs/agent-control.md, 「A record holds no secret」).
+home_mark = ".claude.json"
 # The message, one entry to a line, with `{name}`, `{when}`, `{left}`, `{n}` and `{path}` filled in.
 head = 'The login of the Claude account "{name}" {when}'
 gone = "has ended."

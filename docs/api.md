@@ -2287,6 +2287,11 @@ owner of what only he can act on, a chat session told of a server it lacks, and 
 background work it launched there that ended or was lost. The gate and the receiver
 reach it through the hook point above for everything else.
 
+- **One file of the receiver's is read, and no route of its is called for it:** the secret shapes its deploy
+  tree holds in `policy/secret-shapes.toml` (the receiver's `docs/messages.md`, 「Secrets taken out」), read by
+  every process that appends to an agent place's records, so the records take out what the receiver's
+  messages take out (`docs/agent-control.md`, 「A record holds no secret」). Agency reads the file's
+  `shapes`, each with its `name`, `pattern` and `spared`, and writes its own marker in their place.
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with
   no deployment's peer address or token inherited from the worker that runs the suite; it names a peer
   only where the test itself names one, and it marks itself a test's. Every call in this section — the

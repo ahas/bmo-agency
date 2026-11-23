@@ -10,6 +10,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use agency_server::door::record_secrets;
 use agency_server::lines::place::SHELL_KIND;
 use agency_server::mcp::AgencyServer;
 use agency_server::run_groups;
@@ -201,6 +202,8 @@ enum Verb {
   Model(ModelsArgs),
   /// Every place's program rewritten to hand agency's tokens as the files they stand in.
   HandTokens,
+  /// Every place's records read for secrets as a record is written now, and rewritten where a line changed.
+  RedactRecords,
   /// The documents a session relies on, told that they moved.
   Reload {
     #[arg(long = "path", allow_hyphen_values = true)]
@@ -599,6 +602,8 @@ async fn run(verb: Verb) -> ExitCode {
 
         return ended(Ok(answer.into_iter().collect::<Vec<_>>().into()));
       }
+      record_secrets::install(record_secrets::Sources::of_process(&data_root));
+
       let ground = agent_status::Ground {
         env: &env,
         code_tree: &code_tree(),
@@ -652,6 +657,10 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::DevPane { worker, .. } => ended(dev_servers::dev_pane(&data_root, &worker).await),
     Verb::Model(args) => ended(models::models(&data_root, args).await),
     Verb::HandTokens => ended(agency_server::verbs::hand_tokens::hand_tokens(&data_root)),
+    Verb::RedactRecords => ended(agency_server::verbs::redact_records::redact_records(
+      &data_root,
+      &record_secrets::Readings::read(&record_secrets::Sources::of_process(&data_root)),
+    )),
     Verb::Reload { paths, now } => ended(reloaded(&data_root, &paths, now).await),
     Verb::Overtime {
       list,

@@ -114,6 +114,7 @@ mod door {
   mod node_take;
   mod place_run;
   mod record;
+  mod record_secrets;
   mod rollout;
   mod stand;
   mod tool_clock;
