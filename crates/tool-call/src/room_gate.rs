@@ -63,6 +63,12 @@ impl AccountService {
   /// Whether one message's sender holds a relation in the room the message stands in, or why it was not answered:
   /// the check waits for the account service's answer, its end that answer or the connection refused or broken.
   pub async fn message_holds(&self, room: i64, message: i64, relation: &str) -> Result<bool, String> {
+    self.message_check(room, message, relation).await.map(|checked| checked.allowed)
+  }
+
+  /// The account service's answer for one message: whether its sender holds the relation in the room, and the user
+  /// the sender is linked to where one is.
+  pub async fn message_check(&self, room: i64, message: i64, relation: &str) -> Result<Checked, String> {
     if self.address.is_empty() {
       return Err(format!("no account service is named ({ADDRESS_VARIABLE})"));
     }
@@ -83,11 +89,26 @@ impl AccountService {
       return Err(format!("the account service answered {}: {said}", status.as_u16()));
     }
 
-    read
+    let allowed = read
       .get("allowed")
       .and_then(Value::as_bool)
-      .ok_or_else(|| "the account service's answer names no `allowed`".to_owned())
+      .ok_or_else(|| "the account service's answer names no `allowed`".to_owned())?;
+    let user = match read.get("user") {
+      Some(Value::String(user)) => Some(user.trim().to_owned()),
+      Some(Value::Number(user)) => Some(user.to_string()),
+      _ => None,
+    }
+    .filter(|user| !user.is_empty());
+
+    Ok(Checked { allowed, user })
   }
+}
+
+/// One message's check as the account service answered it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Checked {
+  pub allowed: bool,
+  pub user: Option<String>,
 }
 
 /// Whether an action goes on for the turn it is asked in: nothing is asked for no room turn or the owner's own;
@@ -99,6 +120,19 @@ pub async fn gate(
   relation: &str,
   action: &str,
 ) -> Result<(), String> {
+  gate_for(service, turn, relation, action, None).await
+}
+
+/// The same gate, where a message whose sender the account service links to `own` passes as well: an action the
+/// person the session acts for asks for their own (docs/tools.md, 「The worker ask」).
+pub async fn gate_for(
+  service: &AccountService,
+  turn: Option<&RoomTurn>,
+  relation: &str,
+  action: &str,
+  own: Option<&str>,
+) -> Result<(), String> {
+  let own = own.map(str::trim).filter(|own| !own.is_empty());
   let Some(turn) = turn.filter(|turn| !turn.privileged) else {
     return Ok(());
   };
@@ -110,9 +144,10 @@ pub async fn gate(
   }
 
   for &message in &turn.messages {
-    match service.message_holds(turn.chat, message, relation).await {
-      Ok(true) => {}
-      Ok(false) => {
+    match service.message_check(turn.chat, message, relation).await {
+      Ok(checked) if checked.allowed => {}
+      Ok(checked) if own.is_some() && checked.user.as_deref() == own => {}
+      Ok(_) => {
         return Err(format!(
           "{action} is refused: message {message} in this room is not the owner's, and its sender holds no \
            `{relation}` grant here"

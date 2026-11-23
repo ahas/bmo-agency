@@ -208,7 +208,7 @@ fn changed(lines: &[Value], folder: &Path) -> Vec<String> {
 pub async fn ask(session: &Session, input: AskInput) -> Answer {
   let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
 
-  if let Err(refused) = may_ask(&accounts, session).await {
+  if let Err(refused) = may_ask(&accounts, session, &input).await {
     return Answer::failure(refused);
   }
 
@@ -218,9 +218,15 @@ pub async fn ask(session: &Session, input: AskInput) -> Answer {
 }
 
 /// Whether the turn the call is made in may launch a worker run (docs/launch-lines.md, 「The owner's gate」): the
-/// owner's own turn, or one whose every message's sender the account service answers holds `launch` in the room.
-pub async fn may_ask(accounts: &AccountService, session: &Session) -> Result<(), String> {
-  room_gate::gate(accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Asking a worker").await
+/// owner's own turn, or one whose every message's sender the account service answers holds `launch` in the room;
+/// for an ask naming an app, a message the person the session acts for sent passes too (docs/tools.md, 「The worker
+/// ask」).
+pub async fn may_ask(accounts: &AccountService, session: &Session, input: &AskInput) -> Result<(), String> {
+  let names_app = input.app.as_deref().is_some_and(|app| !app.trim().is_empty());
+  let own = session.owner_account.as_deref().filter(|_| names_app);
+
+  room_gate::gate_for(accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Asking a worker", own)
+    .await
 }
 
 /// The same ask against the server the caller names, for a test of the refusals and the round trip.

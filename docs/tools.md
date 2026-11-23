@@ -172,6 +172,9 @@ here.
 - **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」): on a room turn not the
   owner's, every message the turn answers must be answered allowed `launch` in the room by the account
   service, and where it is not, or cannot be asked, the tool answers a failure saying so and starts nothing.
+  An ask naming an app passes as well for a message the account service answers was sent by the person the
+  session acts for: a person asking their own BMO for an app of their own is held by the chain's
+  `personal-apps.make` at the app's put (`docs/person-nodes.md`, 「Personal apps」), not by a grant of the owner's.
 - **Its arguments** are the words and an optional folder or app. The folder is the asking supervisor's scratch
   workspace under the data root where neither is named, made on first use; a repository's checkout may be named
   only in the owner's turn, and the run is then handed that repository's own (`docs/repositories.md`, 「What a

@@ -281,7 +281,10 @@ async fn accounts(
         let message = check["message"].as_i64().unwrap_or_default();
 
         kept.lock().unwrap().push(check);
-        Json(json!({ "allowed": allowed.contains(&message), "grant": "bmo_room:-7#launch" }))
+        // Messages from 20 on are the person's of account 60, the others another person's.
+        let user = if message >= 20 { "60" } else { "99" };
+
+        Json(json!({ "allowed": allowed.contains(&message), "grant": "bmo_room:-7#launch", "user": user }))
       }
     }),
   );
@@ -328,14 +331,17 @@ async fn a_worker_is_asked_for_a_room_s_words_only_past_the_owner_s_gate() {
   // The owner's turn, and a person's typed words, are never asked about: no account service is even named.
   let none = AccountService::default();
 
-  assert_eq!(may_ask(&none, &turn_session(home.path(), room("11", "1"))).await, Ok(()));
-  assert_eq!(may_ask(&none, &turn_session(home.path(), None)).await, Ok(()));
+  assert_eq!(may_ask(&none, &turn_session(home.path(), room("11", "1")), &folder_ask()).await, Ok(()));
+  assert_eq!(may_ask(&none, &turn_session(home.path(), None), &folder_ask()).await, Ok(()));
   assert_eq!(room_turn_of_place(&home.path().join("place")), None);
 
   // Anybody else's turn: every message checked for `launch` in the room.
   let (service, asked) = accounts(&[11, 12]).await;
 
-  assert_eq!(may_ask(&service, &turn_session(home.path(), room("11,12", "0"))).await, Ok(()));
+  assert_eq!(
+    may_ask(&service, &turn_session(home.path(), room("11,12", "0")), &folder_ask()).await,
+    Ok(())
+  );
   assert_eq!(
     *asked.lock().unwrap(),
     [
@@ -345,7 +351,9 @@ async fn a_worker_is_asked_for_a_room_s_words_only_past_the_owner_s_gate() {
   );
 
   // One message whose sender holds no grant refuses the whole ask, saying whose.
-  let refused = may_ask(&service, &turn_session(home.path(), room("11,13", "0"))).await.unwrap_err();
+  let refused = may_ask(&service, &turn_session(home.path(), room("11,13", "0")), &folder_ask())
+    .await
+    .unwrap_err();
 
   assert!(refused.contains("message 13") && refused.contains("`launch`"), "{refused}");
 
@@ -361,7 +369,57 @@ async fn a_worker_is_asked_for_a_room_s_words_only_past_the_owner_s_gate() {
     ),
     (service.clone(), ""),
   ] {
-    let refused = may_ask(&service, &turn_session(home.path(), room(messages, "0"))).await.unwrap_err();
+    let refused = may_ask(&service, &turn_session(home.path(), room(messages, "0")), &folder_ask())
+      .await
+      .unwrap_err();
+
+    assert!(refused.starts_with("Asking a worker is refused"), "{refused}");
+  }
+}
+
+// An ask naming no app.
+fn folder_ask() -> AskInput {
+  AskInput {
+    words: "fix the typo".to_owned(),
+    folder: None,
+    app: None,
+  }
+}
+
+#[tokio::test]
+async fn a_person_asks_their_own_bmo_for_an_app_of_their_own_without_a_launch_grant() {
+  let home = tempfile::tempdir().unwrap();
+  let room = |messages: &str| {
+    Some(json!({ "BMO_TURN_CHAT": "-7", "BMO_TURN_MESSAGES": messages, "BMO_TURN_PRIVILEGED": "0" }))
+  };
+  let (service, _) = accounts(&[]).await;
+  let app = AskInput {
+    words: "make an app that says today's date".to_owned(),
+    folder: None,
+    app: Some("today_weekday".to_owned()),
+  };
+  let acting_for = |account: Option<&str>, messages: &str| {
+    let mut session = turn_session(home.path(), room(messages));
+
+    session.owner_account = account.map(str::to_owned);
+    session
+  };
+
+  // The person the session acts for, asking for their own app: no grant is needed.
+  assert_eq!(may_ask(&service, &acting_for(Some("60"), "21,22"), &app).await, Ok(()));
+
+  // Anybody else's message in the turn still needs `launch`, and so does an ask naming no app.
+  let refused = may_ask(&service, &acting_for(Some("60"), "21,13"), &app).await.unwrap_err();
+
+  assert!(refused.contains("message 13") && refused.contains("`launch`"), "{refused}");
+
+  let refused = may_ask(&service, &acting_for(Some("60"), "21"), &folder_ask()).await.unwrap_err();
+
+  assert!(refused.contains("message 21"), "{refused}");
+
+  // A session acting for nobody, or for another account, passes nobody by this.
+  for account in [None, Some("61")] {
+    let refused = may_ask(&service, &acting_for(account, "21"), &app).await.unwrap_err();
 
     assert!(refused.starts_with("Asking a worker is refused"), "{refused}");
   }
