@@ -11,14 +11,12 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
   assert!(RUN_LINES.capabilities("worker").is_empty());
   assert_eq!(
     RUN_LINES.capabilities("chat"),
-    [
-      "room.tools",
-      "gate.translate",
-      "gate.reference",
-      "deploy",
-      "research.ask",
-      "research.owner"
-    ]
+    ["room.tools", "gate.translate", "gate.reference", "research.ask"],
+    "no line gives a capability that operates the platform"
+  );
+  assert_eq!(
+    policy::person_nodes::PERSON_NODES.administrator_capabilities,
+    ["deploy", "research.owner"]
   );
   assert_eq!(
     RUN_LINES.namespaces("chat"),
@@ -106,4 +104,32 @@ fn the_worker_line_works_for_a_supervisor_s_brain_and_stays_its_own() {
   }
 
   assert!(!RUN_LINES.works_for_brain("chat"));
+}
+
+// Every server the chat line holds under a capability and starts with this machine's addresses and secrets has the
+// tool host's entries standing in for it on a node (docs/person-nodes.md, 「A supervisor's tools on a node」).
+#[test]
+fn each_server_the_chat_line_holds_has_its_hosted_stand_in_on_a_node() {
+  let hosted = |capability: &str| {
+    RUN_LINES
+      .held("chat")
+      .iter()
+      .find(|held| held.capability == capability)
+      .and_then(|held| held.hosted.as_ref())
+      .unwrap_or_else(|| panic!("{capability} has no stand-in"))
+  };
+
+  assert_eq!(hosted("jobs.file").namespaces, ["agency"]);
+  assert!(hosted("jobs.file").shown.contains(&"agency/file_item".to_owned()));
+  assert_eq!(hosted("web.pages").namespaces, ["web"]);
+  assert_eq!(hosted("web.pages").capabilities, ["web.read"]);
+  assert_eq!(hosted("documents.file").namespaces, ["artifact"]);
+  assert_eq!(hosted("documents.file").capabilities, ["documents.file"]);
+  assert!(
+    RUN_LINES
+      .held("chat")
+      .iter()
+      .filter(|held| !held.servers.is_empty())
+      .all(|held| held.hosted.is_some())
+  );
 }

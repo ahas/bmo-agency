@@ -278,6 +278,9 @@ pub struct SystemParts {
   pub discipline: Option<String>,
   pub tool_discipline: Option<String>,
   pub servers: Vec<String>,
+  /// The tool host's entries shown by name beside the line's own, where the program stands on a node
+  /// (docs/person-nodes.md, 「A supervisor's tools on a node」).
+  pub hosted_shown: Vec<String>,
   /// The owner's texts of the chat's own documents, which stand in place of their files where kept.
   pub documents: ChatDocuments,
 }
@@ -294,7 +297,18 @@ impl SystemParts {
   /// organisation's instructions where it has any, the chat's role, and its persona unless the chain chose none
   /// (docs/prompt-layers.md).
   pub fn compose(&self, trees: &Trees, program: &[&str]) -> Result<String, Refusal> {
-    let tools = tools_paragraph(program, &self.servers, RUN_LINES.shown(LINE));
+    let mut shown = RUN_LINES.shown(LINE).to_vec();
+
+    shown.extend(
+      self
+        .hosted_shown
+        .iter()
+        .filter(|entry| !shown.contains(entry))
+        .cloned()
+        .collect::<Vec<_>>(),
+    );
+
+    let tools = tools_paragraph(program, &self.servers, &shown);
     let persona = if self.layers.persona_none { None } else { self.persona.as_deref() };
     let system = chat_system(
       trees,
@@ -331,8 +345,10 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// job. A hosted tool those namespaces do not show is reached with `bmo use`. The two plugins start as
 /// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
 /// that names neither leaves that server out. Every supervisor's program is handed the same servers, whatever
-/// its shape (docs/supervisors.md, 「The bundles a supervisor holds」). Written on every composition, since this line is
-/// the one writer.
+/// its shape (docs/supervisors.md, 「The bundles a supervisor holds」), save that a program standing on a node is
+/// handed the tool host's namespaces carrying their work in place of the servers that run with this machine's
+/// addresses and secrets (docs/person-nodes.md, 「A supervisor's tools on a node」). Written on every composition,
+/// since this line is the one writer.
 pub fn mcp_config(
   ground: &Ground,
   trees: &Trees,
@@ -363,13 +379,19 @@ const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || e
 // everything but the entries written there.
 fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
   let env = ground.env();
-  let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
+  // The line's namespaces, and where the program stands on a node, those whose entries carry the work of the
+  // servers left out below (docs/person-nodes.md, 「A supervisor's tools on a node」).
+  let namespaces = limits.namespaces(LINE);
+  let namespaces: Vec<&str> = namespaces.iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
     .entries()
     .into_iter()
     .flatten()
     .map(|(name, server)| (name.clone(), server.clone()))
     .collect();
+  // The tool host's namespaces stand first and stay whatever the limit says: the `agency` and `artifact`
+  // namespaces a program on a node is handed share their names with the servers they stand in for.
+  let hosted = servers.len();
 
   if let (Some(plugin), Some(url)) = (env.get("BMO_JOB_PLUGIN"), env.get("BMO_JOB_URL")) {
     // No queue is subscribed to, so no holder is named: the plugin takes a holder only beside the queues it
@@ -534,7 +556,13 @@ fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
 
   // A supervisor's tool limit leaves out each server it closes (docs/launch-lines.md, 「What a line's program is
   // allowed, by road」).
-  servers.retain(|(name, _)| limits.keeps_server(name));
+  let started: Vec<(String, Ordered)> = servers
+    .split_off(hosted)
+    .into_iter()
+    .filter(|(name, _)| limits.keeps_server(name))
+    .collect();
+
+  servers.extend(started);
 
   Ordered::map(servers)
 }
@@ -597,6 +625,7 @@ pub async fn composed_system(
   let layers = crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), owner)
     .await
     .map_err(fault)?;
+  let limits = Limits::of(&ground.db, agent).await?;
   let parts = SystemParts {
     layers,
     above,
@@ -604,11 +633,16 @@ pub async fn composed_system(
     discipline,
     tool_discipline,
     documents,
-    servers: harness_servers(ground, agent, &Limits::of(&ground.db, agent).await?)
+    servers: harness_servers(ground, agent, &limits)
       .entries()
       .into_iter()
       .flatten()
       .map(|(name, _)| name.clone())
+      .collect(),
+    hosted_shown: limits
+      .hosted(LINE)
+      .into_iter()
+      .flat_map(|hosted| hosted.shown.iter().cloned())
       .collect(),
   };
   // Claude Code lists its own tools to the session, every one but the line's denied list.

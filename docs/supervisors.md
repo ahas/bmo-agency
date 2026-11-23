@@ -112,13 +112,17 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   (`policy/run-lines.toml`, the chat line's `held`), and a limit that leaves the capability out leaves all of it
   out:
 
-  | Capability | Servers of the chat configuration | The program's own tools |
-  |---|---|---|
-  | `jobs.file` | `job`, `agency` | none |
-  | `web.pages` | `explorer` | none |
-  | `documents.file` | `artifact` | none |
-  | `program.shell` | none | `Bash`, `BashOutput`, `KillShell` |
-  | `program.files` | none | `Read`, `Grep`, `Glob`, `LS`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `NotebookRead`, `EnterWorktree`, `ExitWorktree` |
+  | Capability | Servers of the chat configuration | On a node, in their place | The program's own tools |
+  |---|---|---|---|
+  | `jobs.file` | `job`, `agency` | the tool host's `agency` namespace | none |
+  | `web.pages` | `explorer` | the tool host's `web` namespace | none |
+  | `documents.file` | `artifact` | the tool host's `artifact` namespace | none |
+  | `program.shell` | none | none | `Bash`, `BashOutput`, `KillShell` |
+  | `program.files` | none | none | `Read`, `Grep`, `Glob`, `LS`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `NotebookRead`, `EnterWorktree`, `ExitWorktree` |
+
+  A supervisor whose program stands on a node is handed, for each capability the limit keeps, the namespace of
+  the third column in place of the servers of the second, its record holding the capabilities those entries ask
+  (`docs/person-nodes.md`, 「A supervisor's tools on a node」).
 
 - **Every other capability stands for the tool host's entries that ask it,** reached through the tool host's
   namespaces in the chat configuration, and its grant lock refuses an entry whose capability the session record
@@ -178,12 +182,17 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   same for every supervisor, read from the roles policy's `supervisor` list: `room.chat`, its own records
   and the TODO; `room.send`, sending into the rooms it answers under its own name; and `web.read`, web
   search and page fetch (`docs/agent-roles.md`, 「The bundles」).
-- **The chat line itself holds `gate.translate`, `gate.reference`, `deploy` and the voice namespace,**
+- **The chat line itself holds `gate.translate`, `gate.reference`, `research.ask` and the voice namespace,**
   whatever the supervisor, as `docs/launch-lines.md` declares.
+- **The capabilities that operate the platform are the administrator's supervisors' alone:** `deploy` and
+  `research.owner` stand in the record of a supervisor of no account or of the administrator's account, and in no
+  person's supervisor's (`docs/person-nodes.md`, 「Who reaches a node」).
 - **Every supervisor's program is handed the same servers,** whatever its scope and shape: the tool host's
   namespaces, the job service's plugin and agency's own, so every supervisor reads the queue, files items,
   assigns a worker and launches an item's job (`docs/launch-lines.md`, 「What a line's program is allowed,
-  by road」).
+  by road」). A supervisor whose program stands on a node is handed the tool host's entries that carry that work
+  in place of the servers that run with this machine's addresses and secrets (`docs/person-nodes.md`, 「A
+  supervisor's tools on a node」).
 - **Every tool acts as the supervisor whose turn calls it:** its memories, notes and reminders are its own,
   a send goes out under its own name into a room it answers and nowhere else, and an item it files goes to
   its own repository. The tool host's grant lock judges an acting call the same way for every supervisor.

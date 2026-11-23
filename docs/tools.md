@@ -5,8 +5,9 @@ The tools agency itself provides to the tool host: each a folder of its own unde
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
 to a run of the worker role, put the personal app such a run made for a person, let one BMO hand a line to
 another person's BMO and open a chat into that person's room, let a supervisor save what the owner allows in a room as the room's grants, and let the
-platform's supervisor ask for a DeepSeek top-up. A tool that belongs to no one service is a repository of
-its own, not a folder here.
+platform's supervisor ask for a DeepSeek top-up, and hand a supervisor whose program stands on a node its filing,
+stopping and reviewing of work. A tool that belongs to no one service is a repository of its own, not a folder
+here.
 
 ## A tool's folder
 
@@ -46,7 +47,10 @@ its own, not a folder here.
   data root stands in those variables as `BMO_DATA_DIR`. The grants agency writes are the administrator's,
   `node.admin` and `platform.payment`, on the record of a supervisor of no account or of the administrator's
   account, and none on any other record: not another account's supervisor's, a role agent's, a seat's run's or
-  a job's (`docs/person-nodes.md`, 「Who reaches a node」). Agency's own values stand under the issuer's
+  a job's (`docs/person-nodes.md`, 「Who reaches a node」). The capabilities that operate the platform, `deploy`
+  and `research.owner`, go on the same records alone. A supervisor whose program stands on a node is written the
+  namespaces, capabilities and shown entries that carry the work of its line's servers there
+  (`docs/person-nodes.md`, 「A supervisor's tools on a node」). Agency's own values stand under the issuer's
   `labels`: the line, the store's address, the agent's place where it is a resident program, and the media
   the run's model reads natively under `reads` — each of `image`, `pdf` and `video` as
   `docs/provider-order.md` 「The media a model reads」 judges them from the road the run goes out on, with no
@@ -207,6 +211,21 @@ its own, not a folder here.
   `…/back` or `DELETE /personal-apps/{account}/{name}` (`docs/api.md`, 「personal-apps」), waiting however long the
   build on the PC takes. Its answer says the version now in place, the entries the person's sessions reach from their
   next turn, `my/<entry>`, and what the tool host said; a refusal is a failed call saying why.
+
+## The job tools on a node
+
+- **`tools/jobs`** declares `agency/file_item`, `agency/stop_job` and `agency/review_job` to a session holding
+  `jobs.file`, which agency writes into the record of a supervisor whose program stands on a node alone
+  (`docs/person-nodes.md`, 「A supervisor's tools on a node」). Each is the tool of the same name agency's own server
+  serves a supervisor at home, with the same description and arguments, under the namespace that server stands
+  under, so the program calls it by the same name.
+- **The agent is the record's holder,** the supervisor agency issued the record for, read afresh at every call: a
+  filing, a stop and a review move are asked for it as its own server asks them for the agent it was started for,
+  and no argument names another. A record held by nobody is refused before agency is asked.
+- **It reaches agency's server** as every tool of agency's does, at home, and asks `POST /item-filings`, `POST
+  /job-stops` or `POST /job-reviews` (`docs/api.md`, 「assignments and jobs」). So the turn's room and whether the
+  owner asked are read off the supervisor's place here, as for a filing from home. Its answer is the route's answer;
+  a refusal is a failed call carrying the route's status, code and sentence.
 
 ## The relay
 

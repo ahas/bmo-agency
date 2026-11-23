@@ -201,8 +201,11 @@
   「An item's change is told to its orderer」) — its own item creation left out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
   as well; and the agency's own, `agency`, started for the supervisor the configuration is
   composed for (`--agent`, one configuration a supervisor), which files an item through agency and launches
-  the item's job (`docs/api.md`, 「assignments and jobs」). A hosted tool those namespaces do not show is
-  reached with `bmo use`. The chat line names no `web` of the tool host's: the CLI's own `WebSearch` and
+  the item's job (`docs/api.md`, 「assignments and jobs」). A supervisor whose program stands on a node is
+  handed none of the job, agency, artifact and explorer servers, which run with this machine's addresses and
+  secrets, and the tool host's `agency`, `web` and `artifact` namespaces in their place, each where its tool limit
+  keeps the capability the server stands under (`docs/person-nodes.md`, 「A supervisor's tools on a node」). A
+  hosted tool those namespaces do not show is reached with `bmo use`. The chat line names no `web` of the tool host's: the CLI's own `WebSearch` and
   `WebFetch` are denied, and the explorer server is the search and page reader of the line. The search and
   browse lines keep their `web` tools, since a search or a browse is the open web's work and they have no
   explorer server of their own. The permission mode is bypass-permissions, the same words a role's run is

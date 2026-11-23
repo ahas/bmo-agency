@@ -14,6 +14,9 @@ pub struct Tool {
   pub route: &'static str,
 }
 
+/// What `file_item` does, as the supervisor's own server and the tool host's entry both say it.
+pub const FILE_ITEM: &str = "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other is a draft until an approver approves it. Name the repository the work is in, so only that repository's worker takes it, and none for host work; one change that reaches two or more repositories is one item, its repository the one it runs in, the umbrella repository where it has no home of its own, and its repositories label naming every repository it reaches, comma-separated.";
+
 /// What `stop_job` does, as its server and the document both say it.
 pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is asked to end first, and the answer is the job once its turn has ended, stopped, however long that takes.";
 

@@ -868,6 +868,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   reset closes the conversation but the running dsh program keeps its MCP list; the program must be
   replaced for the new server to appear. Where the deployment names no artifact address or token, or no
   explorer program or data root, that server is left out.
+- **A supervisor whose program stands on a node is handed neither,** nor the job and agency plugins: the tool
+  host's `artifact`, `web` and `agency` namespaces carry their work there (`docs/person-nodes.md`, 「A supervisor's
+  tools on a node」).
 
 ### A pane that dies
 

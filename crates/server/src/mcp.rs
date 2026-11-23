@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use bmo_agency_client::{
   AgencyClient, Answer, ApiError, AssignWorker, Assignment, AssignmentChange, AssignmentState,
-  ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobReviewed, JobStopAsk,
+  ClientFailure, FILE_ITEM, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobReviewed, JobStopAsk,
   REVIEW_JOB, ReleaseWorker, ReviewJob, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
@@ -137,7 +137,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
 
     tools.push(tool::<FileItem, ItemFiled, _, _>(
       "file_item",
-      "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other is a draft until an approver approves it. Name the repository the work is in, so only that repository's worker takes it, and none for host work; one change that reaches two or more repositories is one item, its repository the one it runs in, the umbrella repository where it has no home of its own, and its repositories label naming every repository it reaches, comma-separated.",
+      FILE_ITEM,
       "POST /item-filings",
       move |client, item: FileItem| {
         let ask = ItemFilingAsk {

@@ -141,17 +141,29 @@ pub async fn discipline(ground: &Ground) -> Result<String, String> {
     .map_err(|why| format!("mcp-host at {}: {why}", socket.display()))
 }
 
-/// The role, the capabilities and the standing road of a record issued for `agent` on `line`
-/// (docs/agent-roles.md, 「Where the role is read」): the line's capabilities, then the bundles the run's role
-/// gives — or the supervisor bundles for a supervisor — each once, and the one road the supervisor's own row
-/// names where it is a supervisor's record.
+/// What a record issued for an agent on a line reaches: the role it holds, its capabilities, the one road the
+/// supervisor's own row names where it is a supervisor's record, and the namespaces and the entries shown by name.
+struct Reach {
+  role: Option<String>,
+  capabilities: Vec<String>,
+  standing: Option<crate::order::Entry>,
+  namespaces: Vec<String>,
+  shown: Vec<String>,
+}
+
+/// What a record issued for `agent` on `line` reaches (docs/agent-roles.md, 「Where the role is read」): the line's
+/// capabilities, then the bundles the run's role gives — or the supervisor bundles for a supervisor, with the
+/// capabilities that operate the platform where it is the administrator's (docs/person-nodes.md, 「Who reaches a
+/// node」) — each once and narrowed by a supervisor's settings, and the line's namespaces and shown entries, with
+/// the tool host's entries that stand in for the line's servers where a supervisor's program stands on a node
+/// (docs/person-nodes.md, 「A supervisor's tools on a node」).
 async fn capabilities(
   ground: &Ground,
   line: &str,
   agent: &str,
   checkout: &str,
   run_role: Option<&str>,
-) -> Result<(Option<String>, Vec<String>, Option<crate::order::Entry>), Refusal> {
+) -> Result<Reach, Refusal> {
   // The role a run names holds its own bundles; a thrown-away session's place holds its session's role; a
   // supervisor holds the supervisor bundles; a checkout's run and a branch place hold the job role's
   // (docs/agent-roles.md, 「Where the role is read」).
@@ -186,21 +198,58 @@ async fn capabilities(
     None if supervisor => ROLES.supervisor.clone(),
     None => vec![],
   };
+  // The capabilities that operate the platform, on a line that hands its runs tools, where the supervisor is the
+  // administrator's.
+  let operating = match supervisor && !RUN_LINES.capabilities(line).is_empty() {
+    true => {
+      let caller = Caller {
+        agent: &named,
+        role: None,
+        checkout: None,
+      };
+
+      acting_for(&ground.db, &ground.roots.data, caller).await?.capabilities()
+    }
+    false => vec![],
+  };
   let mut held: Vec<String> = Vec::new();
 
-  for capability in RUN_LINES.capabilities(line).iter().chain(&bundles) {
+  for capability in RUN_LINES.capabilities(line).iter().chain(&bundles).chain(&operating) {
     if !held.contains(capability) {
       held.push(capability.clone());
     }
   }
 
+  let mut namespaces: Vec<String> = RUN_LINES.namespaces(line).to_vec();
+  let mut shown: Vec<String> = RUN_LINES.shown(line).to_vec();
+
   // A supervisor's settings close what its brain switch and its tool limit close (docs/supervisors.md, 「Its
-  // settings」).
+  // settings」), and where its program stands on a node its record reaches the tool host's entries that carry the
+  // work of the servers its configuration leaves out there.
   if supervisor {
-    held = crate::supervisor_limits::Limits::of(&ground.db, &named).await?.narrowed(held);
+    let limits = crate::supervisor_limits::Limits::of(&ground.db, &named).await?;
+
+    held = limits.narrowed(held);
+
+    for hosted in limits.hosted(line) {
+      for capability in &hosted.capabilities {
+        if !held.contains(capability) {
+          held.push(capability.clone());
+        }
+      }
+    }
+
+    namespaces = limits.namespaces(line);
+    shown = limits.shown(line);
   }
 
-  Ok((role, held, standing.and_then(|one| one.road())))
+  Ok(Reach {
+    role,
+    capabilities: held,
+    standing: standing.and_then(|one| one.road()),
+    namespaces,
+    shown,
+  })
 }
 
 // The record's `reads` label: the media the model the run goes out on reads natively, written under the
@@ -226,12 +275,11 @@ async fn reads_label(
   }
 }
 
-// A record for a run of `line`, held by `holder`, with the namespaces and shown entries that line declares,
-// the grants its caller holds, the data root every call reads, and the labels agency's tools read.
+// A record for a run held by `holder`, with the namespaces, capabilities and shown entries it reaches, the grants
+// its caller holds, the data root every call reads, and the labels agency's tools read.
 fn record(
-  line: &str,
   holder: &str,
-  capabilities: Vec<String>,
+  reach: Reach,
   grants: Vec<String>,
   variables: BTreeMap<String, String>,
   labels: Map<String, Value>,
@@ -239,10 +287,10 @@ fn record(
 ) -> SessionRequest {
   SessionRequest {
     holder_name: holder.to_owned(),
-    namespaces: RUN_LINES.namespaces(line).iter().cloned().collect(),
-    capabilities: capabilities.into_iter().collect(),
+    namespaces: reach.namespaces.into_iter().collect(),
+    capabilities: reach.capabilities.into_iter().collect(),
     grants: grants.into_iter().map(|resource| Granted { resource }).collect(),
-    shown: RUN_LINES.shown(line).iter().cloned().collect(),
+    shown: reach.shown.into_iter().collect(),
     // A run reaches every entry its lines' namespaces and capabilities give it.
     entries: None,
     variables,
@@ -439,12 +487,14 @@ pub async fn issue(
   checkout: &Path,
   road: Option<(&str, &str)>,
 ) -> Result<Option<String>, Refusal> {
-  let (role, capabilities, standing) =
-    capabilities(ground, line, agent, &checkout.to_string_lossy(), None).await?;
+  let mut reach = capabilities(ground, line, agent, &checkout.to_string_lossy(), None).await?;
 
-  if capabilities.is_empty() {
+  if reach.capabilities.is_empty() {
     return Ok(None);
   }
+
+  let role = reach.role.clone();
+  let standing = reach.standing.take();
 
   let data_root = ground.roots.data.to_string_lossy().into_owned();
   let mut variables = BTreeMap::from([("BMO_DATA_DIR".to_owned(), data_root)]);
@@ -488,7 +538,7 @@ pub async fn issue(
   reads_label(ground, road, standing, &mut labels).await;
   base_off(ground, person.as_deref(), &mut variables).await;
 
-  let mut request = record(line, agent, capabilities, grants, variables, labels, None);
+  let mut request = record(agent, reach, grants, variables, labels, None);
 
   owned(ground, &mut request, caller).await?;
   withhold(ground, &mut request, person, || crate::apps::place_file(place)).await;
@@ -602,16 +652,18 @@ pub async fn issue_for_run(
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
   let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
   let run_role = given(RUN_ROLE);
-  let (role, mut capabilities, standing) =
-    capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
+  let mut reach = capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
 
   if let Some(allowed) = named_tools(env) {
-    capabilities.retain(|capability| allowed.contains(capability));
+    reach.capabilities.retain(|capability| allowed.contains(capability));
   }
 
-  if capabilities.is_empty() {
+  if reach.capabilities.is_empty() {
     return Ok(None);
   }
+
+  let role = reach.role.clone();
+  let standing = reach.standing.take();
 
   let data_root = given("BMO_DATA_DIR").unwrap_or_else(|| ground.roots.data.to_string_lossy().into_owned());
   let mut variables: BTreeMap<String, String> = env
@@ -665,15 +717,7 @@ pub async fn issue_for_run(
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
   let place = given("BMO_AGENT_PLACE");
-  let mut request = record(
-    line,
-    &agent,
-    capabilities,
-    grants,
-    variables,
-    labels,
-    Some(deadline.saturating_sub(now)),
-  );
+  let mut request = record(&agent, reach, grants, variables, labels, Some(deadline.saturating_sub(now)));
 
   owned(ground, &mut request, caller).await?;
 

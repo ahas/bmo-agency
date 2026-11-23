@@ -21,6 +21,12 @@ wait_bound_seconds = 600
 # (docs/tools.md, 「The DeepSeek top-up」).
 administrator_grants = ["node.admin", "platform.payment"]
 
+# The capabilities that operate the platform (docs/person-nodes.md, 「Who reaches a node」): held by every tool
+# session agency issues for a supervisor of no account or of the administrator's account, beside what its line and
+# its bundles give, and by no other caller's, a person's supervisor among them. The testbed's deploy asks deploy, and
+# the research unit's taking, dismissing, stopping and resuming of the research queue ask research.owner.
+administrator_capabilities = ["deploy", "research.owner"]
+
 # The verbs of the CLI's bmo a node an account's record names may ask the home bridge to run here, each the first
 # word of its call (docs/person-nodes.md, 「Who reaches a node」): the status line's and the hooks' reading, a hosted
 # tool, and the other units' verbs a supervisor's manual names. Every other verb and every script is refused.

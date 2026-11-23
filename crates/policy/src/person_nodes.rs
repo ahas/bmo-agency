@@ -1,5 +1,6 @@
 //! A person's PC (docs/person-nodes.md): the ports the far end of the link stands on there, the verbs its home
-//! bridge runs here, and the grants a supervisor of no account holds, which reach every node.
+//! bridge runs here, and the grants and capabilities a supervisor of no account holds, which reach every node and
+//! operate the platform.
 
 use serde::Deserialize;
 
@@ -13,6 +14,9 @@ pub struct PersonNodes {
   pub wait_bound_seconds: u64,
   /// The resources every tool session issued for a supervisor of no account holds.
   pub administrator_grants: Vec<String>,
+  /// The capabilities that operate the platform, which every tool session issued for a supervisor of no account
+  /// holds and no other caller's does.
+  pub administrator_capabilities: Vec<String>,
   /// The verbs of the CLI a person's node may ask the home bridge to run here.
   pub bridge_verbs: Vec<String>,
   /// How often the PCs heard again are looked for, to keep their shared apps' copies, in seconds.

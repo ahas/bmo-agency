@@ -93,7 +93,7 @@ them.
   `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
   accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`) and `server`.
 - `tools/`: the tools agency provides to the tool host, `procedures`, `worker_ask`, `app_put`, `relay`,
-  `room_grant` and `deepseek_top_up`, each a folder with its `tool.toml` and the crate of its executable
+  `room_grant`, `deepseek_top_up` and `jobs`, each a folder with its `tool.toml` and the crate of its executable
   (`docs/tools.md`).
 - `packages/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
 - `screen-kit/`: what a personal app's screen is built with on a person's PC, a Bun project of its own vendoring

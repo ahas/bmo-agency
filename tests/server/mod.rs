@@ -17,6 +17,7 @@ mod chat_stand_in;
 mod clock;
 mod composition;
 mod conversation_session;
+mod node_tools;
 mod role_runs;
 mod role_sessions;
 mod command_reading {

@@ -6,5 +6,5 @@ mod tools;
 mod types;
 
 pub use client::{AgencyClient, Answer, ClientFailure, ListAccountsQuery};
-pub use tools::{REVIEW_JOB, STOP_JOB, TOOLS, Tool};
+pub use tools::{FILE_ITEM, REVIEW_JOB, STOP_JOB, TOOLS, Tool};
 pub use types::*;

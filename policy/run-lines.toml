@@ -38,7 +38,7 @@ needs = []
 keeps_session = true
 composes_typed_lines = true
 background_apart = true
-capabilities = ["room.tools", "gate.translate", "gate.reference", "deploy", "research.ask", "research.owner"]
+capabilities = ["room.tools", "gate.translate", "gate.reference", "research.ask"]
 namespaces = ["bmo", "gate", "eye", "ear", "testbed", "voice", "research"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
@@ -72,19 +72,27 @@ variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
 #
 # limited_keeps: the program's own tools no capability gives that a limited supervisor's program keeps: the
 #   tool search, which loads the definitions of the MCP tools it holds and reaches nothing else.
+# hosted: what stands in for a capability's servers where the supervisor's program stands on a node — a person's
+#   PC or an account's isolation node — which holds none of the addresses and secrets those servers run with
+#   (docs/person-nodes.md, 「A supervisor's tools on a node」): the tool host's namespaces its configuration and
+#   record name beside the line's, the capabilities its record holds for them, and the entries shown by name. Each
+#   is served at home by the tool host and reached over the node's link with the session's own token.
 limited_keeps = ["ToolSearch"]
 
 [[chat.held]]
 capability = "jobs.file"
 servers = ["job", "agency"]
+hosted = { namespaces = ["agency"], capabilities = ["jobs.file"], shown = ["agency/file_item", "bmo/todo_list", "bmo/todo_show"] }
 
 [[chat.held]]
 capability = "web.pages"
 servers = ["explorer"]
+hosted = { namespaces = ["web"], capabilities = ["web.read"], shown = ["web/web_search", "web/web_fetch"] }
 
 [[chat.held]]
 capability = "documents.file"
 servers = ["artifact"]
+hosted = { namespaces = ["artifact"], capabilities = ["documents.file"], shown = ["artifact/artifact_publish", "artifact/artifact_search", "artifact/artifact_share"] }
 
 [[chat.held]]
 capability = "program.shell"

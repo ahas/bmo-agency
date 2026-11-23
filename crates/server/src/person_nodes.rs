@@ -68,6 +68,19 @@ pub async fn node_of<C: ConnectionTrait>(db: &C, account: &str) -> Result<Option
   placed_for(db, Some(account), recorded).await
 }
 
+/// The node a supervisor's program stands on: the one its account's runs stand on, none for a supervisor of no
+/// account, for one of the administrator's account its record places nowhere, and for a name that is no
+/// supervisor's.
+pub async fn supervisor_node<C: ConnectionTrait>(
+  db: &C,
+  supervisor: &str,
+) -> Result<Option<String>, Refusal> {
+  match crate::supervisors::named(db, supervisor).await?.and_then(|row| row.owner_account) {
+    Some(account) => node_of(db, &account.to_string()).await,
+    None => Ok(None),
+  }
+}
+
 /// The node the runs of an account stand on, given the node its record names: that node, else the account's
 /// isolation node; none for no account and for the administrator's.
 pub async fn placed_for<C: ConnectionTrait>(
@@ -330,6 +343,16 @@ impl ActingFor {
   pub fn grants(&self) -> Vec<String> {
     if self.administrator {
       policy::person_nodes::PERSON_NODES.administrator_grants.clone()
+    } else {
+      Vec::new()
+    }
+  }
+
+  /// The capabilities that operate the platform a tool session's record for this caller holds: the policy's for an
+  /// administrator's supervisor, none for any other.
+  pub fn capabilities(&self) -> Vec<String> {
+    if self.administrator {
+      policy::person_nodes::PERSON_NODES.administrator_capabilities.clone()
     } else {
       Vec::new()
     }

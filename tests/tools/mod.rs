@@ -11,6 +11,7 @@ mod app_put;
 mod call;
 mod deepseek_top_up;
 mod deepseek_top_up_payment;
+mod jobs;
 mod manifests;
 mod procedures;
 mod relay;

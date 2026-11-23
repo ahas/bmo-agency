@@ -93,6 +93,41 @@ desktop coding agent whose models and tools are served from elsewhere.
   reach, places and records of an account's own — and a setup that installs bubblewrap on the PC and checks its
   user namespaces; it is left (「What stands and what is left」).
 
+## A supervisor's tools on a node
+
+A supervisor's core tools at home are programs its own program starts beside it with this machine's addresses and
+secrets: the job service's plugin and agency's own server, holding the job service's and agency's tokens, the
+artifact service's plugin, holding its token, and the explorer service's plugin, reading this machine's data root
+(`docs/launch-lines.md`, 「What a line's program is allowed, by road」). None of those is ever sent to a node
+(「The link over jake」), so on a node they would start with nothing to reach and nothing to present. A supervisor
+whose program stands on a node is handed the same work as the tool host's entries instead, served at home and
+reached the way the node already reaches the tool host: over the link, behind the session's own token.
+
+- **Which supervisor:** one whose account's runs stand on a node — its person's PC, a node the administrator bound
+  it to, or its isolation node (「Which node is a person's」). A supervisor of no account, and one of the
+  administrator's account that no record places on a node, keep the servers as they stand.
+- **What stands in, per capability the chat line holds outside the tool host** (`policy/run-lines.toml`, each
+  `held` entry's `hosted`; `docs/supervisors.md`, 「What each capability stands for」):
+
+  | Capability | Left out of the configuration | Handed in its place | The record holds |
+  |---|---|---|---|
+  | `jobs.file` | `job`, `agency` | the tool host's `agency` namespace, agency's own job tools — `file_item`, `stop_job`, `review_job` (`docs/tools.md`, 「The job tools on a node」) — with the job service's queue readings `bmo/todo_list` and `bmo/todo_show` shown by name | `jobs.file` |
+  | `web.pages` | `explorer` | the tool host's `web` namespace, the explorer service's `web_search` and `web_fetch` | `web.read` |
+  | `documents.file` | `artifact` | the tool host's `artifact` namespace, the artifact service's own entries of its harness tools (the artifact service's `docs/api.md`) | `documents.file` |
+
+- **The names stay the program's own:** the `agency` and `artifact` namespaces stand under the names the
+  servers they replace stand under at home, and their entries keep the servers' tool names, so a supervisor calls
+  `file_item` or `artifact_publish` by the same name wherever its program stands.
+- **Each call acts for the session's owner:** the tool host runs it at home under the session's record, checked as
+  any hosted call is, against the record's namespaces and capabilities; agency's job tools act for the supervisor
+  the record is held by, and the artifact service's for the account the record names, `ownerAccount` (`docs/tools.md`,
+  「The owner and the runner a record names」). The node holds no address, token or file of any of them.
+- **A tool limit closes each the same way:** a limit leaving a capability out leaves out both its servers at home
+  and what stands in for them on a node (`docs/supervisors.md`, 「Its settings」).
+- **What has no stand-in is not handed:** the job plugin's leasing of an item from a queue and agency's
+  `assign_worker`, `release_worker` and `run_job`, which run an item a supervisor holds itself, stand on no node.
+  A supervisor on a node files an item, and the job service and the owner's approval take it from there.
+
 ## Personal tools on a PC
 
 A person's personal tools — tools of their own, which their BMO writes for them — are built, kept and run on their
@@ -395,6 +430,11 @@ whose data stays on that PC. Nothing of it reaches another company.
     resource the node tool reads as reaching every node, and `platform.payment`, the platform's own card, which
     agency's DeepSeek top-up declares (`docs/tools.md`, 「The DeepSeek top-up」). A record holds what was true when it was issued, and a session issued
     again reads its caller afresh.
+  - **the capabilities that operate the platform** go with the grant, on a record of a line that hands its runs
+    tools: `deploy`, which the testbed's deploy asks, and `research.owner`, which the research unit's taking,
+    dismissing, stopping and resuming of the research queue ask (`policy/person-nodes.toml`,
+    `administrator_capabilities`). No line gives them, so a person's supervisor, a role agent, a seat's run and a job
+    hold neither, and its tool limit narrows them as it narrows every other capability.
 - **The tool reads the first two over agency's routes and the third off the caller's record** (`docs/api.md`,
   「person-nodes」): the node's owners from the list of these records, the caller's account from the supervisor or
   the role agent its record is held under, and the grant from the record itself, which agency wrote when it
@@ -597,7 +637,8 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the link over jake | a link spec may name a person's PC (`jake`): the near end speaks the mirror over the hub's connect program, joins the herdr socket, and dials home each connection the far end takes for the tool host, the model gateway or the bridge, over a stream of its own to the mirror port, a connection unheard for its bound dropped and dialed again; the far end listens at the PC's loopback for the mirror, the herdr socket and the ports the near end names, and says which it could not listen on | — |
 | the workplace on a PC | setup, check and sync reach a PC through its hub, each command a transient unit of the person's own watched until it ends: the deploy tree's commit uploaded and laid out there, the workplace's own runtime, the node binaries built there, the data root and the herdr session, and the far end standing as the user service `bmo-node-link` on the mirror and herdr ports; a second workplace on a PC whose far end a ready workplace holds, told by the Linux shell's machine id, refused and said; what the agent does not offer, a port the far end could not listen on and WSL's networking on a Windows PC are said; a look the PC did not answer said as such rather than as a tool missing, and a workplace not ready checked again by itself so its link stands again once a check finds it ready | — |
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard, the wait typed `node-link`, ended by a stop and bounded by the policy, and neither counted by the quiet nor lost silently across a restart | — |
-| who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
+| a supervisor's tools on a node | a supervisor whose account's runs stand on a node handed the tool host's `agency`, `web` and `artifact` namespaces in place of the job, agency, explorer and artifact servers, its record holding the capabilities their entries ask, each limited as the servers are; agency's `jobs` tool filing, stopping and reviewing for the record's holder | — |
+| who reaches a node | the administrator's grant and the capabilities that operate the platform written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
 | several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
 | personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network but the call's own proxy to the addresses its manifest lists, the secrets it names handed in the confinement's memory for the call alone, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
 | personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for; a screen of an app's own built with the workplace's screen kit, its index written as it is placed, its files read for the tool host, and a short-lived session issued for a console to read and call it under | — |

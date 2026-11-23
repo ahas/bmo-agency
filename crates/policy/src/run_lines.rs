@@ -72,6 +72,25 @@ pub struct Held {
   /// The program's own tools.
   #[serde(default)]
   pub tools: Vec<String>,
+  /// What stands in for its servers on the tool host where the supervisor's program stands on a node, which
+  /// holds none of the addresses and secrets those servers run with (docs/person-nodes.md, 「A supervisor's
+  /// tools on a node」); none where nothing stands in.
+  #[serde(default)]
+  pub hosted: Option<Hosted>,
+}
+
+/// The tool host's entries that carry a capability's work for a supervisor whose program stands on a node: the
+/// namespaces its configuration and record name beside the line's, the capabilities its record holds for them,
+/// and the entries shown by name.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Hosted {
+  #[serde(default)]
+  pub namespaces: Vec<String>,
+  #[serde(default)]
+  pub capabilities: Vec<String>,
+  #[serde(default)]
+  pub shown: Vec<String>,
 }
 
 /// Every line, by its name.
