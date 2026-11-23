@@ -31,8 +31,8 @@ fn a_role_is_off_where_any_link_says_so_and_its_agents_are_the_nearest_link_s() 
     making
       .agents
       .as_deref()
-      .map(|agents| agents.iter().map(|one| one.model.as_str()).collect::<Vec<_>>()),
-    Some(vec!["pro", "flash"])
+      .map(|agents| agents.iter().map(|one| one.model.as_deref()).collect::<Vec<_>>()),
+    Some(vec![Some("pro"), Some("flash")])
   );
   assert!(stood["reading"].off);
   assert_eq!(stood["reading"].agents, None::<Vec<Road>>);
@@ -145,4 +145,20 @@ async fn a_unit_turns_a_role_off_and_gives_another_no_agents() {
   .await;
 
   assert!(made.is_empty(), "{made:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agents_naming_no_road_are_given_on_the_template_s_road_numbered_from_the_second() {
+  let made = made_for(json!([
+    { "link": "unit:4", "value": { "roles": { "checking": { "agents": [{}, {}] }, "making": { "off": true } } } },
+  ]))
+  .await;
+  let named: Vec<&str> = made.iter().map(|agent| agent.name.as_str()).collect();
+
+  assert_eq!(named, ["checking-u7", "checking-u7-2"]);
+  assert!(
+    made
+      .iter()
+      .all(|agent| agent.prompt.as_deref() == Some("The checking template's own words."))
+  );
 }

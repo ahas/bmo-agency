@@ -4918,8 +4918,9 @@ export interface components {
         };
         /** @description One agent's road in a sign-up composition. */
         CompositionRoad: {
-            provider: string;
-            model: string;
+            /** @description None, with no model, for the road of the role's own agent of no account. */
+            provider?: string | null;
+            model?: string | null;
             effort?: string | null;
         };
         /** @description A link's sign-up composition written: `{ roles: { <role>: { off, agents } } }`, or null to follow above. */

@@ -16156,10 +16156,17 @@
         "type": "object",
         "properties": {
           "provider": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "None, with no model, for the road of the role's own agent of no account."
           },
           "model": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "effort": {
             "type": [
@@ -16168,10 +16175,6 @@
             ]
           }
         },
-        "required": [
-          "provider",
-          "model"
-        ],
         "description": "One agent's road in a sign-up composition."
       },
       "SignupCompositionAsk": {

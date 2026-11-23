@@ -987,8 +987,11 @@ pub struct SupplySources {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompositionRoad {
-  pub provider: String,
-  pub model: String,
+  /// None, with no model, for the road of the role's own agent of no account.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub effort: Option<String>,
 }

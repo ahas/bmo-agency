@@ -243,7 +243,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   agency declares」) and judges and writes its value itself.
 - **A composition names roles under `roles`,** each with `off`, whether the people under the link may not use
   the role, and `agents`, the roads of the agents a person is given of it, each a `provider`, a `model` and an
-  `effort`, at most the policy's number of them (`policy/organisation.toml`). A role named nowhere stands as the
+  `effort`, or none of them for the road of the role's agent of no account, at most the policy's number of them (`policy/organisation.toml`). A role named nowhere stands as the
   platform's own rule gives it: one agent on the road of the role's agent of no account that is on, none where
   the role holds no such agent. With nothing set anywhere, every person is given what that rule gives.
 - **What stands for a person:** a role is off where any link of their chain still read says so; its agents are

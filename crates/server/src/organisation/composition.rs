@@ -20,12 +20,15 @@ use crate::control::Refused;
 use crate::places::Ground;
 use crate::role_agents::{self, RoleAgent};
 
-/// One agent's road in a composition.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+/// One agent's road in a composition: a provider and a model together, or neither for the road of the role's own
+/// agent of no account.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Road {
-  pub provider: String,
-  pub model: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub effort: Option<String>,
 }
@@ -88,7 +91,15 @@ pub async fn judge(ground: &Ground, value: &Value) -> Result<Composition, Refuse
     }
 
     for road in agents {
-      crate::control::role_agents::judged(ground, &role, fresh(name, None), &road_body(road)).await?;
+      if road.provider.is_some() != road.model.is_some() {
+        return Err(unprocessable(format!(
+          "{name}: an agent's road names its provider together with its model, or neither."
+        )));
+      }
+
+      if road.provider.is_some() {
+        crate::control::role_agents::judged(ground, &role, fresh(name, None), &road_body(road)).await?;
+      }
     }
   }
 
@@ -210,7 +221,7 @@ pub async fn compose(ground: &Ground, user: i64) -> Result<Vec<RoleAgent>, Refus
       .find(|agent| agent.role == role.name && agent.owner_account.is_none() && agent.enabled)
       .cloned();
     let roads: Vec<Option<Road>> = match said.and_then(|said| said.agents.clone()) {
-      Some(agents) => agents.into_iter().map(Some).collect(),
+      Some(agents) => agents.into_iter().map(|road| road.provider.is_some().then_some(road)).collect(),
       None if template.is_some() => vec![None],
       None => Vec::new(),
     };
